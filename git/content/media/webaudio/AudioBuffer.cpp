@@ -84,7 +84,7 @@ AudioBuffer::InitializeBuffers(uint32_t aNumberOfChannels, JSContext* aJSContext
 }
 
 JSObject*
-AudioBuffer::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+AudioBuffer::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return AudioBufferBinding::Wrap(aCx, aScope, this);
 }
@@ -105,13 +105,6 @@ AudioBuffer::RestoreJSChannelData(JSContext* aJSContext)
 
     mSharedChannels = nullptr;
   }
-}
-
-void
-AudioBuffer::SetRawChannelContents(JSContext* aJSContext, uint32_t aChannel,
-                                   float* aContents)
-{
-  memcpy(JS_GetFloat32ArrayData(mJSChannels[aChannel]), aContents, sizeof(float)*mLength);
 }
 
 JSObject*
@@ -165,7 +158,8 @@ StealJSArrayDataIntoThreadSharedFloatArrayBufferList(JSContext* aJSContext,
 }
 
 ThreadSharedFloatArrayBufferList*
-AudioBuffer::GetThreadSharedChannelsForRate(JSContext* aJSContext)
+AudioBuffer::GetThreadSharedChannelsForRate(JSContext* aJSContext, uint32_t* aRate,
+                                            uint32_t* aLength)
 {
   if (!mSharedChannels) {
     // Steal JS data
@@ -173,6 +167,8 @@ AudioBuffer::GetThreadSharedChannelsForRate(JSContext* aJSContext)
       StealJSArrayDataIntoThreadSharedFloatArrayBufferList(aJSContext, mJSChannels);
   }
 
+  *aLength = mLength;
+  *aRate = mSampleRate;
   return mSharedChannels;
 }
 

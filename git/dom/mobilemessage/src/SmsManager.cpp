@@ -192,44 +192,27 @@ SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value*
     return Send(cx, global, aNumber.toString(), aMessage, aReturn);
   }
 
-  // Must be an object then.
-  if (!aNumber.isObject()) {
-    return NS_ERROR_FAILURE;
-  }
-
+  // Must be an array then.
   JSObject& numbers = aNumber.toObject();
+
   uint32_t size;
-  if (!JS_GetArrayLength(cx, &numbers, &size)) {
-    return NS_ERROR_FAILURE;
-  }
+  JS_ALWAYS_TRUE(JS_GetArrayLength(cx, &numbers, &size));
 
-  JS::AutoValueVector requests(cx);
-  if (!requests.resize(size)) {
-    return NS_ERROR_FAILURE;
-  }
+  JS::Value* requests = new JS::Value[size];
 
-  JS::RootedString str(cx);
-  for (uint32_t i = 0; i < size; ++i) {
+  for (uint32_t i=0; i<size; ++i) {
     JS::Value number;
     if (!JS_GetElement(cx, &numbers, i, &number)) {
       return NS_ERROR_INVALID_ARG;
     }
 
-    str = JS_ValueToString(cx, number);
-    if (!str) {
-      return NS_ERROR_FAILURE;
-    }
-
-    nsresult rv = Send(cx, global, str, aMessage, &requests[i]);
+    nsresult rv = Send(cx, global, number.toString(), aMessage, &requests[i]);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  JSObject* obj = JS_NewArrayObject(cx, requests.length(), requests.begin());
-  if (!obj) {
-    return NS_ERROR_FAILURE;
-  }
+  aReturn->setObjectOrNull(JS_NewArrayObject(cx, size, requests));
+  NS_ENSURE_TRUE(aReturn->isObject(), NS_ERROR_FAILURE);
 
-  aReturn->setObject(*obj);
   return NS_OK;
 }
 

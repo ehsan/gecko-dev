@@ -12,7 +12,6 @@
 
 #include "BaselineJIT.h"
 #include "BaselineIC.h"
-#include "MIR.h"
 
 namespace js {
 namespace ion {
@@ -49,7 +48,7 @@ class BaselineInspector
     ICEntry *prevLookedUpEntry;
 
   public:
-    BaselineInspector(JSContext *cx, JSScript *rawScript)
+    BaselineInspector(JSContext *cx, RawScript rawScript)
       : script(cx, rawScript), prevLookedUpEntry(NULL)
     {
         JS_ASSERT(script);
@@ -89,19 +88,12 @@ class BaselineInspector
         return ICInspectorType(this, pc, ent);
     }
 
-    ICStub *monomorphicStub(jsbytecode *pc);
-    bool dimorphicStub(jsbytecode *pc, ICStub **pfirst, ICStub **psecond);
-
   public:
-    bool maybeShapesForPropertyOp(jsbytecode *pc, Vector<Shape *> &shapes);
+    RawShape maybeMonomorphicShapeForPropertyOp(jsbytecode *pc);
 
     SetElemICInspector setElemICInspector(jsbytecode *pc) {
         return makeICInspector<SetElemICInspector>(pc, ICStub::SetElem_Fallback);
     }
-
-    MIRType expectedResultType(jsbytecode *pc);
-    MCompare::CompareType expectedCompareType(jsbytecode *pc);
-    MIRType expectedBinaryArithSpecialization(jsbytecode *pc);
 };
 
 } // namespace ion

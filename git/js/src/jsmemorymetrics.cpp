@@ -18,6 +18,7 @@
 
 #include "ion/BaselineJIT.h"
 #include "ion/Ion.h"
+#include "ion/IonCode.h"
 #include "vm/Shape.h"
 
 #include "jsobjinlines.h"
@@ -119,7 +120,7 @@ StatsCompartmentCallback(JSRuntime *rt, void *data, JSCompartment *compartment)
                                      &cStats.crossCompartmentWrappersTable,
                                      &cStats.regexpCompartment,
                                      &cStats.debuggeesSet,
-                                     &cStats.baselineStubsOptimized);
+                                     &cStats.baselineOptimizedStubs);
 }
 
 static void
@@ -221,7 +222,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
       }
 
       case JSTRACE_SHAPE: {
-        Shape *shape = static_cast<Shape *>(thing);
+        RawShape shape = static_cast<RawShape>(thing);
         CompartmentStats *cStats = GetCompartmentStats(shape->compartment());
         size_t propTableSize, kidsSize;
         shape->sizeOfExcludingThis(rtStats->mallocSizeOf_, &propTableSize, &kidsSize);
@@ -242,7 +243,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
       }
 
       case JSTRACE_BASE_SHAPE: {
-        BaseShape *base = static_cast<BaseShape *>(thing);
+        RawBaseShape base = static_cast<RawBaseShape>(thing);
         CompartmentStats *cStats = GetCompartmentStats(base->compartment());
         cStats->gcHeapShapesBase += thingSize;
         break;
@@ -256,11 +257,11 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
 #ifdef JS_METHODJIT
         cStats->jaegerData += script->sizeOfJitScripts(rtStats->mallocSizeOf_);
 # ifdef JS_ION
-        size_t baselineData = 0, baselineStubsFallback = 0;
+        size_t baselineData = 0, baselineFallbackStubs = 0;
         ion::SizeOfBaselineData(script, rtStats->mallocSizeOf_, &baselineData,
-                                &baselineStubsFallback);
+                                &baselineFallbackStubs);
         cStats->baselineData += baselineData;
-        cStats->baselineStubsFallback += baselineStubsFallback;
+        cStats->baselineFallbackStubs += baselineFallbackStubs;
         cStats->ionData += ion::SizeOfIonData(script, rtStats->mallocSizeOf_);
 # endif
 #endif

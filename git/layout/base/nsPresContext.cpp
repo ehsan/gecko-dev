@@ -56,6 +56,7 @@
 #include "nsStyleStructInlines.h"
 #include "nsIAppShell.h"
 #include "prenv.h"
+#include "nsIDOMEventTarget.h"
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
 #include "nsAnimationManager.h"
@@ -1460,8 +1461,11 @@ nsPresContext::SetContainer(nsISupports* aHandler)
 already_AddRefed<nsISupports>
 nsPresContext::GetContainerInternal() const
 {
-  nsCOMPtr<nsISupports> result = do_QueryReferent(mContainer);
-  return result.forget();
+  nsISupports *result = nullptr;
+  if (mContainer)
+    CallQueryReferent(mContainer.get(), &result);
+
+  return result;
 }
 
 already_AddRefed<nsISupports>
@@ -2132,7 +2136,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   if (aInnerWindow->HasPaintEventListeners())
     return true;
 
-  EventTarget* parentTarget = aInnerWindow->GetParentTarget();
+  nsIDOMEventTarget* parentTarget = aInnerWindow->GetParentTarget();
   if (!parentTarget)
     return false;
 
@@ -2162,7 +2166,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
     return MayHavePaintEventListener(window);
 
   nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(parentTarget);
-  EventTarget* tabChildGlobal;
+  nsIDOMEventTarget* tabChildGlobal;
   return root &&
          (tabChildGlobal = root->GetParentTarget()) &&
          (manager = tabChildGlobal->GetListenerManager(false)) &&

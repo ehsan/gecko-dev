@@ -616,22 +616,23 @@ RegisterStaticAtoms(const nsStaticAtom* aAtoms, uint32_t aAtomCount)
   return NS_OK;
 }
 
-already_AddRefed<nsIAtom>
+nsIAtom*
 NS_NewAtom(const char* aUTF8String)
 {
   return NS_NewAtom(nsDependentCString(aUTF8String));
 }
 
-already_AddRefed<nsIAtom>
+nsIAtom*
 NS_NewAtom(const nsACString& aUTF8String)
 {
   AtomTableEntry *he = GetAtomHashEntry(aUTF8String.Data(),
                                         aUTF8String.Length());
 
   if (he->mAtom) {
-    nsCOMPtr<nsIAtom> atom = he->mAtom;
+    nsIAtom* atom;
+    NS_ADDREF(atom = he->mAtom);
 
-    return atom.forget();
+    return atom;
   }
 
   // This results in an extra addref/release of the nsStringBuffer.
@@ -639,35 +640,38 @@ NS_NewAtom(const nsACString& aUTF8String)
   // Actually, now there is, sort of: ForgetSharedBuffer.
   nsString str;
   CopyUTF8toUTF16(aUTF8String, str);
-  nsRefPtr<AtomImpl> atom = new AtomImpl(str, he->keyHash);
+  AtomImpl* atom = new AtomImpl(str, he->keyHash);
 
   he->mAtom = atom;
+  NS_ADDREF(atom);
 
-  return atom.forget();
+  return atom;
 }
 
-already_AddRefed<nsIAtom>
+nsIAtom*
 NS_NewAtom(const PRUnichar* aUTF16String)
 {
   return NS_NewAtom(nsDependentString(aUTF16String));
 }
 
-already_AddRefed<nsIAtom>
+nsIAtom*
 NS_NewAtom(const nsAString& aUTF16String)
 {
   AtomTableEntry *he = GetAtomHashEntry(aUTF16String.Data(),
                                         aUTF16String.Length());
 
   if (he->mAtom) {
-    nsCOMPtr<nsIAtom> atom = he->mAtom;
+    nsIAtom* atom;
+    NS_ADDREF(atom = he->mAtom);
 
-    return atom.forget();
+    return atom;
   }
 
-  nsRefPtr<AtomImpl> atom = new AtomImpl(aUTF16String, he->keyHash);
+  AtomImpl* atom = new AtomImpl(aUTF16String, he->keyHash);
   he->mAtom = atom;
+  NS_ADDREF(atom);
 
-  return atom.forget();
+  return atom;
 }
 
 nsIAtom*

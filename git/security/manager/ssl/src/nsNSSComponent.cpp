@@ -9,8 +9,6 @@
 #endif
 
 #include "nsNSSComponent.h"
-
-#include "CertVerifier.h"
 #include "nsNSSCallbacks.h"
 #include "nsNSSIOLayer.h"
 #include "nsCertVerificationThread.h"
@@ -69,6 +67,7 @@
 #include "nsNSSShutDown.h"
 #include "GeneratedEvents.h"
 #include "nsIKeyModule.h"
+#include "ScopedNSSTypes.h"
 #include "SharedSSLState.h"
 
 #include "nss.h"
@@ -97,7 +96,6 @@
 #include "p12plcy.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::psm;
 
 #ifdef MOZ_LOGGING
@@ -107,12 +105,8 @@ PRLogModuleInfo* gPIPNSSLog = nullptr;
 #define NS_CRYPTO_HASH_BUFFER_SIZE 4096
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
 int nsNSSComponent::mInstanceCount = 0;
-
-#ifndef NSS_NO_LIBPKIX
 bool nsNSSComponent::globalConstFlagUsePKIXVerification = false;
-#endif
 
 // XXX tmp callback for slot password
 extern char* pk11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void *arg);
@@ -357,11 +351,9 @@ nsNSSComponent::nsNSSComponent()
   mTimer = nullptr;
   mObserversRegistered = false;
 
-#ifndef NSS_NO_LIBPKIX
   // In order to keep startup time lower, we delay loading and 
   // registering all identity data until first needed.
   memset(&mIdentityInfoCallOnce, 0, sizeof(PRCallOnceType));
-#endif
 
   NS_ASSERTION( (0 == mInstanceCount), "nsNSSComponent is a singleton, but instantiated multiple times!");
   ++mInstanceCount;
@@ -1106,18 +1098,23 @@ void nsNSSComponent::setValidationOptions(nsIPrefBranch * pref)
                            ocspMode_FailureIsVerificationFailure
                            : ocspMode_FailureIsNotAVerificationFailure);
 
-  mDefaultCertVerifier = new CertVerifier(
+  RefPtr<nsCERTValInParamWrapper> newCVIN(new nsCERTValInParamWrapper);
+  if (NS_SUCCEEDED(newCVIN->Construct(
       aiaDownloadEnabled ? 
-        CertVerifier::missing_cert_download_on : CertVerifier::missing_cert_download_off,
+        nsCERTValInParamWrapper::missing_cert_download_on : nsCERTValInParamWrapper::missing_cert_download_off,
       crlDownloading ?
-        CertVerifier::crl_download_allowed : CertVerifier::crl_local_only,
+        nsCERTValInParamWrapper::crl_download_allowed : nsCERTValInParamWrapper::crl_local_only,
       ocspEnabled ? 
-        CertVerifier::ocsp_on : CertVerifier::ocsp_off,
+        nsCERTValInParamWrapper::ocsp_on : nsCERTValInParamWrapper::ocsp_off,
       ocspRequired ? 
-        CertVerifier::ocsp_strict : CertVerifier::ocsp_relaxed,
+        nsCERTValInParamWrapper::ocsp_strict : nsCERTValInParamWrapper::ocsp_relaxed,
       anyFreshRequired ?
-        CertVerifier::any_revo_strict : CertVerifier::any_revo_relaxed,
-      firstNetworkRevo.get());
+        nsCERTValInParamWrapper::any_revo_strict : nsCERTValInParamWrapper::any_revo_relaxed,
+      firstNetworkRevo.get()))) {
+    // Swap to new defaults, and will cause the old defaults to be released,
+    // as soon as any concurrent use of the old default objects has finished.
+    mDefaultCERTValInParam = newCVIN;
+  }
 
   /*
     * The new defaults might change the validity of already established SSL sessions,
@@ -1695,11 +1692,9 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
     TryCFM2MachOMigration(cfmSecurityPath, profilePath);
   #endif
 
-#ifndef NSS_NO_LIBPKIX
     rv = mPrefBranch->GetBoolPref("security.use_libpkix_verification", &globalConstFlagUsePKIXVerification);
     if (NS_FAILED(rv))
       globalConstFlagUsePKIXVerification = USE_NSS_LIBPKIX_DEFAULT;
-#endif
 
     bool supress_warning_preference = false;
     rv = mPrefBranch->GetBoolPref("security.suppress_nss_rw_impossible_warning", &supress_warning_preference);
@@ -1831,6 +1826,20 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
       // dynamic options from prefs
       setValidationOptions(mPrefBranch);
 
+      // static validation options for usagesarray - do not hit the network
+      mDefaultCERTValInParamLocalOnly = new nsCERTValInParamWrapper;
+      rv = mDefaultCERTValInParamLocalOnly->Construct(
+          nsCERTValInParamWrapper::missing_cert_download_off,
+          nsCERTValInParamWrapper::crl_local_only,
+          nsCERTValInParamWrapper::ocsp_off,
+          nsCERTValInParamWrapper::ocsp_relaxed,
+          nsCERTValInParamWrapper::any_revo_relaxed,
+          FIRST_REVO_METHOD_DEFAULT);
+      if (NS_FAILED(rv)) {
+        nsPSMInitPanic::SetPanic();
+        return rv;
+      }
+      
       RegisterMyOCSPAIAInfoCallback();
 
       mHttpForNSS.initTable();
@@ -1893,9 +1902,7 @@ nsNSSComponent::ShutdownNSS()
 #endif
     SSL_ClearSessionCache();
     UnloadLoadableRoots();
-#ifndef NSS_NO_LIBPKIX
     CleanupIdentityInfo();
-#endif
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("evaporating psm resources\n"));
     mShutdownObjectList->evaporateAllNSSResources();
     EnsureNSSInitialized(nssShutdown);
@@ -2046,7 +2053,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, uint32_t aRSABufLen,
   *aPrincipal = nullptr;
 
   nsNSSShutDownPreventionLock locker;
-  ScopedSEC_PKCS7ContentInfo p7_info;
+  ScopedSEC_PKCS7ContentInfo p7_info; 
   unsigned char hash[SHA1_LENGTH]; 
 
   SECItem item;
@@ -2065,7 +2072,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, uint32_t aRSABufLen,
 
   // Make sure we call SEC_PKCS7DestroyContentInfo after this point;
   // otherwise we leak data in p7_info
-
+  
   //-- If a plaintext was provided, hash it.
   SECItem digest;
   digest.data = nullptr;
@@ -2518,14 +2525,23 @@ nsNSSComponent::IsNSSInitialized(bool *initialized)
   return NS_OK;
 }
 
-//#ifndef NSS_NO_LIBPKIX
 NS_IMETHODIMP
-nsNSSComponent::GetDefaultCertVerifier(RefPtr<CertVerifier> &out)
+nsNSSComponent::GetDefaultCERTValInParam(RefPtr<nsCERTValInParamWrapper> &out)
 {
   MutexAutoLock lock(mutex);
   if (!mNSSInitialized)
       return NS_ERROR_NOT_INITIALIZED;
-  out = mDefaultCertVerifier;
+  out = mDefaultCERTValInParam;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSSComponent::GetDefaultCERTValInParamLocalOnly(RefPtr<nsCERTValInParamWrapper> &out)
+{
+  MutexAutoLock lock(mutex);
+  if (!mNSSInitialized)
+      return NS_ERROR_NOT_INITIALIZED;
+  out = mDefaultCERTValInParamLocalOnly;
   return NS_OK;
 }
 

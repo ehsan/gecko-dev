@@ -83,9 +83,11 @@
 #include "GeckoProfiler.h"
 
 #ifdef DEBUG
+#undef NOISY_BLINK
 #undef NOISY_REFLOW
 #undef NOISY_TRIM
 #else
+#undef NOISY_BLINK
 #undef NOISY_REFLOW
 #undef NOISY_TRIM
 #endif
@@ -1706,8 +1708,9 @@ GetReferenceRenderingContext(nsTextFrame* aTextFrame, nsRenderingContext* aRC)
       return nullptr;
   }
 
-  nsRefPtr<gfxContext> ctx = tmp->ThebesContext();
-  return ctx.forget();
+  gfxContext* ctx = tmp->ThebesContext();
+  NS_ADDREF(ctx);
+  return ctx;
 }
 
 /**
@@ -1882,7 +1885,6 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
           frag->Get2b() + contentStart, contentLength, bufStart,
           compression, &mNextRunContextInfo, &builder, &analysisFlags);
       aTextBuffer = bufEnd;
-      currentTransformedTextOffset = bufEnd - static_cast<const PRUnichar*>(textPtr);
     } else {
       if (mDoubleByteText) {
         // Need to expand the text. First transform it into a temporary buffer,
@@ -1898,18 +1900,18 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
             bufStart, compression, &mNextRunContextInfo, &builder, &analysisFlags);
         aTextBuffer = ExpandBuffer(static_cast<PRUnichar*>(aTextBuffer),
                                    tempBuf.Elements(), end - tempBuf.Elements());
-        currentTransformedTextOffset =
-          static_cast<PRUnichar*>(aTextBuffer) - static_cast<const PRUnichar*>(textPtr);
       } else {
         uint8_t* bufStart = static_cast<uint8_t*>(aTextBuffer);
         uint8_t* end = nsTextFrameUtils::TransformText(
             reinterpret_cast<const uint8_t*>(frag->Get1b()) + contentStart, contentLength,
             bufStart, compression, &mNextRunContextInfo, &builder, &analysisFlags);
         aTextBuffer = end;
-        currentTransformedTextOffset = end - static_cast<const uint8_t*>(textPtr);
       }
     }
     textFlags |= analysisFlags;
+
+    currentTransformedTextOffset =
+      (static_cast<const uint8_t*>(aTextBuffer) - static_cast<const uint8_t*>(textPtr)) >> mDoubleByteText;
   }
 
   // Check for out-of-memory in gfxSkipCharsBuilder
@@ -7531,7 +7533,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   }
 
   uint32_t flowEndInTextRun;
-  nsIFrame* lineContainer = aLineLayout.LineContainerFrame();
+  nsIFrame* lineContainer = aLineLayout.GetLineContainerFrame();
   gfxContext* ctx = aRenderingContext->ThebesContext();
   const nsTextFragment* frag = mContent->GetText();
 
@@ -7882,7 +7884,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   // When we have text decorations, we don't need to compute their overflow now
   // because we're guaranteed to do it later
   // (see nsLineLayout::RelativePositionFrames)
-  UnionAdditionalOverflow(presContext, *aLineLayout.LineContainerRS(),
+  UnionAdditionalOverflow(presContext, *aLineLayout.GetLineContainerRS(),
                           provider, &aMetrics.VisualOverflow(), false);
 
   /////////////////////////////////////////////////////////////////////
@@ -8324,22 +8326,61 @@ nsTextFrame::GetDebugStateBits() const
     ~(TEXT_WHITESPACE_FLAGS | TEXT_REFLOW_FLAGS);
 }
 
-void
+NS_IMETHODIMP
 nsTextFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
-  ListGeneric(out, aIndent, aFlags);
-
+  // Output the tag
+  IndentBy(out, aIndent);
+  ListTag(out);
+  if (HasView()) {
+    fprintf(out, " [view=%p]", static_cast<void*>(GetView()));
+  }
   fprintf(out, " [run=%p]", static_cast<void*>(mTextRun));
 
   // Output the first/last content offset and prev/next in flow info
   bool isComplete = uint32_t(GetContentEnd()) == GetContent()->TextLength();
-  fprintf(out, "[%d,%d,%c] ", GetContentOffset(), GetContentLength(),
+  fprintf(out, "[%d,%d,%c] ", 
+          GetContentOffset(), GetContentLength(),
           isComplete ? 'T':'F');
   
+  if (GetNextSibling()) {
+    fprintf(out, " next=%p", static_cast<void*>(GetNextSibling()));
+  }
+  nsIFrame* prevContinuation = GetPrevContinuation();
+  if (nullptr != prevContinuation) {
+    fprintf(out, " prev-continuation=%p", static_cast<void*>(prevContinuation));
+  }
+  if (nullptr != mNextContinuation) {
+    fprintf(out, " next-continuation=%p", static_cast<void*>(mNextContinuation));
+  }
+
+  // Output the rect and state
+  fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
+  fprintf(out, " [state=%016llx]", (unsigned long long)mState);
   if (IsSelected()) {
     fprintf(out, " SELECTED");
   }
+  fprintf(out, " [content=%p]", static_cast<void*>(mContent));
+  if (HasOverflowAreas()) {
+    nsRect overflowArea = GetVisualOverflowRect();
+    fprintf(out, " [vis-overflow=%d,%d,%d,%d]",
+            overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
+    overflowArea = GetScrollableOverflowRect();
+    fprintf(out, " [scr-overflow=%d,%d,%d,%d]",
+            overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
+  }
+  fprintf(out, " sc=%p", static_cast<void*>(mStyleContext));
+  nsIAtom* pseudoTag = mStyleContext->GetPseudo();
+  if (pseudoTag) {
+    nsAutoString atomString;
+    pseudoTag->ToString(atomString);
+    fprintf(out, " pst=%s",
+            NS_LossyConvertUTF16toASCII(atomString).get());
+  }
   fputs("\n", out);
+  return NS_OK;
 }
 #endif
 

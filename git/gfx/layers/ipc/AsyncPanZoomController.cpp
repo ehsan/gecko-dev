@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/AsyncCompositionManager.h" // for ViewTransform
 #include "CompositorParent.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/ClearOnShutdown.h"
@@ -20,7 +19,6 @@
 #include "Layers.h"
 #include "AnimationCommon.h"
 #include <algorithm>
-#include "mozilla/layers/LayerManagerComposite.h"
 
 using namespace mozilla::css;
 
@@ -1114,8 +1112,7 @@ AsyncPanZoomController::FireAsyncScrollOnTimeout()
 
 bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                                             ContainerLayer* aLayer,
-                                                            ViewTransform* aNewTransform,
-                                                            gfx::Point& aScrollOffset) {
+                                                            ViewTransform* aNewTransform) {
   // The eventual return value of this function. The compositor needs to know
   // whether or not to advance by a frame as soon as it can. For example, if a
   // fling is happening, it has to keep compositing so that the animation is
@@ -1224,8 +1221,6 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
   gfxPoint scrollCompensation(
     (scrollOffset / rootScale - metricsScrollOffset) * localScale);
   *aNewTransform = ViewTransform(-scrollCompensation, localScale);
-  aScrollOffset.x = scrollOffset.x * localScale.width;
-  aScrollOffset.y = scrollOffset.y * localScale.height;
 
   mLastSampleTime = aSampleTime;
 

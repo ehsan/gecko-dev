@@ -190,7 +190,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
      */
     protected final Activity clickOnAwesomeBar() {
         Activity activity = null;
-        Element awesomebar = mDriver.findElement(mActivity, "browser_toolbar");
+        Element awesomebar = mDriver.findElement(mActivity, "awesome_bar");
         if (awesomebar != null) {
             activity = getActivityFromClick(awesomebar);
             if (activity == null) {
@@ -407,7 +407,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
 
     public final void verifyTabCount(int expectedTabCount) {
         Activity activity = getActivity();
-        Element tabCount = mDriver.findElement(activity, "tabs_counter");
+        Element tabCount = mDriver.findElement(activity, "tabs_count");
         String tabCountText = tabCount.getText();
         int tabCountInt = Integer.parseInt(tabCountText);
         mAsserter.is(tabCountInt, expectedTabCount, "The correct number of tabs are opened");
@@ -594,7 +594,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         mAsserter.ok(child != null, "edit item can be retrieved", child != null ? child.toString() : "null!");
         waitForText("about:home|Firefox");
         mSolo.clickLongOnView(child);
-        waitForText("Share");
+        waitForText("Open in New Tab");
         mSolo.clickOnText("Edit");
         waitForText("Edit Bookmark");
 
@@ -618,7 +618,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         mAsserter.ok(child != null, "check item can be retrieved", child != null ? child.toString() : "null!");
         waitForText("about:home|Firefox");
         mSolo.clickLongOnView(child);
-        waitForText("Share");
+        waitForText("Open in New Tab");
         mSolo.clickOnText("Edit");
         waitForText("Edit Bookmark");
 
@@ -642,18 +642,24 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     class Device {
-        public final String version; // 2.x or 3.x or 4.x
+        Build.VERSION mBuildVersion;
+        public String version; // 2.x or 3.x or 4.x
         public String type; // "tablet" or "phone"
-        public final int width;
-        public final int height;
+        public int width;
+        public int height;
 
         public Device() {
+            detectDevice();
+        }
+
+        private void detectDevice() {
             // Determine device version
-            int sdk = Build.VERSION.SDK_INT;
-            if (sdk < Build.VERSION_CODES.HONEYCOMB) {
+            mBuildVersion = new Build.VERSION();
+            int mSDK = mBuildVersion.SDK_INT;
+            if (mSDK < Build.VERSION_CODES.HONEYCOMB) {
                 version = "2.x";
             } else {
-                if (sdk > Build.VERSION_CODES.HONEYCOMB_MR2) {
+                if (mSDK > Build.VERSION_CODES.HONEYCOMB_MR2) {
                     version = "4.x";
                 } else {
                     version = "3.x";

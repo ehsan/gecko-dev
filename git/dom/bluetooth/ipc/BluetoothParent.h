@@ -146,9 +146,7 @@ protected:
   DoRequest(const UnpairRequest& aRequest);
 
   bool
-  DoRequest(const PairedDevicePropertiesRequest& aRequest);
-  bool
-  DoRequest(const ConnectedDevicePropertiesRequest& aRequest);
+  DoRequest(const DevicePropertiesRequest& aRequest);
 
   bool
   DoRequest(const SetPinCodeRequest& aRequest);

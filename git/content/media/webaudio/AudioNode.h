@@ -8,7 +8,6 @@
 #define AudioNode_h_
 
 #include "nsDOMEventTargetHelper.h"
-#include "mozilla/dom/AudioNodeBinding.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 #include "EnableWebAudioCheck.h"
@@ -74,20 +73,29 @@ private:
 class AudioNode : public nsDOMEventTargetHelper,
                   public EnableWebAudioCheck
 {
-protected:
-  // You can only use refcounting to delete this object
+public:
+  explicit AudioNode(AudioContext* aContext);
   virtual ~AudioNode();
 
-public:
-  AudioNode(AudioContext* aContext,
-            uint32_t aChannelCount,
-            ChannelCountMode aChannelCountMode,
-            ChannelInterpretation aChannelInterpretation);
-
   // This should be idempotent (safe to call multiple times).
-  virtual void DestroyMediaStream();
+  // This should be called in the destructor of every class that overrides
+  // this method.
+  virtual void DestroyMediaStream()
+  {
+    if (mStream) {
+      mStream->Destroy();
+      mStream = nullptr;
+    }
+  }
 
-  NS_DECL_ISUPPORTS_INHERITED
+  // This method should be overridden to return true in nodes
+  // which support being hooked up to the Media Stream graph.
+  virtual bool SupportsMediaStreams() const
+  {
+    return false;
+  }
+
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioNode,
                                            nsDOMEventTargetHelper)
 
@@ -105,41 +113,16 @@ public:
     return mContext;
   }
 
-  virtual void Connect(AudioNode& aDestination, uint32_t aOutput,
-                       uint32_t aInput, ErrorResult& aRv);
+  void Connect(AudioNode& aDestination, uint32_t aOutput,
+               uint32_t aInput, ErrorResult& aRv);
 
-  virtual void Disconnect(uint32_t aOutput, ErrorResult& aRv);
+  void Disconnect(uint32_t aOutput, ErrorResult& aRv);
 
   // The following two virtual methods must be implemented by each node type
   // to provide their number of input and output ports. These numbers are
   // constant for the lifetime of the node. Both default to 1.
   virtual uint32_t NumberOfInputs() const { return 1; }
   virtual uint32_t NumberOfOutputs() const { return 1; }
-
-  uint32_t ChannelCount() const { return mChannelCount; }
-  void SetChannelCount(uint32_t aChannelCount)
-  {
-    mChannelCount = aChannelCount;
-    SendChannelMixingParametersToStream();
-  }
-  ChannelCountMode ChannelCountModeValue() const
-  {
-    return mChannelCountMode;
-  }
-  void SetChannelCountModeValue(ChannelCountMode aMode)
-  {
-    mChannelCountMode = aMode;
-    SendChannelMixingParametersToStream();
-  }
-  ChannelInterpretation ChannelInterpretationValue() const
-  {
-    return mChannelInterpretation;
-  }
-  void SetChannelInterpretationValue(ChannelInterpretation aMode)
-  {
-    mChannelInterpretation = aMode;
-    SendChannelMixingParametersToStream();
-  }
 
   struct InputNode {
     ~InputNode()
@@ -176,7 +159,6 @@ protected:
   void SendDoubleParameterToStream(uint32_t aIndex, double aValue);
   void SendInt32ParameterToStream(uint32_t aIndex, int32_t aValue);
   void SendThreeDPointParameterToStream(uint32_t aIndex, const ThreeDPoint& aValue);
-  void SendChannelMixingParametersToStream();
   static void SendTimelineParameterToStream(AudioNode* aNode, uint32_t aIndex,
                                             const AudioParamTimeline& aValue);
 
@@ -197,9 +179,6 @@ private:
   // exact matching entry, since mOutputNodes doesn't include the port
   // identifiers and the same node could be connected on multiple ports.
   nsTArray<nsRefPtr<AudioNode> > mOutputNodes;
-  uint32_t mChannelCount;
-  ChannelCountMode mChannelCountMode;
-  ChannelInterpretation mChannelInterpretation;
 };
 
 }

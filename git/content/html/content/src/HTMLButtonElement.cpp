@@ -7,6 +7,7 @@
 
 #include "mozilla/dom/HTMLButtonElementBinding.h"
 #include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
@@ -547,7 +548,7 @@ HTMLButtonElement::IntrinsicState() const
 }
 
 JSObject*
-HTMLButtonElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLButtonElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLButtonElementBinding::Wrap(aCx, aScope, this);
 }

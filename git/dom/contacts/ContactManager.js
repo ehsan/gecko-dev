@@ -4,7 +4,7 @@
 
 "use strict";
 
-const DEBUG = false;
+let DEBUG = false;
 function debug(s) { dump("-*- ContactManager: " + s + "\n"); }
 
 const Cc = Components.classes;
@@ -69,17 +69,16 @@ ContactProperties.prototype = {
 //ContactAddress
 
 const CONTACTADDRESS_CONTRACTID = "@mozilla.org/contactAddress;1";
-const CONTACTADDRESS_CID        = Components.ID("{9cbfa81c-bcab-4ca9-b0d2-f4318f295e33}");
+const CONTACTADDRESS_CID        = Components.ID("{c5d6eb73-a079-4a9f-8cd5-618194f73b30}");
 const nsIContactAddress         = Components.interfaces.nsIContactAddress;
 
-function ContactAddress(aType, aStreetAddress, aLocality, aRegion, aPostalCode, aCountryName, aPref) {
+function ContactAddress(aType, aStreetAddress, aLocality, aRegion, aPostalCode, aCountryName) {
   this.type = sanitizeStringArray(aType);
   this.streetAddress = stringOrBust(aStreetAddress);
   this.locality = stringOrBust(aLocality);
   this.region = stringOrBust(aRegion);
   this.postalCode = stringOrBust(aPostalCode);
   this.countryName = stringOrBust(aCountryName);
-  this.pref = aPref;
 };
 
 ContactAddress.prototype = {
@@ -105,13 +104,12 @@ ContactAddress.prototype = {
 //ContactField
 
 const CONTACTFIELD_CONTRACTID = "@mozilla.org/contactField;1";
-const CONTACTFIELD_CID        = Components.ID("{ad19a543-69e4-44f0-adfa-37c011556bc1}");
+const CONTACTFIELD_CID        = Components.ID("{474b8c6d-f984-431f-9636-e523ca3ec34d}");
 const nsIContactField         = Components.interfaces.nsIContactField;
 
-function ContactField(aType, aValue, aPref) {
+function ContactField(aType, aValue) {
   this.type = sanitizeStringArray(aType);
   this.value = stringOrBust(aValue);
-  this.pref = aPref;
 };
 
 ContactField.prototype = {
@@ -136,11 +134,10 @@ const CONTACTTELFIELD_CONTRACTID = "@mozilla.org/contactTelField;1";
 const CONTACTTELFIELD_CID        = Components.ID("{4d42c5a9-ea5d-4102-80c3-40cc986367ca}");
 const nsIContactTelField         = Components.interfaces.nsIContactTelField;
 
-function ContactTelField(aType, aValue, aCarrier, aPref) {
+function ContactTelField(aType, aValue, aCarrier) {
   this.type = sanitizeStringArray(aType);
   this.value = stringOrBust(aValue);
   this.carrier = stringOrBust(aCarrier);
-  this.pref = aPref;
 };
 
 ContactTelField.prototype = {
@@ -271,7 +268,7 @@ Contact.prototype = {
       this.email = new Array();
       for (let email of aProp.email) {
         if (_isVanillaObj(email)) {
-          this.email.push(new ContactField(email.type, email.value, email.pref));
+          this.email.push(new ContactField(email.type, email.value));
         } else if (DEBUG) {
           debug("email field is not a ContactField and was ignored.");
         }
@@ -289,8 +286,7 @@ Contact.prototype = {
       for (let adr of aProp.adr) {
         if (_isVanillaObj(adr)) {
           this.adr.push(new ContactAddress(adr.type, adr.streetAddress, adr.locality,
-                                           adr.region, adr.postalCode, adr.countryName,
-                                           adr.pref));
+                                           adr.region, adr.postalCode, adr.countryName));
         } else if (DEBUG) {
           debug("adr field is not a ContactAddress and was ignored.");
         }
@@ -304,8 +300,7 @@ Contact.prototype = {
       this.tel = new Array();
       for (let tel of aProp.tel) {
         if (_isVanillaObj(tel)) {
-          this.tel.push(new ContactTelField(tel.type, tel.value, tel.carrier,
-                                            tel.pref));
+          this.tel.push(new ContactTelField(tel.type, tel.value, tel.carrier));
         } else if (DEBUG) {
           debug("tel field is not a ContactTelField and was ignored.");
         }
@@ -324,7 +319,7 @@ Contact.prototype = {
       this.impp = new Array();
       for (let impp of aProp.impp) {
         if (_isVanillaObj(impp)) {
-          this.impp.push(new ContactField(impp.type, impp.value, impp.pref));
+          this.impp.push(new ContactField(impp.type, impp.value));
         } else if (DEBUG) {
           debug("impp field is not a ContactField and was ignored.");
         }
@@ -338,7 +333,7 @@ Contact.prototype = {
       this.url = new Array();
       for (let url of aProp.url) {
         if (_isVanillaObj(url)) {
-          this.url.push(new ContactField(url.type, url.value, url.pref));
+          this.url.push(new ContactField(url.type, url.value));
         } else if (DEBUG) {
           debug("url field is not a ContactField and was ignored.");
         }
@@ -381,7 +376,7 @@ Contact.prototype = {
 // ContactManager
 
 const CONTACTMANAGER_CONTRACTID = "@mozilla.org/contactManager;1";
-const CONTACTMANAGER_CID        = Components.ID("{7bfb6481-f946-4254-afc5-d7fe9f5c45a3}");
+const CONTACTMANAGER_CID        = Components.ID("{4efae3f8-dd69-4622-97c8-f16e4d38d95c}");
 const nsIDOMContactManager      = Components.interfaces.nsIDOMContactManager;
 
 function ContactManager()
@@ -545,13 +540,6 @@ ContactManager.prototype = {
           this._oncontactchange.handleEvent(event);
         }
         break;
-      case "Contacts:Revision":
-        if (DEBUG) debug("new revision: " + msg.revision);
-        req = this.getRequest(msg.requestID);
-        if (req) {
-          Services.DOMRequest.fireSuccess(req, msg.revision);
-        }
-        break;
       default:
         if (DEBUG) debug("Wrong message: " + aMessage.name);
     }
@@ -572,7 +560,6 @@ ContactManager.prototype = {
       case "find":
       case "getSimContacts":
       case "listen":
-      case "revision":
         access = "read";
         break;
       default:
@@ -666,6 +653,7 @@ ContactManager.prototype = {
   },
 
   find: function(aOptions) {
+    DEBUG = false;
     if (DEBUG) debug("find! " + JSON.stringify(aOptions));
     let request = this.createRequest();
     let options = { findOptions: aOptions };
@@ -732,6 +720,7 @@ ContactManager.prototype = {
   },
 
   clear: function() {
+    DEBUG = true;
     if (DEBUG) debug("clear");
     let request;
     request = this.createRequest();
@@ -762,23 +751,6 @@ ContactManager.prototype = {
     return request;
   },
 
-  getRevision: function() {
-    let request = this.createRequest();
-
-    let allowCallback = function() {
-      cpmm.sendAsyncMessage("Contacts:GetRevision", {
-        requestID: this.getRequestId(request)
-      });
-    }.bind(this);
-
-    let cancelCallback = function() {
-      Services.DOMRequest.fireError(request);
-    };
-
-    this.askPermission("revision", request, allowCallback, cancelCallback);
-    return request;
-  },
-
   init: function(aWindow) {
     this.initHelper(aWindow, ["Contacts:Find:Return:OK", "Contacts:Find:Return:KO",
                               "Contacts:Clear:Return:OK", "Contacts:Clear:Return:KO",
@@ -788,8 +760,7 @@ ContactManager.prototype = {
                               "Contacts:GetSimContacts:Return:KO",
                               "Contact:Changed",
                               "PermissionPromptHelper:AskPermission:OK",
-                              "Contacts:GetAll:Next",
-                              "Contacts:Revision"]);
+                              "Contacts:GetAll:Next"]);
   },
 
   // Called from DOMRequestIpcHelper

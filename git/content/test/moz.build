@@ -6,4 +6,3 @@
 
 MODULE = 'test_content'
 
-XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']

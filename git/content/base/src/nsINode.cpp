@@ -26,6 +26,7 @@
 #include "nsContentList.h"
 #include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsCycleCollector.h"
 #include "nsDocument.h"
 #include "mozilla/dom/Attr.h"
 #include "nsDOMAttributeMap.h"
@@ -61,6 +62,7 @@
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIFrame.h"
+#include "nsIJSContextStack.h"
 #include "nsILinkHandler.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
@@ -1394,7 +1396,7 @@ nsINode::doInsertChildAt(nsIContent* aKid, uint32_t aIndex,
 void
 nsINode::Remove()
 {
-  nsCOMPtr<nsINode> parent = GetParentNode();
+  nsINode* parent = GetParentNode();
   if (!parent) {
     return;
   }
@@ -2100,11 +2102,20 @@ nsINode::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsINode::SetOn##name_(JSContext *cx, const JS::Value &v) {   \
+    JSObject *obj = GetWrapper();                                            \
+    if (!obj) {                                                              \
+      /* Just silently do nothing */                                         \
+      return NS_OK;                                                          \
+    }                                                                        \
     nsRefPtr<EventHandlerNonNull> handler;                                   \
     JSObject *callable;                                                      \
     if (v.isObject() &&                                                      \
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
-      handler = new EventHandlerNonNull(callable);                           \
+      bool ok;                                                               \
+      handler = new EventHandlerNonNull(cx, obj, callable, &ok);             \
+      if (!ok) {                                                             \
+        return NS_ERROR_OUT_OF_MEMORY;                                       \
+      }                                                                      \
     }                                                                        \
     ErrorResult rv;                                                          \
     SetOn##name_(handler, rv);                                               \
@@ -2375,7 +2386,7 @@ nsINode::QuerySelectorAll(const nsAString& aSelector, ErrorResult& aResult)
 }
 
 JSObject*
-nsINode::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
+nsINode::WrapObject(JSContext *aCx, JSObject *aScope)
 {
   MOZ_ASSERT(IsDOMBinding());
 

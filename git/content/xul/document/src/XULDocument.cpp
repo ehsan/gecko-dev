@@ -1249,7 +1249,7 @@ XULDocument::GetElementsByAttribute(const nsAString& aAttribute,
 {
     nsCOMPtr<nsIAtom> attrAtom(do_GetAtom(aAttribute));
     void* attrValue = new nsString(aValue);
-    nsRefPtr<nsContentList> list = new nsContentList(this,
+    nsContentList *list = new nsContentList(this,
                                             MatchAttribute,
                                             nsContentUtils::DestroyMatchString,
                                             attrValue,
@@ -1257,7 +1257,8 @@ XULDocument::GetElementsByAttribute(const nsAString& aAttribute,
                                             attrAtom,
                                             kNameSpaceID_Unknown);
     
-    return list.forget();
+    NS_ADDREF(list);
+    return list;
 }
 
 NS_IMETHODIMP
@@ -1292,14 +1293,15 @@ XULDocument::GetElementsByAttributeNS(const nsAString& aNamespaceURI,
       }
     }
 
-    nsRefPtr<nsContentList> list = new nsContentList(this,
+    nsContentList *list = new nsContentList(this,
                                             MatchAttribute,
                                             nsContentUtils::DestroyMatchString,
                                             attrValue,
                                             true,
                                             attrAtom,
                                             nameSpaceId);
-    return list.forget();
+    NS_ADDREF(list);
+    return list;
 }
 
 NS_IMETHODIMP
@@ -4760,7 +4762,7 @@ XULDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
 }
 
 JSObject*
-XULDocument::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+XULDocument::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   JSObject* obj = XULDocumentBinding::Wrap(aCx, aScope, this);
   if (obj && !PostCreateWrapper(aCx, obj)) {

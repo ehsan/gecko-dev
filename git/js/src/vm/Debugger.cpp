@@ -513,7 +513,7 @@ Debugger::slowPathOnEnterFrame(JSContext *cx, AbstractFramePtr frame, MutableHan
 }
 
 static void
-DebuggerFrame_freeStackIterData(FreeOp *fop, JSObject *obj);
+DebuggerFrame_freeStackIterData(FreeOp *fop, RawObject obj);
 
 /*
  * Handle leaving a frame with debuggers watching. |frameOk| indicates whether
@@ -917,9 +917,9 @@ CallMethodIfPresent(JSContext *cx, HandleObject obj, const char *name, int argc,
     if (!atom)
         return false;
 
-    RootedId id(cx, AtomToId(atom));
+    Rooted<jsid> id(cx, AtomToId(atom));
     RootedValue fval(cx);
-    return JSObject::getGeneric(cx, obj, obj, id, &fval) &&
+    return GetMethod(cx, obj, id, 0, &fval) &&
            (!js_IsCallable(fval) || Invoke(cx, ObjectValue(*obj), fval, argc, argv, rval));
 }
 
@@ -1231,7 +1231,7 @@ Debugger::onSingleStep(JSContext *cx, MutableHandleValue vp)
      */
     {
         uint32_t stepperCount = 0;
-        JSScript *trappingScript = iter.script();
+        RawScript trappingScript = iter.script();
         GlobalObject *global = cx->global();
         if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
             for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
@@ -1369,7 +1369,7 @@ Debugger::slowPathOnNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global
 /*** Debugger JSObjects **************************************************************************/
 
 /* static */ bool
-Debugger::isDebugWrapper(JSObject *o)
+Debugger::isDebugWrapper(RawObject o)
 {
     Class *c = o->getClass();
     return c == &DebuggerObject_class ||
@@ -1546,7 +1546,7 @@ Debugger::markAll(JSTracer *trc)
 }
 
 void
-Debugger::traceObject(JSTracer *trc, JSObject *obj)
+Debugger::traceObject(JSTracer *trc, RawObject obj)
 {
     if (Debugger *dbg = Debugger::fromJSObject(obj))
         dbg->trace(trc);
@@ -1645,7 +1645,7 @@ Debugger::findCompartmentEdges(Zone *zone, js::gc::ComponentFinder<Zone> &finder
 }
 
 void
-Debugger::finalize(FreeOp *fop, JSObject *obj)
+Debugger::finalize(FreeOp *fop, RawObject obj)
 {
     Debugger *dbg = fromJSObject(obj);
     if (!dbg)
@@ -2636,7 +2636,7 @@ Debugger::findAllGlobals(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-const JSPropertySpec Debugger::properties[] = {
+JSPropertySpec Debugger::properties[] = {
     JS_PSGS("enabled", Debugger::getEnabled, Debugger::setEnabled, 0),
     JS_PSGS("onDebuggerStatement", Debugger::getOnDebuggerStatement,
             Debugger::setOnDebuggerStatement, 0),
@@ -2650,7 +2650,7 @@ const JSPropertySpec Debugger::properties[] = {
     JS_PS_END
 };
 
-const JSFunctionSpec Debugger::methods[] = {
+JSFunctionSpec Debugger::methods[] = {
     JS_FN("addDebuggee", Debugger::addDebuggee, 1, 0),
     JS_FN("addAllGlobalsAsDebuggees", Debugger::addAllGlobalsAsDebuggees, 0, 0),
     JS_FN("removeDebuggee", Debugger::removeDebuggee, 1, 0),
@@ -2682,7 +2682,7 @@ SetScriptReferent(JSObject *obj, JSScript *script)
 }
 
 static void
-DebuggerScript_trace(JSTracer *trc, JSObject *obj)
+DebuggerScript_trace(JSTracer *trc, RawObject obj)
 {
     /* This comes from a private pointer, so no barrier needed. */
     if (JSScript *script = GetScriptReferent(obj)) {
@@ -3456,7 +3456,7 @@ DebuggerScript_construct(JSContext *cx, unsigned argc, Value *vp)
     return false;
 }
 
-static const JSPropertySpec DebuggerScript_properties[] = {
+static JSPropertySpec DebuggerScript_properties[] = {
     JS_PSG("url", DebuggerScript_getUrl, 0),
     JS_PSG("startLine", DebuggerScript_getStartLine, 0),
     JS_PSG("lineCount", DebuggerScript_getLineCount, 0),
@@ -3465,7 +3465,7 @@ static const JSPropertySpec DebuggerScript_properties[] = {
     JS_PS_END
 };
 
-static const JSFunctionSpec DebuggerScript_methods[] = {
+static JSFunctionSpec DebuggerScript_methods[] = {
     JS_FN("getChildScripts", DebuggerScript_getChildScripts, 0, 0),
     JS_FN("getAllOffsets", DebuggerScript_getAllOffsets, 0, 0),
     JS_FN("getAllColumnOffsets", DebuggerScript_getAllColumnOffsets, 0, 0),
@@ -3482,14 +3482,14 @@ static const JSFunctionSpec DebuggerScript_methods[] = {
 /*** Debugger.Frame ******************************************************************************/
 
 static void
-DebuggerFrame_freeStackIterData(FreeOp *fop, JSObject *obj)
+DebuggerFrame_freeStackIterData(FreeOp *fop, RawObject obj)
 {
     fop->delete_((StackIter::Data *)obj->getPrivate());
     obj->setPrivate(NULL);
 }
 
 static void
-DebuggerFrame_finalize(FreeOp *fop, JSObject *obj)
+DebuggerFrame_finalize(FreeOp *fop, RawObject obj)
 {
     DebuggerFrame_freeStackIterData(fop, obj);
 }
@@ -3796,7 +3796,7 @@ static JSBool
 DebuggerFrame_getOffset(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_FRAME(cx, argc, vp, "get offset", args, thisobj, iter);
-    JSScript *script = iter.script();
+    RawScript script = iter.script();
     iter.updatePcQuadratic();
     jsbytecode *pc = iter.pc();
     JS_ASSERT(script->code <= pc);
@@ -4049,7 +4049,7 @@ DebuggerFrame_construct(JSContext *cx, unsigned argc, Value *vp)
     return false;
 }
 
-static const JSPropertySpec DebuggerFrame_properties[] = {
+static JSPropertySpec DebuggerFrame_properties[] = {
     JS_PSG("arguments", DebuggerFrame_getArguments, 0),
     JS_PSG("callee", DebuggerFrame_getCallee, 0),
     JS_PSG("constructing", DebuggerFrame_getConstructing, 0),
@@ -4066,7 +4066,7 @@ static const JSPropertySpec DebuggerFrame_properties[] = {
     JS_PS_END
 };
 
-static const JSFunctionSpec DebuggerFrame_methods[] = {
+static JSFunctionSpec DebuggerFrame_methods[] = {
     JS_FN("eval", DebuggerFrame_eval, 1, 0),
     JS_FN("evalWithBindings", DebuggerFrame_evalWithBindings, 1, 0),
     JS_FS_END
@@ -4076,7 +4076,7 @@ static const JSFunctionSpec DebuggerFrame_methods[] = {
 /*** Debugger.Object *****************************************************************************/
 
 static void
-DebuggerObject_trace(JSTracer *trc, JSObject *obj)
+DebuggerObject_trace(JSTracer *trc, RawObject obj)
 {
     /*
      * There is a barrier on private pointers, so the Unbarriered marking
@@ -4173,8 +4173,8 @@ static JSBool
 DebuggerObject_getClass(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "get class", args, refobj);
-    const char *className = JSObject::className(cx, refobj);
-    JSAtom *str = Atomize(cx, className, strlen(className));
+    const char *s = refobj->getClass()->name;
+    JSAtom *str = Atomize(cx, s, strlen(s));
     if (!str)
         return false;
     args.rval().setString(str);
@@ -4829,7 +4829,7 @@ DebuggerObject_unsafeDereference(JSContext *cx, unsigned argc, Value *vp)
     return cx->compartment->wrap(cx, args.rval());
 }
 
-static const JSPropertySpec DebuggerObject_properties[] = {
+static JSPropertySpec DebuggerObject_properties[] = {
     JS_PSG("proto", DebuggerObject_getProto, 0),
     JS_PSG("class", DebuggerObject_getClass, 0),
     JS_PSG("callable", DebuggerObject_getCallable, 0),
@@ -4842,7 +4842,7 @@ static const JSPropertySpec DebuggerObject_properties[] = {
     JS_PS_END
 };
 
-static const JSFunctionSpec DebuggerObject_methods[] = {
+static JSFunctionSpec DebuggerObject_methods[] = {
     JS_FN("getOwnPropertyDescriptor", DebuggerObject_getOwnPropertyDescriptor, 1, 0),
     JS_FN("getOwnPropertyNames", DebuggerObject_getOwnPropertyNames, 0, 0),
     JS_FN("defineProperty", DebuggerObject_defineProperty, 2, 0),
@@ -4868,7 +4868,7 @@ static const JSFunctionSpec DebuggerObject_methods[] = {
 /*** Debugger.Environment ************************************************************************/
 
 static void
-DebuggerEnv_trace(JSTracer *trc, JSObject *obj)
+DebuggerEnv_trace(JSTracer *trc, RawObject obj)
 {
     /*
      * There is a barrier on private pointers, so the Unbarriered marking
@@ -5167,7 +5167,7 @@ DebuggerEnv_setVariable(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static const JSPropertySpec DebuggerEnv_properties[] = {
+static JSPropertySpec DebuggerEnv_properties[] = {
     JS_PSG("type", DebuggerEnv_getType, 0),
     JS_PSG("object", DebuggerEnv_getObject, 0),
     JS_PSG("parent", DebuggerEnv_getParent, 0),
@@ -5175,7 +5175,7 @@ static const JSPropertySpec DebuggerEnv_properties[] = {
     JS_PS_END
 };
 
-static const JSFunctionSpec DebuggerEnv_methods[] = {
+static JSFunctionSpec DebuggerEnv_methods[] = {
     JS_FN("names", DebuggerEnv_names, 0, 0),
     JS_FN("find", DebuggerEnv_find, 1, 0),
     JS_FN("getVariable", DebuggerEnv_getVariable, 1, 0),

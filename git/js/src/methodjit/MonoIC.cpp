@@ -115,14 +115,14 @@ PatchSetFallback(VMFrame &f, ic::SetGlobalNameIC *ic)
 }
 
 void
-SetGlobalNameIC::patchInlineShapeGuard(Repatcher &repatcher, Shape *shape)
+SetGlobalNameIC::patchInlineShapeGuard(Repatcher &repatcher, RawShape shape)
 {
     JSC::CodeLocationDataLabelPtr label = fastPathStart.dataLabelPtrAtOffset(shapeOffset);
     repatcher.repatch(label, shape);
 }
 
 static LookupStatus
-UpdateSetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, Shape *shape)
+UpdateSetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, RawShape shape)
 {
     /* Give globals a chance to appear. */
     if (!shape)
@@ -160,7 +160,7 @@ ic::SetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic)
 
     {
         RootedId id(f.cx, NameToId(name));
-        Shape *shape = obj->nativeLookup(f.cx, id);
+        RawShape shape = obj->nativeLookup(f.cx, id);
 
         if (!monitor.recompiled()) {
             LookupStatus status = UpdateSetGlobalName(f, ic, obj, shape);
@@ -1308,7 +1308,7 @@ class CallCompiler : public BaseCompiler
         }
 
         JS_ASSERT(fun);
-        JSScript *script = fun->nonLazyScript();
+        RawScript script = fun->nonLazyScript();
         JS_ASSERT(script);
 
         uint32_t flags = callingNew ? StackFrame::CONSTRUCTING : 0;
@@ -1488,7 +1488,7 @@ ic::GenerateArgumentCheckStub(VMFrame &f)
     JITScript *jit = f.jit();
     StackFrame *fp = f.fp();
     JSFunction *fun = fp->fun();
-    JSScript *script = fun->nonLazyScript();
+    RawScript script = fun->nonLazyScript();
 
     if (jit->argsCheckPool)
         jit->resetArgsCheck();

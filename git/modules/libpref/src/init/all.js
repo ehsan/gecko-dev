@@ -216,9 +216,6 @@ pref("media.autoplay.enabled", true);
 // MediaDecoderReader's mVideoQueue.
 pref("media.video-queue.default-size", 10);
 
-// Whether to enable the audio writing APIs on the audio element
-pref("media.audio_data.enabled", true);
-
 #ifdef XP_MACOSX
 // Whether to run in native HiDPI mode on machines with "Retina"/HiDPI display;
 //   <= 0 : hidpi mode disabled, display will just use pixel-based upscaling
@@ -238,17 +235,6 @@ pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 
 pref("gfx.filter.nearest.force-enabled", false);
-
-// prefs controlling the font (name/cmap) loader that runs shortly after startup
-#ifdef XP_WIN
-pref("gfx.font_loader.families_per_slice", 3); // read in info 3 families at a time
-pref("gfx.font_loader.delay", 120000);         // 2 minutes after startup
-pref("gfx.font_loader.interval", 1000);        // every 1 second until complete
-#else
-pref("gfx.font_loader.families_per_slice", 3); // read in info 3 families at a time
-pref("gfx.font_loader.delay", 8000);           // 8 secs after startup
-pref("gfx.font_loader.interval", 50);          // run every 50 ms
-#endif
 
 // whether to always search all font cmaps during system font fallback
 pref("gfx.font_rendering.fallback.always_use_cmaps", false);
@@ -750,9 +736,6 @@ pref("dom.experimental_forms", false);
 
 // Don't enable <input type=range> yet:
 pref("dom.experimental_forms_range", true);
-
-// Enables system messages and activities
-pref("dom.sysmsg.enabled", false);
 
 // Allocation Threshold for Workers
 pref("dom.workers.mem.gc_allocation_threshold_mb", 30);
@@ -1801,6 +1784,22 @@ pref("viewmanager.do_doublebuffering", true);
 
 // enable single finger gesture input (win7+ tablets)
 pref("gestures.enable_single_finger_input", true);
+
+/*
+ * What are the entities that you want Mozilla to save using mnemonic
+ * names rather than numeric codes? E.g. If set, we'll output &nbsp;
+ * otherwise, we may output 0xa0 depending on the charset.
+ *
+ * "none"   : don't use any entity names; only use numeric codes.
+ * "basic"  : use entity names just for &nbsp; &amp; &lt; &gt; &quot; for 
+ *            interoperability/exchange with products that don't support more
+ *            than that.
+ * "latin1" : use entity names for 8bit accented letters and other special
+ *            symbols between 128 and 255.
+ * "html"   : use entity names for 8bit accented letters, greek letters, and
+ *            other special markup symbols as defined in HTML4.
+ */
+//pref("editor.encode_entity",                 "html");
 
 pref("editor.resizing.preserve_ratio",       true);
 pref("editor.positioning.offset",            0);
@@ -3286,8 +3285,6 @@ pref("font.name-list.monospace.ja", "MotoyaLMaru, MotoyaLCedar, Droid Sans Mono"
 pref("font.name.serif.ko", "Charis SIL Compact");
 pref("font.name.sans-serif.ko", "Open Sans");
 pref("font.name.monospace.ko", "Droid Sans Mono");
-pref("font.name-list.serif.ko", "HYSerif");
-pref("font.name-list.sans-serif.ko", "SmartGothic, DroidSansFallback, Droid Sans Fallback");
 
 pref("font.name.serif.th", "Charis SIL Compact");
 pref("font.name.sans-serif.th", "Open Sans");
@@ -3837,13 +3834,6 @@ pref("toolkit.zoomManager.zoomValues", ".3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.7,2
 pref("browser.zoom.reflowOnZoom", false);
 
 /**
- * Specifies the number of milliseconds to wait after a given reflow-on-zoom
- * operation has completed before allowing another one to be triggered. This
- * is to prevent a buildup of reflow-zoom events.
- */
-pref("browser.zoom.reflowZoom.reflowTimeout", 500);
-
-/**
  * Controls whether or not the reflow-on-zoom behavior happens on page load.
  * This can be enabled in conjunction with the above preference (reflowOnZoom),
  * but has no effect if browser.zoom.reflowOnZoom is disabled.
@@ -3919,13 +3909,6 @@ pref("image.multithreaded_decoding.enabled", true);
 // automatically determined based on the system's number of cores.
 pref("image.multithreaded_decoding.limit", -1);
 
-// Limit for the canvas image cache. 0 means we don't limit the size of the
-// cache.
-pref("canvas.image.cache.limit", 0);
-
-// How many images to eagerly decode on a given page. 0 means "no limit".
-pref("image.onload.decode.limit", 0);
-
 // WebGL prefs
 pref("gl.msaa-level", 2);
 pref("webgl.force-enabled", false);
@@ -3955,7 +3938,11 @@ pref("network.tcp.sendbuffer", 131072);
 pref("layers.async-video.enabled",false);
 
 // Whether to disable acceleration for all widgets.
+#ifdef MOZ_E10S_COMPAT
+pref("layers.acceleration.disabled", true);
+#else
 pref("layers.acceleration.disabled", false);
+#endif
 
 // Whether to force acceleration on, ignoring blacklists.
 #ifdef ANDROID
@@ -3988,8 +3975,11 @@ pref("gfx.xrender.enabled",true);
 
 #ifdef XP_WIN
 // Whether to disable the automatic detection and use of direct2d.
+#ifdef MOZ_E10S_COMPAT
+pref("gfx.direct2d.disabled", true);
+#else
 pref("gfx.direct2d.disabled", false);
-
+#endif
 // Whether to attempt to enable Direct2D regardless of automatic detection or
 // blacklisting
 pref("gfx.direct2d.force-enabled", false);
@@ -4204,10 +4194,4 @@ pref("memory_info_dumper.watch_fifo", false);
 pref("captivedetect.maxWaitingTime", 5000);
 pref("captivedetect.pollingTime", 3000);
 pref("captivedetect.maxRetryCount", 5);
-#endif
-
-#ifdef RELEASE_BUILD
-pref("dom.forms.inputmode", false);
-#else
-pref("dom.forms.inputmode", true);
 #endif

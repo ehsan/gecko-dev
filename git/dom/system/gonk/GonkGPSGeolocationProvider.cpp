@@ -250,20 +250,13 @@ GonkGPSGeolocationProvider::AGPSRILSetIDCallback(uint32_t flags)
 void
 GonkGPSGeolocationProvider::AGPSRILRefLocCallback(uint32_t flags)
 {
-  class RequestRefLocEvent : public nsRunnable {
-  public:
-    RequestRefLocEvent()
-    {}
-    NS_IMETHOD Run() {
-      nsRefPtr<GonkGPSGeolocationProvider> provider =
-        GonkGPSGeolocationProvider::GetSingleton();
-      provider->SetReferenceLocation();
-      return NS_OK;
-    }
-  };
+  nsRefPtr<GonkGPSGeolocationProvider> provider =
+    GonkGPSGeolocationProvider::GetSingleton();
 
   if (flags & AGPS_RIL_REQUEST_REFLOC_CELLID) {
-    NS_DispatchToMainThread(new RequestRefLocEvent());
+    nsCOMPtr<nsIRunnable> event =
+      NS_NewRunnableMethod(provider, &GonkGPSGeolocationProvider::SetReferenceLocation);
+    NS_DispatchToMainThread(event);
   }
 }
 
@@ -462,13 +455,13 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
       iccInfo->GetMcc(mcc);
       iccInfo->GetMnc(mnc);
 
-      location.u.cellID.mcc = mcc.ToInteger(&result);
+      location.u.cellID.mcc = mcc.ToInteger(&result, 10);
       if (result != NS_OK) {
         NS_WARNING("Cannot parse mcc to integer");
         location.u.cellID.mcc = 0;
       }
 
-      location.u.cellID.mnc = mnc.ToInteger(&result);
+      location.u.cellID.mnc = mnc.ToInteger(&result, 10);
       if (result != NS_OK) {
         NS_WARNING("Cannot parse mnc to integer");
         location.u.cellID.mnc = 0;

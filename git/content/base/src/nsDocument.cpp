@@ -94,6 +94,7 @@
 #include "nsIFormControl.h"
 
 #include "nsBidiUtils.h"
+#include "mozilla/dom/DirectionalityUtils.h"
 
 #include "nsIDOMUserDataHandler.h"
 #include "nsIDOMXPathEvaluator.h"
@@ -124,7 +125,9 @@
 #include "nsDOMCID.h"
 
 #include "jsapi.h"
+#include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
+#include "nsCycleCollector.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
@@ -1301,35 +1304,6 @@ nsDOMStyleSheetSetList::GetSets(nsTArray<nsString>& aStyleSets)
 }
 
 // ==================================================================
-
-struct nsIDocument::FrameRequest
-{
-  FrameRequest(const FrameRequestCallbackHolder& aCallback,
-               int32_t aHandle) :
-    mCallback(aCallback),
-    mHandle(aHandle)
-  {}
-
-  // Conversion operator so that we can append these to a
-  // FrameRequestCallbackList
-  operator const FrameRequestCallbackHolder& () const {
-    return mCallback;
-  }
-
-  // Comparator operators to allow RemoveElementSorted with an
-  // integer argument on arrays of FrameRequest
-  bool operator==(int32_t aHandle) const {
-    return mHandle == aHandle;
-  }
-  bool operator<(int32_t aHandle) const {
-    return mHandle < aHandle;
-  }
-
-  FrameRequestCallbackHolder mCallback;
-  int32_t mHandle;
-};
-
-// ==================================================================
 // =
 // ==================================================================
 nsIDocument::nsIDocument()
@@ -1349,6 +1323,7 @@ nsIDocument::nsIDocument()
     mAllowDNSPrefetch(true),
     mIsBeingUsedAsImage(false),
     mHasLinksToUpdate(false),
+    mDirectionality(eDir_LTR),
     mPartID(0)
 {
   SetInDocument();
@@ -1747,7 +1722,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
 
   for (uint32_t i = 0; i < tmp->mFrameRequestCallbacks.Length(); ++i) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameRequestCallbacks[i]");
-    cb.NoteXPCOMChild(tmp->mFrameRequestCallbacks[i].mCallback.GetISupports());
+    cb.NoteXPCOMChild(tmp->mFrameRequestCallbacks[i]);
   }
 
   // Traverse animation components
@@ -1864,19 +1839,12 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-static bool sPrefsInitialized = false;
-static uint32_t sOnloadDecodeLimit = 0;
 
 nsresult
 nsDocument::Init()
 {
   if (mCSSLoader || mStyleImageLoader || mNodeInfoManager || mScriptLoader) {
     return NS_ERROR_ALREADY_INITIALIZED;
-  }
-
-  if (!sPrefsInitialized) {
-    sPrefsInitialized = true;
-    Preferences::AddUintVarCache(&sOnloadDecodeLimit, "image.onload.decode.limit", 0);
   }
 
   mIdentifierMap.Init();
@@ -2407,7 +2375,7 @@ CSPErrorQueue::Flush(nsIDocument* aDocument)
   for (uint32_t i = 0; i < mErrors.Length(); i++) {
     nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
         "CSP", aDocument,
-        nsContentUtils::eSECURITY_PROPERTIES,
+        nsContentUtils::eDOM_PROPERTIES,
         mErrors[i]);
   }
   mErrors.Clear();
@@ -2564,11 +2532,22 @@ nsDocument::InitCSP(nsIChannel* aChannel)
 
   // If the old header is present, warn that it will be deprecated.
   if (!cspOldHeaderValue.IsEmpty() || !cspOldROHeaderValue.IsEmpty()) {
+    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                    "CSP", this,
+                                    nsContentUtils::eDOM_PROPERTIES,
+                                    "OldCSPHeaderDeprecated");
+
+    // Additionally log deprecated warning to Web Console.
     mCSPWebConsoleErrorQueue.Add("OldCSPHeaderDeprecated");
 
     // Also, if the new headers AND the old headers were present, warn
     // that the old headers will be ignored.
     if (cspSpecCompliant) {
+      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                      "CSP", this,
+                                      nsContentUtils::eDOM_PROPERTIES,
+                                      "BothCSPHeadersPresent");
+      // Additionally log to Web Console.
       mCSPWebConsoleErrorQueue.Add("BothCSPHeadersPresent");
     }
   }
@@ -2605,6 +2584,11 @@ nsDocument::InitCSP(nsIChannel* aChannel)
     // CSP policies are present since CSP only allows one policy and it can't
     // be partially report-only.
     if (applyAppDefaultCSP || applyCSPFromHeader) {
+      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                      "CSP", this,
+                                      nsContentUtils::eDOM_PROPERTIES,
+                                      "ReportOnlyCSPIgnored");
+      // Additionally log to Web Console.
       mCSPWebConsoleErrorQueue.Add("ReportOnlyCSPIgnored");
 #ifdef PR_LOGGING
       PR_LOG(gCspPRLog, PR_LOG_DEBUG,
@@ -4237,6 +4221,17 @@ nsDocument::GetWindowInternal() const
   return win->GetOuterWindow();
 }
 
+nsPIDOMWindow *
+nsDocument::GetInnerWindowInternal()
+{
+  MOZ_ASSERT(mRemovedFromDocShell,
+             "This document should have been removed from docshell!");
+
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
+
+  return win;
+}
+
 nsScriptLoader*
 nsDocument::ScriptLoader()
 {
@@ -5010,7 +5005,7 @@ nsDocument::Register(const nsAString& aName, const JS::Value& aOptions,
     JSAutoCompartment ac(aCx, GetWrapper());
     NS_ENSURE_TRUE(JS_WrapValue(aCx, const_cast<JS::Value*>(&aOptions)),
                    NS_ERROR_UNEXPECTED);
-    NS_ENSURE_TRUE(options.Init(aCx, aOptions),
+    NS_ENSURE_TRUE(options.Init(aCx, JS::NullPtr(), aOptions),
                    NS_ERROR_UNEXPECTED);
   }
 
@@ -5787,7 +5782,7 @@ nsIDocument::GetLocation() const
 }
 
 Element*
-nsIDocument::GetHtmlElement() const
+nsIDocument::GetHtmlElement()
 {
   Element* rootElement = GetRootElement();
   if (rootElement && rootElement->IsHTML(nsGkAtoms::html))
@@ -6246,6 +6241,17 @@ nsDocument::GetAnimationController()
   return mAnimationController;
 }
 
+struct DirTable {
+  const char* mName;
+  uint8_t     mValue;
+};
+
+static const DirTable dirAttributes[] = {
+  {"ltr", IBMBIDI_TEXTDIRECTION_LTR},
+  {"rtl", IBMBIDI_TEXTDIRECTION_RTL},
+  {0}
+};
+
 /**
  * Retrieve the "direction" property of the document.
  *
@@ -6261,10 +6267,12 @@ nsDocument::GetDir(nsAString& aDirection)
 void
 nsIDocument::GetDir(nsAString& aDirection) const
 {
-  aDirection.Truncate();
-  Element* rootElement = GetHtmlElement();
-  if (rootElement) {
-    static_cast<nsGenericHTMLElement*>(rootElement)->GetDir(aDirection);
+  uint32_t options = GetBidiOptions();
+  for (const DirTable* elt = dirAttributes; elt->mName; elt++) {
+    if (GET_BIDI_OPTION_DIRECTION(options) == elt->mValue) {
+      CopyASCIItoUTF16(elt->mName, aDirection);
+      return;
+    }
   }
 }
 
@@ -6276,17 +6284,45 @@ nsIDocument::GetDir(nsAString& aDirection) const
 NS_IMETHODIMP
 nsDocument::SetDir(const nsAString& aDirection)
 {
-  nsIDocument::SetDir(aDirection);
-  return NS_OK;
+  ErrorResult rv;
+  nsIDocument::SetDir(aDirection, rv);
+  return rv.ErrorCode();
 }
 
 void
-nsIDocument::SetDir(const nsAString& aDirection)
+nsIDocument::SetDir(const nsAString& aDirection, ErrorResult& rv)
 {
-  Element* rootElement = GetHtmlElement();
-  if (rootElement) {
-    rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::dir,
-                         aDirection, true);
+  uint32_t options = GetBidiOptions();
+
+  for (const DirTable* elt = dirAttributes; elt->mName; elt++) {
+    if (aDirection == NS_ConvertASCIItoUTF16(elt->mName)) {
+      if (GET_BIDI_OPTION_DIRECTION(options) != elt->mValue) {
+        SET_BIDI_OPTION_DIRECTION(options, elt->mValue);
+        nsIPresShell *shell = GetShell();
+        if (shell) {
+          nsPresContext *context = shell->GetPresContext();
+          if (!context) {
+            rv.Throw(NS_ERROR_UNEXPECTED);
+            return;
+          }
+          context->SetBidi(options, true);
+        } else {
+          // No presentation; just set it on ourselves
+          SetBidiOptions(options);
+        }
+        Directionality dir = elt->mValue == IBMBIDI_TEXTDIRECTION_RTL ?
+                               eDir_RTL : eDir_LTR;
+        SetDocumentDirectionality(dir);
+        // Set the directionality of the root element and its descendants, if any
+        Element* rootElement = GetRootElement();
+        if (rootElement) {
+          rootElement->SetDirectionality(dir, true);
+          SetDirectionalityOnDescendants(rootElement, dir);
+        }
+      }
+
+      break;
+    }
   }
 }
 
@@ -7658,17 +7694,17 @@ nsDocument::RemovedFromDocShell()
 already_AddRefed<nsILayoutHistoryState>
 nsDocument::GetLayoutHistoryState() const
 {
-  nsCOMPtr<nsILayoutHistoryState> state;
+  nsILayoutHistoryState* state = nullptr;
   if (!mScriptGlobalObject) {
-    state = mLayoutHistoryState;
+    NS_IF_ADDREF(state = mLayoutHistoryState);
   } else {
     nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocumentContainer));
     if (docShell) {
-      docShell->GetLayoutHistoryState(getter_AddRefs(state));
+      docShell->GetLayoutHistoryState(&state);
     }
   }
 
-  return state.forget();
+  return state;
 }
 
 void
@@ -8759,7 +8795,7 @@ nsIDocument::CreateStaticClone(nsISupports* aCloneContainer)
 }
 
 nsresult
-nsIDocument::ScheduleFrameRequestCallback(const FrameRequestCallbackHolder& aCallback,
+nsIDocument::ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
                                           int32_t *aHandle)
 {
   if (mFrameRequestCallbackCounter == INT32_MAX) {
@@ -8913,11 +8949,9 @@ nsDocument::AddImage(imgIRequest* aImage)
 
   // If this is the first insertion and we're locking images, lock this image
   // too.
-  if (oldCount == 0) {
-    if (mLockingImages)
-      rv = aImage->LockImage();
-    if (NS_SUCCEEDED(rv) && (!sOnloadDecodeLimit ||
-                             mImageTracker.Count() < sOnloadDecodeLimit))
+  if (oldCount == 0 && mLockingImages) {
+    rv = aImage->LockImage();
+    if (NS_SUCCEEDED(rv))
       rv = aImage->StartDecoding();
   }
 
@@ -9137,7 +9171,7 @@ nsDocument::CreateTouch(nsIDOMWindow* aView,
   return NS_OK;
 }
 
-already_AddRefed<Touch>
+already_AddRefed<nsIDOMTouch>
 nsIDocument::CreateTouch(nsIDOMWindow* aView,
                          EventTarget* aTarget,
                          int32_t aIdentifier,
@@ -9148,14 +9182,14 @@ nsIDocument::CreateTouch(nsIDOMWindow* aView,
                          float aRotationAngle,
                          float aForce)
 {
-  nsRefPtr<Touch> touch = new Touch(aTarget,
-                                    aIdentifier,
-                                    aPageX, aPageY,
-                                    aScreenX, aScreenY,
-                                    aClientX, aClientY,
-                                    aRadiusX, aRadiusY,
-                                    aRotationAngle,
-                                    aForce);
+  nsCOMPtr<nsIDOMTouch> touch = new Touch(aTarget,
+                                          aIdentifier,
+                                          aPageX, aPageY,
+                                          aScreenX, aScreenY,
+                                          aClientX, aClientY,
+                                          aRadiusX, aRadiusY,
+                                          aRotationAngle,
+                                          aForce);
   return touch.forget();
 }
 
@@ -9208,23 +9242,23 @@ nsIDocument::CreateTouchList()
 }
 
 already_AddRefed<nsIDOMTouchList>
-nsIDocument::CreateTouchList(Touch& aTouch,
-                             const Sequence<OwningNonNull<Touch> >& aTouches)
+nsIDocument::CreateTouchList(nsIDOMTouch* aTouch,
+                             const Sequence<nsRefPtr<nsIDOMTouch> >& aTouches)
 {
   nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
-  retval->Append(&aTouch);
+  retval->Append(aTouch);
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
-    retval->Append(aTouches[i].get());
+    retval->Append(aTouches[i]);
   }
   return retval.forget();
 }
 
 already_AddRefed<nsIDOMTouchList>
-nsIDocument::CreateTouchList(const Sequence<OwningNonNull<Touch> >& aTouches)
+nsIDocument::CreateTouchList(const Sequence<nsRefPtr<nsIDOMTouch> >& aTouches)
 {
   nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
-    retval->Append(aTouches[i].get());
+    retval->Append(aTouches[i]);
   }
   return retval.forget();
 }
@@ -11261,7 +11295,7 @@ nsAutoSyncOperation::nsAutoSyncOperation(nsIDocument* aDoc)
       win->GetTop(getter_AddRefs(topWindow));
       nsCOMPtr<nsPIDOMWindow> top = do_QueryInterface(topWindow);
       if (top) {
-        nsCOMPtr<nsIDocument> doc = top->GetExtantDoc();
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(top->GetExtantDocument());
         MarkDocumentTreeToBeInSyncOperation(doc, &mDocuments);
       }
     }

@@ -30,7 +30,6 @@
 #include "nsJSEnvironment.h"
 #include "xpcpublic.h"
 #include "nsLayoutStatics.h"
-#include "js/RootingAPI.h"
 
 namespace mozilla {
 namespace dom {
@@ -47,6 +46,37 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(CallbackObject)
 
+  /**
+   * Create a CallbackObject.  aCallback is the callback object we're wrapping.
+   * aOwner is the object that will be receiving this CallbackObject as a method
+   * argument, if any.  We need this so we can store our callback object in the
+   * same compartment as our owner.  If *aInited is set to false, an exception
+   * has been thrown.
+   */
+  CallbackObject(JSContext* cx, JSObject* aOwner, JSObject* aCallback,
+                 bool* aInited)
+    : mCallback(nullptr)
+  {
+    // If aOwner is not null, enter the compartment of aOwner's
+    // underlying object.
+    if (aOwner) {
+      aOwner = js::UncheckedUnwrap(aOwner);
+      JSAutoCompartment ac(cx, aOwner);
+      if (!JS_WrapObject(cx, &aCallback)) {
+        *aInited = false;
+        return;
+      }
+    }
+
+    Init(aCallback);
+    *aInited = true;
+  }
+
+  /*
+   * Create a CallbackObject without any sort of interesting games with
+   * compartments, for cases when you want to just use the existing object
+   * as-is.  This constructor can never fail.
+   */
   explicit CallbackObject(JSObject* aCallback)
   {
     Init(aCallback);
@@ -57,10 +87,10 @@ public:
     DropCallback();
   }
 
-  JS::Handle<JSObject*> Callback() const
+  JSObject* Callback() const
   {
     xpc_UnmarkGrayObject(mCallback);
-    return CallbackPreserveColor();
+    return mCallback;
   }
 
   /*
@@ -70,12 +100,10 @@ public:
    * This should only be called if you are certain that the return value won't
    * be passed into a JS API function and that it won't be stored without being
    * rooted (or otherwise signaling the stored value to the CC).
-   *
-   * This can return a handle because we trace our mCallback.
    */
-  JS::Handle<JSObject*> CallbackPreserveColor() const
+  JSObject* CallbackPreserveColor() const
   {
-    return JS::Handle<JSObject*>::fromMarkedLocation(&mCallback);
+    return mCallback;
   }
 
   enum ExceptionHandling {
@@ -320,7 +348,7 @@ public:
       CallbackObjectHolderBase::ToXPCOMCallback(GetWebIDLCallback(),
                                                 NS_GET_TEMPLATE_IID(XPCOMCallbackT));
     // ToXPCOMCallback already did the right QI for us.
-    return supp.forget().downcast<XPCOMCallbackT>();
+    return static_cast<XPCOMCallbackT*>(supp.forget().get());
   }
 
   // Try to return a WebIDLCallbackT version of this object.
@@ -349,7 +377,12 @@ public:
     SafeAutoJSContext cx;
     JSAutoCompartment ac(cx, obj);
 
-    nsRefPtr<WebIDLCallbackT> newCallback = new WebIDLCallbackT(obj);
+    bool inited;
+    nsRefPtr<WebIDLCallbackT> newCallback =
+      new WebIDLCallbackT(cx, nullptr, obj, &inited);
+    if (!inited) {
+      return nullptr;
+    }
     return newCallback.forget();
   }
 

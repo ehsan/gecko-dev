@@ -300,8 +300,7 @@ imgStatusTracker::imgStatusTracker(Image* aImage)
     mState(0),
     mImageStatus(imgIRequest::STATUS_NONE),
     mIsMultipart(false),
-    mHadLastPart(false),
-    mHasBeenDecoded(false)
+    mHadLastPart(false)
 {
   mTrackerObserver = new imgStatusTrackerObserver(this);
 }
@@ -312,8 +311,7 @@ imgStatusTracker::imgStatusTracker(const imgStatusTracker& aOther)
     mState(aOther.mState),
     mImageStatus(aOther.mImageStatus),
     mIsMultipart(aOther.mIsMultipart),
-    mHadLastPart(aOther.mHadLastPart),
-    mHasBeenDecoded(aOther.mHasBeenDecoded)
+    mHadLastPart(aOther.mHadLastPart)
     // Note: we explicitly don't copy several fields:
     //  - mRequestRunnable, because it won't be nulled out when the
     //    mRequestRunnable's Run function eventually gets called.
@@ -536,6 +534,7 @@ imgStatusTracker::CalculateAndApplyDifference(imgStatusTracker* other)
   // with the other tracker.
 
   // First, actually synchronize our state.
+  diff.mInvalidRect = mInvalidRect.Union(other->mInvalidRect);
   mState |= diff.mDiffState | loadState;
   if (diff.mUnblockedOnload) {
     mState &= ~stateBlockingOnload;
@@ -544,7 +543,6 @@ imgStatusTracker::CalculateAndApplyDifference(imgStatusTracker* other)
   mIsMultipart = other->mIsMultipart;
   mHadLastPart = other->mHadLastPart;
   mImageStatus |= other->mImageStatus;
-  mHasBeenDecoded = mHasBeenDecoded || other->mHasBeenDecoded;
 
   // The error state is sticky and overrides all other bits.
   if (mImageStatus & imgIRequest::STATUS_ERROR) {
@@ -556,19 +554,9 @@ imgStatusTracker::CalculateAndApplyDifference(imgStatusTracker* other)
     }
   }
 
-  // Only record partial invalidations if we haven't been decoded before.
-  // When images are re-decoded after discarding, we don't want to display
-  // partially decoded versions to the user.
-  bool doInvalidations  = !mHasBeenDecoded
-                       || mImageStatus & imgIRequest::STATUS_ERROR
-                       || mImageStatus & imgIRequest::STATUS_DECODE_COMPLETE;
-
-  // Record the invalid rectangles and reset them for another go.
-  if (doInvalidations) {
-    diff.mInvalidRect = mInvalidRect.Union(other->mInvalidRect);
-    other->mInvalidRect.SetEmpty();
-    mInvalidRect.SetEmpty();
-  }
+  // Reset the invalid rectangles for another go.
+  other->mInvalidRect.SetEmpty();
+  mInvalidRect.SetEmpty();
 
   return diff;
 }
@@ -780,7 +768,6 @@ imgStatusTracker::RecordStopDecode(nsresult aStatus)
   if (NS_SUCCEEDED(aStatus) && mImageStatus != imgIRequest::STATUS_ERROR) {
     mImageStatus |= imgIRequest::STATUS_DECODE_COMPLETE;
     mImageStatus &= ~imgIRequest::STATUS_DECODE_STARTED;
-    mHasBeenDecoded = true;
   // If we weren't successful, clear all success status bits and set error.
   } else {
     mImageStatus = imgIRequest::STATUS_ERROR;

@@ -665,7 +665,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
 
     JS::CallArgs args = CallArgsFromVp(argc, vp);
 
-    JS::RootedObject callee(cx, &args.callee());
+    JSObject *callee = &args.callee();
     JS::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
@@ -677,7 +677,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
 
     v = js::GetFunctionNativeReserved(callee, 1);
 
-    JS::RootedValue argval(cx, (argc > 0) ? args.get(0) : JSVAL_VOID);
+    jsval argval = (argc > 0) ? args[0] : JSVAL_VOID;
     JS::RootedId id(cx);
     if (!JS_ValueToId(cx, v, id.address()))
         return false;
@@ -689,7 +689,7 @@ extern JSClass PointerHolderClass;
 
 template<typename Op>
 JSObject *
-GeneratePropertyOp(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned argc, Op pop)
+GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, unsigned argc, Op pop)
 {
     // The JS engine provides two reserved slots on function objects for
     // XPConnect to use. Use them to stick the necessary info here.
@@ -698,7 +698,9 @@ GeneratePropertyOp(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigne
     if (!fun)
         return nullptr;
 
-    JS::RootedObject funobj(cx, JS_GetFunctionObject(fun));
+    JSObject *funobj = JS_GetFunctionObject(fun);
+
+    JS::AutoObjectRooter tvr(cx, funobj);
 
     // Unfortunately, we cannot guarantee that Op is aligned. Use a
     // second object to work around this.

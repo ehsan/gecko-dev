@@ -53,8 +53,6 @@ my $old_dir = "";
 # run in the foreground
 my $foreground;
 
-my $builder = "make -j4";
-
 GetOptions("build-root|b=s" => \$build_dir,
            "poll-file=s" => \$poll_file,
            "work-dir=s" => \$WORKDIR,
@@ -63,12 +61,11 @@ GetOptions("build-root|b=s" => \$build_dir,
            "annotations-file|annotations|a=s" => \$ann_file,
            "old-dir|old=s" => \$old_dir,
            "foreground!" => \$foreground,
-	   "buildcommand=s" => \$builder,
            )
     or die;
 
 if (not -d $build_dir) {
-    mkdir($build_dir);
+    die "Need build directory: $build_dir\n";
 }
 if ($old_dir ne "" && not -d $old_dir) {
     die "Old directory '$old_dir' does not exist\n";
@@ -77,6 +74,10 @@ if ($old_dir ne "" && not -d $old_dir) {
 $WORKDIR ||= "sixgill-work";
 $poll_file ||= "$WORKDIR/poll.file";
 $build_dir ||= "$WORKDIR/js-inbound-xgill";
+
+if (not -d $build_dir) {
+    die "Build root '$build_dir' does not exist\n";
+}
 
 if (!defined $SIXGILL_BIN) {
     chomp(my $path = `which xmanager`);
@@ -99,7 +100,11 @@ sub clean_project {
 
 # code to build the project from $build_dir.
 sub build_project {
-    return system($builder);
+    if ($ENV{BUILD}) {
+        return system($ENV{BUILD});
+    } else {
+        return system("make -j4");
+    }
 }
 
 # commands to start the various xgill binaries. timeouts can be specified
@@ -236,7 +241,7 @@ sub run_build
 
         # build is finished, the complete run can resume.
         # return value only useful if --foreground
-        exit($? || $exit_status);
+        exit $? || $exit_status;
     }
 
     # this is the complete process, wait for the build to finish.

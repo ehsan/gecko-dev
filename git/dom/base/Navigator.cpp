@@ -19,6 +19,7 @@
 #include "nsIWebContentHandlerRegistrar.h"
 #include "nsICookiePermission.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIJSContextStack.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
 #include "nsUnicharUtils.h"
@@ -74,6 +75,8 @@ DOMCI_DATA(Navigator, mozilla::dom::Navigator)
 
 namespace mozilla {
 namespace dom {
+
+static const char sJSStackContractID[] = "@mozilla.org/js/xpc/ContextStack;1";
 
 static bool sDoNotTrackEnabled = false;
 static bool sVibratorEnabled   = false;
@@ -222,9 +225,11 @@ Navigator::Invalidate()
 
   mCameraManager = nullptr;
 
+#ifdef MOZ_SYS_MSG
   if (mMessagesManager) {
     mMessagesManager = nullptr;
   }
+#endif
 
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
   if (mAudioChannelManager) {
@@ -476,7 +481,7 @@ Navigator::GetCookieEnabled(bool* aCookieEnabled)
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDocument> doc = win->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(win->GetExtantDocument());
   if (!doc) {
     return NS_OK;
   }
@@ -621,16 +626,17 @@ namespace {
 class VibrateWindowListener : public nsIDOMEventListener
 {
 public:
-  VibrateWindowListener(nsIDOMWindow* aWindow, nsIDocument* aDocument)
+  VibrateWindowListener(nsIDOMWindow *aWindow, nsIDOMDocument *aDocument)
   {
     mWindow = do_GetWeakReference(aWindow);
     mDocument = do_GetWeakReference(aDocument);
 
+    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aDocument);
     NS_NAMED_LITERAL_STRING(visibilitychange, "visibilitychange");
-    aDocument->AddSystemEventListener(visibilitychange,
-                                      this, /* listener */
-                                      true, /* use capture */
-                                      false /* wants untrusted */);
+    target->AddSystemEventListener(visibilitychange,
+                                   this, /* listener */
+                                   true, /* use capture */
+                                   false /* wants untrusted */);
   }
 
   virtual ~VibrateWindowListener()
@@ -654,10 +660,16 @@ StaticRefPtr<VibrateWindowListener> gVibrateWindowListener;
 NS_IMETHODIMP
 VibrateWindowListener::HandleEvent(nsIDOMEvent* aEvent)
 {
-  nsCOMPtr<nsIDocument> doc =
-    do_QueryInterface(aEvent->InternalDOMEvent()->GetTarget());
+  nsCOMPtr<nsIDOMEventTarget> target;
+  aEvent->GetTarget(getter_AddRefs(target));
+  nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(target);
 
-  if (!doc || doc->Hidden()) {
+  bool hidden = true;
+  if (doc) {
+    doc->GetHidden(&hidden);
+  }
+
+  if (hidden) {
     // It's important that we call CancelVibrate(), not Vibrate() with an
     // empty list, because Vibrate() will fail if we're no longer focused, but
     // CancelVibrate() will succeed, so long as nobody else has started a new
@@ -675,7 +687,7 @@ VibrateWindowListener::HandleEvent(nsIDOMEvent* aEvent)
 void
 VibrateWindowListener::RemoveListener()
 {
-  nsCOMPtr<EventTarget> target = do_QueryReferent(mDocument);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryReferent(mDocument);
   if (!target) {
     return;
   }
@@ -748,9 +760,12 @@ Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
   nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(win, NS_OK);
 
-  nsCOMPtr<nsIDocument> doc = win->GetExtantDoc();
-  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
-  if (doc->Hidden()) {
+  nsCOMPtr<nsIDOMDocument> domDoc = win->GetExtantDocument();
+  NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
+
+  bool hidden = true;
+  domDoc->GetHidden(&hidden);
+  if (hidden) {
     // Hidden documents cannot start or stop a vibration.
     return NS_OK;
   }
@@ -810,7 +825,7 @@ Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
   else {
     gVibrateWindowListener->RemoveListener();
   }
-  gVibrateWindowListener = new VibrateWindowListener(win, doc);
+  gVibrateWindowListener = new VibrateWindowListener(win, domDoc);
 
   nsCOMPtr<nsIDOMWindow> domWindow =
     do_QueryInterface(static_cast<nsIDOMWindow*>(win));
@@ -887,7 +902,11 @@ Navigator::MozIsLocallyAvailable(const nsAString &aURI,
   }
 
   // Same origin check.
-  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  nsCOMPtr<nsIJSContextStack> stack = do_GetService(sJSStackContractID);
+  NS_ENSURE_TRUE(stack, NS_ERROR_FAILURE);
+
+  JSContext* cx = nullptr;
+  rv = stack->Peek(&cx);
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   rv = nsContentUtils::GetSecurityManager()->CheckSameOrigin(cx, uri);
@@ -1104,7 +1123,7 @@ Navigator::MozGetUserMediaDevices(nsIGetUserMediaDevicesSuccessCallback* aOnSucc
   }
 
   // Check if the caller is chrome privileged, bail if not
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsChromeDoc(win->GetExtantDoc())) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1402,6 +1421,7 @@ Navigator::GetMozBluetooth(nsIDOMBluetoothManager** aBluetooth)
 //*****************************************************************************
 //    nsNavigator::nsIDOMNavigatorSystemMessages
 //*****************************************************************************
+#ifdef MOZ_SYS_MSG
 nsresult
 Navigator::EnsureMessagesManager()
 {
@@ -1429,33 +1449,34 @@ Navigator::EnsureMessagesManager()
 
   return NS_OK;
 }
+#endif
 
 NS_IMETHODIMP
 Navigator::MozHasPendingMessage(const nsAString& aType, bool *aResult)
 {
-  if (!Preferences::GetBool("dom.sysmsg.enabled", false)) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
+#ifdef MOZ_SYS_MSG
   *aResult = false;
   nsresult rv = EnsureMessagesManager();
   NS_ENSURE_SUCCESS(rv, rv);
 
   return mMessagesManager->MozHasPendingMessage(aType, aResult);
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 NS_IMETHODIMP
 Navigator::MozSetMessageHandler(const nsAString& aType,
                                 nsIDOMSystemMessageCallback *aCallback)
 {
-  if (!Preferences::GetBool("dom.sysmsg.enabled", false)) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
+#ifdef MOZ_SYS_MSG
   nsresult rv = EnsureMessagesManager();
   NS_ENSURE_SUCCESS(rv, rv);
 
   return mMessagesManager->MozSetMessageHandler(aType, aCallback);
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 //*****************************************************************************

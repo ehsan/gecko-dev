@@ -14,8 +14,8 @@
 #include "AutoOpenSurface.h"
 #include "mozilla/ipc/SharedMemorySysV.h"
 #include "mozilla/layers/PLayerChild.h"
-#include "mozilla/layers/PLayerTransactionChild.h"
-#include "mozilla/layers/PLayerTransactionParent.h"
+#include "mozilla/layers/PLayersChild.h"
+#include "mozilla/layers/PLayersParent.h"
 #include "mozilla/layers/LayerTransaction.h"
 #include "mozilla/layers/LayersSurfaces.h"
 #include "ShadowLayers.h"
@@ -591,6 +591,25 @@ ISurfaceAllocator::PlatformDestroySharedSurface(SurfaceDescriptor*)
   return false;
 }
 
+/*static*/ already_AddRefed<TextureImage>
+ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
+                                                     const SurfaceDescriptor&,
+                                                     GLenum)
+{
+  return nullptr;
+}
+
+/*static*/ bool
+ShadowLayerManager::SupportsDirectTexturing()
+{
+  return false;
+}
+
+/*static*/ void
+ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
+{
+}
+
 #endif  // !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)
 
 AutoOpenSurface::AutoOpenSurface(OpenMode aMode,
@@ -664,8 +683,7 @@ ShadowLayerForwarder::Connect(CompositableClient* aCompositable)
 void
 ShadowLayerForwarder::CreatedSingleBuffer(CompositableClient* aCompositable,
                                           const SurfaceDescriptor& aDescriptor,
-                                          const TextureInfo& aTextureInfo,
-                                          const SurfaceDescriptor* aDescriptorOnWhite)
+                                          const TextureInfo& aTextureInfo)
 {
   MOZ_ASSERT(aDescriptor.type() != SurfaceDescriptor::T__None &&
              aDescriptor.type() != SurfaceDescriptor::Tnull_t);
@@ -673,21 +691,13 @@ ShadowLayerForwarder::CreatedSingleBuffer(CompositableClient* aCompositable,
                                  TextureFront,
                                  aDescriptor,
                                  aTextureInfo));
-  if (aDescriptorOnWhite) {
-    mTxn->AddEdit(OpCreatedTexture(nullptr, aCompositable->GetIPDLActor(),
-                                   TextureOnWhiteFront,
-                                   *aDescriptorOnWhite,
-                                   aTextureInfo));
-  }
 }
 
 void
 ShadowLayerForwarder::CreatedDoubleBuffer(CompositableClient* aCompositable,
                                           const SurfaceDescriptor& aFrontDescriptor,
                                           const SurfaceDescriptor& aBackDescriptor,
-                                          const TextureInfo& aTextureInfo,
-                                          const SurfaceDescriptor* aFrontDescriptorOnWhite,
-                                          const SurfaceDescriptor* aBackDescriptorOnWhite)
+                                          const TextureInfo& aTextureInfo)
 {
   MOZ_ASSERT(aFrontDescriptor.type() != SurfaceDescriptor::T__None &&
              aBackDescriptor.type() != SurfaceDescriptor::T__None &&
@@ -701,17 +711,6 @@ ShadowLayerForwarder::CreatedDoubleBuffer(CompositableClient* aCompositable,
                                  TextureBack,
                                  aBackDescriptor,
                                  aTextureInfo));
-  if (aFrontDescriptorOnWhite) {
-    MOZ_ASSERT(aBackDescriptorOnWhite);
-    mTxn->AddEdit(OpCreatedTexture(nullptr, aCompositable->GetIPDLActor(),
-                                   TextureOnWhiteFront,
-                                   *aFrontDescriptorOnWhite,
-                                   aTextureInfo));
-    mTxn->AddEdit(OpCreatedTexture(nullptr, aCompositable->GetIPDLActor(),
-                                   TextureOnWhiteBack,
-                                   *aBackDescriptorOnWhite,
-                                   aTextureInfo));
-  }
 }
 
 void

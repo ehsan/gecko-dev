@@ -383,7 +383,8 @@ Parser<ParseHandler>::Parser(JSContext *cx, const CompileOptions &options,
                              const jschar *chars, size_t length, bool foldConstants)
   : AutoGCRooter(cx, PARSER),
     context(cx),
-    tokenStream(cx, options, chars, length, thisForCtor(), keepAtoms),
+    tokenStream(cx, options, chars, length, thisForCtor()),
+    tempPoolMark(NULL),
     traceListHead(NULL),
     pc(NULL),
     sct(NULL),
@@ -2068,7 +2069,7 @@ Parser<ParseHandler>::functionStmt()
         return null();
     }
 
-    TokenStream::Position start(keepAtoms);
+    TokenStream::Position start;
     tokenStream.positionAfterLastFunctionKeyword(start);
 
     /* We forbid function statements in strict mode code. */
@@ -2085,7 +2086,7 @@ Parser<ParseHandler>::functionExpr()
 {
     RootedPropertyName name(context);
     JS_ASSERT(tokenStream.currentToken().type == TOK_FUNCTION);
-    TokenStream::Position start(keepAtoms);
+    TokenStream::Position start;
     tokenStream.positionAfterLastFunctionKeyword(start);
     if (tokenStream.getToken(TSF_KEYWORD_IS_NAME) == TOK_NAME)
         name = tokenStream.currentToken().name();
@@ -4895,7 +4896,7 @@ Parser<ParseHandler>::assignExpr()
 
     // Save the tokenizer state in case we find an arrow function and have to
     // rewind.
-    TokenStream::Position start(keepAtoms);
+    TokenStream::Position start;
     tokenStream.tell(&start);
 
     Node lhs = condExpr1();
@@ -6423,7 +6424,7 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
 
                     /* NB: Getter function in { get x(){} } is unnamed. */
                     Rooted<PropertyName*> funName(context, NULL);
-                    TokenStream::Position start(keepAtoms);
+                    TokenStream::Position start;
                     tokenStream.tell(&start);
                     pn2 = functionDef(funName, start, tokenStream.positionToOffset(start),
                                       op == JSOP_GETTER ? Getter : Setter,

@@ -92,8 +92,7 @@ public:
                                                     const mozilla::dom::UIEventInit& aParam,
                                                     mozilla::ErrorResult& aRv);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::UIEventBinding::Wrap(aCx, aScope, this);
   }
@@ -133,7 +132,7 @@ public:
     return y;
   }
 
-  virtual uint32_t Which()
+  uint32_t Which()
   {
     uint32_t w;
     GetWhich(&w);

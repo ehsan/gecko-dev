@@ -1321,9 +1321,7 @@ class ModuleCompiler
             return false;
         return exits_.add(p, Move(exitDescriptor), *exitIndex);
     }
-    bool addFunctionCounts(IonScriptCounts *counts) {
-        return module_->addFunctionCounts(counts);
-    }
+
 
     void setSecondPassComplete() {
         JS_ASSERT(currentPass_ == 2);
@@ -2281,8 +2279,8 @@ class FunctionCompiler
 // An AsmJSModule object is created at the end of module compilation and
 // subsequently owned by an AsmJSModuleClass JSObject.
 
-static void AsmJSModuleObject_finalize(FreeOp *fop, JSObject *obj);
-static void AsmJSModuleObject_trace(JSTracer *trc, JSObject *obj);
+static void AsmJSModuleObject_finalize(FreeOp *fop, RawObject obj);
+static void AsmJSModuleObject_trace(JSTracer *trc, JSRawObject obj);
 
 static const unsigned ASM_CODE_RESERVED_SLOT = 0;
 static const unsigned ASM_CODE_NUM_RESERVED_SLOTS = 1;
@@ -2313,12 +2311,6 @@ js::AsmJSModuleObjectToModule(JSObject *obj)
     return *(AsmJSModule *)obj->getReservedSlot(ASM_CODE_RESERVED_SLOT).toPrivate();
 }
 
-bool
-js::IsAsmJSModuleObject(JSObject *obj)
-{
-    return obj->getClass() == &AsmJSModuleClass;
-}
-
 static const unsigned ASM_MODULE_FUNCTION_MODULE_OBJECT_SLOT = 0;
 
 JSObject &
@@ -2334,13 +2326,13 @@ js::SetAsmJSModuleObject(JSFunction *moduleFun, JSObject *moduleObj)
 }
 
 static void
-AsmJSModuleObject_finalize(FreeOp *fop, JSObject *obj)
+AsmJSModuleObject_finalize(FreeOp *fop, RawObject obj)
 {
     fop->delete_(&AsmJSModuleObjectToModule(obj));
 }
 
 static void
-AsmJSModuleObject_trace(JSTracer *trc, JSObject *obj)
+AsmJSModuleObject_trace(JSTracer *trc, JSRawObject obj)
 {
     AsmJSModuleObjectToModule(obj).trace(trc);
 }
@@ -3124,7 +3116,7 @@ CheckStoreArray(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition
 static bool
 CheckAssignName(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition **def, Type *type)
 {
-    Rooted<PropertyName *> name(f.cx(), lhs->name());
+    PropertyName *name = lhs->name();
 
     MDefinition *rhsDef;
     Type rhsType;
@@ -4439,12 +4431,6 @@ GenerateAsmJSCode(ModuleCompiler &m, ModuleCompiler::Func &func,
     if (!m.collectAccesses(mirGen))
         return false;
 
-    ion::IonScriptCounts *counts = codegen->extractUnassociatedScriptCounts();
-    if (counts && !m.addFunctionCounts(counts)) {
-        js_delete(counts);
-        return false;
-    }
-
     // A single MacroAssembler is reused for all function compilations so
     // that there is a single linear code segment for each module. To avoid
     // spiking memory, a LifoAllocScope in the caller frees all MIR/LIR
@@ -5578,8 +5564,3 @@ js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-AsmJSModule::~AsmJSModule()
-{
-    for (size_t i = 0; i < numFunctionCounts(); i++)
-        js_delete(functionCounts(i));
-}

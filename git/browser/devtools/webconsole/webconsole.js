@@ -37,11 +37,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
 XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
                                   "resource:///modules/devtools/VariablesView.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "EventEmitter",
-                                  "resource:///modules/devtools/shared/event-emitter.js");
+XPCOMUtils.defineLazyModuleGetter(this, "ToolSidebar",
+                                  "resource:///modules/devtools/Sidebar.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "devtools",
-                                  "resource:///modules/devtools/gDevTools.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "EventEmitter",
+                                  "resource:///modules/devtools/EventEmitter.jsm");
 
 const STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
 let l10n = new WebConsoleUtils.l10n(STRINGS_URI);
@@ -81,7 +81,6 @@ const CATEGORY_JS = 2;
 const CATEGORY_WEBDEV = 3;
 const CATEGORY_INPUT = 4;   // always on
 const CATEGORY_OUTPUT = 5;  // always on
-const CATEGORY_SECURITY = 6;
 
 // The possible message severities. As before, we start at zero so we can use
 // these as indexes into MESSAGE_PREFERENCE_KEYS.
@@ -98,7 +97,6 @@ const CATEGORY_CLASS_FRAGMENTS = [
   "console",
   "input",
   "output",
-  "security",
 ];
 
 // The fragment of a CSS class name that identifies each severity.
@@ -122,7 +120,6 @@ const MESSAGE_PREFERENCE_KEYS = [
   [ "error",      "warn",       "info", "log",         ],  // Web Developer
   [ null,         null,         null,   null,          ],  // Input
   [ null,         null,         null,   null,          ],  // Output
-  [ "secerror",   "secwarn",    null,   null,          ],  // Security
 ];
 
 // A mapping from the console API log event levels to the Web Console
@@ -195,7 +192,7 @@ function WebConsoleFrame(aWebConsoleOwner)
   this.owner = aWebConsoleOwner;
   this.hudId = this.owner.hudId;
 
-  this._repeatNodes = {};
+  this._cssNodes = {};
   this._outputQueue = [];
   this._pruneCategoriesQueue = {};
   this._networkRequests = {};
@@ -292,11 +289,11 @@ WebConsoleFrame.prototype = {
   _outputTimerInitialized: null,
 
   /**
-   * Store for tracking repeated nodes.
+   * Store for tracking repeated CSS nodes.
    * @private
    * @type object
    */
-  _repeatNodes: null,
+  _cssNodes: null,
 
   /**
    * Preferences for filtering messages by type.
@@ -512,8 +509,6 @@ WebConsoleFrame.prototype = {
       info: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "info"),
       warn: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "warn"),
       log: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "log"),
-      secerror: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "secerror"),
-      secwarn: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "secwarn"),
     };
   },
 
@@ -903,11 +898,10 @@ WebConsoleFrame.prototype = {
     let uid = repeatNode._uid;
     let dupeNode = null;
 
-    if (aNode.classList.contains("webconsole-msg-cssparser") ||
-        aNode.classList.contains("webconsole-msg-security")) {
-      dupeNode = this._repeatNodes[uid];
+    if (aNode.classList.contains("webconsole-msg-cssparser")) {
+      dupeNode = this._cssNodes[uid];
       if (!dupeNode) {
-        this._repeatNodes[uid] = aNode;
+        this._cssNodes[uid] = aNode;
       }
     }
     else if (!aNode.classList.contains("webconsole-msg-network") &&
@@ -1978,11 +1972,10 @@ WebConsoleFrame.prototype = {
       aNode._objectActors.clear();
     }
 
-    if (aNode.classList.contains("webconsole-msg-cssparser") ||
-        aNode.classList.contains("webconsole-msg-security")) {
+    if (aNode.classList.contains("webconsole-msg-cssparser")) {
       let repeatNode = aNode.getElementsByClassName("webconsole-msg-repeat")[0];
       if (repeatNode && repeatNode._uid) {
-        delete this._repeatNodes[repeatNode._uid];
+        delete this._cssNodes[repeatNode._uid];
       }
     }
     else if (aNode._connectionId &&
@@ -2590,7 +2583,7 @@ WebConsoleFrame.prototype = {
 
     this._destroyer = Promise.defer();
 
-    this._repeatNodes = {};
+    this._cssNodes = {};
     this._outputQueue = [];
     this._pruneCategoriesQueue = {};
     this._networkRequests = {};
@@ -3058,14 +3051,13 @@ JSTerm.prototype = {
   /**
    * Create the Web Console sidebar.
    *
-   * @see devtools/framework/sidebar.js
+   * @see Sidebar.jsm
    * @private
    */
   _createSidebar: function JST__createSidebar()
   {
     if (!this.sidebar) {
       let tabbox = this.hud.document.querySelector("#webconsole-sidebar");
-      let ToolSidebar = devtools.require("devtools/framework/sidebar").ToolSidebar;
       this.sidebar = new ToolSidebar(tabbox, this);
     }
     this.sidebar.show();
@@ -3606,7 +3598,7 @@ JSTerm.prototype = {
     hud._outputQueue.forEach(hud._pruneItemFromQueue, hud);
     hud._outputQueue = [];
     hud._networkRequests = {};
-    hud._repeatNodes = {};
+    hud._cssNodes = {};
 
     if (aClearStorage) {
       this.webConsoleClient.clearMessagesCache();
@@ -4267,9 +4259,9 @@ var Utils = {
    *
    * @param nsIScriptError aScriptError
    *        The script error you want to determine the category for.
-   * @return CATEGORY_JS|CATEGORY_CSS|CATEGORY_SECURITY
-   *         Depending on the script error CATEGORY_JS, CATEGORY_CSS, or
-   *         CATEGORY_SECURITY can be returned.
+   * @return CATEGORY_JS|CATEGORY_CSS
+   *         Depending on the script error CATEGORY_JS or CATEGORY_CSS can be
+   *         returned.
    */
   categoryForScriptError: function Utils_categoryForScriptError(aScriptError)
   {
@@ -4277,10 +4269,6 @@ var Utils = {
       case "CSS Parser":
       case "CSS Loader":
         return CATEGORY_CSS;
-
-      case "Mixed Content Blocker":
-      case "CSP":
-        return CATEGORY_SECURITY;
 
       default:
         return CATEGORY_JS;

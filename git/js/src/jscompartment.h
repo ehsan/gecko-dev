@@ -198,7 +198,7 @@ struct JSCompartment
                              JS::TypeInferenceSizes *tiSizes,
                              size_t *shapesCompartmentTables, size_t *crossCompartmentWrappers,
                              size_t *regexpCompartment, size_t *debuggeesSet,
-                             size_t *baselineStubsOptimized);
+                             size_t *baselineOptimizedStubs);
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -242,7 +242,7 @@ struct JSCompartment
      * debugger wrapper objects.  The list link is either in the second extra
      * slot for the former, or a special slot for the latter.
      */
-    JSObject                     *gcIncomingGrayPointers;
+    js::RawObject                gcIncomingGrayPointers;
 
     /* Linked list of live array buffers with >1 view. */
     JSObject                     *gcLiveArrayBuffers;

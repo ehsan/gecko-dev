@@ -439,23 +439,30 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     nsRefPtr<XPCWrappedNative> wrapper;
 
     Native2WrappedNativeMap* map = Scope->GetWrappedNativeMap();
-    // Some things are nsWrapperCache subclasses but never use the cache, so go
-    // ahead and check our map even if we have a cache and it has no existing
-    // wrapper: we might have an XPCWrappedNative anyway.
+    if (!cache) {
+        {   // scoped lock
+            XPCAutoLock lock(mapLock);
+            wrapper = map->Find(identity);
+        }
+
+        if (wrapper) {
+            if (Interface &&
+                !wrapper->FindTearOff(ccx, Interface, false, &rv)) {
+                NS_ASSERTION(NS_FAILED(rv), "returning NS_OK on failure");
+                return rv;
+            }
+            *resultWrapper = wrapper.forget().get();
+            return NS_OK;
+        }
+    }
+#ifdef DEBUG
+    else if (!cache->GetWrapperPreserveColor())
     {   // scoped lock
         XPCAutoLock lock(mapLock);
-        wrapper = map->Find(identity);
+        NS_ASSERTION(!map->Find(identity),
+                     "There's a wrapper in the hashtable but it wasn't cached?");
     }
-
-    if (wrapper) {
-        if (Interface &&
-            !wrapper->FindTearOff(ccx, Interface, false, &rv)) {
-            NS_ASSERTION(NS_FAILED(rv), "returning NS_OK on failure");
-            return rv;
-        }
-        *resultWrapper = wrapper.forget().get();
-        return NS_OK;
-    }
+#endif
 
     // There is a chance that the object wants to have the self-same JSObject
     // reflection regardless of the scope into which we are reflecting it.
@@ -496,7 +503,9 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 
     RootedObject parent(ccx, Scope->GetGlobalJSObject());
 
-    RootedValue newParentVal(ccx, NullValue());
+    jsval newParentVal = JSVAL_NULL;
+    XPCMarkableJSVal newParentVal_markable(&newParentVal);
+    AutoMarkingJSVal newParentVal_automarker(ccx, &newParentVal_markable);
     JSBool needsSOW = false;
     JSBool needsCOW = false;
 
@@ -2432,6 +2441,7 @@ CallMethodHelper::GatherAndConvertResults()
         const nsXPTType& type = paramInfo.GetType();
         nsXPTCVariant* dp = GetDispatchParam(i);
         RootedValue v(mCallContext, NullValue());
+        AUTO_MARK_JSVAL(mCallContext, v.address());
         uint32_t array_count = 0;
         nsXPTType datum_type;
         bool isArray = type.IsArray();
@@ -3007,12 +3017,8 @@ NS_IMETHODIMP XPCWrappedNative::GetXPConnect(nsIXPConnect * *aXPConnect)
 }
 
 /* XPCNativeInterface FindInterfaceWithMember (in jsval name); */
-NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithMember(jsid nameArg,
-                                                        nsIInterfaceInfo * *_retval)
+NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithMember(jsid name, nsIInterfaceInfo * *_retval)
 {
-    AutoJSContext cx;
-    RootedId name(cx, nameArg);
-
     XPCNativeInterface* iface;
     XPCNativeMember*  member;
 
@@ -3026,12 +3032,8 @@ NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithMember(jsid nameArg,
 }
 
 /* XPCNativeInterface FindInterfaceWithName (in jsval name); */
-NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithName(jsid nameArg,
-                                                      nsIInterfaceInfo * *_retval)
+NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithName(jsid name, nsIInterfaceInfo * *_retval)
 {
-    AutoJSContext cx;
-    RootedId name(cx, nameArg);
-
     XPCNativeInterface* iface = GetSet()->FindNamedInterface(name);
     if (iface) {
         nsIInterfaceInfo* temp = iface->GetInterfaceInfo();
@@ -3044,11 +3046,8 @@ NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithName(jsid nameArg,
 
 /* [notxpcom] bool HasNativeMember (in jsval name); */
 NS_IMETHODIMP_(bool)
-XPCWrappedNative::HasNativeMember(jsid nameArg)
+XPCWrappedNative::HasNativeMember(jsid name)
 {
-    AutoJSContext cx;
-    RootedId name(cx, nameArg);
-
     XPCNativeMember *member = nullptr;
     uint16_t ignored;
     return GetSet()->FindMember(name, &member, &ignored) && !!member;
@@ -3624,7 +3623,7 @@ static uint32_t sSlimWrappers;
 JSBool
 ConstructSlimWrapper(XPCCallContext &ccx,
                      xpcObjectHelper &aHelper,
-                     XPCWrappedNativeScope* xpcScope, MutableHandleValue rval)
+                     XPCWrappedNativeScope* xpcScope, jsval *rval)
 {
     nsISupports *identityObj = aHelper.GetCanonical();
     nsXPCClassInfo *classInfoHelper = aHelper.GetXPCClassInfo();
@@ -3680,7 +3679,7 @@ ConstructSlimWrapper(XPCCallContext &ccx,
     nsWrapperCache *cache = aHelper.GetWrapperCache();
     JSObject* wrapper = cache->GetWrapper();
     if (wrapper) {
-        rval.setObject(*wrapper);
+        *rval = OBJECT_TO_JSVAL(wrapper);
 
         return true;
     }
@@ -3717,7 +3716,7 @@ ConstructSlimWrapper(XPCCallContext &ccx,
     SLIM_LOG(("+++++ %i created slim wrapper (%p, %p, %p)\n", ++sSlimWrappers,
               wrapper, p, xpcScope));
 
-    rval.setObject(*wrapper);
+    *rval = OBJECT_TO_JSVAL(wrapper);
 
     return true;
 }

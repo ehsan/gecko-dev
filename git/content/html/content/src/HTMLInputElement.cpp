@@ -57,6 +57,7 @@
 #include "nsLayoutUtils.h"
 
 #include "nsIDOMMutationEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsMutationEvent.h"
 #include "nsEventListenerManager.h"
 
@@ -396,7 +397,8 @@ HTMLInputElement::AsyncClickHandler::Run()
     uint32_t permission;
     pm->TestPermission(doc->NodePrincipal(), &permission);
     if (permission == nsIPopupWindowManager::DENY_POPUP) {
-      nsGlobalWindow::FirePopupBlockedEvent(doc, win, nullptr, EmptyString(), EmptyString());
+      nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
+      nsGlobalWindow::FirePopupBlockedEvent(domDoc, win, nullptr, EmptyString(), EmptyString());
       return NS_OK;
     }
   }
@@ -1275,13 +1277,6 @@ HTMLInputElement::SetValue(const nsAString& aValue, ErrorResult& aRv)
       GetValueInternal(currentValue);
 
       SetValueInternal(aValue, false, true);
-
-      if (mType == NS_FORM_INPUT_RANGE) {
-        nsRangeFrame* frame = do_QueryFrame(GetPrimaryFrame());
-        if (frame) {
-          frame->UpdateForValueChange();
-        }
-      }
 
       if (mFocusedValue.Equals(currentValue)) {
         GetValueInternal(mFocusedValue);
@@ -2790,7 +2785,7 @@ IsLTR(Element* aElement)
 }
 
 bool
-HTMLInputElement::ShouldPreventDOMActivateDispatch(EventTarget* aOriginalTarget)
+HTMLInputElement::ShouldPreventDOMActivateDispatch(nsIDOMEventTarget* aOriginalTarget)
 {
   /*
    * For the moment, there is only one situation where we actually want to
@@ -6147,7 +6142,7 @@ HTMLInputElement::UpdateHasRange()
 }
 
 JSObject*
-HTMLInputElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLInputElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLInputElementBinding::Wrap(aCx, aScope, this);
 }

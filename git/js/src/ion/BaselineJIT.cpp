@@ -265,7 +265,7 @@ ion::CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, boo
     if (IsJSDEnabled(cx)) {
         if (JSOp(*cx->regs().pc) == JSOP_LOOPENTRY) // No OSR.
             return Method_Skipped;
-    } else if (script->incUseCount() <= js_IonOptions.baselineUsesBeforeCompile) {
+    } else if (scriptArg->incUseCount() <= js_IonOptions.baselineUsesBeforeCompile) {
         return Method_Skipped;
     }
 
@@ -388,8 +388,8 @@ BaselineScript::pcMappingReader(size_t indexEntry)
     return CompactBufferReader(dataStart, dataEnd);
 }
 
-ICEntry *
-BaselineScript::maybeICEntryFromReturnOffset(CodeOffsetLabel returnOffset)
+ICEntry &
+BaselineScript::icEntryFromReturnOffset(CodeOffsetLabel returnOffset)
 {
     size_t bottom = 0;
     size_t top = numICEntries();
@@ -402,21 +402,8 @@ BaselineScript::maybeICEntryFromReturnOffset(CodeOffsetLabel returnOffset)
             top = mid;
         mid = (bottom + top) / 2;
     }
-    if (mid >= numICEntries())
-        return NULL;
-
-    if (icEntry(mid).returnOffset().offset() != returnOffset.offset())
-        return NULL;
-
-    return &icEntry(mid);
-}
-
-ICEntry &
-BaselineScript::icEntryFromReturnOffset(CodeOffsetLabel returnOffset)
-{
-    ICEntry *result = maybeICEntryFromReturnOffset(returnOffset);
-    JS_ASSERT(result);
-    return *result;
+    JS_ASSERT(icEntry(mid).returnOffset().offset() == returnOffset.offset());
+    return icEntry(mid);
 }
 
 uint8_t *
@@ -481,20 +468,10 @@ BaselineScript::icEntryFromPCOffset(uint32_t pcOffset, ICEntry *prevLookedUpEntr
     return icEntryFromPCOffset(pcOffset);
 }
 
-ICEntry *
-BaselineScript::maybeICEntryFromReturnAddress(uint8_t *returnAddr)
-{
-    JS_ASSERT(returnAddr > method_->raw());
-    JS_ASSERT(returnAddr < method_->raw() + method_->instructionsSize());
-    CodeOffsetLabel offset(returnAddr - method_->raw());
-    return maybeICEntryFromReturnOffset(offset);
-}
-
 ICEntry &
 BaselineScript::icEntryFromReturnAddress(uint8_t *returnAddr)
 {
     JS_ASSERT(returnAddr > method_->raw());
-    JS_ASSERT(returnAddr < method_->raw() + method_->instructionsSize());
     CodeOffsetLabel offset(returnAddr - method_->raw());
     return icEntryFromReturnOffset(offset);
 }
@@ -604,62 +581,8 @@ BaselineScript::nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotI
     return NULL;
 }
 
-jsbytecode *
-BaselineScript::pcForReturnOffset(JSScript *script, uint32_t nativeOffset)
-{
-    JS_ASSERT(script->baselineScript() == this);
-    JS_ASSERT(nativeOffset < method_->instructionsSize());
-
-    // Look for the first PCMappingIndexEntry with native offset > the native offset we are
-    // interested in.
-    uint32_t i = 1;
-    for (; i < numPCMappingIndexEntries(); i++) {
-        if (pcMappingIndexEntry(i).nativeOffset > nativeOffset)
-            break;
-    }
-
-    // Go back an entry to search forward from.
-    JS_ASSERT(i > 0);
-    i--;
-
-    PCMappingIndexEntry &entry = pcMappingIndexEntry(i);
-    JS_ASSERT(nativeOffset >= entry.nativeOffset);
-
-    CompactBufferReader reader(pcMappingReader(i));
-    jsbytecode *curPC = script->code + entry.pcOffset;
-    uint32_t curNativeOffset = entry.nativeOffset;
-
-    JS_ASSERT(curPC >= script->code);
-    JS_ASSERT(curNativeOffset <= nativeOffset);
-
-    while (true) {
-        // If the high bit is set, the native offset relative to the
-        // previous pc != 0 and comes next.
-        uint8_t b = reader.readByte();
-        if (b & 0x80)
-            curNativeOffset += reader.readUnsigned();
-
-        if (curNativeOffset == nativeOffset)
-            return curPC;
-
-        curPC += GetBytecodeLength(curPC);
-    }
-
-    JS_NOT_REACHED("Invalid pc");
-    return NULL;
-}
-
-jsbytecode *
-BaselineScript::pcForReturnAddress(JSScript *script, uint8_t *nativeAddress)
-{
-    JS_ASSERT(script->baselineScript() == this);
-    JS_ASSERT(nativeAddress >= method_->raw());
-    JS_ASSERT(nativeAddress < method_->raw() + method_->instructionsSize());
-    return pcForReturnOffset(script, uint32_t(nativeAddress - method_->raw()));
-}
-
 void
-BaselineScript::toggleDebugTraps(JSScript *script, jsbytecode *pc)
+BaselineScript::toggleDebugTraps(RawScript script, jsbytecode *pc)
 {
     JS_ASSERT(script->baselineScript() == this);
 
@@ -779,7 +702,7 @@ BaselineScript::purgeOptimizedStubs(Zone *zone)
 }
 
 void
-ion::FinishDiscardBaselineScript(FreeOp *fop, JSScript *script)
+ion::FinishDiscardBaselineScript(FreeOp *fop, RawScript script)
 {
     if (!script->hasBaselineScript())
         return;

@@ -1573,12 +1573,13 @@ nsCSSStyleSheet::Clone(nsCSSStyleSheet* aCloneParent,
                        nsIDocument* aCloneDocument,
                        nsINode* aCloneOwningNode) const
 {
-  nsRefPtr<nsCSSStyleSheet> clone = new nsCSSStyleSheet(*this,
-                                                        aCloneParent,
-                                                        aCloneOwnerRule,
-                                                        aCloneDocument,
-                                                        aCloneOwningNode);
-  return clone.forget();
+  nsCSSStyleSheet* clone = new nsCSSStyleSheet(*this,
+                                               aCloneParent,
+                                               aCloneOwnerRule,
+                                               aCloneDocument,
+                                               aCloneOwningNode);
+  NS_IF_ADDREF(clone);
+  return clone;
 }
 
 #ifdef DEBUG
@@ -2259,7 +2260,7 @@ nsCSSStyleSheet::GetOriginalURI() const
 
 /* virtual */
 JSObject*
-nsCSSStyleSheet::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+nsCSSStyleSheet::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return CSSStyleSheetBinding::Wrap(aCx, aScope, this);
 }

@@ -11,14 +11,10 @@ EXPORTS += [
     'BasicImplData.h',
     'BasicLayers.h',
     'BasicLayersImpl.h',
+    'BasicTiledThebesLayer.h',
     'BasicThebesLayer.h',
     'CompositableHost.h',
-    'CopyableCanvasLayer.h',
-    'ClientLayerManager.h',
-    'ClientContainerLayer.h',
-    'ClientThebesLayer.h',
-    'ClientTiledThebesLayer.h',
-    'ClientCanvasLayer.h',
+    'LayerManagerComposite.h',
     'Composer2D.h',
     'GonkIOSurfaceImage.h',
     'FrameMetrics.h',
@@ -63,19 +59,14 @@ EXPORTS.gfxipc += [
 ]
 
 EXPORTS.mozilla.layers += [
-    'AsyncCompositionManager.h',
     'AsyncPanZoomController.h',
     'Axis.h',
-    'BasicCompositor.h',
     'CanvasClient.h',
-    'CanvasLayerComposite.h',
-    'ColorLayerComposite.h',
     'CompositableClient.h',
     'CompositableTransactionParent.h',
     'Compositor.h',
     'CompositorOGL.h',
     'CompositorTypes.h',
-    'ContainerLayerComposite.h',
     'ContentHost.h',
     'CompositingRenderTargetOGL.h',
     'CompositorCocoaWidgetHelper.h',
@@ -89,14 +80,12 @@ EXPORTS.mozilla.layers += [
     'ImageBridgeChild.h',
     'ImageBridgeParent.h',
     'ImageClient.h',
-    'ImageLayerComposite.h',
     'ImageHost.h',
     'ISurfaceAllocator.h',
-    'LayerManagerComposite.h',
     'LayersTypes.h',
-    'LayerTransactionChild.h',
-    'LayerTransactionParent.h',
     'ShadowLayers.h',
+    'ShadowLayersChild.h',
+    'ShadowLayersParent.h',
     'ShadowLayersManager.h',
     'RenderTrace.h',
     'SharedRGBImage.h',
@@ -107,18 +96,12 @@ EXPORTS.mozilla.layers += [
     'TextureHost.h',
     'TextureClientOGL.h',
     'TextureHostOGL.h',
-    'ThebesLayerComposite.h',
     'TiledContentClient.h',
 ]
 
 if CONFIG['MOZ_X11']:
     EXPORTS.mozilla.layers += [
         'ShadowLayerUtilsX11.h'
-    ]
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    EXPORTS.mozilla.layers += [
-        'GLManager.h'
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':

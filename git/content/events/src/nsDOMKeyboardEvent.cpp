@@ -21,7 +21,6 @@ nsDOMKeyboardEvent::nsDOMKeyboardEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
-  SetIsDOMBinding();
 }
 
 nsDOMKeyboardEvent::~nsDOMKeyboardEvent()
@@ -46,7 +45,7 @@ NS_IMETHODIMP
 nsDOMKeyboardEvent::GetAltKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = AltKey();
+  *aIsDown = static_cast<nsInputEvent*>(mEvent)->IsAlt();
   return NS_OK;
 }
 
@@ -54,7 +53,7 @@ NS_IMETHODIMP
 nsDOMKeyboardEvent::GetCtrlKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = CtrlKey();
+  *aIsDown = static_cast<nsInputEvent*>(mEvent)->IsControl();
   return NS_OK;
 }
 
@@ -62,7 +61,7 @@ NS_IMETHODIMP
 nsDOMKeyboardEvent::GetShiftKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = ShiftKey();
+  *aIsDown = static_cast<nsInputEvent*>(mEvent)->IsShift();
   return NS_OK;
 }
 
@@ -70,7 +69,7 @@ NS_IMETHODIMP
 nsDOMKeyboardEvent::GetMetaKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = MetaKey();
+  *aIsDown = static_cast<nsInputEvent*>(mEvent)->IsMeta();
   return NS_OK;
 }
 
@@ -80,16 +79,7 @@ nsDOMKeyboardEvent::GetModifierState(const nsAString& aKey,
 {
   NS_ENSURE_ARG_POINTER(aState);
 
-  *aState = GetModifierState(aKey);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMKeyboardEvent::GetKey(nsAString& aKeyName)
-{
-  if (!mEventIsInternal) {
-    static_cast<nsKeyEvent*>(mEvent)->GetDOMKeyName(aKeyName);
-  }
+  *aState = GetModifierStateInternal(aKey);
   return NS_OK;
 }
 
@@ -97,41 +87,39 @@ NS_IMETHODIMP
 nsDOMKeyboardEvent::GetCharCode(uint32_t* aCharCode)
 {
   NS_ENSURE_ARG_POINTER(aCharCode);
-  *aCharCode = CharCode();
-  return NS_OK;
-}
 
-uint32_t
-nsDOMKeyboardEvent::CharCode()
-{
   switch (mEvent->message) {
   case NS_KEY_UP:
   case NS_KEY_DOWN:
-    return 0;
+    *aCharCode = 0;
+    break;
   case NS_KEY_PRESS:
-    return static_cast<nsKeyEvent*>(mEvent)->charCode;
+    *aCharCode = ((nsKeyEvent*)mEvent)->charCode;
+    break;
+  default:
+    *aCharCode = 0;
+    break;
   }
-  return 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMKeyboardEvent::GetKeyCode(uint32_t* aKeyCode)
 {
   NS_ENSURE_ARG_POINTER(aKeyCode);
-  *aKeyCode = KeyCode();
-  return NS_OK;
-}
 
-uint32_t
-nsDOMKeyboardEvent::KeyCode()
-{
   switch (mEvent->message) {
   case NS_KEY_UP:
   case NS_KEY_PRESS:
   case NS_KEY_DOWN:
-    return static_cast<nsKeyEvent*>(mEvent)->keyCode;
+    *aKeyCode = ((nsKeyEvent*)mEvent)->keyCode;
+    break;
+  default:
+    *aKeyCode = 0;
+    break;
   }
-  return 0;
+
+  return NS_OK;
 }
 
 /* virtual */
@@ -139,30 +127,29 @@ nsresult
 nsDOMKeyboardEvent::Which(uint32_t* aWhich)
 {
   NS_ENSURE_ARG_POINTER(aWhich);
-  *aWhich = Which();
-  return NS_OK;
-}
 
-uint32_t
-nsDOMKeyboardEvent::Which()
-{
   switch (mEvent->message) {
     case NS_KEY_UP:
     case NS_KEY_DOWN:
-      return KeyCode();
+      return GetKeyCode(aWhich);
     case NS_KEY_PRESS:
       //Special case for 4xp bug 62878.  Try to make value of which
       //more closely mirror the values that 4.x gave for RETURN and BACKSPACE
       {
         uint32_t keyCode = ((nsKeyEvent*)mEvent)->keyCode;
         if (keyCode == NS_VK_RETURN || keyCode == NS_VK_BACK) {
-          return keyCode;
+          *aWhich = keyCode;
+          return NS_OK;
         }
-        return CharCode();
+        return GetCharCode(aWhich);
       }
+      break;
+    default:
+      *aWhich = 0;
+      break;
   }
 
-  return 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -170,7 +157,7 @@ nsDOMKeyboardEvent::GetLocation(uint32_t* aLocation)
 {
   NS_ENSURE_ARG_POINTER(aLocation);
 
-  *aLocation = Location();
+  *aLocation = static_cast<nsKeyEvent*>(mEvent)->location;
   return NS_OK;
 }
 

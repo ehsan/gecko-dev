@@ -10,7 +10,8 @@ Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm", tempScope);
 let WebConsoleUtils = tempScope.WebConsoleUtils;
 Cu.import("resource:///modules/devtools/gDevTools.jsm", tempScope);
 let gDevTools = tempScope.gDevTools;
-let TargetFactory = tempScope.devtools.TargetFactory;
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+let TargetFactory = tempScope.TargetFactory;
 Components.utils.import("resource://gre/modules/devtools/Console.jsm", tempScope);
 let console = tempScope.console;
 let Promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
@@ -24,7 +25,6 @@ const CATEGORY_JS = 2;
 const CATEGORY_WEBDEV = 3;
 const CATEGORY_INPUT = 4;
 const CATEGORY_OUTPUT = 5;
-const CATEGORY_SECURITY = 6;
 
 // The possible message severities.
 const SEVERITY_ERROR = 0;

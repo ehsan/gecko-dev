@@ -147,7 +147,6 @@ static int32_t sIsPairing = 0;
 static nsString sAdapterPath;
 
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
-typedef bool (*FilterFunc)(const BluetoothValue&);
 
 class RemoveDeviceTask : public nsRunnable {
 public:
@@ -191,34 +190,6 @@ private:
   nsCString mDeviceObjectPath;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
 };
-
-static bool
-GetConnectedDevicesFilter(const BluetoothValue& aValue)
-{
-  // We don't have to filter device here
-  return true;
-}
-
-static bool
-GetPairedDevicesFilter(const BluetoothValue& aValue)
-{
-  // Check property 'Paired' and only paired device will be returned
-  if (aValue.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
-    NS_WARNING("Not a BluetoothNamedValue array!");
-    return false;
-  }
-
-  const InfallibleTArray<BluetoothNamedValue>& deviceProperties =
-    aValue.get_ArrayOfBluetoothNamedValue();
-  uint32_t length = deviceProperties.Length();
-  for (uint32_t p = 0; p < length; ++p) {
-    if (deviceProperties[p].name().EqualsLiteral("Paired")) {
-      return deviceProperties[p].value().get_bool();
-    }
-  }
-
-  return false;
-}
 
 class SendDiscoveryTask : public nsRunnable {
 public:
@@ -1940,16 +1911,14 @@ private:
   BluetoothSignal mSignal;
 };
 
-class BluetoothArrayOfDevicePropertiesRunnable : public nsRunnable
+class BluetoothPairedDevicePropertiesRunnable : public nsRunnable
 {
 public:
-  BluetoothArrayOfDevicePropertiesRunnable(
-                                     const nsTArray<nsString>& aDeviceAddresses,
+  BluetoothPairedDevicePropertiesRunnable(
                                      BluetoothReplyRunnable* aRunnable,
-                                     FilterFunc aFilterFunc)
-    : mDeviceAddresses(aDeviceAddresses)
-    , mRunnable(dont_AddRef(aRunnable))
-    , mFilterFunc(aFilterFunc)
+                                     const nsTArray<nsString>& aDeviceAddresses)
+    : mRunnable(dont_AddRef(aRunnable)),
+      mDeviceAddresses(aDeviceAddresses)
   {
   }
 
@@ -1961,39 +1930,51 @@ public:
     dbus_error_init(&err);
 
     BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
-    nsAutoString errorStr;
 
     for (uint32_t i = 0; i < mDeviceAddresses.Length(); i++) {
       BluetoothValue v;
-      nsString objectPath = GetObjectPathFromAddress(sAdapterPath, mDeviceAddresses[i]);
-
-      if (!GetPropertiesInternal(objectPath, DBUS_DEVICE_IFACE, v)) {
+      if (!GetPropertiesInternal(mDeviceAddresses[i], DBUS_DEVICE_IFACE, v)) {
+        nsAutoString errorStr;
         errorStr.AssignLiteral("Getting properties failed!");
-        DispatchBluetoothReply(mRunnable, values, errorStr);
+        NS_WARNING(NS_ConvertUTF16toUTF8(errorStr).get());
+        mRunnable->SetReply(new BluetoothReply(BluetoothReplyError(errorStr)));
+        if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
+          NS_WARNING("Failed to dispatch to main thread!");
+        }
         return NS_OK;
       }
-
-      // We have to manually attach the path to the rest of the elements
       v.get_ArrayOfBluetoothNamedValue().AppendElement(
-        BluetoothNamedValue(NS_LITERAL_STRING("Path"), objectPath)
+        BluetoothNamedValue(NS_LITERAL_STRING("Path"), mDeviceAddresses[i])
       );
 
-      if (mFilterFunc(v)) {
-        values.get_ArrayOfBluetoothNamedValue().AppendElement(
-          BluetoothNamedValue(mDeviceAddresses[i],
-                              v.get_ArrayOfBluetoothNamedValue())
-        );
+      InfallibleTArray<BluetoothNamedValue>& deviceProperties =
+        v.get_ArrayOfBluetoothNamedValue();
+      for (uint32_t p = 0;
+           p < v.get_ArrayOfBluetoothNamedValue().Length(); ++p) {
+        BluetoothNamedValue& property = v.get_ArrayOfBluetoothNamedValue()[p];
+        // Only paired devices will be return back to main thread
+        if (property.name().EqualsLiteral("Paired")) {
+          bool paired = property.value();
+          if (paired) {
+            values.get_ArrayOfBluetoothNamedValue().AppendElement(
+              BluetoothNamedValue(mDeviceAddresses[i], deviceProperties)
+            );
+          }
+          break;
+        }
       }
     }
 
-    DispatchBluetoothReply(mRunnable, values, errorStr);
+    mRunnable->SetReply(new BluetoothReply(BluetoothReplySuccess(values)));
+    if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
+      NS_WARNING("Failed to dispatch to main thread!");
+    }
     return NS_OK;
   }
 
 private:
-  nsTArray<nsString> mDeviceAddresses;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
-  FilterFunc mFilterFunc;
+  nsTArray<nsString> mDeviceAddresses;
 };
 
 nsresult
@@ -2016,55 +1997,6 @@ BluetoothDBusService::GetDevicePropertiesInternal(const BluetoothSignal& aSignal
 }
 
 nsresult
-BluetoothDBusService::GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
-                                              BluetoothReplyRunnable* aRunnable)
-{
-  nsAutoString errorStr;
-  BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
-  if (!IsReady()) {
-    errorStr.AssignLiteral("Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, values, errorStr);
-    return NS_OK;
-  }
-
-  nsTArray<nsString> deviceAddresses;
-  if (aProfileId == BluetoothServiceClass::HANDSFREE ||
-      aProfileId == BluetoothServiceClass::HEADSET) {
-    BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    if (hfp->IsConnected()) {
-      nsString address;
-      hfp->GetAddress(address);
-      deviceAddresses.AppendElement(address);
-    }
-  } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
-    BluetoothOppManager* opp = BluetoothOppManager::Get();
-    if (opp->IsTransferring()) {
-      nsString address;
-      opp->GetAddress(address);
-      deviceAddresses.AppendElement(address);
-    }
-  } else {
-    errorStr.AssignLiteral("Unknown profile");
-    DispatchBluetoothReply(aRunnable, values, errorStr);
-    return NS_OK;
-  }
-
-  nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
-  nsRefPtr<nsRunnable> func(
-    new BluetoothArrayOfDevicePropertiesRunnable(deviceAddresses,
-                                                 runnable,
-                                                 GetConnectedDevicesFilter));
-
-  if (NS_FAILED(mBluetoothCommandThread->Dispatch(func, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Cannot dispatch task!");
-    return NS_ERROR_FAILURE;
-  }
-
-  runnable.forget();
-  return NS_OK;
-}
-
-nsresult
 BluetoothDBusService::GetPairedDevicePropertiesInternal(
                                      const nsTArray<nsString>& aDeviceAddresses,
                                      BluetoothReplyRunnable* aRunnable)
@@ -2079,9 +2011,7 @@ BluetoothDBusService::GetPairedDevicePropertiesInternal(
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
   nsRefPtr<nsRunnable> func(
-    new BluetoothArrayOfDevicePropertiesRunnable(aDeviceAddresses,
-                                                 runnable,
-                                                 GetPairedDevicesFilter));
+    new BluetoothPairedDevicePropertiesRunnable(runnable, aDeviceAddresses));
   if (NS_FAILED(mBluetoothCommandThread->Dispatch(func, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Cannot dispatch task!");
     return NS_ERROR_FAILURE;
@@ -2557,8 +2487,7 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
       DispatchBluetoothReply(aRunnable, v, errorStr);
     }
   } else {
-    errorStr.AssignLiteral("Unknown profile");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    NS_WARNING("Unknown Profile");
   }
 }
 
@@ -2790,7 +2719,7 @@ BluetoothDBusService::SendFile(const nsAString& aDeviceAddress,
   BluetoothValue v = true;
   nsAutoString errorStr;
 
-  if (!opp->SendFile(aDeviceAddress, aBlobParent)) {
+  if (!opp->SendFile(aBlobParent)) {
     errorStr.AssignLiteral("Calling SendFile() failed");
   }
 

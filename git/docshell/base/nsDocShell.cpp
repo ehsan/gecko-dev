@@ -65,6 +65,7 @@
 #include "nsIUploadChannel.h"
 #include "nsISecurityEventSink.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIJSContextStack.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScrollableFrame.h"
 #include "nsContentPolicyUtils.h" // NS_CheckContentLoadPolicy(...)
@@ -1786,11 +1787,11 @@ NS_IMETHODIMP
 nsDocShell::SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler)
 {
     // Weak reference. Don't addref.
+    mChromeEventHandler = aChromeEventHandler;
     nsCOMPtr<EventTarget> handler = do_QueryInterface(aChromeEventHandler);
-    mChromeEventHandler = handler.get();
 
     if (mScriptGlobal) {
-        mScriptGlobal->SetChromeEventHandler(mChromeEventHandler);
+        mScriptGlobal->SetChromeEventHandler(handler);
     }
 
     return NS_OK;
@@ -1800,8 +1801,8 @@ NS_IMETHODIMP
 nsDocShell::GetChromeEventHandler(nsIDOMEventTarget** aChromeEventHandler)
 {
     NS_ENSURE_ARG_POINTER(aChromeEventHandler);
-    nsCOMPtr<EventTarget> handler = mChromeEventHandler;
-    handler.forget(aChromeEventHandler);
+    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mChromeEventHandler);
+    target.swap(*aChromeEventHandler);
     return NS_OK;
 }
 
@@ -2759,7 +2760,7 @@ already_AddRefed<nsDocShell>
 nsDocShell::GetParentDocshell()
 {
     nsCOMPtr<nsIDocShell> docshell = do_QueryInterface(GetAsSupports(mParent));
-    return docshell.forget().downcast<nsDocShell>();
+    return static_cast<nsDocShell*>(docshell.forget().get());
 }
 
 nsresult
@@ -7047,7 +7048,10 @@ nsDocShell::CanSavePresentation(uint32_t aLoadType,
 
     // If the document does not want its presentation cached, then don't.
     nsCOMPtr<nsIDocument> doc = mScriptGlobal->GetExtantDoc();
-    return doc && doc->CanSavePresentation(aNewRequest);
+    if (!doc || !doc->CanSavePresentation(aNewRequest))
+        return false;
+
+    return true;
 }
 
 void
@@ -8673,7 +8677,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             // document in |newWin|, if any.
             nsCOMPtr<nsPIDOMWindow> piNewWin = do_QueryInterface(newWin);
             if (piNewWin) {
-                nsCOMPtr<nsIDocument> newDoc = piNewWin->GetExtantDoc();
+                nsCOMPtr<nsIDocument> newDoc =
+                    do_QueryInterface(piNewWin->GetExtantDocument());
                 if (!newDoc || newDoc->IsInitialDocument()) {
                     isNewWindow = true;
                     aFlags |= INTERNAL_LOAD_FLAGS_FIRST_LOAD;
@@ -9711,11 +9716,6 @@ nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
         // If we failed to get the shell, or if there is no shell,
         // nothing left to do here.
         return NS_OK;
-    }
-
-    nsIScrollableFrame* rootScroll = shell->GetRootScrollFrameAsScrollable();
-    if (rootScroll) {
-        rootScroll->ClearDidHistoryRestore();
     }
 
     // If we have no new anchor, we do not want to scroll, unless there is a

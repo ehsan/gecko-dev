@@ -1043,9 +1043,7 @@ ion::BailoutIonToBaseline(JSContext *cx, IonActivation *activation, IonBailoutIt
             (int) prevFrameType);
     IonSpew(IonSpew_BaselineBailouts, "  Reading from snapshot offset %u size %u",
             iter.snapshotOffset(), iter.ionScript()->snapshotsSize());
-
-    iter.ionScript()->incNumBailouts();
-    iter.script()->updateBaselineOrIonRaw();
+    iter.ionScript()->setBailoutExpected();
 
     // Allocate buffer to hold stack replacement data.
     BaselineStackBuilder builder(iter, 1024);
@@ -1186,13 +1184,6 @@ ion::FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo)
 
     IonSpew(IonSpew_BaselineBailouts, "  Done restoring frames");
 
-    // Check that we can get the current script's PC.
-#ifdef DEBUG
-    jsbytecode *pc;
-    cx->stack.currentScript(&pc);
-    IonSpew(IonSpew_BaselineBailouts, "  Got pc=%p", pc);
-#endif
-
     uint32_t numFrames = bailoutInfo->numFrames;
     JS_ASSERT(numFrames > 0);
     BailoutKind bailoutKind = bailoutInfo->bailoutKind;
@@ -1287,9 +1278,6 @@ ion::FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo)
       default:
         JS_NOT_REACHED("Unknown bailout kind!");
     }
-
-    if (!CheckFrequentBailouts(cx, outerScript))
-        return false;
 
     return true;
 }

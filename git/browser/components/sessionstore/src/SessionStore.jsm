@@ -49,16 +49,17 @@ const WINDOW_HIDEABLE_FEATURES = [
   "menubar", "toolbar", "locationbar", "personalbar", "statusbar", "scrollbars"
 ];
 
-const MESSAGES = [
-  // The content script tells us that its form data (or that of one of its
-  // subframes) might have changed. This can be the contents or values of
-  // standard form fields or of ContentEditables.
-  "SessionStore:input",
+/*
+docShell capabilities to (re)store
+Restored in restoreHistory()
+eg: browser.docShell["allow" + aCapability] = false;
 
-  // The content script has received a pageshow event. This happens when a
-  // page is loaded from bfcache without any network activity, i.e. when
-  // clicking the back or forward button.
-  "SessionStore:pageshow"
+XXX keep these in sync with all the attributes starting
+    with "allow" in /docshell/base/nsIDocShell.idl
+*/
+const CAPABILITIES = [
+  "Subframes", "Plugins", "Javascript", "MetaRedirects", "Images",
+  "DNSPrefetch", "Auth", "WindowControl"
 ];
 
 // These are tab events that we listen to.
@@ -83,25 +84,6 @@ Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", this);
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSessionStartup",
   "@mozilla.org/browser/sessionstartup;1", "nsISessionStartup");
-XPCOMUtils.defineLazyServiceGetter(this, "gScreenManager",
-  "@mozilla.org/gfx/screenmanager;1", "nsIScreenManager");
-
-// List of docShell capabilities to (re)store. These are automatically
-// retrieved from a given docShell if not already collected before.
-// This is made so they're automatically in sync with all nsIDocShell.allow*
-// properties.
-let gDocShellCapabilities = (function () {
-  let caps;
-
-  return docShell => {
-    if (!caps) {
-      let keys = Object.keys(docShell);
-      caps = keys.filter(k => k.startsWith("allow")).map(k => k.slice(5));
-    }
-
-    return caps;
-  };
-})();
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
@@ -291,11 +273,15 @@ let SessionStoreInternal = {
   // whether the last window was closed and should be restored
   _restoreLastWindow: false,
 
-  // number of tabs currently restoring
+  // tabs to restore in order
+  _tabsToRestore: { priority: [], visible: [], hidden: [] },
   _tabsRestoringCount: 0,
 
-  // overrides MAX_CONCURRENT_TAB_RESTORES and restore_hidden_tabs when true
+  // overrides MAX_CONCURRENT_TAB_RESTORES and _restoreHiddenTabs when true
   _restoreOnDemand: false,
+
+  // whether to restore hidden tabs or not, pref controlled.
+  _restoreHiddenTabs: null,
 
   // whether to restore app tabs on demand or not, pref controlled.
   _restorePinnedTabsOnDemand: null,
@@ -316,10 +302,6 @@ let SessionStoreInternal = {
 
   // Whether session has been initialized
   _sessionInitialized: false,
-
-  // True if session store is disabled by multi-process browsing.
-  // See bug 516755.
-  _disabledForMultiProcess: false,
 
   // The original "sessionstore.resume_session_once" preference value before it
   // was modified by saveState.  saveState will set the
@@ -369,8 +351,6 @@ let SessionStoreInternal = {
     // Do pref migration before we store any values and start observing changes
     this._migratePrefs();
 
-    this._disabledForMultiProcess = this._prefBranch.getBoolPref("tabs.remote");
-
     // this pref is only read at startup, so no need to observe it
     this._sessionhistory_max_entries =
       this._prefBranch.getIntPref("sessionhistory.max_entries");
@@ -378,6 +358,10 @@ let SessionStoreInternal = {
     this._restoreOnDemand =
       this._prefBranch.getBoolPref("sessionstore.restore_on_demand");
     this._prefBranch.addObserver("sessionstore.restore_on_demand", this, true);
+
+    this._restoreHiddenTabs =
+      this._prefBranch.getBoolPref("sessionstore.restore_hidden_tabs");
+    this._prefBranch.addObserver("sessionstore.restore_hidden_tabs", this, true);
 
     this._restorePinnedTabsOnDemand =
       this._prefBranch.getBoolPref("sessionstore.restore_pinned_tabs_on_demand");
@@ -459,10 +443,13 @@ let SessionStoreInternal = {
       catch (ex) { debug("The session file is invalid: " + ex); }
     }
 
-    // A Lazy getter for the sessionstore.js backup promise.
-    XPCOMUtils.defineLazyGetter(this, "_backupSessionFileOnce", function () {
-      return _SessionFile.createBackupCopy();
-    });
+    if (this._resume_from_crash) {
+      // Launch background copy of the session file. Note that we do
+      // not have race conditions here as _SessionFile guarantees
+      // that any I/O operation is completed before proceeding to
+      // the next I/O operation.
+      _SessionFile.createBackupCopy();
+    }
 
     // at this point, we've as good as resumed the session, so we can
     // clear the resume_session_once flag, if it's set
@@ -559,8 +546,10 @@ let SessionStoreInternal = {
     if (this._sessionInitialized)
       this.saveState(true);
 
-    // clear out priority queue in case it's still holding refs
-    TabRestoreQueue.reset();
+    // clear out _tabsToRestore in case it's still holding refs
+    this._tabsToRestore.priority = null;
+    this._tabsToRestore.visible = null;
+    this._tabsToRestore.hidden = null;
 
     // Make sure to break our cycle with the save timer
     if (this._saveTimer) {
@@ -586,9 +575,6 @@ let SessionStoreInternal = {
    * Handle notifications
    */
   observe: function ssi_observe(aSubject, aTopic, aData) {
-    if (this._disabledForMultiProcess)
-      return;
-
     switch (aTopic) {
       case "domwindowopened": // catch new windows
         this.onOpen(aSubject);
@@ -623,48 +609,28 @@ let SessionStoreInternal = {
     }
   },
 
-  /**
-   * This method handles incoming messages sent by the session store content
-   * script and thus enables communication with OOP tabs.
-   */
-  receiveMessage: function ssi_receiveMessage(aMessage) {
-    var browser = aMessage.target;
-    var win = browser.ownerDocument.defaultView;
-
-    switch (aMessage.name) {
-      case "SessionStore:pageshow":
-        this.onTabLoad(win, browser);
-        break;
-      case "SessionStore:input":
-        this.onTabInput(win, browser);
-        break;
-      default:
-        debug("received unknown message '" + aMessage.name + "'");
-        break;
-    }
-
-    this._clearRestoringWindows();
-  },
-
   /* ........ Window Event Handlers .............. */
 
   /**
    * Implement nsIDOMEventListener for handling various window and tab events
    */
   handleEvent: function ssi_handleEvent(aEvent) {
-    if (this._disabledForMultiProcess)
-      return;
-
     var win = aEvent.currentTarget.ownerDocument.defaultView;
     switch (aEvent.type) {
       case "load":
         // If __SS_restore_data is set, then we need to restore the document
         // (form data, scrolling, etc.). This will only happen when a tab is
         // first restored.
-        let browser = aEvent.currentTarget;
-        if (browser.__SS_restore_data)
-          this.restoreDocument(win, browser, aEvent);
-        this.onTabLoad(win, browser);
+        if (aEvent.currentTarget.__SS_restore_data)
+          this.restoreDocument(win, aEvent.currentTarget, aEvent);
+        // We still need to call onTabLoad, so fall through to "pageshow" case.
+      case "pageshow":
+        this.onTabLoad(win, aEvent.currentTarget, aEvent);
+        break;
+      case "change":
+      case "input":
+      case "DOMAutoComplete":
+        this.onTabInput(win, aEvent.currentTarget);
         break;
       case "TabOpen":
         this.onTabAdd(win, aEvent.originalTarget);
@@ -1196,6 +1162,10 @@ let SessionStoreInternal = {
         this._restoreOnDemand =
           this._prefBranch.getBoolPref("sessionstore.restore_on_demand");
         break;
+      case "sessionstore.restore_hidden_tabs":
+        this._restoreHiddenTabs =
+          this._prefBranch.getBoolPref("sessionstore.restore_hidden_tabs");
+        break;
       case "sessionstore.restore_pinned_tabs_on_demand":
         this._restorePinnedTabsOnDemand =
           this._prefBranch.getBoolPref("sessionstore.restore_pinned_tabs_on_demand");
@@ -1223,9 +1193,10 @@ let SessionStoreInternal = {
   onTabAdd: function ssi_onTabAdd(aWindow, aTab, aNoNotification) {
     let browser = aTab.linkedBrowser;
     browser.addEventListener("load", this, true);
-
-    let mm = browser.messageManager;
-    MESSAGES.forEach(msg => mm.addMessageListener(msg, this));
+    browser.addEventListener("pageshow", this, true);
+    browser.addEventListener("change", this, true);
+    browser.addEventListener("input", this, true);
+    browser.addEventListener("DOMAutoComplete", this, true);
 
     if (!aNoNotification) {
       this.saveStateDelayed(aWindow);
@@ -1246,9 +1217,10 @@ let SessionStoreInternal = {
   onTabRemove: function ssi_onTabRemove(aWindow, aTab, aNoNotification) {
     let browser = aTab.linkedBrowser;
     browser.removeEventListener("load", this, true);
-
-    let mm = browser.messageManager;
-    MESSAGES.forEach(msg => mm.removeMessageListener(msg, this));
+    browser.removeEventListener("pageshow", this, true);
+    browser.removeEventListener("change", this, true);
+    browser.removeEventListener("input", this, true);
+    browser.removeEventListener("DOMAutoComplete", this, true);
 
     delete browser.__SS_data;
     delete browser.__SS_tabStillLoading;
@@ -1317,14 +1289,17 @@ let SessionStoreInternal = {
    *        Window reference
    * @param aBrowser
    *        Browser reference
+   * @param aEvent
+   *        Event obj
    */
-  onTabLoad: function ssi_onTabLoad(aWindow, aBrowser) {
+  onTabLoad: function ssi_onTabLoad(aWindow, aBrowser, aEvent) {
     // react on "load" and solitary "pageshow" events (the first "pageshow"
     // following "load" is too late for deleting the data caches)
     // It's possible to get a load event after calling stop on a browser (when
     // overwriting tabs). We want to return early if the tab hasn't been restored yet.
-    if (aBrowser.__SS_restoreState &&
-        aBrowser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE) {
+    if ((aEvent.type != "load" && !aEvent.persisted) ||
+        (aBrowser.__SS_restoreState &&
+         aBrowser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE)) {
       return;
     }
 
@@ -1374,10 +1349,12 @@ let SessionStoreInternal = {
   },
 
   onTabShow: function ssi_onTabShow(aWindow, aTab) {
-    // If the tab hasn't been restored yet, move it into the right bucket
+    // If the tab hasn't been restored yet, move it into the right _tabsToRestore bucket
     if (aTab.linkedBrowser.__SS_restoreState &&
         aTab.linkedBrowser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE) {
-      TabRestoreQueue.hiddenToVisible(aTab);
+      this._tabsToRestore.hidden.splice(this._tabsToRestore.hidden.indexOf(aTab), this._tabsToRestore.hidden.length);
+      // Just put it at the end of the list of visible tabs;
+      this._tabsToRestore.visible.push(aTab);
 
       // let's kick off tab restoration again to ensure this tab gets restored
       // with "restore_hidden_tabs" == false (now that it has become visible)
@@ -1390,10 +1367,12 @@ let SessionStoreInternal = {
   },
 
   onTabHide: function ssi_onTabHide(aWindow, aTab) {
-    // If the tab hasn't been restored yet, move it into the right bucket
+    // If the tab hasn't been restored yet, move it into the right _tabsToRestore bucket
     if (aTab.linkedBrowser.__SS_restoreState &&
         aTab.linkedBrowser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE) {
-      TabRestoreQueue.visibleToHidden(aTab);
+      this._tabsToRestore.visible.splice(this._tabsToRestore.visible.indexOf(aTab), this._tabsToRestore.visible.length);
+      // Just put it at the end of the list of hidden tabs;
+      this._tabsToRestore.hidden.push(aTab);
     }
 
     // Default delay of 2 seconds gives enough time to catch multiple TabHide
@@ -1419,7 +1398,7 @@ let SessionStoreInternal = {
 
     this._browserSetState = true;
 
-    // Make sure the priority queue is emptied out
+    // Make sure _tabsToRestore is emptied out
     this._resetRestoringState();
 
     var window = this._getMostRecentBrowserWindow();
@@ -1980,9 +1959,9 @@ let SessionStoreInternal = {
     tabData.hidden = aTab.hidden;
 
     var disallow = [];
-    for (let cap of gDocShellCapabilities(browser.docShell))
-      if (!browser.docShell["allow" + cap])
-        disallow.push(cap);
+    for (var i = 0; i < CAPABILITIES.length; i++)
+      if (!browser.docShell["allow" + CAPABILITIES[i]])
+        disallow.push(CAPABILITIES[i]);
     if (disallow.length > 0)
       tabData.disallow = disallow.join(",");
     else if (tabData.disallow)
@@ -2257,8 +2236,16 @@ let SessionStoreInternal = {
       }
 
       // designMode is undefined e.g. for XUL documents (as about:config)
-      if ((aContent.document.designMode || "") == "on" && aContent.document.body)
+      if ((aContent.document.designMode || "") == "on" && aContent.document.body) {
+        if (aData.innerHTML === undefined && !aFullData) {
+          // we get no "input" events from iframes - listen for keypress here
+          let _this = this;
+          aContent.addEventListener("keypress", function(aEvent) {
+            _this.saveStateDelayed(aWindow, 3000);
+          }, true);
+        }
         aData.innerHTML = aContent.document.body.innerHTML;
+      }
     }
 
     // get scroll position from nsIDOMWindowUtils, since it allows avoiding a
@@ -3103,10 +3090,10 @@ let SessionStoreInternal = {
     }
 
     // make sure to reset the capabilities and attributes, in case this tab gets reused
-    let disallow = new Set(tabData.disallow && tabData.disallow.split(","));
-    for (let cap of gDocShellCapabilities(browser.docShell))
-      browser.docShell["allow" + cap] = !disallow.has(cap);
-
+    var disallow = (tabData.disallow)?tabData.disallow.split(","):[];
+    CAPABILITIES.forEach(function(aCapability) {
+      browser.docShell["allow" + aCapability] = disallow.indexOf(aCapability) == -1;
+    });
     for (let name in this.xulAttributes)
       tab.removeAttribute(name);
     for (let name in tabData.attributes)
@@ -3132,7 +3119,13 @@ let SessionStoreInternal = {
       this.restoreTab(tab);
     }
     else {
-      TabRestoreQueue.add(tab);
+      // Put the tab into the right bucket
+      if (tabData.pinned)
+        this._tabsToRestore.priority.push(tab);
+      else if (tabData.hidden)
+        this._tabsToRestore.hidden.push(tab);
+      else
+        this._tabsToRestore.visible.push(tab);
       this.restoreNextTab();
     }
   },
@@ -3167,8 +3160,8 @@ let SessionStoreInternal = {
     // Make sure that the tabs progress listener is attached to this window
     this._ensureTabsProgressListener(window);
 
-    // Make sure that this tab is removed from the priority queue.
-    TabRestoreQueue.remove(aTab);
+    // Make sure that this tab is removed from _tabsToRestore
+    this._removeTabFromTabsToRestore(aTab);
 
     // Increase our internal count.
     this._tabsRestoringCount++;
@@ -3254,12 +3247,24 @@ let SessionStoreInternal = {
 
     // If it's not possible to restore anything, then just bail out.
     if ((this._restoreOnDemand &&
-        (this._restorePinnedTabsOnDemand || !TabRestoreQueue.hasPriorityTabs)) ||
+        (this._restorePinnedTabsOnDemand || !this._tabsToRestore.priority.length)) ||
         this._tabsRestoringCount >= MAX_CONCURRENT_TAB_RESTORES)
       return;
 
-    let tab = TabRestoreQueue.shift();
-    if (tab) {
+    // Look in priority, then visible, then hidden
+    let nextTabArray;
+    if (this._tabsToRestore.priority.length) {
+      nextTabArray = this._tabsToRestore.priority
+    }
+    else if (this._tabsToRestore.visible.length) {
+      nextTabArray = this._tabsToRestore.visible;
+    }
+    else if (this._restoreHiddenTabs && this._tabsToRestore.hidden.length) {
+      nextTabArray = this._tabsToRestore.hidden;
+    }
+
+    if (nextTabArray) {
+      let tab = nextTabArray.shift();
       let didStartLoad = this.restoreTab(tab);
       // If we don't start a load in the restored tab (eg, no entries) then we
       // want to attempt to restore the next tab.
@@ -3542,31 +3547,6 @@ let SessionStoreInternal = {
     var _this = this;
     function win_(aName) { return _this._getWindowDimension(win, aName); }
 
-    // find available space on the screen where this window is being placed
-    let screen = gScreenManager.screenForRect(aLeft, aTop, aWidth, aHeight);
-    if (screen) {
-      let screenLeft = {}, screenTop = {}, screenWidth = {}, screenHeight = {};
-      screen.GetAvailRectDisplayPix(screenLeft, screenTop, screenWidth, screenHeight);
-      // constrain the dimensions to the actual space available
-      if (aWidth > screenWidth.value) {
-        aWidth = screenWidth.value;
-      }
-      if (aHeight > screenHeight.value) {
-        aHeight = screenHeight.value;
-      }
-      // and then pull the window within the screen's bounds
-      if (aLeft < screenLeft.value) {
-        aLeft = screenLeft.value;
-      } else if (aLeft + aWidth > screenLeft.value + screenWidth.value) {
-        aLeft = screenLeft.value + screenWidth.value - aWidth;
-      }
-      if (aTop < screenTop.value) {
-        aTop = screenTop.value;
-      } else if (aTop + aHeight > screenTop.value + screenHeight.value) {
-        aTop = screenTop.value + screenHeight.value - aHeight;
-      }
-    }
-
     // only modify those aspects which aren't correct yet
     if (aWidth && aHeight && (aWidth != win_("width") || aHeight != win_("height"))) {
       aWindow.resizeTo(aWidth, aHeight);
@@ -3755,33 +3735,13 @@ let SessionStoreInternal = {
       return;
     }
 
-    let promise;
-    // If "sessionstore.resume_from_crash" is true, attempt to backup the
-    // session file first, before writing to it.
-    if (this._resume_from_crash) {
-      // Note that we do not have race conditions here as _SessionFile
-      // guarantees that any I/O operation is completed before proceeding to
-      // the next I/O operation.
-      // Note backup happens only once, on initial save.
-      promise = this._backupSessionFileOnce;
-    } else {
-      promise = Promise.resolve();
-    }
-
-    // Attempt to write to the session file (potentially, depending on
-    // "sessionstore.resume_from_crash" preference, after successful backup).
-    promise = promise.then(function onSuccess() {
-      // Write (atomically) to a session file, using a tmp file.
-      return _SessionFile.write(data);
-    });
-
-    // Once the session file is successfully updated, save the time stamp of the
-    // last save and notify the observers.
-    promise = promise.then(() => {
-      this._lastSaveTime = Date.now();
-      Services.obs.notifyObservers(null, "sessionstore-state-write-complete",
-        "");
-    });
+    let self = this;
+    _SessionFile.write(data).then(
+      function onSuccess() {
+        self._lastSaveTime = Date.now();
+        Services.obs.notifyObservers(null, "sessionstore-state-write-complete", "");
+      }
+    );
   },
 
   /* ........ Auxiliary Functions .............. */
@@ -4382,7 +4342,7 @@ let SessionStoreInternal = {
    * Reset state to prepare for a new session state to be restored.
    */
   _resetRestoringState: function ssi_initRestoringState() {
-    TabRestoreQueue.reset();
+    this._tabsToRestore = { priority: [], visible: [], hidden: [] };
     this._tabsRestoringCount = 0;
   },
 
@@ -4425,8 +4385,26 @@ let SessionStoreInternal = {
       // Make sure that the tab is removed from the list of tabs to restore.
       // Again, this is normally done in restoreTab, but that isn't being called
       // for this tab.
-      TabRestoreQueue.remove(aTab);
+      this._removeTabFromTabsToRestore(aTab);
     }
+  },
+
+  /**
+   * Remove the tab from this._tabsToRestore[priority/visible/hidden]
+   *
+   * @param aTab
+   */
+  _removeTabFromTabsToRestore: function ssi_removeTabFromTabsToRestore(aTab) {
+    // We'll always check priority first since we don't have an indicator if
+    // a tab will be there or not.
+    let arr = this._tabsToRestore.priority;
+    let index = arr.indexOf(aTab);
+    if (index == -1) {
+      arr = this._tabsToRestore[aTab.hidden ? "hidden" : "visible"];
+      index = arr.indexOf(aTab);
+    }
+    if (index > -1)
+      arr.splice(index, 1);
   },
 
   /**
@@ -4466,112 +4444,6 @@ let SessionStoreInternal = {
       browser.webNavigation.sessionHistory.
                             removeSHistoryListener(browser.__SS_shistoryListener);
       delete browser.__SS_shistoryListener;
-    }
-  }
-};
-
-/**
- * Priority queue that keeps track of a list of tabs to restore and returns
- * the tab we should restore next, based on priority rules. We decide between
- * pinned, visible and hidden tabs in that and FIFO order. Hidden tabs are only
- * restored with restore_hidden_tabs=true.
- */
-let TabRestoreQueue = {
-  // The separate buckets used to store tabs.
-  tabs: {priority: [], visible: [], hidden: []},
-
-  // Returns whether we have any high priority tabs in the queue.
-  get hasPriorityTabs() !!this.tabs.priority.length,
-
-  // Lazy getter that returns whether we should restore hidden tabs.
-  get restoreHiddenTabs() {
-    let updateValue = () => {
-      let value = Services.prefs.getBoolPref(PREF);
-      let definition = {value: value, configurable: true};
-      Object.defineProperty(this, "restoreHiddenTabs", definition);
-    }
-
-    const PREF = "browser.sessionstore.restore_hidden_tabs";
-    Services.prefs.addObserver(PREF, updateValue, false);
-    updateValue();
-  },
-
-  // Resets the queue and removes all tabs.
-  reset: function () {
-    this.tabs = {priority: [], visible: [], hidden: []};
-  },
-
-  // Adds a tab to the queue and determines its priority bucket.
-  add: function (tab) {
-    let {priority, hidden, visible} = this.tabs;
-
-    if (tab.pinned) {
-      priority.push(tab);
-    } else if (tab.hidden) {
-      hidden.push(tab);
-    } else {
-      visible.push(tab);
-    }
-  },
-
-  // Removes a given tab from the queue, if it's in there.
-  remove: function (tab) {
-    let {priority, hidden, visible} = this.tabs;
-
-    // We'll always check priority first since we don't
-    // have an indicator if a tab will be there or not.
-    let set = priority;
-    let index = set.indexOf(tab);
-
-    if (index == -1) {
-      set = tab.hidden ? hidden : visible;
-      index = set.indexOf(tab);
-    }
-
-    if (index > -1) {
-      set.splice(index, 1);
-    }
-  },
-
-  // Returns and removes the tab with the highest priority.
-  shift: function () {
-    let set;
-    let {priority, hidden, visible} = this.tabs;
-
-    if (priority.length) {
-      set = priority;
-    } else if (visible.length) {
-      set = visible;
-    } else if (this.restoreHiddenTabs && hidden.length) {
-      set = hidden;
-    }
-
-    return set && set.shift();
-  },
-
-  // Moves a given tab from the 'hidden' to the 'visible' bucket.
-  hiddenToVisible: function (tab) {
-    let {hidden, visible} = this.tabs;
-    let index = hidden.indexOf(tab);
-
-    if (index > -1) {
-      hidden.splice(index, 1);
-      visible.push(tab);
-    } else {
-      throw new Error("restore queue: hidden tab not found");
-    }
-  },
-
-  // Moves a given tab from the 'visible' to the 'hidden' bucket.
-  visibleToHidden: function (tab) {
-    let {visible, hidden} = this.tabs;
-    let index = visible.indexOf(tab);
-
-    if (index > -1) {
-      visible.splice(index, 1);
-      hidden.push(tab);
-    } else {
-      throw new Error("restore queue: visible tab not found");
     }
   }
 };

@@ -1058,8 +1058,6 @@ exports.testEvents = function(test) {
 
 exports["test page-mod on private tab"] = function (test) {
   test.waitUntilDone();
-  let fail = test.fail.bind(test);
-
   let privateUri = "data:text/html;charset=utf-8," +
                    "<iframe src=\"data:text/html;charset=utf-8,frame\" />";
   let nonPrivateUri = "data:text/html;charset=utf-8,non-private";
@@ -1074,24 +1072,17 @@ exports["test page-mod on private tab"] = function (test) {
                          nonPrivateUri,
                          "page-mod should only attach to the non-private tab");
       }
-
       test.assert(!isPrivate(worker),
                   "The worker is really non-private");
       test.assert(!isPrivate(worker.tab),
                   "The document is really non-private");
       pageMod.destroy();
-
-      page1.close().
-        then(page2.close).
-        then(test.done.bind(test), fail);
+      page1.close().then(page2.close).then(test.done.bind(test));
     }
   });
 
-  let page1, page2;
-  page1 = openWebpage(privateUri, true);
-  page1.ready.then(function() {
-    page2 = openWebpage(nonPrivateUri, false);
-  }, fail);
+  let page1 = openWebpage(privateUri, true);
+  let page2 = openWebpage(nonPrivateUri, false);
 }
 
 exports["test page-mod on private tab in global pb"] = function (test) {

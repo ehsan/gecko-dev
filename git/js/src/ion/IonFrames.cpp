@@ -59,7 +59,7 @@ bool
 IonFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
 {
     uint8_t *returnAddr = returnAddressToFp();
-    JSScript *script = this->script();
+    RawScript script = this->script();
     // N.B. the current IonScript is not the same as the frame's
     // IonScript if the frame has since been invalidated.
     bool invalidated;
@@ -174,13 +174,13 @@ IonFrameIterator::isEntryJSFrame() const
     return true;
 }
 
-JSScript *
+RawScript
 IonFrameIterator::script() const
 {
     JS_ASSERT(isScripted());
     if (isBaselineJS())
         return baselineFrame()->script();
-    JSScript *script = ScriptFromCalleeToken(calleeToken());
+    RawScript script = ScriptFromCalleeToken(calleeToken());
     JS_ASSERT(script);
     return script;
 }
@@ -189,29 +189,12 @@ void
 IonFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) const
 {
     JS_ASSERT(isBaselineJS());
-    JSScript *script = this->script();
+    RawScript script = this->script();
     if (scriptRes)
         *scriptRes = script;
     uint8_t *retAddr = returnAddressToFp();
-    if (pcRes) {
-        // If the return address is into the prologue entry addr, then assume PC 0.
-        if (retAddr == script->baselineScript()->prologueEntryAddr()) {
-            *pcRes = 0;
-            return;
-        }
-
-        // The return address _may_ be a return from a callVM or IC chain call done for
-        // some op.
-        ICEntry *icEntry = script->baselineScript()->maybeICEntryFromReturnAddress(retAddr);
-        if (icEntry) {
-            *pcRes = icEntry->pc(script);
-            return;
-        }
-
-        // If not, the return address _must_ be the start address of an op, which can
-        // be computed from the pc mapping table.
-        *pcRes = script->baselineScript()->pcForReturnAddress(script, retAddr);
-    }
+    if (pcRes)
+        *pcRes = script->baselineScript()->icEntryFromReturnAddress(retAddr).pc(script);
 }
 
 Value *
@@ -474,7 +457,7 @@ HandleException(ResumeFromException *rfe)
                 // When profiling, each frame popped needs a notification that
                 // the function has exited, so invoke the probe that a function
                 // is exiting.
-                JSScript *script = frames.script();
+                RawScript script = frames.script();
                 Probes::exitScript(cx, script, script->function(), NULL);
                 if (!frames.more())
                     break;
@@ -494,7 +477,7 @@ HandleException(ResumeFromException *rfe)
                 return;
 
             // Unwind profiler pseudo-stack
-            JSScript *script = iter.script();
+            RawScript script = iter.script();
             Probes::exitScript(cx, script, script->function(), NULL);
 
             if (cx->compartment->debugMode() && !calledDebugEpilogue) {
@@ -633,7 +616,7 @@ MarkCalleeToken(JSTracer *trc, CalleeToken token)
       }
       case CalleeToken_Script:
       {
-        JSScript *script = CalleeTokenToScript(token);
+        RawScript script = CalleeTokenToScript(token);
         MarkScriptRoot(trc, &script, "ion-entry");
         JS_ASSERT(script == CalleeTokenToScript(token));
         break;

@@ -6,5 +6,4 @@ function bug854050() {
   ParallelArray(47, x);
 }
 
-if (getBuildConfiguration().parallelJS)
-  bug854050();
+bug854050();

@@ -187,11 +187,7 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
       // suspend and resume, the resume reopens the channel and we seek to
       // offset N, but there are no more bytes, so we get a 416
       // "Requested Range Not Satisfiable".
-      if (responseStatus == HTTP_REQUESTED_RANGE_NOT_SATISFIABLE_CODE) {
-        // OnStopRequest will not be fired, so we need to do some of its
-        // work here.
-        mCacheStream.NotifyDataEnded(status);
-      } else {
+      if (responseStatus != HTTP_REQUESTED_RANGE_NOT_SATISFIABLE_CODE) {
         mDecoder->NetworkError();
       }
 
@@ -727,7 +723,7 @@ MediaResource* ChannelMediaResource::CloneData(MediaDecoder* aDecoder)
     // we don't have a channel. If the cache needs to read data from the clone
     // it will call CacheClientResume (or CacheClientSeek with aResume true)
     // which will recreate the channel. This way, if all of the media data
-    // is already in the cache we don't create an unnecessary HTTP channel
+    // is already in the cache we don't create an unneccesary HTTP channel
     // and perform a useless HTTP transaction.
     resource->mSuspendCount = 1;
     resource->mCacheStream.InitAsClone(&mCacheStream);

@@ -14,7 +14,7 @@ namespace IPC {
 
 //Defined in TCPSocketChild.cpp
 extern bool
-DeserializeArrayBuffer(JSObject* aObj,
+DeserializeArrayBuffer(JSRawObject aObj,
                        const InfallibleTArray<uint8_t>& aBuffer,
                        JS::Value* aVal);
 
@@ -109,7 +109,7 @@ TCPSocketParent::RecvData(const SendableData& aData)
       break;
 
     default:
-      MOZ_NOT_REACHED("unexpected SendableData type");
+      MOZ_NOT_REACHED();
       return false;
   }
   return true;

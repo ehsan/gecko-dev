@@ -18,7 +18,6 @@
 #include "mozilla/X11Util.h"
 
 #include "prenv.h"
-#include "prbit.h" // for PR_FLOOR_LOG2
 #include "GLContextProvider.h"
 #include "GLLibraryLoader.h"
 #include "nsDebug.h"
@@ -1422,13 +1421,6 @@ GLContextProviderGLX::CreateSharedHandle(GLContext::SharedTextureShareType share
                                          GLContext::SharedTextureBufferType bufferType)
 {
   return 0;
-}
-
-already_AddRefed<gfxASurface>
-GLContextProviderGLX::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
-                                               SharedTextureHandle sharedHandle)
-{
-  return nullptr;
 }
 
 static nsRefPtr<GLContext> gGlobalContext[GLXLibrary::LIBS_MAX];

@@ -34,7 +34,7 @@ class ArrayBufferObject : public JSObject
 
   public:
     static Class protoClass;
-    static const JSFunctionSpec jsfuncs[];
+    static JSFunctionSpec jsfuncs[];
 
     static JSBool byteLengthGetter(JSContext *cx, unsigned argc, Value *vp);
 
@@ -56,7 +56,7 @@ class ArrayBufferObject : public JSObject
     template<typename T>
     static JSBool createTypedArrayFromBuffer(JSContext *cx, unsigned argc, Value *vp);
 
-    static void obj_trace(JSTracer *trc, JSObject *obj);
+    static void obj_trace(JSTracer *trc, RawObject obj);
 
     static JSBool obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
                                     MutableHandleObject objp, MutableHandleShape propp);
@@ -140,7 +140,7 @@ class ArrayBufferObject : public JSObject
 
     static inline void setElementsHeader(js::ObjectElements *header, uint32_t bytes);
 
-    void addView(JSObject *view);
+    void addView(RawObject view);
 
     bool allocateSlots(JSContext *cx, uint32_t size, uint8_t *contents = NULL);
     void changeContents(JSContext *cx, ObjectElements *newHeader);
@@ -164,7 +164,7 @@ class ArrayBufferObject : public JSObject
     inline bool isAsmJSArrayBuffer() const;
     static bool prepareForAsmJS(JSContext *cx, Handle<ArrayBufferObject*> buffer);
     static void neuterAsmJSArrayBuffer(ArrayBufferObject &buffer);
-    static void releaseAsmJSArrayBuffer(FreeOp *fop, JSObject *obj);
+    static void releaseAsmJSArrayBuffer(FreeOp *fop, RawObject obj);
 };
 
 /*
@@ -280,7 +280,7 @@ struct TypedArray : public BufferView {
   public:
     static bool isArrayIndex(JSObject *obj, jsid id, uint32_t *ip = NULL);
 
-    static void neuter(JSObject *tarray);
+    static void neuter(RawObject tarray);
 
     static inline uint32_t slotWidth(int atype);
     static inline int slotWidth(JSObject *obj);
@@ -321,7 +321,6 @@ TypedArrayShift(ArrayBufferView::ViewType viewType)
     switch (viewType) {
       case ArrayBufferView::TYPE_INT8:
       case ArrayBufferView::TYPE_UINT8:
-      case ArrayBufferView::TYPE_UINT8_CLAMPED:
         return 0;
       case ArrayBufferView::TYPE_INT16:
       case ArrayBufferView::TYPE_UINT16:
@@ -439,7 +438,7 @@ private:
     static bool write(JSContext *cx, Handle<DataViewObject*> obj,
                       CallArgs &args, const char *method);
   private:
-    static const JSFunctionSpec jsfuncs[];
+    static JSFunctionSpec jsfuncs[];
 };
 
 bool

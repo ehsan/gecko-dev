@@ -17,9 +17,11 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/ImageData.h"
 #include "mozilla/dom/UnionTypes.h"
-#include "mozilla/dom/CanvasGradient.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/CanvasPattern.h"
+
+#define NS_CANVASGRADIENTAZURE_PRIVATE_IID \
+    {0x28425a6a, 0x90e0, 0x4d42, {0x9c, 0x75, 0xff, 0x60, 0x09, 0xb3, 0x10, 0xa8}}
 
 class nsXULElement;
 
@@ -35,6 +37,53 @@ class TextMetrics;
 extern const mozilla::gfx::Float SIGMA_MAX;
 
 template<typename T> class Optional;
+
+/**
+ ** CanvasGradient
+ **/
+class CanvasGradient : public nsIDOMCanvasGradient
+{
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_CANVASGRADIENTAZURE_PRIVATE_IID)
+
+  enum Type
+  {
+    LINEAR = 0,
+    RADIAL
+  };
+
+  Type GetType()
+  {
+    return mType;
+  }
+
+
+  mozilla::gfx::GradientStops *
+  GetGradientStopsForTarget(mozilla::gfx::DrawTarget *aRT)
+  {
+    if (mStops && mStops->GetBackendType() == aRT->GetType()) {
+      return mStops;
+    }
+
+    mStops = aRT->CreateGradientStops(mRawStops.Elements(), mRawStops.Length());
+
+    return mStops;
+  }
+
+  NS_DECL_ISUPPORTS
+
+  /* nsIDOMCanvasGradient */
+  NS_IMETHOD AddColorStop(float offset, const nsAString& colorstr);
+
+protected:
+  CanvasGradient(Type aType) : mType(aType)
+  {}
+
+  nsTArray<mozilla::gfx::GradientStop> mRawStops;
+  mozilla::RefPtr<mozilla::gfx::GradientStops> mStops;
+  Type mType;
+  virtual ~CanvasGradient() {}
+};
 
 struct CanvasBidiProcessor;
 class CanvasRenderingContext2DUserData;
@@ -53,8 +102,7 @@ public:
   CanvasRenderingContext2D();
   virtual ~CanvasRenderingContext2D();
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
   HTMLCanvasElement* GetCanvas() const
   {
@@ -104,14 +152,15 @@ public:
     SetStyleFromJSValue(cx, value, STYLE_FILL);
   }
 
-  already_AddRefed<CanvasGradient>
-    CreateLinearGradient(double x0, double y0, double x1, double y1);
-  already_AddRefed<CanvasGradient>
+  already_AddRefed<nsIDOMCanvasGradient>
+    CreateLinearGradient(double x0, double y0, double x1, double y1,
+                         mozilla::ErrorResult& aError);
+  already_AddRefed<nsIDOMCanvasGradient>
     CreateRadialGradient(double x0, double y0, double r0, double x1, double y1,
-                         double r1, ErrorResult& aError);
+                         double r1, mozilla::ErrorResult& aError);
   already_AddRefed<CanvasPattern>
     CreatePattern(const HTMLImageOrCanvasOrVideoElement& element,
-                  const nsAString& repeat, ErrorResult& error);
+                  const nsAString& repeat, mozilla::ErrorResult& error);
 
   double ShadowOffsetX()
   {

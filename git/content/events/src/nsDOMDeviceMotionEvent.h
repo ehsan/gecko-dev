@@ -62,8 +62,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDeviceMotionEvent, nsDOMEvent)
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-			       JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::DeviceMotionEventBinding::Wrap(aCx, aScope, this);
   }

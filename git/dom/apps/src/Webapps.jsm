@@ -25,14 +25,6 @@ function debug(aMsg) {
   //dump("-*-*- Webapps.jsm : " + aMsg + "\n");
 }
 
-let cachedSysMsgPref = null;
-function supportSystemMessages() {
-  if (cachedSysMsgPref === null) {
-    cachedSysMsgPref = Services.prefs.getBoolPref("dom.sysmsg.enabled");
-  }
-  return cachedSysMsgPref;
-}
-
 // Minimum delay between two progress events while downloading, in ms.
 const MIN_PROGRESS_EVENT_DELAY = 1000;
 
@@ -157,14 +149,6 @@ this.DOMApplicationRegistry = {
               app.installState = "installed";
             }
 
-            // Default storeId to "" and storeVersion to 0
-            if (this.webapps[id].storeId === undefined) {
-              this.webapps[id].storeId = "";
-            }
-            if (this.webapps[id].storeVersion === undefined) {
-              this.webapps[id].storeVersion = 0;
-            }
-
             // At startup we can't be downloading, and the $TMP directory
             // will be empty so we can't just apply a staged update.
             app.downloading = false;
@@ -196,21 +180,21 @@ this.DOMApplicationRegistry = {
     for (let id in this.webapps) {
       ids.push({ id: id });
     }
-    if (supportSystemMessages()) {
-      this._processManifestForIds(ids, aRunUpdate);
-    } else {
-      // Read the CSPs. If MOZ_SYS_MSG is defined this is done on
-      // _processManifestForIds so as to not reading the manifests
-      // twice
-      this._readManifests(ids, (function readCSPs(aResults) {
-        aResults.forEach(function registerManifest(aResult) {
-          this.webapps[aResult.id].csp = aResult.manifest.csp || "";
-        }, this);
-      }).bind(this));
+#ifdef MOZ_SYS_MSG
+    this._processManifestForIds(ids, aRunUpdate);
+#else
+    // Read the CSPs. If MOZ_SYS_MSG is defined this is done on
+    // _processManifestForIds so as to not reading the manifests
+    // twice
+    this._readManifests(ids, (function readCSPs(aResults) {
+      aResults.forEach(function registerManifest(aResult) {
+        this.webapps[aResult.id].csp = aResult.manifest.csp || "";
+      }, this);
+    }).bind(this));
 
-      // Nothing else to do but notifying we're ready.
-      this.notifyAppsRegistryReady();
-    }
+    // Nothing else to do but notifying we're ready.
+    this.notifyAppsRegistryReady();
+#endif
   },
 
   updatePermissionsForApp: function updatePermissionsForApp(aId) {
@@ -455,6 +439,7 @@ this.DOMApplicationRegistry = {
     }).bind(this));
   },
 
+#ifdef MOZ_SYS_MSG
   // |aEntryPoint| is either the entry_point name or the null in which case we
   // use the root of the manifest.
   _registerSystemMessagesForEntryPoint: function(aManifest, aApp, aEntryPoint) {
@@ -672,6 +657,7 @@ this.DOMApplicationRegistry = {
       this._registerActivitiesForApps(appsToRegister, aRunUpdate);
     }).bind(this));
   },
+#endif
 
   observe: function(aSubject, aTopic, aData) {
     if (aTopic == "xpcom-shutdown") {
@@ -1298,17 +1284,16 @@ this.DOMApplicationRegistry = {
   updateAppHandlers: function(aOldManifest, aNewManifest, aApp) {
     debug("updateAppHandlers: old=" + aOldManifest + " new=" + aNewManifest);
     this.notifyAppsRegistryStart();
-
-    if (supportSystemMessages()) {
-      if (aOldManifest) {
-        this._unregisterActivities(aOldManifest, aApp);
-      }
-      this._registerSystemMessages(aNewManifest, aApp);
-      this._registerActivities(aNewManifest, aApp, true);
-    } else {
-      // Nothing else to do but notifying we're ready.
-      this.notifyAppsRegistryReady();
+#ifdef MOZ_SYS_MSG
+    if (aOldManifest) {
+      this._unregisterActivities(aOldManifest, aApp);
     }
+    this._registerSystemMessages(aNewManifest, aApp);
+    this._registerActivities(aNewManifest, aApp, true);
+#else
+    // Nothing else to do but notifying we're ready.
+    this.notifyAppsRegistryReady();
+#endif
   },
 
   checkForUpdate: function(aData, aMm) {
@@ -1984,7 +1969,6 @@ this.DOMApplicationRegistry = {
   _nextLocalId: function() {
     let id = Services.prefs.getIntPref("dom.mozApps.maxLocalId") + 1;
     Services.prefs.setIntPref("dom.mozApps.maxLocalId", id);
-    Services.prefs.savePrefFile(null);
     return id;
   },
 
@@ -2122,39 +2106,6 @@ this.DOMApplicationRegistry = {
                             { type: "progress",
                               manifestURL: aApp.manifestURL,
                               app: app });
-    }
-
-    // aStoreId must be a string of the form
-    //   <installOrigin>#<storeId from ids.json>
-    // aStoreVersion must be a positive integer.
-    function checkForStoreIdMatch(aStoreId, aStoreVersion) {
-      // Things to check:
-      // 1. if it's a update:
-      //   a. We should already have this storeId
-      //   b. The manifestURL for the stored app should be the same one we're
-      //      updating
-      //   c. And finally the version of the update should be higher than the one
-      //      on the already installed package
-      // 2. else
-      //   a. We should not have this storeId on the list
-      // We're currently launching WRONG_APP_STORE_ID for all the mismatch kind of
-      // errors, and APP_STORE_VERSION_ROLLBACK for the version error.
-
-      // Does an app with this storeID exist already?
-      let appId = self.getAppLocalIdByStoreId(aStoreId);
-      let isInstalled = appId != Ci.nsIScriptSecurityManager.NO_APP_ID;
-      if (aIsUpdate) {
-        if (!isInstalled || (app.localId !== appId)) {
-          // If we don't have the storeId on track already, this
-          // cannot be an update
-          throw "WRONG_APP_STORE_ID";
-        }
-        if (app.storeVersion >= aStoreVersion) {
-          throw "APP_STORE_VERSION_ROLLBACK";
-        }
-      } else if (isInstalled) {
-        throw "WRONG_APP_STORE_ID";
-      }
     }
 
     function download() {
@@ -2397,31 +2348,6 @@ this.DOMApplicationRegistry = {
                   throw "INSTALL_FROM_DENIED";
                 }
 
-                // Get ids.json if the file is signed
-                if (isSigned) {
-                  let idsStream;
-                  try {
-                    idsStream = zipReader.getInputStream("META-INF/ids.json");
-                  } catch (e) {
-                    throw zipReader.hasEntry("META-INF/ids.json")
-                          ? e
-                          : "MISSING_IDS_JSON";
-                  }
-                  let ids =
-                    JSON.parse(
-                      converter.ConvertToUnicode(
-                        NetUtil.readInputStreamToString(
-                          idsStream, idsStream.available()) || ""));
-                  if ((!ids.id) || !Number.isInteger(ids.version) ||
-                      (ids.version <= 0)) {
-                     throw "INVALID_IDS_JSON";
-                  }
-                  let storeId = aApp.installOrigin + "#" + ids.id;
-                  checkForStoreIdMatch(storeId, ids.version);
-                  app.storeId = storeId;
-                  app.storeVersion = ids.version;
-                }
-
                 let maxStatus = isSigned ? Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
                                          : Ci.nsIPrincipal.APP_STATUS_INSTALLED;
 
@@ -2559,11 +2485,11 @@ this.DOMApplicationRegistry = {
       let appNote = JSON.stringify(AppsUtils.cloneAppObject(app));
       appNote.id = id;
 
-      if (supportSystemMessages()) {
-        this._readManifests([{ id: id }], (function unregisterManifest(aResult) {
-          this._unregisterActivities(aResult[0].manifest, app);
-        }).bind(this));
-      }
+#ifdef MOZ_SYS_MSG
+      this._readManifests([{ id: id }], (function unregisterManifest(aResult) {
+        this._unregisterActivities(aResult[0].manifest, app);
+      }).bind(this));
+#endif
 
       let dir = this._getAppDir(id);
       try {
@@ -2737,11 +2663,6 @@ this.DOMApplicationRegistry = {
   getCSPByLocalId: function(aLocalId) {
     debug("getCSPByLocalId:" + aLocalId);
     return AppsUtils.getCSPByLocalId(this.webapps, aLocalId);
-  },
-
-  getAppLocalIdByStoreId: function(aStoreId) {
-    debug("getAppLocalIdByStoreId:" + aStoreId);
-    return AppsUtils.getAppLocalIdByStoreId(this.webapps, aStoreId);
   },
 
   getAppByLocalId: function(aLocalId) {

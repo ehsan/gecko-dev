@@ -355,8 +355,6 @@
 @BINPATH@/browser/components/DownloadsStartup.js
 @BINPATH@/browser/components/DownloadsUI.js
 @BINPATH@/browser/components/BrowserPlaces.manifest
-@BINPATH@/components/Downloads.manifest
-@BINPATH@/components/DownloadLegacy.js
 @BINPATH@/components/BrowserPageThumbs.manifest
 @BINPATH@/components/SiteSpecificUserAgent.js
 @BINPATH@/components/SiteSpecificUserAgent.manifest
@@ -382,6 +380,8 @@
 @BINPATH@/components/nsDownloadManagerUI.js
 @BINPATH@/components/NetworkGeolocationProvider.manifest
 @BINPATH@/components/NetworkGeolocationProvider.js
+@BINPATH@/components/GPSDGeolocationProvider.manifest
+@BINPATH@/components/GPSDGeolocationProvider.js
 @BINPATH@/browser/components/nsSidebar.manifest
 @BINPATH@/browser/components/nsSidebar.js
 @BINPATH@/components/extensions.manifest
@@ -626,7 +626,6 @@
 @BINPATH@/res/EditorOverride.css
 @BINPATH@/res/contenteditable.css
 @BINPATH@/res/designmode.css
-@BINPATH@/res/ImageDocument.css
 @BINPATH@/res/TopLevelImageDocument.css
 @BINPATH@/res/TopLevelVideoDocument.css
 @BINPATH@/res/table-add-column-after-active.gif

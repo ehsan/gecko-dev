@@ -7,8 +7,6 @@
 /*
  * JS function support.
  */
-#include "jsfun.h"
-
 #include <string.h>
 
 #include "mozilla/PodOperations.h"
@@ -16,12 +14,22 @@
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jsexn.h"
+#include "jsfun.h"
+#include "jsgc.h"
 #include "jsinterp.h"
+#include "jsiter.h"
+#include "jslock.h"
+#include "jsnum.h"
 #include "jsobj.h"
+#include "jsopcode.h"
+#include "jspropertytree.h"
 #include "jsproxy.h"
 #include "jsscript.h"
 #include "jsstr.h"
@@ -30,6 +38,8 @@
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
+#include "vm/Debugger.h"
+#include "vm/ScopeObject.h"
 #include "vm/Shape.h"
 #include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
@@ -38,12 +48,15 @@
 #include "methodjit/MethodJIT.h"
 #endif
 
+#include "jsatominlines.h"
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
+#include "vm/ArgumentsObject-inl.h"
+#include "vm/ScopeObject-inl.h"
 #include "vm/Stack-inl.h"
 
 #ifdef JS_ION
@@ -126,7 +139,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         // IonMonkey does not guarantee |f.arguments| can be
         // fully recovered, so we try to mitigate observing this behavior by
         // detecting its use early.
-        JSScript *script = iter.script();
+        RawScript script = iter.script();
         ion::ForbidCompilation(cx, script);
 #endif
 
@@ -149,7 +162,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         jsbytecode *prevpc = fp->prevpc(&inlined);
         if (inlined) {
             mjit::JITChunk *chunk = fp->prev()->jit()->chunk(prevpc);
-            JSFunction *fun = chunk->inlineFrames()[inlined->inlineIndex].fun;
+            RawFunction fun = chunk->inlineFrames()[inlined->inlineIndex].fun;
             fun->nonLazyScript()->uninlineable = true;
             MarkTypeObjectFlags(cx, fun, OBJECT_FLAG_UNINLINEABLE);
         }
@@ -176,11 +189,11 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         /*
          * Censor the caller if we don't have full access to it.
          */
-        RootedObject caller(cx, &vp.toObject());
-        if (caller->isWrapper() && !Wrapper::wrapperHandler(caller)->isSafeToUnwrap()) {
+        JSObject &caller = vp.toObject();
+        if (caller.isWrapper() && !Wrapper::wrapperHandler(&caller)->isSafeToUnwrap()) {
             vp.setNull();
-        } else if (caller->isFunction()) {
-            JSFunction *callerFun = caller->toFunction();
+        } else if (caller.isFunction()) {
+            JSFunction *callerFun = caller.toFunction();
             if (callerFun->isInterpreted() && callerFun->strict()) {
                 JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL,
                                              JSMSG_CALLER_IS_STRICT);
@@ -257,7 +270,7 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
      * Make the prototype object an instance of Object with the same parent
      * as the function object itself.
      */
-    JSObject *objProto = obj->global().getOrCreateObjectPrototype(cx);
+    RawObject objProto = obj->global().getOrCreateObjectPrototype(cx);
     if (!objProto)
         return NULL;
     RootedObject proto(cx, NewObjectWithGivenProto(cx, &ObjectClass, objProto, NULL, SingletonObject));
@@ -524,7 +537,7 @@ JSFunction::trace(JSTracer *trc)
 }
 
 static void
-fun_trace(JSTracer *trc, JSObject *obj)
+fun_trace(JSTracer *trc, RawObject obj)
 {
     obj->toFunction()->trace(trc);
 }
@@ -558,8 +571,7 @@ FindBody(JSContext *cx, HandleFunction fun, StableCharPtr chars, size_t length,
     CompileOptions options(cx);
     options.setFileAndLine("internal-findBody", 0)
            .setVersion(fun->nonLazyScript()->getVersion());
-    AutoKeepAtoms keepAtoms(cx->runtime);
-    TokenStream ts(cx, options, chars.get(), length, NULL, keepAtoms);
+    TokenStream ts(cx, options, chars.get(), length, NULL);
     int nest = 0;
     bool onward = true;
     // Skip arguments list.
@@ -1090,7 +1102,7 @@ bool
 JSFunction::initializeLazyScript(JSContext *cx)
 {
     JS_ASSERT(isInterpretedLazy());
-    const JSFunctionSpec *fs = static_cast<JSFunctionSpec *>(getExtendedSlot(0).toPrivate());
+    JSFunctionSpec *fs = static_cast<JSFunctionSpec *>(getExtendedSlot(0).toPrivate());
     Rooted<JSFunction*> self(cx, this);
     RootedAtom funAtom(cx, Atomize(cx, fs->selfHostedName, strlen(fs->selfHostedName)));
     if (!funAtom)
@@ -1156,7 +1168,7 @@ js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 fun_isGenerator(JSContext *cx, unsigned argc, Value *vp)
 {
-    JSFunction *fun;
+    RawFunction fun;
     if (!IsFunctionObject(vp[1], &fun)) {
         JS_SET_RVAL(cx, vp, BooleanValue(false));
         return true;
@@ -1164,7 +1176,7 @@ fun_isGenerator(JSContext *cx, unsigned argc, Value *vp)
 
     bool result = false;
     if (fun->hasScript()) {
-        JSScript *script = fun->nonLazyScript();
+        RawScript script = fun->nonLazyScript();
         JS_ASSERT(script->length != 0);
         result = script->isGenerator;
     }
@@ -1200,7 +1212,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
     /* Steps 7-9. */
     RootedValue thisArg(cx, args.length() >= 1 ? args[0] : UndefinedValue());
     RootedObject target(cx, &thisv.toObject());
-    JSObject *boundFunction = js_fun_bind(cx, target, thisArg, boundArgs, argslen);
+    RawObject boundFunction = js_fun_bind(cx, target, thisArg, boundArgs, argslen);
     if (!boundFunction)
         return false;
 
@@ -1255,7 +1267,7 @@ OnBadFormal(JSContext *cx, TokenKind tt)
     return false;
 }
 
-const JSFunctionSpec js::function_methods[] = {
+JSFunctionSpec js::function_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,   fun_toSource,   0,0),
 #endif
@@ -1375,8 +1387,7 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
          * here (duplicate argument names, etc.) will be detected when we
          * compile the function body.
          */
-        TokenStream ts(cx, options, collected_args.get(), args_length,
-                       /* strictModeGetter = */ NULL, keepAtoms);
+        TokenStream ts(cx, options, collected_args.get(), args_length, /* strictModeGetter = */ NULL);
 
         /* The argument string may be empty or contain no tokens. */
         TokenKind tt = ts.getToken();
@@ -1424,7 +1435,7 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
 
 #ifdef DEBUG
     for (unsigned i = 0; i < formals.length(); ++i) {
-        JSString *str = formals[i];
+        RawString str = formals[i];
         JS_ASSERT(str->asAtom().asPropertyName() == formals[i]);
     }
 #endif
@@ -1675,7 +1686,7 @@ JSObject::hasIdempotentProtoChain() const
 {
     // Return false if obj (or an object on its proto chain) is non-native or
     // has a resolve or lookup hook.
-    JSObject *obj = const_cast<JSObject *>(this);
+    RawObject obj = const_cast<RawObject>(this);
     while (true) {
         if (!obj->isNative())
             return false;

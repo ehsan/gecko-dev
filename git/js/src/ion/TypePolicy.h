@@ -7,7 +7,7 @@
 #ifndef jsion_type_policy_h__
 #define jsion_type_policy_h__
 
-#include "IonTypes.h"
+#include "TypeOracle.h"
 
 namespace js {
 namespace ion {
@@ -224,12 +224,6 @@ class StoreTypedArrayPolicy : public BoxInputsPolicy
 };
 
 class StoreTypedArrayHolePolicy : public StoreTypedArrayPolicy
-{
-  public:
-    bool adjustInputs(MInstruction *ins);
-};
-
-class StoreTypedArrayElementStaticPolicy : public StoreTypedArrayPolicy
 {
   public:
     bool adjustInputs(MInstruction *ins);

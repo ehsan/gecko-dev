@@ -9,7 +9,6 @@
 #include "Accessible-inl.h"
 #include "ApplicationAccessibleWrap.h"
 #include "ARIAGridAccessibleWrap.h"
-#include "ARIAMap.h"
 #include "DocAccessible-inl.h"
 #include "FocusManager.h"
 #include "HTMLCanvasAccessible.h"
@@ -22,6 +21,7 @@
 #include "HyperTextAccessibleWrap.h"
 #include "nsAccessiblePivot.h"
 #include "nsAccUtils.h"
+#include "nsARIAMap.h"
 #include "nsEventShell.h"
 #include "nsIAccessibleProvider.h"
 #include "OuterDocAccessible.h"
@@ -107,7 +107,7 @@ MustBeAccessible(nsIContent* aContent, DocAccessible* aDocument)
         continue; // not ARIA
 
       // A global state or a property and in case of token defined.
-      uint8_t attrFlags = aria::AttrCharacteristicsFor(attrAtom);
+      uint8_t attrFlags = nsAccUtils::GetAttributeCharacteristics(attrAtom);
       if ((attrFlags & ATTR_GLOBAL) && (!(attrFlags & ATTR_VALTOKEN) ||
            nsAccUtils::HasDefinedARIAToken(aContent, attrAtom))) {
         return true;
@@ -303,10 +303,11 @@ nsAccessibilityService::CreatePluginAccessible(nsObjectFrame* aFrame,
     nsresult rv = pluginInstance->GetValueFromPlugin(
       NPPVpluginNativeAccessibleAtkPlugId, &plugId);
     if (NS_SUCCEEDED(rv) && !plugId.IsEmpty()) {
-      nsRefPtr<AtkSocketAccessible> socketAccessible =
+      AtkSocketAccessible* socketAccessible =
         new AtkSocketAccessible(aContent, aContext->Document(), plugId);
 
-      return socketAccessible.forget();
+      NS_ADDREF(socketAccessible);
+      return socketAccessible;
     }
 #endif
   }
@@ -421,20 +422,6 @@ nsAccessibilityService::TreeViewChanged(nsIPresShell* aPresShell,
       XULTreeAccessible* treeAcc = accessible->AsXULTree();
       if (treeAcc) 
         treeAcc->TreeViewChanged(aView);
-    }
-  }
-}
-
-void
-nsAccessibilityService::RangeValueChanged(nsIPresShell* aPresShell,
-                                          nsIContent* aContent)
-{
-  DocAccessible* document = GetDocAccessible(aPresShell);
-  if (document) {
-    Accessible* accessible = document->GetAccessible(aContent);
-    if (accessible) {
-      document->FireDelayedEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
-                                 accessible);
     }
   }
 }
@@ -956,11 +943,11 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
         if (frame->AccessibleType() == eHTMLTableRowType) {
           nsRoleMapEntry* contextRoleMap = aContext->ARIARoleMap();
           if (contextRoleMap && !(contextRoleMap->IsOfType(eTable)))
-            roleMapEntry = &aria::gEmptyRoleMap;
+            roleMapEntry = &nsARIAMap::gEmptyRoleMap;
 
         } else if (frame->AccessibleType() == eHTMLTableCellType &&
-                   aContext->ARIARoleMap() == &aria::gEmptyRoleMap) {
-          roleMapEntry = &aria::gEmptyRoleMap;
+                   aContext->ARIARoleMap() == &nsARIAMap::gEmptyRoleMap) {
+          roleMapEntry = &nsARIAMap::gEmptyRoleMap;
 
         } else if (content->Tag() == nsGkAtoms::dt ||
                    content->Tag() == nsGkAtoms::li ||
@@ -968,7 +955,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
                    frame->AccessibleType() == eHTMLLiType) {
           nsRoleMapEntry* contextRoleMap = aContext->ARIARoleMap();
           if (contextRoleMap && !(contextRoleMap->IsOfType(eList)))
-            roleMapEntry = &aria::gEmptyRoleMap;
+            roleMapEntry = &nsARIAMap::gEmptyRoleMap;
         }
       }
     }
@@ -1145,11 +1132,12 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
     return nullptr;
 
   if (type == nsIAccessibleProvider::OuterDoc) {
-    nsRefPtr<Accessible> accessible = new OuterDocAccessible(aContent, aDoc);
-    return accessible.forget();
+    Accessible* accessible = new OuterDocAccessible(aContent, aDoc);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
-  nsRefPtr<Accessible> accessible;
+  Accessible* accessible = nullptr;
   switch (type)
   {
 #ifdef MOZ_XUL
@@ -1334,7 +1322,8 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
       return nullptr;
   }
 
-  return accessible.forget();
+  NS_IF_ADDREF(accessible);
+  return accessible;
 }
 
 already_AddRefed<Accessible>
@@ -1346,9 +1335,10 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
   if (aContext->IsTableRow()) {
     if (nsCoreUtils::IsHTMLTableHeader(aContent) &&
         aContext->GetContent() == aContent->GetParent()) {
-      nsRefPtr<Accessible> accessible =
-        new HTMLTableHeaderCellAccessibleWrap(aContent, document);
-      return accessible.forget();
+      Accessible* accessible = new HTMLTableHeaderCellAccessibleWrap(aContent,
+                                                                     document);
+      NS_ADDREF(accessible);
+      return accessible;
     }
 
     return nullptr;
@@ -1357,40 +1347,41 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
   // This method assumes we're in an HTML namespace.
   nsIAtom* tag = aContent->Tag();
   if (tag == nsGkAtoms::figcaption) {
-    nsRefPtr<Accessible> accessible =
-      new HTMLFigcaptionAccessible(aContent, document);
-    return accessible.forget();
+    Accessible* accessible = new HTMLFigcaptionAccessible(aContent, document);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (tag == nsGkAtoms::figure) {
-    nsRefPtr<Accessible> accessible =
-      new HTMLFigureAccessible(aContent, document);
-    return accessible.forget();
+    Accessible* accessible = new HTMLFigureAccessible(aContent, document);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (tag == nsGkAtoms::legend) {
-    nsRefPtr<Accessible> accessible =
-      new HTMLLegendAccessible(aContent, document);
-    return accessible.forget();
+    Accessible* accessible = new HTMLLegendAccessible(aContent, document);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (tag == nsGkAtoms::option) {
-    nsRefPtr<Accessible> accessible =
-      new HTMLSelectOptionAccessible(aContent, document);
-    return accessible.forget();
+    Accessible* accessible = new HTMLSelectOptionAccessible(aContent, document);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (tag == nsGkAtoms::optgroup) {
-    nsRefPtr<Accessible> accessible =
+    Accessible* accessible =
       new HTMLSelectOptGroupAccessible(aContent, document);
-    return accessible.forget();
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (tag == nsGkAtoms::ul || tag == nsGkAtoms::ol ||
       tag == nsGkAtoms::dl) {
-    nsRefPtr<Accessible> accessible =
-      new HTMLListAccessible(aContent, document);
-    return accessible.forget();
+    Accessible* accessible = new HTMLListAccessible(aContent, document);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (tag == nsGkAtoms::a) {
@@ -1399,14 +1390,14 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
     nsRoleMapEntry* roleMapEntry = aria::GetRoleMap(aContent);
     if (roleMapEntry && roleMapEntry->role != roles::NOTHING &&
         roleMapEntry->role != roles::LINK) {
-      nsRefPtr<Accessible> accessible =
-        new HyperTextAccessibleWrap(aContent, document);
-      return accessible.forget();
+      Accessible* accessible = new HyperTextAccessibleWrap(aContent, document);
+      NS_ADDREF(accessible);
+      return accessible;
     }
 
-    nsRefPtr<Accessible> accessible =
-      new HTMLLinkAccessible(aContent, document);
-    return accessible.forget();
+    Accessible* accessible = new HTMLLinkAccessible(aContent, document);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (aContext->IsList()) {
@@ -1415,15 +1406,15 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
     // accessible for other elements styled as list items.
     if (aContext->GetContent() == aContent->GetParent()) {
       if (tag == nsGkAtoms::dt || tag == nsGkAtoms::li) {
-        nsRefPtr<Accessible> accessible =
-          new HTMLLIAccessible(aContent, document);
-        return accessible.forget();
+        Accessible* accessible = new HTMLLIAccessible(aContent, document);
+        NS_ADDREF(accessible);
+        return accessible;
       }
 
       if (tag == nsGkAtoms::dd) {
-        nsRefPtr<Accessible> accessible =
-          new HyperTextAccessibleWrap(aContent, document);
-        return accessible.forget();
+        Accessible* accessible = new HyperTextAccessibleWrap(aContent, document);
+        NS_ADDREF(accessible);
+        return accessible;
       }
     }
 
@@ -1441,21 +1432,22 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
       tag == nsGkAtoms::h5 ||
       tag == nsGkAtoms::h6 ||
       tag == nsGkAtoms::q) {
-    nsRefPtr<Accessible> accessible =
-      new HyperTextAccessibleWrap(aContent, document);
-    return accessible.forget();
+    Accessible* accessible = new HyperTextAccessibleWrap(aContent, document);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (tag == nsGkAtoms::output) {
-    nsRefPtr<Accessible> accessible =
-      new HTMLOutputAccessible(aContent, document);
-    return accessible.forget();
+    Accessible* accessible = new HTMLOutputAccessible(aContent, document);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   if (tag == nsGkAtoms::progress) {
-    nsRefPtr<Accessible> accessible =
+    Accessible* accessible =
       new HTMLProgressMeterAccessible(aContent, document);
-    return accessible.forget();
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   return nullptr;
@@ -1522,9 +1514,6 @@ nsAccessibilityService::CreateAccessibleByFrameType(nsIFrame* aFrame,
       break;
     case eHTMLRadioButtonType:
       newAcc = new HTMLRadioButtonAccessible(aContent, document);
-      break;
-    case eHTMLRangeType:
-      newAcc = new HTMLRangeAccessible(aContent, document);
       break;
     case eHTMLTableType:
       newAcc = new HTMLTableAccessibleWrap(aContent, document);
@@ -1674,15 +1663,15 @@ nsAccessibilityService::CreateAccessibleForXULTree(nsIContent* aContent,
 
   // Outline of list accessible.
   if (count == 1) {
-    nsRefPtr<Accessible> accessible =
-      new XULTreeAccessible(aContent, aDoc, treeFrame);
-    return accessible.forget();
+    Accessible* accessible = new XULTreeAccessible(aContent, aDoc, treeFrame);
+    NS_ADDREF(accessible);
+    return accessible;
   }
 
   // Table or tree table accessible.
-  nsRefPtr<Accessible> accessible =
-    new XULTreeGridAccessibleWrap(aContent, aDoc, treeFrame);
-  return accessible.forget();
+  Accessible* accessible = new XULTreeGridAccessibleWrap(aContent, aDoc, treeFrame);
+  NS_ADDREF(accessible);
+  return accessible;
 }
 #endif
 

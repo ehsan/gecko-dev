@@ -192,12 +192,9 @@ class ParallelArrayVisitor : public MInstructionVisitor
     SAFE_OP(TypeBarrier) // causes a bailout if the type is not found: a-ok with us
     SAFE_OP(MonitorTypes) // causes a bailout if the type is not found: a-ok with us
     SAFE_OP(GetPropertyCache)
-    SAFE_OP(GetPropertyPolymorphic)
-    UNSAFE_OP(SetPropertyPolymorphic)
     UNSAFE_OP(GetElementCache)
     UNSAFE_OP(BindNameCache)
     SAFE_OP(GuardShape)
-    SAFE_OP(GuardObjectType)
     SAFE_OP(GuardClass)
     SAFE_OP(ArrayLength)
     SAFE_OP(TypedArrayLength)
@@ -215,10 +212,8 @@ class ParallelArrayVisitor : public MInstructionVisitor
     UNSAFE_OP(ArrayPush)
     SAFE_OP(LoadTypedArrayElement)
     SAFE_OP(LoadTypedArrayElementHole)
-    SAFE_OP(LoadTypedArrayElementStatic)
     MAYBE_WRITE_GUARDED_OP(StoreTypedArrayElement, elements)
     WRITE_GUARDED_OP(StoreTypedArrayElementHole, elements)
-    UNSAFE_OP(StoreTypedArrayElementStatic)
     UNSAFE_OP(ClampToUint8)
     SAFE_OP(LoadFixedSlot)
     WRITE_GUARDED_OP(StoreFixedSlot, object)
@@ -228,7 +223,6 @@ class ParallelArrayVisitor : public MInstructionVisitor
     UNSAFE_OP(CallsiteCloneCache)
     UNSAFE_OP(CallGetElement)
     UNSAFE_OP(CallSetElement)
-    UNSAFE_OP(CallInitElementArray)
     UNSAFE_OP(CallSetProperty)
     UNSAFE_OP(DeleteProperty)
     UNSAFE_OP(SetPropertyCache)
@@ -497,24 +491,9 @@ bool
 ParallelArrayVisitor::visitCompare(MCompare *compare)
 {
     MCompare::CompareType type = compare->compareType();
-
-    switch (type) {
-      case MCompare::Compare_Int32:
-      case MCompare::Compare_Double:
-      case MCompare::Compare_Null:
-      case MCompare::Compare_Undefined:
-      case MCompare::Compare_Boolean:
-      case MCompare::Compare_Object:
-      case MCompare::Compare_Value:
-      case MCompare::Compare_Unknown:
-      case MCompare::Compare_String:
-        // These paths through compare are ok in any mode.
-        return true;
-
-      default:
-        SpewMIR(compare, "unsafe compareType=%d\n", type);
-        return markUnsafe();
-    }
+    return type == MCompare::Compare_Int32 ||
+           type == MCompare::Compare_Double ||
+           type == MCompare::Compare_String;
 }
 
 bool
@@ -749,7 +728,9 @@ static bool
 GetPossibleCallees(JSContext *cx, HandleScript script, jsbytecode *pc,
                    types::StackTypeSet *calleeTypes, MIRGraph &graph)
 {
-    if (!calleeTypes || calleeTypes->baseFlags() != 0)
+    JS_ASSERT(calleeTypes);
+
+    if (calleeTypes->baseFlags() != 0)
         return true;
 
     unsigned objCount = calleeTypes->getObjectCount();
@@ -759,7 +740,7 @@ GetPossibleCallees(JSContext *cx, HandleScript script, jsbytecode *pc,
 
     RootedFunction fun(cx);
     for (unsigned i = 0; i < objCount; i++) {
-        JSObject *obj = calleeTypes->getSingleObject(i);
+        RawObject obj = calleeTypes->getSingleObject(i);
         if (obj && obj->isFunction()) {
             fun = obj->toFunction();
         } else {
@@ -790,6 +771,8 @@ GetPossibleCallees(JSContext *cx, HandleScript script, jsbytecode *pc,
 bool
 ParallelArrayVisitor::visitCall(MCall *ins)
 {
+    JS_ASSERT(ins->getSingleTarget() || ins->calleeTypes());
+
     // DOM? Scary.
     if (ins->isDOMFunction()) {
         SpewMIR(ins, "call to dom function");
@@ -811,11 +794,9 @@ ParallelArrayVisitor::visitCall(MCall *ins)
         return markUnsafe();
     }
 
-    types::StackTypeSet *calleeTypes = ins->getFunction()->resultTypeSet();
-
     RootedScript script(cx_, ins->block()->info().script());
     return GetPossibleCallees(cx_, script, ins->resumePoint()->pc(),
-                              calleeTypes, graph_);
+                              ins->calleeTypes(), graph_);
 }
 
 /////////////////////////////////////////////////////////////////////////////

@@ -69,15 +69,15 @@ WrapperFactory::CreateXrayWaiver(JSContext *cx, HandleObject obj)
     XPCWrappedNativeScope *scope = GetObjectScope(obj);
 
     // Get a waiver for the proto.
-    RootedObject proto(cx);
-    if (!js::GetObjectProto(cx, obj, proto.address()))
+    JSObject *proto;
+    if (!js::GetObjectProto(cx, obj, &proto))
         return nullptr;
     if (proto && !(proto = WaiveXray(cx, proto)))
         return nullptr;
 
     // Create the waiver.
     JSAutoCompartment ac(cx, obj);
-    if (!JS_WrapObject(cx, proto.address()))
+    if (!JS_WrapObject(cx, &proto))
         return nullptr;
     JSObject *waiver = Wrapper::New(cx, obj, proto,
                                     JS_GetGlobalForObject(cx, obj),

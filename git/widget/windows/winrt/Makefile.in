@@ -42,7 +42,6 @@ endif
 
 LOCAL_INCLUDES	= \
 		-I. \
-		-I$(srcdir)/../../shared \
 		-I$(srcdir)/../../xpwidgets \
 		-I$(srcdir) \
 		-I$(srcdir)/../ \

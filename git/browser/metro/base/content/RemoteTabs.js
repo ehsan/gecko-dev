@@ -69,10 +69,6 @@ RemoteTabsView.prototype = {
     let list = this._set;
     let seenURLs = new Set();
 
-    // Clear grid, We don't know what has happened to tabs since last sync
-    // Also can result in duplicate tabs(bug 864614)
-    this._set.clearAll();
-
     for (let [guid, client] in Iterator(tabsEngine.getAllClients())) {
       client.tabs.forEach(function({title, urlHistory, icon}) {
         let url = urlHistory[0];

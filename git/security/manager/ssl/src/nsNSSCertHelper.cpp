@@ -5,10 +5,12 @@
 #include "prerror.h"
 #include "prprf.h"
 
-#include "ScopedNSSTypes.h"
+#include "mozilla/Scoped.h"
 #include "nsNSSCertHelper.h"
 #include "nsCOMPtr.h"
 #include "nsNSSCertificate.h"
+#include "cert.h"
+#include "keyhi.h"
 #include "secder.h"
 #include "nsNSSCertValidity.h"
 #include "nsNSSASN1Object.h"
@@ -2086,9 +2088,7 @@ nsNSSCertificate::CreateTBSCertificateASN1Struct(nsIASN1Sequence **retSequence,
 
   }
   if (mCert->extensions) {
-    SECOidTag ev_oid_tag = SEC_OID_UNKNOWN;
-
-#ifndef NSS_NO_LIBPKIX
+    SECOidTag ev_oid_tag;
     bool validEV;
     rv = hasValidEVOidTag(ev_oid_tag, validEV);
     if (NS_FAILED(rv))
@@ -2096,7 +2096,6 @@ nsNSSCertificate::CreateTBSCertificateASN1Struct(nsIASN1Sequence **retSequence,
 
     if (!validEV)
       ev_oid_tag = SEC_OID_UNKNOWN;
-#endif
 
     rv = ProcessExtensions(mCert->extensions, sequence, ev_oid_tag, nssComponent);
     if (NS_FAILED(rv))
@@ -2211,22 +2210,4 @@ getNSSCertNicknamesFromCertList(CERTCertList *certList)
                                           const_cast<char*>(aUtf8ExpiredString.get()),
                                           const_cast<char*>(aUtf8NotYetValidString.get()));
   
-}
-
-nsresult
-GetCertFingerprintByOidTag(CERTCertificate* nsscert,
-                           SECOidTag aOidTag, 
-                           nsCString &fp)
-{
-  Digest digest;
-  nsresult rv = digest.DigestBuf(aOidTag, nsscert->derCert.data,
-                                 nsscert->derCert.len);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  char *tmpstr = CERT_Hexify(const_cast<SECItem*>(&digest.get()), 1);
-  NS_ENSURE_TRUE(tmpstr, NS_ERROR_OUT_OF_MEMORY);
-
-  fp.Assign(tmpstr);
-  PORT_Free(tmpstr);
-  return NS_OK;
 }

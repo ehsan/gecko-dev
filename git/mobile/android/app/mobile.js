@@ -267,11 +267,6 @@ pref("browser.search.noCurrentEngine", true);
 pref("browser.search.official", true);
 #endif
 
-// Enable sparse localization by setting a few package locale overrides
-pref("chrome.override_package.global", "browser");
-pref("chrome.override_package.mozapps", "browser");
-pref("chrome.override_package.passwordmgr", "browser");
-
 // enable xul error pages
 pref("browser.xul.error_pages.enabled", true);
 
@@ -449,7 +444,7 @@ pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
 pref("app.support.baseURL", "http://support.mozilla.org/1/mobile/%VERSION%/%OS%/%LOCALE%/");
 // Used to submit data to input from about:feedback
 pref("app.feedback.postURL", "https://input.mozilla.org/%LOCALE%/feedback");
-pref("app.privacyURL", "http://www.mozilla.org/%LOCALE%/privacy/");
+pref("app.privacyURL", "http://www.mozilla.com/%LOCALE%/m/privacy.html");
 pref("app.creditsURL", "http://www.mozilla.org/credits/");
 pref("app.channelURL", "http://www.mozilla.org/%LOCALE%/firefox/channel/");
 #if MOZ_UPDATE_CHANNEL == aurora
@@ -649,9 +644,6 @@ pref("network.manage-offline-status", true);
 // increase the timeout clamp for background tabs to 15 minutes
 pref("dom.min_background_timeout_value", 900000);
 
-// Allow reader mode even on low-memory platforms
-pref("reader.force_allow", false);
-
 // The default of font size in reader (1-7)
 pref("reader.font_size", 4);
 
@@ -720,6 +712,3 @@ pref("media.webaudio.enabled", true);
 // This needs more tests and stability fixes first, as well as UI.
 pref("media.navigator.enabled", false);
 pref("media.peerconnection.enabled", false);
-
-// Make <audio> and <video> talk to the AudioChannelService.
-pref("media.useAudioChannelService", true);

@@ -19,7 +19,7 @@ function handleRequest(request, response) {
 
   response.write('<html>\n' +
     '<head>\n' +
-      '<title>Browser VKB Overlapping content</title>  <meta charset="utf-8">');
+      '<title>Browser VKB Overlapping content</title>');
 
   if (params.metadata)
     response.write("<meta name=\"viewport\" content=\"" + params.metadata + "\"/>");

@@ -41,7 +41,7 @@ static JSClass sLibraryClass = {
 #define CTYPESFN_FLAGS \
   (JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT)
 
-static const JSFunctionSpec sLibraryFunctions[] = {
+static JSFunctionSpec sLibraryFunctions[] = {
   JS_FN("close",   Library::Close,   0, CTYPESFN_FLAGS),
   JS_FN("declare", Library::Declare, 0, CTYPESFN_FLAGS),
   JS_FS_END

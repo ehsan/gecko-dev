@@ -228,12 +228,6 @@ parser_groups = (
                                   metavar=None,
                                   default=False,
                                   cmds=['sdocs'])),
-        (("", "--check-memory",), dict(dest="check_memory",
-                                       help="attempts to detect leaked compartments after a test run",
-                                       action="store_true",
-                                       default=False,
-                                       cmds=['test', 'testpkgs', 'testaddons',
-                                             'testall'])),
         ]
      ),
 
@@ -666,7 +660,7 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
     # a Mozilla application (which includes running tests).
 
     use_main = False
-    inherited_options = ['verbose', 'enable_e10s', 'parseable', 'check_memory']
+    inherited_options = ['verbose', 'enable_e10s', 'parseable']
     enforce_timeouts = False
 
     if command == "xpi":

@@ -15,8 +15,6 @@
  * allocations in the same native method.
  */
 
-#include "jsstr.h"
-
 #include "mozilla/Attributes.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/FloatingPoint.h"
@@ -34,12 +32,16 @@
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jsinterp.h"
+#include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsopcode.h"
+#include "jsprobes.h"
+#include "jsstr.h"
 #include "jsversion.h"
 
 #include "builtin/RegExp.h"
+#include "js/HashTable.h"
 #include "vm/GlobalObject.h"
 #include "vm/NumericConversions.h"
 #include "vm/RegExpObject.h"
@@ -351,7 +353,7 @@ str_uneval(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-static const JSFunctionSpec string_functions[] = {
+static JSFunctionSpec string_functions[] = {
     JS_FN(js_escape_str,             str_escape,                1,0),
     JS_FN(js_unescape_str,           str_unescape,              1,0),
 #if JS_HAS_UNEVAL
@@ -2615,7 +2617,7 @@ LambdaIsGetElem(JSObject &lambda)
     if (!fun->hasScript())
         return NULL;
 
-    JSScript *script = fun->nonLazyScript();
+    RawScript script = fun->nonLazyScript();
     jsbytecode *pc = script->code;
 
     /*
@@ -3354,7 +3356,7 @@ str_sub(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif /* JS_HAS_STR_HTML_HELPERS */
 
-static const JSFunctionSpec string_methods[] = {
+static JSFunctionSpec string_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN("quote",             str_quote,             0,JSFUN_GENERIC_NATIVE),
     JS_FN(js_toSource_str,     str_toSource,          0,0),
@@ -3480,7 +3482,7 @@ js::str_fromCharCode(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-static const JSFunctionSpec string_static_methods[] = {
+static JSFunctionSpec string_static_methods[] = {
     JS_FN("fromCharCode", js::str_fromCharCode, 1, 0),
 
     // This must be at the end because of bug 853075: functions listed after
@@ -3491,7 +3493,7 @@ static const JSFunctionSpec string_static_methods[] = {
     JS_FS_END
 };
 
-Shape *
+RawShape
 StringObject::assignInitialShape(JSContext *cx)
 {
     JS_ASSERT(nativeEmpty());
@@ -3737,8 +3739,9 @@ js::ValueToSource(JSContext *cx, const Value &v)
 
     RootedValue rval(cx, NullValue());
     RootedValue fval(cx);
-    RootedObject obj(cx, &v.toObject());
-    if (!JSObject::getProperty(cx, obj, obj, cx->names().toSource, &fval))
+    RootedId id(cx, NameToId(cx->names().toSource));
+    Rooted<JSObject*> obj(cx, &v.toObject());
+    if (!GetMethod(cx, obj, id, 0, &fval))
         return NULL;
     if (js_IsCallable(fval)) {
         if (!Invoke(cx, ObjectValue(*obj), fval, 0, NULL, rval.address()))
@@ -4237,7 +4240,7 @@ const bool js_isspace[] = {
 static inline bool
 TransferBufferToString(StringBuffer &sb, MutableHandleValue rval)
 {
-    JSString *str = sb.finishString();
+    RawString str = sb.finishString();
     if (!str)
         return false;
     rval.setString(str);

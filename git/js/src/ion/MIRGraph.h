@@ -26,7 +26,6 @@ class MDefinitionIterator;
 typedef InlineListIterator<MInstruction> MInstructionIterator;
 typedef InlineListReverseIterator<MInstruction> MInstructionReverseIterator;
 typedef InlineForwardListIterator<MPhi> MPhiIterator;
-typedef InlineForwardListIterator<MResumePoint> MResumePointIterator;
 
 class LBlock;
 
@@ -37,8 +36,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
         NORMAL,
         PENDING_LOOP_HEADER,
         LOOP_HEADER,
-        SPLIT_EDGE,
-        DEAD
+        SPLIT_EDGE
     };
 
   private:
@@ -157,11 +155,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     // Adds a phi instruction, but does not set successorWithPhis.
     void addPhi(MPhi *phi);
 
-    // Adds a resume point to this block.
-    void addResumePoint(MResumePoint *resume) {
-        resumePoints_.pushFront(resume);
-    }
-
     // Adds a predecessor. Every predecessor must have the same exit stack
     // depth as the entry state to this block. Adding a predecessor
     // automatically creates phi nodes and rewrites uses as needed.
@@ -192,9 +185,8 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     void clearDominatorInfo();
 
     // Sets a back edge. This places phi nodes and rewrites instructions within
-    // the current loop as necessary. If the backedge introduces new types for
-    // phis at the loop header, returns a disabling abort.
-    AbortReason setBackedge(MBasicBlock *block);
+    // the current loop as necessary.
+    bool setBackedge(MBasicBlock *block);
 
     // Resets a LOOP_HEADER block to a NORMAL block.  This is needed when
     // optimizations remove the backedge.
@@ -202,9 +194,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     // Propagates phis placed in a loop header down to this successor block.
     void inheritPhis(MBasicBlock *header);
-
-    // Compute the types for phis in this block according to their inputs.
-    void specializePhis();
 
     void insertBefore(MInstruction *at, MInstruction *ins);
     void insertAfter(MInstruction *at, MInstruction *ins);
@@ -221,17 +210,9 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MInstructionIterator discardAt(MInstructionIterator &iter);
     MInstructionReverseIterator discardAt(MInstructionReverseIterator &iter);
     MDefinitionIterator discardDefAt(MDefinitionIterator &iter);
-    void discardAllInstructions();
-    void discardAllPhis();
-    void discardAllResumePoints(bool discardEntry = true);
 
     // Discards a phi instruction and updates predecessor successorWithPhis.
     MPhiIterator discardPhiAt(MPhiIterator &at);
-
-    // Mark this block as having been removed from the graph.
-    void markAsDead() {
-        kind_ = DEAD;
-    }
 
     ///////////////////////////////////////////////////////
     /////////// END GRAPH BUILDING INSTRUCTIONS ///////////
@@ -257,7 +238,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
 
     uint32_t domIndex() const {
-        JS_ASSERT(!isDead());
         return domIndex_;
     }
     void setDomIndex(uint32_t d) {
@@ -278,12 +258,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
     bool phisEmpty() const {
         return phis_.empty();
-    }
-    MResumePointIterator resumePointsBegin() const {
-        return resumePoints_.begin();
-    }
-    MResumePointIterator resumePointsEnd() const {
-        return resumePoints_.end();
     }
     MInstructionIterator begin() {
         return instructions_.begin();
@@ -329,9 +303,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
     bool isSplitEdge() const {
         return kind_ == SPLIT_EDGE;
-    }
-    bool isDead() const {
-        return kind_ == DEAD;
     }
 
     uint32_t stackDepth() const {
@@ -467,7 +438,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     InlineList<MInstruction> instructions_;
     Vector<MBasicBlock *, 1, IonAllocPolicy> predecessors_;
     InlineForwardList<MPhi> phis_;
-    InlineForwardList<MResumePoint> resumePoints_;
     FixedList<MDefinition *> slots_;
     uint32_t stackPosition_;
     MControlInstruction *lastIns_;
@@ -510,11 +480,11 @@ class MIRGraph
     MStart *osrStart_;
 
     // List of compiled/inlined scripts.
-    Vector<JSScript *, 4, IonAllocPolicy> scripts_;
+    Vector<RawScript, 4, IonAllocPolicy> scripts_;
 
     // List of possible scripts that this graph may call. Currently this is
     // only tracked when compiling for parallel execution.
-    Vector<JSScript *, 4, IonAllocPolicy> callTargets_;
+    Vector<RawScript, 4, IonAllocPolicy> callTargets_;
 
     size_t numBlocks_;
 
@@ -586,7 +556,6 @@ class MIRGraph
     ReversePostorderIterator rpoEnd() {
         return blocks_.end();
     }
-    void removeBlocksAfter(MBasicBlock *block);
     void removeBlock(MBasicBlock *block) {
         blocks_.remove(block);
         numBlocks_--;
@@ -634,7 +603,7 @@ class MIRGraph
     MStart *osrStart() {
         return osrStart_;
     }
-    bool addScript(JSScript *script) {
+    bool addScript(RawScript script) {
         // The same script may be inlined multiple times, add it only once.
         for (size_t i = 0; i < scripts_.length(); i++) {
             if (scripts_[i] == script)
@@ -648,7 +617,7 @@ class MIRGraph
     JSScript **scripts() {
         return scripts_.begin();
     }
-    bool addCallTarget(JSScript *script) {
+    bool addCallTarget(RawScript script) {
         for (size_t i = 0; i < callTargets_.length(); i++) {
             if (callTargets_[i] == script)
                 return true;

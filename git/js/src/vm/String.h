@@ -21,13 +21,17 @@
 #include "js/CharacterEncoding.h"
 #include "js/RootingAPI.h"
 
+ForwardDeclareJS(String);
 class JSDependentString;
+class JSUndependedString;
 class JSExtensibleString;
 class JSExternalString;
-class JSInlineString;
+ForwardDeclareJS(LinearString);
 class JSStableString;
-class JSString;
+ForwardDeclareJS(InlineString);
 class JSRope;
+ForwardDeclareJS(FlatString);
+ForwardDeclareJS(Atom);
 
 namespace js {
 
@@ -673,10 +677,6 @@ class JSInlineString : public JSFlatString
     static bool lengthFits(size_t length) {
         return length <= MAX_INLINE_LENGTH;
     }
-
-    static size_t offsetOfInlineStorage() {
-        return offsetof(JSInlineString, d.inlineStorage);
-    }
 };
 
 JS_STATIC_ASSERT(sizeof(JSInlineString) == sizeof(JSString));
@@ -853,7 +853,7 @@ class PropertyName : public JSAtom
 
 JS_STATIC_ASSERT(sizeof(PropertyName) == sizeof(JSString));
 
-static JS_ALWAYS_INLINE jsid
+static JS_ALWAYS_INLINE RawId
 NameToId(PropertyName *name)
 {
     return NON_INTEGER_ATOM_TO_JSID(name);

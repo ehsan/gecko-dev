@@ -4,12 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsperf.h"
-
 #include "jscntxt.h" /* for error messages */
 #include "jsobj.h" /* for unwrapping without a context */
 
 #include "jsobjinlines.h"
-#include "vm/ObjectImpl-inl.h"
 
 using JS::PerfMeasurement;
 
@@ -93,7 +91,7 @@ pm_canMeasureSomething(JSContext* cx, unsigned /*unused*/, jsval* vp)
 }
 
 const uint8_t PM_FATTRS = JSPROP_READONLY | JSPROP_PERMANENT;
-static const JSFunctionSpec pm_fns[] = {
+static JSFunctionSpec pm_fns[] = {
     JS_FN("start",               pm_start,               0, PM_FATTRS),
     JS_FN("stop",                pm_stop,                0, PM_FATTRS),
     JS_FN("reset",               pm_reset,               0, PM_FATTRS),
@@ -107,7 +105,7 @@ const uint8_t PM_PATTRS =
 #define GETTER(name)                            \
     { #name, 0, PM_PATTRS, JSOP_WRAPPER(pm_get_##name), JSOP_NULLWRAPPER }
 
-static const JSPropertySpec pm_props[] = {
+static JSPropertySpec pm_props[] = {
     GETTER(cpu_cycles),
     GETTER(instructions),
     GETTER(cache_references),
@@ -225,7 +223,7 @@ GetPMFromThis(JSContext* cx, jsval* vp)
 namespace JS {
 
 JSObject*
-RegisterPerfMeasurement(JSContext *cx, JSObject *global)
+RegisterPerfMeasurement(JSContext *cx, JSRawObject global)
 {
     RootedObject prototype(cx);
     prototype = JS_InitClass(cx, global, NULL /* parent */,

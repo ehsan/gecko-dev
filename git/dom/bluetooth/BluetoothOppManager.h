@@ -9,10 +9,9 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothSocketObserver.h"
-#include "DeviceStorage.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/ipc/UnixSocket.h"
-#include "nsCOMArray.h"
+#include "DeviceStorage.h"
 
 class nsIOutputStream;
 class nsIInputStream;
@@ -55,7 +54,7 @@ public:
   void Disconnect();
   bool Listen();
 
-  bool SendFile(const nsAString& aDeviceAddress, BlobParent* aBlob);
+  bool SendFile(BlobParent* aBlob);
   bool StopSendingFile();
   bool ConfirmReceivingFile(bool aConfirm);
 
@@ -73,7 +72,6 @@ public:
   // Return true if there is an ongoing file-transfer session, please see
   // Bug 827267 for more information.
   bool IsTransferring();
-  void GetAddress(nsAString& aDeviceAddress);
 
   // Implement interface BluetoothSocketObserver
   void ReceiveSocketData(
@@ -90,7 +88,6 @@ public:
 private:
   BluetoothOppManager();
   void StartFileTransfer();
-  void StartSendingNextFile();
   void FileTransferComplete();
   void UpdateProgress();
   void ReceivingFileConfirmation();
@@ -105,10 +102,6 @@ private:
   void AfterOppDisconnected();
   void ValidateFileName();
   bool IsReservedChar(PRUnichar c);
-  void ClearQueue();
-  void RetrieveSentFileName();
-  DeviceStorageFile* CreateDeviceStorageFile(nsIFile* aFile);
-  void NotifyAboutFileChange();
 
   /**
    * OBEX session status.
@@ -166,7 +159,7 @@ private:
    * True: Receive file (Server)
    * False: Send file (Client)
    */
-  bool mIsServer;
+  bool mTransferMode;
 
   /**
    * Set when receiving the first PUT packet and wait for
@@ -177,9 +170,7 @@ private:
   nsAutoArrayPtr<uint8_t> mBodySegment;
   nsAutoArrayPtr<uint8_t> mReceivedDataBuffer;
 
-  int mCurrentBlobIndex;
   nsCOMPtr<nsIDOMBlob> mBlob;
-  nsCOMArray<nsIDOMBlob> mBlobs;
 
   /**
    * A seperate member thread is required because our read calls can block

@@ -25,10 +25,6 @@ let gGestureSupport = {
    *        True to add/init listeners and false to remove/uninit
    */
   init: function GS_init(aAddListener) {
-    // Bug 863514 - Make gesture support work in electrolysis
-    if (gMultiProcessBrowser)
-      return;
-
     const gestureEvents = ["SwipeGestureStart",
       "SwipeGestureUpdate", "SwipeGestureEnd", "SwipeGesture",
       "MagnifyGestureStart", "MagnifyGestureUpdate", "MagnifyGesture",
@@ -505,10 +501,6 @@ let gGestureSupport = {
    * image
    */
   restoreRotationState: function() {
-    // Bug 863514 - Make gesture support work in electrolysis
-    if (gMultiProcessBrowser)
-      return;
-
     if (!(content.document instanceof ImageDocument))
       return;
 

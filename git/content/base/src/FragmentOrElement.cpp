@@ -72,6 +72,7 @@
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
+#include "nsIJSContextStack.h"
 
 #include "nsIDOMEventListener.h"
 #include "nsIWebNavigation.h"
@@ -380,7 +381,7 @@ NS_INTERFACE_TABLE_HEAD(nsChildContentList)
 NS_INTERFACE_MAP_END
 
 JSObject*
-nsChildContentList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsChildContentList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return NodeListBinding::Wrap(cx, scope, this);
 }
@@ -690,7 +691,9 @@ FragmentOrElement::GetChildren(uint32_t aFilter)
     }
   }
 
-  return list.forget();
+  nsINodeList* returnList = nullptr;
+  list.forget(&returnList);
+  return returnList;
 }
 
 static nsIContent*

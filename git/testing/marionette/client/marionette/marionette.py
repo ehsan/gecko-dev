@@ -6,6 +6,7 @@ import datetime
 import socket
 import sys
 import time
+import traceback
 
 from client import MarionetteClient
 from application_cache import ApplicationCache
@@ -49,8 +50,20 @@ class HTMLElement(object):
     def click(self):
         return self.marionette._send_message('clickElement', 'ok', element=self.id)
 
-    def tap(self, x=None, y=None):
+    def single_tap(self, x=None, y=None):
         return self.marionette._send_message('singleTap', 'ok', element=self.id, x=x, y=y)
+
+    def double_tap(self, x=None, y=None):
+        return self.marionette._send_message('doubleTap', 'ok', element=self.id, x=x, y=y)
+
+    def press(self, x=None, y=None):
+        return self.marionette._send_message('press', 'value', element=self.id, x=x, y=y)
+
+    def release(self, touch_id, x=None, y=None):
+        return self.marionette._send_message('release', 'ok', element=self.id, touchId=touch_id, x=x, y=y)
+
+    def cancel_touch(self, touch_id):
+        return self.marionette._send_message('cancelTouch', 'ok', element=self.id, touchId=touch_id)
 
     @property
     def text(self):
@@ -124,36 +137,6 @@ class Actions(object):
 
     def cancel(self):
         self.action_chain.append(['cancel'])
-        return self
-
-    def tap(self, element, x=None, y=None):
-        element=element.id
-        self.action_chain.append(['press', element, x, y])
-        self.action_chain.append(['release'])
-        return self
-
-    def double_tap(self, element, x=None, y=None):
-        element=element.id
-        self.action_chain.append(['press', element, x, y])
-        self.action_chain.append(['release'])
-        self.action_chain.append(['press', element, x, y])
-        self.action_chain.append(['release'])
-        return self
-
-    def flick(self, element, x1, y1, x2, y2, duration=200):
-        element = element.id
-        time = 0
-        time_increment = 10
-        if time_increment >= duration:
-            time_increment = duration
-        move_x = time_increment*1.0/duration * (x2 - x1)
-        move_y = time_increment*1.0/duration * (y2 - y1)
-        self.action_chain.append(['press', element, x1, y1])
-        while (time < duration):
-            time += time_increment
-            self.action_chain.append(['moveByOffset', move_x, move_y])
-            self.action_chain.append(['wait', time_increment/1000])
-        self.action_chain.append(['release'])
         return self
 
     def long_press(self, element, time_in_seconds):
@@ -437,9 +420,9 @@ class Marionette(object):
             # We are ignoring desired_capabilities, at least for now.
             self.session = self._send_message('newSession', 'value')
         except:
-            exc, val, tb = sys.exc_info()
+            traceback.print_exc()
             self.check_for_crash()
-            raise exc, val, tb
+            sys.exit()
 
         self.b2g = 'b2g' in self.session
         return self.session
@@ -646,6 +629,12 @@ class Marionette(object):
 
     def get_logs(self):
         return self._send_message('getLogs', 'value')
+
+    def add_perf_data(self, suite, name, value):
+        return self._send_message('addPerfData', 'ok', suite=suite, name=name, value=value)
+
+    def get_perf_data(self):
+        return self._send_message('getPerfData', 'value')
 
     def import_script(self, js_file):
         js = ''

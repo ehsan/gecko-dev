@@ -38,8 +38,8 @@ using namespace mozilla::services;
       nsCOMPtr<TYPE> os = do_GetService(CONTRACT_ID);                   \
       g##NAME = os.forget().get();                                      \
     }                                                                   \
-    nsRefPtr<TYPE> ret = g##NAME;                                       \
-    return ret.forget();                                                \
+    NS_IF_ADDREF(g##NAME);                                              \
+    return g##NAME;                                                     \
   }                                                                     \
   NS_EXPORT_(already_AddRefed<TYPE>)                                    \
   mozilla::services::_external_Get##NAME()                              \

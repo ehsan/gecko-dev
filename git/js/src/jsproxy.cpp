@@ -4,17 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsproxy.h"
-
 #include <string.h>
-
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsprvtd.h"
+#include "jsnum.h"
+#include "jsproxy.h"
 
 #include "gc/Marking.h"
+#include "vm/Shape.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -27,14 +27,14 @@ using namespace js::gc;
 using mozilla::ArrayLength;
 
 static inline HeapSlot &
-GetCall(JSObject *proxy)
+GetCall(RawObject proxy)
 {
     JS_ASSERT(IsFunctionProxy(proxy));
     return proxy->getSlotRef(JSSLOT_PROXY_CALL);
 }
 
 static inline Value
-GetConstruct(JSObject *proxy)
+GetConstruct(RawObject proxy)
 {
     if (proxy->slotSpan() <= JSSLOT_PROXY_CONSTRUCT)
         return UndefinedValue();
@@ -42,7 +42,7 @@ GetConstruct(JSObject *proxy)
 }
 
 static inline HeapSlot &
-GetFunctionProxyConstruct(JSObject *proxy)
+GetFunctionProxyConstruct(RawObject proxy)
 {
     JS_ASSERT(IsFunctionProxy(proxy));
     JS_ASSERT(proxy->slotSpan() > JSSLOT_PROXY_CONSTRUCT);
@@ -320,10 +320,12 @@ BaseProxyHandler::construct(JSContext *cx, HandleObject proxy, const CallArgs &a
     return false;
 }
 
-const char *
-BaseProxyHandler::className(JSContext *cx, HandleObject proxy)
+JSString *
+BaseProxyHandler::obj_toString(JSContext *cx, HandleObject proxy)
 {
-    return IsFunctionProxy(proxy) ? "Function" : "Object";
+    return JS_NewStringCopyZ(cx, IsFunctionProxy(proxy)
+                                 ? "[object Function]"
+                                 : "[object Object]");
 }
 
 JSString *
@@ -522,12 +524,12 @@ DirectProxyHandler::objectClassIs(HandleObject proxy, ESClassValue classValue,
     return ObjectClassIs(obj, classValue, cx);
 }
 
-const char *
-DirectProxyHandler::className(JSContext *cx, HandleObject proxy)
+JSString *
+DirectProxyHandler::obj_toString(JSContext *cx, HandleObject proxy)
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID);
     RootedObject target(cx, GetProxyTargetObject(proxy));
-    return JSObject::className(cx, target);
+    return obj_toStringHelper(cx, target);
 }
 
 JSString *
@@ -2660,8 +2662,8 @@ Proxy::objectClassIs(HandleObject proxy, ESClassValue classValue, JSContext *cx)
     return GetProxyHandler(proxy)->objectClassIs(proxy, classValue, cx);
 }
 
-const char *
-Proxy::className(JSContext *cx, HandleObject proxy)
+JSString *
+Proxy::obj_toString(JSContext *cx, HandleObject proxy)
 {
     JS_CHECK_RECURSION(cx, return NULL);
     BaseProxyHandler *handler = GetProxyHandler(proxy);
@@ -2669,9 +2671,9 @@ Proxy::className(JSContext *cx, HandleObject proxy)
                            BaseProxyHandler::GET, /* mayThrow = */ false);
     // Do the safe thing if the policy rejects.
     if (!policy.allowed()) {
-        return handler->BaseProxyHandler::className(cx, proxy);
+        return handler->BaseProxyHandler::obj_toString(cx, proxy);
     }
-    return handler->className(cx, proxy);
+    return handler->obj_toString(cx, proxy);
 }
 
 JSString *
@@ -2978,7 +2980,7 @@ proxy_DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid, JSBool
 }
 
 static void
-proxy_TraceObject(JSTracer *trc, JSObject *obj)
+proxy_TraceObject(JSTracer *trc, RawObject obj)
 {
 #ifdef DEBUG
     if (!trc->runtime->gcDisableStrictProxyCheckingCount && obj->isWrapper()) {
@@ -3009,7 +3011,7 @@ proxy_TraceObject(JSTracer *trc, JSObject *obj)
 }
 
 static void
-proxy_TraceFunction(JSTracer *trc, JSObject *obj)
+proxy_TraceFunction(JSTracer *trc, RawObject obj)
 {
     // NB: If you add new slots here, make sure to change
     // js::NukeChromeCrossCompartmentWrappers to cope.
@@ -3019,7 +3021,7 @@ proxy_TraceFunction(JSTracer *trc, JSObject *obj)
 }
 
 static JSObject *
-proxy_WeakmapKeyDelegate(JSObject *obj)
+proxy_WeakmapKeyDelegate(RawObject obj)
 {
     JS_ASSERT(obj->isProxy());
     return GetProxyHandler(obj)->weakmapKeyDelegate(obj);
@@ -3033,7 +3035,7 @@ proxy_Convert(JSContext *cx, HandleObject proxy, JSType hint, MutableHandleValue
 }
 
 static void
-proxy_Finalize(FreeOp *fop, JSObject *obj)
+proxy_Finalize(FreeOp *fop, RawObject obj)
 {
     JS_ASSERT(obj->isProxy());
     GetProxyHandler(obj)->finalize(fop, obj);
@@ -3288,11 +3290,8 @@ js::NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv_,
 
 static JSObject *
 NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv_, JSObject *proto_,
-               JSObject *parent_, JSObject *call_, JSObject *construct_)
+               JSObject *parent_, JSObject *call, JSObject *construct)
 {
-    RootedObject call(cx, call_);
-    RootedObject construct(cx, construct_);
-
     JS_ASSERT_IF(construct, cx->compartment == construct->compartment());
     JS_ASSERT_IF(call && cx->compartment != call->compartment(), priv_ == ObjectValue(*call));
 
@@ -3444,7 +3443,7 @@ proxy_createFunction(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static const JSFunctionSpec static_methods[] = {
+static JSFunctionSpec static_methods[] = {
     JS_FN("create",         proxy_create,          2, 0),
     JS_FN("createFunction", proxy_createFunction,  3, 0),
     JS_FS_END

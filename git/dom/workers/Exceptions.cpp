@@ -29,9 +29,9 @@ namespace {
 class DOMException : public PrivatizableBase
 {
   static JSClass sClass;
-  static const JSPropertySpec sProperties[];
-  static const JSFunctionSpec sFunctions[];
-  static const JSPropertySpec sStaticProperties[];
+  static JSPropertySpec sProperties[];
+  static JSFunctionSpec sFunctions[];
+  static JSPropertySpec sStaticProperties[];
 
   enum SLOT {
     SLOT_code = 0,
@@ -161,7 +161,7 @@ JSClass DOMException::sClass = {
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
 };
 
-const JSPropertySpec DOMException::sProperties[] = {
+JSPropertySpec DOMException::sProperties[] = {
   { "code", SLOT_code, PROPERTY_FLAGS, JSOP_WRAPPER(GetProperty),
     JSOP_WRAPPER(js_GetterOnlyPropertyStub) },
   { "name", SLOT_name, PROPERTY_FLAGS, JSOP_WRAPPER(GetProperty),
@@ -171,12 +171,12 @@ const JSPropertySpec DOMException::sProperties[] = {
   { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
 };
 
-const JSFunctionSpec DOMException::sFunctions[] = {
+JSFunctionSpec DOMException::sFunctions[] = {
   JS_FN("toString", ToString, 0, 0),
   JS_FS_END
 };
 
-const JSPropertySpec DOMException::sStaticProperties[] = {
+JSPropertySpec DOMException::sStaticProperties[] = {
 
 #define EXCEPTION_ENTRY(_name) \
   { #_name, _name, CONSTANT_FLAGS, JSOP_WRAPPER(GetConstant), JSOP_NULLWRAPPER },

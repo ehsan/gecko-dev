@@ -40,6 +40,13 @@ using namespace mozilla;
                                    gfxPlatform::GetLog(eGfxLog_cmapdata), \
                                    PR_LOG_DEBUG)
 
+// font info loader constants
+
+// avoid doing this during startup even on slow machines but try to start
+// it soon enough so that system fallback doesn't happen first
+static const uint32_t kDelayBeforeLoadingFonts = 120 * 1000; // 2 minutes after init
+static const uint32_t kIntervalBetweenLoadingFonts = 2000;   // every 2 seconds until complete
+
 static __inline void
 BuildKeyNameFromFontName(nsAString &aName)
 {
@@ -245,7 +252,7 @@ gfxDWriteFontEntry::IsSymbolFont()
 }
 
 static bool
-UsingArabicOrHebrewScriptSystemLocale()
+UsingArabicScriptSystemLocale()
 {
     LANGID langid = PRIMARYLANGID(::GetSystemDefaultLangID());
     switch (langid) {
@@ -256,7 +263,6 @@ UsingArabicOrHebrewScriptSystemLocale()
     case LANG_SINDHI:
     case LANG_UIGHUR:
     case LANG_URDU:
-    case LANG_HEBREW:
         return true;
     default:
         return false;
@@ -269,12 +275,11 @@ gfxDWriteFontEntry::GetFontTable(uint32_t aTableTag,
 {
     gfxDWriteFontList *pFontList = gfxDWriteFontList::PlatformFontList();
 
-    // Don't use GDI table loading for symbol fonts or for
+    // don't use GDI table loading for symbol fonts or for
     // italic fonts in Arabic-script system locales because of
-    // potential cmap discrepancies, see bug 629386.
-    // Ditto for Hebrew, bug 837498.
+    // potential cmap discrepancies, see bug 629386
     if (mFont && pFontList->UseGDIFontTableAccess() &&
-        !(mItalic && UsingArabicOrHebrewScriptSystemLocale()) &&
+        !(mItalic && UsingArabicScriptSystemLocale()) &&
         !mFont->IsSymbolFont())
     {
         LOGFONTW logfont = { 0 };
@@ -285,13 +290,10 @@ gfxDWriteFontEntry::GetFontTable(uint32_t aTableTag,
         AutoSelectFont font(dc.GetDC(), &logfont);
         if (font.IsValid()) {
             uint32_t tableSize =
-                ::GetFontData(dc.GetDC(),
-                              NativeEndian::swapToBigEndian(aTableTag), 0,
-                              NULL, 0);
+                ::GetFontData(dc.GetDC(), NS_SWAP32(aTableTag), 0, NULL, 0);
             if (tableSize != GDI_ERROR) {
                 if (aBuffer.SetLength(tableSize)) {
-                    ::GetFontData(dc.GetDC(),
-                                  NativeEndian::swapToBigEndian(aTableTag), 0,
+                    ::GetFontData(dc.GetDC(), NS_SWAP32(aTableTag), 0,
                                   aBuffer.Elements(), aBuffer.Length());
                     return NS_OK;
                 }
@@ -315,7 +317,7 @@ gfxDWriteFontEntry::GetFontTable(uint32_t aTableTag,
     uint32_t len;
     void *tableContext = NULL;
     BOOL exists;
-    hr = fontFace->TryGetFontTable(NativeEndian::swapToBigEndian(aTableTag),
+    hr = fontFace->TryGetFontTable(NS_SWAP32(aTableTag),
                                    (const void**)&tableData,
                                    &len,
                                    &tableContext,
@@ -992,7 +994,7 @@ gfxDWriteFontList::DelayedInitFontList()
         Preferences::GetInt("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size",
                             mForceGDIClassicMaxFontSize);
 
-    GetPrefsAndStartLoader();
+    StartLoader(kDelayBeforeLoadingFonts, kIntervalBetweenLoadingFonts);
 
     LOGREGISTRY(L"DelayedInitFontList end");
 

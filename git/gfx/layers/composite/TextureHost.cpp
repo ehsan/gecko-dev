@@ -15,10 +15,6 @@ namespace layers {
 TemporaryRef<TextureHost> CreateTextureHostOGL(SurfaceDescriptorType aDescriptorType,
                                                uint32_t aTextureHostFlags,
                                                uint32_t aTextureFlags);
-// implemented in BasicCompositor.cpp
-TemporaryRef<TextureHost> CreateBasicTextureHost(SurfaceDescriptorType aDescriptorType,
-                                                 uint32_t aTextureHostFlags,
-                                                 uint32_t aTextureFlags);
 
 TemporaryRef<TextureHost> CreateTextureHostD3D9(SurfaceDescriptorType aDescriptorType,
                                                 uint32_t aTextureHostFlags,
@@ -34,21 +30,13 @@ TextureHost::CreateTextureHost(SurfaceDescriptorType aDescriptorType,
                                uint32_t aTextureFlags)
 {
   switch (Compositor::GetBackend()) {
-    case LAYERS_OPENGL:
-      return CreateTextureHostOGL(aDescriptorType,
-                                  aTextureHostFlags,
-                                  aTextureFlags);
-    case LAYERS_D3D9:
-      return CreateTextureHostD3D9(aDescriptorType,
-                                   aTextureHostFlags,
-                                   aTextureFlags);
-    case LAYERS_BASIC:
-      return CreateBasicTextureHost(aDescriptorType,
-                                    aTextureHostFlags,
-                                    aTextureFlags);
-    default:
-      MOZ_NOT_REACHED("Couldn't create texture host");
-      return nullptr;
+    case LAYERS_OPENGL : return CreateTextureHostOGL(aDescriptorType,
+                                                     aTextureHostFlags,
+                                                     aTextureFlags);
+    case LAYERS_D3D9 : return CreateTextureHostD3D9(aDescriptorType,
+                                                    aTextureHostFlags,
+                                                    aTextureFlags);
+    default : return nullptr;
   }
 }
 

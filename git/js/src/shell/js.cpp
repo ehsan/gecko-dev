@@ -912,7 +912,6 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
     unsigned lineNumber = 1;
     RootedObject global(cx, NULL);
     bool catchTermination = false;
-    RootedObject callerGlobal(cx, cx->global());
 
     global = JS_GetGlobalForObject(cx, &args.callee());
     if (!global)
@@ -984,7 +983,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
         if (!JSVAL_IS_VOID(v)) {
             global = JSVAL_IS_PRIMITIVE(v) ? NULL : JSVAL_TO_OBJECT(v);
             if (global) {
-                global = js::UncheckedUnwrap(global);
+                global = JS_UnwrapObject(global);
                 if (!global)
                     return false;
             }
@@ -1044,7 +1043,6 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
         }
         if (!JS_ExecuteScript(cx, global, script, vp)) {
             if (catchTermination && !JS_IsExceptionPending(cx)) {
-                JSAutoCompartment ac1(cx, callerGlobal);
                 JSString *str = JS_NewStringCopyZ(cx, "terminated");
                 if (!str)
                     return false;
@@ -1403,7 +1401,7 @@ AssertEq(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static JSScript *
+static RawScript
 ValueToScript(JSContext *cx, jsval v, JSFunction **funp = NULL)
 {
     RootedFunction fun(cx, JS_ValueToFunction(cx, v));
@@ -1485,7 +1483,7 @@ GetScriptAndPCArgs(JSContext *cx, unsigned argc, jsval *argv, MutableHandleScrip
 }
 
 static JSTrapStatus
-TrapHandler(JSContext *cx, JSScript *, jsbytecode *pc, jsval *rvalArg,
+TrapHandler(JSContext *cx, RawScript, jsbytecode *pc, jsval *rvalArg,
             jsval closure)
 {
     JSString *str = JSVAL_TO_STRING(closure);
@@ -1558,7 +1556,7 @@ Untrap(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSTrapStatus
-DebuggerAndThrowHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
+DebuggerAndThrowHandler(JSContext *cx, RawScript script, jsbytecode *pc, jsval *rval,
                         void *closure)
 {
     return TrapHandler(cx, script, pc, rval, STRING_TO_JSVAL((JSString *)closure));
@@ -1862,7 +1860,7 @@ DisassembleScript(JSContext *cx, HandleScript script, HandleFunction fun, bool l
     if (recursive && script->hasObjects()) {
         ObjectArray *objects = script->objects();
         for (unsigned i = 0; i != objects->length; ++i) {
-            JSObject *obj = objects->vector[i];
+            RawObject obj = objects->vector[i];
             if (obj->isFunction()) {
                 Sprint(sp, "\n");
                 RootedFunction f(cx, obj->toFunction());
@@ -2242,7 +2240,11 @@ static JSBool
 BuildDate(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    fprintf(gOutFile, "built on %s at %s\n", __DATE__, __TIME__);
+    char version[20] = "\n";
+#if JS_VERSION < 150
+    sprintf(version, " for version %d\n", JS_VERSION);
+#endif
+    fprintf(gOutFile, "built on %s at %s%s", __DATE__, __TIME__, version);
     args.rval().setUndefined();
     return true;
 }
@@ -4005,7 +4007,7 @@ its_get_customNative(JSContext *cx, unsigned argc, jsval *vp);
 static JSBool
 its_set_customNative(JSContext *cx, unsigned argc, jsval *vp);
 
-static const JSPropertySpec its_props[] = {
+static JSPropertySpec its_props[] = {
     {"color",           ITS_COLOR,      JSPROP_ENUMERATE,       JSOP_NULLWRAPPER, JSOP_NULLWRAPPER},
     {"height",          ITS_HEIGHT,     JSPROP_ENUMERATE,       JSOP_NULLWRAPPER, JSOP_NULLWRAPPER},
     {"width",           ITS_WIDTH,      JSPROP_ENUMERATE,       JSOP_NULLWRAPPER, JSOP_NULLWRAPPER},
@@ -4590,7 +4592,7 @@ const JSJitInfo doFoo_methodinfo = {
     false     /* isConstant. Only relevant for getters. */
 };
 
-static const JSPropertySpec dom_props[] = {
+static JSPropertySpec dom_props[] = {
     {"x", 0,
      JSPROP_SHARED | JSPROP_ENUMERATE | JSPROP_NATIVE_ACCESSORS,
      { (JSPropertyOp)dom_genericGetter, &dom_x_getterinfo },
@@ -4599,7 +4601,7 @@ static const JSPropertySpec dom_props[] = {
     {NULL,0,0,JSOP_NULLWRAPPER, JSOP_NULLWRAPPER}
 };
 
-static const JSFunctionSpec dom_methods[] = {
+static JSFunctionSpec dom_methods[] = {
     JS_FNINFO("doFoo", dom_genericMethod, &doFoo_methodinfo, 3, JSPROP_ENUMERATE),
     JS_FS_END
 };

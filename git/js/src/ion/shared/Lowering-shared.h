@@ -175,11 +175,6 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     static bool allowTypedElementHoleCheck() {
         return false;
     }
-
-    // Whether to generate typed array accesses on statically known objects.
-    static bool allowStaticTypedArrayAccesses() {
-        return false;
-    }
 };
 
 } // namespace ion

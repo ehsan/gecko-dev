@@ -14,6 +14,7 @@
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
 #include "nsIXPConnect.h"
+#include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
 #include "nsCOMPtr.h"
 #include "nsISupportsPrimitives.h"
@@ -239,12 +240,6 @@ nsJSEnvironmentObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                  const PRUnichar* aData)
 {
   if (sGCOnMemoryPressure && !nsCRT::strcmp(aTopic, "memory-pressure")) {
-    if(StringBeginsWith(nsDependentString(aData),
-                        NS_LITERAL_STRING("low-memory-ongoing"))) {
-      // Don't GC/CC if we are in an ongoing low-memory state since its very
-      // slow and it likely won't help us anyway.
-      return NS_OK;
-    }
     nsJSContext::GarbageCollectNow(JS::gcreason::MEM_PRESSURE,
                                    nsJSContext::NonIncrementalGC,
                                    nsJSContext::NonCompartmentGC,
@@ -625,7 +620,7 @@ PrintWinURI(nsGlobalWindow *win)
     return;
   }
 
-  nsCOMPtr<nsIDocument> doc = win->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(win->GetExtantDocument());
   if (!doc) {
     printf("No document in the window.\n");
     return;
@@ -684,9 +679,13 @@ GetPromptFromContext(nsJSContext* ctx)
   nsIDocShell *docShell = win->GetDocShell();
   NS_ENSURE_TRUE(docShell, nullptr);
 
+  nsCOMPtr<nsIInterfaceRequestor> ireq(do_QueryInterface(docShell));
+  NS_ENSURE_TRUE(ireq, nullptr);
+
   // Get the nsIPrompt interface from the docshell
-  nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShell);
-  return prompt.forget();
+  nsIPrompt* prompt;
+  ireq->GetInterface(NS_GET_IID(nsIPrompt), (void**)&prompt);
+  return prompt;
 }
 
 JSBool
@@ -2151,7 +2150,7 @@ TraceMallocDumpAllocations(JSContext *cx, unsigned argc, JS::Value *vp)
     return JS_TRUE;
 }
 
-static const JSFunctionSpec TraceMallocFunctions[] = {
+static JSFunctionSpec TraceMallocFunctions[] = {
     JS_FS("TraceMallocDisable",         TraceMallocDisable,         0, 0),
     JS_FS("TraceMallocEnable",          TraceMallocEnable,          0, 0),
     JS_FS("TraceMallocOpenLogFile",     TraceMallocOpenLogFile,     1, 0),
@@ -2206,7 +2205,7 @@ ReportAndDump(JSContext *cx, unsigned argc, JS::Value *vp)
 } // namespace dmd
 } // namespace mozilla
 
-static const JSFunctionSpec DMDFunctions[] = {
+static JSFunctionSpec DMDFunctions[] = {
     JS_FS("DMDReportAndDump", dmd::ReportAndDump, 1, 0),
     JS_FS_END
 };
@@ -2307,7 +2306,7 @@ JProfSaveCircularJS(JSContext *cx, unsigned argc, JS::Value *vp)
   return JS_TRUE;
 }
 
-static const JSFunctionSpec JProfFunctions[] = {
+static JSFunctionSpec JProfFunctions[] = {
     JS_FS("JProfStartProfiling",        JProfStartProfilingJS,      0, 0),
     JS_FS("JProfStopProfiling",         JProfStopProfilingJS,       0, 0),
     JS_FS("JProfClearCircular",         JProfClearCircularJS,       0, 0),
@@ -3402,7 +3401,7 @@ NS_DOMReadStructuredClone(JSContext* cx,
     nsRefPtr<ImageData> imageData = new ImageData(width, height,
                                                   dataArray.toObject());
     // Wrap it in a JS::Value.
-    JS::Rooted<JSObject*> global(cx, JS_GetGlobalForScopeChain(cx));
+    JSObject* global = JS_GetGlobalForScopeChain(cx);
     if (!global) {
       return nullptr;
     }

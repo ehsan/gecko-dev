@@ -22,6 +22,7 @@
 #include "nsWidgetsCID.h"
 #include "nsIPresShell.h"
 #include "nsHTMLParts.h"
+#include "nsIDOMEventTarget.h"
 #include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
 #include "nsEventListenerManager.h"
@@ -1018,13 +1019,17 @@ nsListControlFrame::Init(nsIContent*     aContent,
 already_AddRefed<nsIContent> 
 nsListControlFrame::GetOptionAsContent(nsIDOMHTMLOptionsCollection* aCollection, int32_t aIndex) 
 {
+  nsIContent * content = nullptr;
   nsCOMPtr<nsIDOMHTMLOptionElement> optionElement = GetOption(aCollection,
                                                               aIndex);
 
   NS_ASSERTION(optionElement != nullptr, "could not get option element by index!");
 
-  nsCOMPtr<nsIContent> content = do_QueryInterface(optionElement);
-  return content.forget();
+  if (optionElement) {
+    CallQueryInterface(optionElement, &content);
+  }
+ 
+  return content;
 }
 
 already_AddRefed<nsIContent> 
@@ -1043,13 +1048,13 @@ nsListControlFrame::GetOptionContent(int32_t aIndex) const
 already_AddRefed<nsIDOMHTMLOptionsCollection>
 nsListControlFrame::GetOptions(nsIContent * aContent)
 {
-  nsCOMPtr<nsIDOMHTMLOptionsCollection> options;
+  nsIDOMHTMLOptionsCollection* options = nullptr;
   nsCOMPtr<nsIDOMHTMLSelectElement> selectElement = do_QueryInterface(aContent);
   if (selectElement) {
-    selectElement->GetOptions(getter_AddRefs(options));
+    selectElement->GetOptions(&options);  // AddRefs (1)
   }
 
-  return options.forget();
+  return options;
 }
 
 already_AddRefed<nsIDOMHTMLOptionElement>
@@ -1061,9 +1066,10 @@ nsListControlFrame::GetOption(nsIDOMHTMLOptionsCollection* aCollection,
     NS_ASSERTION(node,
                  "Item was successful, but node from collection was null!");
     if (node) {
-      nsCOMPtr<nsIDOMHTMLOptionElement> option = do_QueryInterface(node);
+      nsIDOMHTMLOptionElement* option = nullptr;
+      CallQueryInterface(node, &option);
 
-      return option.forget();
+      return option;
     }
   } else {
     NS_ERROR("Couldn't get option by index from collection!");

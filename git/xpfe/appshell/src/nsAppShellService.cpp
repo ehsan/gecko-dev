@@ -12,6 +12,7 @@
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "nsIXPConnect.h"
+#include "nsIJSContextStack.h"
 
 #include "nsIWindowMediator.h"
 #include "nsIWindowWatcher.h"
@@ -460,9 +461,11 @@ CheckForFullscreenWindow()
     windowList->GetNext(getter_AddRefs(supportsWindow));
     nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(supportsWindow));
     if (baseWin) {
+      int32_t sizeMode;
       nsCOMPtr<nsIWidget> widget;
       baseWin->GetMainWidget(getter_AddRefs(widget));
-      if (widget && widget->SizeMode() == nsSizeMode_Fullscreen) {
+      if (widget && NS_SUCCEEDED(widget->GetSizeMode(&sizeMode)) && 
+          sizeMode == nsSizeMode_Fullscreen) {
         return true;
       }
     }

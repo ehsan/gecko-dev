@@ -97,14 +97,13 @@ function waitForCondition(condition, nextTest, errorMsg) {
   var moveOn = function() { clearInterval(interval); nextTest(); };
 }
 
-function getTestPlugin(aName) {
-  var pluginName = aName || "Test Plug-in";
+function getTestPlugin() {
   var ph = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
   var tags = ph.getPluginTags();
 
   // Find the test plugin
   for (var i = 0; i < tags.length; i++) {
-    if (tags[i].name == pluginName)
+    if (tags[i].name == "Test Plug-in")
       return tags[i];
   }
   ok(false, "Unable to find plugin");

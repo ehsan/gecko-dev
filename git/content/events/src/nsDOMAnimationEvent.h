@@ -25,8 +25,7 @@ public:
   NS_FORWARD_TO_NSDOMEVENT
   NS_DECL_NSIDOMANIMATIONEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-			       JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::AnimationEventBinding::Wrap(aCx, aScope, this);
   }

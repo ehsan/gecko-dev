@@ -135,7 +135,7 @@ class JS_FRIEND_API(BaseProxyHandler)
     virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
     virtual bool hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp);
     virtual bool objectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx);
-    virtual const char *className(JSContext *cx, HandleObject proxy);
+    virtual JSString *obj_toString(JSContext *cx, HandleObject proxy);
     virtual JSString *fun_toString(JSContext *cx, HandleObject proxy, unsigned indent);
     virtual bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g);
     virtual bool defaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp);
@@ -199,7 +199,7 @@ class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
                              bool *bp) MOZ_OVERRIDE;
     virtual bool objectClassIs(HandleObject obj, ESClassValue classValue,
                                JSContext *cx) MOZ_OVERRIDE;
-    virtual const char *className(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
+    virtual JSString *obj_toString(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
     virtual JSString *fun_toString(JSContext *cx, HandleObject proxy,
                                    unsigned indent) MOZ_OVERRIDE;
     virtual bool regexp_toShared(JSContext *cx, HandleObject proxy,
@@ -248,7 +248,7 @@ class Proxy
     static bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
     static bool hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp);
     static bool objectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx);
-    static const char *className(JSContext *cx, HandleObject proxy);
+    static JSString *obj_toString(JSContext *cx, HandleObject proxy);
     static JSString *fun_toString(JSContext *cx, HandleObject proxy, unsigned indent);
     static bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g);
     static bool defaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp);
@@ -267,17 +267,17 @@ inline bool IsFunctionProxyClass(const Class *clasp)
     return clasp == &js::FunctionProxyClass;
 }
 
-inline bool IsObjectProxy(JSObject *obj)
+inline bool IsObjectProxy(RawObject obj)
 {
     return IsObjectProxyClass(GetObjectClass(obj));
 }
 
-inline bool IsFunctionProxy(JSObject *obj)
+inline bool IsFunctionProxy(RawObject obj)
 {
     return IsFunctionProxyClass(GetObjectClass(obj));
 }
 
-inline bool IsProxy(JSObject *obj)
+inline bool IsProxy(RawObject obj)
 {
     Class *clasp = GetObjectClass(obj);
     return IsObjectProxyClass(clasp) || IsFunctionProxyClass(clasp);
@@ -298,42 +298,42 @@ const uint32_t JSSLOT_PROXY_CALL = 4;
 const uint32_t JSSLOT_PROXY_CONSTRUCT = 5;
 
 inline BaseProxyHandler *
-GetProxyHandler(JSObject *obj)
+GetProxyHandler(RawObject obj)
 {
     JS_ASSERT(IsProxy(obj));
     return (BaseProxyHandler *) GetReservedSlot(obj, JSSLOT_PROXY_HANDLER).toPrivate();
 }
 
 inline const Value &
-GetProxyPrivate(JSObject *obj)
+GetProxyPrivate(RawObject obj)
 {
     JS_ASSERT(IsProxy(obj));
     return GetReservedSlot(obj, JSSLOT_PROXY_PRIVATE);
 }
 
 inline JSObject *
-GetProxyTargetObject(JSObject *obj)
+GetProxyTargetObject(RawObject obj)
 {
     JS_ASSERT(IsProxy(obj));
     return GetProxyPrivate(obj).toObjectOrNull();
 }
 
 inline const Value &
-GetProxyExtra(JSObject *obj, size_t n)
+GetProxyExtra(RawObject obj, size_t n)
 {
     JS_ASSERT(IsProxy(obj));
     return GetReservedSlot(obj, JSSLOT_PROXY_EXTRA + n);
 }
 
 inline void
-SetProxyHandler(JSObject *obj, BaseProxyHandler *handler)
+SetProxyHandler(RawObject obj, BaseProxyHandler *handler)
 {
     JS_ASSERT(IsProxy(obj));
     SetReservedSlot(obj, JSSLOT_PROXY_HANDLER, PrivateValue(handler));
 }
 
 inline void
-SetProxyExtra(JSObject *obj, size_t n, const Value &extra)
+SetProxyExtra(RawObject obj, size_t n, const Value &extra)
 {
     JS_ASSERT(IsProxy(obj));
     JS_ASSERT(n <= 1);

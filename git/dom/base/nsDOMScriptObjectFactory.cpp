@@ -26,6 +26,7 @@
 #include "nsJSEnvironment.h"
 #include "nsJSEventListener.h"
 #include "nsGlobalWindow.h"
+#include "nsIJSContextStack.h"
 #include "nsISupportsPrimitives.h"
 #include "nsDOMException.h"
 #include "nsCRT.h"

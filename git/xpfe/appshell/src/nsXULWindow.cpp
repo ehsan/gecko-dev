@@ -29,6 +29,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMXULElement.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMScreen.h"
@@ -52,7 +53,6 @@
 #include "nsPresContext.h"
 #include "nsContentUtils.h"
 #include "nsWebShellWindow.h" // get rid of this one, too...
-#include "nsDOMEvent.h"
 
 #include "prenv.h"
 #include "mozilla/Preferences.h"
@@ -208,10 +208,12 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(uint32_t aLevel)
 
   /* refuse to raise a maximized window above the normal browser level,
      for fear it could hide newly opened browser windows */
-  if (aLevel > nsIXULWindow::normalZ && mWindow) {
-    int32_t sizeMode = mWindow->SizeMode();
-    if (sizeMode == nsSizeMode_Maximized || sizeMode == nsSizeMode_Fullscreen) {
-      return NS_ERROR_FAILURE;
+  if (aLevel > nsIXULWindow::normalZ) {
+    int32_t sizeMode;
+    if (mWindow) {
+      mWindow->GetSizeMode(&sizeMode);
+      if (sizeMode == nsSizeMode_Maximized || sizeMode == nsSizeMode_Fullscreen)
+        return NS_ERROR_FAILURE;
     }
   }
 
@@ -223,17 +225,20 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(uint32_t aLevel)
   nsCOMPtr<nsIContentViewer> cv;
   mDocShell->GetContentViewer(getter_AddRefs(cv));
   if (cv) {
-    nsCOMPtr<nsIDocument> doc = cv->GetDocument();
-    if (doc) {
-      ErrorResult rv;
-      nsRefPtr<nsDOMEvent> event = doc->CreateEvent(NS_LITERAL_STRING("Events"),rv);
+    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(cv->GetDocument());
+    if (domDoc) {
+      nsCOMPtr<nsIDOMEvent> event;
+      domDoc->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
       if (event) {
         event->InitEvent(NS_LITERAL_STRING("windowZLevel"), true, false);
 
         event->SetTrusted(true);
 
-        bool defaultActionEnabled;
-        doc->DispatchEvent(event, &defaultActionEnabled);
+        nsCOMPtr<nsIDOMEventTarget> targ = do_QueryInterface(domDoc);
+        if (targ) {
+          bool defaultActionEnabled;
+          targ->DispatchEvent(event, &defaultActionEnabled);
+        }
       }
     }
   }
@@ -1458,11 +1463,12 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
     return NS_OK;
   }
 
-  // get our size, position and mode to persist
   int32_t x, y, cx, cy;
-  NS_ENSURE_SUCCESS(GetPositionAndSize(&x, &y, &cx, &cy), NS_ERROR_FAILURE);
+  int32_t sizeMode;
 
-  int32_t sizeMode = mWindow->SizeMode();
+  // get our size, position and mode to persist
+  NS_ENSURE_SUCCESS(GetPositionAndSize(&x, &y, &cx, &cy), NS_ERROR_FAILURE);
+  mWindow->GetSizeMode(&sizeMode);
   double scale = mWindow->GetDefaultScale();
 
   // make our position relative to our parent, if any

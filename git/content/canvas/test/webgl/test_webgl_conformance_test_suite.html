@@ -488,19 +488,19 @@ function start() {
   var testsToSkip = [];
 
   if (kIsAndroid) {
-    testsToSkip = loadTextFileSynchronous('skipped_tests_android.txt')
+    var testsToSkip = loadTextFileSynchronous('skipped_tests_android.txt')
                       .replace(/\r/g, '') // convert to unix line breaks
                       .split('\n');
   }
 
   if (kIsLinuxMesa) {
-    testsToSkip = loadTextFileSynchronous('skipped_tests_linux_mesa.txt')
+    var testsToSkip = loadTextFileSynchronous('skipped_tests_linux_mesa.txt')
                       .replace(/\r/g, '') // convert to unix line breaks
                       .split('\n');
   }
 
   if (kIsWindows && !kIsWindowsVistaOrHigher) {
-    testsToSkip = loadTextFileSynchronous('skipped_tests_winxp.txt')
+    var testsToSkip = loadTextFileSynchronous('skipped_tests_winxp.txt')
                       .replace(/\r/g, '') // convert to unix line breaks
                       .split('\n');
   }

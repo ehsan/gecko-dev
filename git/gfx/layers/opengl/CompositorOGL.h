@@ -29,7 +29,7 @@ class CompositorOGL : public Compositor
 
 public:
   CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth = -1, int aSurfaceHeight = -1,
-                bool aUseExternalSurfaceSize = false);
+                bool aIsRenderingToEGLSurface = false);
 
   virtual ~CompositorOGL();
 
@@ -90,10 +90,6 @@ public:
    */
   virtual void SetDestinationSurfaceSize(const gfx::IntSize& aSize) MOZ_OVERRIDE;
 
-  virtual void SetScreenRenderOffset(const gfx::Point& aOffset) MOZ_OVERRIDE {
-    mRenderOffset = aOffset;
-  }
-
   virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) MOZ_OVERRIDE {
     if (mDestroyed) {
       NS_WARNING("Call on destroyed layer manager");
@@ -145,8 +141,6 @@ private:
   /** The size of the surface we are rendering to */
   nsIntSize mSurfaceSize;
 
-  gfx::Point mRenderOffset;
-
   /** Helper-class used by Initialize **/
   class ReadDrawFPSPref MOZ_FINAL : public nsRunnable {
   public:
@@ -185,11 +179,11 @@ private:
   bool mHasBGRA;
 
   /**
-   * When rendering to some EGL surfaces (e.g. on Android), we rely on being told
+   * When rendering to an EGL surface (e.g. on Android), we rely on being told
    * about size changes (via SetSurfaceSize) rather than pulling this information
    * from the widget.
    */
-  bool mUseExternalSurfaceSize;
+  bool mIsRenderingToEGLSurface;
 
   /**
    * Have we had DrawQuad calls since the last frame was rendered?

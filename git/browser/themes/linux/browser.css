@@ -10,9 +10,10 @@
 @namespace html url("http://www.w3.org/1999/xhtml");
 
 %include ../shared/browser.inc
-%include linuxShared.inc
 %filter substitution
-
+%define toolbarHighlight rgba(255,255,255,.3)
+%define fgTabTexture linear-gradient(transparent 0px, transparent 1px, hsla(0,0%,100%,0.35) 1px, hsla(0,0%,100%,0.35) 2px, hsla(0,0%,100%,0.65) 2px, hsla(0,0%,100%,0.65) 3px, @toolbarHighlight@)
+%define fgTabBackgroundMiddle @fgTabTexture@, linear-gradient(transparent 0px, transparent 2px, -moz-dialog 2px, -moz-dialog)
 %define forwardTransitionLength 150ms
 %define conditionalForwardWithUrlbar       window:not([chromehidden~=toolbar]) :-moz-any(#nav-bar[currentset*="unified-back-forward-button,urlbar-container"][mode=icons],                #nav-bar:not([currentset])[mode=icons])                 > #unified-back-forward-button
 %define conditionalForwardWithUrlbar_small window:not([chromehidden~=toolbar]) :-moz-any(#nav-bar[currentset*="unified-back-forward-button,urlbar-container"][mode=icons][iconsize=small],#nav-bar:not([currentset])[mode=icons][iconsize=small]) > #unified-back-forward-button
@@ -475,6 +476,10 @@ menuitem:not([type]):not(.menuitem-tooltip):not(.menuitem-iconic-tooltip) {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
 }
 
+#BMB_bookmarkThisPage {
+  list-style-image: url("chrome://browser/skin/places/starPage.png");
+}
+
 #BMB_unsortedBookmarks {
   list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
 }
@@ -649,8 +654,17 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   -moz-image-region: rect(0px 48px 24px 24px);
 }
 
-#bookmarks-button {
+#bookmarks-button,
+#bookmarks-menu-button {
   -moz-image-region: rect(0px 72px 24px 48px);
+}
+
+#bookmarks-menu-button.bookmark-item {
+  list-style-image: url("chrome://browser/skin/Toolbar-small.png");
+}
+
+#bookmarks-menu-button.toolbarbutton-1 {
+  -moz-box-orient: horizontal;
 }
 
 #print-button {
@@ -713,8 +727,8 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   -moz-image-region: rect(0px 168px 24px 144px);
 }
 
-#feed-button[disabled] > .toolbarbutton-icon {
-  opacity: .4;
+#feed-button[disabled="true"] > .toolbarbutton-icon {
+  opacity: .3;
 }
 
 #webrtc-status-button {
@@ -806,7 +820,9 @@ toolbar[iconsize="small"] #history-button {
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
-toolbar[iconsize="small"] #bookmarks-button {
+toolbar[iconsize="small"] #bookmarks-button,
+toolbar[iconsize="small"] #bookmarks-menu-button,
+#bookmarks-menu-button.bookmark-item {
   -moz-image-region: rect(0px 48px 16px 32px);
 }
 
@@ -1189,8 +1205,7 @@ toolbar[iconsize="small"] #webrtc-status-button {
 }
 
 .popup-notification-icon[popupid="indexedDB-permissions-prompt"],
-.popup-notification-icon[popupid="indexedDB-quota-prompt"],
-.popup-notification-icon[popupid*="offline-app-requested"] {
+.popup-notification-icon[popupid="indexedDB-quota-prompt"] {
   list-style-image: url(chrome://global/skin/icons/question-64.png);
 }
 
@@ -1336,8 +1351,7 @@ toolbar[iconsize="small"] #webrtc-status-button {
 
 .ac-result-type-bookmark,
 .autocomplete-treebody::-moz-tree-image(bookmark, treecolAutoCompleteImage) {
-  list-style-image: url("chrome://browser/skin/places/star-icons.png");
-  -moz-image-region: rect(0px 32px 16px 16px);
+  list-style-image: url("chrome://browser/skin/places/pageStarred.png");
   width: 16px;
   height: 16px;
 }
@@ -1479,34 +1493,13 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   margin-top: 1em;
 }
 
-/* bookmarks menu-button */
-
-#bookmarks-menu-button {
-  list-style-image: url("chrome://browser/skin/Toolbar.png");
-  -moz-image-region: rect(0px 216px 24px 192px);
+/* Star button */
+#star-button {
+  list-style-image: url("chrome://browser/skin/places/starPage.png");
 }
 
-#bookmarks-menu-button[starred] {
-  -moz-image-region: rect(24px 216px 48px 192px);
-}
-
-toolbar[iconsize="small"] #bookmarks-menu-button,
-#bookmarks-menu-button.bookmark-item {
-  list-style-image: url("chrome://browser/skin/Toolbar-small.png");
-  -moz-image-region: rect(0px 144px 16px 128px);
-}
-
-toolbar[iconsize="small"] #bookmarks-menu-button[starred],
-#bookmarks-menu-button.bookmark-item[starred] {
-  -moz-image-region: rect(16px 144px 32px 128px);
-}
-
-#bookmarks-menu-button[disabled] > .toolbarbutton-icon,
-#bookmarks-menu-button[disabled] > .toolbarbutton-menu-dropmarker,
-#bookmarks-menu-button[disabled] > .toolbarbutton-menubutton-dropmarker,
-#bookmarks-menu-button[disabled] > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
-#bookmarks-menu-button > .toolbarbutton-menubutton-button[disabled] > .toolbarbutton-icon {
-  opacity: .4;
+#star-button[starred="true"] {
+  list-style-image: url("chrome://browser/skin/places/pageStarred.png");
 }
 
 /* Bookmarking panel */
@@ -1591,9 +1584,6 @@ toolbar[iconsize="small"] #bookmarks-menu-button[starred],
 #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme) {
   -moz-appearance: menubar;
   color: -moz-menubartext;
-}
-
-#TabsToolbar[tabsontop=true] {
   box-shadow: 0 -1px 0 rgba(0,0,0,.1) inset;
 }
 
@@ -1609,17 +1599,31 @@ toolbar[iconsize="small"] #bookmarks-menu-button[starred],
   background-image: linear-gradient(to top, rgba(0,0,0,.3) 1px, rgba(0,0,0,.05) 1px, transparent 50%);
 }
 
-.tab-background-middle[selected=true]:-moz-lwtheme {
-  background-image: url(chrome://browser/skin/tabbrowser/tab-active-middle.png),
-                    @fgTabTexture@;
-}
-
-.tabbrowser-tab {
-  color: inherit;
-}
-
 .tabbrowser-tab:focus > .tab-stack > .tab-content > .tab-label {
   outline: 1px dotted;
+}
+
+.tab-throbber,
+.tab-icon-image {
+  width: 16px;
+  height: 16px;
+  -moz-margin-end: 3px;
+  list-style-image: url("chrome://mozapps/skin/places/defaultFavicon.png");
+}
+
+.tab-throbber {
+  list-style-image: url("chrome://browser/skin/tabbrowser/connecting.png");
+}
+
+.tab-throbber[progress] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/loading.png");
+}
+
+.tab-throbber[pinned],
+.tab-icon-image[pinned],
+.tabs-newtab-button > .toolbarbutton-icon {
+  -moz-margin-start: 2px;
+  -moz-margin-end: 2px;
 }
 
 #context_reloadTab {
@@ -1656,10 +1660,11 @@ toolbar[iconsize="small"] #bookmarks-menu-button[starred],
 }
 
 .tab-close-button {
+  padding: 0;
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
-  margin-top: 0;
+  margin-top: -1px;
   margin-bottom: -1px;
-  -moz-margin-end: -4px;
+  -moz-margin-end: -1px;
 }
 
 /* Tabstrip new tab button */
@@ -2273,3 +2278,4 @@ chatbox {
   background: url("chrome://browser/skin/privatebrowsing-mask.png") center no-repeat;
   width: 40px;
 }
+

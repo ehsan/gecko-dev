@@ -7,7 +7,6 @@
 #define nsDOMMutationEvent_h__
 
 #include "nsIDOMMutationEvent.h"
-#include "nsINode.h"
 #include "nsDOMEvent.h"
 #include "nsMutationEvent.h"
 #include "mozilla/dom/MutationEventBinding.h"
@@ -28,8 +27,7 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::MutationEventBinding::Wrap(aCx, aScope, this);
   }

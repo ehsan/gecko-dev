@@ -399,9 +399,6 @@ enum nsEventStructType {
 #define NS_SMIL_END                  (NS_SMIL_TIME_EVENT_START + 1)
 #define NS_SMIL_REPEAT               (NS_SMIL_TIME_EVENT_START + 2)
 
-#define NS_WEBAUDIO_EVENT_START      4350
-#define NS_AUDIO_PROCESS             (NS_WEBAUDIO_EVENT_START)
-
 // script notification events
 #define NS_NOTIFYSCRIPT_START        4500
 #define NS_BEFORE_SCRIPT_EXECUTE     (NS_NOTIFYSCRIPT_START)
@@ -1065,8 +1062,7 @@ public:
   nsKeyEvent(bool isTrusted, uint32_t msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_KEY_EVENT),
       keyCode(0), charCode(0),
-      location(nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD), isChar(0),
-      mKeyNameIndex(mozilla::widget::KEY_NAME_INDEX_Unidentified)
+      location(nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD), isChar(0)
   {
   }
 
@@ -1081,28 +1077,6 @@ public:
   nsTArray<nsAlternativeCharCode> alternativeCharCodes;
   // indicates whether the event signifies a printable character
   bool            isChar;
-  // DOM KeyboardEvent.key
-  mozilla::widget::KeyNameIndex mKeyNameIndex;
-
-  void GetDOMKeyName(nsAString& aKeyName)
-  {
-    GetDOMKeyName(mKeyNameIndex, aKeyName);
-  }
-
-  static void GetDOMKeyName(mozilla::widget::KeyNameIndex aKeyNameIndex,
-                            nsAString& aKeyName)
-  {
-#define NS_DEFINE_KEYNAME(aCPPName, aDOMKeyName) \
-      case mozilla::widget::KEY_NAME_INDEX_##aCPPName: \
-        aKeyName.Assign(NS_LITERAL_STRING(aDOMKeyName)); return;
-    switch (aKeyNameIndex) {
-#include "nsDOMKeyNameList.h"
-      default:
-        aKeyName.Truncate();
-        return;
-    }
-#undef NS_DEFINE_KEYNAME
-  }
 };
 
 /**

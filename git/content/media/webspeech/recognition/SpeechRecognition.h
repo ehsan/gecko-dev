@@ -67,8 +67,7 @@ public:
 
   nsISupports* GetParentObject() const;
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
 
   static already_AddRefed<SpeechRecognition> Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
 
@@ -122,8 +121,7 @@ public:
     EVENT_AUDIO_ERROR,
     EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT,
     EVENT_RECOGNITIONSERVICE_FINAL_RESULT,
-    EVENT_RECOGNITIONSERVICE_ERROR,
-    EVENT_COUNT
+    EVENT_RECOGNITIONSERVICE_ERROR
   };
 
   void DispatchError(EventType aErrorType, int aErrorCode, const nsAString& aMessage);
@@ -168,12 +166,7 @@ private:
     STATE_WAITING_FOR_SPEECH,
     STATE_RECOGNIZING,
     STATE_WAITING_FOR_RESULT,
-    STATE_ABORTING,
-    STATE_COUNT
   };
-
-  void SetState(FSMState state);
-  bool StateBetween(FSMState begin, FSMState end);
 
   class GetUserMediaStreamOptions : public nsIMediaStreamOptions
   {
@@ -224,20 +217,19 @@ private:
   void NotifyError(SpeechEvent* aEvent);
 
   void ProcessEvent(SpeechEvent* aEvent);
-  void Transition(SpeechEvent* aEvent);
+  FSMState TransitionAndGetNextState(SpeechEvent* aEvent);
 
-  void Reset();
-  void ResetAndEnd();
-  void WaitForAudioData(SpeechEvent* aEvent);
-  void StartedAudioCapture(SpeechEvent* aEvent);
-  void StopRecordingAndRecognize(SpeechEvent* aEvent);
-  void WaitForEstimation(SpeechEvent* aEvent);
-  void DetectSpeech(SpeechEvent* aEvent);
-  void WaitForSpeechEnd(SpeechEvent* aEvent);
-  void NotifyFinalResult(SpeechEvent* aEvent);
-  void DoNothing(SpeechEvent* aEvent);
-  void AbortSilently(SpeechEvent* aEvent);
-  void AbortError(SpeechEvent* aEvent);
+  FSMState Reset();
+  FSMState ResetAndEnd();
+  FSMState StartedAudioCapture(SpeechEvent* aEvent);
+  FSMState StopRecordingAndRecognize(SpeechEvent* aEvent);
+  FSMState WaitForEstimation(SpeechEvent* aEvent);
+  FSMState DetectSpeech(SpeechEvent* aEvent);
+  FSMState WaitForSpeechEnd(SpeechEvent* aEvent);
+  FSMState NotifyFinalResult(SpeechEvent* aEvent);
+  FSMState DoNothing(SpeechEvent* aEvent);
+  FSMState AbortSilently(SpeechEvent* aEvent);
+  FSMState AbortError(SpeechEvent* aEvent);
 
   nsRefPtr<DOMMediaStream> mDOMStream;
   nsRefPtr<SpeechStreamListener> mSpeechListener;
@@ -246,7 +238,7 @@ private:
   void GetRecognitionServiceCID(nsACString& aResultCID);
 
   FSMState mCurrentState;
-  nsTArray<nsRefPtr<SpeechEvent> > mPriorityEvents;
+  bool mProcessingEvent;
 
   Endpointer mEndpointer;
   uint32_t mEstimationSamples;
@@ -261,9 +253,6 @@ private:
   nsCOMPtr<nsITimer> mSpeechDetectionTimer;
 
   void ProcessTestEventRequest(nsISupports* aSubject, const nsAString& aEventName);
-
-  const char* GetName(FSMState aId);
-  const char* GetName(SpeechEvent* aId);
 };
 
 class SpeechEvent : public nsRunnable

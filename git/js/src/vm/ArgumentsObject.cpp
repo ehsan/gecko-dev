@@ -18,23 +18,18 @@
 #include "vm/Stack-inl.h"
 #include "vm/ArgumentsObject-inl.h"
 
-#if  defined(JS_ION)
 #include "ion/IonFrames.h"
-#endif
 
 using namespace js;
 using namespace js::gc;
 
 static void
-CopyStackFrameArguments(const AbstractFramePtr frame, HeapValue *dst, unsigned totalArgs)
+CopyStackFrameArguments(const AbstractFramePtr frame, HeapValue *dst)
 {
     JS_ASSERT_IF(frame.isStackFrame(), !frame.asStackFrame()->runningInIon());
 
     unsigned numActuals = frame.numActualArgs();
     unsigned numFormals = frame.callee()->nargs;
-    JS_ASSERT(numActuals <= totalArgs);
-    JS_ASSERT(numFormals <= totalArgs);
-    JS_ASSERT(Max(numActuals, numFormals) == totalArgs);
 
     /* Copy formal arguments. */
     Value *src = frame.formals();
@@ -55,7 +50,7 @@ CopyStackFrameArguments(const AbstractFramePtr frame, HeapValue *dst, unsigned t
 ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj,
                                           ArgumentsData *data)
 {
-    JSScript *script = frame.script();
+    RawScript script = frame.script();
     if (frame.fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(frame.callObj()));
         for (AliasedFormalIter fi(script); fi; fi++)
@@ -68,8 +63,8 @@ ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj,
 ArgumentsObject::MaybeForwardToCallObject(ion::IonJSFrameLayout *frame, HandleObject callObj,
                                           JSObject *obj, ArgumentsData *data)
 {
-    JSFunction *callee = ion::CalleeTokenToFunction(frame->calleeToken());
-    JSScript *script = callee->nonLazyScript();
+    RawFunction callee = ion::CalleeTokenToFunction(frame->calleeToken());
+    RawScript script = callee->nonLazyScript();
     if (callee->isHeavyweight() && script->argsObjAliasesFormals()) {
         JS_ASSERT(callObj && callObj->isCall());
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(*callObj.get()));
@@ -87,8 +82,8 @@ struct CopyFrameArgs
       : frame_(frame)
     { }
 
-    void copyArgs(JSContext *, HeapValue *dst, unsigned totalArgs) const {
-        CopyStackFrameArguments(frame_, dst, totalArgs);
+    void copyArgs(JSContext *, HeapValue *dst) const {
+        CopyStackFrameArguments(frame_, dst);
     }
 
     /*
@@ -110,25 +105,14 @@ struct CopyIonJSFrameArgs
       : frame_(frame), callObj_(callObj)
     { }
 
-    void copyArgs(JSContext *, HeapValue *dstBase, unsigned totalArgs) const {
+    void copyArgs(JSContext *, HeapValue *dst) const {
         unsigned numActuals = frame_->numActualArgs();
-        unsigned numFormals = ion::CalleeTokenToFunction(frame_->calleeToken())->nargs;
-        JS_ASSERT(numActuals <= totalArgs);
-        JS_ASSERT(numFormals <= totalArgs);
-        JS_ASSERT(Max(numActuals, numFormals) == totalArgs);
 
         /* Copy all arguments. */
         Value *src = frame_->argv() + 1;  /* +1 to skip this. */
         Value *end = src + numActuals;
-        HeapValue *dst = dstBase;
         while (src != end)
             (dst++)->init(*src++);
-
-        if (numActuals < numFormals) {
-            HeapValue *dstEnd = dstBase + totalArgs;
-            while (dst != dstEnd)
-                (dst++)->init(UndefinedValue());
-        }
     }
 
     /*
@@ -149,9 +133,9 @@ struct CopyStackIterArgs
       : iter_(iter)
     { }
 
-    void copyArgs(JSContext *cx, HeapValue *dstBase, unsigned totalArgs) const {
+    void copyArgs(JSContext *cx, HeapValue *dstBase) const {
         if (!iter_.isIon()) {
-            CopyStackFrameArguments(iter_.abstractFramePtr(), dstBase, totalArgs);
+            CopyStackFrameArguments(iter_.abstractFramePtr(), dstBase);
             return;
         }
 
@@ -161,12 +145,8 @@ struct CopyStackIterArgs
         /* Define formals which are not part of the actuals. */
         unsigned numActuals = iter_.numActualArgs();
         unsigned numFormals = iter_.callee()->nargs;
-        JS_ASSERT(numActuals <= totalArgs);
-        JS_ASSERT(numFormals <= totalArgs);
-        JS_ASSERT(Max(numActuals, numFormals) == totalArgs);
-
         if (numActuals < numFormals) {
-            HeapValue *dst = dstBase + numActuals, *dstEnd = dstBase + totalArgs;
+            HeapValue *dst = dstBase + numActuals, *dstEnd = dstBase + numFormals;
             while (dst != dstEnd)
                 (dst++)->init(UndefinedValue());
         }
@@ -221,12 +201,12 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
 
     /* Copy [0, numArgs) into data->slots. */
     HeapValue *dst = data->args, *dstEnd = data->args + numArgs;
-    copy.copyArgs(cx, dst, numArgs);
+    copy.copyArgs(cx, dst);
 
     data->deletedBits = reinterpret_cast<size_t *>(dstEnd);
     ClearAllBitArrayElements(data->deletedBits, numDeletedWords);
 
-    JSObject *obj = JSObject::create(cx, FINALIZE_KIND, GetInitialHeap(GenericObject, clasp),
+    RawObject obj = JSObject::create(cx, FINALIZE_KIND, GetInitialHeap(GenericObject, clasp),
                                      shape, type);
     if (!obj) {
         js_free(data);
@@ -572,13 +552,13 @@ strictargs_enumerate(JSContext *cx, HandleObject obj)
 }
 
 void
-ArgumentsObject::finalize(FreeOp *fop, JSObject *obj)
+ArgumentsObject::finalize(FreeOp *fop, RawObject obj)
 {
     fop->free_(reinterpret_cast<void *>(obj->asArguments().data()));
 }
 
 void
-ArgumentsObject::trace(JSTracer *trc, JSObject *obj)
+ArgumentsObject::trace(JSTracer *trc, RawObject obj)
 {
     ArgumentsObject &argsobj = obj->asArguments();
     ArgumentsData *data = argsobj.data();

@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.EmptyStackException;
 import java.util.Stack;
 
 /* Reads out of a multiple level deep jar file such as
@@ -98,25 +99,30 @@ public final class GeckoJarReader {
         return new NativeZip(fileUrl.getPath());
     }
 
-    private static InputStream getStream(NativeZip zip, Stack<String> jarUrls) {
+    private static InputStream getStream(NativeZip zip, Stack<String> jarUrls) throws IOException {
         InputStream inputStream = null;
+        try {
+            // loop through children jar files until we reach the innermost one
+            while (jarUrls.peek() != null) {
+                String fileName = jarUrls.pop();
 
-        // loop through children jar files until we reach the innermost one
-        while (!jarUrls.empty()) {
-            String fileName = jarUrls.pop();
+                if (inputStream != null) {
+                    // intermediate NativeZips and InputStreams will be garbage collected.
+                    zip = new NativeZip(inputStream);
+                }
 
-            if (inputStream != null) {
-                // intermediate NativeZips and InputStreams will be garbage collected.
-                zip = new NativeZip(inputStream);
+                inputStream = zip.getInputStream(fileName);
+                if (inputStream == null) {
+                    Log.d(LOGTAG, "No Entry for " + fileName);
+                    return null;
+                }
+
+                // if there is nothing else on the stack, this will throw and break us out of the loop
+                jarUrls.peek();
             }
-
-            inputStream = zip.getInputStream(fileName);
-            if (inputStream == null) {
-                Log.d(LOGTAG, "No Entry for " + fileName);
-                return null;
-            }
+        } catch (EmptyStackException ex) {
+            Log.d(LOGTAG, "Jar reader reached end of stack");
         }
-
         return inputStream;
     }
 

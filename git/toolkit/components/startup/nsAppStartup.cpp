@@ -89,7 +89,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #define kPrefLastSuccess "toolkit.startup.last_success"
 #define kPrefMaxResumedCrashes "toolkit.startup.max_resumed_crashes"
 #define kPrefRecentCrashes "toolkit.startup.recent_crashes"
-#define kPrefAlwaysUseSafeMode "toolkit.startup.always_use_safe_mode"
 
 #if defined(XP_WIN)
 #include "mozilla/perfprobe.h"
@@ -831,17 +830,6 @@ NS_IMETHODIMP
 nsAppStartup::GetAutomaticSafeModeNecessary(bool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-
-  bool alwaysSafe = false;
-  Preferences::GetBool(kPrefAlwaysUseSafeMode, &alwaysSafe);
-
-  if (!alwaysSafe) {
-#if DEBUG
-    mIsSafeModeNecessary = false;
-#else
-    mIsSafeModeNecessary &= !PR_GetEnv("MOZ_DISABLE_AUTO_SAFE_MODE");
-#endif
-  }
 
   *_retval = mIsSafeModeNecessary;
   return NS_OK;

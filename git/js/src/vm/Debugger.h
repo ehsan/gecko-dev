@@ -287,9 +287,9 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
 
     GlobalObject *unwrapDebuggeeArgument(JSContext *cx, const Value &v);
 
-    static void traceObject(JSTracer *trc, JSObject *obj);
+    static void traceObject(JSTracer *trc, RawObject obj);
     void trace(JSTracer *trc);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void finalize(FreeOp *fop, RawObject obj);
     void markKeysInCompartment(JSTracer *tracer);
 
     static Class jsclass;
@@ -323,8 +323,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static JSBool findAllGlobals(JSContext *cx, unsigned argc, Value *vp);
     static JSBool wrap(JSContext *cx, unsigned argc, Value *vp);
     static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
-    static const JSPropertySpec properties[];
-    static const JSFunctionSpec methods[];
+    static JSPropertySpec properties[];
+    static JSFunctionSpec methods[];
 
     JSObject *getHook(Hook hook) const;
     bool hasAnyLiveHooks() const;
@@ -391,7 +391,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static void sweepAll(FreeOp *fop);
     static void detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global,
                                              GlobalObjectSet::Enum *compartmentEnum);
-    static bool isDebugWrapper(JSObject *o);
+    static bool isDebugWrapper(RawObject o);
     static void findCompartmentEdges(JS::Zone *v, gc::ComponentFinder<JS::Zone> &finder);
 
     static inline JSTrapStatus onEnterFrame(JSContext *cx, AbstractFramePtr frame,

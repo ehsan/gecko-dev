@@ -84,10 +84,7 @@ public:
                                       nsIWidget *aWidget, bool aActivate);
 
   NS_IMETHOD              SetSizeMode(int32_t aMode);
-  virtual int32_t         SizeMode() MOZ_OVERRIDE
-  {
-    return mSizeMode;
-  }
+  NS_IMETHOD              GetSizeMode(int32_t* aMode);
 
   virtual nscolor         GetForegroundColor(void);
   NS_IMETHOD              SetForegroundColor(const nscolor &aColor);
@@ -108,7 +105,7 @@ public:
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
   NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   virtual nsDeviceContext* GetDeviceContext();
-  virtual LayerManager*   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
+  virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nullptr,
                                           LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);
@@ -116,8 +113,6 @@ public:
   virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
   virtual void            CreateCompositor();
   virtual void            CreateCompositor(int aWidth, int aHeight);
-  virtual void            PrepareWindowEffects() {}
-  virtual void            CleanupWindowEffects() {}
   virtual void            DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}

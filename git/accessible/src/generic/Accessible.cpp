@@ -1508,9 +1508,9 @@ Accessible::State()
   const uint32_t kExpandCollapseStates = states::COLLAPSED | states::EXPANDED;
   if ((state & kExpandCollapseStates) == kExpandCollapseStates) {
     // Cannot be both expanded and collapsed -- this happens in ARIA expanded
-    // combobox because of limitation of ARIAMap.
+    // combobox because of limitation of nsARIAMap.
     // XXX: Perhaps we will be able to make this less hacky if we support
-    // extended states in ARIAMap, e.g. derive COLLAPSED from
+    // extended states in nsARIAMap, e.g. derive COLLAPSED from
     // EXPANDABLE && !EXPANDED.
     state &= ~states::COLLAPSED;
   }
@@ -2847,7 +2847,9 @@ Accessible::SelectedItems()
   while ((selected = iter.Next()))
     selectedItems->AppendElement(selected, false);
 
-  return selectedItems.forget();
+  nsIMutableArray* items = nullptr;
+  selectedItems.forget(&items);
+  return items;
 }
 
 uint32_t

@@ -62,7 +62,7 @@ IonBailoutIterator::dump() const
     }
 }
 
-static JSScript *
+static RawScript
 GetBailedJSScript(JSContext *cx)
 {
     // Just after the frame conversion, we can safely interpret the ionTop as JS
@@ -244,8 +244,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
 
     // Set a flag to avoid bailing out on every iteration or function call. Ion can
     // compile and run the script again after an invalidation.
-    it.ionScript()->incNumBailouts();
-    it.script()->updateBaselineOrIonRaw();
+    it.ionScript()->setBailoutExpected();
 
     // We use OffTheBooks instead of cx because at this time we cannot iterate
     // on the stack safely and the reported error attempts to walk the IonMonkey
@@ -530,7 +529,7 @@ uint32_t
 ion::BoundsCheckFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    JSScript *script = GetBailedJSScript(cx);
+    RawScript script = GetBailedJSScript(cx);
 
     IonSpew(IonSpew_Bailouts, "Bounds check failure %s:%d", script->filename(),
             script->lineno);
@@ -551,7 +550,7 @@ uint32_t
 ion::ShapeGuardFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    JSScript *script = GetBailedJSScript(cx);
+    RawScript script = GetBailedJSScript(cx);
 
     JS_ASSERT(!script->ionScript()->invalidated());
 
@@ -566,7 +565,7 @@ uint32_t
 ion::CachedShapeGuardFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    JSScript *script = GetBailedJSScript(cx);
+    RawScript script = GetBailedJSScript(cx);
 
     JS_ASSERT(!script->ionScript()->invalidated());
 
@@ -686,22 +685,3 @@ ion::ThunkToInterpreter(Value *vp)
     return status;
 }
 
-bool
-ion::CheckFrequentBailouts(JSContext *cx, JSScript *script)
-{
-    // Invalidate if this script keeps bailing out without invalidation. Next time
-    // we compile this script LICM will be disabled.
-
-    if (script->hasIonScript() &&
-        script->ionScript()->numBailouts() >= js_IonOptions.frequentBailoutThreshold)
-    {
-        script->hadFrequentBailouts = true;
-
-        IonSpew(IonSpew_Invalidate, "Invalidating due to too many bailouts");
-
-        if (!Invalidate(cx, script))
-            return false;
-    }
-
-    return true;
-}

@@ -94,26 +94,26 @@ Returns the value that is returned by `callee`.
   Returns the return value of `callee`.
 </api>
 
-<api name="partial">
+<api name="curry">
 @function
-Takes a function and bind values to one or more arguments, returning a new function of smaller arity.
+[Curries](http://en.wikipedia.org/wiki/Currying) the given function with the arguments given.
 
-    let { partial } = require("sdk/lang/functional");
+    let { curry } = require("sdk/lang/functional");
     let add = function add (x, y) { return x + y; }
-    let addOne = partial(add, 1);
+    let addOne = curry(add, 1);
 
     addOne(5); // 6
     addOne(10); // 11
-    partial(add, addOne(20))(2); // 23
+    curry(add, addOne(20))(2); // 23
 
 @param fn {function}
-  Function on which partial application is to be performed.
+  Function to be curried.
 
 @param arguments... {mixed}
   Additional arguments
 
 @returns {function}
-  The partial function.
+  The curried function.
 </api>
 
 <api name="compose">

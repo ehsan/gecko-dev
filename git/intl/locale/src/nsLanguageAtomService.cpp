@@ -68,10 +68,14 @@ nsLanguageAtomService::LookupCharSet(const char *aCharSet, nsresult *aError)
     return nullptr;
   }
 
+  // transfer reference to raw pointer
+  nsIAtom *raw = nullptr;
+  langGroup.swap(raw);
+
   if (aError)
     *aError = NS_OK;
 
-  return langGroup.forget();
+  return raw;
 }
 
 nsIAtom*

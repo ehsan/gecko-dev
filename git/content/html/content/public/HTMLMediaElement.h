@@ -802,7 +802,7 @@ protected:
   nsresult UpdateChannelMuteState(bool aCanPlay);
 
   // Update the audio channel playing state
-  virtual void UpdateAudioChannelPlayingState();
+  void UpdateAudioChannelPlayingState();
 
   // The current decoder. Load() has been called on this decoder.
   // At most one of mDecoder and mSrcStream can be non-null.
@@ -956,7 +956,7 @@ protected:
   nsAutoPtr<AudioStream> mAudioStream;
 
   // Range of time played.
-  nsRefPtr<TimeRanges> mPlayed;
+  TimeRanges mPlayed;
 
   // Stores the time at the start of the current 'played' range.
   double mCurrentPlayRangeStart;

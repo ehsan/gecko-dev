@@ -854,8 +854,7 @@ MobileMessageDatabaseService.prototype = {
   },
 
   saveRecord: function saveRecord(aMessageRecord, aAddresses, aCallback) {
-    let isOverriding = (aMessageRecord.id !== undefined);
-    if (!isOverriding) {
+    if (aMessageRecord.id === undefined) {
       // Assign a new id.
       this.lastMessageId += 1;
       aMessageRecord.id = this.lastMessageId;
@@ -907,28 +906,8 @@ MobileMessageDatabaseService.prototype = {
           for each (let id in participantIds) {
             aMessageRecord.participantIdsIndex.push([id, timestamp]);
           }
-
-          if (!isOverriding) {
-            // Really add to message store.
-            messageStore.put(aMessageRecord);
-            return;
-          }
-
-          // If we're going to override an old message, we need to update the
-          // info of the original thread containing the overridden message.
-          // To get the original thread ID and read status of the overridden
-          // message record, we need to retrieve it before overriding it.
-          messageStore.get(aMessageRecord.id).onsuccess = function(event) {
-            let oldMessageRecord = event.target.result;
-            messageStore.put(aMessageRecord);
-            if (oldMessageRecord) {
-              self.updateThreadByMessageChange(messageStore,
-                                               threadStore,
-                                               oldMessageRecord.threadId,
-                                               aMessageRecord.id,
-                                               oldMessageRecord.read);
-            }
-          };
+          // Really add to message store.
+          messageStore.put(aMessageRecord);
         };
 
         let timestamp = aMessageRecord.timestamp;
@@ -1009,21 +988,13 @@ MobileMessageDatabaseService.prototype = {
       aMessage.receiver = self;
     } else if (aMessage.type == "mms") {
       let receivers = aMessage.receivers;
-      // We need to add the receivers (excluding our own) into the participants
-      // of a thread. Some cases we might encounter here:
-      // 1. receivers.length == 0
-      //    This usually happens when receiving an MMS notification indication
-      //    which doesn't carry any receivers.
-      // 2. receivers.length == 1
-      //    If the receivers contain single phone number, we don't need to
-      //    add it into participants because we know that number is our own.
-      // 3. receivers.length >= 2
-      //    If the receivers contain multiple phone numbers, we need to add all
-      //    of them but not our own into participants.
-      if (receivers.length >= 2) {
-        // TODO Bug 853384 - for some SIM cards, the phone number might not be
-        // available, so we cannot correcly exclude our own from the receivers,
-        // thus wrongly building the thread index.
+      if (!receivers.length) {
+        // TODO Bug 853384 - we cannot expose empty receivers for
+        // an MMS message. Returns 'myself' when .msisdn isn't valid.
+        receivers.push(self ? self : "myself");
+      } else {
+        // TODO Bug 853384 - we cannot correcly exclude the phone number
+        // from the receivers, thus wrongly building the index.
         let slicedReceivers = receivers.slice();
         if (self) {
           let found = slicedReceivers.indexOf(self);
@@ -1312,57 +1283,6 @@ MobileMessageDatabaseService.prototype = {
     this.getMessageRecordById(aMessageId, notifyCallback);
   },
 
-  updateThreadByMessageChange: function updateThreadByMessageChange(messageStore,
-                                                                    threadStore,
-                                                                    threadId,
-                                                                    messageId,
-                                                                    messageRead) {
-    threadStore.get(threadId).onsuccess = function(event) {
-      // This must exist.
-      let threadRecord = event.target.result;
-      if (DEBUG) debug("Updating thread record " + JSON.stringify(threadRecord));
-
-      if (!messageRead) {
-        threadRecord.unreadCount--;
-      }
-
-      if (threadRecord.lastMessageId == messageId) {
-        // Check most recent sender/receiver.
-        let range = IDBKeyRange.bound([threadId, 0], [threadId, ""]);
-        let request = messageStore.index("threadId")
-                                  .openCursor(range, PREV);
-        request.onsuccess = function(event) {
-          let cursor = event.target.result;
-          if (!cursor) {
-            if (DEBUG) {
-              debug("Deleting mru entry for thread id " + threadId);
-            }
-            threadStore.delete(threadId);
-            return;
-          }
-
-          let nextMsg = cursor.value;
-          threadRecord.lastMessageId = nextMsg.id;
-          threadRecord.lastTimestamp = nextMsg.timestamp;
-          threadRecord.subject = nextMsg.body;
-          if (DEBUG) {
-            debug("Updating mru entry: " +
-                  JSON.stringify(threadRecord));
-          }
-          threadStore.put(threadRecord);
-        };
-      } else if (!messageRead) {
-        // Shortcut, just update the unread count.
-        if (DEBUG) {
-          debug("Updating unread count for thread id " + threadId + ": " +
-                (threadRecord.unreadCount + 1) + " -> " +
-                threadRecord.unreadCount);
-        }
-        threadStore.put(threadRecord);
-      }
-    };
-  },
-
   deleteMessage: function deleteMessage(messageId, aRequest) {
     if (DEBUG) debug("deleteMessage: message id " + messageId);
     let deleted = false;
@@ -1400,11 +1320,52 @@ MobileMessageDatabaseService.prototype = {
             deleted = true;
 
             // Then update unread count and most recent message.
-            self.updateThreadByMessageChange(messageStore,
-                                             threadStore,
-                                             messageRecord.threadId,
-                                             messageId,
-                                             messageRecord.read);
+            let threadId = messageRecord.threadId;
+
+            threadStore.get(threadId).onsuccess = function(event) {
+              // This must exist.
+              let threadRecord = event.target.result;
+              if (DEBUG) debug("Updating thread record " + JSON.stringify(threadRecord));
+
+              if (!messageRecord.read) {
+                threadRecord.unreadCount--;
+              }
+
+              if (threadRecord.lastMessageId == messageId) {
+                // Check most recent sender/receiver.
+                let range = IDBKeyRange.bound([threadId, 0], [threadId, ""]);
+                let request = messageStore.index("threadId")
+                                          .openCursor(range, PREV);
+                request.onsuccess = function(event) {
+                  let cursor = event.target.result;
+                  if (!cursor) {
+                    if (DEBUG) {
+                      debug("Deleting mru entry for thread id " + threadId);
+                    }
+                    threadStore.delete(threadId);
+                    return;
+                  }
+
+                  let nextMsg = cursor.value;
+                  threadRecord.lastMessageId = nextMsg.id;
+                  threadRecord.lastTimestamp = nextMsg.timestamp;
+                  threadRecord.subject = nextMsg.body;
+                  if (DEBUG) {
+                    debug("Updating mru entry: " +
+                          JSON.stringify(threadRecord));
+                  }
+                  threadStore.put(threadRecord);
+                };
+              } else if (!messageRecord.read) {
+                // Shortcut, just update the unread count.
+                if (DEBUG) {
+                  debug("Updating unread count for thread id " + threadId + ": " +
+                        (threadRecord.unreadCount + 1) + " -> " +
+                        threadRecord.unreadCount);
+                }
+                threadStore.put(threadRecord);
+              }
+            };
           };
         } else if (DEBUG) {
           debug("Message id " + messageId + " does not exist");

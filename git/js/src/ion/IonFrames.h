@@ -49,7 +49,7 @@ CalleeToParallelToken(JSFunction *fun)
     return CalleeToken(uintptr_t(fun) | uintptr_t(CalleeToken_ParallelFunction));
 }
 static inline CalleeToken
-CalleeToToken(JSScript *script)
+CalleeToToken(RawScript script)
 {
     return CalleeToken(uintptr_t(script) | uintptr_t(CalleeToken_Script));
 }
@@ -64,20 +64,20 @@ CalleeTokenToFunction(CalleeToken token)
     JS_ASSERT(CalleeTokenIsFunction(token));
     return (JSFunction *)token;
 }
-static inline JSFunction *
+static inline RawFunction
 CalleeTokenToParallelFunction(CalleeToken token)
 {
     JS_ASSERT(GetCalleeTokenTag(token) == CalleeToken_ParallelFunction);
     return (JSFunction *)(uintptr_t(token) & ~uintptr_t(0x3));
 }
-static inline JSScript *
+static inline RawScript
 CalleeTokenToScript(CalleeToken token)
 {
     JS_ASSERT(GetCalleeTokenTag(token) == CalleeToken_Script);
-    return (JSScript *)(uintptr_t(token) & ~uintptr_t(0x3));
+    return (RawScript)(uintptr_t(token) & ~uintptr_t(0x3));
 }
 
-static inline JSScript *
+static inline RawScript
 ScriptFromCalleeToken(CalleeToken token)
 {
     switch (GetCalleeTokenTag(token)) {
@@ -293,7 +293,7 @@ MakeFrameDescriptor(uint32_t frameSize, FrameType type)
 namespace js {
 namespace ion {
 
-JSScript *
+RawScript
 GetTopIonJSScript(JSContext *cx,
                   const SafepointIndex **safepointIndexOut = NULL,
                   void **returnAddrOut = NULL);

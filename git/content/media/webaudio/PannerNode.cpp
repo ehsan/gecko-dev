@@ -15,28 +15,12 @@ namespace dom {
 
 using namespace std;
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(PannerNode)
-  if (tmp->Context()) {
-    tmp->Context()->UnregisterPannerNode(tmp);
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END_INHERITED(AudioNode)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(PannerNode, AudioNode)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(PannerNode)
-NS_INTERFACE_MAP_END_INHERITING(AudioNode)
-
-NS_IMPL_ADDREF_INHERITED(PannerNode, AudioNode)
-NS_IMPL_RELEASE_INHERITED(PannerNode, AudioNode)
-
 class PannerNodeEngine : public AudioNodeEngine
 {
 public:
-  explicit PannerNodeEngine(AudioNode* aNode)
-    : AudioNodeEngine(aNode)
+  PannerNodeEngine()
     // Please keep these default values consistent with PannerNode::PannerNode below.
-    , mPanningModel(PanningModelTypeValues::HRTF)
+    : mPanningModel(PanningModelTypeValues::HRTF)
     , mPanningModelFunction(&PannerNodeEngine::HRTFPanningFunction)
     , mDistanceModel(DistanceModelTypeValues::Inverse)
     , mDistanceModelFunction(&PannerNodeEngine::InverseGainFunction)
@@ -174,10 +158,7 @@ public:
 };
 
 PannerNode::PannerNode(AudioContext* aContext)
-  : AudioNode(aContext,
-              2,
-              ChannelCountMode::Clamped_max,
-              ChannelInterpretation::Speakers)
+  : AudioNode(aContext)
   // Please keep these default values consistent with PannerNodeEngine::PannerNodeEngine above.
   , mPanningModel(PanningModelTypeValues::HRTF)
   , mDistanceModel(DistanceModelTypeValues::Inverse)
@@ -191,7 +172,7 @@ PannerNode::PannerNode(AudioContext* aContext)
   , mConeOuterAngle(360.)
   , mConeOuterGain(0.)
 {
-  mStream = aContext->Graph()->CreateAudioNodeStream(new PannerNodeEngine(this),
+  mStream = aContext->Graph()->CreateAudioNodeStream(new PannerNodeEngine(),
                                                      MediaStreamGraph::INTERNAL_STREAM);
   // We should register once we have set up our stream and engine.
   Context()->Listener()->RegisterPannerNode(this);
@@ -202,10 +183,11 @@ PannerNode::~PannerNode()
   if (Context()) {
     Context()->UnregisterPannerNode(this);
   }
+  DestroyMediaStream();
 }
 
 JSObject*
-PannerNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+PannerNode::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return PannerNodeBinding::Wrap(aCx, aScope, this);
 }
@@ -296,8 +278,8 @@ PannerNodeEngine::EqualPowerPanningFunction(const AudioChunk& aInput,
   distanceGain = (this->*mDistanceModelFunction)(distance);
 
   // Actually compute the left and right gain.
-  gainL = cos(0.5 * M_PI * normalizedAzimuth) * aInput.mVolume;
-  gainR = sin(0.5 * M_PI * normalizedAzimuth) * aInput.mVolume;
+  gainL = cos(0.5 * M_PI * normalizedAzimuth);
+  gainR = sin(0.5 * M_PI * normalizedAzimuth);
 
   // Compute the output.
   if (inputChannels == 1) {

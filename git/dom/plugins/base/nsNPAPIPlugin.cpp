@@ -5,7 +5,7 @@
 
 #include "base/basictypes.h"
 
-/* This must occur *after* layers/PLayerTransaction.h to avoid typedefs conflicts. */
+/* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
 #include "prmem.h"
@@ -26,6 +26,8 @@
 
 #include "nsPluginsDir.h"
 #include "nsPluginLogging.h"
+
+#include "nsIJSContextStack.h"
 
 #include "nsIDOMElement.h"
 #include "nsPIDOMWindow.h"
@@ -1143,7 +1145,7 @@ _reloadplugins(NPBool reloadPages)
   if (!pluginHost)
     return;
 
-  pluginHost->ReloadPlugins();
+  pluginHost->ReloadPlugins(reloadPages);
 }
 
 void NP_CALLBACK

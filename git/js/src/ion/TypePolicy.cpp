@@ -185,15 +185,9 @@ ComparePolicy::adjustInputs(MInstruction *def)
         }
 
         switch (type) {
-          case MIRType_Double: {
-            MToDouble::ConversionKind convert = MToDouble::NumbersOnly;
-            if (compare->compareType() == MCompare::Compare_DoubleMaybeCoerceLHS && i == 0)
-                convert = MToDouble::NonNullNonStringPrimitives;
-            else if (compare->compareType() == MCompare::Compare_DoubleMaybeCoerceRHS && i == 1)
-                convert = MToDouble::NonNullNonStringPrimitives;
-            replace = MToDouble::New(in, convert);
+          case MIRType_Double:
+            replace = MToDouble::New(in);
             break;
-          }
           case MIRType_Int32:
             replace = MToInt32::New(in);
             break;
@@ -552,15 +546,6 @@ StoreTypedArrayHolePolicy::adjustInputs(MInstruction *ins)
     JS_ASSERT(store->length()->type() == MIRType_Int32);
 
     return adjustValueInput(ins, store->arrayType(), store->value(), 3);
-}
-
-bool
-StoreTypedArrayElementStaticPolicy::adjustInputs(MInstruction *ins)
-{
-    MStoreTypedArrayElementStatic *store = ins->toStoreTypedArrayElementStatic();
-    JS_ASSERT(store->ptr()->type() == MIRType_Int32);
-
-    return adjustValueInput(ins, store->viewType(), store->value(), 1);
 }
 
 bool

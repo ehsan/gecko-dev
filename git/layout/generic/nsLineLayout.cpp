@@ -80,7 +80,6 @@ nsLineLayout::nsLineLayout(nsPresContext* aPresContext,
     mDirtyNextLine(false),
     mLineAtStart(false)
 {
-  MOZ_ASSERT(aOuterReflowState, "aOuterReflowState must not be null");
   NS_ASSERTION(aFloatManager || aOuterReflowState->frame->GetType() ==
                                   nsGkAtoms::letterFrame,
                "float manager should be present");
@@ -189,14 +188,14 @@ nsLineLayout::BeginLineReflow(nscoord aX, nscoord aY,
 
   // If we're in a constrained height frame, then we don't allow a
   // max line box width to take effect.
-  if (!(LineContainerFrame()->GetStateBits() &
-        NS_FRAME_IN_CONSTRAINED_HEIGHT)) {
+  if (!(GetLineContainerFrame()->GetStateBits() &
+      NS_FRAME_IN_CONSTRAINED_HEIGHT)) {
 
     // If the available size is greater than the maximum line box width (if
     // specified), then we need to adjust the line box width to be at the max
     // possible width.
     nscoord maxLineBoxWidth =
-      LineContainerFrame()->PresContext()->PresShell()->MaxLineBoxWidth();
+      GetLineContainerFrame()->PresContext()->PresShell()->MaxLineBoxWidth();
 
     if (maxLineBoxWidth > 0 &&
         psd->mRightEdge - psd->mLeftEdge > maxLineBoxWidth) {
@@ -206,7 +205,7 @@ nsLineLayout::BeginLineReflow(nscoord aX, nscoord aY,
 
   mTopEdge = aY;
 
-  psd->mNoWrap = !mStyleText->WhiteSpaceCanWrap(LineContainerFrame());
+  psd->mNoWrap = !mStyleText->WhiteSpaceCanWrap(GetLineContainerFrame());
   psd->mDirection = aDirection;
   psd->mChangedFrameDirection = false;
 

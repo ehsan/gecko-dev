@@ -69,6 +69,7 @@
 #include "nsIDocumentInlines.h"
 #include "nsIDocumentEncoder.h" //for outputting selection
 #include "nsICachingChannel.h"
+#include "nsIJSContextStack.h"
 #include "nsIContentViewer.h"
 #include "nsIWyciwygChannel.h"
 #include "nsIScriptElement.h"
@@ -1469,41 +1470,42 @@ nsHTMLDocument::Open(JSContext* cx,
     // Note that aborting a parser leaves the parser "active" with its
     // insertion point "not undefined". We track this using mParserAborted,
     // because aborting a parser nulls out mParser.
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   // No calling document.open() without a script global object
   if (!mScriptGlobalObject) {
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   nsPIDOMWindow* outer = GetWindow();
   if (!outer || (GetInnerWindow() != outer->GetCurrentInnerWindow())) {
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   // check whether we're in the middle of unload.  If so, ignore this call.
   nsCOMPtr<nsIDocShell> shell = do_QueryReferent(mDocumentContainer);
   if (!shell) {
     // We won't be able to create a parser anyway.
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   bool inUnload;
   shell->GetIsInUnload(&inUnload);
   if (inUnload) {
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   // Note: We want to use GetDocumentFromContext here because this document
   // should inherit the security information of the document that's opening us,
   // (since if it's secure, then it's presumably trusted).
-  nsCOMPtr<nsIDocument> callerDoc = nsContentUtils::GetDocumentFromContext();
+  nsCOMPtr<nsIDocument> callerDoc =
+    do_QueryInterface(nsContentUtils::GetDocumentFromContext());
   if (!callerDoc) {
     // If we're called from C++ or in some other way without an originating
     // document we can't do a document.open w/o changing the principal of the
@@ -1562,8 +1564,8 @@ nsHTMLDocument::Open(JSContext* cx,
       if (NS_SUCCEEDED(cv->PermitUnload(false, &okToUnload)) && !okToUnload) {
         // We don't want to unload, so stop here, but don't throw an
         // exception.
-        nsCOMPtr<nsIDocument> ret = this;
-        return ret.forget();
+        NS_ADDREF_THIS();
+        return this;
       }
     }
 
@@ -2369,7 +2371,7 @@ nsHTMLDocument::NamedGetter(JSContext* cx, const nsAString& aName, bool& aFound,
 
   JS::Value val;
   { // Scope for auto-compartment
-    JS::Rooted<JSObject*> wrapper(cx, GetWrapper());
+    JSObject* wrapper = GetWrapper();
     JSAutoCompartment ac(cx, wrapper);
     // XXXbz Should we call the (slightly misnamed, really) WrapNativeParent
     // here?
@@ -3322,32 +3324,39 @@ nsHTMLDocument::DoClipboardSecurityCheck(bool aPaste)
 {
   nsresult rv = NS_ERROR_FAILURE;
 
-  JSContext *cx = nsContentUtils::GetCurrentJSContext();
-  if (!cx) {
-    return NS_OK;
-  }
-  JSAutoRequest ar(cx);
+  nsCOMPtr<nsIJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
 
-  NS_NAMED_LITERAL_CSTRING(classNameStr, "Clipboard");
-
-  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
-
-  if (aPaste) {
-    if (nsHTMLDocument::sPasteInternal_id == JSID_VOID) {
-      nsHTMLDocument::sPasteInternal_id =
-        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "paste"));
+  if (stack) {
+    JSContext *cx = nullptr;
+    stack->Peek(&cx);
+    if (!cx) {
+      return NS_OK;
     }
-    rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
-                                     nsHTMLDocument::sPasteInternal_id,
-                                     nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
-  } else {
-    if (nsHTMLDocument::sCutCopyInternal_id == JSID_VOID) {
-      nsHTMLDocument::sCutCopyInternal_id =
-        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "cutcopy"));
+
+    JSAutoRequest ar(cx);
+
+    NS_NAMED_LITERAL_CSTRING(classNameStr, "Clipboard");
+
+    nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+
+    if (aPaste) {
+      if (nsHTMLDocument::sPasteInternal_id == JSID_VOID) {
+        nsHTMLDocument::sPasteInternal_id =
+          INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "paste"));
+      }
+      rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
+                                       nsHTMLDocument::sPasteInternal_id,
+                                       nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
+    } else {
+      if (nsHTMLDocument::sCutCopyInternal_id == JSID_VOID) {
+        nsHTMLDocument::sCutCopyInternal_id =
+          INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "cutcopy"));
+      }
+      rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
+                                       nsHTMLDocument::sCutCopyInternal_id,
+                                       nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
     }
-    rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
-                                     nsHTMLDocument::sCutCopyInternal_id,
-                                     nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
   }
   return rv;
 }

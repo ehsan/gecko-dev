@@ -17,15 +17,15 @@ function invokeUsingCtrlD(phase) {
 function invokeUsingStarButton(phase) {
   switch (phase) {
   case 1:
-     EventUtils.synthesizeMouseAtCenter(BookmarksMenuButton.star, {});
+    EventUtils.sendMouseEvent({ type: "click" }, "star-button");
     break;
   case 2:
   case 4:
     EventUtils.synthesizeKey("VK_ESCAPE", {});
     break;
   case 3:
-     EventUtils.synthesizeMouseAtCenter(BookmarksMenuButton.star,
-                                        { clickCount: 2 });
+    EventUtils.synthesizeMouse(document.getElementById("star-button"),
+                               1, 1, { clickCount: 2 });
     break;
   }
 }
@@ -44,8 +44,8 @@ function test() {
   waitForExplicitFinish();
 
   gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
-    gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
+  gBrowser.selectedBrowser.addEventListener("load", function () {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
     waitForStarChange(false, initTest);
   }, true);
 
@@ -60,12 +60,10 @@ function initTest() {
 }
 
 function waitForStarChange(aValue, aCallback) {
-  let expectedStatus = aValue ? BookmarksMenuButton.STATUS_STARRED
-                              : BookmarksMenuButton.STATUS_UNSTARRED;
-  if (BookmarksMenuButton.status == BookmarksMenuButton.STATUS_UPDATING ||
-      BookmarksMenuButton.status != expectedStatus) {
+  let starButton = document.getElementById("star-button");
+  if (PlacesStarButton._pendingStmt || starButton.hasAttribute("starred") != aValue) {
     info("Waiting for star button change.");
-    setTimeout(waitForStarChange, 50, aValue, aCallback);
+    setTimeout(arguments.callee, 50, aValue, aCallback);
     return;
   }
   aCallback();

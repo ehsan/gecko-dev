@@ -12,7 +12,6 @@ import org.mozilla.gecko.TabsAccessor;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
 
 import android.content.Context;
 import android.text.TextUtils;
@@ -57,22 +56,22 @@ public class RemoteTabsSection extends AboutHomeSection
     }
 
     public void loadRemoteTabs() {
-        new UiAsyncTask<Void, Void, Boolean>(ThreadUtils.getBackgroundHandler()) {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
-            public Boolean doInBackground(Void... params) {
+            public void run() {
                 if (!SyncAccounts.syncAccountsExist(mActivity)) {
-                    return false;
+                    post(new Runnable() {
+                        @Override
+                        public void run() {
+                            hide();
+                        }
+                    });
+                    return;
                 }
-                TabsAccessor.getTabs(getContext(), NUMBER_OF_REMOTE_TABS, RemoteTabsSection.this);
-                return true;
-            }
 
-            public void onPostExecute(Boolean syncAccountsExist) {
-                if (!syncAccountsExist) {
-                    hide();
-                }
+                TabsAccessor.getTabs(getContext(), NUMBER_OF_REMOTE_TABS, RemoteTabsSection.this);
             }
-        }.execute();
+        });
     }
 
     @Override

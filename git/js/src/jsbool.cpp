@@ -8,19 +8,26 @@
  * JS boolean implementation.
  */
 
-#include "jsbool.h"
+#include "mozilla/FloatingPoint.h"
 
 #include "jstypes.h"
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jsatom.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jsinfer.h"
 #include "jsversion.h"
+#include "jslock.h"
+#include "jsnum.h"
 #include "jsobj.h"
+#include "jsstr.h"
 
 #include "vm/GlobalObject.h"
 #include "vm/StringBuffer.h"
 
 #include "jsboolinlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/BooleanObject-inl.h"
@@ -111,7 +118,7 @@ bool_valueOf(JSContext *cx, unsigned argc, Value *vp)
     return CallNonGenericMethod<IsBoolean, bool_valueOf_impl>(cx, args);
 }
 
-static const JSFunctionSpec boolean_methods[] = {
+static JSFunctionSpec boolean_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  bool_toSource,  0, 0),
 #endif

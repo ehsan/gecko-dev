@@ -5,7 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "LayerTransactionParent.h"
+#include "ShadowLayersParent.h"
 #include "ShadowLayerParent.h"
 #include "ShadowLayers.h"
 
@@ -62,18 +62,13 @@ ShadowLayerParent::ActorDestroy(ActorDestroyReason why)
     break;
 
   case AbnormalShutdown:
-    if (mLayer) {
-      mLayer->Disconnect();
-    }
-    break;
-
   case NormalShutdown:
     // let IPDL-generated code automatically clean up Shmems and so
     // forth; our channel is disconnected anyway
     break;
 
   case FailedConstructor:
-    NS_RUNTIMEABORT("FailedConstructor isn't possible in PLayerTransaction");
+    NS_RUNTIMEABORT("FailedConstructor isn't possible in PLayers");
     return;                     // unreached
   }
 

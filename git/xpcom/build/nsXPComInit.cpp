@@ -15,7 +15,6 @@
 #include "nsStaticComponents.h"
 #include "prlink.h"
 
-#include "nsCycleCollector.h"
 #include "nsObserverList.h"
 #include "nsObserverService.h"
 #include "nsProperties.h"
@@ -258,16 +257,16 @@ static already_AddRefed<nsIFactory>
 CreateINIParserFactory(const mozilla::Module& module,
                        const mozilla::Module::CIDEntry& entry)
 {
-    nsCOMPtr<nsIFactory> f = new nsINIParserFactory();
-    return f.forget();
+    nsIFactory* f = new nsINIParserFactory();
+    f->AddRef();
+    return f;
 }
 
 static already_AddRefed<nsIFactory>
 CreateUnicharStreamFactory(const mozilla::Module& module,
                            const mozilla::Module::CIDEntry& entry)
 {
-    return already_AddRefed<nsIFactory>(
-            nsSimpleUnicharStreamFactory::GetInstance());
+    return nsSimpleUnicharStreamFactory::GetInstance();
 }
 
 #define COMPONENT(NAME, Ctor) static NS_DEFINE_CID(kNS_##NAME##_CID, NS_##NAME##_CID);

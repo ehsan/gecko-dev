@@ -20,7 +20,6 @@
 #include "nsIServiceManager.h"
 #include "mozilla/Preferences.h"
 #include "BasicLayers.h"
-#include "ClientLayerManager.h"
 #include "LayerManagerOGL.h"
 #include "mozilla/layers/Compositor.h"
 #include "nsIXULRuntime.h"
@@ -559,6 +558,17 @@ NS_IMETHODIMP nsBaseWidget::SetSizeMode(int32_t aMode)
 
 //-------------------------------------------------------------------------
 //
+// Get the size mode (minimized, maximized, that sort of thing...)
+//
+//-------------------------------------------------------------------------
+NS_IMETHODIMP nsBaseWidget::GetSizeMode(int32_t* aMode)
+{
+  *aMode = mSizeMode;
+  return NS_OK;
+}
+
+//-------------------------------------------------------------------------
+//
 // Get the foreground color
 //
 //-------------------------------------------------------------------------
@@ -865,7 +875,7 @@ nsBaseWidget::ComputeShouldAccelerate(bool aDefault)
 CompositorParent* nsBaseWidget::NewCompositorParent(int aSurfaceWidth,
                                                     int aSurfaceHeight)
 {
-  return new CompositorParent(this, false, aSurfaceWidth, aSurfaceHeight);
+    return new CompositorParent(this, false, aSurfaceWidth, aSurfaceHeight);
 }
 
 void nsBaseWidget::CreateCompositor()
@@ -879,21 +889,16 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
 {
   mCompositorParent = NewCompositorParent(aWidth, aHeight);
   AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
-  LayerManager* lm = new ClientLayerManager(this);
+  LayerManager* lm = CreateBasicLayerManager();
   MessageLoop *childMessageLoop = CompositorParent::CompositorLoop();
   mCompositorChild = new CompositorChild(lm);
   AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
   mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
 
   TextureFactoryIdentifier textureFactoryIdentifier;
-  PLayerTransactionChild* shadowManager;
-  mozilla::layers::LayersBackend backendHint;
-  if (mUseLayersAcceleration) {
-    backendHint = mozilla::layers::LAYERS_OPENGL;
-  } else {
-    backendHint = mozilla::layers::LAYERS_BASIC;
-  }
-  shadowManager = mCompositorChild->SendPLayerTransactionConstructor(
+  PLayersChild* shadowManager;
+  mozilla::layers::LayersBackend backendHint = mozilla::layers::LAYERS_OPENGL;
+  shadowManager = mCompositorChild->SendPLayersConstructor(
     backendHint, 0, &textureFactoryIdentifier);
 
   if (shadowManager) {
@@ -922,7 +927,7 @@ bool nsBaseWidget::ShouldUseOffMainThreadCompositing()
   return CompositorParent::CompositorLoop() && !isSmallPopup;
 }
 
-LayerManager* nsBaseWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
+LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
                                             LayersBackend aBackendHint,
                                             LayerManagerPersistence aPersistence,
                                             bool* aAllowRetaining)
@@ -972,7 +977,7 @@ LayerManager* nsBaseWidget::GetLayerManager(PLayerTransactionChild* aShadowManag
 
 BasicLayerManager* nsBaseWidget::CreateBasicLayerManager()
 {
-  return new BasicLayerManager(this);
+      return new BasicShadowLayerManager(this);
 }
 
 CompositorChild* nsBaseWidget::GetRemoteRenderer()

@@ -15,6 +15,7 @@
 #include "InlineList.h"
 #include "FixedArityList.h"
 #include "LOpcodes.h"
+#include "TypeOracle.h"
 #include "Registers.h"
 #include "MIR.h"
 #include "MIRGraph.h"
@@ -607,12 +608,6 @@ class LInstruction
           default:
             return "Invalid";
         }
-    }
-
-    // Hook for opcodes to add extra high level detail about what code will be
-    // emitted for the op.
-    virtual const char *extraName() const {
-        return NULL;
     }
 
   public:

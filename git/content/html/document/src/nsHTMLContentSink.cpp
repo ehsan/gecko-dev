@@ -495,9 +495,10 @@ CreateHTMLElement(uint32_t aNodeType, already_AddRefed<nsINodeInfo> aNodeInfo,
   NS_ASSERTION(cb != NS_NewHTMLNOTUSEDElement,
                "Don't know how to construct tag element!");
 
-  nsRefPtr<nsGenericHTMLElement> result = cb(aNodeInfo, aFromParser);
+  nsGenericHTMLElement* result = cb(aNodeInfo, aFromParser);
+  NS_IF_ADDREF(result);
 
-  return result.forget();
+  return result;
 }
 
 //----------------------------------------------------------------------

@@ -40,8 +40,7 @@ SpeechSynthesisUtterance::SpeechSynthesisUtterance(const nsAString& text)
 SpeechSynthesisUtterance::~SpeechSynthesisUtterance() {}
 
 JSObject*
-SpeechSynthesisUtterance::WrapObject(JSContext* aCx,
-                                     JS::Handle<JSObject*> aScope)
+SpeechSynthesisUtterance::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return SpeechSynthesisUtteranceBinding::Wrap(aCx, aScope, this);
 }
@@ -71,10 +70,10 @@ SpeechSynthesisUtterance::Constructor(GlobalObject& aGlobal,
   }
 
   MOZ_ASSERT(win->IsInnerWindow());
-  nsRefPtr<SpeechSynthesisUtterance> object =
-    new SpeechSynthesisUtterance(aText);
+  SpeechSynthesisUtterance* object = new SpeechSynthesisUtterance(aText);
+  NS_ADDREF(object);
   object->BindToOwner(win);
-  return object.forget();
+  return object;
 }
 
 void

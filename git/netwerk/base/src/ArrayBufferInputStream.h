@@ -22,14 +22,13 @@
 class ArrayBufferInputStream : public nsIArrayBufferInputStream {
 public:
   ArrayBufferInputStream();
-  virtual ~ArrayBufferInputStream();
+  virtual ~ArrayBufferInputStream() {}
   NS_DECL_ISUPPORTS
   NS_DECL_NSIARRAYBUFFERINPUTSTREAM
   NS_DECL_NSIINPUTSTREAM
 
 private:
-  JSRuntime* mRt;
-  jsval mArrayBuffer;
+  mozilla::Maybe<JS::RootedObject> mArrayBuffer;
   uint8_t* mBuffer;
   uint32_t mBufferLength;
   uint32_t mOffset;

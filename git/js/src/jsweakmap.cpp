@@ -4,17 +4,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsweakmap.h"
-
 #include <string.h>
-
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsfriendapi.h"
+#include "jsgc.h"
 #include "jsobj.h"
+#include "jsweakmap.h"
 
+#include "gc/Marking.h"
 #include "vm/GlobalObject.h"
 
+#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -360,14 +361,14 @@ JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *objArg, JSObject **re
 }
 
 static void
-WeakMap_mark(JSTracer *trc, JSObject *obj)
+WeakMap_mark(JSTracer *trc, RawObject obj)
 {
     if (ObjectValueMap *map = GetObjectMap(obj))
         map->trace(trc);
 }
 
 static void
-WeakMap_finalize(FreeOp *fop, JSObject *obj)
+WeakMap_finalize(FreeOp *fop, RawObject obj)
 {
     if (ObjectValueMap *map = GetObjectMap(obj)) {
         map->check();
@@ -411,7 +412,7 @@ Class js::WeakMapClass = {
     WeakMap_mark
 };
 
-static const JSFunctionSpec weak_map_methods[] = {
+static JSFunctionSpec weak_map_methods[] = {
     JS_FN("has",    WeakMap_has, 1, 0),
     JS_FN("get",    WeakMap_get, 2, 0),
     JS_FN("delete", WeakMap_delete, 1, 0),

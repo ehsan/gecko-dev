@@ -28,8 +28,7 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMUIEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::MouseEventBinding::Wrap(aCx, aScope, this);
   }
@@ -38,13 +37,6 @@ public:
                                 JSContext* aCx, JS::Value* aVal);
 
   // Web IDL binding methods
-  virtual uint32_t Which() MOZ_OVERRIDE
-  {
-    uint32_t w = 0;
-    Which(&w);
-    return w;
-  }
-
   int32_t ScreenX();
   int32_t ScreenY();
   int32_t ClientX();

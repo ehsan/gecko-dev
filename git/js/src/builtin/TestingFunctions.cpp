@@ -668,7 +668,7 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
     JSCountHeapNode *node;
     size_t counter;
 
-    RootedValue startValue(cx, UndefinedValue());
+    Value startValue = UndefinedValue();
     if (argc > 0) {
         v = JS_ARGV(cx, vp)[0];
         if (JSVAL_IS_TRACEABLE(v)) {

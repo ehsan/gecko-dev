@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.background.announcements.AnnouncementsBroadcastService;
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanZoomController;
@@ -767,12 +766,10 @@ abstract public class GeckoApp
                 if (tab == null)
                     return;
                 tab.setZoomConstraints(new ZoomConstraints(message));
-                tab.setIsRTL(message.getBoolean("isRTL"));
                 // Sync up the layer view and the tab if the tab is currently displayed.
                 LayerView layerView = mLayerView;
                 if (layerView != null && Tabs.getInstance().isSelectedTab(tab)) {
                     layerView.setZoomConstraints(tab.getZoomConstraints());
-                    layerView.setIsRTL(tab.getIsRTL());
                 }
             } else if (event.equals("Session:StatePurged")) {
                 onStatePurged();
@@ -1159,10 +1156,10 @@ abstract public class GeckoApp
                     if (isDataURI) {
                         int dataStart = aSrc.indexOf(',');
                         byte[] buf = Base64.decode(aSrc.substring(dataStart+1), Base64.DEFAULT);
-                        BitmapUtils.decodeByteArray(buf, options);
+                        BitmapFactory.decodeByteArray(buf, 0, buf.length, options);
                         options.inSampleSize = getBitmapSampleSize(options, idealWidth, idealHeight);
                         options.inJustDecodeBounds = false;
-                        image = BitmapUtils.decodeByteArray(buf, options);
+                        image = BitmapFactory.decodeByteArray(buf, 0, buf.length, options);
                     } else {
                         int byteRead;
                         byte[] buf = new byte[4192];
@@ -1177,10 +1174,10 @@ abstract public class GeckoApp
                             os.write(buf, 0, byteRead);
                         }
                         byte[] imgBuffer = os.toByteArray();
-                        BitmapUtils.decodeByteArray(imgBuffer, options);
+                        BitmapFactory.decodeByteArray(imgBuffer, 0, imgBuffer.length, options);
                         options.inSampleSize = getBitmapSampleSize(options, idealWidth, idealHeight);
                         options.inJustDecodeBounds = false;
-                        image = BitmapUtils.decodeByteArray(imgBuffer, options);
+                        image = BitmapFactory.decodeByteArray(imgBuffer, 0, imgBuffer.length, options);
                     }
                     if(image != null) {
                         mgr.setBitmap(image);
@@ -1189,7 +1186,7 @@ abstract public class GeckoApp
                         return false;
                     }
                 } catch(OutOfMemoryError ome) {
-                    Log.e(LOGTAG, "Out of Memory when converting to byte array", ome);
+                    Log.e(LOGTAG, "Out of Memmory when coverting to byte array", ome);
                     return false;
                 } catch(IOException ioe) {
                     Log.e(LOGTAG, "I/O Exception while setting wallpaper", ioe);
@@ -2407,7 +2404,7 @@ abstract public class GeckoApp
     protected void connectGeckoLayerClient() {
         mLayerView.getLayerClient().notifyGeckoReady();
 
-        mLayerView.addTouchInterceptor(this);
+        mLayerView.setTouchIntercepter(this);
     }
 
     public void setAccessibilityEnabled(boolean enabled) {
@@ -2440,7 +2437,7 @@ abstract public class GeckoApp
             }
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createMotionEvent(event, false));
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createMotionEvent(event));
         return true;
     }
 

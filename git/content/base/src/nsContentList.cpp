@@ -135,7 +135,7 @@ NS_IMPL_ADDREF_INHERITED(nsSimpleContentList, nsBaseContentList)
 NS_IMPL_RELEASE_INHERITED(nsSimpleContentList, nsBaseContentList)
 
 JSObject*
-nsSimpleContentList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsSimpleContentList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return NodeListBinding::Wrap(cx, scope, this);
 }
@@ -196,7 +196,7 @@ NS_GetContentList(nsINode* aRootNode,
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
-  nsRefPtr<nsContentList> list;
+  nsContentList* list = nullptr;
 
   static PLDHashTableOps hash_table_ops =
   {
@@ -255,7 +255,9 @@ NS_GetContentList(nsINode* aRootNode,
     }
   }
 
-  return list.forget();
+  NS_ADDREF(list);
+
+  return list;
 }
 
 #ifdef DEBUG
@@ -266,14 +268,14 @@ const nsCacheableFuncStringContentList::ContentListType
 #endif
 
 JSObject*
-nsCacheableFuncStringNodeList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsCacheableFuncStringNodeList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return NodeListBinding::Wrap(cx, scope, this);
 }
 
 
 JSObject*
-nsCacheableFuncStringHTMLCollection::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsCacheableFuncStringHTMLCollection::WrapObject(JSContext *cx, JSObject *scope)
 {
   return HTMLCollectionBinding::Wrap(cx, scope, this);
 }
@@ -317,7 +319,7 @@ GetFuncStringContentList(nsINode* aRootNode,
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
-  nsRefPtr<nsCacheableFuncStringContentList> list;
+  nsCacheableFuncStringContentList* list = nullptr;
 
   static PLDHashTableOps hash_table_ops =
   {
@@ -371,9 +373,11 @@ GetFuncStringContentList(nsINode* aRootNode,
     }
   }
 
+  NS_ADDREF(list);
+
   // Don't cache these lists globally
 
-  return list.forget();
+  return list;
 }
 
 already_AddRefed<nsContentList>
@@ -489,7 +493,7 @@ nsContentList::~nsContentList()
 }
 
 JSObject*
-nsContentList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsContentList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return HTMLCollectionBinding::Wrap(cx, scope, this);
 }
@@ -673,7 +677,7 @@ nsContentList::NamedItem(JSContext* cx, const nsAString& name,
   if (!item) {
     return nullptr;
   }
-  JS::Rooted<JSObject*> wrapper(cx, GetWrapper());
+  JSObject* wrapper = GetWrapper();
   JSAutoCompartment ac(cx, wrapper);
   JS::Value v;
   if (!mozilla::dom::WrapObject(cx, wrapper, item, item, nullptr, &v)) {

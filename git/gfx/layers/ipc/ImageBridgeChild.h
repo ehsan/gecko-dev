@@ -255,16 +255,13 @@ public:
   // thebes layers which don't support async updates.
   virtual void CreatedSingleBuffer(CompositableClient* aCompositable,
                                    const SurfaceDescriptor& aDescriptor,
-                                   const TextureInfo& aTextureInfo,
-                                   const SurfaceDescriptor* aDescriptorOnWhite = nullptr) MOZ_OVERRIDE {
+                                   const TextureInfo& aTextureInfo) MOZ_OVERRIDE {
     NS_RUNTIMEABORT("should not be called");
   }
   virtual void CreatedDoubleBuffer(CompositableClient* aCompositable,
                                    const SurfaceDescriptor& aFrontDescriptor,
                                    const SurfaceDescriptor& aBackDescriptor,
-                                   const TextureInfo& aTextureInfo,
-                                   const SurfaceDescriptor* aFrontDescriptorOnWhite = nullptr,
-                                   const SurfaceDescriptor* aBackDescriptorOnWhite = nullptr) MOZ_OVERRIDE {
+                                   const TextureInfo& aTextureInfo) MOZ_OVERRIDE {
     NS_RUNTIMEABORT("should not be called");
   }
   virtual void DestroyThebesBuffer(CompositableClient* aCompositable) MOZ_OVERRIDE {

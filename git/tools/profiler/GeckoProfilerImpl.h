@@ -19,7 +19,7 @@
 #include "jsfriendapi.h"
 #include "GeckoProfilerFunc.h"
 #include "PseudoStack.h"
-#include "nsISupports.h"
+
 
 /* QT has a #define for the word "slots" and jsfriendapi.h has a struct with
  * this variable name, causing compilation problems. Alleviate this for now by
@@ -161,12 +161,6 @@ void profiler_js_operation_callback()
   }
 
   stack->jsOperationCallback();
-}
-
-static inline
-double profiler_time()
-{
-  return mozilla_sampler_time();
 }
 
 // we want the class and function name but can't easily get that using preprocessor macros

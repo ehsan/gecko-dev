@@ -23,12 +23,12 @@ public class NativeZip implements NativeReference {
     }
 
     public NativeZip(InputStream input) {
-        if (!(input instanceof ByteBufferInputStream)) {
-            throw new IllegalArgumentException("Got " + input.getClass()
-                                               + ", but expected ByteBufferInputStream!");
+        if (input instanceof ByteBufferInputStream) {
+            ByteBufferInputStream bbinput = (ByteBufferInputStream)input;
+            mObj = getZipFromByteBuffer(bbinput.mBuf);
+        } else {
+            throw new RuntimeException("Only ByteBufferInputStream is supported");
         }
-        ByteBufferInputStream bbinput = (ByteBufferInputStream)input;
-        mObj = getZipFromByteBuffer(bbinput.mBuf);
         mInput = input;
     }
 
@@ -56,9 +56,8 @@ public class NativeZip implements NativeReference {
     }
 
     public InputStream getInputStream(String path) {
-        if (isReleased()) {
-            throw new IllegalStateException("Can't get path \"" + path
-                                            + "\" because NativeZip is closed!");
+        if (mObj == 0) {
+            throw new RuntimeException("NativeZip is closed");
         }
         return _getInputStream(mObj, path);
     }
@@ -69,16 +68,11 @@ public class NativeZip implements NativeReference {
     private native InputStream _getInputStream(long obj, String path);
 
     private InputStream createInputStream(ByteBuffer buffer, int compression) {
-        if (compression != STORE && compression != DEFLATE) {
-            throw new IllegalArgumentException("Unexpected compression: " + compression);
-        }
-
         InputStream input = new ByteBufferInputStream(buffer, this);
         if (compression == DEFLATE) {
             Inflater inflater = new Inflater(true);
             input = new InflaterInputStream(input, inflater);
         }
-
         return input;
     }
 }

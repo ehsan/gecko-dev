@@ -143,7 +143,7 @@ public:
   { return eTransparencyTransparent; }
 
   virtual LayerManager*
-  GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
+  GetLayerManager(PLayersChild* aShadowManager = nullptr,
                   LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                   LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                   bool* aAllowRetaining = nullptr);
@@ -169,7 +169,6 @@ public:
   // proper widget there. TODO: Handle DPI changes that happen
   // later on.
   virtual float GetDPI();
-  virtual double GetDefaultScaleInternal();
 
   virtual bool NeedsPaint() MOZ_OVERRIDE;
 
@@ -224,7 +223,6 @@ private:
 
   // The DPI of the screen corresponding to this widget
   float mDPI;
-  double mDefaultScale;
 };
 
 class PuppetScreen : public nsBaseScreen

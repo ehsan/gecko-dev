@@ -225,8 +225,10 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
                      bool aIsScriptable, bool aIsRoot)
 {
     nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-    nsRefPtr<nsXULElement> element = new nsXULElement(ni.forget());
+    nsXULElement *element = new nsXULElement(ni.forget());
     if (element) {
+        NS_ADDREF(element);
+
         if (aPrototype->mHasIdAttribute) {
             element->SetHasID();
         }
@@ -257,7 +259,7 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
         }
     }
 
-    return element.forget();
+    return element;
 }
 
 nsresult
@@ -498,7 +500,7 @@ nsXULElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName, bool* aDefer)
     nsPIDOMWindow *window;
     Element *root = doc->GetRootElement();
     if ((!root || root == this) && !mNodeInfo->Equals(nsGkAtoms::overlay) &&
-        (window = doc->GetInnerWindow())) {
+        (window = doc->GetInnerWindow()) && window->IsInnerWindow()) {
 
         nsCOMPtr<EventTarget> piTarget = do_QueryInterface(window);
 
@@ -1472,8 +1474,9 @@ nsXULElement::GetFrameLoader()
     if (!slots)
         return nullptr;
 
-    nsRefPtr<nsFrameLoader> loader = slots->mFrameLoader;
-    return loader.forget();
+    nsFrameLoader* loader = slots->mFrameLoader;
+    NS_IF_ADDREF(loader);
+    return loader;
 }
 
 nsresult
@@ -1930,7 +1933,7 @@ nsXULElement::IsEventAttributeName(nsIAtom *aName)
 }
 
 JSObject*
-nsXULElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+nsXULElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
     return dom::XULElementBinding::Wrap(aCx, aScope, this);
 }

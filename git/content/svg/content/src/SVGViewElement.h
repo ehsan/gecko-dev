@@ -19,6 +19,7 @@ static const unsigned short SVG_ZOOMANDPAN_MAGNIFY = 2;
 typedef nsSVGElement SVGViewElementBase;
 
 class nsSVGOuterSVGFrame;
+class nsIDOMSVGStringList;
 
 nsresult NS_NewSVGViewElement(nsIContent **aResult,
                               already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -38,8 +39,7 @@ protected:
   SVGViewElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   friend nsresult (::NS_NewSVGViewElement(nsIContent **aResult,
                                           already_AddRefed<nsINodeInfo> aNodeInfo));
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -49,7 +49,7 @@ public:
   void SetZoomAndPan(uint16_t aZoomAndPan, ErrorResult& rv);
   already_AddRefed<nsIDOMSVGAnimatedRect> ViewBox();
   already_AddRefed<DOMSVGAnimatedPreserveAspectRatio> PreserveAspectRatio();
-  already_AddRefed<DOMSVGStringList> ViewTarget();
+  already_AddRefed<nsIDOMSVGStringList> ViewTarget();
 
 private:
 

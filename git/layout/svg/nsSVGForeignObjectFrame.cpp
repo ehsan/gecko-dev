@@ -93,23 +93,20 @@ nsSVGForeignObjectFrame::AttributeChanged(int32_t  aNameSpaceID,
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGEffects::InvalidateRenderingObservers(this);
+      nsSVGUtils::InvalidateBounds(this, false);
       nsSVGUtils::ScheduleReflowSVG(this);
       // XXXjwatt: why mark intrinsic widths dirty? can't we just use eResize?
       RequestReflow(nsIPresShell::eStyleChange);
     } else if (aAttribute == nsGkAtoms::x ||
-               aAttribute == nsGkAtoms::y) {
+               aAttribute == nsGkAtoms::y ||
+               aAttribute == nsGkAtoms::transform) {
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nullptr;
-      nsSVGEffects::InvalidateRenderingObservers(this);
+      nsSVGUtils::InvalidateBounds(this, false);
       nsSVGUtils::ScheduleReflowSVG(this);
-    } else if (aAttribute == nsGkAtoms::transform) {
-      // Don't invalidate (the layers code does that).
-      SchedulePaint();
-      mCanvasTM = nullptr;
     } else if (aAttribute == nsGkAtoms::viewBox ||
                aAttribute == nsGkAtoms::preserveAspectRatio) {
-      nsSVGEffects::InvalidateRenderingObservers(this);
+      nsSVGUtils::InvalidateBounds(this);
     }
   }
 
@@ -128,7 +125,7 @@ nsSVGForeignObjectFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     // XXXperf: probably only need a bounds update if 'font-size' changed and
     // we have em unit width/height. Or, once we map 'transform' into style,
     // if some transform property changed.
-    nsSVGEffects::InvalidateRenderingObservers(this);
+    nsSVGUtils::InvalidateBounds(this, false);
     nsSVGUtils::ScheduleReflowSVG(this);
   }
 }

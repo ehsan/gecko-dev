@@ -83,7 +83,9 @@ XULSelectControlAccessible::SelectedItems()
     }
   }
 
-  return selectedItems.forget();
+  nsIMutableArray* items = nullptr;
+  selectedItems.forget(&items);
+  return items;
 }
 
 Accessible*

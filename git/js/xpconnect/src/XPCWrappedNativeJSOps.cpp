@@ -77,7 +77,7 @@ ToStringGuts(XPCCallContext& ccx)
 static JSBool
 XPC_WN_Shared_ToString(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return false;
 
@@ -93,7 +93,7 @@ XPC_WN_Shared_ToString(JSContext *cx, unsigned argc, jsval *vp)
 #  define FMT_STR(str)
 #  define PARAM_ADDR(w)
 #endif
-        char *sz = JS_smprintf("[object %s" FMT_ADDR FMT_STR(" (native") FMT_ADDR FMT_STR(")") "]", si->GetJSClass()->name PARAM_ADDR(obj.get()) PARAM_ADDR(xpc_GetJSPrivate(obj)));
+        char *sz = JS_smprintf("[object %s" FMT_ADDR FMT_STR(" (native") FMT_ADDR FMT_STR(")") "]", si->GetJSClass()->name PARAM_ADDR(obj) PARAM_ADDR(xpc_GetJSPrivate(obj)));
         if (!sz)
             return false;
 
@@ -424,6 +424,9 @@ DefinePropertyIfFound(XPCCallContext& ccx,
     if (!member->NewFunctionObject(ccx, iface, obj, funval.address()))
         return false;
 
+    // protect funobj until it is actually attached
+    AUTO_MARK_JSVAL(ccx, funval);
+
 #ifdef off_DEBUG_jband
     {
         static int cloneCount = 0;
@@ -470,7 +473,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
 static JSBool
 XPC_WN_OnlyIWrite_AddPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp)
 {
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), id);
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, id);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -698,7 +701,7 @@ static JSBool
 XPC_WN_NoHelper_Resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 {
     MORPH_SLIM_WRAPPER(cx, obj);
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), id);
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, id);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -956,12 +959,11 @@ XPC_WN_Helper_CheckAccess(JSContext *cx, JSHandleObject obj, JSHandleId id,
 static JSBool
 XPC_WN_Helper_Call(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
     // N.B. we want obj to be the callee, not JS_THIS(cx, vp)
-    RootedObject obj(cx, &args.callee());
+    RootedObject obj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
 
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), JSID_VOIDHANDLE, args.length(),
-                       args.array(), args.rval().address());
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, JSID_VOID,
+                       argc, JS_ARGV(cx, vp), vp);
     if (!ccx.IsValid())
         return false;
 
@@ -969,20 +971,19 @@ XPC_WN_Helper_Call(JSContext *cx, unsigned argc, jsval *vp)
 
     SLIM_LOG_WILL_MORPH(cx, obj);
     PRE_HELPER_STUB_NO_SLIM
-    Call(wrapper, cx, obj, args.length(), args.array(), args.rval().address(), &retval);
+    Call(wrapper, cx, obj, argc, JS_ARGV(cx, vp), vp, &retval);
     POST_HELPER_STUB
 }
 
 static JSBool
 XPC_WN_Helper_Construct(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-    RootedObject obj(cx, &args.callee());
+    RootedObject obj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
     if (!obj)
         return false;
 
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), JSID_VOIDHANDLE, args.length(),
-                       args.array(), args.rval().address());
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, JSID_VOID,
+                       argc, JS_ARGV(cx, vp), vp);
     if (!ccx.IsValid())
         return false;
 
@@ -990,7 +991,7 @@ XPC_WN_Helper_Construct(JSContext *cx, unsigned argc, jsval *vp)
 
     SLIM_LOG_WILL_MORPH(cx, obj);
     PRE_HELPER_STUB_NO_SLIM
-    Construct(wrapper, cx, obj, args.length(), args.array(), args.rval().address(), &retval);
+    Construct(wrapper, cx, obj, argc, JS_ARGV(cx, vp), vp, &retval);
     POST_HELPER_STUB
 }
 
@@ -1013,7 +1014,7 @@ XPC_WN_Helper_Finalize(js::FreeOp *fop, JSObject *obj)
 
 static JSBool
 XPC_WN_Helper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
-                         MutableHandleObject objp)
+                         JSMutableHandleObject objp)
 {
     nsresult rv = NS_OK;
     bool retval = true;
@@ -1151,7 +1152,7 @@ XPC_WN_Helper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsig
 
 JSBool
 XPC_WN_JSOp_Enumerate(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
-                      JSMutableHandleValue statep, MutableHandleId idp)
+                      JSMutableHandleValue statep, JSMutableHandleId idp)
 {
     js::Class *clazz = js::GetObjectClass(obj);
     if (!IS_WRAPPER_CLASS(clazz) || clazz == &XPC_WN_NoHelper_JSClass.base) {
@@ -1471,8 +1472,7 @@ XPC_WN_CallMethod(JSContext *cx, unsigned argc, jsval *vp)
         return Throw(NS_ERROR_XPC_BAD_OP_ON_WN_PROTO, cx);
 
     obj = FixUpThisIfBroken(obj, funobj);
-    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOIDHANDLE, argc,
-                       JS_ARGV(cx, vp), vp);
+    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOID, argc, JS_ARGV(cx, vp), vp);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -1511,8 +1511,7 @@ XPC_WN_GetterSetter(JSContext *cx, unsigned argc, jsval *vp)
 
 
     obj = FixUpThisIfBroken(obj, funobj);
-    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOIDHANDLE, argc,
-                       JS_ARGV(cx, vp), vp);
+    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOID, argc, JS_ARGV(cx, vp), vp);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 

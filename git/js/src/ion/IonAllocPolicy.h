@@ -20,27 +20,34 @@ namespace ion {
 
 class TempAllocator
 {
-    LifoAllocScope lifoScope_;
+    LifoAlloc *lifoAlloc_;
+    void *mark_;
 
     // Linked list of GCThings rooted by this allocator.
     CompilerRootNode *rootList_;
 
   public:
     TempAllocator(LifoAlloc *lifoAlloc)
-      : lifoScope_(lifoAlloc),
+      : lifoAlloc_(lifoAlloc),
+        mark_(lifoAlloc->mark()),
         rootList_(NULL)
     { }
 
+    ~TempAllocator()
+    {
+        lifoAlloc_->release(mark_);
+    }
+
     void *allocateInfallible(size_t bytes)
     {
-        void *p = lifoScope_.alloc().allocInfallible(bytes);
+        void *p = lifoAlloc_->allocInfallible(bytes);
         JS_ASSERT(p);
         return p;
     }
 
     void *allocate(size_t bytes)
     {
-        void *p = lifoScope_.alloc().alloc(bytes);
+        void *p = lifoAlloc_->alloc(bytes);
         if (!ensureBallast())
             return NULL;
         return p;
@@ -48,7 +55,7 @@ class TempAllocator
 
     LifoAlloc *lifoAlloc()
     {
-        return &lifoScope_.alloc();
+        return lifoAlloc_;
     }
 
     CompilerRootNode *&rootList()
@@ -59,7 +66,7 @@ class TempAllocator
     bool ensureBallast() {
         // Most infallible Ion allocations are small, so we use a ballast of
         // ~16K for now.
-        return lifoScope_.alloc().ensureUnusedApproximate(16 * 1024);
+        return lifoAlloc_->ensureUnusedApproximate(16 * 1024);
     }
 };
 

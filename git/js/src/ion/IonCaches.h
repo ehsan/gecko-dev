@@ -8,6 +8,7 @@
 #define jsion_caches_h__
 
 #include "IonCode.h"
+#include "TypeOracle.h"
 #include "Registers.h"
 
 #include "vm/ForkJoin.h"
@@ -251,7 +252,7 @@ class IonCache
         idempotent_ = true;
     }
 
-    void setScriptedLocation(JSScript *script, jsbytecode *pc) {
+    void setScriptedLocation(RawScript script, jsbytecode *pc) {
         JS_ASSERT(!idempotent_);
         this->script = script;
         this->pc = pc;

@@ -12,18 +12,17 @@
 #include "AudioDestinationNode.h"
 #include "PannerNode.h"
 #include "speex/speex_resampler.h"
-#include <limits>
 
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(AudioBufferSourceNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(AudioBufferSourceNode, AudioNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mBuffer)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPlaybackRate)
   if (tmp->Context()) {
     tmp->Context()->UnregisterAudioBufferSourceNode(tmp);
   }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END_INHERITED(AudioNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(AudioBufferSourceNode, AudioNode)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBuffer)
@@ -39,9 +38,7 @@ NS_IMPL_RELEASE_INHERITED(AudioBufferSourceNode, AudioNode)
 class AudioBufferSourceNodeEngine : public AudioNodeEngine
 {
 public:
-  explicit AudioBufferSourceNodeEngine(AudioNode* aNode,
-                                       AudioDestinationNode* aDestination) :
-    AudioNodeEngine(aNode),
+  explicit AudioBufferSourceNodeEngine(AudioDestinationNode* aDestination) :
     mStart(0), mStop(TRACK_TICKS_MAX),
     mResampler(nullptr),
     mOffset(0), mDuration(0),
@@ -59,10 +56,25 @@ public:
     }
   }
 
+  // START, OFFSET and DURATION are always set by start() (along with setting
+  // mBuffer to something non-null).
+  // STOP is set by stop().
+  enum Parameters {
+    SAMPLE_RATE,
+    START,
+    STOP,
+    OFFSET,
+    DURATION,
+    LOOP,
+    LOOPSTART,
+    LOOPEND,
+    PLAYBACKRATE,
+    DOPPLERSHIFT
+  };
   virtual void SetTimelineParameter(uint32_t aIndex, const dom::AudioParamTimeline& aValue)
   {
     switch (aIndex) {
-    case AudioBufferSourceNode::PLAYBACKRATE:
+    case PLAYBACKRATE:
       mPlaybackRateTimeline = aValue;
       // If we have a simple value that is 1.0 (i.e. intrinsic speed), and our
       // input buffer is already at the ideal audio rate, and we have a
@@ -82,8 +94,8 @@ public:
   virtual void SetStreamTimeParameter(uint32_t aIndex, TrackTicks aParam)
   {
     switch (aIndex) {
-    case AudioBufferSourceNode::START: mStart = aParam; break;
-    case AudioBufferSourceNode::STOP: mStop = aParam; break;
+    case START: mStart = aParam; break;
+    case STOP: mStop = aParam; break;
     default:
       NS_ERROR("Bad AudioBufferSourceNodeEngine StreamTimeParameter");
     }
@@ -91,7 +103,7 @@ public:
   virtual void SetDoubleParameter(uint32_t aIndex, double aParam)
   {
     switch (aIndex) {
-      case AudioBufferSourceNode::DOPPLERSHIFT:
+      case DOPPLERSHIFT:
         mDopplerShift = aParam;
         break;
       default:
@@ -101,12 +113,12 @@ public:
   virtual void SetInt32Parameter(uint32_t aIndex, int32_t aParam)
   {
     switch (aIndex) {
-    case AudioBufferSourceNode::SAMPLE_RATE: mSampleRate = aParam; break;
-    case AudioBufferSourceNode::OFFSET: mOffset = aParam; break;
-    case AudioBufferSourceNode::DURATION: mDuration = aParam; break;
-    case AudioBufferSourceNode::LOOP: mLoop = !!aParam; break;
-    case AudioBufferSourceNode::LOOPSTART: mLoopStart = aParam; break;
-    case AudioBufferSourceNode::LOOPEND: mLoopEnd = aParam; break;
+    case SAMPLE_RATE: mSampleRate = aParam; break;
+    case OFFSET: mOffset = aParam; break;
+    case DURATION: mDuration = aParam; break;
+    case LOOP: mLoop = !!aParam; break;
+    case LOOPSTART: mLoopStart = aParam; break;
+    case LOOPEND: mLoopEnd = aParam; break;
     default:
       NS_ERROR("Bad AudioBufferSourceNodeEngine Int32Parameter");
     }
@@ -312,11 +324,6 @@ public:
       mPlaybackRate = mPlaybackRateTimeline.GetValueAtTime<TrackTicks>(aStream->GetCurrentPosition());
     }
 
-    // Make sure the playback rate if something our resampler can work with.
-    if (mPlaybackRate <= 0.0 || mPlaybackRate >= 1024) {
-      mPlaybackRate = 1.0;
-    }
-
     uint32_t currentOutSampleRate, currentInSampleRate;
     if (ShouldResample()) {
       SpeexResamplerState* resampler = Resampler(mChannels);
@@ -403,41 +410,37 @@ public:
 };
 
 AudioBufferSourceNode::AudioBufferSourceNode(AudioContext* aContext)
-  : AudioNode(aContext,
-              2,
-              ChannelCountMode::Max,
-              ChannelInterpretation::Speakers)
+  : AudioNode(aContext)
   , mLoopStart(0.0)
   , mLoopEnd(0.0)
-  , mOffset(0.0)
-  , mDuration(std::numeric_limits<double>::min())
   , mPlaybackRate(new AudioParam(this, SendPlaybackRateToStream, 1.0f))
   , mPannerNode(nullptr)
   , mLoop(false)
   , mStartCalled(false)
-  , mOffsetAndDurationRemembered(false)
 {
   mStream = aContext->Graph()->CreateAudioNodeStream(
-      new AudioBufferSourceNodeEngine(this, aContext->Destination()),
+      new AudioBufferSourceNodeEngine(aContext->Destination()),
       MediaStreamGraph::INTERNAL_STREAM);
   mStream->AddMainThreadListener(this);
 }
 
 AudioBufferSourceNode::~AudioBufferSourceNode()
 {
+  // 
   if (Context()) {
     Context()->UnregisterAudioBufferSourceNode(this);
   }
+  DestroyMediaStream();
 }
 
 JSObject*
-AudioBufferSourceNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+AudioBufferSourceNode::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return AudioBufferSourceNodeBinding::Wrap(aCx, aScope, this);
 }
 
 void
-AudioBufferSourceNode::Start(double aWhen, double aOffset,
+AudioBufferSourceNode::Start(JSContext* aCx, double aWhen, double aOffset,
                              const Optional<double>& aDuration, ErrorResult& aRv)
 {
   if (mStartCalled) {
@@ -447,77 +450,61 @@ AudioBufferSourceNode::Start(double aWhen, double aOffset,
   mStartCalled = true;
 
   AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
-  if (!ns) {
+  if (!mBuffer || !ns) {
     // Nothing to play, or we're already dead for some reason
     return;
   }
 
-  if (mBuffer) {
-    double duration = aDuration.WasPassed() ?
-                      aDuration.Value() :
-                      std::numeric_limits<double>::min();
-    SendOffsetAndDurationParametersToStream(ns, aOffset, duration);
-  } else {
-    // Remember our argument so that we can use them once we have a buffer
-    mOffset = aOffset;
-    mDuration = aDuration.WasPassed() ?
-                aDuration.Value() :
-                std::numeric_limits<double>::min();
-    mOffsetAndDurationRemembered = true;
-  }
-
-  // Don't set parameter unnecessarily
-  if (aWhen > 0.0) {
-    ns->SetStreamTimeParameter(START, Context()->DestinationStream(), aWhen);
-  }
-
-  MOZ_ASSERT(!mPlayingRef, "We can only accept a successful start() call once");
-  mPlayingRef.Take(this);
-}
-
-void
-AudioBufferSourceNode::SendBufferParameterToStream(JSContext* aCx)
-{
-  AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
-  MOZ_ASSERT(ns, "Why don't we have a stream here?");
-
-  if (mBuffer) {
-    float rate = mBuffer->SampleRate();
-    nsRefPtr<ThreadSharedFloatArrayBufferList> data =
-      mBuffer->GetThreadSharedChannelsForRate(aCx);
-    ns->SetBuffer(data.forget());
-    ns->SetInt32Parameter(SAMPLE_RATE, rate);
-  } else {
-    ns->SetBuffer(nullptr);
-  }
-
-  if (mOffsetAndDurationRemembered) {
-    SendOffsetAndDurationParametersToStream(ns, mOffset, mDuration);
-  }
-}
-
-void
-AudioBufferSourceNode::SendOffsetAndDurationParametersToStream(AudioNodeStream* aStream,
-                                                               double aOffset,
-                                                               double aDuration)
-{
-  float rate = mBuffer ? mBuffer->SampleRate() : Context()->SampleRate();
-  int32_t lengthSamples = mBuffer ? mBuffer->Length() : 0;
+  uint32_t rate;
+  uint32_t lengthSamples;
+  nsRefPtr<ThreadSharedFloatArrayBufferList> data =
+    mBuffer->GetThreadSharedChannelsForRate(aCx, &rate, &lengthSamples);
   double length = double(lengthSamples) / rate;
   double offset = std::max(0.0, aOffset);
-  double endOffset = aDuration == std::numeric_limits<double>::min() ?
-                     length : std::min(aOffset + aDuration, length);
+  double endOffset = aDuration.WasPassed() ?
+      std::min(aOffset + aDuration.Value(), length) : length;
 
   if (offset >= endOffset) {
     return;
   }
 
+  // Don't compute and set the loop parameters unnecessarily
+  if (mLoop) {
+    double actualLoopStart, actualLoopEnd;
+    if (((mLoopStart != 0.0) || (mLoopEnd != 0.0)) &&
+        mLoopStart >= 0.0 && mLoopEnd > 0.0 &&
+        mLoopStart < mLoopEnd) {
+      actualLoopStart = (mLoopStart > length) ? 0.0 : mLoopStart;
+      actualLoopEnd = std::min(mLoopEnd, length);
+    } else {
+      actualLoopStart = 0.0;
+      actualLoopEnd = length;
+    }
+    int32_t loopStartTicks = NS_lround(actualLoopStart * rate);
+    int32_t loopEndTicks = NS_lround(actualLoopEnd * rate);
+    ns->SetInt32Parameter(AudioBufferSourceNodeEngine::LOOP, 1);
+    ns->SetInt32Parameter(AudioBufferSourceNodeEngine::LOOPSTART, loopStartTicks);
+    ns->SetInt32Parameter(AudioBufferSourceNodeEngine::LOOPEND, loopEndTicks);
+  }
+
+  ns->SetBuffer(data.forget());
+  // Don't set parameter unnecessarily
+  if (aWhen > 0.0) {
+    ns->SetStreamTimeParameter(AudioBufferSourceNodeEngine::START,
+                               Context()->DestinationStream(),
+                               aWhen);
+  }
   int32_t offsetTicks = NS_lround(offset*rate);
   // Don't set parameter unnecessarily
   if (offsetTicks > 0) {
-    aStream->SetInt32Parameter(OFFSET, offsetTicks);
+    ns->SetInt32Parameter(AudioBufferSourceNodeEngine::OFFSET, offsetTicks);
   }
-  aStream->SetInt32Parameter(DURATION, NS_lround(endOffset*rate) - offsetTicks);
+  ns->SetInt32Parameter(AudioBufferSourceNodeEngine::DURATION,
+      NS_lround(endOffset*rate) - offsetTicks);
+  ns->SetInt32Parameter(AudioBufferSourceNodeEngine::SAMPLE_RATE, rate);
+
+  MOZ_ASSERT(!mPlayingRef, "We can only accept a successful start() call once");
+  mPlayingRef.Take(this);
 }
 
 void
@@ -528,19 +515,14 @@ AudioBufferSourceNode::Stop(double aWhen, ErrorResult& aRv)
     return;
   }
 
-  if (!mBuffer) {
-    // We don't have a buffer, so the stream is never marked as finished.
-    // Therefore we need to drop our playing ref right now.
-    mPlayingRef.Drop(this);
-  }
-
   AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
-  if (!ns || !Context()) {
+  if (!ns) {
     // We've already stopped and had our stream shut down
     return;
   }
 
-  ns->SetStreamTimeParameter(STOP, Context()->DestinationStream(),
+  ns->SetStreamTimeParameter(AudioBufferSourceNodeEngine::STOP,
+                             Context()->DestinationStream(),
                              std::max(0.0, aWhen));
 }
 
@@ -558,42 +540,13 @@ void
 AudioBufferSourceNode::SendPlaybackRateToStream(AudioNode* aNode)
 {
   AudioBufferSourceNode* This = static_cast<AudioBufferSourceNode*>(aNode);
-  SendTimelineParameterToStream(This, PLAYBACKRATE, *This->mPlaybackRate);
+  SendTimelineParameterToStream(This, AudioBufferSourceNodeEngine::PLAYBACKRATE, *This->mPlaybackRate);
 }
 
 void
 AudioBufferSourceNode::SendDopplerShiftToStream(double aDopplerShift)
 {
-  SendDoubleParameterToStream(DOPPLERSHIFT, aDopplerShift);
-}
-
-void
-AudioBufferSourceNode::SendLoopParametersToStream()
-{
-  // Don't compute and set the loop parameters unnecessarily
-  if (mLoop && mBuffer) {
-    float rate = mBuffer->SampleRate();
-    double length = (double(mBuffer->Length()) / mBuffer->SampleRate());
-    double actualLoopStart, actualLoopEnd;
-    if (((mLoopStart != 0.0) || (mLoopEnd != 0.0)) &&
-        mLoopStart >= 0.0 && mLoopEnd > 0.0 &&
-        mLoopStart < mLoopEnd) {
-      actualLoopStart = (mLoopStart > length) ? 0.0 : mLoopStart;
-      actualLoopEnd = std::min(mLoopEnd, length);
-    } else {
-      actualLoopStart = 0.0;
-      actualLoopEnd = length;
-    }
-    int32_t loopStartTicks = NS_lround(actualLoopStart * rate);
-    int32_t loopEndTicks = NS_lround(actualLoopEnd * rate);
-    if (loopStartTicks < loopEndTicks) {
-      SendInt32ParameterToStream(LOOPSTART, loopStartTicks);
-      SendInt32ParameterToStream(LOOPEND, loopEndTicks);
-      SendInt32ParameterToStream(LOOP, 1);
-    }
-  } else if (!mLoop) {
-    SendInt32ParameterToStream(LOOP, 0);
-  }
+  SendDoubleParameterToStream(AudioBufferSourceNodeEngine::DOPPLERSHIFT, aDopplerShift);
 }
 
 }

@@ -51,8 +51,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(TableRowsCollection)
 
   // nsWrapperCache
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE
   {
     return mozilla::dom::HTMLCollectionBinding::Wrap(cx, scope, this);
   }
@@ -232,7 +231,7 @@ TableRowsCollection::NamedItem(JSContext* cx, const nsAString& name,
         return nullptr;
       }
       if (item) {
-        JS::Rooted<JSObject*> wrapper(cx, nsWrapperCache::GetWrapper());
+        JSObject* wrapper = nsWrapperCache::GetWrapper();
         JSAutoCompartment ac(cx, wrapper);
         JS::Value v;
         if (!mozilla::dom::WrapObject(cx, wrapper, item, &v)) {
@@ -309,7 +308,7 @@ HTMLTableElement::~HTMLTableElement()
 }
 
 JSObject*
-HTMLTableElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLTableElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLTableElementBinding::Wrap(aCx, aScope, this);
 }

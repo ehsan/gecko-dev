@@ -75,7 +75,7 @@
 
 #placesView > splitter {
   -moz-border-start: none !important;
-  -moz-border-end: 1px solid #bdbdbd;
+  -moz-border-end: 1px solid #404040;
   min-width: 1px;
   width: 1px;
   background-image: none !important;       
@@ -182,7 +182,7 @@
 
 /* Place List, Place Content */
 #placesList {
-  background-color: #e2e7ed;
+  background-color: #d2d8e2;
   width: 160px;
 }
 

@@ -84,8 +84,8 @@ struct BasicTiledLayerPaintData {
   bool mPaintFinished : 1;
 };
 
-class ClientTiledThebesLayer;
-class ClientLayerManager;
+class BasicTiledThebesLayer;
+class BasicShadowLayerManager;
 
 /**
  * Provide an instance of TiledLayerBuffer backed by image surfaces.
@@ -99,8 +99,8 @@ class BasicTiledLayerBuffer
   friend class TiledLayerBuffer<BasicTiledLayerBuffer, BasicTiledLayerTile>;
 
 public:
-  BasicTiledLayerBuffer(ClientTiledThebesLayer* aThebesLayer,
-                        ClientLayerManager* aManager);
+  BasicTiledLayerBuffer(BasicTiledThebesLayer* aThebesLayer,
+                        BasicShadowLayerManager* aManager);
   BasicTiledLayerBuffer()
     : mThebesLayer(nullptr)
     , mManager(nullptr)
@@ -172,8 +172,8 @@ protected:
 
 private:
   gfxASurface::gfxContentType GetContentType() const;
-  ClientTiledThebesLayer* mThebesLayer;
-  ClientLayerManager* mManager;
+  BasicTiledThebesLayer* mThebesLayer;
+  BasicShadowLayerManager* mManager;
   LayerManager::DrawThebesLayerCallback mCallback;
   void* mCallbackData;
   gfxSize mFrameResolution;
@@ -221,11 +221,11 @@ class TiledContentClient : public CompositableClient
   // We should have a content client for each tiled buffer which manages its
   // own valid region, resolution, etc. Then we could have a much cleaner
   // interface and tidy up BasicTiledThebesLayer::PaintThebes (bug 862547).
-  friend class ClientTiledThebesLayer;
+  friend class BasicTiledThebesLayer;
 
 public:
-  TiledContentClient(ClientTiledThebesLayer* aThebesLayer,
-                     ClientLayerManager* aManager);
+  TiledContentClient(BasicTiledThebesLayer* aThebesLayer,
+                     BasicShadowLayerManager* aManager);
 
   ~TiledContentClient()
   {

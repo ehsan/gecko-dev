@@ -25,7 +25,6 @@ MediaDecoderStateMachine* WMFDecoder::CreateStateMachine()
 bool
 WMFDecoder::IsMP3Supported()
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
   if (!MediaDecoder::IsWMFEnabled()) {
     return false;
   }

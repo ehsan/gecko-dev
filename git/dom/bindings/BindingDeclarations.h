@@ -228,11 +228,6 @@ public:
   Optional()
   {}
 
-  explicit Optional(const T& aValue)
-  {
-    mImpl.construct(aValue);
-  }
-
   bool WasPassed() const
   {
     return !mImpl.empty();
@@ -372,21 +367,14 @@ public:
     return true;
   }
 
-  // Note: This operator can be const because we return by value, not
-  // by reference.
-  operator JS::Value() const
+  operator JS::Value()
   {
     return mValue;
   }
 
-  JS::Value* operator&()
+  operator const JS::Value() const
   {
-    return &mValue;
-  }
-
-  const JS::Value* operator&() const
-  {
-    return &mValue;
+    return mValue;
   }
 
 private:

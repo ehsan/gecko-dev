@@ -53,13 +53,12 @@ nsDOMCaretPosition::GetClientRect() const
 }
 
 JSObject*
-nsDOMCaretPosition::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
+nsDOMCaretPosition::WrapObject(JSContext *aCx, JSObject *aScope)
 {
   return mozilla::dom::CaretPositionBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsDOMCaretPosition,
-                                        mOffsetNode, mAnonymousContentNode)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsDOMCaretPosition, mOffsetNode)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMCaretPosition)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMCaretPosition)

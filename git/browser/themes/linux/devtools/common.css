@@ -130,7 +130,7 @@
   -moz-appearance: none !important;
   list-style-image: url("chrome://browser/skin/devtools/dropmarker.png");
   -moz-box-align: center;
-  padding: 0 3px;
+  margin: 0 3px;
 }
 
 /* Text input */

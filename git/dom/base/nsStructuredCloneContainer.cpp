@@ -8,6 +8,7 @@
 #include "nsStructuredCloneContainer.h"
 
 #include "nsCOMPtr.h"
+#include "nsIJSContextStack.h"
 #include "nsIScriptContext.h"
 #include "nsIVariant.h"
 #include "nsIXPConnect.h"

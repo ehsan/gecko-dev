@@ -176,7 +176,6 @@
 #include "mozilla/css/ImageLoader.h"
 
 #include "Layers.h"
-#include "mozilla/layers/Compositor.h"
 #include "nsTransitionManager.h"
 #include "LayerTreeInvalidation.h"
 #include "nsAsyncDOMEvent.h"
@@ -679,8 +678,8 @@ nsIPresShell::RemoveWeakFrameInternal(nsWeakFrame* aWeakFrame)
 already_AddRefed<nsFrameSelection>
 nsIPresShell::FrameSelection()
 {
-  nsRefPtr<nsFrameSelection> ret = mSelection;
-  return ret.forget();
+  NS_IF_ADDREF(mSelection);
+  return mSelection;
 }
 
 //----------------------------------------------------------------------
@@ -2025,8 +2024,9 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
 
 already_AddRefed<nsCaret> PresShell::GetCaret() const
 {
-  nsRefPtr<nsCaret> caret = mCaret;
-  return caret.forget();
+  nsCaret* caret = mCaret;
+  NS_IF_ADDREF(caret);
+  return caret;
 }
 
 void PresShell::MaybeInvalidateCaretPosition()
@@ -4711,10 +4711,11 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   aScreenRect->width = pixelArea.width;
   aScreenRect->height = pixelArea.height;
 
-  nsRefPtr<gfxImageSurface> surface =
+  gfxImageSurface* surface =
     new gfxImageSurface(gfxIntSize(pixelArea.width, pixelArea.height),
                         gfxImageSurface::ImageFormatARGB32);
   if (surface->CairoStatus()) {
+    delete surface;
     return nullptr;
   }
 
@@ -4773,7 +4774,8 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   // restore the old selection display state
   frameSelection->SetDisplaySelection(oldDisplaySelection);
 
-  return surface.forget();
+  NS_ADDREF(surface);
+  return surface;
 }
 
 already_AddRefed<gfxASurface>
@@ -5510,7 +5512,7 @@ PresShell::Paint(nsView*        aViewToPaint,
     // and b) below we don't want to clear NS_FRAME_UPDATE_LAYER_TREE,
     // that will cause us to forget to update the real layer manager!
     if (!(aFlags & PAINT_LAYERS)) {
-      if (layerManager->HasShadowManager() && Compositor::GetBackend() != LAYERS_BASIC) {
+      if (layerManager->HasShadowManager()) {
         return;
       }
       layerManager->BeginTransaction();
@@ -5671,16 +5673,20 @@ PresShell::GetEventTargetFrame()
 already_AddRefed<nsIContent>
 PresShell::GetEventTargetContent(nsEvent* aEvent)
 {
-  nsCOMPtr<nsIContent> content = GetCurrentEventContent();
-  if (!content) {
+  nsIContent* content = GetCurrentEventContent();
+  if (content) {
+    NS_ADDREF(content);
+  } else {
     nsIFrame* currentEventFrame = GetCurrentEventFrame();
     if (currentEventFrame) {
-      currentEventFrame->GetContentForEvent(aEvent, getter_AddRefs(content));
+      currentEventFrame->GetContentForEvent(aEvent, &content);
       NS_ASSERTION(!content || content->GetCurrentDoc() == mDocument,
                    "handing out content from a different doc");
+    } else {
+      content = nullptr;
     }
   }
-  return content.forget();
+  return content;
 }
 
 void
@@ -5796,10 +5802,9 @@ PresShell::GetFocusedDOMWindowInOurWindow()
 {
   nsCOMPtr<nsPIDOMWindow> rootWindow = GetRootWindow();
   NS_ENSURE_TRUE(rootWindow, nullptr);
-  nsCOMPtr<nsPIDOMWindow> focusedWindow;
-  nsFocusManager::GetFocusedDescendant(rootWindow, true,
-                                       getter_AddRefs(focusedWindow));
-  return focusedWindow.forget();
+  nsPIDOMWindow* focusedWindow;
+  nsFocusManager::GetFocusedDescendant(rootWindow, true, &focusedWindow);
+  return focusedWindow;
 }
 
 void
@@ -5975,7 +5980,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
         return NS_OK;
       }
 
-      retargetEventDoc = window->GetExtantDoc();
+      retargetEventDoc = do_QueryInterface(window->GetExtantDocument());
       if (!retargetEventDoc)
         return NS_OK;
     } else if (capturingContent) {

@@ -558,9 +558,9 @@ VisualEventTracerLog::GetJSONString(nsACString & _retval)
       uint32_t type = record->mType & 0xffffUL;
       uint32_t flags = record->mType >> 16;
       PR_snprintf(buf, kBufferSize,
-        "{\"e\":\"%c\",\"t\":%llu,\"f\":%d,\"i\":\"%p\",\"n\":\"%s%s\"}%s\n",
+        "{\"e\":\"%c\",\"t\":%f,\"f\":%d,\"i\":\"%p\",\"n\":\"%s%s\"}%s\n",
         kTypeChars[type],
-        static_cast<uint64_t>((record->mTime - mProfilerStart).ToMilliseconds()),
+        (record->mTime - mProfilerStart).ToMilliseconds(),
         flags,
         record->mItem,
         record->mText,

@@ -337,9 +337,7 @@ class MediaPipelineTransmit : public MediaPipeline {
     ~PipelineListener()
     {
       // release conduit on mainthread.  Must use forget()!
-      nsresult rv = NS_DispatchToMainThread(new
-        ConduitDeleteEvent(conduit_.forget()), NS_DISPATCH_NORMAL);
-      MOZ_ASSERT(!NS_FAILED(rv),"Could not dispatch conduit shutdown to main");
+      NS_DispatchToMainThread(new ConduitDeleteEvent(conduit_.forget()), NS_DISPATCH_NORMAL);
     }
 
 
@@ -449,9 +447,7 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
     ~PipelineListener()
     {
       // release conduit on mainthread.  Must use forget()!
-      nsresult rv = NS_DispatchToMainThread(new
-        ConduitDeleteEvent(conduit_.forget()), NS_DISPATCH_NORMAL);
-      MOZ_ASSERT(!NS_FAILED(rv),"Could not dispatch conduit shutdown to main");
+      NS_DispatchToMainThread(new ConduitDeleteEvent(conduit_.forget()), NS_DISPATCH_NORMAL);
     }
 
     // Implement MediaStreamListener

@@ -509,13 +509,12 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
 
     const size_t size = 64 * 1024 * 1024;
     trc->root = (VerifyNode *)js_malloc(size);
-    if (!trc->root)
-        goto oom;
+    JS_ASSERT(trc->root);
     trc->edgeptr = (char *)trc->root;
     trc->term = trc->edgeptr + size;
 
     if (!trc->nodemap.init())
-        goto oom;
+        return;
 
     /* Create the root node. */
     trc->curnode = MakeNode(trc, NULL, JSGCTraceKind(0));
@@ -526,8 +525,7 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
     /* Make all the roots be edges emanating from the root node. */
     MarkRuntime(trc);
 
-    VerifyNode *node;
-    node = trc->curnode;
+    VerifyNode *node = trc->curnode;
     if (trc->edgeptr == trc->term)
         goto oom;
 

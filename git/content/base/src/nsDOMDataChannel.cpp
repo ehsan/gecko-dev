@@ -142,6 +142,8 @@ nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
   nsresult rv;
   nsAutoString urlParam;
 
+  nsDOMEventTargetHelper::Init();
+
   MOZ_ASSERT(mDataChannel);
   mDataChannel->SetListener(this, nullptr);
 

@@ -6,19 +6,27 @@
 
 /* Various JS utility functions. */
 
-#include "jsutil.h"
-
 #include "mozilla/Assertions.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/PodOperations.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "jstypes.h"
+#include "jsutil.h"
 
 #ifdef WIN32
 #    include "jswin.h"
+#else
+#    include <signal.h>
 #endif
 
+#include "js/TemplateLib.h"
 #include "js/Utility.h"
+
+#if USE_ZLIB
+#include "zlib.h"
+#endif
 
 using namespace js;
 
@@ -161,6 +169,7 @@ JS_Assert(const char *s, const char *file, int ln)
 #ifdef JS_BASIC_STATS
 
 #include <math.h>
+#include <string.h>
 
 /*
  * Histogram bins count occurrences of values <= the bin label, as follows:

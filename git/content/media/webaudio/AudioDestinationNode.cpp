@@ -16,17 +16,14 @@ namespace dom {
 NS_IMPL_ISUPPORTS_INHERITED0(AudioDestinationNode, AudioNode)
 
 AudioDestinationNode::AudioDestinationNode(AudioContext* aContext, MediaStreamGraph* aGraph)
-  : AudioNode(aContext,
-              2,
-              ChannelCountMode::Explicit,
-              ChannelInterpretation::Speakers)
+  : AudioNode(aContext)
 {
-  mStream = aGraph->CreateAudioNodeStream(new AudioNodeEngine(this),
+  mStream = aGraph->CreateAudioNodeStream(new AudioNodeEngine(),
                                           MediaStreamGraph::EXTERNAL_STREAM);
 }
 
 JSObject*
-AudioDestinationNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+AudioDestinationNode::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return AudioDestinationNodeBinding::Wrap(aCx, aScope, this);
 }

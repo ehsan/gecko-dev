@@ -11,6 +11,7 @@
 #include "nsIDOMEventListener.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/Nullable.h"
+#include "nsIDOMEvent.h"
 class nsDOMEvent;
 
 namespace mozilla {

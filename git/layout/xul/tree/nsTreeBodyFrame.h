@@ -402,8 +402,9 @@ public:
     if (!aUnknownCol)
       return nullptr;
 
-    nsCOMPtr<nsTreeColumn> col = do_QueryInterface(aUnknownCol);
-    return col.forget();
+    nsTreeColumn* col;
+    aUnknownCol->QueryInterface(NS_GET_IID(nsTreeColumn), (void**)&col);
+    return col;
   }
 
   /**

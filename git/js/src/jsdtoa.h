@@ -10,7 +10,6 @@
  * Public interface to portable double-precision floating point to string
  * and back conversion package.
  */
-#include <stddef.h>
 
 struct DtoaState;
 

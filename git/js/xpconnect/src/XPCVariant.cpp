@@ -11,8 +11,6 @@
 
 #include "jsfriendapi.h"
 
-using namespace JS;
-
 NS_IMPL_CLASSINFO(XPCVariant, NULL, 0, XPCVARIANT_CID)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(XPCVariant)
   NS_INTERFACE_MAP_ENTRY(XPCVariant)
@@ -151,7 +149,7 @@ private:
     static const Type StateTable[tTypeCount][tTypeCount-1];
 
 public:
-    static JSBool GetTypeForArray(JSContext* cx, HandleObject array,
+    static JSBool GetTypeForArray(JSContext* cx, JSObject* array,
                                   uint32_t length,
                                   nsXPTType* resultType, nsID* resultID);
 };
@@ -176,17 +174,16 @@ XPCArrayHomogenizer::StateTable[tTypeCount][tTypeCount-1] = {
 
 // static
 JSBool
-XPCArrayHomogenizer::GetTypeForArray(JSContext* cx, HandleObject array,
+XPCArrayHomogenizer::GetTypeForArray(JSContext* cx, JSObject* array,
                                      uint32_t length,
                                      nsXPTType* resultType, nsID* resultID)
 {
     Type state = tUnk;
     Type type;
 
-    RootedValue val(cx);
-    RootedObject jsobj(cx);
     for (uint32_t i = 0; i < length; i++) {
-        if (!JS_GetElement(cx, array, i, val.address()))
+        JS::Value val;
+        if (!JS_GetElement(cx, array, i, &val))
             return false;
 
         if (val.isInt32()) {
@@ -195,7 +192,7 @@ XPCArrayHomogenizer::GetTypeForArray(JSContext* cx, HandleObject array,
             type = tDbl;
         } else if (val.isBoolean()) {
             type = tBool;
-        } else if (val.isUndefined()) {
+        } else if (val.isUndefined()) { 
             state = tVar;
             break;
         } else if (val.isNull()) {
@@ -204,7 +201,7 @@ XPCArrayHomogenizer::GetTypeForArray(JSContext* cx, HandleObject array,
             type = tStr;
         } else {
             NS_ASSERTION(val.isObject(), "invalid type of jsval!");
-            jsobj = &val.toObject();
+            JSObject* jsobj = &val.toObject();
             if (JS_IsArrayObject(cx, jsobj))
                 type = tArr;
             else if (xpc_JSObjectIsID(cx, jsobj))
@@ -270,7 +267,7 @@ JSBool XPCVariant::InitializeData(JSContext* cx)
 {
     JS_CHECK_RECURSION(cx, return false);
 
-    RootedValue val(cx, GetJSVal());
+    JS::Value val = GetJSVal();
 
     if (val.isInt32())
         return NS_SUCCEEDED(nsVariant::SetFromInt32(&mData, val.toInt32()));
@@ -312,7 +309,7 @@ JSBool XPCVariant::InitializeData(JSContext* cx)
     // leaving only JSObject...
     NS_ASSERTION(val.isObject(), "invalid type of jsval!");
 
-    RootedObject jsobj(cx, &val.toObject());
+    JSObject* jsobj = &val.toObject();
 
     // Let's see if it is a xpcJSID.
 
@@ -381,16 +378,16 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
     if (NS_FAILED(variant->GetDataType(&type)))
         return false;
 
-    JSContext *cx = lccx.GetJSContext();
-    RootedValue realVal(cx);
-    nsresult rv = variant->GetAsJSVal(realVal.address());
+    jsval realVal;
+    nsresult rv = variant->GetAsJSVal(&realVal);
 
     if (NS_SUCCEEDED(rv) &&
         (JSVAL_IS_PRIMITIVE(realVal) ||
          type == nsIDataType::VTYPE_ARRAY ||
          type == nsIDataType::VTYPE_EMPTY_ARRAY ||
          type == nsIDataType::VTYPE_ID)) {
-        if (!JS_WrapValue(cx, realVal.address()))
+        JSContext *cx = lccx.GetJSContext();
+        if (!JS_WrapValue(cx, &realVal))
             return false;
         *pJSVal = realVal;
         return true;
@@ -402,7 +399,8 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
                      type == nsIDataType::VTYPE_INTERFACE_IS,
                      "Weird variant");
 
-        if (!JS_WrapValue(cx, realVal.address()))
+        JSContext *cx = lccx.GetJSContext();
+        if (!JS_WrapValue(cx, &realVal))
             return false;
         *pJSVal = realVal;
         return true;
@@ -427,6 +425,7 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
     xpctvar.flags = 0;
     JSBool success;
 
+    JSContext* cx = lccx.GetJSContext();
     NS_ABORT_IF_FALSE(js::IsObjectInContextCompartment(lccx.GetScopeForNewJSObjects(), cx),
                       "bad scope for new JSObjects");
 

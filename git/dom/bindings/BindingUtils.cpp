@@ -571,7 +571,7 @@ CreateInterfaceObjects(JSContext* cx, JSObject* global, JSObject* protoProto,
 
 bool
 NativeInterface2JSObjectAndThrowIfFailed(JSContext* aCx,
-                                         JS::Handle<JSObject*> aScope,
+                                         JSObject* aScope,
                                          JS::Value* aRetval,
                                          xpcObjectHelper& aHelper,
                                          const nsIID* aIID,
@@ -626,9 +626,8 @@ InstanceClassHasProtoAtDepth(JSHandleObject protoObject, uint32_t protoID,
 // Only set allowNativeWrapper to false if you really know you need it, if in
 // doubt use true. Setting it to false disables security wrappers.
 bool
-XPCOMObjectToJsval(JSContext* cx, JS::Handle<JSObject*> scope,
-                   xpcObjectHelper& helper, const nsIID* iid,
-                   bool allowNativeWrapper, JS::Value* rval)
+XPCOMObjectToJsval(JSContext* cx, JSObject* scope, xpcObjectHelper &helper,
+                   const nsIID* iid, bool allowNativeWrapper, JS::Value* rval)
 {
   if (!NativeInterface2JSObjectAndThrowIfFailed(cx, scope, rval, helper, iid,
                                                 allowNativeWrapper)) {
@@ -646,8 +645,8 @@ XPCOMObjectToJsval(JSContext* cx, JS::Handle<JSObject*> scope,
 }
 
 bool
-VariantToJsval(JSContext* aCx, JS::Handle<JSObject*> aScope,
-               nsIVariant* aVariant, JS::Value* aRetval)
+VariantToJsval(JSContext* aCx, JSObject* aScope, nsIVariant* aVariant,
+               JS::Value* aRetval)
 {
   nsresult rv;
   XPCLazyCallContext lccx(JS_CALLER, aCx, aScope);
@@ -666,12 +665,12 @@ JSBool
 QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
 {
   JS::Value thisv = JS_THIS(cx, vp);
-  if (thisv.isNull())
+  if (thisv == JSVAL_NULL)
     return false;
 
   // Get the object. It might be a security wrapper, in which case we do a checked
   // unwrap.
-  JS::Rooted<JSObject*> origObj(cx, &thisv.toObject());
+  JSObject* origObj = JSVAL_TO_OBJECT(thisv);
   JSObject* obj = js::CheckedUnwrap(origObj);
   if (!obj) {
       JS_ReportError(cx, "Permission denied to access object");
@@ -1260,6 +1259,19 @@ HasPropertyOnPrototype(JSContext* cx, JSObject* proxy, DOMProxyHandler* handler,
   return !GetPropertyOnPrototype(cx, proxy, id, &found, NULL) || found;
 }
 
+bool
+WrapCallbackInterface(JSContext *cx, JSObject *scope, nsISupports* callback,
+                      JS::Value* vp)
+{
+  nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(callback);
+  MOZ_ASSERT(wrappedJS, "How can we not have an XPCWrappedJS here?");
+  JSObject* obj;
+  DebugOnly<nsresult> rv = wrappedJS->GetJSObject(&obj);
+  MOZ_ASSERT(NS_SUCCEEDED(rv) && obj, "What are we wrapping?");
+  *vp = JS::ObjectValue(*obj);
+  return JS_WrapValue(cx, vp);
+}
+
 JSObject*
 GetXrayExpandoChain(JSObject* obj)
 {
@@ -1373,7 +1385,7 @@ NativeToString(JSContext* cx, JSObject* wrapper, JSObject* object, const char* p
       }
     } else {
       if (IsDOMProxy(obj)) {
-        str = JS_BasicObjectToString(cx, obj);
+        str = js::GetProxyHandler(obj)->obj_toString(cx, obj);
       } else {
         js::Class* clasp = js::GetObjectClass(obj);
         if (IsDOMClass(clasp)) {

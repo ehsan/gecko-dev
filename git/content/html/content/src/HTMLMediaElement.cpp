@@ -407,12 +407,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTM
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLoadBlockedDoc)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSourceLoadCandidate)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAudioChannelAgent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mError)
   for (uint32_t i = 0; i < tmp->mOutputStreams.Length(); ++i) {
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOutputStreams[i].mStream);
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlayed);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
@@ -425,12 +423,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLE
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mLoadBlockedDoc)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSourceLoadCandidate)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAudioChannelAgent)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mError)
   for (uint32_t i = 0; i < tmp->mOutputStreams.Length(); ++i) {
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mOutputStreams[i].mStream);
   }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPlayed);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLMediaElement)
@@ -970,11 +966,6 @@ static bool IsAutoplayEnabled()
   return Preferences::GetBool("media.autoplay.enabled");
 }
 
-static bool UseAudioChannelService()
-{
-  return Preferences::GetBool("media.useAudioChannelService");
-}
-
 void HTMLMediaElement::UpdatePreloadAction()
 {
   PreloadAction nextAction = PRELOAD_UNDEFINED;
@@ -1316,7 +1307,7 @@ HTMLMediaElement::SetCurrentTime(double aCurrentTime, ErrorResult& aRv)
     LOG(PR_LOG_DEBUG, ("%p Adding \'played\' a range : [%f, %f]", this, mCurrentPlayRangeStart, rangeEndTime));
     // Multiple seek without playing, or seek while playing.
     if (mCurrentPlayRangeStart != rangeEndTime) {
-      mPlayed->Add(mCurrentPlayRangeStart, rangeEndTime);
+      mPlayed.Add(mCurrentPlayRangeStart, rangeEndTime);
     }
   }
 
@@ -1417,12 +1408,12 @@ HTMLMediaElement::Played()
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
 
   uint32_t timeRangeCount = 0;
-  mPlayed->GetLength(&timeRangeCount);
+  mPlayed.GetLength(&timeRangeCount);
   for (uint32_t i = 0; i < timeRangeCount; i++) {
     double begin;
     double end;
-    mPlayed->Start(i, &begin);
-    mPlayed->End(i, &end);
+    mPlayed.Start(i, &begin);
+    mPlayed.End(i, &end);
     ranges->Add(begin, end);
   }
 
@@ -1897,7 +1888,6 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mDefaultPlaybackRate(1.0),
     mPlaybackRate(1.0),
     mPreservesPitch(true),
-    mPlayed(new TimeRanges),
     mCurrentPlayRangeStart(-1.0),
     mAllowAudioData(false),
     mBegun(false),
@@ -2168,10 +2158,7 @@ bool HTMLMediaElement::ParseAttribute(int32_t aNamespaceID,
 
 bool HTMLMediaElement::CheckAudioChannelPermissions(const nsAString& aString)
 {
-  if (!UseAudioChannelService()) {
-    return true;
-  }
-
+#ifdef ANDROID
   // Only normal channel doesn't need permission.
   if (!aString.EqualsASCII("normal")) {
     nsCOMPtr<nsIPermissionManager> permissionManager =
@@ -2187,7 +2174,7 @@ bool HTMLMediaElement::CheckAudioChannelPermissions(const nsAString& aString)
       return false;
     }
   }
-
+#endif
   return true;
 }
 
@@ -2939,9 +2926,9 @@ void HTMLMediaElement::UpdateReadyStateForData(MediaDecoderOwner::NextFrameStatu
   // move to HAVE_ENOUGH_DATA if we can play through the entire media
   // without stopping to buffer.
   MediaDecoder::Statistics stats = mDecoder->GetStatistics();
-  if (stats.mTotalBytes < 0 ? stats.mDownloadRateReliable
-                            : stats.mTotalBytes == stats.mDownloadPosition ||
-                              mDecoder->CanPlayThrough())
+  if (stats.mTotalBytes < 0 ? stats.mDownloadRateReliable :
+                              stats.mTotalBytes == stats.mDownloadPosition ||
+      mDecoder->CanPlayThrough())
   {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
     return;
@@ -3226,17 +3213,17 @@ void HTMLMediaElement::SuspendOrResumeElement(bool aPauseElement, bool aSuspendE
 void HTMLMediaElement::NotifyOwnerDocumentActivityChanged()
 {
   nsIDocument* ownerDoc = OwnerDoc();
-  if (UseAudioChannelService()) {
-    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
-    if (domDoc) {
-      bool hidden = false;
-      domDoc->GetHidden(&hidden);
-      // SetVisibilityState will update mChannelSuspended via the CanPlayChanged callback.
-      if (mPlayingThroughTheAudioChannel && mAudioChannelAgent) {
-        mAudioChannelAgent->SetVisibilityState(!hidden);
-      }
+#ifdef ANDROID
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
+  if (domDoc) {
+    bool hidden = false;
+    domDoc->GetHidden(&hidden);
+    // SetVisibilityState will update mChannelSuspended via the CanPlayChanged callback.
+    if (mPlayingThroughTheAudioChannel && mAudioChannelAgent) {
+      mAudioChannelAgent->SetVisibilityState(!hidden);
     }
   }
+#endif
   bool suspendEvents = !ownerDoc->IsActive() || !ownerDoc->IsVisible();
   bool pauseElement = suspendEvents || mChannelSuspended;
 
@@ -3664,10 +3651,9 @@ ImageContainer* HTMLMediaElement::GetImageContainer()
 
 nsresult HTMLMediaElement::UpdateChannelMuteState(bool aCanPlay)
 {
-  if (!UseAudioChannelService()) {
-    return NS_OK;
-  }
-
+  // Only on B2G we mute the HTMLMediaElement following the rules of
+  // AudioChannelService.
+#ifdef ANDROID
   // We have to mute this channel:
   if (!aCanPlay && !mChannelSuspended) {
     mChannelSuspended = true;
@@ -3678,15 +3664,15 @@ nsresult HTMLMediaElement::UpdateChannelMuteState(bool aCanPlay)
   }
 
   SuspendOrResumeElement(mChannelSuspended, false);
+#endif
+
   return NS_OK;
 }
 
 void HTMLMediaElement::UpdateAudioChannelPlayingState()
 {
-  if (!UseAudioChannelService()) {
-    return;
-  }
-
+  // The HTMLMediaElement is registered to the AudioChannelService only on B2G.
+#ifdef ANDROID
   bool playingThroughTheAudioChannel =
      (!mPaused &&
       (HasAttr(kNameSpaceID_None, nsGkAtoms::loop) ||
@@ -3720,6 +3706,7 @@ void HTMLMediaElement::UpdateAudioChannelPlayingState()
       mAudioChannelAgent = nullptr;
     }
   }
+#endif
 }
 
 /* void canPlayChanged (in boolean canPlay); */

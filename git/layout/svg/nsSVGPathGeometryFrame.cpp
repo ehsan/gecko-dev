@@ -108,12 +108,10 @@ nsSVGPathGeometryFrame::AttributeChanged(int32_t         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       (static_cast<nsSVGPathGeometryElement*>
-                  (mContent)->AttributeDefinesGeometry(aAttribute))) {
-    nsSVGEffects::InvalidateRenderingObservers(this);
+                  (mContent)->AttributeDefinesGeometry(aAttribute) ||
+       aAttribute == nsGkAtoms::transform)) {
+    nsSVGUtils::InvalidateBounds(this, false);
     nsSVGUtils::ScheduleReflowSVG(this);
-  } else if (aAttribute == nsGkAtoms::transform) {
-    // Don't invalidate (the layers code does that).
-    SchedulePaint();
   }
   return NS_OK;
 }
@@ -129,7 +127,7 @@ nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   // style_hints don't map very well onto svg. Here seems to be the
   // best place to deal with style changes:
 
-  nsSVGEffects::InvalidateRenderingObservers(this);
+  nsSVGUtils::InvalidateBounds(this, false);
   nsSVGUtils::ScheduleReflowSVG(this);
 }
 

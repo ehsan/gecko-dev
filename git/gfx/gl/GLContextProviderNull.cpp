@@ -30,13 +30,6 @@ GLContextProviderNull::CreateSharedHandle(GLContext::SharedTextureShareType shar
   return 0;
 }
 
-already_AddRefed<gfxASurface>
-GLContextProviderNull::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
-                                               SharedTextureHandle sharedHandle)
-{
-  return nullptr;
-}
-
 GLContext*
 GLContextProviderNull::GetGlobalContext(ContextFlags)
 {

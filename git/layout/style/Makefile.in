@@ -11,7 +11,9 @@ include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	= gkstyle_s
 LIBXUL_LIBRARY	= 1
+ifndef _MSC_VER
 FAIL_ON_WARNINGS = 1
+endif # !_MSC_VER
 
 ifdef GNU_CC
 OS_CFLAGS := $(OS_CFLAGS) -Wshadow
@@ -85,7 +87,6 @@ LOCAL_INCLUDES	+= \
 _FILES	= \
 	contenteditable.css \
 	designmode.css \
-	ImageDocument.css \
 	TopLevelImageDocument.css \
 	TopLevelVideoDocument.css \
 	$(NULL)

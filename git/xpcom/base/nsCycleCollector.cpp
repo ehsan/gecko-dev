@@ -97,7 +97,6 @@
 /* This must occur *after* base/process_util.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
-#include "nsCycleCollectionJSRuntime.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsCycleCollectorUtils.h"
 #include "nsIProgrammingLanguage.h"
@@ -141,7 +140,6 @@
 
 #include "mozilla/CondVar.h"
 #include "mozilla/Likely.h"
-#include "mozilla/mozPoisonWrite.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Telemetry.h"
@@ -149,9 +147,6 @@
 using namespace mozilla;
 
 //#define COLLECT_TIME_DEBUG
-
-// Enable assertions that are useful for diagnosing errors in graph construction.
-//#define DEBUG_CC_GRAPH
 
 #define DEFAULT_SHUTDOWN_COLLECTIONS 5
 #define SHUTDOWN_COLLECTIONS(params) DEFAULT_SHUTDOWN_COLLECTIONS
@@ -340,13 +335,6 @@ public:
         bool operator!=(const Iterator& aOther) const
             { return mPointer != aOther.mPointer; }
 
-#ifdef DEBUG_CC_GRAPH
-        bool Initialized() const
-        {
-            return mPointer != nullptr;
-        }
-#endif
-
     private:
         PtrInfoOrBlock *mPointer;
     };
@@ -396,12 +384,6 @@ public:
     }
 };
 
-#ifdef DEBUG_CC_GRAPH
-#define CC_GRAPH_ASSERT(b) MOZ_ASSERT(b)
-#else
-#define CC_GRAPH_ASSERT(b)
-#endif
-
 enum NodeColor { black, white, grey };
 
 // This structure should be kept as small as possible; we may expect
@@ -438,27 +420,23 @@ public:
 
     EdgePool::Iterator FirstChild()
     {
-        CC_GRAPH_ASSERT(mFirstChild.Initialized());
         return mFirstChild;
     }
 
     // this PtrInfo must be part of a NodePool
     EdgePool::Iterator LastChild()
     {
-        CC_GRAPH_ASSERT((this + 1)->mFirstChild.Initialized());
         return (this + 1)->mFirstChild;
     }
 
     void SetFirstChild(EdgePool::Iterator aFirstChild)
     {
-        CC_GRAPH_ASSERT(aFirstChild.Initialized());
         mFirstChild = aFirstChild;
     }
 
     // this PtrInfo must be part of a NodePool
     void SetLastChild(EdgePool::Iterator aLastChild)
     {
-        CC_GRAPH_ASSERT(aLastChild.Initialized());
         (this + 1)->mFirstChild = aLastChild;
     }
 };
@@ -523,8 +501,10 @@ public:
         PtrInfo *Add(void *aPointer, nsCycleCollectionParticipant *aParticipant)
         {
             if (mNext == mBlockEnd) {
-                Block *block = static_cast<Block*>(NS_Alloc(sizeof(Block)));
-                *mNextBlock = block;
+                Block *block;
+                if (!(*mNextBlock = block =
+                        static_cast<Block*>(NS_Alloc(sizeof(Block)))))
+                    return nullptr;
                 mNext = block->mEntries;
                 mBlockEnd = block->mEntries + BlockSize;
                 block->mNext = nullptr;
@@ -573,10 +553,7 @@ public:
             return mNext++;
         }
     private:
-        // mFirstBlock is a reference to allow an Enumerator to be constructed
-        // for an empty graph.
-        Block *&mFirstBlock;
-        Block *mCurBlock;
+        Block *mFirstBlock, *mCurBlock;
         // mNext is the next value we want to return, unless mNext == mBlockEnd
         // NB: mLast is a reference to allow enumerating while building!
         PtrInfo *mNext, *mBlockEnd, *&mLast;
@@ -687,18 +664,9 @@ private:
                 "ill-sized nsPurpleBuffer::Block"
             );
         }
-
-        template <class PurpleVisitor>
-        void VisitEntries(nsPurpleBuffer &aBuffer, PurpleVisitor &aVisitor)
-        {
-            nsPurpleBufferEntry *eEnd = ArrayEnd(mEntries);
-            for (nsPurpleBufferEntry *e = mEntries; e != eEnd; ++e) {
-                if (!(uintptr_t(e->mObject) & uintptr_t(1))) {
-                    aVisitor.Visit(aBuffer, e);
-                }
-            }
-        }
+        void StaticAsserts();
     };
+public:
     // This class wraps a linked list of the elements in the purple
     // buffer.
 
@@ -707,7 +675,6 @@ private:
     Block mFirstBlock;
     nsPurpleBufferEntry *mFreeList;
 
-public:
     nsPurpleBuffer(nsCycleCollectorParams &params)
         : mParams(params)
     {
@@ -717,14 +684,6 @@ public:
     ~nsPurpleBuffer()
     {
         FreeBlocks();
-    }
-
-    template <class PurpleVisitor>
-    void VisitEntries(PurpleVisitor &aVisitor)
-    {
-        for (Block *b = &mFirstBlock; b; b = b->mNext) {
-            b->VisitEntries(*this, aVisitor);
-        }
     }
 
     void InitBlocks()
@@ -764,25 +723,25 @@ public:
         mFirstBlock.mNext = nullptr;
     }
 
-    struct UnmarkRemainingPurpleVisitor
-    {
-        void
-        Visit(nsPurpleBuffer &aBuffer, nsPurpleBufferEntry *aEntry)
-        {
-            if (aEntry->mObject) {
-                void *obj = aEntry->mObject;
-                nsCycleCollectionParticipant *cp = aEntry->mParticipant;
-                CanonicalizeParticipant(&obj, &cp);
-                cp->UnmarkIfPurple(obj);
-                --aBuffer.mCount;
-            }
-        }
-    };
-
     void UnmarkRemainingPurple(Block *b)
     {
-        UnmarkRemainingPurpleVisitor visitor;
-        b->VisitEntries(*this, visitor);
+        for (nsPurpleBufferEntry *e = b->mEntries,
+                              *eEnd = ArrayEnd(b->mEntries);
+             e != eEnd; ++e) {
+            if (!(uintptr_t(e->mObject) & uintptr_t(1))) {
+                // This is a real entry (rather than something on the
+                // free list).
+                if (e->mObject) {
+                    void *obj = e->mObject;
+                    nsCycleCollectionParticipant *cp = e->mParticipant;
+                    CanonicalizeParticipant(&obj, &cp);
+                    cp->UnmarkIfPurple(obj);
+                }
+
+                if (--mCount == 0)
+                    break;
+            }
+        }
     }
 
     void SelectPointers(GCGraphBuilder &builder);
@@ -875,38 +834,32 @@ public:
 static bool
 AddPurpleRoot(GCGraphBuilder &builder, void *root, nsCycleCollectionParticipant *cp);
 
-struct SelectPointersVisitor
-{
-    SelectPointersVisitor(GCGraphBuilder &aBuilder)
-        : mBuilder(aBuilder)
-    {}
-
-    void
-    Visit(nsPurpleBuffer &aBuffer, nsPurpleBufferEntry *aEntry)
-    {
-        if (aEntry->mObject && aEntry->mNotPurple) {
-            void* o = aEntry->mObject;
-            nsCycleCollectionParticipant* cp = aEntry->mParticipant;
-            CanonicalizeParticipant(&o, &cp);
-            cp->UnmarkIfPurple(o);
-            aBuffer.Remove(aEntry);
-        } else if (!aEntry->mObject ||
-                   AddPurpleRoot(mBuilder, aEntry->mObject, aEntry->mParticipant)) {
-            aBuffer.Remove(aEntry);
-        }
-    }
-
-private:
-    GCGraphBuilder &mBuilder;
-};
-
 void
 nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
 {
-    SelectPointersVisitor visitor(aBuilder);
-    VisitEntries(visitor);
+    // Walk through all the blocks.
+    for (Block *b = &mFirstBlock; b; b = b->mNext) {
+        for (nsPurpleBufferEntry *e = b->mEntries,
+                              *eEnd = ArrayEnd(b->mEntries);
+            e != eEnd; ++e) {
+            if (!(uintptr_t(e->mObject) & uintptr_t(1))) {
+                // This is a real entry (rather than something on the
+                // free list).
+                if (e->mObject && e->mNotPurple) {
+                    void* o = e->mObject;
+                    nsCycleCollectionParticipant* cp = e->mParticipant;
+                    CanonicalizeParticipant(&o, &cp);
+                    cp->UnmarkIfPurple(o);
+                    Remove(e);
+                } else if (!e->mObject || AddPurpleRoot(aBuilder, e->mObject,
+                                                        e->mParticipant)) {
+                    Remove(e);
+                }
+            }
+        }
+    }
 
-    MOZ_ASSERT(mCount == 0, "AddPurpleRoot failed");
+    NS_WARN_IF_FALSE(mCount == 0, "AddPurpleRoot failed");
     if (mCount == 0) {
         FreeBlocks();
         InitBlocks();
@@ -1349,7 +1302,6 @@ public:
     ~nsCycleCollectorLogger()
     {
         if (mStream) {
-            MozillaUnRegisterDebugFILE(mStream);
             fclose(mStream);
         }
     }
@@ -1430,9 +1382,7 @@ public:
         FILE* gcLogANSIFile = nullptr;
         gcLogFile->OpenANSIFileDesc("w", &gcLogANSIFile);
         NS_ENSURE_STATE(gcLogANSIFile);
-        MozillaRegisterDebugFILE(gcLogANSIFile);
         xpc::DumpJSHeap(gcLogANSIFile);
-        MozillaUnRegisterDebugFILE(gcLogANSIFile);
         fclose(gcLogANSIFile);
 
         // Strip off "incomplete-".
@@ -1465,7 +1415,6 @@ public:
         MOZ_ASSERT(!mStream);
         mOutFile->OpenANSIFileDesc("w", &mStream);
         NS_ENSURE_STATE(mStream);
-        MozillaRegisterDebugFILE(mStream);
 
         return NS_OK;
     }
@@ -1562,7 +1511,6 @@ public:
             MOZ_ASSERT(mStream);
             MOZ_ASSERT(mOutFile);
 
-            MozillaUnRegisterDebugFILE(mStream);
             fclose(mStream);
             mStream = nullptr;
 
@@ -1876,6 +1824,10 @@ GCGraphBuilder::AddNode(void *s, nsCycleCollectionParticipant *aParticipant)
     if (!e->mNode) {
         // New entry.
         result = mNodeBuilder.Add(s, aParticipant);
+        if (!result) {
+            PL_DHashTableRawRemove(&mPtrToNodeMap, e);
+            return nullptr;
+        }
         e->mNode = result;
     } else {
         result = e->mNode;
@@ -2138,38 +2090,31 @@ MayHaveChild(void *o, nsCycleCollectionParticipant* cp)
     return cf.MayHaveChild();
 }
 
-class RemoveSkippableVisitor
-{
-public:
-    RemoveSkippableVisitor(bool aRemoveChildlessNodes)
-        : mRemoveChildlessNodes(aRemoveChildlessNodes)
-    {}
-
-    void
-    Visit(nsPurpleBuffer &aBuffer, nsPurpleBufferEntry *aEntry)
-    {
-        if (aEntry->mObject) {
-            void *o = aEntry->mObject;
-            nsCycleCollectionParticipant *cp = aEntry->mParticipant;
-            CanonicalizeParticipant(&o, &cp);
-            if (!aEntry->mNotPurple && !cp->CanSkip(o, false) &&
-                (!mRemoveChildlessNodes || MayHaveChild(o, cp))) {
-                return;
-            }
-            cp->UnmarkIfPurple(o);
-        }
-        aBuffer.Remove(aEntry);
-    }
-
-private:
-    bool mRemoveChildlessNodes;
-};
-
 void
 nsPurpleBuffer::RemoveSkippable(bool removeChildlessNodes)
 {
-    RemoveSkippableVisitor visitor(removeChildlessNodes);
-    VisitEntries(visitor);
+    // Walk through all the blocks.
+    for (Block *b = &mFirstBlock; b; b = b->mNext) {
+        for (nsPurpleBufferEntry *e = b->mEntries,
+                              *eEnd = ArrayEnd(b->mEntries);
+            e != eEnd; ++e) {
+            if (!(uintptr_t(e->mObject) & uintptr_t(1))) {
+                // This is a real entry (rather than something on the
+                // free list).
+                if (e->mObject) {
+                    void *o = e->mObject;
+                    nsCycleCollectionParticipant *cp = e->mParticipant;
+                    CanonicalizeParticipant(&o, &cp);
+                    if (!e->mNotPurple && !cp->CanSkip(o, false) &&
+                        (!removeChildlessNodes || MayHaveChild(o, cp))) {
+                        continue;
+                    }
+                    cp->UnmarkIfPurple(o);
+                }
+                Remove(e);
+            }
+        }
+    }
 }
 
 void 

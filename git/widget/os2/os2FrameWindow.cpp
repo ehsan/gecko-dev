@@ -218,7 +218,8 @@ nsresult os2FrameWindow::Show(bool aState)
     ulFlags = SWP_SHOW | SWP_ACTIVATE;
 
     uint32_t ulStyle = WinQueryWindowULong(mFrameWnd, QWL_STYLE);
-    int32_t sizeMode = mOwner->SizeMode();
+    int32_t sizeMode;
+    mOwner->GetSizeMode(&sizeMode);
     if (!(ulStyle & WS_VISIBLE)) {
       if (sizeMode == nsSizeMode_Maximized) {
         ulFlags |= SWP_MAXIMIZE;
@@ -313,7 +314,9 @@ void os2FrameWindow::ActivateTopLevelWidget()
   // be restored as soon as the user clicks on it.  When the user
   // explicitly restores it, SetSizeMode() will call this method.
   if (mNeedActivation) {
-    if (mOwner->SizeMode() != nsSizeMode_Minimized) {
+    int32_t sizeMode;
+    mOwner->GetSizeMode(&sizeMode);
+    if (sizeMode != nsSizeMode_Minimized) {
       mNeedActivation = false;
       DEBUGFOCUS(NS_ACTIVATE);
       mOwner->DispatchActivationEvent(NS_ACTIVATE);
@@ -330,7 +333,8 @@ void os2FrameWindow::ActivateTopLevelWidget()
 
 nsresult os2FrameWindow::SetSizeMode(int32_t aMode)
 {
-  int32_t previousMode = mOwner->SizeMode();
+  int32_t previousMode;
+  mOwner->GetSizeMode(&previousMode);
 
   // save the new state
   nsresult rv = mOwner->nsBaseWidget::SetSizeMode(aMode);

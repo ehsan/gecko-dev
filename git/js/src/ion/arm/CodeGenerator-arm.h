@@ -135,7 +135,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
     bool visitLoadElementT(LLoadElementT *load);
 
     bool visitGuardShape(LGuardShape *guard);
-    bool visitGuardObjectType(LGuardObjectType *guard);
     bool visitGuardClass(LGuardClass *guard);
     bool visitImplicitThis(LImplicitThis *lir);
 
@@ -143,8 +142,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
 
     bool visitNegI(LNegI *lir);
     bool visitNegD(LNegD *lir);
-    bool visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic *ins);
-    bool visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStatic *ins);
     bool visitAsmJSLoadHeap(LAsmJSLoadHeap *ins);
     bool visitAsmJSStoreHeap(LAsmJSStoreHeap *ins);
     bool visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins);

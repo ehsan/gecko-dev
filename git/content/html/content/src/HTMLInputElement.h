@@ -602,14 +602,6 @@ public:
     aRv = ApplyStep(-aN);
   }
 
-  /**
-   * Returns the current step value.
-   * Returns kStepAny if the current step is "any" string.
-   *
-   * @return the current step value.
-   */
-  double GetStep() const;
-
   void GetValidationMessage(nsAString& aValidationMessage, ErrorResult& aRv);
 
   // XPCOM GetCustomVisibility() is OK
@@ -658,8 +650,7 @@ public:
   // XPCOM GetPhonetic() is OK
 
 protected:
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
   // by the nsITextControlElement version.
@@ -1036,6 +1027,14 @@ protected:
   double GetStepScaleFactor() const;
 
   /**
+   * Returns the current step value.
+   * Returns kStepAny if the current step is "any" string.
+   *
+   * @return the current step value.
+   */
+  double GetStep() const;
+
+  /**
    * Return the base used to compute if a value matches step.
    * Basically, it's the min attribute if present and a default value otherwise.
    *
@@ -1071,7 +1070,7 @@ protected:
    * This is used in situations where the anonymous subtree should already have
    * sent a DOMActivate and prevents firing more than once.
    */
-  bool ShouldPreventDOMActivateDispatch(EventTarget* aOriginalTarget);
+  bool ShouldPreventDOMActivateDispatch(nsIDOMEventTarget* aOriginalTarget);
 
   nsCOMPtr<nsIControllers> mControllers;
 

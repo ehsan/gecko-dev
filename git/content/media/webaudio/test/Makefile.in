@@ -17,32 +17,20 @@ MOCHITEST_FILES := \
   test_bug839753.html \
   test_bug845960.html \
   test_bug856771.html \
-  test_bug866570.html \
-  test_bug866737.html \
-  test_bug867089.html \
   test_analyserNode.html \
   test_AudioBuffer.html \
   test_AudioContext.html \
   test_AudioListener.html \
   test_AudioParam.html \
-  test_audioBufferSourceNode.html \
-  test_audioBufferSourceNodeLoop.html \
-  test_audioBufferSourceNodeLoopStartEnd.html \
-  test_audioBufferSourceNodeLoopStartEndSame.html \
-  test_audioBufferSourceNodeNullBuffer.html \
   test_badConnect.html \
   test_biquadFilterNode.html \
   test_currentTime.html \
   test_delayNode.html \
-  test_delayNodeWithGain.html \
   test_decodeAudioData.html \
   test_dynamicsCompressorNode.html \
   test_gainNode.html \
-  test_mixingRules.html \
   test_pannerNode.html \
-  test_scriptProcessorNode.html \
   test_singleSourceDest.html \
-  test_audioBufferSourceNodeLazyLoopParam.html \
   ting.ogg \
   ting-expected.wav \
   ting-dualchannel44.1.ogg \

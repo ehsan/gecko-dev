@@ -103,8 +103,6 @@ BrowserElementChild.prototype = {
     // Counter of contextmenu events fired
     this._ctxCounter = 0;
 
-    this._shuttingDown = false;
-
     addEventListener('DOMTitleChanged',
                      this._titleChangedHandler.bind(this),
                      /* useCapture = */ true,
@@ -113,16 +111,6 @@ BrowserElementChild.prototype = {
     addEventListener('DOMLinkAdded',
                      this._iconChangedHandler.bind(this),
                      /* useCapture = */ true,
-                     /* wantsUntrusted = */ false);
-
-    // This listens to unload events from our message manager, but /not/ from
-    // the |content| window.  That's because the window's unload event doesn't
-    // bubble, and we're not using a capturing listener.  If we'd used
-    // useCapture == true, we /would/ hear unload events from the window, which
-    // is not what we want!
-    addEventListener('unload',
-                     this._unloadHandler.bind(this),
-                     /* useCapture = */ false,
                      /* wantsUntrusted = */ false);
 
     // Registers a MozAfterPaint handler for the very first paint.
@@ -197,10 +185,6 @@ BrowserElementChild.prototype = {
     Services.obs.addObserver(this,
                              'ask-parent-to-rollback-fullscreen',
                              /* ownsWeak = */ true);
-
-    Services.obs.addObserver(this,
-                             'xpcom-shutdown',
-                             /* ownsWeak = */ true);
   },
 
   observe: function(subject, topic, data) {
@@ -217,18 +201,7 @@ BrowserElementChild.prototype = {
       case 'ask-parent-to-rollback-fullscreen':
         sendAsyncMsg('rollback-fullscreen');
         break;
-      case 'xpcom-shutdown':
-        this._shuttingDown = true;
-        break;
     }
-  },
-
-  /**
-   * Called when our TabChildGlobal starts to die.  This is not called when the
-   * page inside |content| unloads.
-   */
-  _unloadHandler: function() {
-    this._shuttingDown = true;
   },
 
   _tryGetInnerWindowID: function(win) {
@@ -302,10 +275,9 @@ BrowserElementChild.prototype = {
 
     let thread = Services.tm.currentThread;
     debug("Nested event loop - begin");
-    while (win.modalDepth == origModalDepth && !this._shuttingDown) {
+    while (win.modalDepth == origModalDepth) {
       // Bail out of the loop if the inner window changed; that means the
-      // window navigated.  Bail out when we're shutting down because otherwise
-      // we'll leak our window.
+      // window navigated.
       if (this._tryGetInnerWindowID(win) !== innerWindowID) {
         debug("_waitForResult: Inner window ID changed " +
               "while in nested event loop.");
@@ -326,9 +298,7 @@ BrowserElementChild.prototype = {
     let returnValue = win.modalReturnValue;
     delete win.modalReturnValue;
 
-    if (!this._shuttingDown) {
-      utils.leaveModalStateWithWindow(modalStateWin);
-    }
+    utils.leaveModalStateWithWindow(modalStateWin);
 
     debug("Leaving modal state (outerID=" + outerWindowID + ", " +
                                "innerID=" + innerWindowID + ")");
@@ -676,7 +646,13 @@ BrowserElementChild.prototype = {
     }
 
     this._forcedVisible = data.json.visible;
-    this._updateVisibility();
+    this._updateDocShellVisibility();
+
+    // Fire a notification to the ProcessPriorityManager to reset this
+    // process's priority now (as opposed to after a brief delay).
+    var os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
+    os.notifyObservers(/* subject */ null, 'process-priority:reset-now',
+                       /* data */ null);
   },
 
   _recvVisible: function(data) {
@@ -693,14 +669,13 @@ BrowserElementChild.prototype = {
   _recvOwnerVisibilityChange: function(data) {
     debug("Received ownerVisibilityChange: (" + data.json.visible + ")");
     this._ownerVisible = data.json.visible;
-    this._updateVisibility();
+    this._updateDocShellVisibility();
   },
 
-  _updateVisibility: function() {
+  _updateDocShellVisibility: function() {
     var visible = this._forcedVisible && this._ownerVisible;
     if (docShell.isActive !== visible) {
       docShell.isActive = visible;
-      sendAsyncMsg('visibility-change', {visible: visible});
     }
   },
 

@@ -85,7 +85,7 @@ ProfileResetCleanup(nsIToolkitProfile* aOldProfile)
                                 getter_Copies(resetBackupDirectoryName));
 
   // Get info to copy the old root profile dir to the desktop as a backup.
-  nsCOMPtr<nsIFile> backupDest, containerDest, profileDest;
+  nsCOMPtr<nsIFile> backupDest, uniqueDest;
   rv = NS_GetSpecialDirectory(NS_OS_DESKTOP_DIR, getter_AddRefs(backupDest));
   if (NS_FAILED(rv)) {
     // Fall back to the home directory if the desktop is not available.
@@ -93,38 +93,17 @@ ProfileResetCleanup(nsIToolkitProfile* aOldProfile)
     if (NS_FAILED(rv)) return rv;
   }
 
-  // Try to create a directory for all the backups
-  backupDest->Clone(getter_AddRefs(containerDest));
-  containerDest->Append(resetBackupDirectoryName);
-  rv = containerDest->Create(nsIFile::DIRECTORY_TYPE, 0700);
-  // It's OK if it already exists, if and only if it is a directory
-  if (rv == NS_ERROR_FILE_ALREADY_EXISTS) {
-    bool containerIsDir;
-    rv = containerDest->IsDirectory(&containerIsDir);
-    if (NS_FAILED(rv) || !containerIsDir) {
-      return rv;
-    }
-  } else if (NS_FAILED(rv)) {
-    return rv;
-  }
+  // Try to get a unique backup directory name.
+  backupDest->Clone(getter_AddRefs(uniqueDest));
+  uniqueDest->Append(resetBackupDirectoryName);
+  rv = uniqueDest->CreateUnique(nsIFile::DIRECTORY_TYPE, 0700);
+  if (NS_FAILED(rv)) return rv;
 
-  // Get the name of the profile
   nsAutoString leafName;
-  rv = profileDir->GetLeafName(leafName);
+  rv = uniqueDest->GetLeafName(leafName);
   if (NS_FAILED(rv)) return rv;
-
-  // Try to create a unique directory for the profile:
-  containerDest->Clone(getter_AddRefs(profileDest));
-  profileDest->Append(leafName);
-  rv = profileDest->CreateUnique(nsIFile::DIRECTORY_TYPE, 0700);
-  if (NS_FAILED(rv)) return rv;
-
-  // Get the unique profile name
-  rv = profileDest->GetLeafName(leafName);
-  if (NS_FAILED(rv)) return rv;
-
   // Delete the empty directory that CreateUnique just created.
-  rv = profileDest->Remove(false);
+  rv = uniqueDest->Remove(false);
   if (NS_FAILED(rv)) return rv;
 
   // Show a progress window while the cleanup happens since the disk I/O can take time.
@@ -149,7 +128,7 @@ ProfileResetCleanup(nsIToolkitProfile* aOldProfile)
   rv = tm->NewThread(0, 0, getter_AddRefs(cleanupThread));
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsIRunnable> runnable = new ProfileResetCleanupAsyncTask(profileDir, profileLocalDir,
-                                                                      containerDest, leafName);
+                                                                      backupDest, leafName);
     cleanupThread->Dispatch(runnable, nsIThread::DISPATCH_NORMAL);
     // The result callback will shut down the worker thread.
 
@@ -166,7 +145,7 @@ ProfileResetCleanup(nsIToolkitProfile* aOldProfile)
   // Close the progress window now that the cleanup thread is done.
   progressWindow->Close();
 
-  // Delete the old profile from profiles.ini. The folder was already deleted by the thread above.
+  // Delete the old profile from profiles.ini. The folder was already deleted above.
   rv = aOldProfile->Remove(false);
   if (NS_FAILED(rv)) NS_WARNING("Could not remove the profile");
 

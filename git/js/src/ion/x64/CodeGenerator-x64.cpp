@@ -385,20 +385,6 @@ CodeGeneratorX64::visitUInt32ToDouble(LUInt32ToDouble *lir)
 }
 
 bool
-CodeGeneratorX64::visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic *ins)
-{
-    JS_NOT_REACHED("NYI");
-    return true;
-}
-
-bool
-CodeGeneratorX64::visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStatic *ins)
-{
-    JS_NOT_REACHED("NYI");
-    return true;
-}
-
-bool
 CodeGeneratorX64::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
 {
     MAsmJSLoadHeap *mir = ins->mir();

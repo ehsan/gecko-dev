@@ -504,8 +504,6 @@ SECU_ReadDERFromFile(SECItem *der, PRFileDesc *inFile, PRBool ascii)
 
 	/* Read in ascii data */
 	rv = SECU_FileToItem(&filedata, inFile);
-	if (rv != SECSuccess)
-	    return rv;
 	asc = (char *)filedata.data;
 	if (!asc) {
 	    fprintf(stderr, "unable to read data from input file\n");
@@ -521,27 +519,20 @@ SECU_ReadDERFromFile(SECItem *der, PRFileDesc *inFile, PRBool ascii)
 		body = PORT_Strchr(asc, '\r'); /* maybe this is a MAC file */
 	    if (body)
 		trailer = strstr(++body, "-----END");
-	    if (trailer != NULL)
+	    if (trailer != NULL) {
 		*trailer = '\0';
-	    if (!body || !trailer) {
+	    } else {
 		fprintf(stderr, "input has header but no trailer\n");
 		PORT_Free(filedata.data);
 		return SECFailure;
 	    }
 	} else {
-	    /* need one additional byte for zero terminator */
-	    rv = SECITEM_ReallocItem(NULL, &filedata, filedata.len, filedata.len+1);
-	    if (rv != SECSuccess) {
-		PORT_Free(filedata.data);
-		return rv;
-	    }
-	    body = (char*)filedata.data;
-	    body[filedata.len-1] = '\0';
+	    body = asc;
 	}
      
 	/* Convert to binary */
 	rv = ATOB_ConvertAsciiToItem(der, body);
-	if (rv != SECSuccess) {
+	if (rv) {
 	    fprintf(stderr, "error converting ascii to binary (%s)\n",
 		    SECU_Strerror(PORT_GetError()));
 	    PORT_Free(filedata.data);
@@ -552,7 +543,7 @@ SECU_ReadDERFromFile(SECItem *der, PRFileDesc *inFile, PRBool ascii)
     } else {
 	/* Read in binary der */
 	rv = SECU_FileToItem(der, inFile);
-	if (rv != SECSuccess) {
+	if (rv) {
 	    fprintf(stderr, "error converting der (%s)\n", 
 		    SECU_Strerror(PORT_GetError()));
 	    return SECFailure;

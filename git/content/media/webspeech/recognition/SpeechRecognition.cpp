@@ -38,6 +38,10 @@ static const uint32_t kSPEECH_DETECTION_TIMEOUT_MS = 10000;
 // kSAMPLE_RATE frames = 1s, kESTIMATION_FRAMES frames = 300ms
 static const uint32_t kESTIMATION_SAMPLES = 300 * kSAMPLE_RATE / 1000;
 
+#define STATE_EQUALS(state) (mCurrentState == state)
+#define STATE_BETWEEN(state1, state2) \
+  (mCurrentState >= (state1) && mCurrentState <= (state2))
+
 #ifdef PR_LOGGING
 PRLogModuleInfo*
 GetSpeechRecognitionLog()
@@ -64,7 +68,8 @@ NS_IMPL_RELEASE_INHERITED(SpeechRecognition, nsDOMEventTargetHelper)
 struct SpeechRecognition::TestConfig SpeechRecognition::mTestConfig;
 
 SpeechRecognition::SpeechRecognition()
-  : mEndpointer(kSAMPLE_RATE)
+  : mProcessingEvent(false)
+  , mEndpointer(kSAMPLE_RATE)
   , mAudioSamplesPerChunk(mEndpointer.FrameSize())
   , mSpeechDetectionTimer(do_CreateInstance(NS_TIMER_CONTRACTID))
 {
@@ -84,25 +89,11 @@ SpeechRecognition::SpeechRecognition()
       Preferences::GetInt(PREFERENCE_ENDPOINTER_LONG_SILENCE_LENGTH, 1000000));
   mEndpointer.set_long_speech_length(
       Preferences::GetInt(PREFERENCE_ENDPOINTER_SILENCE_LENGTH, 3 * 1000000));
-  Reset();
-}
-
-bool
-SpeechRecognition::StateBetween(FSMState begin, FSMState end)
-{
-  return mCurrentState >= begin && mCurrentState <= end;
-}
-
-void
-SpeechRecognition::SetState(FSMState state)
-{
-  mCurrentState = state;
-  SR_LOG("Transitioned to state %s", GetName(mCurrentState));
-  return;
+  mCurrentState = Reset();
 }
 
 JSObject*
-SpeechRecognition::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SpeechRecognition::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return SpeechRecognitionBinding::Wrap(aCx, aScope, this);
 }
@@ -130,26 +121,19 @@ SpeechRecognition::GetParentObject() const
 void
 SpeechRecognition::ProcessEvent(SpeechEvent* aEvent)
 {
-  SR_LOG("Processing %s, current state is %s",
-         GetName(aEvent),
-         GetName(mCurrentState));
+  SR_LOG("Processing event %d", aEvent->mType);
 
-  // Run priority events first
-  for (uint32_t i = 0; i < mPriorityEvents.Length(); ++i) {
-    nsRefPtr<SpeechEvent> event = mPriorityEvents[i];
+  MOZ_ASSERT(!mProcessingEvent, "Event dispatch should be sequential!");
+  mProcessingEvent = true;
 
-    SR_LOG("Processing priority %s", GetName(event));
-    Transition(event);
-  }
-
-  mPriorityEvents.Clear();
-
-  SR_LOG("Processing %s received as argument", GetName(aEvent));
-  Transition(aEvent);
+  SR_LOG("Current state: %d", mCurrentState);
+  mCurrentState = TransitionAndGetNextState(aEvent);
+  SR_LOG("Transitioned to state: %d", mCurrentState);
+  mProcessingEvent = false;
 }
 
-void
-SpeechRecognition::Transition(SpeechEvent* aEvent)
+SpeechRecognition::FSMState
+SpeechRecognition::TransitionAndGetNextState(SpeechEvent* aEvent)
 {
   switch (mCurrentState) {
     case STATE_IDLE:
@@ -157,161 +141,110 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
         case EVENT_START:
           // TODO: may want to time out if we wait too long
           // for user to approve
-          WaitForAudioData(aEvent);
-          break;
+          return STATE_STARTING;
         case EVENT_STOP:
         case EVENT_ABORT:
         case EVENT_AUDIO_DATA:
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
         case EVENT_RECOGNITIONSERVICE_FINAL_RESULT:
-          DoNothing(aEvent);
-          break;
+          return DoNothing(aEvent);
         case EVENT_AUDIO_ERROR:
         case EVENT_RECOGNITIONSERVICE_ERROR:
-          AbortError(aEvent);
-          break;
-        case EVENT_COUNT:
-          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
+          return AbortError(aEvent);
       }
-      break;
     case STATE_STARTING:
       switch (aEvent->mType) {
         case EVENT_AUDIO_DATA:
-          StartedAudioCapture(aEvent);
-          break;
+          return StartedAudioCapture(aEvent);
         case EVENT_AUDIO_ERROR:
         case EVENT_RECOGNITIONSERVICE_ERROR:
-          AbortError(aEvent);
-          break;
+          return AbortError(aEvent);
         case EVENT_ABORT:
-          AbortSilently(aEvent);
-          break;
+          return AbortSilently(aEvent);
         case EVENT_STOP:
-          Reset();
-          break;
+          return Reset();
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
         case EVENT_RECOGNITIONSERVICE_FINAL_RESULT:
-          DoNothing(aEvent);
-          break;
+          return DoNothing(aEvent);
         case EVENT_START:
-          SR_LOG("STATE_STARTING: Unhandled event %s", GetName(aEvent));
+          SR_LOG("STATE_STARTING: Unhandled event %d", aEvent->mType);
           MOZ_NOT_REACHED("");
-        case EVENT_COUNT:
-          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
-      break;
     case STATE_ESTIMATING:
       switch (aEvent->mType) {
         case EVENT_AUDIO_DATA:
-          WaitForEstimation(aEvent);
-          break;
+          return WaitForEstimation(aEvent);
         case EVENT_STOP:
-          StopRecordingAndRecognize(aEvent);
-          break;
+          return StopRecordingAndRecognize(aEvent);
         case EVENT_ABORT:
-          AbortSilently(aEvent);
-          break;
+          return AbortSilently(aEvent);
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
         case EVENT_RECOGNITIONSERVICE_FINAL_RESULT:
         case EVENT_RECOGNITIONSERVICE_ERROR:
-          DoNothing(aEvent);
-          break;
-        case EVENT_AUDIO_ERROR:
-          AbortError(aEvent);
-          break;
+          return DoNothing(aEvent);
         case EVENT_START:
+        case EVENT_AUDIO_ERROR:
           SR_LOG("STATE_ESTIMATING: Unhandled event %d", aEvent->mType);
           MOZ_NOT_REACHED("");
-        case EVENT_COUNT:
-          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
-      break;
     case STATE_WAITING_FOR_SPEECH:
       switch (aEvent->mType) {
         case EVENT_AUDIO_DATA:
-          DetectSpeech(aEvent);
-          break;
+          return DetectSpeech(aEvent);
         case EVENT_STOP:
-          StopRecordingAndRecognize(aEvent);
-          break;
+          return StopRecordingAndRecognize(aEvent);
         case EVENT_ABORT:
-          AbortSilently(aEvent);
-          break;
+          return AbortSilently(aEvent);
         case EVENT_AUDIO_ERROR:
-          AbortError(aEvent);
-          break;
+          return AbortError(aEvent);
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
         case EVENT_RECOGNITIONSERVICE_FINAL_RESULT:
         case EVENT_RECOGNITIONSERVICE_ERROR:
-          DoNothing(aEvent);
-          break;
+          return DoNothing(aEvent);
         case EVENT_START:
-          SR_LOG("STATE_STARTING: Unhandled event %s", GetName(aEvent));
+          SR_LOG("STATE_STARTING: Unhandled event %d", aEvent->mType);
           MOZ_NOT_REACHED("");
-        case EVENT_COUNT:
-          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
-      break;
     case STATE_RECOGNIZING:
       switch (aEvent->mType) {
         case EVENT_AUDIO_DATA:
-          WaitForSpeechEnd(aEvent);
-          break;
+          return WaitForSpeechEnd(aEvent);
         case EVENT_STOP:
-          StopRecordingAndRecognize(aEvent);
-          break;
+          return StopRecordingAndRecognize(aEvent);
         case EVENT_AUDIO_ERROR:
         case EVENT_RECOGNITIONSERVICE_ERROR:
-          AbortError(aEvent);
-          break;
+          return AbortError(aEvent);
         case EVENT_ABORT:
-          AbortSilently(aEvent);
-          break;
+          return AbortSilently(aEvent);
         case EVENT_RECOGNITIONSERVICE_FINAL_RESULT:
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
-          DoNothing(aEvent);
-          break;
+          return DoNothing(aEvent);
         case EVENT_START:
-          SR_LOG("STATE_RECOGNIZING: Unhandled aEvent %s", GetName(aEvent));
+          SR_LOG("STATE_RECOGNIZING: Unhandled aEvent %d", aEvent->mType);
           MOZ_NOT_REACHED("");
-        case EVENT_COUNT:
-          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
-      break;
     case STATE_WAITING_FOR_RESULT:
       switch (aEvent->mType) {
         case EVENT_STOP:
-          DoNothing(aEvent);
-          break;
+          return DoNothing(aEvent);
         case EVENT_AUDIO_ERROR:
         case EVENT_RECOGNITIONSERVICE_ERROR:
-          AbortError(aEvent);
-          break;
+          return AbortError(aEvent);
         case EVENT_RECOGNITIONSERVICE_FINAL_RESULT:
-          NotifyFinalResult(aEvent);
-          break;
+          return NotifyFinalResult(aEvent);
         case EVENT_AUDIO_DATA:
-          DoNothing(aEvent);
-          break;
+          return DoNothing(aEvent);
         case EVENT_ABORT:
-          AbortSilently(aEvent);
-          break;
+          return AbortSilently(aEvent);
         case EVENT_START:
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
-          SR_LOG("STATE_WAITING_FOR_RESULT: Unhandled aEvent %s", GetName(aEvent));
+          SR_LOG("STATE_WAITING_FOR_RESULT: Unhandled aEvent %d", aEvent->mType);
           MOZ_NOT_REACHED("");
-        case EVENT_COUNT:
-          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
-      break;
-    case STATE_ABORTING:
-      DoNothing(aEvent);
-      break;
-    case STATE_COUNT:
-      MOZ_NOT_REACHED("Invalid state STATE_COUNT");
   }
-
-  return;
+  SR_LOG("Unhandled state %d", mCurrentState);
+  MOZ_NOT_REACHED("");
+  return mCurrentState;
 }
 
 /*
@@ -361,116 +294,101 @@ SpeechRecognition::GetRecognitionServiceCID(nsACString& aResultCID)
   return;
 }
 
-/****************************************************************************
- * FSM Transition functions
- *
- * If a transition function may cause a DOM event to be fired,
- * it may also be re-entered, since the event handler may cause the
- * event loop to spin and new SpeechEvents to be processed.
- *
- * Rules:
- * 1) These methods should call SetState as soon as possible.
- * 2) If these methods dispatch DOM events, or call methods that dispatch
- * DOM events, that should be done as late as possible.
- * 3) If anything must happen after dispatching a DOM event, make sure
- * the state is still what the method expected it to be.
- ****************************************************************************/
+/****************************
+ * FSM Transition functions *
+ ****************************/
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::Reset()
 {
-  SetState(STATE_IDLE);
   mRecognitionService = nullptr;
   mEstimationSamples = 0;
   mBufferedSamples = 0;
   mSpeechDetectionTimer->Cancel();
+
+  return STATE_IDLE;
 }
 
-void
+/*
+ * Since the handler for "end" may call
+ * start(), we want to fully reset before dispatching
+ * the event.
+ */
+SpeechRecognition::FSMState
 SpeechRecognition::ResetAndEnd()
 {
-  Reset();
+  mCurrentState = Reset();
   DispatchTrustedEvent(NS_LITERAL_STRING("end"));
+  return mCurrentState;
 }
 
-void
-SpeechRecognition::WaitForAudioData(SpeechEvent* aEvent)
-{
-  SetState(STATE_STARTING);
-}
-
-void
+SpeechRecognition::FSMState
 SpeechRecognition::StartedAudioCapture(SpeechEvent* aEvent)
 {
-  SetState(STATE_ESTIMATING);
-
   mEndpointer.SetEnvironmentEstimationMode();
   mEstimationSamples += ProcessAudioSegment(aEvent->mAudioSegment);
 
+  DispatchTrustedEvent(NS_LITERAL_STRING("start"));
   DispatchTrustedEvent(NS_LITERAL_STRING("audiostart"));
-  if (mCurrentState == STATE_ESTIMATING) {
-    DispatchTrustedEvent(NS_LITERAL_STRING("start"));
-  }
+
+  return STATE_ESTIMATING;
 }
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::StopRecordingAndRecognize(SpeechEvent* aEvent)
 {
-  SetState(STATE_WAITING_FOR_RESULT);
-
+  StopRecording();
   MOZ_ASSERT(mRecognitionService, "Service deleted before recording done");
   mRecognitionService->SoundEnd();
 
-  StopRecording();
+  return STATE_WAITING_FOR_RESULT;
 }
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::WaitForEstimation(SpeechEvent* aEvent)
 {
-  SetState(STATE_ESTIMATING);
-
   mEstimationSamples += ProcessAudioSegment(aEvent->mAudioSegment);
+
   if (mEstimationSamples > kESTIMATION_SAMPLES) {
     mEndpointer.SetUserInputMode();
-    SetState(STATE_WAITING_FOR_SPEECH);
+    return STATE_WAITING_FOR_SPEECH;
   }
+
+  return STATE_ESTIMATING;
 }
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::DetectSpeech(SpeechEvent* aEvent)
 {
-  SetState(STATE_WAITING_FOR_SPEECH);
-
   ProcessAudioSegment(aEvent->mAudioSegment);
+
   if (mEndpointer.DidStartReceivingSpeech()) {
     mSpeechDetectionTimer->Cancel();
-    SetState(STATE_RECOGNIZING);
     DispatchTrustedEvent(NS_LITERAL_STRING("speechstart"));
+    return STATE_RECOGNIZING;
   }
+
+  return STATE_WAITING_FOR_SPEECH;
 }
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::WaitForSpeechEnd(SpeechEvent* aEvent)
 {
-  SetState(STATE_RECOGNIZING);
-
   ProcessAudioSegment(aEvent->mAudioSegment);
-  if (mEndpointer.speech_input_complete()) {
-    DispatchTrustedEvent(NS_LITERAL_STRING("speechend"));
 
-    if (mCurrentState == STATE_RECOGNIZING) {
-      // FIXME: StopRecordingAndRecognize should only be called for single
-      // shot services for continuous we should just inform the service
-      StopRecordingAndRecognize(aEvent);
-    }
+  if (mEndpointer.speech_input_complete()) {
+    // FIXME: StopRecordingAndRecognize should only be called for single
+    // shot services for continous we should just inform the service
+    DispatchTrustedEvent(NS_LITERAL_STRING("speechend"));
+    return StopRecordingAndRecognize(aEvent);
   }
+
+   return STATE_RECOGNIZING;
 }
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::NotifyFinalResult(SpeechEvent* aEvent)
 {
-  ResetAndEnd();
-
   nsCOMPtr<nsIDOMEvent> domEvent;
   NS_NewDOMSpeechRecognitionEvent(getter_AddRefs(domEvent), nullptr, nullptr, nullptr);
 
@@ -485,37 +403,35 @@ SpeechRecognition::NotifyFinalResult(SpeechEvent* aEvent)
 
   bool defaultActionEnabled;
   this->DispatchEvent(domEvent, &defaultActionEnabled);
+  return ResetAndEnd();
 }
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::DoNothing(SpeechEvent* aEvent)
 {
+  return mCurrentState;
 }
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::AbortSilently(SpeechEvent* aEvent)
 {
-  bool stopRecording = StateBetween(STATE_ESTIMATING, STATE_RECOGNIZING);
-
-  // prevent reentrancy from DOM events
-  SetState(STATE_ABORTING);
-
   if (mRecognitionService) {
     mRecognitionService->Abort();
   }
 
-  if (stopRecording) {
+  if (STATE_BETWEEN(STATE_ESTIMATING, STATE_RECOGNIZING)) {
     StopRecording();
   }
 
-  ResetAndEnd();
+  return ResetAndEnd();
 }
 
-void
+SpeechRecognition::FSMState
 SpeechRecognition::AbortError(SpeechEvent* aEvent)
 {
-  AbortSilently(aEvent);
+  FSMState nextState = AbortSilently(aEvent);
   NotifyError(aEvent);
+  return nextState;
 }
 
 void
@@ -573,7 +489,7 @@ SpeechRecognition::Observe(nsISupports* aSubject, const char* aTopic,
   MOZ_ASSERT(NS_IsMainThread(), "Observer invoked off the main thread");
 
   if (!strcmp(aTopic, NS_TIMER_CALLBACK_TOPIC) &&
-      StateBetween(STATE_IDLE, STATE_WAITING_FOR_SPEECH)) {
+      STATE_BETWEEN(STATE_IDLE, STATE_WAITING_FOR_SPEECH)) {
 
     DispatchError(SpeechRecognition::EVENT_AUDIO_ERROR,
                   nsIDOMSpeechRecognitionError::NO_SPEECH,
@@ -705,7 +621,7 @@ SpeechRecognition::SetServiceURI(const nsAString& aArg, ErrorResult& aRv)
 void
 SpeechRecognition::Start(ErrorResult& aRv)
 {
-  if (!mCurrentState == STATE_IDLE) {
+  if (!STATE_EQUALS(STATE_IDLE)) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -886,43 +802,6 @@ SpeechRecognition::FeedAudioData(already_AddRefed<SharedBuffer> aSamples,
   NS_DispatchToMainThread(event);
 
   return;
-}
-
-const char*
-SpeechRecognition::GetName(FSMState aId)
-{
-  static const char* names[] = {
-    "STATE_IDLE",
-    "STATE_STARTING",
-    "STATE_ESTIMATING",
-    "STATE_WAITING_FOR_SPEECH",
-    "STATE_RECOGNIZING",
-    "STATE_WAITING_FOR_RESULT",
-    "STATE_ABORTING"
-  };
-
-  MOZ_ASSERT(aId < STATE_COUNT);
-  MOZ_ASSERT(ArrayLength(names) == STATE_COUNT);
-  return names[aId];
-}
-
-const char*
-SpeechRecognition::GetName(SpeechEvent* aEvent)
-{
-  static const char* names[] = {
-    "EVENT_START",
-    "EVENT_STOP",
-    "EVENT_ABORT",
-    "EVENT_AUDIO_DATA",
-    "EVENT_AUDIO_ERROR",
-    "EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT",
-    "EVENT_RECOGNITIONSERVICE_FINAL_RESULT",
-    "EVENT_RECOGNITIONSERVICE_ERROR"
-  };
-
-  MOZ_ASSERT(aEvent->mType < EVENT_COUNT);
-  MOZ_ASSERT(ArrayLength(names) == EVENT_COUNT);
-  return names[aEvent->mType];
 }
 
 NS_IMPL_ISUPPORTS1(SpeechRecognition::GetUserMediaStreamOptions, nsIMediaStreamOptions)

@@ -9,7 +9,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Compiler.h"
 #include "mozilla/Scoped.h"
 
 #include <stdlib.h>
@@ -230,21 +229,8 @@ __BitScanReverse64(unsigned __int64 val)
 # define js_bitscan_clz64(val)  __BitScanReverse64(val)
 # define JS_HAS_BUILTIN_BITSCAN64
 #endif
-#elif MOZ_IS_GCC
+#elif (__GNUC__ >= 4) || (__GNUC__ == 3 && __GNUC_MINOR__ >= 4)
 
-#if MOZ_GCC_VERSION_AT_LEAST(3, 4, 0)
-# define USE_BUILTIN_CTZ
-#endif
-
-#elif defined(__clang__)
-
-#if __has_builtin(__builtin_ctz)
-# define USE_BUILTIN_CTZ
-#endif
-
-#endif
-
-#if defined(USE_BUILTIN_CTZ)
 # define js_bitscan_ctz32(val)  __builtin_ctz(val)
 # define js_bitscan_clz32(val)  __builtin_clz(val)
 # define JS_HAS_BUILTIN_BITSCAN32
@@ -253,8 +239,6 @@ __BitScanReverse64(unsigned __int64 val)
 #  define js_bitscan_clz64(val)  __builtin_clzll(val)
 #  define JS_HAS_BUILTIN_BITSCAN64
 # endif
-
-# undef USE_BUILTIN_CTZ
 
 #endif
 

@@ -51,7 +51,7 @@
 #include "nsRegion.h"
 #include "Layers.h"
 #include "LayerManagerOGL.h"
-#include "mozilla/layers/LayerManagerComposite.h"
+#include "LayerManagerComposite.h"
 #include "GLTextureImage.h"
 #include "mozilla/layers/GLManager.h"
 #include "mozilla/layers/CompositorCocoaWidgetHelper.h"
@@ -241,12 +241,9 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mView(nullptr)
 , mParentView(nullptr)
 , mParentWidget(nullptr)
-, mEffectsLock("WidgetEffects")
-, mShowsResizeIndicator(false)
-, mHasRoundedBottomCorners(false)
+, mBackingScaleFactor(0.0)
 , mFailedResizerImage(false)
 , mFailedCornerMaskImage(false)
-, mBackingScaleFactor(0.0)
 , mVisible(false)
 , mDrawing(false)
 , mPluginDrawing(false)
@@ -274,7 +271,8 @@ nsChildView::~nsChildView()
   
   NS_WARN_IF_FALSE(mOnDestroyCalled, "nsChildView object destroyed without calling Destroy()");
 
-  DestroyCompositor();
+  mResizerImage = nullptr;
+  mCornerMaskImage = nullptr;
 
   // An nsChildView object that was in use can be destroyed without Destroy()
   // ever being called on it.  So we also need to do a quick, safe cleanup
@@ -1830,13 +1828,15 @@ nsChildView::CreateCompositor()
     Compositor *compositor = manager->GetCompositor();
 
     LayersBackend backend = compositor->GetBackend();
-    if (backend == LAYERS_OPENGL) {
-      CompositorOGL *compositorOGL = static_cast<CompositorOGL*>(compositor);
-
-      NSOpenGLContext *glContext = (NSOpenGLContext *)compositorOGL->gl()->GetNativeData(GLContext::NativeGLContext);
-
-      [(ChildView *)mView setGLContext:glContext];
+    if (backend != LAYERS_OPENGL) {
+      NS_RUNTIMEABORT("Unexpected OMTC backend");
     }
+
+    CompositorOGL *compositorOGL = static_cast<CompositorOGL*>(compositor);
+
+    NSOpenGLContext *glContext = (NSOpenGLContext *)compositorOGL->gl()->GetNativeData(GLContext::NativeGLContext);
+
+    [(ChildView *)mView setGLContext:glContext];
     [(ChildView *)mView setUsingOMTCompositor:true];
   }
 }
@@ -1852,31 +1852,13 @@ nsChildView::GetThebesSurface()
 }
 
 void
-nsChildView::PrepareWindowEffects()
-{
-  MutexAutoLock lock(mEffectsLock);
-  mShowsResizeIndicator = ShowsResizeIndicator(&mResizeIndicatorRect);
-  mHasRoundedBottomCorners = [mView isKindOfClass:[ChildView class]] &&
-                             [(ChildView*)mView hasRoundedBottomCorners];
-  CGFloat cornerRadius = [(ChildView*)mView bottomCornerRadius];
-  mDevPixelCornerRadius = cornerRadius * BackingScaleFactor();
-}
-
-void
-nsChildView::CleanupWindowEffects()
-{
-  mResizerImage = nullptr;
-  mCornerMaskImage = nullptr;
-}
-
-void
 nsChildView::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 {
-  nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
-  if (!manager) {
+  if (!aManager) {
     return;
   }
 
+  nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
   MaybeDrawResizeIndicator(manager, aRect);
   MaybeDrawRoundedBottomCorners(manager, aRect);
 }
@@ -1917,15 +1899,14 @@ DrawResizer(CGContextRef aCtx)
 void
 nsChildView::MaybeDrawResizeIndicator(GLManager* aManager, nsIntRect aRect)
 {
-  if (!mShowsResizeIndicator || mFailedResizerImage) {
+  nsIntRect resizeRect;
+  if (!ShowsResizeIndicator(&resizeRect) || mFailedResizerImage) {
     return;
   }
 
   if (!mResizerImage) {
-    MutexAutoLock lock(mEffectsLock);
     mResizerImage =
-      aManager->gl()->CreateTextureImage(nsIntSize(mResizeIndicatorRect.width,
-                                                   mResizeIndicatorRect.height),
+      aManager->gl()->CreateTextureImage(nsIntSize(resizeRect.width, resizeRect.height),
                                          gfxASurface::CONTENT_COLOR_ALPHA,
                                          LOCAL_GL_CLAMP_TO_EDGE,
                                          TextureImage::UseNearestFilter);
@@ -1934,7 +1915,7 @@ nsChildView::MaybeDrawResizeIndicator(GLManager* aManager, nsIntRect aRect)
     if (!mResizerImage)
       return;
 
-    nsIntRegion update(nsIntRect(0, 0, mResizeIndicatorRect.width, mResizeIndicatorRect.height));
+    nsIntRegion update(nsIntRect(0, 0, resizeRect.width, resizeRect.height));
     gfxASurface *asurf = mResizerImage->BeginUpdate(update);
     if (!asurf) {
       mResizerImage = nullptr;
@@ -1989,16 +1970,17 @@ DrawTopLeftCornerMask(CGContextRef aCtx, int aRadius)
 void
 nsChildView::MaybeDrawRoundedBottomCorners(GLManager* aManager, nsIntRect aRect)
 {
-  if (!mHasRoundedBottomCorners ||
+  if (![mView isKindOfClass:[ChildView class]] ||
+      ![(ChildView*)mView hasRoundedBottomCorners] ||
       mFailedCornerMaskImage)
     return;
   
-  MutexAutoLock lock(mEffectsLock);
+  CGFloat cornerRadius = [(ChildView*)mView bottomCornerRadius];
+  int devPixelCornerRadius = cornerRadius * BackingScaleFactor();
   
   if (!mCornerMaskImage) {
     mCornerMaskImage =
-      aManager->gl()->CreateTextureImage(nsIntSize(mDevPixelCornerRadius,
-                                                   mDevPixelCornerRadius),
+      aManager->gl()->CreateTextureImage(nsIntSize(devPixelCornerRadius, devPixelCornerRadius),
                                          gfxASurface::CONTENT_COLOR_ALPHA,
                                          LOCAL_GL_CLAMP_TO_EDGE,
                                          TextureImage::UseNearestFilter);
@@ -2007,7 +1989,7 @@ nsChildView::MaybeDrawRoundedBottomCorners(GLManager* aManager, nsIntRect aRect)
     if (!mCornerMaskImage)
       return;
 
-    nsIntRegion update(nsIntRect(0, 0, mDevPixelCornerRadius, mDevPixelCornerRadius));
+    nsIntRegion update(nsIntRect(0, 0, devPixelCornerRadius, devPixelCornerRadius));
     gfxASurface *asurf = mCornerMaskImage->BeginUpdate(update);
     if (!asurf) {
       mCornerMaskImage = nullptr;
@@ -2025,7 +2007,7 @@ nsChildView::MaybeDrawRoundedBottomCorners(GLManager* aManager, nsIntRect aRect)
     }
     nsRefPtr<gfxQuartzSurface> image = static_cast<gfxQuartzSurface*>(asurf);
     
-    DrawTopLeftCornerMask(image->GetCGContext(), mDevPixelCornerRadius);
+    DrawTopLeftCornerMask(image->GetCGContext(), devPixelCornerRadius);
     
     mCornerMaskImage->EndUpdate();
   }
@@ -2037,8 +2019,8 @@ nsChildView::MaybeDrawRoundedBottomCorners(GLManager* aManager, nsIntRect aRect)
   ShaderProgramOGL *program = aManager->GetProgram(mCornerMaskImage->GetShaderProgramType());
   program->Activate();
   program->SetLayerQuadRect(nsIntRect(0, 0, // aRect.x, aRect.y,
-                                      mDevPixelCornerRadius,
-                                      mDevPixelCornerRadius));
+                                      devPixelCornerRadius,
+                                      devPixelCornerRadius));
   program->SetLayerOpacity(1.0);
   program->SetRenderOffset(nsIntPoint(0,0));
   program->SetTextureUnit(0);
@@ -2217,6 +2199,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mLastMouseDownEvent = nil;
     mClickThroughMouseDownEvent = nil;
     mDragService = nullptr;
+
+    [self setAcceptsTouchEvents:YES];
 
     mGestureState = eGestureState_None;
     mCumulativeMagnification = 0.0;
@@ -2836,7 +2820,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   bool painted;
-  if (mGeckoChild->GetLayerManager()->GetBackendType() == LAYERS_BASIC) {
+  {
     nsBaseWidget::AutoLayerManagerSetup
       setupLayerManager(mGeckoChild, targetContext, BUFFER_NONE);
     painted = mGeckoChild->PaintWindow(region, aIsAlternate);
@@ -2846,7 +2830,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // Mac OS X bug that stops windows updating on OS X when we use OpenGL.
   LayerManager *layerManager = mGeckoChild->GetLayerManager(nullptr);
   if (mUsingOMTCompositor && painted && !mDidForceRefreshOpenGL &&
-      layerManager->AsLayerManagerComposite()) {
+      layerManager->AsShadowManager()) {
     if (!mDidForceRefreshOpenGL) {
       [self performSelector:@selector(forceRefreshOpenGL) withObject:nil afterDelay:0];
       mDidForceRefreshOpenGL = YES;
@@ -3152,16 +3136,94 @@ NSEvent* gLastDragMouseDownEvent = nil;
 }
 
 /*
- * In OS X Mountain Lion and above, smart zoom gestures are implemented in
- * smartMagnifyWithEvent. In OS X Lion, they are implemented in
- * magnifyWithEvent. See inline comments for more info.
+ * XXX - The swipeWithEvent, beginGestureWithEvent, magnifyWithEvent,
+ * rotateWithEvent, and endGestureWithEvent methods are part of a
+ * PRIVATE interface exported by nsResponder and reverse-engineering
+ * was necessary to obtain the methods' prototypes. Thus, Apple may
+ * change the interface in the future without notice.
  *
- * The prototypes swipeWithEvent, beginGestureWithEvent, magnifyWithEvent,
- * smartMagnifyWithEvent, rotateWithEvent, and endGestureWithEvent were
- * obtained from the following links:
- * https://developer.apple.com/library/mac/#documentation/Cocoa/Reference/ApplicationKit/Classes/NSResponder_Class/Reference/Reference.html
- * https://developer.apple.com/library/mac/#releasenotes/Cocoa/AppKit.html
+ * XXX - The tapWithEvent is a custom gesture that is set up below.
+ *       Cocoa doesn't recognize double-taps by default, so the
+ *       recognition is done mainly by touchesBeganWithEvent.
+ *
+ * The prototypes were obtained from the following link:
+ * http://cocoadex.com/2008/02/nsevent-modifications-swipe-ro.html
  */
+
+- (void)touchesBeganWithEvent:(NSEvent *)anEvent
+{
+  if (!anEvent) {
+    return;
+  }
+
+  // Set up for recognition of a double tap gesture
+  NSSet* touches =
+    [anEvent touchesMatchingPhase:NSTouchPhaseTouching inView:self];
+  NSUInteger touchCount = [touches count];
+  if (touchCount != 2) {
+    // Cancel double tap if 3+ fingers touch
+    if (mGestureState == eGestureState_TapGesture && touchCount > 2) {
+      mGestureState = eGestureState_None;
+    }
+    return;
+  }
+
+  if (mGestureState == eGestureState_TapGesture) {
+    NSTimeInterval deltaTapTime =
+      [NSDate timeIntervalSinceReferenceDate] - mFirstTapTime;
+    if (deltaTapTime <= [NSEvent doubleClickInterval] &&
+        deltaTapTime > 0.00) {
+      [self tapWithEvent: anEvent];
+      return;
+    }
+  }
+  mGestureState = eGestureState_TapGesture;
+  mFirstTapTime = [NSDate timeIntervalSinceReferenceDate];
+}
+
+- (void)touchesMovedWithEvent:(NSEvent *)anEvent
+{
+  // Cancel double tap if there's movement
+  if (mGestureState == eGestureState_TapGesture) {
+    mGestureState = eGestureState_None;
+  }
+}
+
+- (void)touchesEndedWithEvent:(NSEvent *)anEvent
+{
+  return;
+}
+
+- (void)touchesCancelledWithEvent:(NSEvent *)anEvent
+{
+  // Clear the gestures state.
+  mGestureState = eGestureState_None;
+}
+
+- (void)tapWithEvent:(NSEvent *)anEvent
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (!anEvent) {
+    return;
+  }
+
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
+
+  // Setup the "double tap" event.
+  nsSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_TAP,
+                                  mGeckoChild, 0, 0.0);
+  [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
+  geckoEvent.clickCount = 1;
+
+  // Send the event.
+  mGeckoChild->DispatchWindowEvent(geckoEvent);
+
+  // Clear the gesture state
+  mGestureState = eGestureState_None;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
 
 - (void)swipeWithEvent:(NSEvent *)anEvent
 {
@@ -3214,15 +3276,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!anEvent || !mGeckoChild)
     return;
 
-  /*
-   * In OS X 10.7.* (Lion), smart zoom events come through magnifyWithEvent,
-   * instead of smartMagnifyWithEvent. See bug 863841.
-   */
-  if ([ChildView isLionSmartMagnifyEvent: anEvent]) {
-    [self smartMagnifyWithEvent: anEvent];
-    return;
-  }
-
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   float deltaZ = [anEvent deltaZ];
@@ -3240,6 +3293,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   case eGestureState_None:
   case eGestureState_RotateGesture:
+  case eGestureState_TapGesture:
   default:
     return;
   }
@@ -3254,31 +3308,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // Keep track of the cumulative magnification for the final "magnify" event.
   mCumulativeMagnification += deltaZ;
   
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)smartMagnifyWithEvent:(NSEvent *)anEvent
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (!anEvent || !mGeckoChild) {
-    return;
-  }
-
-  nsAutoRetainCocoaObject kungFuDeathGrip(self);
-
-  // Setup the "double tap" event.
-  nsSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_TAP,
-                                  mGeckoChild, 0, 0.0);
-  [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
-  geckoEvent.clickCount = 1;
-
-  // Send the event.
-  mGeckoChild->DispatchWindowEvent(geckoEvent);
-
-  // Clear the gesture state
-  mGestureState = eGestureState_None;
-
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -3306,6 +3335,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   case eGestureState_None:
   case eGestureState_MagnifyGesture:
+  case eGestureState_TapGesture:
   default:
     return;
   }
@@ -3375,6 +3405,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   case eGestureState_None:
   case eGestureState_StartGesture:
+  case eGestureState_TapGesture:
   default:
     break;
   }
@@ -3385,22 +3416,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   mCumulativeRotation = 0.0;
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-+ (BOOL)isLionSmartMagnifyEvent:(NSEvent*)anEvent
-{
-  /*
-   * On Lion, smart zoom events have type NSEventTypeGesture, subtype 0x16,
-   * whereas pinch zoom events have type NSEventTypeMagnify. So, use that to
-   * discriminate between the two. Smart zoom gestures do not call
-   * beginGestureWithEvent or endGestureWithEvent, so mGestureState is not
-   * changed. Documentation couldn't be found for the meaning of the subtype
-   * 0x16, but it will probably never change. See bug 863841.
-   */
-  return nsCocoaFeatures::OnLionOrLater() &&
-         !nsCocoaFeatures::OnMountainLionOrLater() &&
-         [anEvent type] == NSEventTypeGesture &&
-         [anEvent subtype] == 0x16;
 }
 
 #ifdef __LP64__

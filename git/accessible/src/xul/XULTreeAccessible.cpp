@@ -275,7 +275,9 @@ XULTreeAccessible::SelectedItems()
     }
   }
 
-  return selectedItems.forget();
+  nsIMutableArray* items = nullptr;
+  selectedItems.forget(&items);
+  return items;
 }
 
 uint32_t

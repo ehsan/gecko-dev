@@ -73,6 +73,7 @@
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
+#include "nsIJSContextStack.h"
 
 #include "nsIDOMEventListener.h"
 #include "nsIWebNavigation.h"
@@ -116,6 +117,7 @@
 #include "nsDOMMutationObserver.h"
 #include "nsSVGFeatures.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsCycleCollector.h"
 #include "xpcpublic.h"
 #include "nsIScriptError.h"
 #include "nsLayoutStatics.h"
@@ -339,7 +341,7 @@ Element::GetBindingURL(nsIDocument *aDocument, css::URLValue **aResult)
 }
 
 JSObject*
-Element::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
+Element::WrapObject(JSContext *aCx, JSObject *aScope)
 {
   JSObject* obj = nsINode::WrapObject(aCx, aScope);
   if (!obj) {
@@ -788,7 +790,14 @@ Element::SetAttributeNode(Attr& aNewAttr, ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eSetAttributeNode);
 
-  return Attributes()->SetNamedItem(aNewAttr, aError);
+  nsCOMPtr<nsIDOMAttr> attr;
+  aError = Attributes()->SetNamedItem(&aNewAttr, getter_AddRefs(attr));
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  nsRefPtr<Attr> returnAttr = static_cast<Attr*>(attr.get());
+  return returnAttr.forget();
 }
 
 already_AddRefed<Attr>
@@ -796,7 +805,22 @@ Element::RemoveAttributeNode(Attr& aAttribute,
                              ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eRemoveAttributeNode);
-  return Attributes()->RemoveNamedItem(aAttribute.NodeName(), aError);
+
+  nsAutoString name;
+
+  aError = aAttribute.GetName(name);
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIDOMAttr> attr;
+  aError = Attributes()->RemoveNamedItem(name, getter_AddRefs(attr));
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  nsRefPtr<Attr> returnAttr = static_cast<Attr*>(attr.get());
+  return returnAttr.forget();
 }
 
 void
@@ -880,7 +904,7 @@ Element::SetAttributeNodeNS(Attr& aNewAttr,
                             ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eSetAttributeNodeNS);
-  return Attributes()->SetNamedItemNS(aNewAttr, aError);
+  return Attributes()->SetNamedItemNS(&aNewAttr, aError);
 }
 
 already_AddRefed<nsIHTMLCollection>
@@ -1441,17 +1465,17 @@ Element::GetExistingAttrNameFromQName(const nsAString& aStr) const
     return nullptr;
   }
 
-  nsCOMPtr<nsINodeInfo> nodeInfo;
+  nsINodeInfo* nodeInfo;
   if (name->IsAtom()) {
     nodeInfo = mNodeInfo->NodeInfoManager()->
       GetNodeInfo(name->Atom(), nullptr, kNameSpaceID_None,
-                  nsIDOMNode::ATTRIBUTE_NODE);
+                  nsIDOMNode::ATTRIBUTE_NODE).get();
   }
   else {
-    nodeInfo = name->NodeInfo();
+    NS_ADDREF(nodeInfo = name->NodeInfo());
   }
 
-  return nodeInfo.forget();
+  return nodeInfo;
 }
 
 // static

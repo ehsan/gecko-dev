@@ -4,28 +4,35 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "json.h"
-
 #include "mozilla/FloatingPoint.h"
 
 #include <string.h>
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jsfun.h"
 #include "jsinterp.h"
+#include "jsiter.h"
 #include "jsnum.h"
 #include "jsobj.h"
+#include "json.h"
 #include "jsonparser.h"
+#include "jsprf.h"
 #include "jsstr.h"
 #include "jstypes.h"
 #include "jsutil.h"
 
+#include "frontend/TokenStream.h"
 #include "vm/StringBuffer.h"
 
 #include "jsatominlines.h"
 #include "jsboolinlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
+
+#include "vm/Stack-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -269,10 +276,11 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
     RootedString keyStr(cx);
 
     /* Step 2. */
-    if (vp.isObject()) {
+    if (vp.get().isObject()) {
         RootedValue toJSON(cx);
-        RootedObject obj(cx, &vp.toObject());
-        if (!JSObject::getProperty(cx, obj, obj, cx->names().toJSON, &toJSON))
+        RootedId id(cx, NameToId(cx->names().toJSON));
+        Rooted<JSObject*> obj(cx, &vp.get().toObject());
+        if (!GetMethod(cx, obj, id, 0, &toJSON))
             return false;
 
         if (js_IsCallable(toJSON)) {
@@ -871,7 +879,7 @@ json_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-static const JSFunctionSpec json_static_methods[] = {
+static JSFunctionSpec json_static_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  json_toSource,      0, 0),
 #endif

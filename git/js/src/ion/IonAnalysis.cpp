@@ -204,11 +204,10 @@ IsPhiObservable(MPhi *phi, Observability observe)
     // object in the function. The phi might be observable after a bailout.
     // For inlined frames this is not needed, as they are captured in the inlineResumePoint.
     if (info.fun() && info.hasArguments()) {
-        uint32_t first = info.firstArgSlot();
+        uint32_t first = info.firstActualArgSlot();
         if (first <= slot && slot - first < info.nargs()) {
-            // If arguments obj aliases formals, then the arg slots will never be used.
-            if (info.argsObjAliasesFormals())
-                return false;
+            // If arguments obj aliases formals, then no arguments slots should ever be phis.
+            JS_ASSERT(!info.argsObjAliasesFormals());
             return true;
         }
     }
@@ -532,7 +531,7 @@ TypeAnalyzer::adjustPhiInputs(MPhi *phi)
         if (in->type() == MIRType_Value)
             continue;
 
-        if (in->isUnbox() && phi->typeIncludes(in->toUnbox()->input())) {
+        if (in->isUnbox()) {
             // The input is being explicitly unboxed, so sneak past and grab
             // the original box.
             phi->replaceOperand(i, in->toUnbox()->input());
@@ -1275,8 +1274,8 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
 {
     JS_ASSERT(!*eliminated);
 
-    const types::StackTypeSet *barrierTypes = barrier->resultTypeSet();
-    const types::StackTypeSet *inputTypes = barrier->input()->resultTypeSet();
+    const types::StackTypeSet *barrierTypes = barrier->typeSet();
+    const types::StackTypeSet *inputTypes = barrier->input()->typeSet();
 
     if (!barrierTypes || !inputTypes)
         return true;

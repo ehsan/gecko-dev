@@ -1402,7 +1402,7 @@ GetPIC(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing)
     return NULL;
 }
 
-Shape *
+RawShape
 mjit::GetPICSingleShape(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing)
 {
     ic::PICInfo *pic = GetPIC(cx, script, pc, constructing);

@@ -292,7 +292,7 @@ static already_AddRefed<nsIFile>
 GetFileFromEnv(const char *name)
 {
   nsresult rv;
-  nsCOMPtr<nsIFile> file;
+  nsIFile *file = nullptr;
 
 #ifdef XP_WIN
   WCHAR path[_MAX_PATH];
@@ -300,22 +300,21 @@ GetFileFromEnv(const char *name)
                                path, _MAX_PATH))
     return nullptr;
 
-  rv = NS_NewLocalFile(nsDependentString(path), true, getter_AddRefs(file));
+  rv = NS_NewLocalFile(nsDependentString(path), true, &file);
   if (NS_FAILED(rv))
     return nullptr;
 
-  return file.forget();
+  return file;
 #else
   const char *arg = PR_GetEnv(name);
   if (!arg || !*arg)
     return nullptr;
 
-  rv = NS_NewNativeLocalFile(nsDependentCString(arg), true,
-                             getter_AddRefs(file));
+  rv = NS_NewNativeLocalFile(nsDependentCString(arg), true, &file);
   if (NS_FAILED(rv))
     return nullptr;
 
-  return file.forget();
+  return file;
 #endif
 }
 
@@ -425,9 +424,8 @@ static void RemoveArg(char **argv)
  * @param aArg the parameter to check. Must be lowercase.
  * @param aCheckOSInt if true returns ARG_BAD if the osint argument is present
  *        when aArg is also present.
- * @param aParam if non-null, the -arg <data> will be stored in this pointer.
- *        This is *not* allocated, but rather a pointer to the argv data.
- * @param aRemArg if true, the argument is removed from the gArgv array.
+ * @param if non-null, the -arg <data> will be stored in this pointer. This is *not*
+ *        allocated, but rather a pointer to the argv data.
  */
 static ArgResult
 CheckArg(const char* aArg, bool aCheckOSInt = false, const char **aParam = nullptr, bool aRemArg = true)
@@ -619,6 +617,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetVendor(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_WARNING("Attempt to get unavailable information in content process.");
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->vendor);
@@ -630,6 +629,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetName(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_WARNING("Attempt to get unavailable information in content process.");
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->name);
@@ -641,6 +641,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetID(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_WARNING("Attempt to get unavailable information in content process.");
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->ID);
@@ -694,6 +695,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetUAName(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_WARNING("Attempt to get unavailable information in content process.");
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->UAName);

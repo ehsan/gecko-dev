@@ -55,24 +55,6 @@ function checkContextUIMenuItemVisibility(aVisibleList)
   is(errors, 0, "context menu item list visibility");
 }
 
-function checkMonoclePositionRange(aMonocle, aMinX, aMaxX, aMinY, aMaxY)
-{
-  let monocle = null;
-  if (aMonocle == "start")
-    monocle = SelectionHelperUI._startMark;
-  else if (aMonocle == "end")
-    monocle = SelectionHelperUI._endMark;
-  else if (aMonocle == "caret")
-    monocle = SelectionHelperUI._caretMark;
-  else
-    ok(false, "bad monocle id");
-
-  ok(monocle.xPos > aMinX && monocle.xPos < aMaxX,
-    "X position is " + monocle.xPos + ", expected between " + aMinX + " and " + aMaxX);
-  ok(monocle.yPos > aMinY && monocle.yPos < aMaxY,
-    "Y position is " + monocle.yPos + ", expected between " + aMinY + " and " + aMaxY);
-}
-
 /*
  * showNotification - displays a test notification with the current
  * browser and waits for the noticiation to be fully displayed.
@@ -158,12 +140,9 @@ function hideContextUI()
   purgeEventQueue();
   if (ContextUI.isVisible) {
     info("is visible, waiting...");
-    let promise = waitForEvent(Elements.tray, "transitionend", null, Elements.tray);
-    if (ContextUI.dismiss())
-    {
-      return promise;
-    }
-    return true;
+    let promise = waitForEvent(Elements.tray, "transitionend");
+    ContextUI.dismiss();
+    return promise;
   }
 }
 
@@ -205,7 +184,7 @@ function addTab(aUrl) {
   return Task.spawn(function() {
     info("Opening "+aUrl+" in a new tab");
     let tab = Browser.addTab(aUrl, true);
-    yield tab.pageShowPromise;
+    yield waitForEvent(tab.browser, "pageshow");
 
     is(tab.browser.currentURI.spec, aUrl, aUrl + " is loaded");
     registerCleanupFunction(function() Browser.closeTab(tab));
@@ -233,7 +212,8 @@ function addTab(aUrl) {
  * @param aTimeoutMs the number of miliseconds to wait before giving up
  * @returns a Promise that resolves to the received event, or to an Error
  */
-function waitForEvent(aSubject, aEventName, aTimeoutMs, aTarget) {
+function waitForEvent(aSubject, aEventName, aTimeoutMs) {
+  info("waitForEvent: on " + aSubject + " event: " + aEventName);
   let eventDeferred = Promise.defer();
   let timeoutMs = aTimeoutMs || kDefaultWait;
   let timerID = setTimeout(function wfe_canceller() {
@@ -242,9 +222,6 @@ function waitForEvent(aSubject, aEventName, aTimeoutMs, aTarget) {
   }, timeoutMs);
 
   function onEvent(aEvent) {
-    if (aTarget && aTarget !== aEvent.target)
-        return;
-
     // stop the timeout clock and resume
     clearTimeout(timerID);
     eventDeferred.resolve(aEvent);
@@ -571,11 +548,8 @@ TouchDragAndHold.prototype = {
   _timeoutStep: 2,
   _numSteps: 50,
   _debug: false,
-  _win: null,
 
   callback: function callback() {
-    if (this._win == null)
-      return;
     if (++this._step.steps >= this._numSteps) {
       EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
                                         { type: "touchmove" }, this._win);
@@ -652,22 +626,19 @@ function runTests() {
   waitForExplicitFinish();
   Task.spawn(function() {
     while((gCurrentTest = gTests.shift())){
+      info("START " + gCurrentTest.desc);
       try {
         if ('function' == typeof gCurrentTest.setUp) {
           info("SETUP " + gCurrentTest.desc);
           yield Task.spawn(gCurrentTest.setUp.bind(gCurrentTest));
         }
-        try {
-          info("RUN " + gCurrentTest.desc);
-          yield Task.spawn(gCurrentTest.run.bind(gCurrentTest));
-        } finally {
-          if ('function' == typeof gCurrentTest.tearDown) {
-            info("TEARDOWN " + gCurrentTest.desc);
-            yield Task.spawn(gCurrentTest.tearDown.bind(gCurrentTest));
-          }
+        yield Task.spawn(gCurrentTest.run.bind(gCurrentTest));
+        if ('function' == typeof gCurrentTest.tearDown) {
+          info("TEARDOWN " + gCurrentTest.desc);
+          yield Task.spawn(gCurrentTest.tearDown.bind(gCurrentTest));
         }
       } catch (ex) {
-        ok(false, "runTests: Task failed - " + ex + ' at ' + ex.stack);
+        ok(false, "runTests: Task failed - " + ex);
       } finally {
         info("END " + gCurrentTest.desc);
       }

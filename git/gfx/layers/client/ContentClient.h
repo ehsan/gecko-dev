@@ -114,8 +114,7 @@ public:
 
   virtual already_AddRefed<gfxASurface> CreateBuffer(ContentType aType,
                                                      const nsIntRect& aRect,
-                                                     uint32_t aFlags,
-                                                     gfxASurface**) MOZ_OVERRIDE;
+                                                     uint32_t aFlags) MOZ_OVERRIDE;
   virtual TemporaryRef<gfx::DrawTarget>
     CreateDTBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags);
 
@@ -186,8 +185,7 @@ public:
 
   virtual already_AddRefed<gfxASurface> CreateBuffer(ContentType aType,
                                                      const nsIntRect& aRect,
-                                                     uint32_t aFlags,
-                                                     gfxASurface** aWhiteSurface) MOZ_OVERRIDE;
+                                                     uint32_t aFlags) MOZ_OVERRIDE;
   virtual TemporaryRef<gfx::DrawTarget> CreateDTBuffer(ContentType aType,
                                                        const nsIntRect& aRect,
                                                        uint32_t aFlags) MOZ_OVERRIDE;
@@ -205,14 +203,21 @@ public:
   }
 
 protected:
+  /**
+   * Swap out the old backing buffer for |aBuffer| and attributes.
+   */
+  void SetBackingBuffer(gfxASurface* aBuffer,
+                        const nsIntRect& aRect,
+                        const nsIntPoint& aRotation);
+
   virtual nsIntRegion GetUpdatedRegion(const nsIntRegion& aRegionToDraw,
                                        const nsIntRegion& aVisibleRegion,
                                        bool aDidSelfCopy);
 
   // create and configure mTextureClient
-  void BuildTextureClients(ContentType aType,
-                           const nsIntRect& aRect,
-                           uint32_t aFlags);
+  void BuildTextureClient(ContentType aType,
+                          const nsIntRect& aRect,
+                          uint32_t aFlags);
 
   // Create the front buffer for the ContentClient/Host pair if necessary
   // and notify the compositor that we have created the buffer(s).
@@ -223,7 +228,6 @@ protected:
   virtual void LockFrontBuffer() {}
 
   RefPtr<TextureClient> mTextureClient;
-  RefPtr<TextureClient> mTextureClientOnWhite;
   // keep a record of texture clients we have created and need to keep
   // around, then unlock when we are done painting
   nsTArray<RefPtr<TextureClient> > mOldTextures;
@@ -266,11 +270,20 @@ protected:
   virtual void LockFrontBuffer() MOZ_OVERRIDE;
 
 private:
+  // The size policy doesn't really matter here; this constructor is
+  // intended to be used for creating temporaries
+  ContentClientDoubleBuffered(gfxASurface* aBuffer,
+                              const nsIntRect& aRect,
+                              const nsIntPoint& aRotation)
+    : ContentClientRemote(nullptr)
+  {
+    SetBuffer(aBuffer, aRect, aRotation);
+  }
+
   void UpdateDestinationFrom(const RotatedBuffer& aSource,
                              const nsIntRegion& aUpdateRegion);
 
   RefPtr<TextureClient> mFrontClient;
-  RefPtr<TextureClient> mFrontClientOnWhite;
   nsIntRegion mFrontUpdatedRegion;
   nsIntRect mFrontBufferRect;
   nsIntPoint mFrontBufferRotation;

@@ -120,11 +120,9 @@ exports["test Document Reload"] = function(assert, done) {
 
   let content =
     "<script>" +
-    "window.onload = function() {" +
-    "  setTimeout(function () {" +
-    "    window.location = 'about:blank';" +
-    "  }, 0);" +
-    "}" +
+    "setTimeout(function () {" +
+    "  window.location = 'about:blank';" +
+    "}, 250);" +
     "</script>";
   let messageCount = 0;
   let panel = Panel({
@@ -134,7 +132,7 @@ exports["test Document Reload"] = function(assert, done) {
     onMessage: function (message) {
       messageCount++;
       if (messageCount == 1) {
-        assert.ok(/data:text\/html/.test(message), "First document had a content script " + message);
+        assert.ok(/data:text\/html/.test(message), "First document had a content script");
       }
       else if (messageCount == 2) {
         assert.equal(message, "about:blank", "Second document too");
@@ -143,7 +141,6 @@ exports["test Document Reload"] = function(assert, done) {
       }
     }
   });
-  assert.pass('Panel was created');
 };
 
 exports["test Parent Resize Hack"] = function(assert, done) {

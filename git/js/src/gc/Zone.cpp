@@ -28,6 +28,10 @@ JS::Zone::Zone(JSRuntime *rt)
   : rt(rt),
     allocator(this),
     hold(false),
+#ifdef JSGC_GENERATIONAL
+    gcNursery(),
+    gcStoreBuffer(rt),
+#endif
     ionUsingBarriers_(false),
     active(false),
     gcScheduled(false),

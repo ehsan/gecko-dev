@@ -54,6 +54,7 @@
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIDOMWheelEvent.h"
 #include "nsIDOMDragEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMUIEvent.h"
 #include "nsDOMDragEvent.h"
 #include "nsIDOMNSEditableElement.h"
@@ -264,7 +265,13 @@ static nsIDocument *
 GetDocumentFromWindow(nsIDOMWindow *aWindow)
 {
   nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aWindow);
-  return win ? win->GetExtantDoc() : nullptr;
+  nsCOMPtr<nsIDocument> doc;
+
+  if (win) {
+    doc = do_QueryInterface(win->GetExtantDocument());
+  }
+
+  return doc;
 }
 
 static int32_t
@@ -3250,7 +3257,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             currentWindow->GetTop(getter_AddRefs(currentTop));
             mDocument->GetWindow()->GetTop(getter_AddRefs(newTop));
             nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(currentWindow);
-            nsCOMPtr<nsIDocument> currentDoc = win->GetExtantDoc();
+            nsCOMPtr<nsIDocument> currentDoc = do_QueryInterface(win->GetExtantDocument());
             if (nsContentUtils::IsChromeDoc(currentDoc) ||
                 (currentTop && newTop && currentTop != newTop)) {
               fm->SetFocusedWindow(mDocument->GetWindow());
@@ -4555,9 +4562,7 @@ nsEventStateManager::CheckForAndDispatchClick(nsPresContext* aPresContext,
     nsCOMPtr<nsIPresShell> presShell = mPresContext->GetPresShell();
     if (presShell) {
       nsCOMPtr<nsIContent> mouseContent = GetEventTargetContent(aEvent);
-      if (!mouseContent && !mCurrentTarget) {
-        return NS_OK;
-      }
+
       ret = presShell->HandleEventWithTarget(&event, mCurrentTarget,
                                              mouseContent, aStatus);
       if (NS_SUCCEEDED(ret) && aEvent->clickCount == 2) {
@@ -4616,20 +4621,20 @@ nsEventStateManager::GetEventTargetContent(nsEvent* aEvent)
     return content.forget();
   }
 
-  nsCOMPtr<nsIContent> content;
+  nsIContent *content = nullptr;
 
   nsIPresShell *presShell = mPresContext->GetPresShell();
   if (presShell) {
-    content = presShell->GetEventTargetContent(aEvent);
+    content = presShell->GetEventTargetContent(aEvent).get();
   }
 
   // Some events here may set mCurrentTarget but not set the corresponding
   // event target in the PresShell.
   if (!content && mCurrentTarget) {
-    mCurrentTarget->GetContentForEvent(aEvent, getter_AddRefs(content));
+    mCurrentTarget->GetContentForEvent(aEvent, &content);
   }
 
-  return content.forget();
+  return content;
 }
 
 static Element*

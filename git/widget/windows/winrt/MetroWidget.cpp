@@ -21,7 +21,6 @@
 #include "FrameworkView.h"
 #include "nsTextStore.h"
 #include "Layers.h"
-#include "ClientLayerManager.h"
 #include "BasicLayers.h"
 #include "Windows.Graphics.Display.h"
 #ifdef MOZ_CRASHREPORTER
@@ -794,7 +793,7 @@ MetroWidget::ShouldUseBasicManager()
 }
 
 LayerManager*
-MetroWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
+MetroWidget::GetLayerManager(PLayersChild* aShadowManager,
                              LayersBackend aBackendHint,
                              LayerManagerPersistence aPersistence,
                              bool* aAllowRetaining)
@@ -848,7 +847,7 @@ MetroWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
     if (!mLayerManager) {
       if (!mView) {
         NS_WARNING("Using temporary basic layer manager.");
-        mLayerManager = new BasicLayerManager(this);
+        mLayerManager = new BasicShadowLayerManager(this);
         mTempBasicLayerInUse = true;
       } else {
 #ifdef MOZ_CRASHREPORTER

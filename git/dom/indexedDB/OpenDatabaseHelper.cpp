@@ -6,10 +6,8 @@
 
 #include "OpenDatabaseHelper.h"
 
-#include "nsIBFCacheEntry.h"
 #include "nsIFile.h"
 
-#include <algorithm>
 #include "mozilla/dom/quota/AcquireListener.h"
 #include "mozilla/dom/quota/OriginOrPatternString.h"
 #include "mozilla/dom/quota/QuotaManager.h"
@@ -20,13 +18,13 @@
 #include "snappy/snappy.h"
 
 #include "Client.h"
+#include "nsIBFCacheEntry.h"
 #include "IDBEvents.h"
 #include "IDBFactory.h"
 #include "IndexedDatabaseManager.h"
-#include "ProfilerHelpers.h"
+#include <algorithm>
 
 using namespace mozilla;
-using namespace mozilla::dom;
 USING_INDEXEDDB_NAMESPACE
 USING_QUOTA_NAMESPACE
 
@@ -96,11 +94,6 @@ GetDatabaseFilename(const nsAString& aName,
 nsresult
 CreateFileTables(mozIStorageConnection* aDBConn)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "CreateFileTables");
-
   // Table `file`
   nsresult rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "CREATE TABLE file ("
@@ -158,11 +151,9 @@ CreateFileTables(mozIStorageConnection* aDBConn)
 nsresult
 CreateTables(mozIStorageConnection* aDBConn)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(aDBConn, "Passing a null database connection!");
-
-  PROFILER_LABEL("IndexedDB", "CreateTables");
+  NS_PRECONDITION(!NS_IsMainThread(),
+                  "Creating tables on the main thread!");
+  NS_PRECONDITION(aDBConn, "Passing a null database connection!");
 
   // Table `database`
   nsresult rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
@@ -275,11 +266,6 @@ CreateTables(mozIStorageConnection* aDBConn)
 nsresult
 UpgradeSchemaFrom4To5(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom4To5");
-
   nsresult rv;
 
   // All we changed is the type of the version column, so lets try to
@@ -307,7 +293,7 @@ UpgradeSchemaFrom4To5(mozIStorageConnection* aConnection)
     rv = stmt->GetString(1, version);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    intVersion = version.ToInteger(&rv);
+    intVersion = version.ToInteger(&rv, 10);
     if (NS_FAILED(rv)) {
       intVersion = 0;
     }
@@ -364,11 +350,6 @@ UpgradeSchemaFrom4To5(mozIStorageConnection* aConnection)
 nsresult
 UpgradeSchemaFrom5To6(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom5To6");
-
   // First, drop all the indexes we're no longer going to use.
   nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "DROP INDEX key_index;"
@@ -722,11 +703,6 @@ UpgradeSchemaFrom5To6(mozIStorageConnection* aConnection)
 nsresult
 UpgradeSchemaFrom6To7(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom6To7");
-
   nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "CREATE TEMPORARY TABLE temp_upgrade ("
       "id, "
@@ -781,11 +757,6 @@ UpgradeSchemaFrom6To7(mozIStorageConnection* aConnection)
 nsresult
 UpgradeSchemaFrom7To8(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom7To8");
-
   nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "CREATE TEMPORARY TABLE temp_upgrade ("
       "id, "
@@ -856,8 +827,6 @@ public:
   OnFunctionCall(mozIStorageValueArray* aArguments,
                  nsIVariant** aResult)
   {
-    PROFILER_LABEL("IndexedDB", "CompressDataBlobsFunction::OnFunctionCall");
-
     uint32_t argc;
     nsresult rv = aArguments->GetNumEntries(&argc);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -905,11 +874,6 @@ NS_IMPL_ISUPPORTS1(CompressDataBlobsFunction, mozIStorageFunction)
 nsresult
 UpgradeSchemaFrom8To9_0(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom8To9_0");
-
   // We no longer use the dataVersion column.
   nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "UPDATE database SET dataVersion = 0;"
@@ -946,11 +910,6 @@ UpgradeSchemaFrom8To9_0(mozIStorageConnection* aConnection)
 nsresult
 UpgradeSchemaFrom9_0To10_0(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom9_0To10_0");
-
   nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "ALTER TABLE object_data ADD COLUMN file_ids TEXT;"
   ));
@@ -973,11 +932,6 @@ UpgradeSchemaFrom9_0To10_0(mozIStorageConnection* aConnection)
 nsresult
 UpgradeSchemaFrom10_0To11_0(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom10_0To11_0");
-
   nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "CREATE TEMPORARY TABLE temp_upgrade ("
       "id, "
@@ -1115,8 +1069,6 @@ public:
   OnFunctionCall(mozIStorageValueArray* aArguments,
                  nsIVariant** aResult)
   {
-    PROFILER_LABEL("IndexedDB", "EncodeKeysFunction::OnFunctionCall");
-
     uint32_t argc;
     nsresult rv = aArguments->GetNumEntries(&argc);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1163,11 +1115,6 @@ NS_IMPL_ISUPPORTS1(EncodeKeysFunction, mozIStorageFunction)
 nsresult
 UpgradeSchemaFrom11_0To12_0(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom11_0To12_0");
-
   NS_NAMED_LITERAL_CSTRING(encoderName, "encode");
 
   nsCOMPtr<mozIStorageFunction> encoder = new EncodeKeysFunction();
@@ -1380,11 +1327,6 @@ nsresult
 UpgradeSchemaFrom12_0To13_0(mozIStorageConnection* aConnection,
                             bool* aVacuumNeeded)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "UpgradeSchemaFrom12_0To13_0");
-
   nsresult rv;
 
 #if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
@@ -1600,8 +1542,6 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-    PROFILER_MAIN_THREAD_LABEL("IndexedDB", "VersionChangeEventsRunnable::Run");
-
     // Fire version change events at all of the databases that are not already
     // closed. Also kick bfcached documents out of bfcache.
     uint32_t count = mWaitingDatabases.Length();
@@ -1726,9 +1666,6 @@ OpenDatabaseHelper::DoDatabaseWork()
                  "Running on the wrong thread!");
   }
 #endif
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "OpenDatabaseHelper::DoDatabaseWork");
 
   mState = eFiringEvents; // In case we fail somewhere along the line.
 
@@ -1871,10 +1808,8 @@ OpenDatabaseHelper::CreateDatabaseConnection(
                                         const nsACString& aOrigin,
                                         mozIStorageConnection** aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "OpenDatabaseHelper::CreateDatabaseConnection");
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
   nsCOMPtr<nsIFileURL> dbFileUrl =
     IDBFactory::GetDatabaseFileURL(aDBFile, aOrigin);
@@ -2119,8 +2054,6 @@ OpenDatabaseHelper::Run()
   NS_ASSERTION(mState != eCreated, "Dispatch was not called?!?");
 
   if (NS_IsMainThread()) {
-    PROFILER_MAIN_THREAD_LABEL("IndexedDB", "OpenDatabaseHelper::Run");
-
     // If we need to queue up a SetVersionHelper, do that here.
     if (mState == eSetVersionPending) {
       nsresult rv = StartSetVersion();
@@ -2189,11 +2122,6 @@ OpenDatabaseHelper::Run()
 
     NS_ASSERTION(mState == eFiringEvents, "Why are we here?");
 
-    IDB_PROFILER_MARK("IndexedDB Request %llu: Running main thread "
-                      "response (rv = %lu)",
-                      "IDBRequest[%llu] MT Done",
-                      mRequest->GetSerialNumber(), mResultCode);
-
     if (NS_FAILED(mResultCode)) {
       DispatchErrorEvent();
     } else {
@@ -2212,21 +2140,12 @@ OpenDatabaseHelper::Run()
     return NS_OK;
   }
 
-  PROFILER_LABEL("IndexedDB", "OpenDatabaseHelper::Run");
-
-  // We're on the DB thread.
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
-  IDB_PROFILER_MARK("IndexedDB Request %llu: Beginning database work",
-                    "IDBRequest[%llu] DT Start", mRequest->GetSerialNumber());
-
+  // If we're on the DB thread, do that
   NS_ASSERTION(mState == eDBWork, "Why are we here?");
   mResultCode = DoDatabaseWork();
   NS_ASSERTION(mState != eDBWork, "We should be doing something else now.");
-
-  IDB_PROFILER_MARK("IndexedDB Request %llu: Finished database work (rv = %lu)",
-                    "IDBRequest[%llu] DT Done", mRequest->GetSerialNumber(),
-                    mResultCode);
 
   return NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL);
 }
@@ -2234,11 +2153,6 @@ OpenDatabaseHelper::Run()
 nsresult
 OpenDatabaseHelper::EnsureSuccessResult()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  PROFILER_MAIN_THREAD_LABEL("IndexedDB",
-                             "OpenDatabaseHelper::EnsureSuccessResult");
-
   nsRefPtr<DatabaseInfo> dbInfo;
   if (DatabaseInfo::Get(mDatabaseId, getter_AddRefs(dbInfo))) {
 
@@ -2333,7 +2247,7 @@ OpenDatabaseHelper::GetSuccessResult(JSContext* aCx,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  return WrapNative(aCx, NS_ISUPPORTS_CAST(EventTarget*, mDatabase),
+  return WrapNative(aCx, NS_ISUPPORTS_CAST(nsIDOMEventTarget*, mDatabase),
                     aVal);
 }
 
@@ -2376,11 +2290,6 @@ OpenDatabaseHelper::BlockDatabase()
 void
 OpenDatabaseHelper::DispatchSuccessEvent()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  PROFILER_MAIN_THREAD_LABEL("IndexedDB",
-                              "OpenDatabaseHelper::DispatchSuccessEvent");
-
   nsRefPtr<nsIDOMEvent> event =
     CreateGenericEvent(mOpenDBRequest, NS_LITERAL_STRING(SUCCESS_EVT_STR),
                        eDoesNotBubble, eNotCancelable);
@@ -2396,11 +2305,6 @@ OpenDatabaseHelper::DispatchSuccessEvent()
 void
 OpenDatabaseHelper::DispatchErrorEvent()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  PROFILER_MAIN_THREAD_LABEL("IndexedDB",
-                              "OpenDatabaseHelper::DispatchErrorEvent");
-
   nsRefPtr<nsIDOMEvent> event =
     CreateGenericEvent(mOpenDBRequest, NS_LITERAL_STRING(ERROR_EVT_STR),
                        eDoesBubble, eCancelable);
@@ -2447,11 +2351,7 @@ SetVersionHelper::Init()
 nsresult
 SetVersionHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
   NS_ASSERTION(aConnection, "Passing a null connection!");
-
-  PROFILER_LABEL("IndexedDB", "SetVersionHelper::DoDatabaseWork");
 
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
@@ -2482,7 +2382,7 @@ SetVersionHelper::GetSuccessResult(JSContext* aCx,
 
   mOpenRequest->SetTransaction(mTransaction);
 
-  return WrapNative(aCx, NS_ISUPPORTS_CAST(EventTarget*, mDatabase),
+  return WrapNative(aCx, NS_ISUPPORTS_CAST(nsIDOMEventTarget*, mDatabase),
                     aVal);
 }
 
@@ -2568,11 +2468,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(DeleteDatabaseHelper, AsyncConnectionHelper);
 nsresult
 DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
   NS_ASSERTION(!aConnection, "How did we get a connection here?");
-
-  PROFILER_LABEL("IndexedDB", "DeleteDatabaseHelper::DoDatabaseWork");
 
   const StoragePrivilege& privilege = mOpenHelper->Privilege();
 

@@ -265,14 +265,13 @@ interface TestExampleInterface {
 
   // Enumerated types
   void passEnum(TestEnum arg);
-  void passNullableEnum(TestEnum? arg);
+  // No support for nullable enums yet
+  // void passNullableEnum(TestEnum? arg);
   void passOptionalEnum(optional TestEnum arg);
   void passEnumWithDefault(optional TestEnum arg = "a");
-  void passOptionalNullableEnum(optional TestEnum? arg);
-  void passOptionalNullableEnumWithDefaultValue(optional TestEnum? arg = null);
-  void passOptionalNullableEnumWithDefaultValue2(optional TestEnum? arg = "a");
+  // void passOptionalNullableEnum(optional TestEnum? arg);
+  // void passOptionalNullableEnumWithDefaultValue(optional TestEnum? arg = null);
   TestEnum receiveEnum();
-  TestEnum? receiveNullableEnum();
   attribute TestEnum enumAttribute;
   readonly attribute TestEnum readonlyEnumAttribute;
 

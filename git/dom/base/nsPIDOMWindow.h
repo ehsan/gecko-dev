@@ -58,8 +58,8 @@ class AudioContext;
 }
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x81fe131f, 0x57c9, 0x4992, \
-  { 0xa7, 0xad, 0x82, 0x67, 0x3f, 0xc4, 0xe2, 0x53 } }
+{ 0x01decdb6, 0xd8ca, 0x401b, \
+  { 0x8b, 0xd1, 0x85, 0x83, 0x2c, 0xe9, 0x92, 0x0e } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -172,6 +172,11 @@ public:
   virtual void MaybeUpdateTouchState() {}
   virtual void UpdateTouchState() {}
 
+  // GetExtantDocument provides a backdoor to the DOM GetDocument accessor
+  nsIDOMDocument* GetExtantDocument() const
+  {
+    return mDocument;
+  }
   nsIDocument* GetExtantDoc() const
   {
     return mDoc;
@@ -670,7 +675,8 @@ protected:
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
   nsCOMPtr<mozilla::dom::EventTarget> mChromeEventHandler; // strong
-  nsCOMPtr<nsIDocument> mDoc; // strong
+  nsCOMPtr<nsIDOMDocument> mDocument; // strong
+  nsCOMPtr<nsIDocument> mDoc; // strong, for fast access
   // Cache the URI when mDoc is cleared.
   nsCOMPtr<nsIURI> mDocumentURI; // strong
   nsCOMPtr<nsIURI> mDocBaseURI; // strong

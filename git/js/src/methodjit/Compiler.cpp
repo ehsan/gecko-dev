@@ -145,8 +145,6 @@ mjit::Compiler::compile()
 
     CompileStatus status = performCompilation();
     if (status != Compile_Okay && status != Compile_Retry) {
-        mjit::ExpandInlineFrames(cx->zone());
-        mjit::Recompiler::clearStackReferences(cx->runtime->defaultFreeOp(), outerScript);
         if (!outerScript->ensureHasMJITInfo(cx))
             return Compile_Error;
         JSScript::JITScriptHandle *jith = outerScript->jitHandle(isConstructing, cx->zone()->compileBarriers());
@@ -995,7 +993,7 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
         return Compile_Abort;
 
 #ifdef JS_ION
-    if (ion::IsBaselineEnabled(cx) || ion::IsEnabled(cx))
+    if (ion::IsBaselineEnabled(cx))
         return Compile_Abort;
 #endif
 
@@ -6108,7 +6106,7 @@ mjit::Compiler::jsop_aliasedVar(ScopeCoordinate sc, bool get, bool poppedAfter)
     for (unsigned i = 0; i < sc.hops; i++)
         masm.loadPayload(Address(reg, ScopeObject::offsetOfEnclosingScope()), reg);
 
-    Shape *shape = ScopeCoordinateToStaticScopeShape(cx, script_, PC);
+    RawShape shape = ScopeCoordinateToStaticScopeShape(cx, script_, PC);
     Address addr;
     if (shape->numFixedSlots() <= sc.slot) {
         masm.loadPtr(Address(reg, JSObject::offsetOfSlots()), reg);
@@ -6256,7 +6254,7 @@ mjit::Compiler::iter(unsigned flags)
     masm.loadPtr(Address(T1, offsetof(types::TypeObject, proto)), T1);
     masm.loadShape(T1, T1);
     masm.loadPtr(Address(nireg, offsetof(NativeIterator, shapes_array)), T2);
-    masm.loadPtr(Address(T2, sizeof(Shape *)), T2);
+    masm.loadPtr(Address(T2, sizeof(RawShape)), T2);
     Jump mismatchedProto = masm.branchPtr(Assembler::NotEqual, T1, T2);
     stubcc.linkExit(mismatchedProto, Uses(1));
 
@@ -6563,7 +6561,7 @@ mjit::Compiler::jsop_getgname(uint32_t index)
          * reallocation of the global object's slots.
          */
         RootedId id(cx, NameToId(name));
-        Shape *shape = globalObj->nativeLookup(cx, id);
+        RawShape shape = globalObj->nativeLookup(cx, id);
         if (shape && shape->hasDefaultGetter() && shape->hasSlot()) {
             HeapSlot *value = &globalObj->getSlotRef(shape->slot());
             if (!value->isUndefined() && !propertyTypes->isOwnProperty(cx, globalType, true)) {
@@ -7667,11 +7665,9 @@ mjit::Compiler::jsop_in()
 
     if (cx->typeInferenceEnabled() && id->isType(JSVAL_TYPE_INT32)) {
         types::StackTypeSet *types = analysis->poppedTypes(PC, 0);
-        bool isNegative = id->isConstant() && id->getValue().toInt32() < 0;
 
         if (obj->mightBeType(JSVAL_TYPE_OBJECT) &&
             types->getKnownClass() == &ArrayClass &&
-            !isNegative &&
             !types->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES) &&
             !types::ArrayPrototypeHasIndexedProperty(cx, outerScript))
         {
@@ -7688,11 +7684,6 @@ mjit::Compiler::jsop_in()
             Int32Key key = id->isConstant()
                          ? Int32Key::FromConstant(id->getValue().toInt32())
                          : Int32Key::FromRegister(frame.tempRegForData(id));
-
-            if (!id->isConstant()) {
-                Jump isNegative = masm.branch32(Assembler::LessThan, key.reg(), Imm32(0));
-                stubcc.linkExit(isNegative, Uses(2));
-            }
 
             masm.loadPtr(Address(dataReg, JSObject::offsetOfElements()), dataReg);
 
@@ -7723,8 +7714,10 @@ mjit::Compiler::jsop_in()
             if (dataReg != Registers::ReturnReg)
                 stubcc.masm.move(Registers::ReturnReg, dataReg);
 
-            stubcc.rejoin(Changes(2));
             frame.pushTypedPayload(JSVAL_TYPE_BOOLEAN, dataReg);
+
+            stubcc.rejoin(Changes(2));
+
             return;
         }
     }

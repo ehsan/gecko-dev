@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource:///modules/source-editor.jsm");
-Cu.import("resource:///modules/devtools/shared/event-emitter.js");
+Cu.import("resource:///modules/devtools/EventEmitter.jsm");
 Cu.import("resource:///modules/devtools/SideMenuWidget.jsm");
 Cu.import("resource:///modules/devtools/VariablesView.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
@@ -515,8 +515,7 @@ let L10N = new ViewHelpers.L10N(NET_STRINGS_URI);
  * Shortcuts for accessing various network monitor preferences.
  */
 let Prefs = new ViewHelpers.Prefs("devtools.netmonitor", {
-  networkDetailsWidth: ["Int", "panes-network-details-width"],
-  networkDetailsHeight: ["Int", "panes-network-details-height"]
+  networkDetailsWidth: ["Int", "panes-network-details-width"]
 });
 
 /**

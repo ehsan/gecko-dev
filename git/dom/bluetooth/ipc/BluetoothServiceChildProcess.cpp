@@ -111,19 +111,11 @@ BluetoothServiceChildProcess::GetDevicePropertiesInternal(
 }
 
 nsresult
-BluetoothServiceChildProcess::GetConnectedDevicePropertiesInternal(
-                                              uint16_t aProfileId,
-                                              BluetoothReplyRunnable* aRunnable)
-{
-  SendRequest(aRunnable, ConnectedDevicePropertiesRequest(aProfileId));
-  return NS_OK;
-}
-nsresult
 BluetoothServiceChildProcess::GetPairedDevicePropertiesInternal(
                                      const nsTArray<nsString>& aDeviceAddresses,
                                      BluetoothReplyRunnable* aRunnable)
 {
-  PairedDevicePropertiesRequest request;
+  DevicePropertiesRequest request;
   request.addresses().AppendElements(aDeviceAddresses);
 
   SendRequest(aRunnable, request);

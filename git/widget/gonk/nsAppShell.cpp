@@ -52,9 +52,6 @@
 
 #include "GeckoProfiler.h"
 
-// Defines kKeyMapping and GetKeyNameIndex()
-#include "GonkKeyMapping.h"
-
 #define LOG(args...)                                            \
     __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 #ifdef VERBOSE_LOG_ENABLED
@@ -203,14 +200,12 @@ sendTouchEvent(UserInputData& data, bool* captured)
 
 static nsEventStatus
 sendKeyEventWithMsg(uint32_t keyCode,
-                    KeyNameIndex keyNameIndex,
                     uint32_t msg,
                     uint64_t timeMs,
                     const EventFlags& flags)
 {
     nsKeyEvent event(true, msg, NULL);
     event.keyCode = keyCode;
-    event.mKeyNameIndex = keyNameIndex;
     event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
     event.time = timeMs;
     event.mFlags.Union(flags);
@@ -218,33 +213,30 @@ sendKeyEventWithMsg(uint32_t keyCode,
 }
 
 static void
-sendKeyEvent(uint32_t keyCode, KeyNameIndex keyNameIndex, bool down,
-             uint64_t timeMs)
+sendKeyEvent(uint32_t keyCode, bool down, uint64_t timeMs)
 {
     EventFlags extraFlags;
     nsEventStatus status =
-        sendKeyEventWithMsg(keyCode, keyNameIndex,
-                            down ? NS_KEY_DOWN : NS_KEY_UP, timeMs, extraFlags);
+        sendKeyEventWithMsg(keyCode, down ? NS_KEY_DOWN : NS_KEY_UP, timeMs,
+                            extraFlags);
     if (down) {
         extraFlags.mDefaultPrevented =
             (status == nsEventStatus_eConsumeNoDefault);
-        sendKeyEventWithMsg(keyCode, keyNameIndex, NS_KEY_PRESS, timeMs,
-                            extraFlags);
+        sendKeyEventWithMsg(keyCode, NS_KEY_PRESS, timeMs, extraFlags);
     }
 }
+
+// Defines kKeyMapping
+#include "GonkKeyMapping.h"
 
 static void
 maybeSendKeyEvent(int keyCode, bool pressed, uint64_t timeMs)
 {
-    uint32_t DOMKeyCode =
-        (keyCode < ArrayLength(kKeyMapping)) ? kKeyMapping[keyCode] : 0;
-    KeyNameIndex DOMKeyNameIndex = GetKeyNameIndex(keyCode);
-    if (DOMKeyCode || DOMKeyNameIndex != KEY_NAME_INDEX_Unidentified) {
-        sendKeyEvent(DOMKeyCode, DOMKeyNameIndex, pressed, timeMs);
-    } else {
+    if (keyCode < ArrayLength(kKeyMapping) && kKeyMapping[keyCode])
+        sendKeyEvent(kKeyMapping[keyCode], pressed, timeMs);
+    else
         VERBOSE_LOG("Got unknown key event code. type 0x%04x code 0x%04x value %d",
                     keyCode, pressed);
-    }
 }
 
 class GeckoPointerController : public PointerControllerInterface {

@@ -32,6 +32,7 @@
 #include "nsIServiceManager.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsError.h"
+#include "nsIJSContextStack.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsMutationEvent.h"
@@ -281,7 +282,7 @@ nsEventListenerManager::AddEventListenerInternal(
     // Go from our target to the nearest enclosing DOM window.
     nsPIDOMWindow* window = GetInnerWindowForTarget();
     if (window) {
-      nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+      nsCOMPtr<nsIDocument> doc = do_QueryInterface(window->GetExtantDocument());
       if (doc) {
         doc->WarnOnceAbout(nsIDocument::eMutationEvent);
       }
@@ -335,7 +336,7 @@ nsEventListenerManager::AddEventListenerInternal(
     nsPIDOMWindow* window = GetInnerWindowForTarget();
     if (window) {
 #ifdef DEBUG
-      nsCOMPtr<nsIDocument> d = window->GetExtantDoc();
+      nsCOMPtr<nsIDocument> d = do_QueryInterface(window->GetExtantDocument());
       NS_WARN_IF_FALSE(!nsContentUtils::IsChromeDoc(d),
                        "Please do not use mouseenter/leave events in chrome. "
                        "They are slower than mouseover/out!");
@@ -827,7 +828,7 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
     } else {
       win = do_QueryInterface(mTarget);
       if (win) {
-        doc = win->GetExtantDoc();
+        doc = do_QueryInterface(win->GetExtantDocument());
       }
     }
 
@@ -873,16 +874,37 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
     context->BindCompiledEventHandler(mTarget, listener->GetEventScope(),
                                       handler, &boundHandler);
     if (listener->EventName() == nsGkAtoms::onerror && win) {
+      bool ok;
+      JSAutoRequest ar(cx);
       nsRefPtr<OnErrorEventHandlerNonNull> handlerCallback =
-        new OnErrorEventHandlerNonNull(boundHandler);
+        new OnErrorEventHandlerNonNull(cx, listener->GetEventScope(),
+                                       boundHandler, &ok);
+      if (!ok) {
+        // JS_WrapObject failed, which means OOM allocating the JSObject.
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       listener->SetHandler(handlerCallback);
     } else if (listener->EventName() == nsGkAtoms::onbeforeunload && win) {
+      bool ok;
+      JSAutoRequest ar(cx);
       nsRefPtr<BeforeUnloadEventHandlerNonNull> handlerCallback =
-        new BeforeUnloadEventHandlerNonNull(boundHandler);
+        new BeforeUnloadEventHandlerNonNull(cx, listener->GetEventScope(),
+                                            boundHandler, &ok);
+      if (!ok) {
+        // JS_WrapObject failed, which means OOM allocating the JSObject.
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       listener->SetHandler(handlerCallback);
     } else {
+      bool ok;
+      JSAutoRequest ar(cx);
       nsRefPtr<EventHandlerNonNull> handlerCallback =
-        new EventHandlerNonNull(boundHandler);
+        new EventHandlerNonNull(cx, listener->GetEventScope(),
+                                boundHandler, &ok);
+      if (!ok) {
+        // JS_WrapObject failed, which means OOM allocating the JSObject.
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       listener->SetHandler(handlerCallback);
     }
   }

@@ -11,6 +11,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIChannel.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
@@ -317,8 +318,9 @@ nsXBLPrototypeBinding::SetBasePrototype(nsXBLPrototypeBinding* aBinding)
 already_AddRefed<nsIContent>
 nsXBLPrototypeBinding::GetBindingElement()
 {
-  nsCOMPtr<nsIContent> result = mBinding;
-  return result.forget();
+  nsIContent* result = mBinding;
+  NS_IF_ADDREF(result);
+  return result;
 }
 
 void

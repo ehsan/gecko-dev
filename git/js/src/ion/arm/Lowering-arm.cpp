@@ -316,20 +316,6 @@ LIRGeneratorARM::visitGuardShape(MGuardShape *ins)
 }
 
 bool
-LIRGeneratorARM::visitGuardObjectType(MGuardObjectType *ins)
-{
-    JS_ASSERT(ins->obj()->type() == MIRType_Object);
-
-    LDefinition tempObj = temp(LDefinition::OBJECT);
-    LGuardObjectType *guard = new LGuardObjectType(useRegister(ins->obj()), tempObj);
-    if (!assignSnapshot(guard))
-        return false;
-    if (!add(guard, ins))
-        return false;
-    return redefine(ins, ins->obj());
-}
-
-bool
 LIRGeneratorARM::visitStoreTypedArrayElement(MStoreTypedArrayElement *ins)
 {
     JS_ASSERT(ins->elements()->type() == MIRType_Elements);
@@ -459,13 +445,6 @@ LIRGeneratorARM::lowerTruncateDToInt32(MTruncateToInt32 *ins)
     JS_ASSERT(opd->type() == MIRType_Double);
 
     return define(new LTruncateDToInt32(useRegister(opd), LDefinition::BogusTemp()), ins);
-}
-
-bool
-LIRGeneratorARM::visitStoreTypedArrayElementStatic(MStoreTypedArrayElementStatic *ins)
-{
-    JS_NOT_REACHED("NYI");
-    return true;
 }
 
 //__aeabi_uidiv

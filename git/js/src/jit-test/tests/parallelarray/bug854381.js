@@ -15,6 +15,4 @@ function bug854381() {
   print(toString(r));
 }
 
-if (getBuildConfiguration().parallelJS) {
-  bug854381();
-}
+bug854381();

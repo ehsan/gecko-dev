@@ -9,9 +9,6 @@
 
 #include "nsNSSComponent.h"
 #include "nsNSSCertificateDB.h"
-
-#include "CertVerifier.h"
-#include "nsNSSComponent.h"
 #include "mozilla/Base64.h"
 #include "nsCOMPtr.h"
 #include "nsNSSCertificate.h"
@@ -33,6 +30,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsIPrompt.h"
 #include "nsThreadUtils.h"
+#include "ScopedNSSTypes.h"
 #include "nsIObserverService.h"
 #include "nsRecentBadCerts.h"
 #include "SharedSSLState.h"
@@ -48,7 +46,6 @@
 #include "plbase64.h"
 
 using namespace mozilla;
-using namespace mozilla::psm;
 using mozilla::psm::SharedSSLState;
 
 #ifdef PR_LOGGING
@@ -480,40 +477,6 @@ nsNSSCertificateDB::ImportCertificates(uint8_t * data, uint32_t length,
   return nsrv;
 }
 
-static 
-SECStatus 
-ImportCertsIntoPermanentStorage(const ScopedCERTCertList &certChain, const SECCertUsage usage,
-                               const PRBool caOnly)
-{
-  CERTCertDBHandle *certdb = CERT_GetDefaultCertDB();
-  const PRTime now = PR_Now();
-
-  int chainLen = 0;
-  for (CERTCertListNode *chainNode = CERT_LIST_HEAD(certChain);
-       !CERT_LIST_END(chainNode, certChain);
-       chainNode = CERT_LIST_NEXT(chainNode)) {
-    chainLen++;
-  }
-
-  SECItem **rawArray;
-  rawArray = (SECItem **) PORT_Alloc(chainLen * sizeof(SECItem *));
-  if (!rawArray) {
-    return SECFailure;
-  }
-
-  int i = 0;
-  for (CERTCertListNode *chainNode = CERT_LIST_HEAD(certChain);
-       !CERT_LIST_END(chainNode, certChain);
-       chainNode = CERT_LIST_NEXT(chainNode), i++) {
-    rawArray[i] = &chainNode->cert->derCert;
-  }
-  CERT_ImportCerts(certdb, usage, chainLen,
-                   rawArray,  nullptr, true, caOnly, nullptr);
-
-  PORT_Free(rawArray);   
-  return SECSuccess;
-} 
-
 
 /*
  *  [noscript] void importEmailCertificates(in charPtr data, in unsigned long length,
@@ -531,10 +494,23 @@ nsNSSCertificateDB::ImportEmailCertificate(uint8_t * data, uint32_t length,
   CERTCertificate **certArray = nullptr;
   ScopedCERTCertList certList;
   CERTCertListNode *node;
+  PRTime now;
+  SECCertUsage certusage;
+  SECCertificateUsage certificateusage;
   SECItem **rawArray;
   int numcerts;
   int i;
+  CERTValOutParam cvout[1];
+  cvout[0].type = cert_po_end;
 
+  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
+  if (!inss)
+    return nsrv;
+  RefPtr<nsCERTValInParamWrapper> survivingParams;
+  nsrv = inss->GetDefaultCERTValInParam(survivingParams);
+  if (NS_FAILED(nsrv))
+    return nsrv;
+ 
   PLArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
   if (!arena)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -545,11 +521,9 @@ nsNSSCertificateDB::ImportEmailCertificate(uint8_t * data, uint32_t length,
     return NS_ERROR_FAILURE;
   }
 
-  RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
-  NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
-
   certdb = CERT_GetDefaultCertDB();
-  const PRTime now = PR_Now();
+  certusage = certUsageEmailRecipient;
+  certificateusage = certificateUsageEmailRecipient;
 
   numcerts = certCollection->numcerts;
 
@@ -563,7 +537,7 @@ nsNSSCertificateDB::ImportEmailCertificate(uint8_t * data, uint32_t length,
     rawArray[i] = &certCollection->rawCerts[i];
   }
 
-  srv = CERT_ImportCerts(certdb, certUsageEmailRecipient, numcerts, rawArray,
+  srv = CERT_ImportCerts(certdb, certusage, numcerts, rawArray, 
                          &certArray, false, false, nullptr);
 
   PORT_Free(rawArray);
@@ -591,34 +565,66 @@ nsNSSCertificateDB::ImportEmailCertificate(uint8_t * data, uint32_t length,
   /* go down the remaining list of certs and verify that they have
    * valid chains, then import them.
    */
+  now = PR_Now();
 
   for (node = CERT_LIST_HEAD(certList);
        !CERT_LIST_END(node,certList);
        node = CERT_LIST_NEXT(node)) {
 
+    bool alert_and_skip = false;
+
     if (!node->cert) {
       continue;
     }
 
-    CERTCertList *verifyCertChain = nullptr;
+    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
+      if (CERT_VerifyCert(certdb, node->cert,
+          true, certusage, now, ctx, nullptr) != SECSuccess) {
+        alert_and_skip = true;
+      }
+    }
+    else {
+      if (CERT_PKIXVerifyCert(node->cert, certificateusage,
+                              survivingParams->GetRawPointerForNSS(),
+                              cvout, ctx)
+          != SECSuccess) {
+        alert_and_skip = true;
+      }
+    }
 
-    SECStatus rv = certVerifier->VerifyCert(node->cert,
-                                            certificateUsageEmailRecipient,
-                                            now, ctx, 0, &verifyCertChain);
+    ScopedCERTCertificateList certChain;
 
-    ScopedCERTCertList certChain(verifyCertChain);
+    if (!alert_and_skip) {
+      certChain = CERT_CertChainFromCert(node->cert, certusage, false);
+      if (!certChain) {
+        alert_and_skip = true;
+      }
+    }
 
-    if (rv != SECSuccess) {
+    if (alert_and_skip) {    
       nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(node->cert);
       DisplayCertificateAlert(ctx, "NotImportingUnverifiedCert", certToShow);
       continue;
     }
-    rv = ImportCertsIntoPermanentStorage(certChain, certUsageEmailRecipient, false);
-    if (rv != SECSuccess) {
-      goto loser;
-    } 
+
+    /*
+     * CertChain returns an array of SECItems, import expects an array of
+     * SECItem pointers. Create the SECItem Pointers from the array of
+     * SECItems.
+     */
+    rawArray = (SECItem **) PORT_Alloc(certChain->len * sizeof(SECItem *));
+    if (!rawArray) {
+      continue;
+    }
+    for (i=0; i < certChain->len; i++) {
+      rawArray[i] = &certChain->certs[i];
+    }
+    CERT_ImportCerts(certdb, certusage, certChain->len, 
+                            rawArray,  nullptr, true, false, nullptr);
+
     CERT_SaveSMimeProfile(node->cert, nullptr, nullptr);
 
+    PORT_Free(rawArray);
   }
 
 loser:
@@ -746,9 +752,14 @@ nsresult
 nsNSSCertificateDB::ImportValidCACertsInList(CERTCertList *certList, nsIInterfaceRequestor *ctx)
 {
   SECItem **rawArray;
-  RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
-  if (!certVerifier)
-    return NS_ERROR_UNEXPECTED;
+  nsresult nsrv;
+  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
+  if (!inss)
+    return nsrv;
+  RefPtr<nsCERTValInParamWrapper> survivingParams;
+  nsrv = inss->GetDefaultCERTValInParam(survivingParams);
+  if (NS_FAILED(nsrv))
+    return nsrv;
 
   /* filter out the certs we don't want */
   SECStatus srv = CERT_FilterCertListByUsage(certList, certUsageAnyCA, true);
@@ -760,26 +771,61 @@ nsNSSCertificateDB::ImportValidCACertsInList(CERTCertList *certList, nsIInterfac
    * valid chains, if yes, then import.
    */
   CERTCertListNode *node;
+  CERTValOutParam cvout[1];
+  cvout[0].type = cert_po_end;
 
   for (node = CERT_LIST_HEAD(certList);
        !CERT_LIST_END(node,certList);
        node = CERT_LIST_NEXT(node)) {
 
-    //bool alert_and_skip = false;
-    CERTCertList *verifyCertChain = nullptr;
+    bool alert_and_skip = false;
 
-    SECStatus rv = certVerifier->VerifyCert(node->cert, certificateUsageVerifyCA,
-                                            PR_Now(), ctx, 0, &verifyCertChain);
+    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
+      if (CERT_VerifyCert(CERT_GetDefaultCertDB(), node->cert, 
+          true, certUsageVerifyCA, PR_Now(), ctx, nullptr) != SECSuccess) {
+        alert_and_skip = true;
+      }
+    }
+    else {
+      if (CERT_PKIXVerifyCert(node->cert, certificateUsageVerifyCA,
+                              survivingParams->GetRawPointerForNSS(),
+                              cvout, ctx)
+          != SECSuccess) {
+        alert_and_skip = true;
+      }
+    }
 
-    ScopedCERTCertList certChain(verifyCertChain);
+    ScopedCERTCertificateList certChain;
 
-    if (rv != SECSuccess) {
+    if (!alert_and_skip) {    
+      certChain = CERT_CertChainFromCert(node->cert, certUsageAnyCA, false);
+      if (!certChain) {
+        alert_and_skip = true;
+      }
+    }
+
+    if (alert_and_skip) {    
       nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(node->cert);
       DisplayCertificateAlert(ctx, "NotImportingUnverifiedCert", certToShow);
       continue;
     }
 
-    ImportCertsIntoPermanentStorage(certChain, certUsageAnyCA, true);
+    /*
+     * CertChain returns an array of SECItems, import expects an array of
+     * SECItem pointers. Create the SECItem Pointers from the array of
+     * SECItems.
+     */
+    rawArray = (SECItem **) PORT_Alloc(certChain->len * sizeof(SECItem *));
+    if (!rawArray) {
+      continue;
+    }
+    for (int i=0; i < certChain->len; i++) {
+      rawArray[i] = &certChain->certs[i];
+    }
+    CERT_ImportCerts(CERT_GetDefaultCertDB(), certUsageAnyCA, certChain->len, 
+                            rawArray,  nullptr, true, true, nullptr);
+
+    PORT_Free(rawArray);
   }
   
   return NS_OK;
@@ -1278,8 +1324,18 @@ nsNSSCertificateDB::FindCertByEmailAddress(nsISupports *aToken, const char *aEma
 {
   nsNSSShutDownPreventionLock locker;
   
-  RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
-  NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
+  nsCOMPtr<nsINSSComponent> inss;
+  RefPtr<nsCERTValInParamWrapper> survivingParams;
+  nsresult nsrv;
+  
+  if (nsNSSComponent::globalConstFlagUsePKIXVerification) {
+    inss = do_GetService(kNSSComponentCID, &nsrv);
+    if (!inss)
+      return nsrv;
+    nsrv = inss->GetDefaultCERTValInParam(survivingParams);
+    if (NS_FAILED(nsrv))
+      return nsrv;
+  }
 
   ScopedCERTCertList certlist(
       PK11_FindCertsFromEmailAddress(aEmailAddress, nullptr));
@@ -1298,11 +1354,23 @@ nsNSSCertificateDB::FindCertByEmailAddress(nsISupports *aToken, const char *aEma
        !CERT_LIST_END(node, certlist);
        node = CERT_LIST_NEXT(node)) {
 
-    SECStatus srv = certVerifier->VerifyCert(node->cert,
-                                             certificateUsageEmailRecipient,
-                                             PR_Now(), nullptr /*XXX pinarg*/);
-    if (srv == SECSuccess) {
-      break;
+    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
+      if (CERT_VerifyCert(CERT_GetDefaultCertDB(), node->cert,
+          true, certUsageEmailRecipient, PR_Now(), nullptr, nullptr) == SECSuccess) {
+        // found a valid certificate
+        break;
+      }
+    }
+    else {
+      CERTValOutParam cvout[1];
+      cvout[0].type = cert_po_end;
+      if (CERT_PKIXVerifyCert(node->cert, certificateUsageEmailRecipient,
+                              survivingParams->GetRawPointerForNSS(),
+                              cvout, nullptr)
+          == SECSuccess) {
+        // found a valid certificate
+        break;
+      }
     }
   }
 

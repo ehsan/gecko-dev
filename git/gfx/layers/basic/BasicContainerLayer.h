@@ -234,8 +234,6 @@ public:
 
   void ForceIntermediateSurface() { mUseIntermediateSurface = true; }
 
-  void SetSupportsComponentAlphaChildren(bool aSupports) { mSupportsComponentAlphaChildren = aSupports; }
-
 protected:
   BasicLayerManager* BasicManager()
   {

@@ -38,7 +38,7 @@ StringBuffer::extractWellSized()
     return buf;
 }
 
-JSFlatString *
+RawFlatString
 StringBuffer::finishString()
 {
     JSContext *cx = context();
@@ -66,7 +66,7 @@ StringBuffer::finishString()
     return str;
 }
 
-JSAtom *
+RawAtom
 StringBuffer::finishAtom()
 {
     JSContext *cx = context();
@@ -75,7 +75,7 @@ StringBuffer::finishAtom()
     if (length == 0)
         return cx->names().empty;
 
-    JSAtom *atom = AtomizeChars<CanGC>(cx, cb.begin(), length);
+    RawAtom atom = AtomizeChars<CanGC>(cx, cb.begin(), length);
     cb.clear();
     return atom;
 }

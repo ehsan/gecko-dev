@@ -12,7 +12,6 @@ Cu.import('resource://gre/modules/DOMFMRadioParent.jsm');
 Cu.import('resource://gre/modules/AlarmService.jsm');
 Cu.import('resource://gre/modules/ActivitiesService.jsm');
 Cu.import('resource://gre/modules/PermissionPromptHelper.jsm');
-Cu.import('resource://gre/modules/PushService.jsm');
 Cu.import('resource://gre/modules/ObjectWrapper.jsm');
 Cu.import('resource://gre/modules/accessibility/AccessFu.jsm');
 Cu.import('resource://gre/modules/Payment.jsm');
@@ -85,14 +84,6 @@ function debug(str) {
   dump(' -*- Shell.js: ' + str + '\n');
 }
 
-#ifdef MOZ_CRASHREPORTER
-function debugCrashReport(aStr) {
-  dump('Crash reporter : ' + aStr);
-}
-#else
-function debugCrashReport(aStr) {}
-#endif
-
 var shell = {
 
   get CrashSubmit() {
@@ -101,7 +92,6 @@ var shell = {
     Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
     return this.CrashSubmit;
 #else
-    dump('Crash reporter : disabled at build time.');
     return this.CrashSubmit = null;
 #endif
   },
@@ -121,10 +111,7 @@ var shell = {
         crashID = Cc["@mozilla.org/xre/app-info;1"]
                     .getService(Ci.nsIXULRuntime).lastRunCrashID;
       }
-    } catch(e) {
-      debugCrashReport('Failed to fetch crash id. Crash ID is "' + crashID
-                       + '" Exception: ' + e);
-    }
+    } catch(e) { }
 
     // Bail if there isn't a valid crashID.
     if (!this.CrashSubmit || !crashID && !this.CrashSubmit.pendingIDs().length) {
@@ -136,14 +123,10 @@ var shell = {
 
     try {
       // Check if we should automatically submit this crash.
-      if (Services.prefs.getBoolPref('app.reportCrashes')) {
+      if (Services.prefs.getBoolPref("app.reportCrashes")) {
         this.submitCrash(crashID);
-      } else {
-        debugCrashReport('app.reportCrashes is disabled');
       }
-    } catch (e) {
-      debugCrashReport('Can\'t fetch app.reportCrashes. Exception: ' + e);
-    }
+    } catch (e) { }
 
     // We can get here if we're just submitting old pending crashes.
     // Check that there's a valid crashID so that we only notify the
@@ -163,7 +146,6 @@ var shell = {
     // submit the pending queue.
     let pending = shell.CrashSubmit.pendingIDs();
     for (let crashid of pending) {
-      debugCrashReport('Submitting crash: ' + crashid);
       shell.CrashSubmit.submit(crashid);
     }
   },
@@ -174,8 +156,6 @@ var shell = {
       this.submitQueuedCrashes();
       return;
     }
-
-    debugCrashReport('Not online, postponing.');
 
     Services.obs.addObserver(function observer(subject, topic, state) {
       let network = subject.QueryInterface(Ci.nsINetworkInterface);
@@ -262,7 +242,7 @@ var shell = {
       });
 #endif
     } catch(e) {
-      debugCrashReport('exception: ' + e);
+      dump("exception: " + e);
     }
 
     let homeURL = this.homeURL;

@@ -2123,6 +2123,15 @@ nsWindow::OnExposeEvent(cairo_t *cr)
     }
     // If this widget uses OMTC...
     if (GetLayerManager()->AsShadowForwarder() && GetLayerManager()->AsShadowForwarder()->HasShadowManager()) {
+#if defined(MOZ_WIDGET_GTK2)
+        nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface());
+#else
+        nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface(cr));
+#endif
+        nsBaseWidget::AutoLayerManagerSetup
+          setupLayerManager(this, ctx, mozilla::layers::BUFFER_NONE);
+
+        listener->PaintWindow(this, region, 0);
         listener->DidPaintWindow();
 
         g_free(rects);
@@ -5931,7 +5940,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
     Display* xDisplay = DisplayOfScreen(xScreen);
     Drawable xDrawable = gdk_x11_drawable_get_xid(aDrawable);
 
-    nsRefPtr<gfxASurface> result;
+    gfxASurface* result = nullptr;
 
     if (visual) {
         Visual* xVisual = gdk_x11_visual_get_xvisual(visual);
@@ -5958,7 +5967,8 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                     gfxIntSize(aSize.width, aSize.height));
     }
 
-    return result.forget();
+    NS_IF_ADDREF(result);
+    return result;
 }
 #endif
 
@@ -6154,7 +6164,7 @@ nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVert
 }
 
 nsIWidget::LayerManager*
-nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
+nsWindow::GetLayerManager(PLayersChild* aShadowManager,
                           LayersBackend aBackendHint,
                           LayerManagerPersistence aPersistence,
                           bool* aAllowRetaining)

@@ -35,8 +35,7 @@ public:
     return mPerformance;
   }
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
   // PerformanceNavigation WebIDL methods
   DOMTimeMilliSec NavigationStart() const {
@@ -107,8 +106,7 @@ public:
     return mPerformance;
   }
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
   // PerformanceNavigation WebIDL methods
   uint16_t Type() const {
@@ -150,8 +148,7 @@ public:
     return mWindow.get();
   }
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
   // Performance WebIDL methods
   DOMHighResTimeStamp Now();

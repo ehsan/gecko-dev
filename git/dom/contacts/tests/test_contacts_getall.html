@@ -195,9 +195,20 @@ let index = 0;
 let req;
 let mozContacts = window.navigator.mozContacts;
 
-function getOne(msg) {
-  return function() {
-    ok(true, msg || "Retrieving one contact with getAll");
+let steps = [
+  clearDatabase,
+  function() {
+    // add a contact
+    createResult1 = new mozContact();
+    createResult1.init({});
+    req = navigator.mozContacts.save(createResult1);
+    req.onsuccess = function() {
+      next();
+    };
+    req.onerror = onFailure;
+  },
+  function() {
+    ok(true, "Retrieving one contact with getAll");
     req = mozContacts.getAll({});
     let count = 0;
     req.onsuccess = function(event) {
@@ -212,12 +223,13 @@ function getOne(msg) {
       }
     };
     req.onerror = onFailure;
-  };
-}
+  },
 
-function getAll(msg) {
-  return function() {
-    ok(true, msg || "Retrieving 40 contacts with getAll");
+  clearDatabase,
+  addContacts,
+
+  function() {
+    ok(true, "Retrieving 40 contacts with getAll");
     req = mozContacts.getAll({
       sortBy: "familyName",
       sortOrder: "ascending"
@@ -239,31 +251,7 @@ function getAll(msg) {
       }
     };
     req.onerror = onFailure;
-  }
-}
-
-let steps = [
-  clearDatabase,
-  function() {
-    // add a contact
-    createResult1 = new mozContact();
-    createResult1.init({});
-    req = navigator.mozContacts.save(createResult1);
-    req.onsuccess = function() {
-      next();
-    };
-    req.onerror = onFailure;
   },
-
-  getOne(),
-  getOne("Retrieving one contact with getAll - cached"),
-
-  clearDatabase,
-  addContacts,
-
-  getAll(),
-  getAll("Retrieving 40 contacts with getAll - cached"),
-
   function() {
     ok(true, "Deleting one contact");
     req = mozContacts.remove(createResult1);

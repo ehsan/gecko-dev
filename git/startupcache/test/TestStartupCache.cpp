@@ -21,11 +21,8 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsITelemetry.h"
-#include "nsIXPConnect.h"
 #include "jsapi.h"
 #include "prio.h"
-
-using namespace JS;
 
 namespace mozilla {
 namespace scache {
@@ -399,28 +396,42 @@ TestEarlyShutdown() {
   return NS_OK;
 }
 
-static bool
+bool
+SetupJS(JSContext **cxp)
+{
+  JSRuntime *rt = JS_NewRuntime(32 * 1024 * 1024, JS_NO_HELPER_THREADS);
+  if (!rt)
+    return false;
+  JSContext *cx = JS_NewContext(rt, 8192);
+  if (!cx)
+    return false;
+  *cxp = cx;
+  return true;
+}
+
+bool
 GetHistogramCounts(const char *testmsg, const nsACString &histogram_id,
-                   JSContext *cx, MutableHandle<Value> counts)
+                   JSContext *cx, JS::Value *counts)
 {
   nsCOMPtr<nsITelemetry> telemetry = do_GetService("@mozilla.org/base/telemetry;1");
-  Rooted<Value> h(cx);
-  nsresult trv = telemetry->GetHistogramById(histogram_id, cx, h.address());
+  JS::AutoValueRooter h(cx);
+  nsresult trv = telemetry->GetHistogramById(histogram_id, cx, h.addr());
   if (NS_FAILED(trv)) {
     fail("%s: couldn't get histogram %s", testmsg, ToNewCString(histogram_id));
     return false;
   }
   passed(testmsg);
 
-  Rooted<Value> snapshot_val(cx);
+  JS::AutoValueRooter snapshot_val(cx);
   JSFunction *snapshot_fn = NULL;
-  Rooted<Value> ss(cx);
-  return (JS_GetProperty(cx, JSVAL_TO_OBJECT(h), "snapshot",
-                         snapshot_val.address())
-          && (snapshot_fn = JS_ValueToFunction(cx, snapshot_val))
-          && JS::Call(cx, JSVAL_TO_OBJECT(h),
-                      snapshot_fn, 0, NULL, ss.address())
-          && JS_GetProperty(cx, JSVAL_TO_OBJECT(ss), "counts", counts.address()));
+  JS::AutoValueRooter ss(cx);
+  return (JS_GetProperty(cx, JSVAL_TO_OBJECT(h.value()), "snapshot",
+                         snapshot_val.addr())
+          && (snapshot_fn = JS_ValueToFunction(cx, snapshot_val.value()))
+          && JS::Call(cx, JSVAL_TO_OBJECT(h.value()),
+                      snapshot_fn, 0, NULL, ss.addr())
+          && JS_GetProperty(cx, JSVAL_TO_OBJECT(ss.value()),
+                            "counts", counts));
 }
 
 nsresult
@@ -437,7 +448,7 @@ CompareCountArrays(JSContext *cx, JSObject *before, JSObject *after)
   }
 
   for (uint32_t i = 0; i < before_size; ++i) {
-    Value before_num, after_num;
+    JS::Value before_num, after_num;
 
     if (!(JS_GetElement(cx, before, i, &before_num)
           && JS_GetElement(cx, after, i, &after_num))) {
@@ -495,22 +506,11 @@ int main(int argc, char** argv)
   
   int rv = 0;
   // nsITelemetry doesn't have a nice C++ interface.
-  JSContext *cx = nullptr;
+  JSContext *cx;
+  bool use_js = true;
+  if (!SetupJS(&cx))
+    use_js = false;
 
-  // XPCOM initialization spins up XPConnect, which spins up a JSRuntime, which
-  // we can only have one of per thread. So we need to get a JSContext out of
-  // XPConnect here, rather than creating our own runtime. XPConnect rules
-  // dictate that we push the context as well, but we're trying to make the
-  // pushing/popping APIs accessible only through nsCxPusher, which isn't
-  // accessible via the external linkage used by this test. We can get away with
-  // using the cx here without triggering a cx stack assert, so just do that
-  // for now. Eventually, the whole notion of pushing and popping will just go
-  // away.
-  nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
-  if (xpc)
-    cx = xpc->GetSafeJSContext();
-
-  bool use_js = !!cx;
   JSAutoRequest req(cx);
   static JSClass global_class = {
     "global", JSCLASS_NEW_RESOLVE | JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE,
@@ -533,16 +533,14 @@ int main(int argc, char** argv)
   NS_NAMED_LITERAL_CSTRING(age_histogram_id, "STARTUP_CACHE_AGE_HOURS");
   NS_NAMED_LITERAL_CSTRING(invalid_histogram_id, "STARTUP_CACHE_INVALID");
 
-  Rooted<Value> age_before_counts(cx);
-  if (use_js &&
-      !GetHistogramCounts("STARTUP_CACHE_AGE_HOURS histogram before test",
-                          age_histogram_id, cx, &age_before_counts))
+  JS::AutoValueRooter age_before_counts(cx);
+  if (use_js && !GetHistogramCounts("STARTUP_CACHE_AGE_HOURS histogram before test",
+                                    age_histogram_id, cx, age_before_counts.addr()))
     use_js = false;
   
-  Rooted<Value> invalid_before_counts(cx);
-  if (use_js &&
-      !GetHistogramCounts("STARTUP_CACHE_INVALID histogram before test",
-                          invalid_histogram_id, cx, &invalid_before_counts))
+  JS::AutoValueRooter invalid_before_counts(cx);
+  if (use_js && !GetHistogramCounts("STARTUP_CACHE_INVALID histogram before test",
+                                    invalid_histogram_id, cx, invalid_before_counts.addr()))
     use_js = false;
   
   nsresult scrv;
@@ -564,27 +562,25 @@ int main(int argc, char** argv)
   if (NS_FAILED(TestEarlyShutdown()))
     rv = 1;
 
-  Rooted<Value> age_after_counts(cx);
-  if (use_js &&
-      !GetHistogramCounts("STARTUP_CACHE_AGE_HOURS histogram after test",
-                          age_histogram_id, cx, &age_after_counts))
+  JS::AutoValueRooter age_after_counts(cx);
+  if (use_js && !GetHistogramCounts("STARTUP_CACHE_AGE_HOURS histogram after test",
+                                    age_histogram_id, cx, age_after_counts.addr()))
     use_js = false;
 
   if (NS_FAILED(TestHistogramValues("age samples", use_js, cx,
-                                    age_before_counts.toObjectOrNull(),
-                                    age_after_counts.toObjectOrNull())))
+                                    JSVAL_TO_OBJECT(age_before_counts.value()),
+                                    JSVAL_TO_OBJECT(age_after_counts.value()))))
     rv = 1;
                                                     
-  Rooted<Value> invalid_after_counts(cx);
-  if (use_js &&
-      !GetHistogramCounts("STARTUP_CACHE_INVALID histogram after test",
-                          invalid_histogram_id, cx, &invalid_after_counts))
+  JS::AutoValueRooter invalid_after_counts(cx);
+  if (use_js && !GetHistogramCounts("STARTUP_CACHE_INVALID histogram after test",
+                                    invalid_histogram_id, cx, invalid_after_counts.addr()))
     use_js = false;
 
   // STARTUP_CACHE_INVALID should have been triggered by TestIgnoreDiskCache()
   if (NS_FAILED(TestHistogramValues("invalid disk cache", use_js, cx,
-                                    invalid_before_counts.toObjectOrNull(),
-                                    invalid_after_counts.toObjectOrNull())))
+                                    JSVAL_TO_OBJECT(invalid_before_counts.value()),
+                                    JSVAL_TO_OBJECT(invalid_after_counts.value()))))
     rv = 1;
 
   return rv;

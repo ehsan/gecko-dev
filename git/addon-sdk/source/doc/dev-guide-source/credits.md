@@ -76,7 +76,6 @@ We'd like to thank our many Jetpack project contributors!  They include:
 * Hrishikesh Kale
 * Wes Kocher
 * Lajos Koszti
-* Kusanagi Kouichi
 * [Vladimir Kukushkin](https://github.com/kukushechkin)
 
 ### L ###
@@ -130,7 +129,6 @@ We'd like to thank our many Jetpack project contributors!  They include:
 * Dan Stevens
 * [J. Ryan Stinnett](https://github.com/jryans)
 * [Mihai Sucan](https://github.com/mihaisucan)
-* Sunny ([darkowlzz](https://github.com/darkowlzz))
 
 ### T ###
 

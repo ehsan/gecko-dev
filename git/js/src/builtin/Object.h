@@ -11,12 +11,15 @@
 
 namespace js {
 
-extern const JSFunctionSpec object_methods[];
-extern const JSFunctionSpec object_static_methods[];
+extern JSFunctionSpec object_methods[];
+extern JSFunctionSpec object_static_methods[];
 
 /* Object constructor native. Exposed only so the JIT can know its address. */
 extern JSBool
 obj_construct(JSContext *cx, unsigned argc, js::Value *vp);
+
+extern JSString *
+obj_toStringHelper(JSContext *cx, HandleObject obj);
 
 } /* namespace js */
 

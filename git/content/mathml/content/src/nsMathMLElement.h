@@ -24,7 +24,12 @@ class nsMathMLElement : public nsMathMLElementBase,
                         public mozilla::dom::Link
 {
 public:
-  nsMathMLElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsMathMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+    : nsMathMLElementBase(aNodeInfo), Link(this),
+      mIncrementScriptLevel(false)
+  {
+    SetIsDOMBinding();
+  }
 
   // Implementation of nsISupports is inherited from nsMathMLElementBase
   NS_DECL_ISUPPORTS_INHERITED
@@ -101,8 +106,7 @@ public:
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
 private:
   bool mIncrementScriptLevel;

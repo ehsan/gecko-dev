@@ -19,6 +19,16 @@
 #endif
 #include "SharedTextureImage.h"
 
+#ifdef MOZ_WIDGET_ANDROID
+#include "nsSurfaceTexture.h"
+#endif
+
+#ifdef MOZ_WIDGET_GONK
+# include "GonkIOSurfaceImage.h"
+# include <ui/GraphicBuffer.h>
+using namespace android;
+#endif
+
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
 
@@ -97,9 +107,10 @@ GLTexture::Release()
       mContext->MakeCurrent();
       mContext->fDeleteTextures(1, &mTexture);
     } else {
-      already_AddRefed<GLContext> context = mContext.forget();
-      nsCOMPtr<nsIRunnable> runnable = new TextureDeleter(context, mTexture);
-      context.get()->DispatchToOwningThread(runnable);
+      nsCOMPtr<nsIRunnable> runnable =
+        new TextureDeleter(mContext.get(), mTexture);
+      mContext->DispatchToOwningThread(runnable);
+      mContext.forget();
     }
 
     mTexture = 0;
@@ -165,6 +176,23 @@ AllocateTextureSharedTexture(SharedTextureImage *aTexImage, mozilla::gl::GLConte
 
   aTexImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
 }
+
+#ifdef MOZ_WIDGET_GONK
+struct THEBES_API GonkIOSurfaceImageOGLBackendData : public ImageBackendData
+{
+  GLTexture mTexture;
+};
+
+void
+AllocateTextureIOSurface(GonkIOSurfaceImage *aIOImage, mozilla::gl::GLContext* aGL)
+{
+  nsAutoPtr<GonkIOSurfaceImageOGLBackendData> backendData(
+    new GonkIOSurfaceImageOGLBackendData);
+
+  backendData->mTexture.Allocate(aGL);
+  aIOImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
+}
+#endif
 
 Layer*
 ImageLayerOGL::GetLayer()
@@ -348,6 +376,45 @@ ImageLayerOGL::RenderLayer(int,
     mOGLManager->BindAndDrawQuad(program, data->mInverted);
     gl()->fBindTexture(handleDetails.mTarget, 0);
     gl()->DetachSharedHandle(data->mShareType, data->mHandle);
+#ifdef MOZ_WIDGET_GONK
+  } else if (image->GetFormat() == GONK_IO_SURFACE) {
+
+    GonkIOSurfaceImage *ioImage = static_cast<GonkIOSurfaceImage*>(image);
+    if (!ioImage) {
+      return;
+    }
+
+    gl()->MakeCurrent();
+    gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+
+    if (!ioImage->GetBackendData(LAYERS_OPENGL)) {
+      AllocateTextureIOSurface(ioImage, gl());
+    }
+    GonkIOSurfaceImageOGLBackendData *data =
+      static_cast<GonkIOSurfaceImageOGLBackendData*>(ioImage->GetBackendData(LAYERS_OPENGL));
+
+    gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+    gl()->BindExternalBuffer(data->mTexture.GetTextureID(), ioImage->GetNativeBuffer());
+
+    ShaderProgramOGL *program = mOGLManager->GetProgram(RGBAExternalLayerProgramType, GetMaskLayer());
+
+    gl()->ApplyFilterToBoundTexture(mFilter);
+
+    program->Activate();
+    program->SetLayerQuadRect(nsIntRect(0, 0, 
+                                        ioImage->GetSize().width, 
+                                        ioImage->GetSize().height));
+    program->SetLayerTransform(GetEffectiveTransform());
+    program->SetLayerOpacity(GetEffectiveOpacity());
+    program->SetRenderOffset(aOffset);
+    program->SetTextureUnit(0);
+    program->LoadMask(GetMaskLayer());
+
+    mOGLManager->BindAndDrawQuadWithTextureRect(program,
+                                                GetVisibleRegion().GetBounds(),
+                                                nsIntSize(ioImage->GetSize().width,
+                                                          ioImage->GetSize().height));
+#endif
   }
   GetContainer()->NotifyPaintedImage(image);
 }
@@ -454,7 +521,7 @@ ImageLayerOGL::AllocateTexturesCairo(CairoImage *aImage)
 
   SetClamping(gl, tex);
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
   if (aImage->mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
     gfxXlibSurface *xsurf =
       static_cast<gfxXlibSurface*>(aImage->mSurface.get());

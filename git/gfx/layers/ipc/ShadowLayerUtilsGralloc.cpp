@@ -9,10 +9,8 @@
 
 #include "mozilla/layers/PGrallocBufferChild.h"
 #include "mozilla/layers/PGrallocBufferParent.h"
-#include "mozilla/layers/PLayerTransactionChild.h"
+#include "mozilla/layers/PLayersChild.h"
 #include "mozilla/layers/ShadowLayers.h"
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/unused.h"
 #include "nsXULAppAPI.h"
 
@@ -175,7 +173,6 @@ NS_MEMORY_REPORTER_IMPLEMENT(GrallocBufferActor,
 
 GrallocBufferActor::GrallocBufferActor()
 : mAllocBytes(0)
-, mTextureHost(nullptr)
 {
   static bool registered;
   if (!registered) {
@@ -222,26 +219,12 @@ GrallocBufferActor::Create(const gfxIntSize& aSize,
   return actor;
 }
 
-// used only for hacky fix in gecko 23 for bug 862324
-void GrallocBufferActor::ActorDestroy(ActorDestroyReason)
-{
-  if (mTextureHost) {
-    mTextureHost->ForgetBuffer();
-  }
-}
-
-// used only for hacky fix in gecko 23 for bug 862324
-void GrallocBufferActor::SetTextureHost(TextureHost* aTextureHost)
-{
-  mTextureHost = aTextureHost;
-}
-
 /*static*/ already_AddRefed<TextureImage>
-LayerManagerComposite::OpenDescriptorForDirectTexturing(GLContext* aGL,
-                                                        const SurfaceDescriptor& aDescriptor,
-                                                        GLenum aWrapMode)
+ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext* aGL,
+                                                     const SurfaceDescriptor& aDescriptor,
+                                                     GLenum aWrapMode)
 {
-  PROFILER_LABEL("LayerManagerComposite", "OpenDescriptorForDirectTexturing");
+  PROFILER_LABEL("ShadowLayerManager", "OpenDescriptorForDirectTexturing");
   if (SurfaceDescriptor::TSurfaceDescriptorGralloc != aDescriptor.type()) {
     return nullptr;
   }
@@ -250,13 +233,13 @@ LayerManagerComposite::OpenDescriptorForDirectTexturing(GLContext* aGL,
 }
 
 /*static*/ bool
-LayerManagerComposite::SupportsDirectTexturing()
+ShadowLayerManager::SupportsDirectTexturing()
 {
   return true;
 }
 
 /*static*/ void
-LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
+ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 {
   // Nothing to be done for gralloc.
 }

@@ -944,7 +944,6 @@ endif
 # so no need to conditionalize on OS version or debugging format.
 
 $(SHARED_LIBRARY): $(OBJS) $(LOBJS) $(DEF_FILE) $(RESFILE) $(LIBRARY) $(EXTRA_DEPS) $(GLOBAL_DEPS)
-	$(info $(notdir $@))
 ifndef INCREMENTAL_LINKER
 	$(RM) $@
 endif

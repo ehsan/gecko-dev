@@ -490,12 +490,8 @@ nsIMEStateManager::SetIMEState(const IMEState &aState,
     } else {
       context.mHTMLInputType.Assign(nsGkAtoms::textarea->GetUTF16String());
     }
-
-    if (Preferences::GetBool("dom.forms.inputmode", false)) {
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::inputmode,
-                        context.mHTMLInputInputmode);
-    }
-
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::inputmode,
+                      context.mHTMLInputInputmode);
     aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::moz_action_hint,
                       context.mActionHint);
 

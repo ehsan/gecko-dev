@@ -4,16 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jspropertytree.h"
-
 #include "jstypes.h"
+#include "jsprf.h"
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
+#include "jspropertytree.h"
 
 #include "vm/Shape.h"
 
 #include "jsgcinlines.h"
+#include "jsobjinlines.h"
 
 #include "vm/Shape-inl.h"
 
@@ -31,17 +32,17 @@ ShapeHasher::match(const Key k, const Lookup &l)
     return k->matches(l);
 }
 
-Shape *
+RawShape
 PropertyTree::newShape(JSContext *cx)
 {
-    Shape *shape = js_NewGCShape(cx);
+    RawShape shape = js_NewGCShape(cx);
     if (!shape)
         JS_ReportOutOfMemory(cx);
     return shape;
 }
 
 static KidsHash *
-HashChildren(Shape *kid1, Shape *kid2)
+HashChildren(RawShape kid1, RawShape kid2)
 {
     KidsHash *hash = js_new<KidsHash>();
     if (!hash || !hash->init(2)) {
@@ -55,7 +56,7 @@ HashChildren(Shape *kid1, Shape *kid2)
 }
 
 bool
-PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
+PropertyTree::insertChild(JSContext *cx, RawShape parent, RawShape child)
 {
     JS_ASSERT(!parent->inDictionary());
     JS_ASSERT(!child->parent);
@@ -72,7 +73,7 @@ PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
     }
 
     if (kidp->isShape()) {
-        Shape *shape = kidp->toShape();
+        RawShape shape = kidp->toShape();
         JS_ASSERT(shape != child);
         JS_ASSERT(!shape->matches(child));
 
@@ -96,7 +97,7 @@ PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
 }
 
 void
-Shape::removeChild(Shape *child)
+Shape::removeChild(RawShape child)
 {
     JS_ASSERT(!child->inDictionary());
     JS_ASSERT(child->parent == this);
@@ -126,11 +127,11 @@ Shape::removeChild(Shape *child)
     }
 }
 
-Shape *
+RawShape
 PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const StackShape &child)
 {
     {
-        Shape *shape = NULL;
+        RawShape shape = NULL;
 
         JS_ASSERT(parent_);
 
@@ -144,7 +145,7 @@ PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const Sta
          */
         KidsPointer *kidp = &parent_->kids;
         if (kidp->isShape()) {
-            Shape *kid = kidp->toShape();
+            RawShape kid = kidp->toShape();
             if (kid->matches(child))
                 shape = kid;
         } else if (kidp->isHash()) {
@@ -186,7 +187,7 @@ PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const Sta
     StackShape::AutoRooter childRoot(cx, &child);
     RootedShape parent(cx, parent_);
 
-    Shape *shape = newShape(cx);
+    RawShape shape = newShape(cx);
     if (!shape)
         return NULL;
 
@@ -240,7 +241,7 @@ Shape::finalize(FreeOp *fop)
 #ifdef DEBUG
 
 void
-KidsPointer::checkConsistency(Shape *aKid) const
+KidsPointer::checkConsistency(RawShape aKid) const
 {
     if (isShape()) {
         JS_ASSERT(toShape() == aKid);
@@ -325,13 +326,13 @@ Shape::dumpSubtree(JSContext *cx, int level, FILE *fp) const
     if (!kids.isNull()) {
         ++level;
         if (kids.isShape()) {
-            Shape *kid = kids.toShape();
+            RawShape kid = kids.toShape();
             JS_ASSERT(kid->parent == this);
             kid->dumpSubtree(cx, level, fp);
         } else {
             const KidsHash &hash = *kids.toHash();
             for (KidsHash::Range range = hash.all(); !range.empty(); range.popFront()) {
-                Shape *kid = range.front();
+                RawShape kid = range.front();
 
                 JS_ASSERT(kid->parent == this);
                 kid->dumpSubtree(cx, level, fp);
@@ -365,7 +366,7 @@ js::PropertyTree::dumpShapes(JSRuntime *rt)
         typedef JSCompartment::EmptyShapeSet HS;
         HS &h = c->emptyShapes;
         for (HS::Range r = h.all(); !r.empty(); r.popFront()) {
-            Shape *empty = r.front();
+            RawShape empty = r.front();
             empty->dumpSubtree(rt, 0, dumpfp);
             putc('\n', dumpfp);
         }

@@ -43,32 +43,25 @@ class HashableValue {
     bool operator==(const HashableValue &other) const;
     HashableValue mark(JSTracer *trc) const;
     Value get() const { return value.get(); }
-};
 
-class AutoHashableValueRooter : private AutoGCRooter
-{
-  public:
-    explicit AutoHashableValueRooter(JSContext *cx
-                                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoGCRooter(cx, HASHABLEVALUE)
+    class AutoRooter : private AutoGCRooter
+    {
+      public:
+        explicit AutoRooter(JSContext *cx, HashableValue *v_
+                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+          : AutoGCRooter(cx, HASHABLEVALUE), v(v_), skip(cx, v_)
         {
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
-    bool setValue(JSContext *cx, const Value &v) {
-        return value.setValue(cx, v);
-    }
+        friend void AutoGCRooter::trace(JSTracer *trc);
+        void trace(JSTracer *trc);
 
-    operator const HashableValue & () {
-        return value;
-    }
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-    void trace(JSTracer *trc);
-
-  private:
-    HashableValue value;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+      private:
+        HashableValue *v;
+        SkipRoot skip;
+        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    };
 };
 
 template <class Key, class Value, class OrderedHashPolicy, class AllocPolicy>
@@ -93,12 +86,12 @@ class MapObject : public JSObject {
     static JSObject *initClass(JSContext *cx, JSObject *obj);
     static Class class_;
   private:
-    static const JSPropertySpec properties[];
-    static const JSFunctionSpec methods[];
+    static JSPropertySpec properties[];
+    static JSFunctionSpec methods[];
     ValueMap *getData() { return static_cast<ValueMap *>(getPrivate()); }
     static ValueMap & extract(CallReceiver call);
-    static void mark(JSTracer *trc, JSObject *obj);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void mark(JSTracer *trc, RawObject obj);
+    static void finalize(FreeOp *fop, RawObject obj);
     static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
 
     static bool is(const Value &v);
@@ -130,12 +123,12 @@ class SetObject : public JSObject {
     static JSObject *initClass(JSContext *cx, JSObject *obj);
     static Class class_;
   private:
-    static const JSPropertySpec properties[];
-    static const JSFunctionSpec methods[];
+    static JSPropertySpec properties[];
+    static JSFunctionSpec methods[];
     ValueSet *getData() { return static_cast<ValueSet *>(getPrivate()); }
     static ValueSet & extract(CallReceiver call);
-    static void mark(JSTracer *trc, JSObject *obj);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void mark(JSTracer *trc, RawObject obj);
+    static void finalize(FreeOp *fop, RawObject obj);
     static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
 
     static bool is(const Value &v);

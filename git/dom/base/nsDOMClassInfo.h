@@ -372,7 +372,7 @@ public:
 
   static JSBool GlobalScopePolluterNewResolve(JSContext *cx, JSHandleObject obj,
                                               JSHandleId id, unsigned flags,
-                                              JS::MutableHandle<JSObject*> objp);
+                                              JSMutableHandleObject objp);
   static JSBool GlobalScopePolluterGetProperty(JSContext *cx, JSHandleObject obj,
                                                JSHandleId id, JSMutableHandleValue vp);
   static JSBool InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj);
@@ -590,6 +590,35 @@ private:
 };
 
 
+// NamedNodeMap helper
+
+class nsNamedNodeMapSH : public nsNamedArraySH
+{
+protected:
+  nsNamedNodeMapSH(nsDOMClassInfoData* aData) : nsNamedArraySH(aData)
+  {
+  }
+
+  virtual ~nsNamedNodeMapSH()
+  {
+  }
+
+  virtual nsISupports* GetItemAt(nsISupports *aNative, uint32_t aIndex,
+                                 nsWrapperCache **aCache, nsresult *aResult);
+
+  // Override nsNamedArraySH::GetNamedItem()
+  virtual nsISupports* GetNamedItem(nsISupports *aNative,
+                                    const nsAString& aName,
+                                    nsWrapperCache **cache,
+                                    nsresult *aResult);
+
+public:
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsNamedNodeMapSH(aData);
+  }
+};
+
 // Document helper, for document.location and document.on*
 
 class nsDocumentSH : public nsNodeSH
@@ -641,17 +670,17 @@ public:
   static JSBool DocumentAllGetProperty(JSContext *cx, JSHandleObject obj, JSHandleId id,
                                        JSMutableHandleValue vp);
   static JSBool DocumentAllNewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
-                                      unsigned flags, JS::MutableHandle<JSObject*> objp);
+                                      unsigned flags, JSMutableHandleObject objp);
   static void ReleaseDocument(JSFreeOp *fop, JSObject *obj);
   static JSBool CallToGetPropMapper(JSContext *cx, unsigned argc, jsval *vp);
   static JSBool DocumentAllHelperGetProperty(JSContext *cx, JSHandleObject obj,
                                              JSHandleId id, JSMutableHandleValue vp);
   static JSBool DocumentAllHelperNewResolve(JSContext *cx, JSHandleObject obj,
                                             JSHandleId id, unsigned flags,
-                                            JS::MutableHandle<JSObject*> objp);
+                                            JSMutableHandleObject objp);
   static JSBool DocumentAllTagsNewResolve(JSContext *cx, JSHandleObject obj,
                                           JSHandleId id, unsigned flags,
-                                          JS::MutableHandle<JSObject*> objp);
+                                          JSMutableHandleObject objp);
 
   NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj, jsid id, uint32_t flags,
@@ -960,6 +989,37 @@ class nsDOMTouchListSH : public nsArraySH
   }
 };
 
+#ifdef MOZ_XUL
+// TreeColumns helper
+
+class nsTreeColumnsSH : public nsNamedArraySH
+{
+protected:
+  nsTreeColumnsSH(nsDOMClassInfoData* aData) : nsNamedArraySH(aData)
+  {
+  }
+
+  virtual ~nsTreeColumnsSH()
+  {
+  }
+
+  virtual nsISupports* GetItemAt(nsISupports *aNative, uint32_t aIndex,
+                                 nsWrapperCache **aCache, nsresult *aResult);
+
+  // Override nsNamedArraySH::GetNamedItem()
+  virtual nsISupports* GetNamedItem(nsISupports *aNative,
+                                    const nsAString& aName,
+                                    nsWrapperCache **cache,
+                                    nsresult *aResult);
+
+public:
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsTreeColumnsSH(aData);
+  }
+};
+#endif
+
 // WebApps Storage helpers
 
 class nsStorage2SH : public nsDOMGenericSH
@@ -1112,6 +1172,29 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsOfflineResourceListSH(aData);
+  }
+};
+
+// SVGStringList helper
+
+class nsSVGStringListSH : public nsStringArraySH
+{
+protected:
+  nsSVGStringListSH(nsDOMClassInfoData* aData) : nsStringArraySH(aData)
+  {
+  }
+  
+  virtual ~nsSVGStringListSH()
+  {
+  }
+  
+  virtual nsresult GetStringAt(nsISupports *aNative, int32_t aIndex,
+                               nsAString& aResult);
+  
+public:
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsSVGStringListSH(aData);
   }
 };
 

@@ -58,14 +58,11 @@ public:
    */
   virtual void CreatedSingleBuffer(CompositableClient* aCompositable,
                                    const SurfaceDescriptor& aDescriptor,
-                                   const TextureInfo& aTextureInfo,
-                                   const SurfaceDescriptor* aDescriptorOnWhite = nullptr) = 0;
+                                   const TextureInfo& aTextureInfo) = 0;
   virtual void CreatedDoubleBuffer(CompositableClient* aCompositable,
                                    const SurfaceDescriptor& aFrontDescriptor,
                                    const SurfaceDescriptor& aBackDescriptor,
-                                   const TextureInfo& aTextureInfo,
-                                   const SurfaceDescriptor* aFrontDescriptorOnWhite = nullptr,
-                                   const SurfaceDescriptor* aBackDescriptorOnWhite = nullptr) = 0;
+                                   const TextureInfo& aTextureInfo) = 0;
 
   /**
    * Tell the compositor that a Compositable is killing its buffer(s),

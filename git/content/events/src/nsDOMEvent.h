@@ -18,6 +18,7 @@
 #include "nsIJSNativeInitializer.h"
 #include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/EventBinding.h"
+#include "mozilla/dom/BindingUtils.h"
 #include "nsIScriptGlobalObject.h"
 
 class nsIContent;
@@ -84,8 +85,7 @@ public:
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::EventBinding::Wrap(aCx, aScope, this);
   }

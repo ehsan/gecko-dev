@@ -160,7 +160,6 @@ nsCoreUtils::DispatchMouseEvent(uint32_t aEventType, int32_t aX, int32_t aY,
   event.clickCount = 1;
   event.button = nsMouseEvent::eLeftButton;
   event.time = PR_IntervalNow();
-  event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 
   nsEventStatus status = nsEventStatus_eIgnore;
   aPresShell->HandleEventWithTarget(&event, aFrame, aContent, &status);
@@ -517,9 +516,9 @@ nsCoreUtils::GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj)
   if (!tcXULElm)
     return nullptr;
 
-  nsCOMPtr<nsIBoxObject> boxObj;
-  tcXULElm->GetBoxObject(getter_AddRefs(boxObj));
-  return boxObj.forget();
+  nsIBoxObject *boxObj = nullptr;
+  tcXULElm->GetBoxObject(&boxObj);
+  return boxObj;
 }
 
 already_AddRefed<nsITreeBoxObject>

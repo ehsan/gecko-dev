@@ -151,7 +151,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
 
     // Helper for WebIDL newResolve
     bool DoNewResolve(JSContext* aCx, JSHandleObject aObject, JSHandleId aId,
-                      unsigned aFlags, JS::MutableHandle<JSObject*> aObjp);
+                      unsigned aFlags, JSMutableHandleObject aObjp);
 
     // WebIDL API
     nsIDocument* GetContentDocument();

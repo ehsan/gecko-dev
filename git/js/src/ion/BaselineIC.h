@@ -915,7 +915,7 @@ class ICUpdatedStub : public ICStub
   public:
     bool initUpdatingChain(JSContext *cx, ICStubSpace *space);
 
-    bool addUpdateStubForValue(JSContext *cx, HandleScript script, HandleObject obj, jsid id,
+    bool addUpdateStubForValue(JSContext *cx, HandleScript script, HandleObject obj, RawId id,
                                HandleValue val);
 
     void addOptimizedUpdateStub(ICStub *stub) {
@@ -1918,21 +1918,15 @@ class ICCompare_NumberWithUndefined : public ICStub
 {
     friend class ICStubSpace;
 
-    ICCompare_NumberWithUndefined(IonCode *stubCode, bool lhsIsUndefined)
+    ICCompare_NumberWithUndefined(IonCode *stubCode)
       : ICStub(ICStub::Compare_NumberWithUndefined, stubCode)
-    {
-        extra_ = lhsIsUndefined;
-    }
+    {}
 
   public:
-    static inline ICCompare_NumberWithUndefined *New(ICStubSpace *space, IonCode *code, bool lhsIsUndefined) {
+    static inline ICCompare_NumberWithUndefined *New(ICStubSpace *space, IonCode *code) {
         if (!code)
             return NULL;
-        return space->allocate<ICCompare_NumberWithUndefined>(code, lhsIsUndefined);
-    }
-
-    bool lhsIsUndefined() {
-        return extra_;
+        return space->allocate<ICCompare_NumberWithUndefined>(code);
     }
 
     class Compiler : public ICMultiStubCompiler {
@@ -1954,7 +1948,7 @@ class ICCompare_NumberWithUndefined : public ICStub
         }
 
         ICStub *getStub(ICStubSpace *space) {
-            return ICCompare_NumberWithUndefined::New(space, getStubCode(), lhsIsUndefined);
+            return ICCompare_NumberWithUndefined::New(space, getStubCode());
         }
     };
 };
@@ -2086,7 +2080,7 @@ class ICCompare_ObjectWithUndefined : public ICStub
         }
 
         ICStub *getStub(ICStubSpace *space) {
-            return ICCompare_ObjectWithUndefined::New(space, getStubCode());
+            return ICCompare_NumberWithUndefined::New(space, getStubCode());
         }
     };
 };
@@ -2980,7 +2974,7 @@ class ICGetElem_Dense : public ICMonitoredStub
         bool generateStubCode(MacroAssembler &masm);
 
       public:
-        Compiler(JSContext *cx, ICStub *firstMonitorStub, Shape *shape)
+        Compiler(JSContext *cx, ICStub *firstMonitorStub, RawShape shape)
           : ICStubCompiler(cx, ICStub::GetElem_Dense),
             firstMonitorStub_(firstMonitorStub),
             shape_(cx, shape)
@@ -3030,7 +3024,7 @@ class ICGetElem_TypedArray : public ICStub
         }
 
       public:
-        Compiler(JSContext *cx, Shape *shape, uint32_t type)
+        Compiler(JSContext *cx, RawShape shape, uint32_t type)
           : ICStubCompiler(cx, ICStub::GetElem_TypedArray),
             shape_(cx, shape),
             type_(type)
@@ -3171,7 +3165,7 @@ class ICSetElem_Dense : public ICUpdatedStub
         bool generateStubCode(MacroAssembler &masm);
 
       public:
-        Compiler(JSContext *cx, Shape *shape, HandleTypeObject type)
+        Compiler(JSContext *cx, RawShape shape, HandleTypeObject type)
           : ICStubCompiler(cx, ICStub::SetElem_Dense),
             shape_(cx, shape),
             type_(type)
@@ -3338,7 +3332,7 @@ class ICSetElem_TypedArray : public ICStub
         }
 
       public:
-        Compiler(JSContext *cx, Shape *shape, uint32_t type, bool expectOutOfBounds)
+        Compiler(JSContext *cx, RawShape shape, uint32_t type, bool expectOutOfBounds)
           : ICStubCompiler(cx, ICStub::SetElem_TypedArray),
             shape_(cx, shape),
             type_(type),

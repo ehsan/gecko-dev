@@ -201,11 +201,6 @@ public:
     }
   }
 
-  void CancelAllEvents()
-  {
-    mEvents.Clear();
-  }
-
   // This method computes the AudioParam value at a given time based on the event timeline
   template<class TimeType>
   float GetValueAtTime(TimeType aTime) const

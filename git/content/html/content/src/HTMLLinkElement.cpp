@@ -20,6 +20,7 @@
 #include "nsNetUtil.h"
 #include "nsIDocument.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsContentUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsAsyncDOMEvent.h"
@@ -417,7 +418,7 @@ HTMLLinkElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 }
 
 JSObject*
-HTMLLinkElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLLinkElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLLinkElementBinding::Wrap(aCx, aScope, this);
 }

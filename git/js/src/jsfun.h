@@ -17,6 +17,8 @@
 
 #include "gc/Barrier.h"
 
+ForwardDeclareJS(Atom);
+
 namespace js { class FunctionExtended; }
 
 class JSFunction : public JSObject
@@ -190,7 +192,7 @@ class JSFunction : public JSObject
     inline void initAtom(JSAtom *atom);
     JSAtom *displayAtom() const { return atom_; }
 
-    inline void setGuessedAtom(JSAtom *atom);
+    inline void setGuessedAtom(js::RawAtom atom);
 
     /* uint16_t representation bounds number of call object dynamic slots. */
     enum { MAX_ARGS_AND_VARS = 2 * ((1U << 16) - 1) };
@@ -208,7 +210,7 @@ class JSFunction : public JSObject
 
     bool initializeLazyScript(JSContext *cx);
 
-    JSScript *getOrCreateScript(JSContext *cx) {
+    js::RawScript getOrCreateScript(JSContext *cx) {
         JS_ASSERT(isInterpreted());
         JS_ASSERT(cx);
         if (isInterpretedLazy()) {
@@ -233,12 +235,12 @@ class JSFunction : public JSObject
         return fun->hasScript();
     }
 
-    JSScript *nonLazyScript() const {
+    js::RawScript nonLazyScript() const {
         JS_ASSERT(hasScript());
         return JS::HandleScript::fromMarkedLocation(&u.i.script_);
     }
 
-    JSScript *maybeNonLazyScript() const {
+    js::RawScript maybeNonLazyScript() const {
         return isInterpreted() ? nonLazyScript() : NULL;
     }
 
@@ -438,7 +440,7 @@ ReportIncompatible(JSContext *cx, CallReceiver call);
 JSBool
 CallOrConstructBoundFunction(JSContext *, unsigned, js::Value *);
 
-extern const JSFunctionSpec function_methods[];
+extern JSFunctionSpec function_methods[];
 
 } /* namespace js */
 

@@ -162,13 +162,10 @@ if (this.Components) {
       * the file exists, it executes |f| within the |this| set
       * to the corresponding file. Otherwise, it throws an error.
       */
-     let withFile = function withFile(id, f, ignoreAbsent) {
+     let withFile = function withFile(id, f) {
        let file = OpenedFiles.get(id);
        if (file == null) {
-         if (!ignoreAbsent) {
-           throw OS.File.Error.closed("accessing file");
-         }
-         return undefined;
+         throw new Error("Could not find File");
        }
        return f.call(file);
      };
@@ -178,9 +175,9 @@ if (this.Components) {
        let file = OpenedDirectoryIterators.get(fd);
        if (file == null) {
          if (!ignoreAbsent) {
-           throw OS.File.Error.closed("accessing directory");
+           throw new Error("Could not find Directory");
          }
-         return undefined;
+         return;
        }
        if (!(file instanceof File.DirectoryIterator)) {
          throw new Error("file is not a directory iterator " + file.__proto__.toSource());

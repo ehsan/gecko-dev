@@ -10,7 +10,6 @@
 #include "nsAutoPtr.h"
 #include "nsIObserver.h"
 #include "nsTArray.h"
-#include "nsITimer.h"
 
 #include "AudioChannelCommon.h"
 #include "AudioChannelAgent.h"
@@ -19,14 +18,11 @@
 namespace mozilla {
 namespace dom {
 
-class AudioChannelService
-: public nsIObserver
-, public nsITimerCallback
+class AudioChannelService : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
-  NS_DECL_NSITIMERCALLBACK
 
   /**
    * Returns the AudioChannelServce singleton. Only to be called from main thread.
@@ -64,27 +60,18 @@ public:
    */
   virtual bool ContentOrNormalChannelIsActive();
 
-  /**
-   * Return true iff a normal or content channel is active for the given process
-   * ID.
-   */
-  virtual bool ProcessContentOrNormalChannelIsActive(uint64_t aChildID);
-
 protected:
   void Notify();
 
   /**
-   * Send the audio-channel-changed notification for the given process ID if
-   * needed.
+   * Send the audio-channel-changed notification if needed.
    */
-  void SendAudioChannelChangedNotification(uint64_t aChildID);
+  void SendAudioChannelChangedNotification();
 
   /* Register/Unregister IPC types: */
   void RegisterType(AudioChannelType aType, uint64_t aChildID);
   void UnregisterType(AudioChannelType aType, bool aElementHidden,
                       uint64_t aChildID);
-  void UnregisterTypeInternal(AudioChannelType aType, bool aElementHidden,
-                              uint64_t aChildID);
 
   bool GetMutedInternal(AudioChannelType aType, uint64_t aChildID,
                         bool aElementHidden, bool aElementWasHidden);
@@ -149,10 +136,6 @@ protected:
 
   nsTArray<uint64_t> mActiveContentChildIDs;
   bool mActiveContentChildIDsFrozen;
-
-  nsCOMPtr<nsITimer> mDeferTelChannelTimer;
-  bool mTimerElementHidden;
-  uint64_t mTimerChildID;
 
   // This is needed for IPC comunication between
   // AudioChannelServiceChild and this class.

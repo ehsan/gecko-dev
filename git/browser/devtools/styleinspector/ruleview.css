@@ -28,10 +28,6 @@
   padding-right: 15px;
 }
 
-.ruleview-propertycontainer a {
-  cursor: pointer;
-}
-
 .ruleview-computedlist:not(.styleinspector-open),
 .ruleview-warning[hidden] {
   display: none;

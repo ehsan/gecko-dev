@@ -50,7 +50,14 @@ members = [
     #'nsIDOMLocation.hostname',
     #'nsIDOMLocation.href',
 
+    # dom/interfaces/canvas
+    #
+    # canvas friends
+    'nsIDOMCanvasGradient.*',
+
     # dom/interfaces/core
+    'nsIDOMMozNamedAttrMap.item',
+    'nsIDOMMozNamedAttrMap.length',
     'nsIDOMDOMStringList.*',
 
     'nsIDOMKeyEvent.*',
@@ -60,6 +67,7 @@ members = [
     'nsIDOMProgressEvent.total',
     #XXX Can't quickstub initProgressEvent because it has long long parameters.
 
+    'nsIDOMTouch.*',
     'nsIDOMTouchList.*',
 
     # dom/interfaces/html
@@ -137,6 +145,8 @@ members = [
 #
 irregularFilenames = {
     # stowaways
+    'nsIDOMCanvasGradient': 'nsIDOMCanvasRenderingContext2D',
+
     'nsIDOMBlob': 'nsIDOMFile',
 
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
@@ -161,6 +171,10 @@ customIncludes = [
     'mozilla/dom/EventBinding.h',
     'mozilla/dom/MouseEventBinding.h',
     'mozilla/dom/UIEventBinding.h',
+    ]
+
+customReturnInterfaces = [
+    'nsIDOMCanvasGradient',
     ]
 
 nsIDOMStorage_Clear_customMethodCallCode = """

@@ -11,13 +11,6 @@
 #include "ElfLoader.h"
 #include "SQLiteBridge.h"
 
-#ifdef MOZ_MEMORY
-// libc's free().
-extern "C" void __real_free(void *);
-#else
-#define __real_free(a) free(a)
-#endif
-
 #ifdef DEBUG
 #define LOG(x...) __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", x)
 #else
@@ -157,8 +150,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
         asprintf(&errorMsg, "Can't open database: %s\n", f_sqlite3_errmsg(db));
         LOG("Error in SQLiteBridge: %s\n", errorMsg);
         JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", errorMsg);
-        // errorMsg is allocated by asprintf, it needs to be freed by libc.
-        __real_free(errorMsg);
+        free(errorMsg);
     } else {
       jCursor = sqliteInternalCall(jenv, db, jQuery, jParams, jQueryRes);
     }
@@ -199,8 +191,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_openDatabase(JNIEnv* jenv, jclass,
         asprintf(&errorMsg, "Can't open database: %s\n", f_sqlite3_errmsg(db));
         LOG("Error in SQLiteBridge: %s\n", errorMsg);
         JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", errorMsg);
-        // errorMsg is allocated by asprintf, it needs to be freed by libc.
-        __real_free(errorMsg);
+        free(errorMsg);
     }
     return (jlong)db;
 }
@@ -403,7 +394,6 @@ sqliteInternalCall(JNIEnv* jenv,
 error_close:
     LOG("Error in SQLiteBridge: %s\n", errorMsg);
     JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", errorMsg);
-    // errorMsg is allocated by asprintf, it needs to be freed by libc.
-    __real_free(errorMsg);
+    free(errorMsg);
     return jCursor;
 }

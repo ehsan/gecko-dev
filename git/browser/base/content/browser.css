@@ -9,10 +9,6 @@ searchbar {
   -moz-binding: url("chrome://browser/content/search/search.xml#searchbar");
 }
 
-browser[remote="true"] {
-  -moz-binding: url("chrome://global/content/bindings/remote-browser.xml#remote-browser");
-}
-
 #nav-bar {
   -moz-binding: url("chrome://browser/content/toolbar.xml#toolbar");
 }
@@ -43,11 +39,11 @@ tabbrowser {
 
 .tabbrowser-tab:not([pinned]) {
   -moz-box-flex: 100;
-  max-width: 180px;
+  max-width: 250px;
   min-width: 100px;
   width: 0;
   transition: min-width 200ms ease-out,
-              max-width 230ms ease-out,
+              max-width 250ms ease-out,
               opacity 50ms ease-out 20ms /* hide the tab for the first 20ms of the max-width transition */;
 }
 
@@ -56,8 +52,8 @@ tabbrowser {
   min-width: 0.1px;
   opacity: 0 !important;
   transition: min-width 200ms ease-out,
-              max-width 230ms ease-out,
-              opacity 50ms ease-out 160ms /* hide the tab for the last 20ms of the max-width transition */;
+              max-width 250ms ease-out,
+              opacity 50ms ease-out 180ms /* hide the tab for the last 20ms of the max-width transition */;
 }
 
 .tab-throbber:not([fadein]):not([pinned]),
@@ -125,23 +121,6 @@ toolbar[printpreview="true"] {
 #main-window[tabsintitlebar] #titlebar-buttonbox {
   position: relative;
 }
-
-#titlebar-buttonbox {
-  -moz-appearance: -moz-window-button-box;
-}
-
-%ifdef XP_MACOSX
-#titlebar-fullscreen-button {
-  -moz-appearance: -moz-mac-fullscreen-button;
-}
-%endif
-
-%ifdef XP_WIN
-#main-window[sizemode="maximized"] #titlebar-buttonbox {
-  -moz-appearance: -moz-window-button-box-maximized;
-}
-%endif
-
 %endif
 
 .bookmarks-toolbar-customize,
@@ -329,18 +308,17 @@ toolbarbutton.bookmark-item {
   max-width: 13em;
 }
 
+%ifdef MENUBAR_CAN_AUTOHIDE
+#toolbar-menubar:not([autohide="true"]) ~ #nav-bar > #bookmarks-menu-button-container,
+#toolbar-menubar:not([autohide="true"]) ~ toolbar > #personal-bookmarks > #bookmarks-menu-button,
+#toolbar-menubar:not([autohide="true"]) > #personal-bookmarks > #bookmarks-menu-button {
+  display: none;
+}
+%endif
+
 #editBMPanel_tagsSelector {
   /* override default listbox width from xul.css */
   width: auto;
-}
-
-/* The star doesn't make sense as text */
-toolbar[mode="text"] #bookmarks-menu-button > .toolbarbutton-menubutton-button > .toolbarbutton-icon {
-  display: -moz-box !important;
-}
-toolbar[mode="text"] #bookmarks-menu-button > .toolbarbutton-menubutton-button > .toolbarbutton-text,
-toolbar[mode="full"] #bookmarks-menu-button.bookmark-item > .toolbarbutton-menubutton-button > .toolbarbutton-text {
-  display: none;
 }
 
 menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {

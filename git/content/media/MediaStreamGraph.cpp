@@ -925,7 +925,7 @@ MediaStreamGraphImpl::ProduceDataForStreamsBlockByBlock(uint32_t aStreamIndex,
   while (t < aTo) {
     GraphTime next = RoundUpToAudioBlock(t + 1);
     for (uint32_t i = aStreamIndex; i < mStreams.Length(); ++i) {
-      nsRefPtr<ProcessedMediaStream> ps = mStreams[i]->AsProcessedStream();
+      ProcessedMediaStream* ps = mStreams[i]->AsProcessedStream();
       if (ps) {
         ps->ProduceOutput(t, next);
       }
@@ -2012,14 +2012,10 @@ AudioNodeStream*
 MediaStreamGraph::CreateAudioNodeStream(AudioNodeEngine* aEngine,
                                         AudioNodeStreamKind aKind)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   AudioNodeStream* stream = new AudioNodeStream(aEngine, aKind);
   NS_ADDREF(stream);
   MediaStreamGraphImpl* graph = static_cast<MediaStreamGraphImpl*>(this);
   stream->SetGraphImpl(graph);
-  stream->SetChannelMixingParametersImpl(aEngine->NodeMainThread()->ChannelCount(),
-                                         aEngine->NodeMainThread()->ChannelCountModeValue(),
-                                         aEngine->NodeMainThread()->ChannelInterpretationValue());
   graph->AppendMessage(new CreateMessage(stream));
   return stream;
 }

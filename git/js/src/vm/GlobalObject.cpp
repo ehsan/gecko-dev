@@ -205,7 +205,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
     /* Create |Function.prototype| next so we can create other functions. */
     RootedFunction functionProto(cx);
     {
-        JSObject *functionProto_ = NewObjectWithGivenProto(cx, &FunctionClass, objectProto, self,
+        RawObject functionProto_ = NewObjectWithGivenProto(cx, &FunctionClass, objectProto, self,
                                                            SingletonObject);
         if (!functionProto_)
             return NULL;
@@ -216,7 +216,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
          * give it the guts to be one.
          */
         {
-            JSObject *proto = NewFunction(cx, functionProto, NULL, 0, JSFunction::INTERPRETED,
+            RawObject proto = NewFunction(cx, functionProto, NULL, 0, JSFunction::INTERPRETED,
                                           self, NullPtr());
             if (!proto)
                 return NULL;
@@ -365,7 +365,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
 
     /* ES5 15.1.2.1. */
     RootedId evalId(cx, NameToId(cx->names().eval));
-    JSObject *evalobj = DefineFunction(cx, self, evalId, IndirectEval, 1, JSFUN_STUB_GSOPS);
+    RawObject evalobj = DefineFunction(cx, self, evalId, IndirectEval, 1, JSFUN_STUB_GSOPS);
     if (!evalobj)
         return NULL;
     self->setOriginalEval(evalobj);
@@ -559,15 +559,15 @@ js::DefinePropertiesAndBrand(JSContext *cx, JSObject *obj_,
 {
     RootedObject obj(cx, obj_);
 
-    if (ps && !JS_DefineProperties(cx, obj, ps))
+    if (ps && !JS_DefineProperties(cx, obj, const_cast<JSPropertySpec*>(ps)))
         return false;
-    if (fs && !JS_DefineFunctions(cx, obj, fs))
+    if (fs && !JS_DefineFunctions(cx, obj, const_cast<JSFunctionSpec*>(fs)))
         return false;
     return true;
 }
 
 static void
-GlobalDebuggees_finalize(FreeOp *fop, JSObject *obj)
+GlobalDebuggees_finalize(FreeOp *fop, RawObject obj)
 {
     fop->delete_((GlobalObject::DebuggerVector *) obj->getPrivate());
 }

@@ -1,6 +1,9 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
+let tempScope = {};
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+let TargetFactory = tempScope.TargetFactory;
 let doc = null, toolbox = null, panelWin = null, index = 0, prefValues = [], prefNodes = [];
 
 function test() {
@@ -106,17 +109,16 @@ function toggleTools() {
 }
 
 function checkUnregistered(event, data) {
-  if (data.id == prefNodes[index].getAttribute("id")) {
+  if (data == prefNodes[index].getAttribute("id")) {
     ok(true, "Correct tool removed");
     // checking tab on the toolbox
-    ok(!doc.getElementById("toolbox-tab-" + data.id), "Tab removed for " +
-       data.id);
+    ok(!doc.getElementById("toolbox-tab-" + data), "Tab removed for " + data);
     index++;
     // Wait for the next turn of the event loop to avoid stack overflow errors.
     executeSoon(toggleTools);
     return;
   }
-  ok(false, "Something went wrong, " + data.id + " was not unregistered");
+  ok(false, "Something went wrong, " + data + " was not unregistered");
   cleanup();
 }
 

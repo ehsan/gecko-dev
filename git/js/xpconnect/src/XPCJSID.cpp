@@ -409,8 +409,8 @@ nsJSIID::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
     XPCNativeMember* member = iface->FindMember(id);
     if (member && member->IsConstant()) {
-        RootedValue val(cx);
-        if (!member->GetConstantValue(ccx, iface, val.address()))
+        jsval val;
+        if (!member->GetConstantValue(ccx, iface, &val))
             return NS_ERROR_OUT_OF_MEMORY;
 
         *objp = obj;
@@ -491,7 +491,7 @@ FindObjectForHasInstance(JSContext *cx, HandleObject objArg)
 /* bool hasInstance (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval val, out bool bp); */
 NS_IMETHODIMP
 nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
-                     JSContext * cx, JSObject * /* unused */,
+                     JSContext * cx, JSObject * obj,
                      const jsval &val, bool *bp, bool *_retval)
 {
     *bp = false;
@@ -837,8 +837,9 @@ nsJSCID::Construct(nsIXPConnectWrappedNative *wrapper,
         return NS_ERROR_FAILURE;
 
     // 'push' a call context and call on it
-    RootedId name(cx, rt->GetStringID(XPCJSRuntime::IDX_CREATE_INSTANCE));
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), name, argc, argv, vp);
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr,
+                       rt->GetStringID(XPCJSRuntime::IDX_CREATE_INSTANCE),
+                       argc, argv, vp);
 
     *_retval = XPCWrappedNative::CallMethod(ccx);
     return NS_OK;
@@ -847,7 +848,7 @@ nsJSCID::Construct(nsIXPConnectWrappedNative *wrapper,
 /* bool hasInstance (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval val, out bool bp); */
 NS_IMETHODIMP
 nsJSCID::HasInstance(nsIXPConnectWrappedNative *wrapper,
-                     JSContext * cx, JSObject * /* unused */,
+                     JSContext * cx, JSObject * obj,
                      const jsval &val, bool *bp, bool *_retval)
 {
     *bp = false;
@@ -886,7 +887,7 @@ nsJSCID::HasInstance(nsIXPConnectWrappedNative *wrapper,
 JSObject *
 xpc_NewIDObject(JSContext *cx, HandleObject jsobj, const nsID& aID)
 {
-    RootedObject obj(cx);
+    JSObject *obj = nullptr;
 
     nsCOMPtr<nsIJSID> iid =
             dont_AddRef(static_cast<nsIJSID*>(nsJSID::NewID(aID)));
@@ -899,7 +900,7 @@ xpc_NewIDObject(JSContext *cx, HandleObject jsobj, const nsID& aID)
                                           NS_GET_IID(nsIJSID),
                                           getter_AddRefs(holder));
             if (NS_SUCCEEDED(rv) && holder) {
-                holder->GetJSObject(obj.address());
+                holder->GetJSObject(&obj);
             }
         }
     }

@@ -79,7 +79,7 @@ let CustomizationHandler = {
     if (gURLBar) {
       URLBarSetURI();
       XULBrowserWindow.asyncUpdateUI();
-      BookmarksMenuButton.updateStarState();
+      PlacesStarButton.updateState();
       SocialShareButton.updateShareState();
     }
 
