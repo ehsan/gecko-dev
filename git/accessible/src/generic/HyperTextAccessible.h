@@ -121,12 +121,6 @@ public:
                            bool aIsEndOffset = false) const;
 
   /**
-   * Transform the given a11y point into the offset relative this hypertext.
-   */
-  int32_t TransformOffset(Accessible* aDescendant, int32_t aOffset,
-                          bool aIsEndOffset) const;
-
-  /**
    * Convert start and end hypertext offsets into DOM range.
    *
    * @param  aStartOffset  [in] the given start hypertext offset
@@ -441,9 +435,9 @@ protected:
    * Return an offset corresponding to the given direction and selection amount
    * relative the given offset. A helper used to find word or line boundaries.
    */
-  int32_t FindOffset(int32_t aOffset, nsDirection aDirection,
-                     nsSelectionAmount aAmount,
-                     EWordMovementType aWordMovementType = eDefaultBehavior);
+  virtual int32_t FindOffset(int32_t aOffset, nsDirection aDirection,
+                             nsSelectionAmount aAmount,
+                             EWordMovementType aWordMovementType = eDefaultBehavior);
 
   /**
    * Return the boundaries of the substring in case of textual frame or
@@ -458,7 +452,7 @@ protected:
   /**
    * Return frame/DOM selection object for the accessible.
    */
-  already_AddRefed<nsFrameSelection> FrameSelection() const;
+  virtual already_AddRefed<nsFrameSelection> FrameSelection() const;
   Selection* DOMSelection() const;
 
   /**

@@ -18,9 +18,7 @@
 #include "AccessCheck.h"
 #include "jsfriendapi.h"
 #include "js/OldDebugAPI.h"
-#include "nsContentUtils.h"
 #include "nsIDOMGlobalPropertyInitializer.h"
-#include "nsIPrincipal.h"
 #include "nsIXPConnect.h"
 #include "WrapperFactory.h"
 #include "xpcprivate.h"
@@ -1888,7 +1886,7 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
   JS::Rooted<JSObject*> unwrapped(cx, js::CheckedUnwrap(instance, true));
   if (unwrapped && jsipc::JavaScriptParent::IsCPOW(unwrapped)) {
     bool boolp = false;
-    if (!jsipc::JavaScriptParent::DOMInstanceOf(cx, unwrapped, clasp->mPrototypeID,
+    if (!jsipc::JavaScriptParent::DOMInstanceOf(unwrapped, clasp->mPrototypeID,
                                                 clasp->mDepth, &boolp)) {
       return false;
     }
@@ -2143,29 +2141,11 @@ ConvertJSValueToByteString(JSContext* cx, JS::Handle<JS::Value> v,
 }
 
 bool
-IsInPrivilegedApp(JSContext* aCx, JSObject* aObj)
+ThreadsafeCheckIsChrome(JSContext* aCx, JSObject* aObj)
 {
   using mozilla::dom::workers::GetWorkerPrivateFromContext;
-  if (!NS_IsMainThread()) {
-    return GetWorkerPrivateFromContext(aCx)->IsInPrivilegedApp();
-  }
-
-  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aObj);
-  uint16_t appStatus = principal->GetAppStatus();
-  return (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED ||
-          appStatus == nsIPrincipal::APP_STATUS_PRIVILEGED);
-}
-
-bool
-IsInCertifiedApp(JSContext* aCx, JSObject* aObj)
-{
-  using mozilla::dom::workers::GetWorkerPrivateFromContext;
-  if (!NS_IsMainThread()) {
-    return GetWorkerPrivateFromContext(aCx)->IsInCertifiedApp();
-  }
-
-  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aObj);
-  return principal->GetAppStatus() == nsIPrincipal::APP_STATUS_CERTIFIED;
+  return NS_IsMainThread() ? xpc::AccessCheck::isChrome(aObj):
+                             GetWorkerPrivateFromContext(aCx)->UsesSystemPrincipal();
 }
 
 void

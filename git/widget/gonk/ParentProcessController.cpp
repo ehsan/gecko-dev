@@ -51,13 +51,6 @@ ParentProcessController::RequestContentRepaint(const FrameMetrics& aFrameMetrics
 }
 
 void
-ParentProcessController::AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
-                                                 const uint32_t& aScrollGeneration)
-{
-    APZCCallbackHelper::AcknowledgeScrollUpdate(aScrollId, aScrollGeneration);
-}
-
-void
 ParentProcessController::PostDelayedTask(Task* aTask, int aDelayMs)
 {
     MessageLoop::current()->PostDelayedTask(FROM_HERE, aTask, aDelayMs);

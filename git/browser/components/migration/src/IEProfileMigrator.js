@@ -224,52 +224,47 @@ Bookmarks.prototype = {
     let entries = aSourceFolder.directoryEntries;
     while (entries.hasMoreElements()) {
       let entry = entries.getNext().QueryInterface(Ci.nsIFile);
-      try {
-        // Make sure that entry.path == entry.target to not follow .lnk folder
-        // shortcuts which could lead to infinite cycles.
-        // Don't use isSymlink(), since it would throw for invalid
-        // lnk files pointing to URLs or to unresolvable paths.
-        if (entry.path == entry.target && entry.isDirectory()) {
-          let destFolderId;
-          if (entry.leafName == this._toolbarFolderName &&
-              entry.parent.equals(this._favoritesFolder)) {
-            // Import to the bookmarks toolbar.
-            destFolderId = PlacesUtils.toolbarFolderId;
-            if (!MigrationUtils.isStartupMigration) {
-              destFolderId =
-                MigrationUtils.createImportedBookmarksFolder("IE", destFolderId);
-            }
-          }
-          else {
-            // Import to a new folder.
-            destFolderId =
-              PlacesUtils.bookmarks.createFolder(aDestFolderId, entry.leafName,
-                                                 PlacesUtils.bookmarks.DEFAULT_INDEX);
-          }
 
-          if (entry.isReadable()) {
-            // Recursively import the folder.
-            this._migrateFolder(entry, destFolderId);
+      // Make sure that entry.path == entry.target to not follow .lnk folder
+      // shortcuts which could lead to infinite cycles.
+      if (entry.isDirectory() && entry.path == entry.target) {
+        let destFolderId;
+        if (entry.leafName == this._toolbarFolderName &&
+            entry.parent.equals(this._favoritesFolder)) {
+          // Import to the bookmarks toolbar.
+          destFolderId = PlacesUtils.toolbarFolderId;
+          if (!MigrationUtils.isStartupMigration) {
+            destFolderId =
+              MigrationUtils.createImportedBookmarksFolder("IE", destFolderId);
           }
         }
         else {
-          // Strip the .url extension, to both check this is a valid link file,
-          // and get the associated title.
-          let matches = entry.leafName.match(/(.+)\.url$/i);
-          if (matches) {
-            let fileHandler = Cc["@mozilla.org/network/protocol;1?name=file"].
-                              getService(Ci.nsIFileProtocolHandler);
-            let uri = fileHandler.readURLFile(entry);
-            let title = matches[1];
-
-            PlacesUtils.bookmarks.insertBookmark(aDestFolderId,
-                                                 uri,
-                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                 title);
-          }
+          // Import to a new folder.
+          destFolderId =
+            PlacesUtils.bookmarks.createFolder(aDestFolderId, entry.leafName,
+                                               PlacesUtils.bookmarks.DEFAULT_INDEX);
         }
-      } catch (ex) {
-        Components.utils.reportError("Unable to import IE favorite (" + entry.leafName + "): " + ex);
+
+        if (entry.isReadable()) {
+          // Recursively import the folder.
+          this._migrateFolder(entry, destFolderId);
+        }
+      }
+      else {
+        // Strip the .url extension, to both check this is a valid link file,
+        // and get the associated title.
+        let matches = entry.leafName.match(/(.+)\.url$/i);
+        if (matches) {
+          let fileHandler = Cc["@mozilla.org/network/protocol;1?name=file"].
+                            getService(Ci.nsIFileProtocolHandler);
+          let uri = fileHandler.readURLFile(entry);
+          let title = matches[1];
+
+          PlacesUtils.bookmarks.insertBookmark(aDestFolderId,
+                                               uri,
+                                               PlacesUtils.bookmarks.DEFAULT_INDEX,
+                                               title);
+        }
       }
     }
   }

@@ -9,13 +9,12 @@
 
 #include "nsICacheStorageVisitor.h"
 #include "nsIObserverService.h"
+#include "nsICacheService.h" // for old cache preference
 #include "CacheStorage.h"
 #include "AppCacheStorage.h"
 #include "CacheEntry.h"
 
 #include "OldWrappers.h"
-#include "nsCacheService.h"
-#include "nsDeleteDir.h"
 
 #include "nsIFile.h"
 #include "nsIURI.h"
@@ -383,25 +382,6 @@ void CacheStorageService::DropPrivateBrowsingEntries()
 
   for (uint32_t i = 0; i < keys.Length(); ++i)
     DoomStorageEntries(keys[i], true, nullptr);
-}
-
-// static
-void CacheStorageService::WipeCacheDirectory(uint32_t aVersion)
-{
-  nsCOMPtr<nsIFile> cacheDir;
-  switch (aVersion) {
-  case 0:
-    nsCacheService::GetDiskCacheDirectory(getter_AddRefs(cacheDir));
-    break;
-  case 1:
-    CacheFileIOManager::GetCacheDirectory(getter_AddRefs(cacheDir));
-    break;
-  }
-
-  if (!cacheDir)
-    return;
-
-  nsDeleteDir::DeleteDir(cacheDir, true, 30000);
 }
 
 // Helper methods

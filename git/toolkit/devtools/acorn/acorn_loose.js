@@ -29,11 +29,11 @@
 // invasive changes and simplifications without creating a complicated
 // tangle.
 
-(function(root, mod) {
+(function(mod) {
   if (typeof exports == "object" && typeof module == "object") return mod(exports, require("./acorn")); // CommonJS
   if (typeof define == "function" && define.amd) return define(["exports", "./acorn"], mod); // AMD
-  mod(root.acorn || (root.acorn = {}), root.acorn); // Plain browser env
-})(this, function(exports, acorn) {
+  mod(self.acorn || (self.acorn = {}), self.acorn); // Plain browser env
+})(function(exports, acorn) {
   "use strict";
 
   var tt = acorn.tokTypes;
@@ -168,6 +168,10 @@
     while (pos < input.length && !isNewline(input.charCodeAt(pos))) ++pos;
     return pos;
   }
+  function lineStart(pos) {
+    while (pos > 0 && !isNewline(input.charCodeAt(pos - 1))) --pos;
+    return pos;
+  }
   function indentationAfter(pos) {
     for (var count = 0;; ++pos) {
       var ch = input.charCodeAt(pos);
@@ -177,16 +181,16 @@
     }
   }
 
-  function closes(closeTok, indent, line, blockHeuristic) {
+  function closesBlock(closeTok, indent, line) {
     if (token.type === closeTok || token.type === tt.eof) return true;
     if (line != curLineStart && curIndent < indent && tokenStartsLine() &&
-        (!blockHeuristic || nextLineStart >= input.length ||
+        (nextLineStart >= input.length ||
          indentationAfter(nextLineStart) < indent)) return true;
     return false;
   }
 
   function tokenStartsLine() {
-    for (var p = token.start - 1; p >= curLineStart; --p) {
+    for (var p = token.start - 1; p > curLineStart; --p) {
       var ch = input.charCodeAt(p);
       if (ch !== 9 && ch !== 32) return false;
     }
@@ -209,9 +213,7 @@
     var node = new node_t(token.start);
     if (options.locations)
       node.loc = new node_loc_t();
-    if (options.directSourceFile)
-      node.sourceFile = options.directSourceFile;
-    return node;
+    return node
   }
 
   function startNodeFrom(other) {
@@ -289,60 +291,60 @@
     var starttype = token.type, node = startNode();
 
     switch (starttype) {
-    case tt._break: case tt._continue:
+    case tt.break: case tt.continue:
       next();
-      var isBreak = starttype === tt._break;
+      var isBreak = starttype === tt.break;
       node.label = token.type === tt.name ? parseIdent() : null;
       semicolon();
       return finishNode(node, isBreak ? "BreakStatement" : "ContinueStatement");
 
-    case tt._debugger:
+    case tt.debugger:
       next();
       semicolon();
       return finishNode(node, "DebuggerStatement");
 
-    case tt._do:
+    case tt.do:
       next();
       node.body = parseStatement();
-      node.test = eat(tt._while) ? parseParenExpression() : dummyIdent();
+      node.test = eat(tt.while) ? parseParenExpression() : dummyIdent();
       semicolon();
       return finishNode(node, "DoWhileStatement");
 
-    case tt._for:
+    case tt.for:
       next();
       pushCx();
       expect(tt.parenL);
       if (token.type === tt.semi) return parseFor(node, null);
-      if (token.type === tt._var) {
+      if (token.type === tt.var) {
         var init = startNode();
         next();
         parseVar(init, true);
-        if (init.declarations.length === 1 && eat(tt._in))
+        if (init.declarations.length === 1 && eat(tt.in))
           return parseForIn(node, init);
         return parseFor(node, init);
       }
       var init = parseExpression(false, true);
-      if (eat(tt._in)) {return parseForIn(node, checkLVal(init));}
+      if (eat(tt.in)) {return parseForIn(node, checkLVal(init));}
       return parseFor(node, init);
 
-    case tt._function:
+    case tt.function:
       next();
       return parseFunction(node, true);
 
-    case tt._if:
+    case tt.if:
       next();
       node.test = parseParenExpression();
       node.consequent = parseStatement();
-      node.alternate = eat(tt._else) ? parseStatement() : null;
+      node.alternate = eat(tt.else) ? parseStatement() : null;
       return finishNode(node, "IfStatement");
 
-    case tt._return:
+    case tt.return:
       next();
       if (eat(tt.semi) || canInsertSemicolon()) node.argument = null;
       else { node.argument = parseExpression(); semicolon(); }
       return finishNode(node, "ReturnStatement");
 
-    case tt._switch:
+    case tt.switch:
       var blockIndent = curIndent, line = curLineStart;
       next();
       node.discriminant = parseParenExpression();
@@ -350,9 +352,9 @@
       pushCx();
       expect(tt.braceL);
 
-      for (var cur; !closes(tt.braceR, blockIndent, line, true);) {
-        if (token.type === tt._case || token.type === tt._default) {
-          var isCase = token.type === tt._case;
+      for (var cur; !closesBlock(tt.braceR, blockIndent, line);) {
+        if (token.type === tt.case || token.type === tt.default) {
+          var isCase = token.type === tt.case;
           if (cur) finishNode(cur, "SwitchCase");
           node.cases.push(cur = startNode());
           cur.consequent = [];
@@ -374,17 +376,17 @@
       eat(tt.braceR);
       return finishNode(node, "SwitchStatement");
 
-    case tt._throw:
+    case tt.throw:
       next();
       node.argument = parseExpression();
       semicolon();
       return finishNode(node, "ThrowStatement");
 
-    case tt._try:
+    case tt.try:
       next();
       node.block = parseBlock();
       node.handler = null;
-      if (token.type === tt._catch) {
+      if (token.type === tt.catch) {
         var clause = startNode();
         next();
         expect(tt.parenL);
@@ -394,23 +396,23 @@
         clause.body = parseBlock();
         node.handler = finishNode(clause, "CatchClause");
       }
-      node.finalizer = eat(tt._finally) ? parseBlock() : null;
+      node.finalizer = eat(tt.finally) ? parseBlock() : null;
       if (!node.handler && !node.finalizer) return node.block;
       return finishNode(node, "TryStatement");
 
-    case tt._var:
+    case tt.var:
       next();
       node = parseVar(node);
       semicolon();
       return node;
 
-    case tt._while:
+    case tt.while:
       next();
       node.test = parseParenExpression();
       node.body = parseStatement();
       return finishNode(node, "WhileStatement");
 
-    case tt._with:
+    case tt.with:
       next();
       node.object = parseParenExpression();
       node.body = parseStatement();
@@ -424,7 +426,7 @@
       return finishNode(node, "EmptyStatement");
 
     default:
-      var expr = parseExpression();
+      var maybeName = token.value, expr = parseExpression();
       if (isDummy(expr)) {
         next();
         if (token.type === tt.eof) return finishNode(node, "EmptyStatement");
@@ -447,7 +449,7 @@
     expect(tt.braceL);
     var blockIndent = curIndent, line = curLineStart;
     node.body = [];
-    while (!closes(tt.braceR, blockIndent, line, true))
+    while (!closesBlock(tt.braceR, blockIndent, line))
       node.body.push(parseStatement());
     popCx();
     eat(tt.braceR);
@@ -483,11 +485,6 @@
       decl.init = eat(tt.eq) ? parseExpression(true, noIn) : null;
       node.declarations.push(finishNode(decl, "VariableDeclarator"));
       if (!eat(tt.comma)) break;
-    }
-    if (!node.declarations.length) {
-      var decl = startNode();
-      decl.id = dummyIdent();
-      node.declarations.push(finishNode(decl, "VariableDeclarator"));
     }
     return finishNode(node, "VariableDeclaration");
   }
@@ -545,7 +542,7 @@
   function parseExprOp(left, minPrec, noIn, indent, line) {
     if (curLineStart != line && curIndent < indent && tokenStartsLine()) return left;
     var prec = token.type.binop;
-    if (prec != null && (!noIn || token.type !== tt._in)) {
+    if (prec != null && (!noIn || token.type !== tt.in)) {
       if (prec > minPrec) {
         var node = startNodeFrom(left);
         node.left = left;
@@ -585,7 +582,8 @@
   }
 
   function parseExprSubscripts() {
-    return parseSubscripts(parseExprAtom(), false, curIndent, curLineStart);
+    var indent = curIndent, line = curLineStart;
+    return parseSubscripts(parseExprAtom(), false, curIndent, line);
   }
 
   function parseSubscripts(base, noCalls, startIndent, line) {
@@ -630,7 +628,7 @@
 
   function parseExprAtom() {
     switch (token.type) {
-    case tt._this:
+    case tt.this:
       var node = startNode();
       next();
       return finishNode(node, "ThisExpression");
@@ -643,10 +641,10 @@
       next();
       return finishNode(node, "Literal");
 
-    case tt._null: case tt._true: case tt._false:
+    case tt.null: case tt.true: case tt.false:
       var node = startNode();
       node.value = token.type.atomValue;
-      node.raw = token.type.keyword;
+      node.raw = token.type.keyword
       next();
       return finishNode(node, "Literal");
 
@@ -668,12 +666,12 @@
     case tt.braceL:
       return parseObj();
 
-    case tt._function:
+    case tt.function:
       var node = startNode();
       next();
       return parseFunction(node, false);
 
-    case tt._new:
+    case tt.new:
       return parseNew();
 
     default:
@@ -700,7 +698,7 @@
     pushCx();
     next();
     var propIndent = curIndent, line = curLineStart;
-    while (!closes(tt.braceR, propIndent, line)) {
+    while (!closesBlock(tt.braceR, propIndent, line)) {
       var name = parsePropertyName();
       if (!name) { if (isDummy(parseExpression(true))) next(); eat(tt.comma); continue; }
       var prop = {key: name}, isGetSet = false, kind;
@@ -757,13 +755,12 @@
   }
 
   function parseExprList(close) {
-    var indent = curIndent, line = curLineStart, elts = [], continuedLine = nextLineStart;
+    var indent = curIndent + 1, line = curLineStart, elts = [];
     next(); // Opening bracket
-    if (curLineStart > continuedLine) continuedLine = curLineStart;
-    while (!closes(close, indent + (curLineStart <= continuedLine ? 1 : 0), line)) {
+    while (!closesBlock(close, indent, line)) {
       var elt = parseExpression(true);
       if (isDummy(elt)) {
-        if (closes(close, indent, line)) break;
+        if (closesBlock(close, indent, line)) break;
         next();
       } else {
         elts.push(elt);

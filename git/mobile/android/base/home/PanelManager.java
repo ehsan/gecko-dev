@@ -7,7 +7,6 @@ package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.home.HomeConfig.PanelConfig;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -24,38 +23,22 @@ import android.util.SparseArray;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class PanelManager implements GeckoEventListener {
     private static final String LOGTAG = "GeckoPanelManager";
 
     public class PanelInfo {
-        private final String mId;
-        private final String mTitle;
-        private final JSONObject mJSONData;
+        public final String id;
+        public final String title;
+        public final String layout;
+        public final JSONArray views;
 
-        public PanelInfo(String id, String title, JSONObject jsonData) {
-            mId = id;
-            mTitle = title;
-            mJSONData = jsonData;
-        }
-
-        public String getId() {
-            return mId;
-        }
-
-        public String getTitle() {
-            return mTitle;
-        }
-
-        public PanelConfig toPanelConfig() {
-            try {
-                return new PanelConfig(mJSONData);
-            } catch (Exception e) {
-                Log.e(LOGTAG, "Failed to convert PanelInfo to PanelConfig", e);
-                return null;
-            }
+        public PanelInfo(String id, String title, String layout, JSONArray views) {
+            this.id = id;
+            this.title = title;
+            this.layout = layout;
+            this.views = views;
         }
     }
 
@@ -69,14 +52,11 @@ public class PanelManager implements GeckoEventListener {
     private static final SparseArray<RequestCallback> sCallbacks = new SparseArray<RequestCallback>();
 
     /**
-     * Asynchronously fetches list of available panels from Gecko
-     * for the given IDs.
+     * Asynchronously fetches list of available panels from Gecko.
      *
-     * @param ids list of panel ids to be fetched. A null value will fetch all
-     *        available panels.
      * @param callback onComplete will be called on the UI thread.
      */
-    public void requestPanelsById(Set<String> ids, RequestCallback callback) {
+    public void requestAvailablePanels(RequestCallback callback) {
         final int requestId = sRequestId.getAndIncrement();
 
         synchronized(sCallbacks) {
@@ -87,33 +67,7 @@ public class PanelManager implements GeckoEventListener {
             sCallbacks.put(requestId, callback);
         }
 
-        final JSONObject message = new JSONObject();
-        try {
-            message.put("requestId", requestId);
-
-            if (ids != null && ids.size() > 0) {
-                JSONArray idsArray = new JSONArray();
-                for (String id : ids) {
-                    idsArray.put(id);
-                }
-
-                message.put("ids", idsArray);
-            }
-        } catch (JSONException e) {
-            Log.e(LOGTAG, "Failed to build event to request panels by id", e);
-            return;
-        }
-
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomePanels:Get", message.toString()));
-    }
-
-    /**
-     * Asynchronously fetches list of available panels from Gecko.
-     *
-     * @param callback onComplete will be called on the UI thread.
-     */
-    public void requestAvailablePanels(RequestCallback callback) {
-        requestPanelsById(null, callback);
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomePanels:Get", Integer.toString(requestId)));
     }
 
     /**
@@ -158,7 +112,9 @@ public class PanelManager implements GeckoEventListener {
     private PanelInfo getPanelInfoFromJSON(JSONObject jsonPanelInfo) throws JSONException {
         final String id = jsonPanelInfo.getString("id");
         final String title = jsonPanelInfo.getString("title");
+        final String layout = jsonPanelInfo.getString("layout");
+        final JSONArray views = jsonPanelInfo.getJSONArray("views");
 
-        return new PanelInfo(id, title, jsonPanelInfo);
+        return new PanelInfo(id, title, layout, views);
     }
 }

@@ -16,7 +16,6 @@
 namespace mozilla {
 namespace dom {
 
-class TextTrackList;
 class TextTrackCue;
 class TextTrackCueList;
 class TextTrackRegion;
@@ -105,9 +104,6 @@ public:
   void CueChanged(TextTrackCue& aCue);
   void SetDirty() { mDirty = true; }
 
-  TextTrackList* GetTextTrackList();
-  void SetTextTrackList(TextTrackList* aTextTrackList);
-
   IMPL_EVENT_HANDLER(cuechange)
 
 private:
@@ -115,7 +111,6 @@ private:
 
   nsCOMPtr<nsISupports> mParent;
   nsRefPtr<HTMLMediaElement> mMediaElement;
-  nsRefPtr<TextTrackList> mTextTrackList;
 
   TextTrackKind mKind;
   nsString mLabel;

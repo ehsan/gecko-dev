@@ -22,10 +22,6 @@
 #include <mach/mach.h>
 #endif
 
-#if defined(XP_LINUX)
-#include <signal.h>
-#endif
-
 class nsIFile;
 template<class KeyClass, class DataType> class nsDataHashtable;
 class nsCStringHashKey;
@@ -72,9 +68,6 @@ void RenameAdditionalHangMinidump(nsIFile* minidump, nsIFile* childMinidump,
 
 #ifdef XP_WIN32
   nsresult WriteMinidumpForException(EXCEPTION_POINTERS* aExceptionInfo);
-#endif
-#ifdef XP_LINUX
-  bool WriteMinidumpForSigInfo(int signo, siginfo_t* info, void* uc);
 #endif
 #ifdef XP_MACOSX
   nsresult AppendObjCExceptionInfoToAppNotes(void *inException);

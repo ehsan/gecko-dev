@@ -442,18 +442,19 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
     return functionProto;
 }
 
-/* static */ bool
-GlobalObject::ensureConstructor(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey key)
+bool
+GlobalObject::ensureConstructor(JSContext *cx, JSProtoKey key)
 {
-    if (global->getConstructor(key).isObject())
+    if (getConstructor(key).isObject())
         return true;
-    return initConstructor(cx, global, key);
+    return initConstructor(cx, key);
 }
 
-/* static*/ bool
-GlobalObject::initConstructor(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey key)
+bool
+GlobalObject::initConstructor(JSContext *cx, JSProtoKey key)
 {
-    MOZ_ASSERT(global->getConstructor(key).isUndefined());
+    MOZ_ASSERT(getConstructor(key).isUndefined());
+    Rooted<GlobalObject*> self(cx, this);
 
     // There are two different kinds of initialization hooks. One of them is
     // the class js_InitFoo hook, defined in a JSProtoKey-keyed table at the
@@ -478,7 +479,7 @@ GlobalObject::initConstructor(JSContext *cx, Handle<GlobalObject*> global, JSPro
     // See if there's an old-style initialization hook.
     if (init) {
         MOZ_ASSERT(!haveSpec);
-        return init(cx, global);
+        return init(cx, self);
     }
 
     //
@@ -518,7 +519,7 @@ GlobalObject::initConstructor(JSContext *cx, Handle<GlobalObject*> global, JSPro
         return false;
 
     // Stash things in the right slots and define the constructor on the global.
-    return DefineConstructorAndPrototype(cx, global, key, ctor, proto);
+    return DefineConstructorAndPrototype(cx, self, key, ctor, proto);
 }
 
 GlobalObject *
@@ -577,7 +578,7 @@ GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
     }
 
     for (size_t k = 0; k < JSProto_LIMIT; ++k) {
-        if (!ensureConstructor(cx, global, static_cast<JSProtoKey>(k)))
+        if (!global->ensureConstructor(cx, static_cast<JSProtoKey>(k)))
             return false;
     }
     return true;

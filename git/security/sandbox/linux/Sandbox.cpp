@@ -8,13 +8,11 @@
 #include <stdio.h>
 #include <sys/ptrace.h>
 #include <sys/prctl.h>
-#include <sys/syscall.h>
 #include <signal.h>
 #include <string.h>
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/NullPtr.h"
-#include "nsExceptionHandler.h"
 #if defined(ANDROID)
 #include "android_ucontext.h"
 #include <android/log.h>
@@ -67,8 +65,7 @@ static void
 Reporter(int nr, siginfo_t *info, void *void_context)
 {
   ucontext_t *ctx = static_cast<ucontext_t*>(void_context);
-  unsigned long syscall_nr, args[6];
-  pid_t pid = getpid(), tid = syscall(__NR_gettid);
+  unsigned long syscall, args[6];
 
   if (nr != SIGSYS) {
     return;
@@ -80,7 +77,7 @@ Reporter(int nr, siginfo_t *info, void *void_context)
     return;
   }
 
-  syscall_nr = SECCOMP_SYSCALL(ctx);
+  syscall = SECCOMP_SYSCALL(ctx);
   args[0] = SECCOMP_PARM1(ctx);
   args[1] = SECCOMP_PARM2(ctx);
   args[2] = SECCOMP_PARM3(ctx);
@@ -88,20 +85,10 @@ Reporter(int nr, siginfo_t *info, void *void_context)
   args[4] = SECCOMP_PARM5(ctx);
   args[5] = SECCOMP_PARM6(ctx);
 
-  LOG_ERROR("seccomp sandbox violation: pid %d, syscall %lu, args %lu %lu %lu"
-            " %lu %lu %lu.  Killing process.", pid, syscall_nr,
+  LOG_ERROR("seccomp sandbox violation: pid %u, syscall %lu, args %lu %lu %lu"
+            " %lu %lu %lu.  Killing process.", getpid(), syscall,
             args[0], args[1], args[2], args[3], args[4], args[5]);
 
-  bool dumped = CrashReporter::WriteMinidumpForSigInfo(nr, info, void_context);
-  if (!dumped) {
-    LOG_ERROR("Failed to write minidump");
-  }
-
-  // Try to reraise, so the parent sees that this process crashed.
-  // (If tgkill is forbidden, then seccomp will raise SIGSYS, which
-  // also accomplishes that goal.)
-  signal(SIGSYS, SIG_DFL);
-  syscall(__NR_tgkill, pid, tid, nr);
   _exit(127);
 }
 

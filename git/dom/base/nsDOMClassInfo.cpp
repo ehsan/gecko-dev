@@ -881,7 +881,6 @@ nsDOMClassInfo::RegisterExternalClasses()
   DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                   \
   DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)                              \
   DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)                             \
-  DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)                               \
   DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,                   \
                                       nsDOMTouchEvent::PrefEnabled())
 #else // !MOZ_B2G
@@ -891,7 +890,6 @@ nsDOMClassInfo::RegisterExternalClasses()
   DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                   \
   DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)                              \
   DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)                             \
-  DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)                               \
   DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,                   \
                                       nsDOMTouchEvent::PrefEnabled())
 #endif // MOZ_B2G
@@ -2858,16 +2856,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
       }
 
       ConstructorEnabled* checkEnabledForScope = name_struct->mConstructorEnabled;
-      // We do the enabled check on the current compartment of cx, but for the
-      // actual object we pass in the underlying object in the Xray case.  That
-      // way the callee can decide whether to allow access based on the caller
-      // or the window being touched.
-      JS::Rooted<JSObject*> global(cx,
-        js::CheckedUnwrap(obj, /* stopAtOuter = */ false));
-      if (!global) {
-        return NS_ERROR_DOM_SECURITY_ERR;
-      }
-      if (checkEnabledForScope && !checkEnabledForScope(cx, global)) {
+      if (checkEnabledForScope && !checkEnabledForScope(cx, obj)) {
         return NS_OK;
       }
 
@@ -2906,6 +2895,11 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
       // This all could use some grand refactoring, but for now we just limp
       // along.
       if (xpc::WrapperFactory::IsXrayWrapper(obj)) {
+        JS::Rooted<JSObject*> global(cx,
+          js::CheckedUnwrap(obj, /* stopAtOuter = */ false));
+        if (!global) {
+          return NS_ERROR_DOM_SECURITY_ERR;
+        }
         JS::Rooted<JSObject*> interfaceObject(cx);
         {
           JSAutoCompartment ac(cx, global);

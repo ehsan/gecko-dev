@@ -131,7 +131,7 @@ public:
   bool addTurnServer(const std::string& addr, uint16_t port,
                      const std::string& username,
                      const std::string& pwd,
-                     const char* transport)
+                     const std::string& transport)
   {
     // TODO(ekr@rtfm.com): Need support for SASLprep for
     // username and password. Bug # ???

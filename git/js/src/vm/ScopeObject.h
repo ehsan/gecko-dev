@@ -18,8 +18,6 @@ namespace js {
 
 namespace frontend { struct Definition; }
 
-class StaticWithObject;
-
 /*****************************************************************************/
 
 /*
@@ -67,16 +65,14 @@ class StaticScopeIter
       : obj(cx, obj), onNamedLambda(false)
     {
         JS_STATIC_ASSERT(allowGC == CanGC);
-        JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->is<StaticWithObject>() ||
-                     obj->is<JSFunction>());
+        JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->is<JSFunction>());
     }
 
     StaticScopeIter(JSObject *obj)
       : obj((ExclusiveContext *) nullptr, obj), onNamedLambda(false)
     {
         JS_STATIC_ASSERT(allowGC == NoGC);
-        JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->is<StaticWithObject>() ||
-                     obj->is<JSFunction>());
+        JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->is<JSFunction>());
     }
 
     bool done() const;
@@ -86,11 +82,10 @@ class StaticScopeIter
     bool hasDynamicScopeObject() const;
     Shape *scopeShape() const;
 
-    enum Type { WITH, BLOCK, FUNCTION, NAMED_LAMBDA };
+    enum Type { BLOCK, FUNCTION, NAMED_LAMBDA };
     Type type() const;
 
     StaticBlockObject &block() const;
-    StaticWithObject &staticWith() const;
     JSScript *funScript() const;
 };
 
@@ -164,11 +159,9 @@ ScopeCoordinateFunctionScript(JSScript *script, jsbytecode *pc);
  *        \  CallObject         Scope of entire function or strict eval
  *         \
  *   NestedScopeObject          Scope created for a statement
- *     \   \  \
- *      \   \ StaticWithObject  Template for "with" object in static scope chain
- *       \   \
- *        \  DynamicWithObject  Run-time "with" object on scope chain
- *         \
+ *     \   \
+ *      \  WithObject           with
+ *       \
  *   BlockObject                Shared interface of cloned/static block objects
  *     \   \
  *      \  ClonedBlockObject    let, switch, catch, for
@@ -308,21 +301,20 @@ class DeclEnvObject : public ScopeObject
 
 class NestedScopeObject : public ScopeObject
 {
+  protected:
+    static const unsigned DEPTH_SLOT = 1;
+
   public:
+    /* Return the abstract stack depth right before entering this nested scope. */
+    uint32_t stackDepth() const {
+        return getReservedSlot(DEPTH_SLOT).toPrivateUint32();
+    }
+
     /*
      * A refinement of enclosingScope that returns nullptr if the enclosing
      * scope is not a NestedScopeObject.
      */
     inline NestedScopeObject *enclosingNestedScope() const;
-
-    // Return true if this object is a compile-time scope template.
-    inline bool isStatic() { return !getProto(); }
-
-    // Return the static scope corresponding to this scope chain object.
-    inline NestedScopeObject* staticScope() {
-        JS_ASSERT(!isStatic());
-        return &getProto()->as<NestedScopeObject>();
-    }
 
     // At compile-time it's possible for the scope chain to be null.
     JSObject *enclosingScopeForStaticScopeIter() {
@@ -350,23 +342,12 @@ class NestedScopeObject : public ScopeObject
     }
 };
 
-// With scope template objects on the static scope chain.
-class StaticWithObject : public NestedScopeObject
+class WithObject : public NestedScopeObject
 {
-  public:
-    static const unsigned RESERVED_SLOTS = 1;
-    static const gc::AllocKind FINALIZE_KIND = gc::FINALIZE_OBJECT2_BACKGROUND;
-
-    static const Class class_;
-
-    static StaticWithObject *create(ExclusiveContext *cx);
-};
-
-// With scope objects on the run-time scope chain.
-class DynamicWithObject : public NestedScopeObject
-{
-    static const unsigned OBJECT_SLOT = 1;
     static const unsigned THIS_SLOT = 2;
+
+    /* Use WithObject::object() instead. */
+    JSObject *getProto() const;
 
   public:
     static const unsigned RESERVED_SLOTS = 3;
@@ -374,39 +355,27 @@ class DynamicWithObject : public NestedScopeObject
 
     static const Class class_;
 
-    static DynamicWithObject *
-    create(JSContext *cx, HandleObject object, HandleObject enclosing, HandleObject staticWith);
-
-    StaticWithObject& staticWith() const {
-        return getProto()->as<StaticWithObject>();
-    }
-
-    /* Return the 'o' in 'with (o)'. */
-    JSObject &object() const {
-        return getReservedSlot(OBJECT_SLOT).toObject();
-    }
+    static WithObject *
+    create(JSContext *cx, HandleObject proto, HandleObject enclosing, uint32_t depth);
 
     /* Return object for the 'this' class hook. */
     JSObject &withThis() const {
         return getReservedSlot(THIS_SLOT).toObject();
     }
+
+    /* Return the 'o' in 'with (o)'. */
+    JSObject &object() const {
+        return *JSObject::getProto();
+    }
 };
 
 class BlockObject : public NestedScopeObject
 {
-  protected:
-    static const unsigned DEPTH_SLOT = 1;
-
   public:
     static const unsigned RESERVED_SLOTS = 2;
     static const gc::AllocKind FINALIZE_KIND = gc::FINALIZE_OBJECT4_BACKGROUND;
 
     static const Class class_;
-
-    /* Return the abstract stack depth right before entering this nested scope. */
-    uint32_t stackDepth() const {
-        return getReservedSlot(DEPTH_SLOT).toPrivateUint32();
-    }
 
     /* Return the number of variables associated with this block. */
     uint32_t slotCount() const {
@@ -442,6 +411,12 @@ class StaticBlockObject : public BlockObject
 {
   public:
     static StaticBlockObject *create(ExclusiveContext *cx);
+
+    /*
+     * A refinement of enclosingScope that returns nullptr if the enclosing
+     * static scope is a JSFunction.
+     */
+    inline StaticBlockObject *enclosingBlock() const;
 
     /*
      * Return whether this StaticBlockObject contains a variable stored at
@@ -545,11 +520,6 @@ bool
 XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
                      StaticBlockObject **objp);
 
-template<XDRMode mode>
-bool
-XDRStaticWithObject(XDRState<mode> *xdr, HandleObject enclosingScope,
-                    StaticWithObject **objp);
-
 extern JSObject *
 CloneNestedScopeObject(JSContext *cx, HandleObject enclosingScope, Handle<NestedScopeObject*> src);
 
@@ -628,7 +598,6 @@ class ScopeIter
     Type type() const { JS_ASSERT(!done()); return type_; }
     bool hasScopeObject() const { JS_ASSERT(!done()); return hasScopeObject_; }
     ScopeObject &scope() const;
-    NestedScopeObject* staticScope() const { return staticScope_; }
 
     StaticBlockObject &staticBlock() const {
         JS_ASSERT(type() == Block);
@@ -837,7 +806,7 @@ template<>
 inline bool
 JSObject::is<js::NestedScopeObject>() const
 {
-    return is<js::BlockObject>() || is<js::StaticWithObject>() || is<js::DynamicWithObject>();
+    return is<js::BlockObject>() || is<js::WithObject>();
 }
 
 template<>
@@ -896,6 +865,13 @@ NestedScopeObject::enclosingNestedScope() const
 {
     JSObject *obj = getReservedSlot(SCOPE_CHAIN_SLOT).toObjectOrNull();
     return obj && obj->is<NestedScopeObject>() ? &obj->as<NestedScopeObject>() : nullptr;
+}
+
+inline StaticBlockObject *
+StaticBlockObject::enclosingBlock() const
+{
+    JSObject *obj = getReservedSlot(SCOPE_CHAIN_SLOT).toObjectOrNull();
+    return obj && obj->is<StaticBlockObject>() ? &obj->as<StaticBlockObject>() : nullptr;
 }
 
 #ifdef DEBUG
