@@ -860,9 +860,7 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
     // it in one place (Show()) and require that callers call init(), open(),
     // show() in that order or something.
     if (!mPresContext &&
-        (aParentWidget || containerView ||
-         (mDocument->GetDisplayDocument() &&
-          mDocument->GetDisplayDocument()->GetShell()))) {
+        (aParentWidget || containerView || mDocument->GetDisplayDocument())) {
       // Create presentation context
       if (mIsPageMode) {
         //Presentation context already created in SetPageMode which is calling this method

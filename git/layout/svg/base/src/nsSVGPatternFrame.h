@@ -155,6 +155,9 @@ private:
 protected:
   // This flag is used to detect loops in xlink:href processing
   PRPackedBool                      mLoopFlag;
+  // This flag is used to detect loops when painting this pattern
+  // ends up recursively painting itself
+  PRPackedBool                      mPaintLoopFlag;
   PRPackedBool                      mNoHRefURI;
 };
 

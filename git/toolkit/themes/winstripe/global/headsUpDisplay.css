@@ -56,7 +56,7 @@
     font-weight: bold;
 }
 
-.hud-output-node * {
+.hud-output-node div {
     -moz-user-select: text;
     white-space: pre-wrap;
     -moz-user-focus: normal;

@@ -19,11 +19,12 @@ unpack_build () {
             ;;
         win32|WINNT_x86-msvc)
             7z x ../"$pkg_file" > /dev/null
-            if [ -d core ]
+            if [ -d localized ]
             then
               mkdir bin/
-              cp -rp core/*     bin/
-              cp -rp optional/* bin/
+              cp -rp nonlocalized/* bin/
+              cp -rp localized/*    bin/
+              cp -rp optional/*     bin/
             else
               for file in *.xpi
               do
