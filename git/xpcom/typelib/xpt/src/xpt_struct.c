@@ -98,8 +98,8 @@ XPT_NewHeader(XPTArena *arena, uint16_t num_interfaces, uint8_t major_version, u
     header->num_interfaces = num_interfaces;
     if (num_interfaces) {
         header->interface_directory = 
-            (XPTInterfaceDirectoryEntry*)XPT_CALLOC(arena, 
-                                                    num_interfaces * sizeof(XPTInterfaceDirectoryEntry));
+            XPT_CALLOC(arena, 
+                       num_interfaces * sizeof(XPTInterfaceDirectoryEntry));
         if (!header->interface_directory) {
             XPT_DELETE(arena, header);
             return NULL;
@@ -207,6 +207,7 @@ XPT_DoHeaderPrologue(XPTArena *arena, XPTCursor *cursor, XPTHeader **headerp, ui
 XPT_PUBLIC_API(PRBool)
 XPT_DoHeader(XPTArena *arena, XPTCursor *cursor, XPTHeader **headerp)
 {
+    const int HEADER_SIZE = 24;
     XPTMode mode = cursor->state->mode;
     XPTHeader * header;
     uint32_t ide_offset;
@@ -236,8 +237,8 @@ XPT_DoHeader(XPTArena *arena, XPTCursor *cursor, XPTHeader **headerp)
 
     if (mode == XPT_DECODE && header->num_interfaces) {
         header->interface_directory = 
-            (XPTInterfaceDirectoryEntry*)XPT_CALLOC(arena, header->num_interfaces * 
-                                                    sizeof(XPTInterfaceDirectoryEntry));
+            XPT_CALLOC(arena, header->num_interfaces * 
+                       sizeof(XPTInterfaceDirectoryEntry));
         if (!header->interface_directory)
             goto error;
     }
@@ -346,16 +347,16 @@ XPT_NewInterfaceDescriptor(XPTArena *arena,
         return NULL;
 
     if (num_methods) {
-        id->method_descriptors = (XPTMethodDescriptor*)XPT_CALLOC(arena, num_methods *
-                                                                  sizeof(XPTMethodDescriptor));
+        id->method_descriptors = XPT_CALLOC(arena, num_methods *
+                                            sizeof(XPTMethodDescriptor));
         if (!id->method_descriptors)
             goto free_id;
         id->num_methods = num_methods;
     }
 
     if (num_constants) {
-        id->const_descriptors = (XPTConstDescriptor*)XPT_CALLOC(arena, num_constants *
-                                                                sizeof(XPTConstDescriptor));
+        id->const_descriptors = XPT_CALLOC(arena, num_constants *
+                                           sizeof(XPTConstDescriptor));
         if (!id->const_descriptors)
             goto free_meth;
         id->num_constants = num_constants;
@@ -414,20 +415,20 @@ XPT_InterfaceDescriptorAddTypes(XPTArena *arena, XPTInterfaceDescriptor *id,
                                 uint16_t num)
 {
     XPTTypeDescriptor *old = id->additional_types;
-    XPTTypeDescriptor *new_;
+    XPTTypeDescriptor *new;
     size_t old_size = id->num_additional_types * sizeof(XPTTypeDescriptor);
     size_t new_size = (num * sizeof(XPTTypeDescriptor)) + old_size;
 
     /* XXX should grow in chunks to minimize alloc overhead */
-    new_ = (XPTTypeDescriptor*)XPT_CALLOC(arena, new_size);
-    if (!new_)
+    new = XPT_CALLOC(arena, new_size);
+    if (!new)
         return PR_FALSE;
     if (old) {
         if (old_size)
-            memcpy(new_, old, old_size);
+            memcpy(new, old, old_size);
         XPT_FREE(arena, old);
     }
-    id->additional_types = new_;
+    id->additional_types = new;
     id->num_additional_types += num;
     return PR_TRUE;
 }
@@ -437,20 +438,20 @@ XPT_InterfaceDescriptorAddMethods(XPTArena *arena, XPTInterfaceDescriptor *id,
                                   uint16_t num)
 {
     XPTMethodDescriptor *old = id->method_descriptors;
-    XPTMethodDescriptor *new_;
+    XPTMethodDescriptor *new;
     size_t old_size = id->num_methods * sizeof(XPTMethodDescriptor);
     size_t new_size = (num * sizeof(XPTMethodDescriptor)) + old_size;
 
     /* XXX should grow in chunks to minimize alloc overhead */
-    new_ = (XPTMethodDescriptor*)XPT_CALLOC(arena, new_size);
-    if (!new_)
+    new = XPT_CALLOC(arena, new_size);
+    if (!new)
         return PR_FALSE;
     if (old) {
         if (old_size)
-            memcpy(new_, old, old_size);
+            memcpy(new, old, old_size);
         XPT_FREE(arena, old);
     }
-    id->method_descriptors = new_;
+    id->method_descriptors = new;
     id->num_methods += num;
     return PR_TRUE;
 }
@@ -460,20 +461,20 @@ XPT_InterfaceDescriptorAddConsts(XPTArena *arena, XPTInterfaceDescriptor *id,
                                  uint16_t num)
 {
     XPTConstDescriptor *old = id->const_descriptors;
-    XPTConstDescriptor *new_;
+    XPTConstDescriptor *new;
     size_t old_size = id->num_constants * sizeof(XPTConstDescriptor);
     size_t new_size = (num * sizeof(XPTConstDescriptor)) + old_size;
 
     /* XXX should grow in chunks to minimize alloc overhead */
-    new_ = (XPTConstDescriptor*)XPT_CALLOC(arena, new_size);
-    if (!new_)
+    new = XPT_CALLOC(arena, new_size);
+    if (!new)
         return PR_FALSE;
     if (old) {
         if (old_size)
-            memcpy(new_, old, old_size);
+            memcpy(new, old, old_size);
         XPT_FREE(arena, old);
     }
-    id->const_descriptors = new_;
+    id->const_descriptors = new;
     id->num_constants += num;
     return PR_TRUE;
 }
@@ -603,8 +604,8 @@ DoInterfaceDescriptor(XPTArena *arena, XPTCursor *outer,
     }
 
     if (mode == XPT_DECODE && id->num_methods) {
-        id->method_descriptors = (XPTMethodDescriptor*)XPT_CALLOC(arena, id->num_methods *
-                                                                  sizeof(XPTMethodDescriptor));
+        id->method_descriptors = XPT_CALLOC(arena, id->num_methods *
+                                            sizeof(XPTMethodDescriptor));
         if (!id->method_descriptors)
             goto error;
     }
@@ -619,8 +620,8 @@ DoInterfaceDescriptor(XPTArena *arena, XPTCursor *outer,
     }
     
     if (mode == XPT_DECODE && id->num_constants) {
-        id->const_descriptors = (XPTConstDescriptor*)XPT_CALLOC(arena, id->num_constants * 
-                                                                sizeof(XPTConstDescriptor));
+        id->const_descriptors = XPT_CALLOC(arena, id->num_constants * 
+                                           sizeof(XPTConstDescriptor));
         if (!id->const_descriptors)
             goto error;
     }
@@ -703,7 +704,7 @@ XPT_FillMethodDescriptor(XPTArena *arena, XPTMethodDescriptor *meth,
         return PR_FALSE;
     meth->num_args = num_args;
     if (num_args) {
-        meth->params = (XPTParamDescriptor*)XPT_CALLOC(arena, num_args * sizeof(XPTParamDescriptor));
+        meth->params = XPT_CALLOC(arena, num_args * sizeof(XPTParamDescriptor));
         if (!meth->params)
             goto free_name;
     } else {
@@ -711,6 +712,7 @@ XPT_FillMethodDescriptor(XPTArena *arena, XPTMethodDescriptor *meth,
     }
     return PR_TRUE;
 
+ free_params:
     XPT_DELETE(arena, meth->params);
  free_name:
     XPT_DELETE(arena, meth->name);
@@ -730,7 +732,7 @@ DoMethodDescriptor(XPTArena *arena, XPTCursor *cursor, XPTMethodDescriptor *md,
         return PR_FALSE;
 
     if (mode == XPT_DECODE && md->num_args) {
-        md->params = (XPTParamDescriptor*)XPT_CALLOC(arena, md->num_args * sizeof(XPTParamDescriptor));
+        md->params = XPT_CALLOC(arena, md->num_args * sizeof(XPTParamDescriptor));
         if (!md->params)
             return PR_FALSE;
     }

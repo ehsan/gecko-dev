@@ -474,10 +474,6 @@ class CompartmentsIterT
 
 typedef CompartmentsIterT<ZonesIter> CompartmentsIter;
 
-/* Return the Zone* of a Value. Asserts if the Value is not a GC thing. */
-Zone *
-ZoneOfValue(const JS::Value &value);
-
 } /* namespace js */
 
 #endif /* gc_Zone_h */

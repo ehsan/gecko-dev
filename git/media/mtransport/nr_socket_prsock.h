@@ -127,8 +127,7 @@ class NrSocket : public NrSocketBase,
 public:
   NrSocket() : fd_(nullptr) {}
   virtual ~NrSocket() {
-    if (fd_)
-      PR_Close(fd_);
+    PR_Close(fd_);
   }
 
   // Implement nsASocket
