@@ -15,7 +15,6 @@
 
 #include "gc/Marking.h"
 #include "gc/Zone.h"
-#include "vm/Shape.h"
 #if ENABLE_YARR_JIT
 #include "yarr/YarrJIT.h"
 #else
@@ -439,18 +438,12 @@ class RegExpObject : public JSObject
   private:
     friend class RegExpObjectBuilder;
 
-    /* For access to assignInitialShape. */
-    friend bool
-    EmptyShape::ensureInitialCustomShape<RegExpObject>(ExclusiveContext *cx,
-                                                       Handle<RegExpObject*> obj);
-
     /*
      * Compute the initial shape to associate with fresh RegExp objects,
      * encoding their initial properties. Return the shape after
-     * changing |obj|'s last property to it.
+     * changing this regular expression object's last property to it.
      */
-    static Shape *
-    assignInitialShape(ExclusiveContext *cx, Handle<RegExpObject*> obj);
+    Shape *assignInitialShape(ExclusiveContext *cx);
 
     bool init(ExclusiveContext *cx, HandleAtom source, RegExpFlag flags);
 

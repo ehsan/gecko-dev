@@ -102,9 +102,7 @@ class NrIceStunServer {
     return server.forget();
   }
 
-  nsresult ToNicerStunStruct(nr_ice_stun_server *server,
-                             const std::string transport =
-                             kNrIceTransportUdp) const;
+  nsresult ToNicerStunStruct(nr_ice_stun_server *server) const;
 
  protected:
   NrIceStunServer() : addr_() {}
@@ -141,8 +139,9 @@ class NrIceTurnServer : public NrIceStunServer {
                                  const std::string& username,
                                  const std::vector<unsigned char>& password,
                                  const std::string& transport = kNrIceTransportUdp) {
+    // TODO: Bug 906968 - Support TCP
     ScopedDeletePtr<NrIceTurnServer> server(
-        new NrIceTurnServer(username, password, transport));
+        new NrIceTurnServer(username, password));
 
     nsresult rv = server->Init(addr, port);
     if (NS_FAILED(rv))
@@ -155,13 +154,11 @@ class NrIceTurnServer : public NrIceStunServer {
 
  private:
   NrIceTurnServer(const std::string& username,
-                  const std::vector<unsigned char>& password,
-                  const std::string& transport) :
-      username_(username), password_(password), transport_(transport) {}
+                  const std::vector<unsigned char>& password) :
+      username_(username), password_(password) {}
 
   std::string username_;
   std::vector<unsigned char> password_;
-  std::string transport_;
 };
 
 class NrIceCtx {

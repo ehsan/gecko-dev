@@ -71,9 +71,6 @@ class WorkerThreadState
     /* Shared worklist for parsing/emitting scripts on worker threads. */
     Vector<ParseTask*, 0, SystemAllocPolicy> parseWorklist, parseFinishedList;
 
-    /* Main-thread-only list of parse tasks waiting for an atoms-zone GC to complete. */
-    Vector<ParseTask*, 0, SystemAllocPolicy> parseWaitingOnGC;
-
     /* Worklist for source compression worker threads. */
     Vector<SourceCompressionTask *, 0, SystemAllocPolicy> compressionWorklist;
 
@@ -233,13 +230,6 @@ StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &options,
                           const jschar *chars, size_t length, HandleObject scopeChain,
                           JS::OffThreadCompileCallback callback, void *callbackData);
 
-/*
- * Called at the end of GC to enqueue any Parse tasks that were waiting on an
- * atoms-zone GC to finish.
- */
-void
-EnqueuePendingParseTasksAfterGC(JSRuntime *rt);
-
 /* Block until in progress and pending off thread parse jobs have finished. */
 void
 WaitForOffThreadParsingToFinish(JSRuntime *rt);
@@ -339,9 +329,6 @@ struct ParseTask
     // main thread.
     JSObject *scopeChain;
 
-    // Rooted pointer to the global object used by 'cx'.
-    JSObject *exclusiveContextGlobal;
-
     // Callback invoked off the main thread when the parse finishes.
     JS::OffThreadCompileCallback callback;
     void *callbackData;
@@ -356,12 +343,10 @@ struct ParseTask
     Vector<frontend::CompileError *> errors;
     bool overRecursed;
 
-    ParseTask(ExclusiveContext *cx, JSObject *exclusiveContextGlobal, JSContext *initCx,
+    ParseTask(ExclusiveContext *cx, JSContext *initCx,
               const jschar *chars, size_t length, JSObject *scopeChain,
               JS::OffThreadCompileCallback callback, void *callbackData);
     bool init(JSContext *cx, const ReadOnlyCompileOptions &options);
-
-    void activate(JSRuntime *rt);
 
     ~ParseTask();
 };

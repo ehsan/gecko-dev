@@ -2805,6 +2805,8 @@ function ObjectActor(aObj, aThreadActor)
 ObjectActor.prototype = {
   actorPrefix: "obj",
 
+  _forcedMagicProps: false,
+
   /**
    * Returns a grip for this actor for returning in a protocol message.
    */
@@ -2852,6 +2854,27 @@ ObjectActor.prototype = {
       this.registeredPool.objectActors.delete(this.obj);
     }
     this.registeredPool.removeActor(this);
+  },
+
+  /**
+   * Force the magic Error properties to appear.
+   */
+  _forceMagicProperties: function () {
+    if (this._forcedMagicProps) {
+      return;
+    }
+
+    const MAGIC_ERROR_PROPERTIES = [
+      "message", "stack", "fileName", "lineNumber", "columnNumber"
+    ];
+
+    if (this.obj.class.endsWith("Error")) {
+      for (let property of MAGIC_ERROR_PROPERTIES) {
+        this._propertyDescriptor(property);
+      }
+    }
+
+    this._forcedMagicProps = true;
   },
 
   /**
@@ -2904,6 +2927,7 @@ ObjectActor.prototype = {
    *        The protocol request object.
    */
   onOwnPropertyNames: function (aRequest) {
+    this._forceMagicProperties();
     return { from: this.actorID,
              ownPropertyNames: this.obj.getOwnPropertyNames() };
   },
@@ -2916,6 +2940,7 @@ ObjectActor.prototype = {
    *        The protocol request object.
    */
   onPrototypeAndProperties: function (aRequest) {
+    this._forceMagicProperties();
     let ownProperties = Object.create(null);
     let names;
     try {

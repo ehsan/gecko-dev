@@ -646,10 +646,6 @@ PeerConnectionImpl::ConvertRTCConfiguration(const RTCConfiguration& aSrc,
       NS_ConvertUTF16toUTF8 credential(server.mCredential);
       NS_ConvertUTF16toUTF8 username(server.mUsername);
 
-#ifdef MOZ_WIDGET_GONK
-      if (transport.get() == kNrIceTransportTcp)
-          continue;
-#endif
       if (!aDst->addTurnServer(host.get(), port,
                                username.get(),
                                credential.get(),
@@ -1849,8 +1845,8 @@ void PeerConnectionImpl::GetStats_s(
           local.mCandidateType.Construct(
               RTCStatsIceCandidateType(p->local.type));
           local.mIpAddress.Construct(
-              NS_ConvertASCIItoUTF16(p->local.cand_addr.host.c_str()));
-          local.mPortNumber.Construct(p->local.cand_addr.port);
+              NS_ConvertASCIItoUTF16(p->local.host.c_str()));
+          local.mPortNumber.Construct(p->local.port);
           report->mIceCandidateStats.Value().AppendElement(local);
         }
 
@@ -1862,8 +1858,8 @@ void PeerConnectionImpl::GetStats_s(
           remote.mCandidateType.Construct(
               RTCStatsIceCandidateType(p->remote.type));
           remote.mIpAddress.Construct(
-              NS_ConvertASCIItoUTF16(p->remote.cand_addr.host.c_str()));
-          remote.mPortNumber.Construct(p->remote.cand_addr.port);
+              NS_ConvertASCIItoUTF16(p->remote.host.c_str()));
+          remote.mPortNumber.Construct(p->remote.port);
           report->mIceCandidateStats.Value().AppendElement(remote);
         }
       }

@@ -15,7 +15,6 @@
 
 #include "builtin/RegExp.h"
 #include "js/Vector.h"
-#include "vm/ErrorObject.h"
 
 extern JSObject *
 js_InitObjectClass(JSContext *cx, js::HandleObject obj);
@@ -398,7 +397,7 @@ class GlobalObject : public JSObject
         return &self->getPrototype(JSProto_ArrayBuffer).toObject();
     }
 
-    JSObject *getOrCreateCustomErrorPrototype(JSContext *cx, JSExnType exnType) {
+    JSObject *getOrCreateCustomErrorPrototype(JSContext *cx, int exnType) {
         JSProtoKey key = GetExceptionProtoKey(exnType);
         if (errorClassesInitialized())
             return &getPrototype(key).toObject();
