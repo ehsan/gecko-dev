@@ -51,7 +51,6 @@ FrameState::addToTracker(uint32 index)
     base[index] = fe;
     fe->track(tracker.nentries);
     tracker.add(fe);
-    JS_ASSERT(tracker.nentries <= script->nslots);
     return fe;
 }
 
