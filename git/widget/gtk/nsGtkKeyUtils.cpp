@@ -17,6 +17,7 @@
 #include <gdk/gdkkeysyms-compat.h>
 #endif
 #include <X11/XKBlib.h>
+#include "nsGUIEvent.h"
 #include "WidgetUtils.h"
 #include "keysym2ucs.h"
 #include "nsIBidiKeyboard.h"
@@ -26,8 +27,6 @@
 PRLogModuleInfo* gKeymapWrapperLog = nullptr;
 #endif // PR_LOGGING
 
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TextEvents.h"
 #include "mozilla/Util.h"
 
 namespace mozilla {

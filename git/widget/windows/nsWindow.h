@@ -24,7 +24,6 @@
 #include "nsITimer.h"
 #include "nsRegion.h"
 #include "mozilla/EventForwards.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/TimeStamp.h"
 #include "nsMargin.h"
 

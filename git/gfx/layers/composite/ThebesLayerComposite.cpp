@@ -114,9 +114,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
     nsRefPtr<gfxImageSurface> surf = mBuffer->GetAsSurface();
-    if (surf) {
-      WriteSnapshotToDumpFile(this, surf);
-    }
+    WriteSnapshotToDumpFile(this, surf);
   }
 #endif
 
@@ -160,7 +158,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 CompositableHost*
 ThebesLayerComposite::GetCompositableHost()
 {
-  if (mBuffer && mBuffer->IsAttached()) {
+  if ( mBuffer && mBuffer->IsAttached()) {
     return mBuffer.get();
   }
 

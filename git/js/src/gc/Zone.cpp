@@ -51,7 +51,7 @@ JS::Zone::Zone(JSRuntime *rt)
 Zone::~Zone()
 {
     if (this == runtimeFromMainThread()->systemZone)
-        runtimeFromMainThread()->systemZone = nullptr;
+        runtimeFromMainThread()->systemZone = NULL;
 }
 
 bool

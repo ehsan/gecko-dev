@@ -16,7 +16,6 @@
 #include "mozilla/Hal.h"
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/PLayerTransactionChild.h"
-#include "mozilla/TextEvents.h"
 #include "PuppetWidget.h"
 #include "nsIWidgetListener.h"
 

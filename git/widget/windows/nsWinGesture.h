@@ -14,8 +14,7 @@
 #include <winuser.h>
 #include <tpcshrd.h>
 #include "nsPoint.h"
-#include "mozilla/EventForwards.h"
-#include "mozilla/TouchEvents.h"
+#include "nsGUIEvent.h"
 
 // Desktop builds target apis for 502. Win8 Metro builds target 602.
 #if WINVER < 0x0602

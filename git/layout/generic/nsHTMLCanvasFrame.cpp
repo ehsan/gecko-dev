@@ -5,9 +5,8 @@
 
 /* rendering object for the HTML <canvas> element */
 
-#include "nsHTMLCanvasFrame.h"
-
 #include "nsGkAtoms.h"
+#include "nsHTMLCanvasFrame.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"

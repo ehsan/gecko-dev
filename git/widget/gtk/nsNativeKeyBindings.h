@@ -13,7 +13,6 @@
 
 #include "nsINativeKeyBindings.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include <gtk/gtk.h>
 
 enum NativeKeyBindingsType {

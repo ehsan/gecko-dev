@@ -8,9 +8,7 @@
 
 #include "nsIDOMKeyEvent.h"
 #include "nsDOMUIEvent.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/dom/KeyboardEventBinding.h"
-#include "mozilla/TextEvents.h"
 
 class nsDOMKeyboardEvent : public nsDOMUIEvent,
                            public nsIDOMKeyEvent

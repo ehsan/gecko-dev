@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "nsGUIEvent.h"
 #include "MetroWidget.h"
 #include "MetroInput.h"
 #include "gfxWindowsPlatform.h"

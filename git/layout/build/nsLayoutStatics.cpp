@@ -360,7 +360,7 @@ nsLayoutStatics::Shutdown()
 #endif
 
   AudioStream::ShutdownLibrary();
-  AsyncLatencyLogger::ShutdownLogger();
+  AsyncLatencyLogger::Shutdown();
   WebAudioUtils::Shutdown();
 
 #ifdef MOZ_WMF

@@ -32,8 +32,6 @@
 #include "UIABridgePrivate.h"
 #include "WinMouseScrollHandler.h"
 #include "InputData.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/TouchEvents.h"
 
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;

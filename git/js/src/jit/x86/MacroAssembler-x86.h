@@ -768,7 +768,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         movl(payloadOf(src), dest);
     }
     void unboxDouble(const Address &src, const FloatRegister &dest) {
-        loadDouble(Operand(src), dest);
+        movsd(Operand(src), dest);
     }
     void unboxBoolean(const ValueOperand &src, const Register &dest) {
         movl(src.payloadReg(), dest);
@@ -915,7 +915,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         convertInt32ToDouble(ToPayload(operand), dest);
         jump(&end);
         bind(&notInt32);
-        loadDouble(operand, dest);
+        movsd(operand, dest);
         bind(&end);
     }
 

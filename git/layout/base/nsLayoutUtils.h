@@ -276,10 +276,10 @@ public:
   static bool IsFrameListSorted(nsFrameList& aFrameList);
 
   /**
-   * LastContinuationWithChild gets the last continuation in aFrame's chain
+   * GetLastContinuationWithChild gets the last continuation in aFrame's chain
    * that has a child, or the first continuation if the frame has no children.
    */
-  static nsIFrame* LastContinuationWithChild(nsIFrame* aFrame);
+  static nsIFrame* GetLastContinuationWithChild(nsIFrame* aFrame);
 
   /**
    * GetLastSibling simply finds the last sibling of aFrame, or returns nullptr if
@@ -942,14 +942,7 @@ public:
    * containing aFrame.
    */
   static nsIFrame*
-  FirstContinuationOrSpecialSibling(nsIFrame *aFrame);
-
-  /**
-   * Is FirstContinuationOrSpecialSibling(aFrame) going to return
-   * aFrame?
-   */
-  static bool
-  IsFirstContinuationOrSpecialSibling(nsIFrame *aFrame);
+  GetFirstContinuationOrSpecialSibling(nsIFrame *aFrame);
 
   /**
    * Check whether aFrame is a part of the scrollbar or scrollcorner of
@@ -1474,7 +1467,7 @@ public:
    */
   static bool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->FirstContinuation()->
+      aFrame->GetFirstContinuation()->
         Properties().Get(nsIFrame::IBSplitSpecialPrevSibling());
   }
 
@@ -1484,7 +1477,7 @@ public:
    */
   static bool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->FirstContinuation()->
+      aFrame->GetFirstContinuation()->
         Properties().Get(nsIFrame::IBSplitSpecialSibling());
   }
 

@@ -68,7 +68,7 @@ DataThrowError(JSContext *cx, unsigned argc, Value *vp)
 static void
 ReportCannotConvertTo(JSContext *cx, HandleValue fromValue, const char *toType)
 {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_CONVERT_TO,
                          InformalValueTypeName(fromValue), toType);
 }
 
@@ -118,7 +118,7 @@ static inline JSObject *
 ToObjectIfObject(HandleValue value)
 {
     if (!value.isObject())
-        return nullptr;
+        return NULL;
 
     return &value.toObject();
 }
@@ -270,7 +270,7 @@ TypeEquivalent(JSContext *cx, unsigned int argc, Value *vp)
 
     RootedObject thisObj(cx, ToObjectIfObject(args.thisv()));
     if (!thisObj || !IsBinaryType(thisObj)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_INCOMPATIBLE_PROTO,
                              "Type", "equivalent",
                              InformalValueTypeName(args.thisv()));
@@ -278,14 +278,14 @@ TypeEquivalent(JSContext *cx, unsigned int argc, Value *vp)
     }
 
     if (args.length() < 1) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "Type.equivalent", "1", "s");
         return false;
     }
 
     RootedObject otherObj(cx, ToObjectIfObject(args[0]));
     if (!otherObj || !IsBinaryType(otherObj)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPEDOBJECT_NOT_TYPE_OBJECT);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_TYPEDOBJECT_NOT_TYPE_OBJECT);
         return false;
     }
 
@@ -307,12 +307,12 @@ TypeEquivalent(JSContext *cx, unsigned int argc, Value *vp)
     JS_EnumerateStub,                                                         \
     JS_ResolveStub,                                                           \
     JS_ConvertStub,                                                           \
-    nullptr,                                                                  \
-    nullptr,                                                                  \
+    NULL,                                                                     \
+    NULL,                                                                     \
     NumericType<constant_, type_>::call,                                      \
-    nullptr,                                                                  \
-    nullptr,                                                                  \
-    nullptr                                                                   \
+    NULL,                                                                     \
+    NULL,                                                                     \
+    NULL                                                                      \
 },
 
 const Class js::NumericTypeClasses[ScalarTypeRepresentation::TYPE_MAX] = {
@@ -473,7 +473,7 @@ NumericType<type, T>::call(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() < 1) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              args.callee().getClass()->name, "0", "s");
         return false;
     }
@@ -527,7 +527,7 @@ SetupAndGetPrototypeObjectForComplexTypeInstance(JSContext *cx,
 
     if (!JSObject::getProperty(cx, complexTypeGlobal, complexTypeGlobal,
                                cx->names().classPrototype, &complexTypePrototypeVal))
-        return nullptr;
+        return NULL;
 
     JS_ASSERT(complexTypePrototypeVal.isObject()); // immutable binding
     RootedObject complexTypePrototypeObj(cx,
@@ -537,15 +537,15 @@ SetupAndGetPrototypeObjectForComplexTypeInstance(JSContext *cx,
                                complexTypePrototypeObj,
                                cx->names().classPrototype,
                                &complexTypePrototypePrototypeVal))
-        return nullptr;
+        return NULL;
 
     RootedObject prototypeObj(cx,
-        NewObjectWithGivenProto(cx, &JSObject::class_, nullptr, global));
+        NewObjectWithGivenProto(cx, &JSObject::class_, NULL, global));
 
     JS_ASSERT(complexTypePrototypePrototypeVal.isObject()); // immutable binding
     RootedObject proto(cx, &complexTypePrototypePrototypeVal.toObject());
     if (!JS_SetPrototype(cx, prototypeObj, proto))
-        return nullptr;
+        return NULL;
 
     return prototypeObj;
 }
@@ -561,12 +561,12 @@ const Class ArrayType::class_ = {
     JS_EnumerateStub,
     JS_ResolveStub,
     JS_ConvertStub,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     BinaryBlock::construct,
-    nullptr
+    NULL
 };
 
 static JSObject *
@@ -643,14 +643,14 @@ DataInstanceUpdate(JSContext *cx, unsigned argc, Value *vp)
 
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage,
-                             nullptr, JSMSG_MORE_ARGS_NEEDED,
+                             NULL, JSMSG_MORE_ARGS_NEEDED,
                              "update()", "0", "s");
         return false;
     }
 
     RootedObject thisObj(cx, ToObjectIfObject(args.thisv()));
     if (!thisObj || !IsBlock(thisObj)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_INCOMPATIBLE_PROTO,
                              "Data", "update",
                              InformalValueTypeName(args.thisv()));
@@ -694,14 +694,14 @@ ArrayRepeat(JSContext *cx, unsigned int argc, Value *vp)
 
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage,
-                             nullptr, JSMSG_MORE_ARGS_NEEDED,
+                             NULL, JSMSG_MORE_ARGS_NEEDED,
                              "repeat()", "0", "s");
         return false;
     }
 
     RootedObject thisObj(cx, ToObjectIfObject(args.thisv()));
     if (!thisObj || !IsArrayType(thisObj)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_INCOMPATIBLE_PROTO,
                              "ArrayType", "repeat",
                              InformalValueTypeName(args.thisv()));
@@ -728,7 +728,7 @@ ArrayType::toSource(JSContext *cx, unsigned int argc, Value *vp)
     RootedObject thisObj(cx, ToObjectIfObject(args.thisv()));
     if (!thisObj || !IsArrayType(thisObj)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage,
-                             nullptr, JSMSG_INCOMPATIBLE_PROTO,
+                             NULL, JSMSG_INCOMPATIBLE_PROTO,
                              "ArrayType", "toSource",
                              InformalValueTypeName(args.thisv()));
         return false;
@@ -773,13 +773,13 @@ ArraySubarray(JSContext *cx, unsigned int argc, Value *vp)
 
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage,
-                             nullptr, JSMSG_MORE_ARGS_NEEDED,
+                             NULL, JSMSG_MORE_ARGS_NEEDED,
                              "subarray()", "0", "s");
         return false;
     }
 
     if (!args[0].isInt32()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_TYPEDOBJECT_SUBARRAY_INTEGER_ARG, "1");
         return false;
     }
@@ -799,7 +799,7 @@ ArraySubarray(JSContext *cx, unsigned int argc, Value *vp)
 
     if (args.length() >= 2) {
         if (!args[1].isInt32()) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                     JSMSG_TYPEDOBJECT_SUBARRAY_INTEGER_ARG, "2");
             return false;
         }
@@ -847,7 +847,7 @@ ArrayFillSubarray(JSContext *cx, unsigned int argc, Value *vp)
 
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage,
-                             nullptr, JSMSG_MORE_ARGS_NEEDED,
+                             NULL, JSMSG_MORE_ARGS_NEEDED,
                              "fill()", "0", "s");
         return false;
     }
@@ -855,7 +855,7 @@ ArrayFillSubarray(JSContext *cx, unsigned int argc, Value *vp)
     RootedObject thisObj(cx, ToObjectIfObject(args.thisv()));
     if (!thisObj || !IsBinaryArray(cx, thisObj)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage,
-                             nullptr, JSMSG_INCOMPATIBLE_PROTO,
+                             NULL, JSMSG_INCOMPATIBLE_PROTO,
                              "ArrayType", "fill",
                              InformalValueTypeName(args.thisv()));
         return false;
@@ -891,7 +891,7 @@ InitializeCommonTypeDescriptorProperties(JSContext *cx,
     RootedValue typeByteLength(cx, NumberValue(typeRepr->size()));
     if (!JSObject::defineProperty(cx, obj, cx->names().byteLength,
                                   typeByteLength,
-                                  nullptr, nullptr,
+                                  NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
         return false;
 
@@ -899,7 +899,7 @@ InitializeCommonTypeDescriptorProperties(JSContext *cx,
     RootedValue typeByteAlignment(cx, NumberValue(typeRepr->alignment()));
     if (!JSObject::defineProperty(cx, obj, cx->names().byteAlignment,
                                   typeByteAlignment,
-                                  nullptr, nullptr,
+                                  NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
         return false;
 
@@ -907,7 +907,7 @@ InitializeCommonTypeDescriptorProperties(JSContext *cx,
     RootedValue variable(cx, JSVAL_FALSE);
     if (!JSObject::defineProperty(cx, obj, cx->names().variable,
                                   variable,
-                                  nullptr, nullptr,
+                                  NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
         return false;
 
@@ -926,42 +926,42 @@ ArrayType::create(JSContext *cx, HandleObject arrayTypeGlobal,
         cx,
         ArrayTypeRepresentation::Create(cx, elementTypeRepr, length));
     if (!typeReprObj)
-        return nullptr;
+        return NULL;
 
     RootedObject obj(cx, NewBuiltinClassInstance(cx, &ArrayType::class_));
     if (!obj)
-        return nullptr;
+        return NULL;
     obj->initFixedSlot(SLOT_TYPE_REPR, ObjectValue(*typeReprObj));
 
     RootedValue elementTypeVal(cx, ObjectValue(*elementType));
     if (!JSObject::defineProperty(cx, obj, cx->names().elementType,
-                                  elementTypeVal, nullptr, nullptr,
+                                  elementTypeVal, NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
-        return nullptr;
+        return NULL;
 
     obj->initFixedSlot(SLOT_ARRAY_ELEM_TYPE, elementTypeVal);
 
     RootedValue lengthVal(cx, Int32Value(length));
     if (!JSObject::defineProperty(cx, obj, cx->names().length,
-                                  lengthVal, nullptr, nullptr,
+                                  lengthVal, NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
-        return nullptr;
+        return NULL;
 
     if (!InitializeCommonTypeDescriptorProperties(cx, obj, typeReprObj))
-        return nullptr;
+        return NULL;
 
     RootedObject prototypeObj(cx,
         SetupAndGetPrototypeObjectForComplexTypeInstance(cx, arrayTypeGlobal));
 
     if (!prototypeObj)
-        return nullptr;
+        return NULL;
 
     if (!LinkConstructorAndPrototype(cx, obj, prototypeObj))
-        return nullptr;
+        return NULL;
 
     JSFunction *fillFun = DefineFunctionWithReserved(cx, prototypeObj, "fill", ArrayFillSubarray, 1, 0);
     if (!fillFun)
-        return nullptr;
+        return NULL;
 
     // This is important
     // so that A.prototype.fill.call(b, val)
@@ -977,7 +977,7 @@ ArrayType::construct(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (!args.isConstructing()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_NOT_FUNCTION, "ArrayType");
         return false;
     }
@@ -987,7 +987,7 @@ ArrayType::construct(JSContext *cx, unsigned argc, Value *vp)
         !args[1].isNumber() ||
         args[1].toNumber() < 0)
     {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_TYPEDOBJECT_ARRAYTYPE_BAD_ARGS);
         return false;
     }
@@ -996,20 +996,20 @@ ArrayType::construct(JSContext *cx, unsigned argc, Value *vp)
     RootedObject elementType(cx, &args[0].toObject());
 
     if (!IsBinaryType(elementType)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_TYPEDOBJECT_ARRAYTYPE_BAD_ARGS);
         return false;
     }
 
     if (!args[1].isInt32()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_TYPEDOBJECT_ARRAYTYPE_BAD_ARGS);
         return false;
     }
 
     int32_t length = args[1].toInt32();
     if (length < 0) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_TYPEDOBJECT_ARRAYTYPE_BAD_ARGS);
         return false;
     }
@@ -1036,12 +1036,12 @@ const Class StructType::class_ = {
     JS_EnumerateStub,
     JS_ResolveStub,
     JS_ConvertStub,
-    nullptr, /* finalize */
-    nullptr, /* checkAccess */
-    nullptr, /* call */
-    nullptr, /* hasInstance */
+    NULL, /* finalize */
+    NULL, /* checkAccess */
+    NULL, /* call */
+    NULL, /* hasInstance */
     BinaryBlock::construct,
-    nullptr  /* trace */
+    NULL  /* trace */
 };
 
 static bool
@@ -1165,7 +1165,7 @@ StructType::layout(JSContext *cx, HandleObject structType, HandleObject fields)
         return false;
     RootedValue fieldNamesVecValue(cx, ObjectValue(*fieldNamesVec));
     if (!JSObject::defineProperty(cx, structType, cx->names().fieldNames,
-                                  fieldNamesVecValue, nullptr, nullptr,
+                                  fieldNamesVecValue, NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
         return false;
 
@@ -1175,10 +1175,10 @@ StructType::layout(JSContext *cx, HandleObject structType, HandleObject fields)
     // fieldTypes : { string: Type, ... }
     RootedObject fieldOffsets(
         cx,
-        NewObjectWithClassProto(cx, &JSObject::class_, nullptr, nullptr));
+        NewObjectWithClassProto(cx, &JSObject::class_, NULL, NULL));
     RootedObject fieldTypes(
         cx,
-        NewObjectWithClassProto(cx, &JSObject::class_, nullptr, nullptr));
+        NewObjectWithClassProto(cx, &JSObject::class_, NULL, NULL));
     for (size_t i = 0; i < typeRepr->fieldCount(); i++) {
         const StructField &field = typeRepr->field(i);
         RootedId fieldId(cx, field.id);
@@ -1186,27 +1186,26 @@ StructType::layout(JSContext *cx, HandleObject structType, HandleObject fields)
         // fieldOffsets[id] = offset
         RootedValue offset(cx, NumberValue(field.offset));
         if (!JSObject::defineGeneric(cx, fieldOffsets, fieldId,
-                                     offset, nullptr, nullptr,
+                                     offset, NULL, NULL,
                                      JSPROP_READONLY | JSPROP_PERMANENT))
             return false;
 
         // fieldTypes[id] = typeObj
         if (!JSObject::defineGeneric(cx, fieldTypes, fieldId,
-                                     fieldTypeObjs.handleAt(i),
-                                     nullptr, nullptr,
+                                     fieldTypeObjs.handleAt(i), NULL, NULL,
                                      JSPROP_READONLY | JSPROP_PERMANENT))
             return false;
     }
 
     RootedValue fieldOffsetsValue(cx, ObjectValue(*fieldOffsets));
     if (!JSObject::defineProperty(cx, structType, cx->names().fieldOffsets,
-                                  fieldOffsetsValue, nullptr, nullptr,
+                                  fieldOffsetsValue, NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
         return false;
 
     RootedValue fieldTypesValue(cx, ObjectValue(*fieldTypes));
     if (!JSObject::defineProperty(cx, structType, cx->names().fieldTypes,
-                                  fieldTypesValue, nullptr, nullptr,
+                                  fieldTypesValue, NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
         return false;
 
@@ -1219,27 +1218,27 @@ StructType::create(JSContext *cx, HandleObject structTypeGlobal,
 {
     RootedObject obj(cx, NewBuiltinClassInstance(cx, &StructType::class_));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     if (!StructType::layout(cx, obj, fields))
-        return nullptr;
+        return NULL;
 
     RootedObject fieldsProto(cx);
     if (!JSObject::getProto(cx, fields, &fieldsProto))
-        return nullptr;
+        return NULL;
 
     RootedObject typeReprObj(cx, typeRepresentationOwnerObj(obj));
     if (!InitializeCommonTypeDescriptorProperties(cx, obj, typeReprObj))
-        return nullptr;
+        return NULL;
 
     RootedObject prototypeObj(cx,
         SetupAndGetPrototypeObjectForComplexTypeInstance(cx, structTypeGlobal));
 
     if (!prototypeObj)
-        return nullptr;
+        return NULL;
 
     if (!LinkConstructorAndPrototype(cx, obj, prototypeObj))
-        return nullptr;
+        return NULL;
 
     return obj;
 }
@@ -1250,7 +1249,7 @@ StructType::construct(JSContext *cx, unsigned int argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (!args.isConstructing()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_NOT_FUNCTION, "StructType");
         return false;
     }
@@ -1265,7 +1264,7 @@ StructType::construct(JSContext *cx, unsigned int argc, Value *vp)
         return true;
     }
 
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                          JSMSG_TYPEDOBJECT_STRUCTTYPE_BAD_ARGS);
     return false;
 }
@@ -1277,8 +1276,7 @@ StructType::toSource(JSContext *cx, unsigned int argc, Value *vp)
 
     RootedObject thisObj(cx, ToObjectIfObject(args.thisv()));
     if (!thisObj || !IsStructType(thisObj)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
-                             JSMSG_INCOMPATIBLE_PROTO,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
                              "StructType", "toSource",
                              InformalValueTypeName(args.thisv()));
         return false;
@@ -1421,51 +1419,51 @@ SetupComplexHeirarchy(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey pr
     // get the 'Type' constructor
     RootedObject TypeObject(cx, global->getOrCreateTypeObject(cx));
     if (!TypeObject)
-        return nullptr;
+        return NULL;
 
     // Set complexObject.__proto__ = Type
     if (!JS_SetPrototype(cx, complexObject, TypeObject))
-        return nullptr;
+        return NULL;
 
     RootedObject DataObject(cx, global->getOrCreateDataObject(cx));
     if (!DataObject)
-        return nullptr;
+        return NULL;
 
     RootedValue DataProtoVal(cx);
     if (!JSObject::getProperty(cx, DataObject, DataObject,
                                cx->names().classPrototype, &DataProtoVal))
-        return nullptr;
+        return NULL;
 
     RootedObject DataProto(cx, &DataProtoVal.toObject());
     if (!DataProto)
-        return nullptr;
+        return NULL;
 
     RootedObject prototypeObj(cx,
-        NewObjectWithGivenProto(cx, &JSObject::class_, nullptr, global));
+        NewObjectWithGivenProto(cx, &JSObject::class_, NULL, global));
     if (!prototypeObj)
-        return nullptr;
+        return NULL;
     if (!LinkConstructorAndPrototype(cx, complexObject, prototypeObj))
-        return nullptr;
+        return NULL;
     if (!DefineConstructorAndPrototype(cx, global, protoKey,
                                        complexObject, prototypeObj))
-        return nullptr;
+        return NULL;
 
     // Set complexObject.prototype.__proto__ = Data
     if (!JS_SetPrototype(cx, prototypeObj, DataObject))
-        return nullptr;
+        return NULL;
 
     proto.set(prototypeObj);
 
     // Set complexObject.prototype.prototype.__proto__ = Data.prototype
-    RootedObject prototypePrototypeObj(cx, JS_NewObject(cx, nullptr, nullptr,
+    RootedObject prototypePrototypeObj(cx, JS_NewObject(cx, NULL, NULL,
                                        global));
 
     if (!LinkConstructorAndPrototype(cx, prototypeObj,
                                      prototypePrototypeObj))
-        return nullptr;
+        return NULL;
 
     if (!JS_SetPrototype(cx, prototypePrototypeObj, DataProto))
-        return nullptr;
+        return NULL;
 
     protoProto.set(prototypePrototypeObj);
 
@@ -1526,7 +1524,7 @@ InitArrayType(JSContext *cx, HandleObject globalObj)
     if (!JSObject::getProperty(cx, arrayProto, arrayProto, forEachAtom->asPropertyName(), &forEachFunVal))
         return false;
 
-    if (!JSObject::defineGeneric(cx, protoProto, forEachId, forEachFunVal, nullptr, nullptr, 0))
+    if (!JSObject::defineGeneric(cx, protoProto, forEachId, forEachFunVal, NULL, NULL, 0))
         return false;
 
     if (!JS_DefineFunction(cx, protoProto, "subarray",
@@ -1602,19 +1600,19 @@ js_InitTypedObjectClasses(JSContext *cx, HandleObject obj)
     Rooted<GlobalObject *> global(cx, &obj->as<GlobalObject>());
 
     if (!InitType(cx, obj))
-        return nullptr;
+        return NULL;
 
 #define BINARYDATA_NUMERIC_DEFINE(constant_, type_, name_)                    \
     if (!DefineNumericClass<constant_>(cx, global, #name_))                   \
-        return nullptr;
+        return NULL;
     JS_FOR_EACH_SCALAR_TYPE_REPR(BINARYDATA_NUMERIC_DEFINE)
 #undef BINARYDATA_NUMERIC_DEFINE
 
     if (!InitArrayType(cx, obj))
-        return nullptr;
+        return NULL;
 
     if (!InitStructType(cx, obj))
-        return nullptr;
+        return NULL;
 
     return global;
 }
@@ -1637,10 +1635,10 @@ const Class BinaryBlock::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     BinaryBlock::obj_finalize,
-    nullptr,        /* checkAccess */
-    nullptr,        /* call        */
-    nullptr,        /* construct   */
-    nullptr,        /* hasInstance */
+    NULL,           /* checkAccess */
+    NULL,           /* call        */
+    NULL,           /* construct   */
+    NULL,           /* hasInstance */
     BinaryBlock::obj_trace,
     JS_NULL_CLASS_EXT,
     {
@@ -1667,7 +1665,7 @@ const Class BinaryBlock::class_ = {
         BinaryBlock::obj_deleteElement,
         BinaryBlock::obj_deleteSpecial,
         BinaryBlock::obj_enumerate,
-        nullptr, /* thisObject */
+        NULL, /* thisObject */
     }
 };
 
@@ -1693,7 +1691,7 @@ ReportBlockTypeError(JSContext *cx,
     if (!typeReprStr)
         return false;
 
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                          errorNumber, typeReprStr);
 
     JS_free(cx, (void *) typeReprStr);
@@ -1727,10 +1725,10 @@ BinaryBlock::createNull(JSContext *cx, HandleObject type, HandleValue owner)
     RootedValue protoVal(cx);
     if (!JSObject::getProperty(cx, type, type,
                                cx->names().classPrototype, &protoVal))
-        return nullptr;
+        return NULL;
 
     RootedObject obj(cx,
-        NewObjectWithClassProto(cx, &class_, &protoVal.toObject(), nullptr));
+        NewObjectWithClassProto(cx, &class_, &protoVal.toObject(), NULL));
     obj->initFixedSlot(SLOT_DATATYPE, ObjectValue(*type));
     obj->initFixedSlot(SLOT_BLOCKREFOWNER, owner);
 
@@ -1741,7 +1739,7 @@ BinaryBlock::createNull(JSContext *cx, HandleObject type, HandleValue owner)
         if (typeObj) {
             TypeRepresentation *typeRepr = typeRepresentation(type);
             if (!typeObj->addTypedObjectAddendum(cx, typeRepr))
-                return nullptr;
+                return NULL;
         }
     }
 
@@ -1754,13 +1752,13 @@ BinaryBlock::createZeroed(JSContext *cx, HandleObject type)
     RootedValue owner(cx, NullValue());
     RootedObject obj(cx, createNull(cx, type, owner));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     TypeRepresentation *typeRepr = typeRepresentation(type);
     size_t memsize = typeRepr->size();
     void *memory = JS_malloc(cx, memsize);
     if (!memory)
-        return nullptr;
+        return NULL;
     memset(memory, 0, memsize);
     obj->setPrivate(memory);
     return obj;
@@ -1777,7 +1775,7 @@ BinaryBlock::createDerived(JSContext *cx, HandleObject type,
     RootedValue ownerValue(cx, ObjectValue(*owner));
     RootedObject obj(cx, createNull(cx, type, ownerValue));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     obj->setPrivate(BlockMem(owner) + offset);
     return obj;
@@ -1848,8 +1846,8 @@ BinaryBlock::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
 
     RootedObject proto(cx, obj->getProto());
     if (!proto) {
-        objp.set(nullptr);
-        propp.set(nullptr);
+        objp.set(NULL);
+        propp.set(NULL);
         return true;
     }
 
@@ -1890,7 +1888,7 @@ ReportPropertyError(JSContext *cx,
     if (!propName)
         return false;
 
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                          errorNumber, propName);
 
     JS_free(cx, propName);
@@ -2090,7 +2088,7 @@ BinaryBlock::obj_setGeneric(JSContext *cx, HandleObject obj, HandleId id,
       case ScalarTypeRepresentation::Array:
         if (JSID_IS_ATOM(id, cx->names().length)) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage,
-                                 nullptr, JSMSG_CANT_REDEFINE_ARRAY_LENGTH);
+                                 NULL, JSMSG_CANT_REDEFINE_ARRAY_LENGTH);
             return false;
         }
         break;
@@ -2134,7 +2132,7 @@ BinaryBlock::obj_setElement(JSContext *cx, HandleObject obj, uint32_t index,
 
         if (index >= arrayTypeRepr->length()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage,
-                                 nullptr, JSMSG_TYPEDOBJECT_BINARYARRAY_BAD_INDEX);
+                                 NULL, JSMSG_TYPEDOBJECT_BINARYARRAY_BAD_INDEX);
             return false;
         }
 
@@ -2180,7 +2178,7 @@ BinaryBlock::obj_getGenericAttributes(JSContext *cx, HandleObject obj,
         break;
 
       case TypeRepresentation::Struct:
-        if (typeRepr->asStruct()->fieldNamed(id) != nullptr) {
+        if (typeRepr->asStruct()->fieldNamed(id) != NULL) {
             *attrsp = JSPROP_ENUMERATE | JSPROP_PERMANENT;
             return true;
         }
@@ -2211,7 +2209,7 @@ IsOwnId(JSContext *cx, HandleObject obj, HandleId id)
         return js_IdIsIndex(id, &index) || JSID_IS_ATOM(id, cx->names().length);
 
       case TypeRepresentation::Struct:
-        return typeRepr->asStruct()->fieldNamed(id) != nullptr;
+        return typeRepr->asStruct()->fieldNamed(id) != NULL;
     }
 
     return false;

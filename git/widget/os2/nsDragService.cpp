@@ -20,6 +20,7 @@
 #include "wdgtos2rc.h"
 #include "nsILocalFileOS2.h"
 #include "nsIDocument.h"
+#include "nsGUIEvent.h"
 #include "nsISelection.h"
 #include <algorithm>
 

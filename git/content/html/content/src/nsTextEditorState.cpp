@@ -42,7 +42,6 @@
 #include "mozilla/Preferences.h"
 #include "nsTextNode.h"
 #include "nsIController.h"
-#include "mozilla/TextEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

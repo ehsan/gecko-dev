@@ -7,6 +7,7 @@
 #include "nsCSSRendering.h"
 #include "nsIDocument.h"
 #include "nsPageFrame.h"
+#include "nsGUIEvent.h"
 #include "nsIDOMEvent.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"

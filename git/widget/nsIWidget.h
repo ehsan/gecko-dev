@@ -9,7 +9,7 @@
 #include "nsISupports.h"
 #include "nsColor.h"
 #include "nsRect.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 
 #include "nsCOMPtr.h"
 #include "nsWidgetInitData.h"
@@ -886,13 +886,13 @@ class nsIWidget : public nsISupports {
 
     /**
      * Minimize, maximize or normalize the window size.
-     * Takes a value from nsSizeMode (see nsIWidgetListener.h)
+     * Takes a value from nsSizeMode (see nsGUIEvent.h)
      */
     NS_IMETHOD SetSizeMode(int32_t aMode) = 0;
 
     /**
      * Return size mode (minimized, maximized, normalized).
-     * Returns a value from nsSizeMode (see nsIWidgetListener.h)
+     * Returns a value from nsSizeMode (see nsGUIEvent.h)
      */
     virtual int32_t SizeMode() = 0;
 

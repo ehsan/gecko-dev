@@ -26,6 +26,7 @@
 #ifdef MOZ_X11
 class gfxXlibSurface;
 #endif
+#include "nsGUIEvent.h"
 #include "mozilla/unused.h"
 
 class gfxASurface;

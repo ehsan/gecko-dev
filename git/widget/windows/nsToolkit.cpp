@@ -9,6 +9,7 @@
 #include "nsWidgetsCID.h"
 #include "prmon.h"
 #include "prtime.h"
+#include "nsGUIEvent.h"
 #include "nsIServiceManager.h"
 #include "nsComponentManagerUtils.h"
 #include <objbase.h>

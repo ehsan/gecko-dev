@@ -7,7 +7,6 @@
 #define nsDOMScrollAreaEvent_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include "nsIDOMScrollAreaEvent.h"
 #include "nsDOMUIEvent.h"
 

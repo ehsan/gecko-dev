@@ -28,6 +28,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPrompt.h"
 #include "nsIObserverService.h"
+#include "nsGUIEvent.h"
 #include "nsITimer.h"
 #include "nsIAtom.h"
 #include "nsContentUtils.h"
@@ -80,7 +81,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
-#include "mozilla/ContentEvents.h"
 
 #include "nsCycleCollectionNoteRootCallback.h"
 #include "GeckoProfiler.h"

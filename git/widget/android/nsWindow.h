@@ -12,7 +12,6 @@
 #include "nsTArray.h"
 #include "AndroidJavaWrappers.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/TextEvents.h"
 
 class gfxASurface;
 

@@ -26,6 +26,7 @@
 
 #include "nsIDOMXULElement.h"
 
+#include "nsGUIEvent.h"
 #include "nsWidgetsCID.h"
 #include "nsIWidget.h"
 #include "nsIWidgetListener.h"
@@ -68,7 +69,6 @@
 
 #include "nsIMarkupDocumentViewer.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MouseEvents.h"
 
 #ifdef XP_MACOSX
 #include "nsINativeMenuService.h"

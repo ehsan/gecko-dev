@@ -20,6 +20,7 @@
 #include "nsGkAtoms.h"
 
 #include "nsBaseWidget.h"
+#include "nsGUIEvent.h"
 #include <gdk/gdk.h>
 #include <gtk/gtk.h>
 
@@ -30,7 +31,6 @@
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/Accessible.h"
 #endif
-#include "mozilla/MouseEvents.h"
 
 #include "nsGtkIMModule.h"
 

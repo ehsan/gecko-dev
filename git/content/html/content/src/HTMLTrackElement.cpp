@@ -126,7 +126,7 @@ HTMLTrackElement::Track()
   if (!mTrack) {
     // We're expected to always have an internal TextTrack so create
     // an empty object to return if we don't already have one.
-    mTrack = new TextTrack(OwnerDoc()->GetParentObject(), mMediaParent);
+    mTrack = new TextTrack(OwnerDoc()->GetParentObject());
   }
 
   return mTrack;
@@ -146,8 +146,7 @@ HTMLTrackElement::CreateTextTrack()
     kind = TextTrackKind::Subtitles;
   }
 
-  mTrack = new TextTrack(OwnerDoc()->GetParentObject(), mMediaParent, kind,
-                         label, srcLang);
+  mTrack = new TextTrack(OwnerDoc()->GetParentObject(), kind, label, srcLang);
 
   if (mMediaParent) {
     mMediaParent->AddTextTrack(mTrack);

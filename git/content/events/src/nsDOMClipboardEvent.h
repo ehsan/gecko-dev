@@ -8,7 +8,6 @@
 
 #include "nsIDOMClipboardEvent.h"
 #include "nsDOMEvent.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/dom/ClipboardEventBinding.h"
 
 class nsDOMClipboardEvent : public nsDOMEvent,

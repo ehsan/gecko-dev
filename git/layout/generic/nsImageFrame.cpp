@@ -5,12 +5,10 @@
 
 /* rendering object for replaced elements with bitmap image data */
 
-#include "nsImageFrame.h"
-
 #include "mozilla/DebugOnly.h"
-#include "mozilla/MouseEvents.h"
 
 #include "nsCOMPtr.h"
+#include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsString.h"
 #include "nsPrintfCString.h"
@@ -38,6 +36,7 @@
 #include "nsAccessibilityService.h"
 #endif
 #include "nsIDOMNode.h"
+#include "nsGUIEvent.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 

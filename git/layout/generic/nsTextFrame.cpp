@@ -11,7 +11,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/TextEvents.h"
 
 #include "nsCOMPtr.h"
 #include "nsBlockFrame.h"
@@ -656,7 +655,7 @@ int32_t nsTextFrame::GetInFlowContentLength() {
     return flowLength->mEndFlowOffset - mContentOffset;
   }
 
-  nsTextFrame* nextBidi = static_cast<nsTextFrame*>(LastInFlow()->GetNextContinuation());
+  nsTextFrame* nextBidi = static_cast<nsTextFrame*>(GetLastInFlow()->GetNextContinuation());
   int32_t endFlow = nextBidi ? nextBidi->GetContentOffset() : mContent->TextLength();
 
   if (!flowLength) {
@@ -3902,28 +3901,30 @@ public:
   virtual nsIFrame* GetPrevContinuation() const {
     return mPrevContinuation;
   }
-  virtual void SetPrevContinuation(nsIFrame* aPrevContinuation) {
+  NS_IMETHOD SetPrevContinuation(nsIFrame* aPrevContinuation) {
     NS_ASSERTION (!aPrevContinuation || GetType() == aPrevContinuation->GetType(),
                   "setting a prev continuation with incorrect type!");
     NS_ASSERTION (!nsSplittableFrame::IsInPrevContinuationChain(aPrevContinuation, this),
                   "creating a loop in continuation chain!");
     mPrevContinuation = aPrevContinuation;
     RemoveStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+    return NS_OK;
   }
   virtual nsIFrame* GetPrevInFlowVirtual() const { return GetPrevInFlow(); }
   nsIFrame* GetPrevInFlow() const {
     return (GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION) ? mPrevContinuation : nullptr;
   }
-  virtual void SetPrevInFlow(nsIFrame* aPrevInFlow) MOZ_OVERRIDE {
+  NS_IMETHOD SetPrevInFlow(nsIFrame* aPrevInFlow) {
     NS_ASSERTION (!aPrevInFlow || GetType() == aPrevInFlow->GetType(),
                   "setting a prev in flow with incorrect type!");
     NS_ASSERTION (!nsSplittableFrame::IsInPrevContinuationChain(aPrevInFlow, this),
                   "creating a loop in continuation chain!");
     mPrevContinuation = aPrevInFlow;
     AddStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+    return NS_OK;
   }
-  virtual nsIFrame* FirstInFlow() const MOZ_OVERRIDE;
-  virtual nsIFrame* FirstContinuation() const MOZ_OVERRIDE;
+  virtual nsIFrame* GetFirstInFlow() const;
+  virtual nsIFrame* GetFirstContinuation() const;
 
   virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
@@ -4045,7 +4046,7 @@ nsContinuingTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 nsIFrame*
-nsContinuingTextFrame::FirstInFlow() const
+nsContinuingTextFrame::GetFirstInFlow() const
 {
   // Can't cast to |nsContinuingTextFrame*| because the first one isn't.
   nsIFrame *firstInFlow,
@@ -4055,12 +4056,11 @@ nsContinuingTextFrame::FirstInFlow() const
     firstInFlow = previous;
     previous = firstInFlow->GetPrevInFlow();
   } while (previous);
-  MOZ_ASSERT(firstInFlow, "post-condition failed");
   return firstInFlow;
 }
 
 nsIFrame*
-nsContinuingTextFrame::FirstContinuation() const
+nsContinuingTextFrame::GetFirstContinuation() const
 {
   // Can't cast to |nsContinuingTextFrame*| because the first one isn't.
   nsIFrame *firstContinuation,
@@ -4073,7 +4073,6 @@ nsContinuingTextFrame::FirstContinuation() const
     firstContinuation = previous;
     previous = firstContinuation->GetPrevContinuation();
   } while (previous);
-  MOZ_ASSERT(firstContinuation, "post-condition failed");
   return firstContinuation;
 }
 
@@ -4199,26 +4198,25 @@ nsTextFrame::GetCursor(const nsPoint& aPoint,
 }
 
 nsIFrame*
-nsTextFrame::LastInFlow() const
+nsTextFrame::GetLastInFlow() const
 {
   nsTextFrame* lastInFlow = const_cast<nsTextFrame*>(this);
   while (lastInFlow->GetNextInFlow())  {
     lastInFlow = static_cast<nsTextFrame*>(lastInFlow->GetNextInFlow());
   }
-  MOZ_ASSERT(lastInFlow, "post-condition failed");
+  NS_POSTCONDITION(lastInFlow, "illegal state in flow chain.");
   return lastInFlow;
 }
 
 nsIFrame*
-nsTextFrame::LastContinuation() const
+nsTextFrame::GetLastContinuation() const
 {
-  nsTextFrame* lastContinuation = const_cast<nsTextFrame*>(this);
-  while (lastContinuation->mNextContinuation)  {
-    lastContinuation =
-      static_cast<nsTextFrame*>(lastContinuation->mNextContinuation);
+  nsTextFrame* lastInFlow = const_cast<nsTextFrame*>(this);
+  while (lastInFlow->mNextContinuation)  {
+    lastInFlow = static_cast<nsTextFrame*>(lastInFlow->mNextContinuation);
   }
-  MOZ_ASSERT(lastContinuation, "post-condition failed");
-  return lastContinuation;
+  NS_POSTCONDITION(lastInFlow, "illegal state in continuation chain.");
+  return lastInFlow;
 }
 
 void

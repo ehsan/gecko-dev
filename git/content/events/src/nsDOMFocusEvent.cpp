@@ -5,7 +5,6 @@
 
 #include "nsDOMFocusEvent.h"
 #include "prtime.h"
-#include "mozilla/ContentEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

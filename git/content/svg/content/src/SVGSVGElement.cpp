@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdint.h>
-#include "mozilla/BasicEvents.h"
 #include "mozilla/Util.h"
 #include "mozilla/Likely.h"
 
@@ -25,6 +24,7 @@
 #include "mozilla/dom/SVGRect.h"
 #include "nsError.h"
 #include "nsISVGChildFrame.h"
+#include "nsGUIEvent.h"
 #include "mozilla/dom/SVGSVGElement.h"
 #include "mozilla/dom/SVGSVGElementBinding.h"
 #include "nsSVGUtils.h"

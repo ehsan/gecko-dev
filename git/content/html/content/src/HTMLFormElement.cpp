@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/HTMLFormElement.h"
 #include "mozilla/dom/HTMLFormElementBinding.h"
 #include "nsIHTMLDocument.h"
@@ -18,6 +17,7 @@
 #include "nsContentUtils.h"
 #include "nsInterfaceHashtable.h"
 #include "nsContentList.h"
+#include "nsGUIEvent.h"
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"

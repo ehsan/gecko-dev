@@ -16,11 +16,6 @@
 #include "nsChildView.h"
 #include "nsCocoaWindow.h"
 
-#include "mozilla/MiscEvents.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/TouchEvents.h"
-
 #include "nsObjCExceptions.h"
 #include "nsCOMPtr.h"
 #include "nsToolkit.h"

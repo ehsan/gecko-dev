@@ -55,9 +55,6 @@
  **************************************************************/
 
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/MiscEvents.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TouchEvents.h"
 #include "mozilla/Util.h"
 
 #include "mozilla/ipc/RPCChannel.h"
@@ -94,6 +91,7 @@
 #include "WinMouseScrollHandler.h"
 #include "nsFontMetrics.h"
 #include "nsIFontEnumerator.h"
+#include "nsGUIEvent.h"
 #include "nsFont.h"
 #include "nsRect.h"
 #include "nsThreadUtils.h"

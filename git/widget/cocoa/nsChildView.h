@@ -25,7 +25,6 @@
 #include "GLContextTypes.h"
 #include "mozilla/Mutex.h"
 #include "nsRegion.h"
-#include "mozilla/MouseEvents.h"
 
 #include "nsString.h"
 #include "nsIDragService.h"
