@@ -35,7 +35,6 @@
 #include "gc/Marking.h"
 #include "jit/BaselineJIT.h"
 #include "jit/IonCode.h"
-#include "js/MemoryMetrics.h"
 #include "js/OldDebugAPI.h"
 #include "js/Utility.h"
 #include "vm/ArgumentsObject.h"

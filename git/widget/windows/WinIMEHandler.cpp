@@ -198,7 +198,6 @@ IMEHandler::NotifyIME(nsWindow* aWindow,
     case REQUEST_TO_CANCEL_COMPOSITION:
       nsIMM32Handler::CancelComposition(aWindow);
       return NS_OK;
-    case NOTIFY_IME_OF_POSITION_CHANGE:
     case NOTIFY_IME_OF_COMPOSITION_UPDATE:
       nsIMM32Handler::OnUpdateComposition(aWindow);
       return NS_OK;
@@ -227,7 +226,7 @@ IMEHandler::GetUpdatePreference()
   }
 #endif //NS_ENABLE_TSF
 
-  return nsIMM32Handler::GetIMEUpdatePreference();
+  return nsIMEUpdatePreference();
 }
 
 // static

@@ -22,15 +22,8 @@ Important Concepts
    mozinfo
    preprocessor
    jar-manifests
-
-integrated development environment (IDE)
-========================================
-.. toctree::
-   :maxdepth: 1
-
-   androideclipse
-   cppeclipse
    visualstudio
+   androideclipse
 
 mozbuild
 ========
