@@ -184,7 +184,7 @@ PrefStore.prototype = {
   },
 
   update: function PrefStore_update(record) {
-    this._log.debug("Received pref updates, applying...");
+    this._log.trace("Received pref updates, applying...");
     this._setAllPrefs(record.value);
   },
   
@@ -233,7 +233,7 @@ PrefTracker.prototype = {
     if (this._syncPrefs.indexOf(aData) != -1) {
       this._score += 25;
       this.addChangedID(WEAVE_PREFS_GUID);
-      this._log.debug("Preference " + aData + " changed");
+      this._log.trace("Preference " + aData + " changed");
     }
   }
 };
