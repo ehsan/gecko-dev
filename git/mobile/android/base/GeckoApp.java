@@ -956,9 +956,7 @@ abstract public class GeckoApp
                     mMainHandler.post(new Runnable() {
                         public void run() {
                             // Don't show autocomplete popup when using fullscreen VKB
-                            InputMethodManager imm =
-                                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                            if (!imm.isFullscreenMode())
+                            if (!GeckoInputConnection.mIMELandscapeFS)
                                 mAutoCompletePopup.show(suggestions, rect, zoom);
                         }
                     });
