@@ -91,10 +91,7 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump, nsILocalFile *aD
   PRBool      stillLoading;
 
   *aResult = DUMP_RESULT_ERROR;
-
-#ifndef DEBUG
-  return NS_ERROR_NOT_AVAILABLE;
-#else
+  
   nsCOMPtr<nsIDocShell> docShell;
   rv = GetDocShellFromWindow(aWindowToDump, getter_AddRefs(docShell));
   if (NS_FAILED(rv)) return rv;
@@ -136,7 +133,6 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump, nsILocalFile *aD
     fclose(fp);
   *aResult = DUMP_RESULT_COMPLETED;
   return NS_OK;
-#endif
 }
 
 NS_IMETHODIMP
