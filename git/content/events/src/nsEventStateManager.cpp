@@ -99,13 +99,11 @@
 #include "nsIDOMMouseScrollEvent.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIDOMEventTarget.h"
-#include "nsIDOMNSUIEvent.h"
+#include "nsIDOMUIEvent.h"
 #include "nsDOMDragEvent.h"
 #include "nsIDOMNSEditableElement.h"
 
 #include "nsCaret.h"
-#include "nsILookAndFeel.h"
-#include "nsWidgetsCID.h"
 
 #include "nsSubDocumentFrame.h"
 #include "nsIFrameTraversal.h"
@@ -138,6 +136,7 @@
 #include "nsHTMLLabelElement.h"
 
 #include "mozilla/Preferences.h"
+#include "mozilla/LookAndFeel.h"
 
 #ifdef XP_MACOSX
 #import <ApplicationServices/ApplicationServices.h>
@@ -151,8 +150,6 @@ using namespace mozilla::dom;
 #define NS_USER_INTERACTION_INTERVAL 5000 // ms
 
 static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
-
-static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 static PRBool sLeftClickOnly = PR_TRUE;
 static PRBool sKeyCausesActivation = PR_TRUE;
@@ -174,6 +171,8 @@ static PRUint32 gPixelScrollDeltaTimeout = 0;
 
 static nscoord
 GetScrollableLineHeight(nsIFrame* aTargetFrame);
+
+TimeStamp nsEventStateManager::sHandlingInputStart;
 
 static inline PRBool
 IsMouseEventReal(nsEvent* aEvent)
@@ -1261,12 +1260,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     }
     break;
   case NS_QUERY_SELECTED_TEXT:
-    {
-      if (RemoteQueryContentEvent(aEvent))
-        break;
-      nsContentEventHandler handler(mPresContext);
-      handler.OnQuerySelectedText((nsQueryContentEvent*)aEvent);
-    }
+    DoQuerySelectedText(static_cast<nsQueryContentEvent*>(aEvent));
     break;
   case NS_QUERY_TEXT_CONTENT:
     {
@@ -1374,6 +1368,19 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     }
     break;
   case NS_COMPOSITION_START:
+    if (NS_IS_TRUSTED_EVENT(aEvent)) {
+      // If the event is trusted event, set the selected text to data of
+      // composition event.
+      nsCompositionEvent *compositionEvent =
+        static_cast<nsCompositionEvent*>(aEvent);
+      nsQueryContentEvent selectedText(PR_TRUE, NS_QUERY_SELECTED_TEXT,
+                                       compositionEvent->widget);
+      DoQuerySelectedText(&selectedText);
+      NS_ASSERTION(selectedText.mSucceeded, "Failed to get selected text");
+      compositionEvent->data = selectedText.mReply.mString;
+    }
+    // through to compositionend handling
+  case NS_COMPOSITION_UPDATE:
   case NS_COMPOSITION_END:
     {
       nsCompositionEvent *compositionEvent =
@@ -2048,9 +2055,10 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     static PRInt32 pixelThresholdY = 0;
 
     if (!pixelThresholdX) {
-      nsILookAndFeel *lf = aPresContext->LookAndFeel();
-      lf->GetMetric(nsILookAndFeel::eMetric_DragThresholdX, pixelThresholdX);
-      lf->GetMetric(nsILookAndFeel::eMetric_DragThresholdY, pixelThresholdY);
+      pixelThresholdX =
+        LookAndFeel::GetInt(LookAndFeel::eIntID_DragThresholdX, 0);
+      pixelThresholdY =
+        LookAndFeel::GetInt(LookAndFeel::eIntID_DragThresholdY, 0);
       if (!pixelThresholdX)
         pixelThresholdX = 5;
       if (!pixelThresholdY)
@@ -2645,8 +2653,8 @@ nsEventStateManager::ComputeWheelDeltaFor(nsMouseScrollEvent* aMouseEvent)
   }
 
   if (ComputeWheelActionFor(aMouseEvent, useSysNumLines) == MOUSE_SCROLL_PAGE) {
-    delta = (delta > 0) ? PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_DOWN) :
-                          PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_UP);
+    delta = (delta > 0) ? PRInt32(nsIDOMUIEvent::SCROLL_PAGE_DOWN) :
+                          PRInt32(nsIDOMUIEvent::SCROLL_PAGE_UP);
   }
 
   return delta;
@@ -3839,6 +3847,50 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   return targetFrame;
 }
 
+class MouseEnterLeaveDispatcher
+{
+public:
+  MouseEnterLeaveDispatcher(nsEventStateManager* aESM,
+                            nsIContent* aTarget, nsIContent* aRelatedTarget,
+                            nsGUIEvent* aEvent, PRUint32 aType)
+  : mESM(aESM), mEvent(aEvent), mType(aType)
+  {
+    nsPIDOMWindow* win =
+      aTarget ? aTarget->GetOwnerDoc()->GetInnerWindow() : nsnull;
+    if (win && win->HasMouseEnterLeaveEventListeners()) {
+      mRelatedTarget = aRelatedTarget ?
+        aRelatedTarget->FindFirstNonNativeAnonymous() : nsnull;
+      nsINode* commonParent = nsnull;
+      if (aTarget && aRelatedTarget) {
+        commonParent =
+          nsContentUtils::GetCommonAncestor(aTarget, aRelatedTarget);
+      }
+      nsIContent* current = aTarget;
+      // Note, it is ok if commonParent is null!
+      while (current && current != commonParent) {
+        if (!current->IsInNativeAnonymousSubtree()) {
+          mTargets.AppendObject(current);
+        }
+        // mouseenter/leave is fired only on elements.
+        current = current->GetParent();
+      }
+    }
+  }
+
+  ~MouseEnterLeaveDispatcher()
+  {
+    for (PRInt32 i = 0; i < mTargets.Count(); ++i) {
+      mESM->DispatchMouseEvent(mEvent, mType, mTargets[i], mRelatedTarget);
+    }
+  }
+
+  nsEventStateManager*   mESM;
+  nsCOMArray<nsIContent> mTargets;
+  nsCOMPtr<nsIContent>   mRelatedTarget;
+  nsGUIEvent*            mEvent;
+  PRUint32               mType;
+};
+
 void
 nsEventStateManager::NotifyMouseOut(nsGUIEvent* aEvent, nsIContent* aMovingInto)
 {
@@ -3884,7 +3936,10 @@ nsEventStateManager::NotifyMouseOut(nsGUIEvent* aEvent, nsIContent* aMovingInto)
     // Unset :hover
     SetContentState(nsnull, NS_EVENT_STATE_HOVER);
   }
-  
+
+  MouseEnterLeaveDispatcher leaveDispatcher(this, mLastMouseOverElement, aMovingInto,
+                                            aEvent, NS_MOUSELEAVE);
+
   // Fire mouseout
   DispatchMouseEvent(aEvent, NS_MOUSE_EXIT_SYNTH,
                      mLastMouseOverElement, aMovingInto);
@@ -3932,6 +3987,9 @@ nsEventStateManager::NotifyMouseOver(nsGUIEvent* aEvent, nsIContent* aContent)
   // DispatchMouseEvent() call below, since NotifyMouseOut() resets it, bug 298477.
   nsCOMPtr<nsIContent> lastMouseOverElement = mLastMouseOverElement;
 
+  MouseEnterLeaveDispatcher enterDispatcher(this, aContent, lastMouseOverElement,
+                                            aEvent, NS_MOUSEENTER);
+  
   NotifyMouseOut(aEvent, aContent);
 
   // Store the first mouseOver event we fire and don't refire mouseOver
@@ -4382,6 +4440,14 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
     }
   }
   return nsnull;
+}
+
+/* static */
+void
+nsEventStateManager::SetFullScreenState(Element* aElement,
+                                        PRBool aIsFullScreen)
+{
+  DoStateChange(aElement, NS_EVENT_STATE_FULL_SCREEN, aIsFullScreen);
 }
 
 /* static */
@@ -4837,6 +4903,16 @@ nsEventStateManager::DoQueryScrollTargetInfo(nsQueryContentEvent* aEvent,
 
   DoScrollText(aTargetFrame, &msEvent, unit,
                allowOverrideSystemSettings, aEvent);
+}
+
+void
+nsEventStateManager::DoQuerySelectedText(nsQueryContentEvent* aEvent)
+{
+  if (RemoteQueryContentEvent(aEvent)) {
+    return;
+  }
+  nsContentEventHandler handler(mPresContext);
+  handler.OnQuerySelectedText(aEvent);
 }
 
 void

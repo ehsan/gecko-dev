@@ -53,6 +53,7 @@
     <content>
       <xul:hbox class="select-keep select-cell">
         <xul:checkbox class="addon-keep-checkbox" anonid="keep"
+                      xbl:inherits="tooltiptext=name"
                       oncommand="document.getBindingParent(this).keepChanged();"/>
       </xul:hbox>
       <xul:hbox class="select-icon select-cell">
@@ -81,7 +82,6 @@
       <field name="_wasActive"/>
       <field name="_keep">document.getAnonymousElementByAttribute(this, "anonid", "keep");</field>
       <field name="_update">document.getAnonymousElementByAttribute(this, "anonid", "update");</field>
-      <field name="_appStrings">document.getElementById("app-strings");</field>
       <field name="_strings">document.getElementById("strings");</field>
 
       <property name="action" readonly="true">
@@ -126,19 +126,13 @@
             scope = AddonManager.SCOPE_APPLICATION;
 
           switch (scope) {
-            case AddonManager.SCOPE_APPLICATION:
-#ifdef MOZ_SUITE
-              // Suite uses brandShortName on this branch due to a string freeze
-              this.setAttribute("source", this._appStrings.getString("brandShortName"));
-#else
-              // Pretend that anything installed by the app was User installed.
-              this.setAttribute("source", this._strings.getString("source.profile"));
-#endif
-              this._keep.checked = !aAddon.userDisabled;
-              break;
             case AddonManager.SCOPE_PROFILE:
               this._keep.checked = !aAddon.userDisabled;
               this.setAttribute("source", this._strings.getString("source.profile"));
+              break;
+            case AddonManager.SCOPE_APPLICATION:
+              this._keep.checked = !aAddon.userDisabled;
+              this.setAttribute("source", this._strings.getString("source.bundled"));
               break;
             default:
               this._keep.checked = false;

@@ -288,6 +288,20 @@ NS_IMETHODIMP nsSVGFE::GetResult(nsIDOMSVGAnimatedString * *aResult)
 }
 
 //----------------------------------------------------------------------
+// nsIContent methods
+
+NS_IMETHODIMP_(PRBool)
+nsSVGFE::IsAttributeMapped(const nsIAtom* name) const
+{
+  static const MappedAttributeEntry* const map[] = {
+    sFiltersMap
+  };
+  
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
+    nsSVGFEBase::IsAttributeMapped(name);
+}
+
+//----------------------------------------------------------------------
 // nsSVGElement methods
 
 nsSVGElement::LengthAttributesInfo
@@ -1812,10 +1826,12 @@ nsSVGFEComponentTransferElement::Filter(nsSVGFilterInstance *instance,
   for (int i=0; i<256; i++)
     tableR[i] = tableG[i] = tableB[i] = tableA[i] = i;
   PRUint8* tables[] = { tableR, tableG, tableB, tableA };
-  PRUint32 count = GetChildCount();
-  for (PRUint32 k = 0; k < count; k++) {
+  for (nsIContent* childContent = nsINode::GetFirstChild();
+       childContent;
+       childContent = childContent->GetNextSibling()) {
+
     nsRefPtr<nsSVGComponentTransferFunctionElement> child;
-    CallQueryInterface(GetChildAt(k),
+    CallQueryInterface(childContent,
             (nsSVGComponentTransferFunctionElement**)getter_AddRefs(child));
     if (child) {
       child->GenerateLookupTable(tables[child->GetChannel()]);
@@ -2363,9 +2379,9 @@ nsSVGFEMergeElement::Filter(nsSVGFilterInstance *instance,
 void
 nsSVGFEMergeElement::GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources)
 {
-  PRUint32 count = GetChildCount();
-  for (PRUint32 i = 0; i < count; i++) {
-    nsIContent* child = GetChildAt(i);
+  for (nsIContent* child = nsINode::GetFirstChild();
+       child;
+       child = child->GetNextSibling()) {
     nsRefPtr<nsSVGFEMergeNodeElement> node;
     CallQueryInterface(child, (nsSVGFEMergeNodeElement**)getter_AddRefs(node));
     if (node) {
@@ -2751,8 +2767,7 @@ NS_IMETHODIMP_(PRBool)
 nsSVGFEFloodElement::IsAttributeMapped(const nsIAtom* name) const
 {
   static const MappedAttributeEntry* const map[] = {
-    sFEFloodMap,
-    sFiltersMap
+    sFEFloodMap
   };
   
   return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
@@ -4855,10 +4870,10 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
 
   nscolor lightColor = style->GetStyleSVGReset()->mLightingColor;
 
-  // find specified light
-  PRUint32 count = GetChildCount();
-  for (PRUint32 k = 0; k < count; k++) {
-    nsCOMPtr<nsIContent> child = GetChildAt(k);
+  // find specified light  
+  for (nsCOMPtr<nsIContent> child = nsINode::GetFirstChild();
+       child;
+       child = child->GetNextSibling()) {
     distantLight = do_QueryInterface(child);
     pointLight = do_QueryInterface(child);
     spotLight = do_QueryInterface(child);
@@ -4932,11 +4947,13 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
                      x, y, surfaceScale);
 
       if (pointLight || spotLight) {
-        float Z =
-          surfaceScale * sourceData[index + GFX_ARGB32_OFFSET_A] / 255;
+        gfxPoint pt = instance->FilterSpaceToUserSpace(
+                gfxPoint(x + instance->GetSurfaceRect().x,
+                         y + instance->GetSurfaceRect().y));
+        float Z = surfaceScale * sourceData[index + GFX_ARGB32_OFFSET_A] / 255;
 
-        L[0] = lightPos[0] - x;
-        L[1] = lightPos[1] - y;
+        L[0] = lightPos[0] - pt.x;
+        L[1] = lightPos[1] - pt.y;
         L[2] = lightPos[2] - Z;
         NORMALIZE(L);
       }
@@ -5422,7 +5439,7 @@ nsSVGFEImageElement::LoadSVGImage(PRBool aForce, PRBool aNotify)
     NS_MakeAbsoluteURI(href, href, baseURI);
 
   // Make sure we don't get in a recursive death-spiral
-  nsIDocument* doc = GetOurDocument();
+  nsIDocument* doc = GetOwnerDoc();
   if (doc) {
     nsCOMPtr<nsIURI> hrefAsURI;
     if (NS_SUCCEEDED(StringToURI(href, doc, getter_AddRefs(hrefAsURI)))) {

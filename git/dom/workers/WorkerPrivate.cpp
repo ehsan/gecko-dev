@@ -978,11 +978,11 @@ public:
       aWorkerPrivate->AssertInnerWindowIsCorrect();
     }
 
-    PRUint64 windowId;
+    PRUint64 innerWindowId;
 
     WorkerPrivate* parent = aWorkerPrivate->GetParent();
     if (parent) {
-      windowId = 0;
+      innerWindowId = 0;
     }
     else {
       AssertIsOnMainThread();
@@ -992,13 +992,13 @@ public:
         return true;
       }
 
-      windowId = aWorkerPrivate->GetOuterWindowId();
+      innerWindowId = aWorkerPrivate->GetInnerWindowId();
     }
 
     return ReportErrorRunnable::ReportError(aCx, parent, true, target, mMessage,
                                             mFilename, mLine, mLineNumber,
                                             mColumnNumber, mFlags,
-                                            mErrorNumber, windowId);
+                                            mErrorNumber, innerWindowId);
   }
 
   static bool
@@ -1006,7 +1006,7 @@ public:
               bool aFireAtScope, JSObject* aTarget, const nsString& aMessage,
               const nsString& aFilename, const nsString& aLine,
               PRUint32 aLineNumber, PRUint32 aColumnNumber, PRUint32 aFlags,
-              PRUint32 aErrorNumber, PRUint64 aWindowId)
+              PRUint32 aErrorNumber, PRUint64 aInnerWindowId)
   {
     if (aWorkerPrivate) {
       aWorkerPrivate->AssertIsOnWorkerThread();
@@ -1113,7 +1113,7 @@ public:
                                                      aLine.get(), aLineNumber,
                                                      aColumnNumber, aFlags,
                                                      "Web Worker",
-                                                     aWindowId))) {
+                                                     aInnerWindowId))) {
         consoleMessage = do_QueryInterface(scriptError);
         NS_ASSERTION(consoleMessage, "This should never fail!");
       }
@@ -2032,10 +2032,10 @@ WorkerPrivateParent<Derived>::PostMessage(JSContext* aCx, jsval aMessage)
 
 template <class Derived>
 PRUint64
-WorkerPrivateParent<Derived>::GetOuterWindowId()
+WorkerPrivateParent<Derived>::GetInnerWindowId()
 {
   AssertIsOnMainThread();
-  return mDocument->OuterWindowID();
+  return mDocument->InnerWindowID();
 }
 
 template <class Derived>
@@ -2176,8 +2176,7 @@ WorkerPrivateParent<Derived>::ParentJSContext() const
       return RuntimeService::AutoSafeJSContext::GetSafeContext();
     }
 
-    NS_ASSERTION(mParentJSContext ==
-                 static_cast<JSContext*>(mScriptContext->GetNativeContext()),
+    NS_ASSERTION(mParentJSContext == mScriptContext->GetNativeContext(),
                  "Native context has changed!");
   }
 
@@ -2289,8 +2288,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
         return nsnull;
       }
 
-      parentContext =
-        static_cast<JSContext*>(scriptContext->GetNativeContext());
+      parentContext = scriptContext->GetNativeContext();
 
       // If we're called from a window then we can dig out the principal and URI
       // from the document.

@@ -5,9 +5,9 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-dump("!! remote browser loaded\n");
-
 let WebProgressListener = {
+  _lastLocation: null,
+
   init: function() {
     let flags = Ci.nsIWebProgress.NOTIFY_LOCATION |
                 Ci.nsIWebProgress.NOTIFY_SECURITY |
@@ -33,6 +33,8 @@ let WebProgressListener = {
   onProgressChange: function onProgressChange(aWebProgress, aRequest, aCurSelf, aMaxSelf, aCurTotal, aMaxTotal) {
   },
 
+  _firstPaint: false,
+
   onLocationChange: function onLocationChange(aWebProgress, aRequest, aLocationURI) {
     if (content != aWebProgress.DOMWindow)
       return;
@@ -53,10 +55,18 @@ let WebProgressListener = {
 
     sendAsyncMessage("Content:LocationChange", json);
 
+    this._firstPaint = false;
+    let self = this;
+
+    // Keep track of hash changes
+    this.hashChanged = (location == this._lastLocation);
+    this._lastLocation = location;
+
     // When a new page is loaded fire a message for the first paint
     addEventListener("MozAfterPaint", function(aEvent) {
       removeEventListener("MozAfterPaint", arguments.callee, true);
 
+      self._firstPaint = true;
       let scrollOffset = ContentScroll.getScrollOffset(content);
       sendAsyncMessage("Browser:FirstPaint", scrollOffset);
     }, true);
@@ -126,10 +136,10 @@ let WebNavigation =  {
   receiveMessage: function(message) {
     switch (message.name) {
       case "WebNavigation:GoBack":
-        this.goBack(message);
+        this.goBack();
         break;
       case "WebNavigation:GoForward":
-        this.goForward(message);
+        this.goForward();
         break;
       case "WebNavigation:GotoIndex":
         this.gotoIndex(message);
@@ -147,11 +157,13 @@ let WebNavigation =  {
   },
 
   goBack: function() {
-    this._webNavigation.goBack();
+    if (this._webNavigation.canGoBack)
+      this._webNavigation.goBack();
   },
 
   goForward: function() {
-    this._webNavigation.goForward();
+    if (this._webNavigation.canGoForward)
+      this._webNavigation.goForward();
   },
 
   gotoIndex: function(message) {
@@ -439,6 +451,15 @@ let DOMEvents =  {
           persisted: aEvent.persisted
         };
 
+        // Clear onload focus to prevent the VKB to be shown unexpectingly
+        // but only if the location has really changed and not only the
+        // fragment identifier
+        let contentWindowID = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
+        if (!WebProgressListener.hashChanged && contentWindowID == util.currentInnerWindowID) {
+          let focusManager = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
+          focusManager.clearFocus(content);
+        }
+
         sendAsyncMessage(aEvent.type, json);
         break;
       }
@@ -542,8 +563,11 @@ let ContentScroll =  {
       case "Content:SetCacheViewport": {
         // Set resolution for root view
         let rootCwu = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-        if (json.id == 1)
+        if (json.id == 1) {
           rootCwu.setResolution(json.scale, json.scale);
+          if (!WebProgressListener._firstPaint)
+            break;
+        }
 
         let displayport = new Rect(json.x, json.y, json.w, json.h);
         if (displayport.isEmpty())
@@ -586,7 +610,6 @@ let ContentScroll =  {
         let win = element.ownerDocument.defaultView;
         let winCwu = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
         winCwu.setDisplayPortForElement(x, y, displayport.width, displayport.height, element);
-
         break;
       }
 
@@ -623,6 +646,13 @@ let ContentScroll =  {
           height: aEvent.height,
           left: aEvent.x + content.scrollX
         });
+
+        // Send event only after painting to make sure content views in the parent process have
+        // been updated.
+        addEventListener("MozAfterPaint", function afterPaint() {
+          removeEventListener("MozAfterPaint", afterPaint, false);
+          sendAsyncMessage("Content:UpdateDisplayPort");
+        }, false);
 
         break;
       }

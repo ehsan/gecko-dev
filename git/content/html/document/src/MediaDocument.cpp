@@ -51,6 +51,7 @@
 #include "nsIParser.h" // kCharsetFrom* macro definition
 #include "nsIDocumentCharsetInfo.h" 
 #include "nsNodeInfoManager.h"
+#include "nsContentUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -251,6 +252,9 @@ MediaDocument::CreateSyntheticDocument()
   rv = AppendChildTo(root, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsContentUtils::AddScriptRunner(
+      new nsDocElementCreatedNotificationRunner(this));
+
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head, nsnull,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
@@ -261,6 +265,25 @@ MediaDocument::CreateSyntheticDocument()
   if (!head) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
+
+  nsCOMPtr<nsINodeInfo> nodeInfoMeta;
+  nodeInfoMeta = mNodeInfoManager->GetNodeInfo(nsGkAtoms::meta, nsnull,
+                                               kNameSpaceID_XHTML,
+                                               nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfoMeta, NS_ERROR_OUT_OF_MEMORY);
+
+  nsRefPtr<nsGenericHTMLElement> metaContent = NS_NewHTMLMetaElement(nodeInfoMeta.forget());
+  if (!metaContent) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  metaContent->SetAttr(kNameSpaceID_None, nsGkAtoms::name,
+                       NS_LITERAL_STRING("viewport"),
+                       PR_TRUE);
+
+  metaContent->SetAttr(kNameSpaceID_None, nsGkAtoms::content,
+                       NS_LITERAL_STRING("width=device-width; height=device-height;"),
+                       PR_TRUE);
+  head->AppendChildTo(metaContent, PR_FALSE);
 
   root->AppendChildTo(head, PR_FALSE);
 
