@@ -58,26 +58,20 @@ var BuiltinProvider = {
 // to different paths, it needs to write chrome.manifest files to override chrome urls
 // from the builtin tools.
 var SrcdirProvider = {
-  fileURI: function(path) {
-    let file = new FileUtils.File(path);
-    return Services.io.newFileURI(file).spec;
-  },
-
   load: function(done) {
     let srcdir = Services.prefs.getComplexValue("devtools.loader.srcdir",
                                                 Ci.nsISupportsString);
     srcdir = OS.Path.normalize(srcdir.data.trim());
-    let devtoolsDir = OS.Path.join(srcdir, "browser", "devtools");
-    let devtoolsURI = this.fileURI(devtoolsDir);
-    let toolkitURI = this.fileURI(OS.Path.join(srcdir, "toolkit", "devtools"));
-    let serverURI = this.fileURI(OS.Path.join(srcdir, "toolkit", "devtools", "server"));
-    let mainURI = this.fileURI(OS.Path.join(srcdir, "browser", "devtools", "main.js"));
+    let devtoolsDir = OS.Path.join(srcdir, "browser/devtools");
+    let toolkitDir = OS.Path.join(srcdir, "toolkit/devtools");
+    let serverDir = OS.Path.join(toolkitDir, "server")
+
     this.loader = new loader.Loader({
       paths: {
         "": "resource://gre/modules/commonjs/",
-        "devtools/server": serverURI,
-        "devtools": devtoolsURI,
-        "main": mainURI
+        "devtools/server": "file://" + serverDir,
+        "devtools": "file://" + devtoolsDir,
+        "main": "file://" + devtoolsDir + "/main.js"
       },
       globals: loaderGlobals
     });
@@ -126,7 +120,7 @@ var SrcdirProvider = {
   },
 
   _writeManifest: function(dir) {
-    return this._readFile(OS.Path.join(dir, "jar.mn")).then((data) => {
+    return this._readFile(dir + "/jar.mn").then((data) => {
       // The file data is contained within inputStream.
       // You can read it into a string with
       let entries = [];
@@ -140,15 +134,11 @@ var SrcdirProvider = {
         }
         let match = contentEntry.exec(line);
         if (match) {
-          let pathComponents = match[3].split("/");
-          pathComponents.unshift(dir);
-          let path = OS.Path.join.apply(OS.Path, pathComponents);
-          let uri = this.fileURI(path);
-          let entry = "override chrome://" + match[1] + "/content/" + match[2] + "\t" + uri;
+          let entry = "override chrome://" + match[1] + "/content/" + match[2] + "\tfile://" + dir + "/" + match[3];
           entries.push(entry);
         }
       }
-      return this._writeFile(OS.Path.join(dir, "chrome.manifest"), entries.join("\n"));
+      return this._writeFile(dir + "/chrome.manifest", entries.join("\n"));
     }).then(() => {
       Components.manager.addBootstrappedManifestLocation(new FileUtils.File(dir));
     });
@@ -204,17 +194,16 @@ this.devtools = {
     }
 
     if (this._provider) {
-      var events = this.require("sdk/system/events");
-      events.emit("devtools-unloaded", {});
       delete this.require;
       this._provider.unload("newprovider");
+      gDevTools._teardown();
     }
     this._provider = provider;
     this._provider.load();
     this.require = loader.Require(this._provider.loader, { id: "devtools" });
 
     if (this._mainid) {
-      this.main(this._mainid);
+      this.main(mainid);
     }
   },
 
@@ -233,12 +222,12 @@ this.devtools = {
    * Reload the current provider.
    */
   reload: function() {
-    var events = this.require("sdk/system/events");
+    var events = devtools.require("sdk/system/events");
     events.emit("startupcache-invalidate", {});
-    events.emit("devtools-unloaded", {});
 
     this._provider.unload("reload");
     delete this._provider;
+    gDevTools._teardown();
     this._chooseProvider();
   },
 };

@@ -27,7 +27,6 @@ function run_test()
   add_test(test_pre_init_tab_actor);
   add_test(test_post_init_global_actor);
   add_test(test_post_init_tab_actor);
-  add_test(close_client);
   run_next_test();
 }
 
@@ -80,8 +79,4 @@ function test_post_init_tab_actor()
       run_next_test();
     }
   );
-}
-
-function close_client() {
-  gClient.close(() => run_next_test());
 }
