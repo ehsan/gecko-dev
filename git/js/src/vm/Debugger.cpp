@@ -3820,7 +3820,7 @@ DebuggerFrame_getThis(JSContext *cx, unsigned argc, Value *vp)
     RootedValue thisv(cx);
     {
         AutoCompartment ac(cx, iter.scopeChain());
-        if (!iter.computeThis(cx))
+        if (!iter.computeThis())
             return false;
         thisv = iter.thisv();
     }
@@ -4220,7 +4220,7 @@ DebuggerGenericEval(JSContext *cx, const char *fullMethodName, const Value &code
     Rooted<Env *> env(cx);
     if (iter) {
         /* ExecuteInEnv requires 'fp' to have a computed 'this" value. */
-        if (!iter->computeThis(cx))
+        if (!iter->computeThis())
             return false;
         thisv = iter->thisv();
         env = GetDebugScopeForFrame(cx, iter->abstractFramePtr());
