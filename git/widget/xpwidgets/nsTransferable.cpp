@@ -32,7 +32,6 @@ Notes to self:
 #include "nsIOutputStream.h"
 #include "nsIInputStream.h"
 #include "nsIFile.h"
-#include "nsILoadContext.h"
 #include "nsAutoPtr.h"
 
 NS_IMPL_ISUPPORTS1(nsTransferable, nsITransferable)
@@ -218,10 +217,6 @@ DataStruct::ReadCache(nsISupports** aData, PRUint32* aDataLen)
 //
 //-------------------------------------------------------------------------
 nsTransferable::nsTransferable()
-  : mPrivateData(false)
-#ifdef DEBUG
-  , mInitialized(false)
-#endif
 {
 }
 
@@ -235,20 +230,6 @@ nsTransferable::~nsTransferable()
 }
 
 
-NS_IMETHODIMP
-nsTransferable::Init(nsILoadContext* aContext)
-{
-  MOZ_ASSERT(!mInitialized);
-
-  if (aContext) {
-    mPrivateData = aContext->UsePrivateBrowsing();
-  }
-#ifdef DEBUG
-  mInitialized = true;
-#endif
-  return NS_OK;
-}
-
 //
 // GetTransferDataFlavors
 //
@@ -259,8 +240,6 @@ nsTransferable::Init(nsILoadContext* aContext)
 nsresult
 nsTransferable::GetTransferDataFlavors(nsISupportsArray ** aDataFlavorList)
 {
-  MOZ_ASSERT(mInitialized);
-
   nsresult rv = NS_NewISupportsArray ( aDataFlavorList );
   if (NS_FAILED(rv)) return rv;
 
@@ -288,8 +267,6 @@ nsTransferable::GetTransferDataFlavors(nsISupportsArray ** aDataFlavorList)
 NS_IMETHODIMP
 nsTransferable::GetTransferData(const char *aFlavor, nsISupports **aData, PRUint32 *aDataLen)
 {
-  MOZ_ASSERT(mInitialized);
-
   NS_ENSURE_ARG_POINTER(aFlavor && aData && aDataLen);
 
   nsresult rv = NS_OK;
@@ -371,8 +348,6 @@ nsTransferable::GetTransferData(const char *aFlavor, nsISupports **aData, PRUint
 NS_IMETHODIMP
 nsTransferable::GetAnyTransferData(char **aFlavor, nsISupports **aData, PRUint32 *aDataLen)
 {
-  MOZ_ASSERT(mInitialized);
-
   NS_ENSURE_ARG_POINTER(aFlavor && aData && aDataLen);
 
   for ( PRUint32 i=0; i < mDataArray.Length(); ++i ) {
@@ -396,8 +371,6 @@ nsTransferable::GetAnyTransferData(char **aFlavor, nsISupports **aData, PRUint32
 NS_IMETHODIMP
 nsTransferable::SetTransferData(const char *aFlavor, nsISupports *aData, PRUint32 aDataLen)
 {
-  MOZ_ASSERT(mInitialized);
-
   NS_ENSURE_ARG(aFlavor);
 
   // first check our intrinsic flavors to see if one has been registered.
@@ -444,8 +417,6 @@ nsTransferable::SetTransferData(const char *aFlavor, nsISupports *aData, PRUint3
 NS_IMETHODIMP
 nsTransferable::AddDataFlavor(const char *aDataFlavor)
 {
-  MOZ_ASSERT(mInitialized);
-
   if (GetDataForFlavor (mDataArray, aDataFlavor) != mDataArray.NoIndex)
     return NS_ERROR_FAILURE;
 
@@ -465,8 +436,6 @@ nsTransferable::AddDataFlavor(const char *aDataFlavor)
 NS_IMETHODIMP
 nsTransferable::RemoveDataFlavor(const char *aDataFlavor)
 {
-  MOZ_ASSERT(mInitialized);
-
   PRUint32 idx;
   if ((idx = GetDataForFlavor(mDataArray, aDataFlavor)) != mDataArray.NoIndex) {
     mDataArray.RemoveElementAt (idx);
@@ -483,8 +452,6 @@ nsTransferable::RemoveDataFlavor(const char *aDataFlavor)
 NS_IMETHODIMP
 nsTransferable::IsLargeDataSet(bool *_retval)
 {
-  MOZ_ASSERT(mInitialized);
-
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = false;
   return NS_OK;
@@ -497,8 +464,6 @@ nsTransferable::IsLargeDataSet(bool *_retval)
   */
 NS_IMETHODIMP nsTransferable::SetConverter(nsIFormatConverter * aConverter)
 {
-  MOZ_ASSERT(mInitialized);
-
   mFormatConv = aConverter;
   return NS_OK;
 }
@@ -510,8 +475,6 @@ NS_IMETHODIMP nsTransferable::SetConverter(nsIFormatConverter * aConverter)
   */
 NS_IMETHODIMP nsTransferable::GetConverter(nsIFormatConverter * *aConverter)
 {
-  MOZ_ASSERT(mInitialized);
-
   NS_ENSURE_ARG_POINTER(aConverter);
   *aConverter = mFormatConv;
   NS_IF_ADDREF(*aConverter);
@@ -528,8 +491,6 @@ NS_IMETHODIMP nsTransferable::GetConverter(nsIFormatConverter * *aConverter)
 NS_IMETHODIMP
 nsTransferable::FlavorsTransferableCanImport(nsISupportsArray **_retval)
 {
-  MOZ_ASSERT(mInitialized);
-
   NS_ENSURE_ARG_POINTER(_retval);
   
   // Get the flavor list, and on to the end of it, append the list of flavors we
@@ -574,8 +535,6 @@ nsTransferable::FlavorsTransferableCanImport(nsISupportsArray **_retval)
 NS_IMETHODIMP
 nsTransferable::FlavorsTransferableCanExport(nsISupportsArray **_retval)
 {
-  MOZ_ASSERT(mInitialized);
-
   NS_ENSURE_ARG_POINTER(_retval);
   
   // Get the flavor list, and on to the end of it, append the list of flavors we
@@ -609,15 +568,3 @@ nsTransferable::FlavorsTransferableCanExport(nsISupportsArray **_retval)
 
   return NS_OK;
 } // FlavorsTransferableCanExport
-
-NS_IMETHODIMP
-nsTransferable::GetIsPrivateData(bool *aIsPrivateData)
-{
-  MOZ_ASSERT(mInitialized);
-
-  NS_ENSURE_ARG_POINTER(aIsPrivateData);
-
-  *aIsPrivateData = mPrivateData;
-
-  return NS_OK;
-}

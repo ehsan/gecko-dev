@@ -58,87 +58,40 @@ ClampIntForUint8Array(int32_t x)
     return x;
 }
 
-inline Value
-TypedArray::lengthValue(JSObject *obj) {
+inline uint32_t
+TypedArray::getLength(JSObject *obj) {
     JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(FIELD_LENGTH);
+    return obj->getFixedSlot(FIELD_LENGTH).toInt32();
 }
 
 inline uint32_t
-TypedArray::length(JSObject *obj) {
-    return lengthValue(obj).toInt32();
-}
-
-inline Value
-TypedArray::byteOffsetValue(JSObject *obj) {
+TypedArray::getByteOffset(JSObject *obj) {
     JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(FIELD_BYTEOFFSET);
+    return obj->getFixedSlot(FIELD_BYTEOFFSET).toInt32();
 }
 
 inline uint32_t
-TypedArray::byteOffset(JSObject *obj) {
-    return byteOffsetValue(obj).toInt32();
-}
-
-inline Value
-TypedArray::byteLengthValue(JSObject *obj) {
+TypedArray::getByteLength(JSObject *obj) {
     JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(FIELD_BYTELENGTH);
+    return obj->getFixedSlot(FIELD_BYTELENGTH).toInt32();
 }
 
 inline uint32_t
-TypedArray::byteLength(JSObject *obj) {
-    return byteLengthValue(obj).toInt32();
-}
-
-inline uint32_t
-TypedArray::type(JSObject *obj) {
+TypedArray::getType(JSObject *obj) {
     JS_ASSERT(obj->isTypedArray());
     return obj->getFixedSlot(FIELD_TYPE).toInt32();
 }
 
-inline Value
-TypedArray::bufferValue(JSObject *obj) {
-    JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(FIELD_BUFFER);
-}
-
 inline ArrayBufferObject *
-TypedArray::buffer(JSObject *obj) {
-    return &bufferValue(obj).toObject().asArrayBuffer();
+TypedArray::getBuffer(JSObject *obj) {
+    JS_ASSERT(obj->isTypedArray());
+    return &obj->getFixedSlot(FIELD_BUFFER).toObject().asArrayBuffer();
 }
 
 inline void *
-TypedArray::viewData(JSObject *obj) {
+TypedArray::getDataOffset(JSObject *obj) {
     JS_ASSERT(obj->isTypedArray());
     return (void *)obj->getPrivate(NUM_FIXED_SLOTS);
-}
-
-inline uint32_t
-TypedArray::slotWidth(int atype) {
-    switch (atype) {
-    case js::TypedArray::TYPE_INT8:
-    case js::TypedArray::TYPE_UINT8:
-    case js::TypedArray::TYPE_UINT8_CLAMPED:
-        return 1;
-    case js::TypedArray::TYPE_INT16:
-    case js::TypedArray::TYPE_UINT16:
-        return 2;
-    case js::TypedArray::TYPE_INT32:
-    case js::TypedArray::TYPE_UINT32:
-    case js::TypedArray::TYPE_FLOAT32:
-        return 4;
-    case js::TypedArray::TYPE_FLOAT64:
-        return 8;
-    default:
-        JS_NOT_REACHED("invalid typed array type");
-        return 0;
-    }
-}
-
-inline int
-TypedArray::slotWidth(JSObject *obj) {
-    return slotWidth(type(obj));
 }
 
 inline DataViewObject *
@@ -152,24 +105,20 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
     if (!obj)
         return NULL;
 
+    types::TypeObject *type;
     if (proto) {
-        types::TypeObject *type = proto->getNewType(cx);
+        type = proto->getNewType(cx);
+    } else {
+        /*
+         * Specialize the type of the object on the current scripted location,
+         * and mark the type as definitely a data view
+         */
+        JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(&DataViewClass);
+        type = types::GetTypeCallerInitObject(cx, key);
         if (!type)
             return NULL;
-        obj->setType(type);
-    } else if (cx->typeInferenceEnabled()) {
-        if (byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH) {
-            if (!obj->setSingletonType(cx))
-                return NULL;
-        } else {
-            jsbytecode *pc;
-            JSScript *script = cx->stack.currentScript(&pc);
-            if (script) {
-                if (!types::SetInitializerObjectType(cx, script, pc, obj))
-                    return NULL;
-            }
-        }
     }
+    obj->setType(type);
 
     JS_ASSERT(arrayBuffer->isArrayBuffer());
 
@@ -222,24 +171,6 @@ DataViewObject::hasBuffer() const
 {
     JS_ASSERT(isDataView());
     return getReservedSlot(BUFFER_SLOT).isObject();
-}
-
-inline Value
-DataViewObject::bufferValue(DataViewObject &view)
-{
-    return view.hasBuffer() ? ObjectValue(view.arrayBuffer()) : UndefinedValue();
-}
-
-inline Value
-DataViewObject::byteOffsetValue(DataViewObject &view)
-{
-    return Int32Value(view.byteOffset());
-}
-
-inline Value
-DataViewObject::byteLengthValue(DataViewObject &view)
-{
-    return Int32Value(view.byteLength());
 }
 
 } /* namespace js */

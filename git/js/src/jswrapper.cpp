@@ -38,60 +38,13 @@ DirectWrapper::getWrapperFamily()
     return &sWrapperFamily;
 }
 
-JSObject *
-Wrapper::New(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent,
-             Wrapper *handler)
-{
-    JS_ASSERT(parent);
-
-#if JS_HAS_XML_SUPPORT
-    if (obj->isXML()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_CANT_WRAP_XML_OBJECT);
-        return NULL;
-    }
-#endif
-    return NewProxyObject(cx, handler->toBaseProxyHandler(), ObjectValue(*obj),
-                          proto, parent, obj->isCallable() ? obj : NULL, NULL);
-}
-
-Wrapper *
-Wrapper::wrapperHandler(const JSObject *wrapper)
-{
-    JS_ASSERT(wrapper->isWrapper());
-    return GetProxyHandler(wrapper)->toWrapper();
-}
-
-JSObject *
-Wrapper::wrappedObject(const JSObject *wrapper)
-{
-    JS_ASSERT(wrapper->isWrapper());
-    return GetProxyTargetObject(wrapper);
-}
-
-Wrapper::Wrapper(unsigned flags) : mFlags(flags)
-{
-}
-
-bool
-Wrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
-{
-    *bp = true;
-    return true;
-}
-
-void
-Wrapper::leave(JSContext *cx, JSObject *wrapper)
-{
-}
-
 JS_FRIEND_API(JSObject *)
 js::UnwrapObject(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 {
     unsigned flags = 0;
     while (wrapped->isWrapper() &&
            !JS_UNLIKELY(stopAtOuter && wrapped->getClass()->ext.innerObject)) {
-        flags |= Wrapper::wrapperHandler(wrapped)->flags();
+        flags |= AbstractWrapper::wrapperHandler(wrapped)->flags();
         wrapped = GetProxyPrivate(wrapped).toObjectOrNull();
     }
     if (flagsp)
@@ -105,7 +58,7 @@ js::UnwrapObjectChecked(JSContext *cx, JSObject *obj)
     while (obj->isWrapper() &&
            !JS_UNLIKELY(!!obj->getClass()->ext.innerObject)) {
         JSObject *wrapper = obj;
-        Wrapper *handler = Wrapper::wrapperHandler(obj);
+        AbstractWrapper *handler = AbstractWrapper::wrapperHandler(obj);
         bool rvOnFailure;
         if (!handler->enter(cx, wrapper, JSID_VOID,
                             Wrapper::PUNCTURE, &rvOnFailure))
@@ -126,7 +79,7 @@ js::IsCrossCompartmentWrapper(const JSObject *wrapper)
 
 AbstractWrapper::AbstractWrapper(unsigned flags) :
     IndirectProxyHandler(&sWrapperFamily),
-    Wrapper(flags)
+    mFlags(flags)
 {
 }
 
@@ -324,7 +277,48 @@ DirectWrapper::fun_toString(JSContext *cx, JSObject *wrapper, unsigned indent)
     return str;
 }
 
+JSObject *
+AbstractWrapper::wrappedObject(const JSObject *wrapper)
+{
+    return GetProxyPrivate(wrapper).toObjectOrNull();
+}
+
+AbstractWrapper *
+AbstractWrapper::wrapperHandler(const JSObject *wrapper)
+{
+    JS_ASSERT(wrapper->isWrapper());
+    return static_cast<AbstractWrapper *>(GetProxyHandler(wrapper));
+}
+
+bool
+AbstractWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
+{
+    *bp = true;
+    return true;
+}
+
+void
+AbstractWrapper::leave(JSContext *cx, JSObject *wrapper)
+{
+}
+
 DirectWrapper DirectWrapper::singleton((unsigned)0);
+
+JSObject *
+DirectWrapper::New(JSContext *cx, JSObject *obj, JSObject *proto,
+                   JSObject *parent, Wrapper *handler)
+{
+    JS_ASSERT(parent);
+#if JS_HAS_XML_SUPPORT
+    if (obj->isXML()) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_WRAP_XML_OBJECT);
+        return NULL;
+    }
+#endif
+
+    return NewProxyObject(cx, handler, ObjectValue(*obj), proto, parent,
+                          obj->isCallable() ? obj : NULL, NULL);
+}
 
 /* Compartments. */
 

@@ -500,22 +500,10 @@ var WifiManager = (function() {
   }
 
   function notifyStateChange(fields) {
-    // If we're already in the COMPLETED state, we might receive events from
-    // the supplicant that tell us that we're re-authenticating or reminding
-    // us that we're associated to a network. In those cases, we don't need to
-    // do anything, so just ignore them.
-    if (manager.state === "COMPLETED" &&
-        fields.state !== "DISCONNECTED" &&
-        fields.state !== "INTERFACE_DISABLED" &&
-        fields.state !== "INACTIVE" &&
-        fields.state !== "SCANNING") {
-      return false;
-    }
     fields.prevState = manager.state;
     manager.state = fields.state;
 
     notify("statechange", fields);
-    return true;
   }
 
   function parseStatus(status, reconnected) {
@@ -756,11 +744,8 @@ var WifiManager = (function() {
       // Format: CTRL-EVENT-CONNECTED - Connection to 00:1e:58:ec:d5:6d completed (reauth) [id=1 id_str=]
       var bssid = eventData.split(" ")[4];
       var id = eventData.substr(eventData.indexOf("id=")).split(" ")[0];
-
-      // Don't call onconnected if we ignored this state change (since we were
-      // already connected).
-      if (notifyStateChange({ state: "CONNECTED", BSSID: bssid, id: id }))
-        onconnected(false);
+      notifyStateChange({ state: "CONNECTED", BSSID: bssid, id: id });
+      onconnected(false);
       return true;
     }
     if (eventData.indexOf("CTRL-EVENT-SCAN-RESULTS") === 0) {

@@ -1270,8 +1270,7 @@ nsFrameSelection::MaintainSelection(nsSelectionAmount aAmount)
   const nsRange* anchorFocusRange =
     mDomSelections[index]->GetAnchorFocusRange();
   if (anchorFocusRange) {
-    mMaintainRange = anchorFocusRange->CloneRange();
-    return NS_OK;
+    return anchorFocusRange->CloneRange(getter_AddRefs(mMaintainRange));
   }
 
   mMaintainRange = nsnull;
@@ -4796,7 +4795,11 @@ Selection::Extend(nsINode* aParentNode, PRInt32 aOffset)
   PRInt32 anchorOffset = GetAnchorOffset();
   PRInt32 focusOffset = GetFocusOffset();
 
-  nsRefPtr<nsRange> range = mAnchorFocusRange->CloneRange();
+  nsRefPtr<nsRange> range;
+  res = mAnchorFocusRange->CloneRange(getter_AddRefs(range));
+  if (NS_FAILED(res))
+    return res;
+  //range = mAnchorFocusRange;
 
   nsINode* startNode = range->GetStartParent();
   nsINode* endNode = range->GetEndParent();

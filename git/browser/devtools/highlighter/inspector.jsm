@@ -1104,7 +1104,7 @@ InspectorUI.prototype = {
    */
   copyInnerHTML: function IUI_copyInnerHTML()
   {
-    clipboardHelper.copyString(this.selection.innerHTML, this.selection.ownerDocument);
+    clipboardHelper.copyString(this.selection.innerHTML);
   },
 
   /**
@@ -1113,7 +1113,7 @@ InspectorUI.prototype = {
    */
   copyOuterHTML: function IUI_copyOuterHTML()
   {
-    clipboardHelper.copyString(this.selection.outerHTML, this.selection.ownerDocument);
+    clipboardHelper.copyString(this.selection.outerHTML);
   },
 
   /**

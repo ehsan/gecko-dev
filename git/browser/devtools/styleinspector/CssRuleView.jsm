@@ -1164,7 +1164,7 @@ CssRuleView.prototype = {
     rx = new RegExp("(\r?\n)" + inheritedFrom + ".*", "g");
     text = text.replace(rx, "$1");
 
-    clipboardHelper.copyString(text, this.doc);
+    clipboardHelper.copyString(text);
 
     if (aEvent) {
       aEvent.preventDefault();
@@ -1221,7 +1221,7 @@ CssRuleView.prototype = {
     }
     out += "}" + terminator;
 
-    clipboardHelper.copyString(out, this.doc);
+    clipboardHelper.copyString(out);
   },
 
   /**
@@ -1260,7 +1260,7 @@ CssRuleView.prototype = {
     let propertyValue = node.querySelector(".ruleview-propertyvalue").textContent;
     let out = propertyName + ": " + propertyValue + ";";
 
-    clipboardHelper.copyString(out, this.doc);
+    clipboardHelper.copyString(out);
   },
 
   /**
@@ -1280,7 +1280,7 @@ CssRuleView.prototype = {
     }
 
     if (node) {
-      clipboardHelper.copyString(node.textContent, this.doc);
+      clipboardHelper.copyString(node.textContent);
     }
   },
 
@@ -1301,7 +1301,7 @@ CssRuleView.prototype = {
     }
 
     if (node) {
-      clipboardHelper.copyString(node.textContent, this.doc);
+      clipboardHelper.copyString(node.textContent);
     }
   }
 };

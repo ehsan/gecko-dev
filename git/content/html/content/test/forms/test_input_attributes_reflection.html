@@ -99,12 +99,7 @@ reflectString({
   otherValues: [ "_blank", "_self", "_parent", "_top" ],
 });
 
-// .height
-reflectUnsignedInt({
-  element: document.createElement("input"),
-  attribute: "height",
-  nonZero: false
-});
+// TODO: height (non-negative integer)
 
 // .indeterminate doesn't reflect a content attribute.
 
@@ -209,12 +204,7 @@ todo("valueAsNumber" in document.createElement("input"),
 todo("selectedOption" in document.createElement("input"),
      "selectedOption isn't implemented yet");
 
-// .width
-reflectUnsignedInt({
-  element: document.createElement("input"),
-  attribute: "width",
-  nonZero: false
-});
+// TODO: width (non-negative integer)
 
 // .willValidate doesn't reflect a content attribute.
 // .validity doesn't reflect a content attribute.

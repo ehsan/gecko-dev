@@ -554,13 +554,6 @@ function relationTypeToString(aRelationType)
   return gAccRetrieval.getStringRelationType(aRelationType);
 }
 
-function getLoadContext() {
-  const Ci = Components.interfaces;
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
-
 /**
  * Return text from clipboard.
  */
@@ -573,7 +566,6 @@ function getTextFromClipboard()
 
   var trans = Components.classes["@mozilla.org/widget/transferable;1"].
     createInstance(Components.interfaces.nsITransferable);
-  trans.init(getLoadContext());
   if (!trans)
     return;
 

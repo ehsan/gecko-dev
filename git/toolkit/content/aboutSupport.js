@@ -95,7 +95,6 @@ window.onload = function () {
   populateExtensionsSection();
   populateGraphicsSection();
   populateJavaScriptSection();
-  populateAccessibilitySection();
   populateLibVersionsSection();
 }
 
@@ -405,20 +404,6 @@ function populateJavaScriptSection() {
   document.getElementById("javascript-incremental-gc").textContent = enabled ? "1" : "0";
 }
 
-function populateAccessibilitySection() {
-  var active;
-  try {
-    active = Components.manager.QueryInterface(Ci.nsIServiceManager)
-      .isServiceInstantiatedByContractID(
-        "@mozilla.org/accessibilityService;1",
-        Ci.nsISupports);
-  } catch (ex) {
-    active = false;
-  }
-
-  document.getElementById("a11y-activated").textContent = active ? "1" : "0";
-}
-
 function getPrefValue(aName) {
   let value = "";
   let type = Services.prefs.getPrefType(aName);
@@ -493,12 +478,6 @@ function appendChildren(parentElem, childNodes) {
     parentElem.appendChild(childNodes[i]);
 }
 
-function getLoadContext() {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
-
 function copyContentsToClipboard() {
   // Get the HTML and text representations for the important part of the page.
   let contentsDiv = document.getElementById("contents");
@@ -512,7 +491,6 @@ function copyContentsToClipboard() {
 
   let transferable = Cc["@mozilla.org/widget/transferable;1"]
                        .createInstance(Ci.nsITransferable);
-  transferable.init(getLoadContext());
 
   // Add the HTML flavor.
   transferable.addDataFlavor("text/html");
