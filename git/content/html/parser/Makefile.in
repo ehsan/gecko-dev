@@ -35,80 +35,18 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../../..
+DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE		= content
-LIBRARY_NAME	= gkconhtmldoc_s
-LIBXUL_LIBRARY	= 1
+DIRS		= public src
 
-REQUIRES	= xpcom \
-		  string \
-		  gfx \
-		  thebes \
-		  layout \
-		  widget \
-		  dom \
-		  necko \
-		  htmlparser \
-		  locale \
-		  view \
-		  js \
-		  intl \
-		  webshell \
-		  docshell \
-		  caps \
-		  util \
-		  uconv \
-		  pref \
-		  chardet \
-		  nkcache \
-		  imglib2 \
-		  xpconnect \
-		  unicharutil \
-		  commandhandler \
-		  composer \
-		  editor \
-		  plugin \
-		  txtsvc \
-		  uriloader \
-		  html5 \
-		  $(NULL)
-
-CPPSRCS		= \
-		nsHTMLContentSink.cpp \
-		nsHTMLFragmentContentSink.cpp \
-		nsHTMLDocument.cpp \
-		nsImageDocument.cpp \
-		nsMediaDocument.cpp \
-		nsPluginDocument.cpp \
-		nsWyciwygChannel.cpp \
-		nsWyciwygProtocolHandler.cpp \
-		$(NULL)
-
-ifdef MOZ_MEDIA
-CPPSRCS += nsVideoDocument.cpp
-endif
-
-EXPORTS		= \
-		nsIHTMLDocument.h \
-		$(NULL)
-
-# we don't want the shared lib, but we want to force the creation of a static lib.
-FORCE_STATIC_LIB = 1
+# ifdef ENABLE_TESTS
+# DIRS		+= test
+# endif
 
 include $(topsrcdir)/config/rules.mk
 
-INCLUDES	+= \
-		-I$(srcdir)/../../../base/src \
-		-I$(srcdir)/../../../events/src \
-		-I$(srcdir)/../../content/src \
-		-I$(srcdir)/../../../../layout/style \
-		-I$(srcdir)/../../../../dom/base \
-		$(NULL)
-
-DEFINES += -D_IMPL_NS_LAYOUT
