@@ -11,7 +11,6 @@
 #include "nsThreadUtils.h"
 #include "mozilla/Util.h"
 #include "mozilla/dom/quota/QuotaManager.h"
-#include "mozilla/dom/quota/QuotaObject.h"
 
 /**
  * This preference is a workaround to allow users/sysadmins to identify

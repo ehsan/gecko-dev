@@ -54,7 +54,6 @@
         '../../../xpcom/base',
         '$(DEPTH)/dist/include',
         '../../../dom/base',
-        '../../../content/media',
         '../../../media/mtransport',
         '../trunk/webrtc',
         '../trunk/webrtc/video_engine/include',

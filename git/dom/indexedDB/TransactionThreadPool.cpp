@@ -279,7 +279,8 @@ TransactionThreadPool::GetQueueForTransaction(IDBTransaction* aTransaction)
     return *info->queue;
   }
 
-  TransactionInfo* transactionInfo = new TransactionInfo(aTransaction);
+  TransactionInfo* transactionInfo = new TransactionInfo(aTransaction,
+                                                         objectStoreNames);
 
   dbTransactionInfo->transactions.Put(aTransaction, transactionInfo);;
 
@@ -351,23 +352,31 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
   return NS_OK;
 }
 
-void
-TransactionThreadPool::WaitForDatabasesToComplete(
-                                       nsTArray<IDBDatabase*>& aDatabases,
-                                       nsIRunnable* aCallback)
+bool
+TransactionThreadPool::WaitForAllDatabasesToComplete(
+                                            nsTArray<IDBDatabase*>& aDatabases,
+                                            nsIRunnable* aCallback)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!aDatabases.IsEmpty(), "No databases to wait on!");
   NS_ASSERTION(aCallback, "Null pointer!");
 
   DatabasesCompleteCallback* callback = mCompleteCallbacks.AppendElement();
+  if (!callback) {
+    NS_WARNING("Out of memory!");
+    return false;
+  }
 
   callback->mCallback = aCallback;
-  callback->mDatabases.SwapElements(aDatabases);
+  if (!callback->mDatabases.SwapElements(aDatabases)) {
+    NS_ERROR("This should never fail!");
+  }
 
   if (MaybeFireCallback(*callback)) {
     mCompleteCallbacks.RemoveElementAt(mCompleteCallbacks.Length() - 1);
   }
+
+  return true;
 }
 
 // static
@@ -421,12 +430,12 @@ TransactionThreadPool::AbortTransactionsForDatabase(IDBDatabase* aDatabase)
 
 struct NS_STACK_CLASS TransactionSearchInfo
 {
-  TransactionSearchInfo(nsIOfflineStorage* aDatabase)
+  TransactionSearchInfo(IDBDatabase* aDatabase)
     : db(aDatabase), found(false)
   {
   }
 
-  nsIOfflineStorage* db;
+  IDBDatabase* db;
   bool found;
 };
 

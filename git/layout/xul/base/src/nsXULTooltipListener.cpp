@@ -340,8 +340,10 @@ nsXULTooltipListener::CheckTreeBodyMove(nsIDOMMouseEvent* aMouseEvent)
   nsCOMPtr<nsIBoxObject> bx;
   nsIDocument* doc = sourceNode->GetDocument();
   if (doc) {
-    ErrorResult ignored;
-    bx = doc->GetBoxObjectFor(doc->GetRootElement(), ignored);
+    nsCOMPtr<nsIDOMElement> docElement = do_QueryInterface(doc->GetRootElement());
+    if (docElement) {
+      doc->GetBoxObjectFor(docElement, getter_AddRefs(bx));
+    }
   }
 
   nsCOMPtr<nsITreeBoxObject> obx;

@@ -37,7 +37,6 @@ namespace dom {
 class SVGAngle;
 class SVGMatrix;
 class SVGViewElement;
-class SVGIRect;
 
 class SVGSVGElement;
 
@@ -248,7 +247,7 @@ public:
   already_AddRefed<SVGAngle> CreateSVGAngle();
   already_AddRefed<nsISVGPoint> CreateSVGPoint();
   already_AddRefed<SVGMatrix> CreateSVGMatrix();
-  already_AddRefed<SVGIRect> CreateSVGRect();
+  already_AddRefed<nsIDOMSVGRect> CreateSVGRect();
   already_AddRefed<DOMSVGTransform> CreateSVGTransform();
   already_AddRefed<DOMSVGTransform> CreateSVGTransformFromMatrix(SVGMatrix& matrix);
   Element* GetElementById(const nsAString& elementId, ErrorResult& rv);

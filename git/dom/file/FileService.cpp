@@ -152,11 +152,11 @@ FileService::Enqueue(LockedFile* aLockedFile, FileHelper* aFileHelper)
 
   FileHandle* fileHandle = aLockedFile->mFileHandle;
 
-  if (fileHandle->mFileStorage->IsInvalidated()) {
+  if (fileHandle->mFileStorage->IsStorageInvalidated()) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsIAtom* storageId = fileHandle->mFileStorage->Id();
+  nsISupports* storageId = fileHandle->mFileStorage->StorageId();
   const nsAString& fileName = fileHandle->mFileName;
   bool modeIsWrite = aLockedFile->mMode == LockedFile::READ_WRITE;
 
@@ -226,7 +226,7 @@ FileService::NotifyLockedFileCompleted(LockedFile* aLockedFile)
   NS_ASSERTION(aLockedFile, "Null pointer!");
 
   FileHandle* fileHandle = aLockedFile->mFileHandle;
-  nsIAtom* storageId = fileHandle->mFileStorage->Id();
+  nsISupports* storageId = fileHandle->mFileStorage->StorageId();
 
   FileStorageInfo* fileStorageInfo;
   if (!mFileStorageInfos.Get(storageId, &fileStorageInfo)) {
@@ -256,10 +256,10 @@ FileService::NotifyLockedFileCompleted(LockedFile* aLockedFile)
   }
 }
 
-void
-FileService::WaitForStoragesToComplete(
-                                 nsTArray<nsCOMPtr<nsIFileStorage> >& aStorages,
-                                 nsIRunnable* aCallback)
+bool
+FileService::WaitForAllStoragesToComplete(
+                                nsTArray<nsCOMPtr<nsIFileStorage> >& aStorages,
+                                nsIRunnable* aCallback)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!aStorages.IsEmpty(), "No databases to wait on!");
@@ -272,6 +272,8 @@ FileService::WaitForStoragesToComplete(
   if (MaybeFireCallback(*callback)) {
     mCompleteCallbacks.RemoveElementAt(mCompleteCallbacks.Length() - 1);
   }
+
+  return true;
 }
 
 void
@@ -281,7 +283,7 @@ FileService::AbortLockedFilesForStorage(nsIFileStorage* aFileStorage)
   NS_ASSERTION(aFileStorage, "Null pointer!");
 
   FileStorageInfo* fileStorageInfo;
-  if (!mFileStorageInfos.Get(aFileStorage->Id(), &fileStorageInfo)) {
+  if (!mFileStorageInfos.Get(aFileStorage->StorageId(), &fileStorageInfo)) {
     return;
   }
 
@@ -301,7 +303,7 @@ FileService::HasLockedFilesForStorage(nsIFileStorage* aFileStorage)
   NS_ASSERTION(aFileStorage, "Null pointer!");
 
   FileStorageInfo* fileStorageInfo;
-  if (!mFileStorageInfos.Get(aFileStorage->Id(), &fileStorageInfo)) {
+  if (!mFileStorageInfos.Get(aFileStorage->StorageId(), &fileStorageInfo)) {
     return false;
   }
 
@@ -328,7 +330,8 @@ FileService::MaybeFireCallback(StoragesCompleteCallback& aCallback)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   for (uint32_t index = 0; index < aCallback.mStorages.Length(); index++) {
-    if (mFileStorageInfos.Get(aCallback.mStorages[index]->Id(), nullptr)) {
+    if (mFileStorageInfos.Get(aCallback.mStorages[index]->StorageId(),
+                              nullptr)) {
       return false;
     }
   }
@@ -485,7 +488,7 @@ FileService::FileStorageInfo::RemoveLockedFileQueue(LockedFile* aLockedFile)
 
 bool
 FileService::FileStorageInfo::HasRunningLockedFiles(
-                                                   nsIFileStorage* aFileStorage)
+                                                  nsIFileStorage* aFileStorage)
 {
   for (uint32_t index = 0; index < mLockedFileQueues.Length(); index++) {
     LockedFile* lockedFile = mLockedFileQueues[index]->mLockedFile;

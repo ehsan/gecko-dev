@@ -13,7 +13,6 @@
 #include "ion/IonSpewer.h"
 #include "ion/Bailouts.h"
 #include "ion/VMFunctions.h"
-#include "ion/ExecutionModeInlines.h"
 
 #include "jsscriptinlines.h"
 
@@ -212,7 +211,7 @@ IonRuntime::generateInvalidator(JSContext *cx)
 }
 
 IonCode *
-IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode)
+IonRuntime::generateArgumentsRectifier(JSContext *cx)
 {
     MacroAssembler masm(cx);
 
@@ -283,7 +282,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode)
     // Call the target function.
     // Note that this assumes the function is JITted.
     masm.movl(Operand(eax, offsetof(JSFunction, u.i.script_)), eax);
-    masm.movl(Operand(eax, OffsetOfIonInJSScript(mode)), eax);
+    masm.movl(Operand(eax, offsetof(JSScript, ion)), eax);
     masm.movl(Operand(eax, IonScript::offsetOfMethod()), eax);
     masm.movl(Operand(eax, IonCode::offsetOfCode()), eax);
     masm.call(eax);

@@ -136,14 +136,15 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
 
     // container-relevant attribute
     if (relevant.IsEmpty() &&
-        HasDefinedARIAToken(ancestor, nsGkAtoms::aria_relevant) &&
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_relevant) &&
         ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_relevant, relevant))
       SetAccAttr(aAttributes, nsGkAtoms::containerRelevant, relevant);
 
     // container-live, and container-live-role attributes
     if (live.IsEmpty()) {
       nsRoleMapEntry* role = aria::GetRoleMap(ancestor);
-      if (HasDefinedARIAToken(ancestor, nsGkAtoms::aria_live)) {
+      if (nsAccUtils::HasDefinedARIAToken(ancestor,
+                                          nsGkAtoms::aria_live)) {
         ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_live,
                           live);
       } else if (role) {
@@ -152,21 +153,21 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
       if (!live.IsEmpty()) {
         SetAccAttr(aAttributes, nsGkAtoms::containerLive, live);
         if (role) {
-          SetAccAttr(aAttributes, nsGkAtoms::containerLiveRole,
-                     role->ARIARoleString());
+          nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::containerLiveRole,
+                                 role->ARIARoleString());
         }
       }
     }
 
     // container-atomic attribute
     if (atomic.IsEmpty() &&
-        HasDefinedARIAToken(ancestor, nsGkAtoms::aria_atomic) &&
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_atomic) &&
         ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_atomic, atomic))
       SetAccAttr(aAttributes, nsGkAtoms::containerAtomic, atomic);
 
     // container-busy attribute
     if (busy.IsEmpty() &&
-        HasDefinedARIAToken(ancestor, nsGkAtoms::aria_busy) &&
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_busy) &&
         ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_busy, busy))
       SetAccAttr(aAttributes, nsGkAtoms::containerBusy, busy);
 
@@ -197,7 +198,7 @@ nsAccUtils::HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom)
 nsIAtom*
 nsAccUtils::GetARIAToken(dom::Element* aElement, nsIAtom* aAttr)
 {
-  if (!HasDefinedARIAToken(aElement, aAttr))
+  if (!nsAccUtils::HasDefinedARIAToken(aElement, aAttr))
     return nsGkAtoms::_empty;
 
   static nsIContent::AttrValuesArray tokens[] =

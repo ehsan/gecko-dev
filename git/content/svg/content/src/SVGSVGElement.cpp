@@ -20,7 +20,7 @@
 #include "DOMSVGPoint.h"
 #include "nsIFrame.h"
 #include "nsISVGSVGFrame.h" //XXX
-#include "mozilla/dom/SVGRect.h"
+#include "nsSVGRect.h"
 #include "nsError.h"
 #include "nsISVGChildFrame.h"
 #include "nsGUIEvent.h"
@@ -409,10 +409,10 @@ SVGSVGElement::CreateSVGMatrix()
   return matrix.forget();
 }
 
-already_AddRefed<SVGIRect>
+already_AddRefed<nsIDOMSVGRect>
 SVGSVGElement::CreateSVGRect()
 {
-  nsRefPtr<SVGRect> rect;
+  nsCOMPtr<nsIDOMSVGRect> rect;
   NS_NewSVGRect(getter_AddRefs(rect));
   return rect.forget();
 }

@@ -27,9 +27,6 @@
 #include "nsIDOMXULTreeElement.h"
 #include "nsITreeSelection.h"
 #include "nsIMutableArray.h"
-#include "nsTreeBodyFrame.h"
-#include "nsTreeColumns.h"
-#include "nsTreeUtils.h"
 
 using namespace mozilla::a11y;
 
@@ -38,18 +35,20 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 XULTreeAccessible::
-  XULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc,
-                    nsTreeBodyFrame* aTreeFrame) :
+  XULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc)
 {
   mType = eXULTreeType;
   mGenericTypes |= eSelect;
 
-  nsCOMPtr<nsITreeView> view = aTreeFrame->GetExistingView();
-  mTreeView = view;
-
   mTree = nsCoreUtils::GetTreeBoxObject(aContent);
   NS_ASSERTION(mTree, "Can't get mTree!\n");
+
+  if (mTree) {
+    nsCOMPtr<nsITreeView> treeView;
+    mTree->GetView(getter_AddRefs(treeView));
+    mTreeView = treeView;
+  }
 
   nsIContent* parentContent = mContent->GetParent();
   if (parentContent) {
@@ -160,16 +159,11 @@ XULTreeAccessible::NativeRole()
   // No primary column means we're in a list. In fact, history and mail turn off
   // the primary flag when switching to a flat view.
 
-  nsIContent* child = nsTreeUtils::GetDescendantChild(mContent, nsGkAtoms::treechildren);
-  NS_ASSERTION(child, "tree without treechildren!");
-  nsTreeBodyFrame* treeFrame = do_QueryFrame(child->GetPrimaryFrame());
-  NS_ASSERTION(treeFrame, "xul tree accessible for tree without a frame!");
-  if (!treeFrame)
-    return roles::LIST;
-
-  nsRefPtr<nsTreeColumns> cols = treeFrame->Columns();
+  nsCOMPtr<nsITreeColumns> cols;
+  mTree->GetColumns(getter_AddRefs(cols));
   nsCOMPtr<nsITreeColumn> primaryCol;
-  cols->GetPrimaryColumn(getter_AddRefs(primaryCol));
+  if (cols)
+    cols->GetPrimaryColumn(getter_AddRefs(primaryCol));
 
   return primaryCol ? roles::OUTLINE : roles::LIST;
 }

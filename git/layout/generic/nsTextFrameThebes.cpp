@@ -6827,8 +6827,7 @@ nsTextFrame::PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKey
         // Japanese and Chinese.
         canBreak = true;
       } else {
-        canBreak = isWordBreakBefore && aState->mSawBeforeType &&
-          (aWordSelectEatSpace != isWhitespace);
+        canBreak = isWordBreakBefore && aState->mSawBeforeType;
       }
       if (canBreak) {
         *aOffset = cIter.GetBeforeOffset() - mContentOffset;

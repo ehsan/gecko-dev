@@ -18,8 +18,6 @@
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/PBrowserChild.h"
-#include "mozilla/dom/quota/OriginOrPatternString.h"
-#include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/storage.h"
 #include "nsComponentManagerUtils.h"
@@ -47,7 +45,6 @@
 #include <algorithm>
 
 USING_INDEXEDDB_NAMESPACE
-USING_QUOTA_NAMESPACE
 
 using mozilla::dom::ContentChild;
 using mozilla::dom::ContentParent;
@@ -106,7 +103,7 @@ IDBFactory::Create(nsPIDOMWindow* aWindow,
 
   // Make sure that the manager is up before we do anything here since lots of
   // decisions depend on which process we're running in.
-  indexedDB::IndexedDatabaseManager* mgr =
+  nsRefPtr<indexedDB::IndexedDatabaseManager> mgr =
     indexedDB::IndexedDatabaseManager::GetOrCreate();
   NS_ENSURE_TRUE(mgr, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -114,7 +111,7 @@ IDBFactory::Create(nsPIDOMWindow* aWindow,
 
   nsCString origin(aASCIIOrigin);
   if (origin.IsEmpty()) {
-    rv = QuotaManager::GetASCIIOriginFromWindow(aWindow, origin);
+    rv = IndexedDatabaseManager::GetASCIIOriginFromWindow(aWindow, origin);
     if (NS_FAILED(rv)) {
       // Not allowed.
       *aFactory = nullptr;
@@ -164,7 +161,8 @@ IDBFactory::Create(JSContext* aCx,
   NS_ASSERTION(nsContentUtils::IsCallerChrome(), "Only for chrome!");
 
   nsCString origin;
-  nsresult rv = QuotaManager::GetASCIIOriginFromWindow(nullptr, origin);
+  nsresult rv =
+    IndexedDatabaseManager::GetASCIIOriginFromWindow(nullptr, origin);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<IDBFactory> factory = new IDBFactory();
@@ -523,7 +521,7 @@ IDBFactory::OpenCommon(const nsAString& aName,
 
   nsCOMPtr<nsPIDOMWindow> window;
   JSObject* scriptOwner = nullptr;
-  StoragePrivilege privilege;
+  FactoryPrivilege privilege;
 
   if (mWindow) {
     window = mWindow;
@@ -553,17 +551,17 @@ IDBFactory::OpenCommon(const nsAString& aName,
     nsRefPtr<CheckPermissionsHelper> permissionHelper =
       new CheckPermissionsHelper(openHelper, window, aDeleting);
 
-    QuotaManager* quotaManager = QuotaManager::Get();
-    NS_ASSERTION(quotaManager, "This should never be null!");
+    IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
+    NS_ASSERTION(mgr, "This should never be null!");
 
-    rv = quotaManager->WaitForOpenAllowed(OriginOrPatternString::FromOrigin(
-                                          aASCIIOrigin), openHelper->Id(),
-                                          permissionHelper);
+    rv =
+      mgr->WaitForOpenAllowed(OriginOrPatternString::FromOrigin(aASCIIOrigin),
+                              openHelper->Id(), permissionHelper);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
   else if (aDeleting) {
     nsCOMPtr<nsIAtom> databaseId =
-      QuotaManager::GetStorageId(aASCIIOrigin, aName);
+      IndexedDatabaseManager::GetDatabaseId(aASCIIOrigin, aName);
     NS_ENSURE_TRUE(databaseId, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     IndexedDBDeleteDatabaseRequestChild* actor =

@@ -22,8 +22,6 @@ SEARCH_PATHS = [
     'xpcom/idl-parser',
     'testing',
     'testing/xpcshell',
-    'testing/mozbase/mozcrash',
-    'testing/mozbase/mozlog',
     'testing/mozbase/mozprocess',
     'testing/mozbase/mozfile',
     'testing/mozbase/mozinfo',

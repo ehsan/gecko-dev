@@ -102,9 +102,7 @@ public:
    * Called when nsIWidget::SetInputContext() is called before the window's
    * InputContext is modified actually.
    */
-  static void SetInputContext(nsWindow* aWindow,
-                              InputContext& aInputContext,
-                              const InputContextAction& aAction);
+  static void SetInputContext(nsWindow* aWindow, InputContext& aInputContext);
 
   /**
    * Called when the window is created.

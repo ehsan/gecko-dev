@@ -117,7 +117,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsTreeColumn, NS_TREECOLUMN_IMPL_CID)
 
 class nsTreeColumns MOZ_FINAL : public nsITreeColumns {
 public:
-  nsTreeColumns(nsTreeBodyFrame* aTree);
+  nsTreeColumns(nsITreeBoxObject* aTree);
   ~nsTreeColumns();
 
   NS_DECL_ISUPPORTS
@@ -145,7 +145,7 @@ public:
 
   friend class nsTreeBodyFrame;
 protected:
-  void SetTree(nsTreeBodyFrame* aTree) { mTree = aTree; }
+  void SetTree(nsITreeBoxObject* aTree) { mTree = aTree; }
 
   // Builds our cache of column info.
   void EnsureColumns();
@@ -154,7 +154,7 @@ protected:
   nsTreeColumn* GetPrimaryColumn();
 
 private:
-  nsTreeBodyFrame* mTree;
+  nsITreeBoxObject* mTree;
 
   /**
    * The first column in the list of columns. All of the columns are supposed

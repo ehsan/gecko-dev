@@ -514,7 +514,6 @@ class TypeSet
      */
     bool isSubset(TypeSet *other);
     bool isSubsetIgnorePrimitives(TypeSet *other);
-    bool intersectionEmpty(TypeSet *other);
 
     inline StackTypeSet *toStackTypeSet();
     inline HeapTypeSet *toHeapTypeSet();

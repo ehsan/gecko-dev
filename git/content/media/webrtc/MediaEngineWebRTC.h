@@ -18,7 +18,6 @@
 #include "DOMMediaStream.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsComponentManagerUtils.h"
-#include "nsRefPtrHashtable.h"
 
 #include "VideoUtils.h"
 #include "MediaEngine.h"

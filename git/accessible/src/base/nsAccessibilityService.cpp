@@ -57,9 +57,6 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsObjectFrame.h"
 #include "nsSVGPathGeometryFrame.h"
-#include "nsTreeBodyFrame.h"
-#include "nsTreeColumns.h"
-#include "nsTreeUtils.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -1575,28 +1572,27 @@ already_AddRefed<Accessible>
 nsAccessibilityService::CreateAccessibleForXULTree(nsIContent* aContent,
                                                    DocAccessible* aDoc)
 {
-  nsIContent* child = nsTreeUtils::GetDescendantChild(aContent,
-                                                      nsGkAtoms::treechildren);
-  if (!child)
+  nsCOMPtr<nsITreeBoxObject> treeBoxObj = nsCoreUtils::GetTreeBoxObject(aContent);
+  if (!treeBoxObj)
     return nullptr;
 
-  nsTreeBodyFrame* treeFrame = do_QueryFrame(child->GetPrimaryFrame());
-  if (!treeFrame)
+  nsCOMPtr<nsITreeColumns> treeColumns;
+  treeBoxObj->GetColumns(getter_AddRefs(treeColumns));
+  if (!treeColumns)
     return nullptr;
 
-  nsRefPtr<nsTreeColumns> treeCols = treeFrame->Columns();
   int32_t count = 0;
-  treeCols->GetCount(&count);
+  treeColumns->GetCount(&count);
 
   // Outline of list accessible.
   if (count == 1) {
-    Accessible* accessible = new XULTreeAccessible(aContent, aDoc, treeFrame);
+    Accessible* accessible = new XULTreeAccessible(aContent, aDoc);
     NS_ADDREF(accessible);
     return accessible;
   }
 
   // Table or tree table accessible.
-  Accessible* accessible = new XULTreeGridAccessibleWrap(aContent, aDoc, treeFrame);
+  Accessible* accessible = new XULTreeGridAccessibleWrap(aContent, aDoc);
   NS_ADDREF(accessible);
   return accessible;
 }

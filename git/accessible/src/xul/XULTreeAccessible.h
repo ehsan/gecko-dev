@@ -11,8 +11,6 @@
 #include "nsITreeColumns.h"
 #include "XULListboxAccessible.h"
 
-class nsTreeBodyFrame;
-
 namespace mozilla {
 namespace a11y {
 
@@ -31,8 +29,7 @@ class XULTreeAccessible : public AccessibleWrap
 public:
   using Accessible::GetChildAt;
 
-  XULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc,
-                    nsTreeBodyFrame* aTreeframe);
+  XULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED

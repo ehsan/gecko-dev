@@ -816,7 +816,6 @@ private: // data
   bool     IsDecodeFinished();
   TimeStamp mDrawStartTime;
 
-  inline bool CanQualityScale(const gfxSize& scale);
   inline bool CanScale(gfxPattern::GraphicsFilter aFilter, gfxSize aScale);
 
   struct ScaleResult

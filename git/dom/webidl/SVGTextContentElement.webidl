@@ -10,6 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGRect;
 interface SVGAnimatedEnumeration;
 
 interface SVGTextContentElement : SVGGraphicsElement {
@@ -30,7 +31,7 @@ interface SVGTextContentElement : SVGGraphicsElement {
   SVGPoint getStartPositionOfChar(unsigned long charnum);
   [Throws]
   SVGPoint getEndPositionOfChar(unsigned long charnum);
-  [Creator, Throws]
+  [Throws]
   SVGRect getExtentOfChar(unsigned long charnum);
   [Throws]
   float getRotationOfChar(unsigned long charnum);

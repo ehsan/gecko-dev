@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_XULDocument_h
-#define mozilla_dom_XULDocument_h
+#ifndef nsXULDocument_h__
+#define nsXULDocument_h__
 
 #include "nsCOMPtr.h"
 #include "nsXULPrototypeDocument.h"
@@ -81,19 +81,15 @@ private:
 /**
  * The XUL document class
  */
-
-namespace mozilla {
-namespace dom {
-
-class XULDocument : public XMLDocument,
-                    public nsIXULDocument,
-                    public nsIDOMXULDocument,
-                    public nsIStreamLoaderObserver,
-                    public nsICSSLoaderObserver
+class nsXULDocument : public mozilla::dom::XMLDocument,
+                      public nsIXULDocument,
+                      public nsIDOMXULDocument,
+                      public nsIStreamLoaderObserver,
+                      public nsICSSLoaderObserver
 {
 public:
-    XULDocument();
-    virtual ~XULDocument();
+    nsXULDocument();
+    virtual ~nsXULDocument();
 
     // nsISupports interface
     NS_DECL_ISUPPORTS_INHERITED
@@ -144,7 +140,7 @@ public:
     NS_FORWARD_NSIDOMNODE_TO_NSINODE
 
     // nsIDOMDocument interface
-    NS_FORWARD_NSIDOMDOCUMENT(XMLDocument::)
+    NS_FORWARD_NSIDOMDOCUMENT(mozilla::dom::XMLDocument::)
     // And explicitly import the things from nsDocument that we just shadowed
     using nsDocument::GetImplementation;
     using nsDocument::GetTitle;
@@ -152,10 +148,9 @@ public:
     using nsDocument::GetLastStyleSheetSet;
     using nsDocument::MozSetImageElement;
     using nsDocument::GetMozFullScreenElement;
-    using nsIDocument::GetLocation;
 
     // nsDocument interface overrides
-    virtual Element* GetElementById(const nsAString & elementId);
+    virtual mozilla::dom::Element* GetElementById(const nsAString & elementId);
 
     // nsIDOMXULDocument interface
     NS_DECL_NSIDOMXULDOCUMENT
@@ -181,60 +176,25 @@ public:
                    nsIAtom* aAttrName,
                    void* aData);
 
-    NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(XULDocument, XMLDocument)
+    NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULDocument,
+                                             mozilla::dom::XMLDocument)
 
     virtual nsXPCClassInfo* GetClassInfo();
 
     void TraceProtos(JSTracer* aTrc, uint32_t aGCNumber);
 
-    // WebIDL API
-    already_AddRefed<nsINode> GetPopupNode();
-    void SetPopupNode(nsINode* aNode);
-    already_AddRefed<nsINode> GetPopupRangeParent(ErrorResult& aRv);
-    int32_t GetPopupRangeOffset(ErrorResult& aRv);
-    already_AddRefed<nsINode> GetTooltipNode();
-    void SetTooltipNode(nsINode* aNode) { /* do nothing */ }
-    nsIDOMXULCommandDispatcher* GetCommandDispatcher() const
-    {
-        return mCommandDispatcher;
-    }
-    int32_t GetWidth(ErrorResult& aRv);
-    int32_t GetHeight(ErrorResult& aRv);
-    already_AddRefed<nsINodeList>
-      GetElementsByAttribute(const nsAString& aAttribute,
-                             const nsAString& aValue);
-    already_AddRefed<nsINodeList>
-      GetElementsByAttributeNS(const nsAString& aNamespaceURI,
-                               const nsAString& aAttribute,
-                               const nsAString& aValue,
-                               ErrorResult& aRv);
-    void AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
-                                 const nsAString& aAttr, ErrorResult& aRv);
-    void RemoveBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
-                                    const nsAString& aAttr);
-    void Persist(const nsAString& aId, const nsAString& aAttr, ErrorResult& aRv)
-    {
-        aRv = Persist(aId, aAttr);
-    }
-    using nsDocument::GetBoxObjectFor;
-    void LoadOverlay(const nsAString& aURL, nsIObserver* aObserver,
-                     ErrorResult& aRv)
-    {
-        aRv = LoadOverlay(aURL, aObserver);
-    }
-
 protected:
     // Implementation methods
     friend nsresult
-    (::NS_NewXULDocument(nsIXULDocument** aResult));
+    NS_NewXULDocument(nsIXULDocument** aResult);
 
     nsresult Init(void);
     nsresult StartLayout(void);
 
     nsresult
-    AddElementToRefMap(Element* aElement);
+    AddElementToRefMap(mozilla::dom::Element* aElement);
     void
-    RemoveElementFromRefMap(Element* aElement);
+    RemoveElementFromRefMap(mozilla::dom::Element* aElement);
 
     nsresult GetViewportSize(int32_t* aWidth, int32_t* aHeight);
 
@@ -260,14 +220,14 @@ protected:
                                                  nsCOMArray<nsIContent>& aElements);
 
     nsresult
-    AddElementToDocumentPre(Element* aElement);
+    AddElementToDocumentPre(mozilla::dom::Element* aElement);
 
     nsresult
-    AddElementToDocumentPost(Element* aElement);
+    AddElementToDocumentPost(mozilla::dom::Element* aElement);
 
     nsresult
-    ExecuteOnBroadcastHandlerFor(Element* aBroadcaster,
-                                 Element* aListener,
+    ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
+                                 nsIDOMElement* aListener,
                                  nsIAtom* aAttr);
 
     nsresult
@@ -296,8 +256,6 @@ protected:
     nsresult
     Persist(nsIContent* aElement, int32_t aNameSpaceID, nsIAtom* aAttribute);
 
-    virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
-
     // IMPORTANT: The ownership implicit in the following member
     // variables has been explicitly checked and set using nsCOMPtr
     // for owning pointers and raw COM interface pointers for weak
@@ -306,7 +264,7 @@ protected:
     // NOTE, THIS IS STILL IN PROGRESS, TALK TO PINK OR SCC BEFORE
     // CHANGING
 
-    XULDocument*             mNextSrcLoadWaiter;  // [OWNER] but not COMPtr
+    nsXULDocument*             mNextSrcLoadWaiter;  // [OWNER] but not COMPtr
 
     // Tracks elements with a 'ref' attribute, or an 'id' attribute where
     // the element's namespace has no registered ID attribute name.
@@ -418,7 +376,7 @@ protected:
      * Note that the resulting content node is not bound to any tree
      */
     nsresult CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
-                                        Element** aResult,
+                                        mozilla::dom::Element** aResult,
                                         bool aIsRoot);
 
     /**
@@ -426,7 +384,7 @@ protected:
      * later resolution.
      */
     nsresult CreateOverlayElement(nsXULPrototypeElement* aPrototype,
-                                  Element** aResult);
+                                  mozilla::dom::Element** aResult);
 
     /**
      * Add attributes from the prototype to the element.
@@ -494,13 +452,13 @@ protected:
     class BroadcasterHookup : public nsForwardReference
     {
     protected:
-        XULDocument* mDocument;              // [WEAK]
-        nsRefPtr<Element> mObservesElement; // [OWNER]
+        nsXULDocument* mDocument;              // [WEAK]
+        nsRefPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
         bool mResolved;
 
     public:
-        BroadcasterHookup(XULDocument* aDocument,
-                          Element* aObservesElement)
+        BroadcasterHookup(nsXULDocument* aDocument,
+                          mozilla::dom::Element* aObservesElement)
             : mDocument(aDocument),
               mObservesElement(aObservesElement),
               mResolved(false)
@@ -522,14 +480,14 @@ protected:
     class OverlayForwardReference : public nsForwardReference
     {
     protected:
-        XULDocument* mDocument;      // [WEAK]
+        nsXULDocument* mDocument;      // [WEAK]
         nsCOMPtr<nsIContent> mOverlay; // [OWNER]
         bool mResolved;
 
         nsresult Merge(nsIContent* aTargetNode, nsIContent* aOverlayNode, bool aNotify);
 
     public:
-        OverlayForwardReference(XULDocument* aDocument, nsIContent* aOverlay)
+        OverlayForwardReference(nsXULDocument* aDocument, nsIContent* aOverlay)
             : mDocument(aDocument), mOverlay(aOverlay), mResolved(false) {}
 
         virtual ~OverlayForwardReference();
@@ -560,20 +518,20 @@ protected:
     // values of the out params should not be relied on (though *aListener and
     // *aBroadcaster do need to be released if non-null, of course).
     nsresult
-    FindBroadcaster(Element* aElement,
-                    Element** aListener,
+    FindBroadcaster(mozilla::dom::Element* aElement,
+                    nsIDOMElement** aListener,
                     nsString& aBroadcasterID,
                     nsString& aAttribute,
-                    Element** aBroadcaster);
+                    nsIDOMElement** aBroadcaster);
 
     nsresult
-    CheckBroadcasterHookup(Element* aElement,
+    CheckBroadcasterHookup(mozilla::dom::Element* aElement,
                            bool* aNeedsHookup,
                            bool* aDidResolve);
 
     void
-    SynchronizeBroadcastListener(Element *aBroadcaster,
-                                 Element *aListener,
+    SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
+                                 nsIDOMElement   *aListener,
                                  const nsAString &aAttr);
 
     static
@@ -667,13 +625,13 @@ protected:
 
     class CachedChromeStreamListener : public nsIStreamListener {
     protected:
-        XULDocument* mDocument;
-        bool         mProtoLoaded;
+        nsXULDocument* mDocument;
+        bool           mProtoLoaded;
 
         virtual ~CachedChromeStreamListener();
 
     public:
-        CachedChromeStreamListener(XULDocument* aDocument,
+        CachedChromeStreamListener(nsXULDocument* aDocument,
                                    bool aProtoLoaded);
 
         NS_DECL_ISUPPORTS
@@ -686,12 +644,12 @@ protected:
 
     class ParserObserver : public nsIRequestObserver {
     protected:
-        nsRefPtr<XULDocument> mDocument;
+        nsRefPtr<nsXULDocument> mDocument;
         nsRefPtr<nsXULPrototypeDocument> mPrototype;
         virtual ~ParserObserver();
 
     public:
-        ParserObserver(XULDocument* aDocument,
+        ParserObserver(nsXULDocument* aDocument,
                        nsXULPrototypeDocument* aPrototype);
 
         NS_DECL_ISUPPORTS
@@ -713,14 +671,14 @@ protected:
     class nsDelayedBroadcastUpdate
     {
     public:
-      nsDelayedBroadcastUpdate(Element* aBroadcaster,
-                               Element* aListener,
+      nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
+                               nsIDOMElement* aListener,
                                const nsAString &aAttr)
       : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
         mSetAttr(false), mNeedsAttrChange(false) {}
 
-      nsDelayedBroadcastUpdate(Element* aBroadcaster,
-                               Element* aListener,
+      nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
+                               nsIDOMElement* aListener,
                                nsIAtom* aAttrName,
                                const nsAString &aAttr,
                                bool aSetAttr,
@@ -734,8 +692,8 @@ protected:
         mAttr(aOther.mAttr), mAttrName(aOther.mAttrName),
         mSetAttr(aOther.mSetAttr), mNeedsAttrChange(aOther.mNeedsAttrChange) {}
 
-      nsCOMPtr<Element>       mBroadcaster;
-      nsCOMPtr<Element>       mListener;
+      nsCOMPtr<nsIDOMElement> mBroadcaster;
+      nsCOMPtr<nsIDOMElement> mListener;
       // Note if mAttrName isn't used, this is the name of the attr, otherwise
       // this is the value of the attribute.
       nsString                mAttr;
@@ -762,7 +720,4 @@ private:
 
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#endif // mozilla_dom_XULDocument_h
+#endif // nsXULDocument_h__
