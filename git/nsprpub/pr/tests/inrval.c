@@ -54,7 +54,11 @@
 #include "plgetopt.h"
 
 #include "prinit.h"
+#ifdef XP_MAC
+#include "pralarm.h"
+#else
 #include "obsolete/pralarm.h"
+#endif
 
 #include "prio.h"
 #include "prprf.h"

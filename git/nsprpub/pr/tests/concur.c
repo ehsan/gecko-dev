@@ -50,7 +50,11 @@
 
 #include "plgetopt.h"
 
+#if defined(XP_MAC)
+#include "pprio.h"
+#else
 #include "private/pprio.h"
+#endif
 
 #include <stdlib.h>
 

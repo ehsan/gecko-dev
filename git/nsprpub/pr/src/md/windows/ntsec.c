@@ -75,8 +75,7 @@ void _PR_NT_InitSids(void)
     SID_IDENTIFIER_AUTHORITY SIDAuthWorld = SECURITY_WORLD_SID_AUTHORITY;
     HANDLE hToken = NULL; /* initialized to an arbitrary value to
                            * silence a Purify UMR warning */
-    PSID infoBuffer[1024/sizeof(PSID)]; /* defined as an array of PSIDs
-                                         * to force proper alignment */
+    UCHAR infoBuffer[1024];
     PTOKEN_OWNER pTokenOwner = (PTOKEN_OWNER) infoBuffer;
     PTOKEN_PRIMARY_GROUP pTokenPrimaryGroup
             = (PTOKEN_PRIMARY_GROUP) infoBuffer;

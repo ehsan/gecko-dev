@@ -52,7 +52,12 @@
 #include "plerror.h"
 #include "plgetopt.h"
 
+#if defined(XP_MAC)
+#include "pprio.h"
+#define printf PR_LogPrint
+#else
 #include "private/pprio.h"
+#endif
 
 #include <stdlib.h>
 

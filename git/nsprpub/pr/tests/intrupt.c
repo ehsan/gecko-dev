@@ -55,6 +55,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef XP_MAC
+#include "prlog.h"
+#define printf PR_LogPrint
+extern void SetupMacPrintfLog(char *logFile);
+#endif
+
 #define DEFAULT_TCP_PORT 12500
 
 static PRLock *ml = NULL;
@@ -251,6 +257,11 @@ void PR_CALLBACK Intrupt(void *arg)
 
     ml = PR_NewLock();
     cv = PR_NewCondVar(ml);
+
+#ifdef XP_MAC
+	SetupMacPrintfLog("intrupt.log");
+	debug_mode = PR_TRUE;
+#endif
 
     /* Part I */
     if (debug_mode) printf("Part I\n");

@@ -355,6 +355,14 @@ static PRStatus PR_CALLBACK SocketConnectContinue(
     }
     return PR_SUCCESS;
 
+#elif defined(XP_MAC)
+
+    err = _MD_mac_get_nonblocking_connect_error(fd);
+    if (err == -1)
+        return PR_FAILURE;
+	else     
+		return PR_SUCCESS;
+
 #elif defined(XP_BEOS)
 
 #ifdef BONE_VERSION  /* bug 122364 */
@@ -757,6 +765,10 @@ static PRInt64 PR_CALLBACK SocketAvailable64(PRFileDesc *fd)
 
 static PRStatus PR_CALLBACK SocketSync(PRFileDesc *fd)
 {
+#if defined(XP_MAC)
+#pragma unused (fd)
+#endif
+
 	return PR_SUCCESS;
 }
 
@@ -1105,6 +1117,9 @@ static PRStatus PR_CALLBACK SocketGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
 static PRInt16 PR_CALLBACK SocketPoll(
     PRFileDesc *fd, PRInt16 in_flags, PRInt16 *out_flags)
 {
+#ifdef XP_MAC
+#pragma unused( fd, in_flags )
+#endif
     *out_flags = 0;
     return in_flags;
 }  /* SocketPoll */
@@ -1669,7 +1684,11 @@ PR_IMPLEMENT(PRInt32) PR_FD_NISSET(PROsfd fd, PR_fd_set *set)
 
 
 #if !defined(NEED_SELECT)
+#if !defined(XP_MAC)
 #include "obsolete/probslet.h"
+#else
+#include "probslet.h"
+#endif
 
 #define PD_INCR 20
 

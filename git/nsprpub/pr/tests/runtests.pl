@@ -348,7 +348,6 @@ $prog = shift;  # Program to test
 "prpollml",
 "ranfile",
 "randseed",
-"reinit",
 "rwlocktest",
 "sel_spd",
 "selct_er",
