@@ -74,7 +74,6 @@ var AccessFu = {
     this.chromeWin.addEventListener('resize', this, true);
     this.chromeWin.addEventListener('scroll', this, true);
     this.chromeWin.addEventListener('TabOpen', this, true);
-    this.chromeWin.addEventListener('focus', this, true);
   },
 
   /**
@@ -97,7 +96,6 @@ var AccessFu = {
     this.chromeWin.removeEventListener('resize', this, true);
     this.chromeWin.removeEventListener('scroll', this, true);
     this.chromeWin.removeEventListener('TabOpen', this, true);
-    this.chromeWin.removeEventListener('focus', this, true);
   },
 
   _processPreferences: function _processPreferences(aPref) {
@@ -132,19 +130,6 @@ var AccessFu = {
 
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
-      case 'focus':
-      {
-        if (aEvent.target instanceof Ci.nsIDOMWindow) {
-          let docAcc = getAccessible(aEvent.target.document);
-          let docContext = new PresenterContext(docAcc, null);
-          let cursorable = docAcc.QueryInterface(Ci.nsIAccessibleCursorable);
-          let vcContext = new PresenterContext(
-            (cursorable) ? cursorable.virtualCursor.position : null, null);
-          this.presenters.forEach(
-            function(p) { p.tabSelected(docContext, vcContext); });
-        }
-        break;
-      }
       case 'TabOpen':
       {
         let browser = aEvent.target.linkedBrowser || aEvent.target;
@@ -217,8 +202,7 @@ var AccessFu = {
           let position = pivot.position;
           let doc = aEvent.DOMNode;
 
-          if (position && position.DOMNode &&
-              doc instanceof Ci.nsIDOMDocument) {
+          if (doc instanceof Ci.nsIDOMDocument && position.DOMNode) {
             // Set the caret to the start of the pivot position, and move
             // the focus in the same manner as browse with caret mode.
             // This blurs the focus on the previous pivot position (if it
@@ -321,6 +305,20 @@ var AccessFu = {
               p.tabStateChanged(aEvent.accessible, 'reload');
             }
           );
+          break;
+        }
+      case Ci.nsIAccessibleEvent.EVENT_FOCUS:
+        {
+          if (this._isBrowserDoc(aEvent.accessible)) {
+            // The document recieved focus, call tabSelected to present current tab.
+            let docContext = new PresenterContext(aEvent.accessible, null);
+            let cursorable = aEvent.accessible.
+              QueryInterface(Ci.nsIAccessibleCursorable);
+            let vcContext = new PresenterContext(
+              (cursorable) ? cursorable.virtualCursor.position : null, null);
+            this.presenters.forEach(
+              function(p) { p.tabSelected(docContext, vcContext); });
+          }
           break;
         }
       case Ci.nsIAccessibleEvent.EVENT_TEXT_INSERTED:

@@ -219,7 +219,7 @@ private:
     JS_ASSERT(JS_GetClass(aObj) == Class());
     WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
     if (worker) {
-      worker->_finalize(aFop);
+      worker->_Finalize(aFop);
     }
   }
 
@@ -229,7 +229,7 @@ private:
     JS_ASSERT(JS_GetClass(aObj) == Class());
     WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
     if (worker) {
-      worker->_trace(aTrc);
+      worker->_Trace(aTrc);
     }
   }
 
@@ -377,7 +377,7 @@ private:
     JS_ASSERT(JS_GetClass(aObj) == Class());
     WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
     if (worker) {
-      worker->_finalize(aFop);
+      worker->_Finalize(aFop);
     }
   }
 
@@ -387,7 +387,7 @@ private:
     JS_ASSERT(JS_GetClass(aObj) == Class());
     WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
     if (worker) {
-      worker->_trace(aTrc);
+      worker->_Trace(aTrc);
     }
   }
 };

@@ -9,17 +9,17 @@ USING_WORKERS_NAMESPACE
 using mozilla::ErrorResult;
 
 void
-EventTarget::_trace(JSTracer* aTrc)
+EventTarget::_Trace(JSTracer* aTrc)
 {
-  mListenerManager._trace(aTrc);
-  DOMBindingBase::_trace(aTrc);
+  mListenerManager._Trace(aTrc);
+  DOMBindingBase::_Trace(aTrc);
 }
 
 void
-EventTarget::_finalize(JSFreeOp* aFop)
+EventTarget::_Finalize(JSFreeOp* aFop)
 {
-  mListenerManager._finalize(aFop);
-  DOMBindingBase::_finalize(aFop);
+  mListenerManager._Finalize(aFop);
+  DOMBindingBase::_Finalize(aFop);
 }
 
 JSObject*

@@ -209,7 +209,6 @@ public:
 
   nsWindowType            GetWindowType() { return mWindowType; }
 
-  static bool             UseOffMainThreadCompositing();
 protected:
 
   virtual void            ResolveIconName(const nsAString &aIconName,

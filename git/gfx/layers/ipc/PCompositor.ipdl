@@ -38,8 +38,7 @@ parent:
   sync Pause();
   sync Resume();
 
-  sync PLayers(LayersBackend backend)
-    returns (int maxTextureSize);
+  sync PLayers(LayersBackend backend);
 };
 
 } // layers

@@ -106,7 +106,6 @@ struct AutoTxnEnd {
 
 ShadowLayerForwarder::ShadowLayerForwarder()
  : mShadowManager(NULL)
- , mMaxTextureSize(0)
  , mParentBackend(LayerManager::LAYERS_NONE)
  , mIsFirstPaint(false)
 {

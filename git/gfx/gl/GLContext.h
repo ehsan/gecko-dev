@@ -94,8 +94,7 @@ public:
     enum Flags {
         NoFlags          = 0x0,
         UseNearestFilter = 0x1,
-        NeedsYFlip       = 0x2,
-        ForceSingleTile  = 0x4
+        NeedsYFlip       = 0x2
     };
 
     typedef gfxASurface::gfxContentType ContentType;

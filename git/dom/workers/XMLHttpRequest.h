@@ -62,13 +62,13 @@ protected:
 
 public:
   virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
+  _Trace(JSTracer* aTrc) MOZ_OVERRIDE;
 
   virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  _Finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
 
   static XMLHttpRequest*
-  Constructor(JSContext* aCx, JSObject* aGlobal, ErrorResult& aRv);
+  _Constructor(JSContext* aCx, JSObject* aGlobal, ErrorResult& aRv);
 
   void
   Unpin();

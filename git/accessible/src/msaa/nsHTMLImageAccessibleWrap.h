@@ -9,10 +9,10 @@
 #define _NSHTMLIMAGEACCESSIBLEWRAP_H
 
 #include "nsHTMLImageAccessible.h"
-#include "ia2AccessibleImage.h"
+#include "CAccessibleImage.h"
 
 class nsHTMLImageAccessibleWrap : public nsHTMLImageAccessible,
-                                  public ia2AccessibleImage
+                                  public CAccessibleImage
 {
 public:
   nsHTMLImageAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :

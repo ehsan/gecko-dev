@@ -94,10 +94,7 @@ struct ThebesLayerAttributes {
 struct ContainerLayerAttributes{ FrameMetrics metrics; };
 struct ColorLayerAttributes    { gfxRGBA color; };
 struct CanvasLayerAttributes   { GraphicsFilterType filter; };
-struct ImageLayerAttributes    {
-  GraphicsFilterType filter;
-  bool forceSingleTile;
-};
+struct ImageLayerAttributes    { GraphicsFilterType filter; };
 
 union SpecificLayerAttributes {
   null_t;

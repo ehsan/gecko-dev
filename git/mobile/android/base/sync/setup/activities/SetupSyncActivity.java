@@ -19,7 +19,6 @@ import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
 import android.accounts.Account;
 import android.accounts.AccountAuthenticatorActivity;
 import android.accounts.AccountManager;
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
@@ -183,7 +182,7 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
   public void manualClickHandler(View target) {
     Intent accountIntent = new Intent(this, AccountActivity.class);
     accountIntent.setFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-    startActivityForResult(accountIntent, 0);
+    startActivity(accountIntent);
     overridePendingTransition(0, 0);
   }
 
@@ -594,14 +593,5 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
         }
       }
     });
-  }
-
-  @Override
-  public void onActivityResult(int requestCode, int resultCode, Intent data) {
-    switch (resultCode) {
-    case Activity.RESULT_OK:
-      // Setup completed in manual setup.
-      finish();
-    }
   }
 }

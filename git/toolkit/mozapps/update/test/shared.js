@@ -12,7 +12,6 @@ const AUS_Cr = Components.results;
 const AUS_Cu = Components.utils;
 
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
-const PREF_APP_UPDATE_BACKGROUND          = "app.update.stage.enabled";
 const PREF_APP_UPDATE_BACKGROUNDERRORS    = "app.update.backgroundErrors";
 const PREF_APP_UPDATE_BACKGROUNDMAXERRORS = "app.update.backgroundMaxErrors";
 const PREF_APP_UPDATE_CERTS_BRANCH        = "app.update.certs.";
@@ -155,19 +154,6 @@ function setUpdateURLOverride(aURL) {
 }
 
 /**
- * Returns either the active or regular update database XML file.
- *
- * @param  isActiveUpdate
- *         If true this will return the active-update.xml otherwise it will
- *         return the updates.xml file.
- */
-function getUpdatesXMLFile(aIsActiveUpdate) {
-  var file = getUpdatesRootDir();
-  file.append(aIsActiveUpdate ? FILE_UPDATE_ACTIVE : FILE_UPDATES_DB);
-  return file;
-}
-
-/**
  * Writes the updates specified to either the active-update.xml or the
  * updates.xml.
  *
@@ -178,7 +164,9 @@ function getUpdatesXMLFile(aIsActiveUpdate) {
  *         write to the updates.xml file.
  */
 function writeUpdatesToXMLFile(aContent, aIsActiveUpdate) {
-  writeFile(getUpdatesXMLFile(aIsActiveUpdate), aContent);
+  var file = getCurrentProcessDir();
+  file.append(aIsActiveUpdate ? FILE_UPDATE_ACTIVE : FILE_UPDATES_DB);
+  writeFile(file, aContent);
 }
 
 /**
@@ -213,26 +201,12 @@ function writeVersionFile(aVersion) {
 }
 
 /**
- * Gets the updates root directory.
- *
- * @return nsIFile for the updates root directory.
- */
-function getUpdatesRootDir() {
-  try {
-    return Services.dirsvc.get(XRE_UPDATE_ROOT_DIR, AUS_Ci.nsIFile);
-  } catch (e) {
-    // Fall back on the current process directory
-    return getCurrentProcessDir();
-  }
-}
-
-/**
  * Gets the updates directory.
  *
  * @return nsIFile for the updates directory.
  */
 function getUpdatesDir() {
-  var dir = getUpdatesRootDir();
+  var dir = getCurrentProcessDir();
   dir.append("updates");
   return dir;
 }
@@ -363,7 +337,9 @@ function getFileExtension(aFile) {
  * tests are interrupted.
  */
 function removeUpdateDirsAndFiles() {
-  var file = getUpdatesXMLFile(true);
+  var appDir = getCurrentProcessDir();
+  var file = appDir.clone();
+  file.append(FILE_UPDATE_ACTIVE);
   try {
     if (file.exists())
       file.remove(false);
@@ -373,7 +349,8 @@ function removeUpdateDirsAndFiles() {
          "\nException: " + e + "\n");
   }
 
-  file = getUpdatesXMLFile(false);
+  file = appDir.clone();
+  file.append(FILE_UPDATES_DB);
   try {
     if (file.exists())
       file.remove(false);
@@ -384,7 +361,8 @@ function removeUpdateDirsAndFiles() {
   }
 
   // This fails sporadically on Mac OS X so wrap it in a try catch
-  var updatesDir = getUpdatesDir();
+  var updatesDir = appDir.clone();
+  updatesDir.append("updates");
   try {
     cleanUpdatesDir(updatesDir);
   }

@@ -117,10 +117,8 @@ SettingsLock.prototype = {
   },
 
   get: function get(aName) {
-    if (!this._open) {
-      dump("Settings lock not open!\n");
+    if (!this._open)
       throw Components.results.NS_ERROR_ABORT;
-    }
 
     if (this._settingsManager.hasReadPrivileges || this._settingsManager.hasReadWritePrivileges) {
       let req = Services.DOMRequest.createRequest(this._settingsManager._window);
@@ -134,10 +132,8 @@ SettingsLock.prototype = {
   },
 
   set: function set(aSettings) {
-    if (!this._open) {
-      dump("Settings lock not open!\n");
+    if (!this._open)
       throw Components.results.NS_ERROR_ABORT;
-    }
 
     if (this._settingsManager.hasReadWritePrivileges) {
       let req = Services.DOMRequest.createRequest(this._settingsManager._window);
@@ -152,10 +148,8 @@ SettingsLock.prototype = {
   },
 
   clear: function clear() {
-    if (!this._open) {
-      dump("Settings lock not open!\n");
+    if (!this._open)
       throw Components.results.NS_ERROR_ABORT;
-    }
 
     if (this._settingsManager.hasReadWritePrivileges) {
       let req = Services.DOMRequest.createRequest(this._settingsManager._window);

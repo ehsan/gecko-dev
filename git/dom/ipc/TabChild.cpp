@@ -910,8 +910,7 @@ TabChild::InitWidget(const nsIntSize& size)
     NS_ABORT_IF_FALSE(0 == remoteFrame->ManagedPLayersChild().Length(),
                       "shouldn't have a shadow manager yet");
     LayerManager::LayersBackend be;
-    PRInt32 maxTextureSize;
-    PLayersChild* shadowManager = remoteFrame->SendPLayersConstructor(&be, &maxTextureSize);
+    PLayersChild* shadowManager = remoteFrame->SendPLayersConstructor(&be);
     if (!shadowManager) {
       NS_WARNING("failed to construct LayersChild");
       // This results in |remoteFrame| being deleted.
@@ -924,7 +923,6 @@ TabChild::InitWidget(const nsIntSize& size)
     NS_ABORT_IF_FALSE(lf && lf->HasShadowManager(),
                       "PuppetWidget should have shadow manager");
     lf->SetParentBackendType(be);
-    lf->SetMaxTextureSize(maxTextureSize);
 
     mRemoteFrame = remoteFrame;
     return true;

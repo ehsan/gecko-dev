@@ -108,14 +108,7 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AccEvent, Release)
 nsAccessible*
 AccEvent::GetAccessibleForNode() const
 {
-  if (mNode) {
-    nsDocAccessible* document =
-      GetAccService()->GetDocAccessible(mNode->OwnerDoc());
-    if (document)
-      return document->GetAccessible(mNode);
-  }
-
-  return nsnull;
+  return mNode ? GetAccService()->GetAccessible(mNode, nsnull) : nsnull;
 }
 
 void

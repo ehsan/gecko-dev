@@ -1433,16 +1433,6 @@ BasicLayerManager::PopGroupToSourceWithCachedSurface(gfxContext *aTarget, gfxCon
   }
 }
 
-PRInt32
-BasicShadowLayerManager::GetMaxTextureSize() const
-{
-  if (HasShadowManager()) {
-    return ShadowLayerForwarder::GetMaxTextureSize();
-  }
-
-  return PR_INT32_MAX;
-}
-
 void
 BasicLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 {
@@ -2556,7 +2546,7 @@ public:
 
   virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
   {
-    aAttrs = ImageLayerAttributes(mFilter, mForceSingleTile);
+    aAttrs = ImageLayerAttributes(mFilter);
   }
 
   virtual Layer* AsLayer() { return this; }
@@ -2747,6 +2737,7 @@ public:
 void
 BasicShadowableColorLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
 {
+  // TODO[nrc] move this back inside the if, and clear the context some other way
   BasicColorLayer::Paint(aContext, aMaskLayer);
 
   if (!HasShadow()) {

@@ -389,8 +389,6 @@ private:
         bool IsSpeculative() { return mSpeculative; }
         void SetSpeculative(bool val) { mSpeculative = val; }
 
-        bool HasConnected() { return mHasConnected; }
-
     private:
         nsConnectionEntry              *mEnt;
         nsRefPtr<nsAHttpTransaction>   mTransaction;
@@ -416,8 +414,6 @@ private:
         nsCOMPtr<nsISocketTransport>   mBackupTransport;
         nsCOMPtr<nsIAsyncOutputStream> mBackupStreamOut;
         nsCOMPtr<nsIAsyncInputStream>  mBackupStreamIn;
-
-        bool                           mHasConnected;
     };
     friend class nsHalfOpenSocket;
 

@@ -211,9 +211,9 @@ function run_test() {
 function doUpdate() {
   // apply the complete mar
   let exitValue = runUpdate();
-  logTestInfo("testing updater binary process exitValue for failure when " +
+  logTestInfo("testing updater binary process exitValue for success when " +
               "applying a complete mar");
-  do_check_eq(exitValue, 1);
+  do_check_eq(exitValue, 0);
 
   setupHelperFinish();
 }

@@ -32,10 +32,10 @@ protected:
 
 public:
   virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
+  _Trace(JSTracer* aTrc) MOZ_OVERRIDE;
 
   virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  _Finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
 
   void
   AddEventListener(const nsAString& aType, JSObject* aListener,

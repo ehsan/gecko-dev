@@ -4107,18 +4107,18 @@ nsImageRenderer::GetContainer()
 #define MAX_SPREAD_RADIUS 50
 
 static inline gfxIntSize
-ComputeBlurRadius(nscoord aBlurRadius, PRInt32 aAppUnitsPerDevPixel, gfxFloat aScaleX = 1.0, gfxFloat aScaleY = 1.0)
+ComputeBlurRadius(nscoord aBlurRadius, PRInt32 aAppUnitsPerDevPixel, gfxFloat scale = 1.0)
 {
   // http://dev.w3.org/csswg/css3-background/#box-shadow says that the
   // standard deviation of the blur should be half the given blur value.
   gfxFloat blurStdDev = gfxFloat(aBlurRadius) / gfxFloat(aAppUnitsPerDevPixel);
 
-  gfxPoint scaledBlurStdDev = gfxPoint(NS_MIN((blurStdDev * aScaleX),
-                                              gfxFloat(MAX_BLUR_RADIUS)) / 2.0,
-                                       NS_MIN((blurStdDev * aScaleY),
-                                              gfxFloat(MAX_BLUR_RADIUS)) / 2.0);
+  blurStdDev *= scale;
+
+  blurStdDev = NS_MIN(blurStdDev,
+                      gfxFloat(MAX_BLUR_RADIUS)) / 2.0;
   return
-    gfxAlphaBoxBlur::CalculateBlurRadius(scaledBlurStdDev);
+    gfxAlphaBoxBlur::CalculateBlurRadius(gfxPoint(blurStdDev, blurStdDev));
 }
 
 // -----
@@ -4138,32 +4138,27 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
     return nsnull;
   }
 
-  gfxFloat scaleX = 1;
-  gfxFloat scaleY = 1;
+  gfxFloat scale = 1;
 
   // Do blurs in device space when possible
   // If the scale is not uniform we fall back to transforming on paint.
   // Chrome/Skia always does the blurs in device space
   // and will sometimes get incorrect results (e.g. rotated blurs)
   gfxMatrix transform = aDestinationCtx->CurrentMatrix();
-  if (transform.HasNonAxisAlignedTransform()) {
+  if (transform.HasNonAxisAlignedTransform() || transform.xx != transform.yy) {
     transform = gfxMatrix();
   } else {
-    scaleX = transform.xx;
-    scaleY = transform.yy;
+    scale = transform.xx;
   }
 
   // compute a large or smaller blur radius
-  gfxIntSize blurRadius = ComputeBlurRadius(aBlurRadius, aAppUnitsPerDevPixel, scaleX, scaleY);
-  gfxIntSize spreadRadius = gfxIntSize(NS_MIN(PRInt32(aSpreadRadius * scaleX / aAppUnitsPerDevPixel),
-                                              PRInt32(MAX_SPREAD_RADIUS)),
-                                       NS_MIN(PRInt32(aSpreadRadius * scaleY / aAppUnitsPerDevPixel),
-                                              PRInt32(MAX_SPREAD_RADIUS)));
+  gfxIntSize blurRadius = ComputeBlurRadius(aBlurRadius, aAppUnitsPerDevPixel, scale);
+  PRInt32 spreadRadius = NS_MIN(PRInt32(aSpreadRadius / aAppUnitsPerDevPixel),
+                                PRInt32(MAX_SPREAD_RADIUS));
   mDestinationCtx = aDestinationCtx;
 
   // If not blurring, draw directly onto the destination device
-  if (blurRadius.width <= 0 && blurRadius.height <= 0 &&
-      spreadRadius.width <= 0 && spreadRadius.height <= 0 &&
+  if (blurRadius.width <= 0 && blurRadius.height <= 0 && spreadRadius <= 0 &&
       !(aFlags & FORCE_MASK)) {
     mContext = aDestinationCtx;
     return mContext;
@@ -4184,10 +4179,10 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
   dirtyRect = transform.TransformBounds(dirtyRect);
   if (aSkipRect) {
     gfxRect skipRect = transform.TransformBounds(*aSkipRect);
-    mContext = blur.Init(rect, spreadRadius,
+    mContext = blur.Init(rect, gfxIntSize(spreadRadius, spreadRadius),
                          blurRadius, &dirtyRect, &skipRect);
   } else {
-    mContext = blur.Init(rect, spreadRadius,
+    mContext = blur.Init(rect, gfxIntSize(spreadRadius, spreadRadius),
                          blurRadius, &dirtyRect, NULL);
   }
 

@@ -72,17 +72,12 @@ class ThreadLocal
     typedef pthread_key_t key_t;
 #endif
 
-    union Helper {
-      void *ptr;
-      T value;
-    };
-
   public:
     MOZ_WARN_UNUSED_RESULT inline bool init();
 
-    inline T get() const;
+    inline T* get() const;
 
-    inline bool set(const T value);
+    inline bool set(const T* value);
 
     bool initialized() const {
       return inited;
@@ -96,7 +91,6 @@ class ThreadLocal
 template <typename T>
 inline bool
 ThreadLocal<T>::init() {
-  MOZ_STATIC_ASSERT(sizeof(T) <= sizeof(void *), "mozilla::ThreadLocal can't be used for types larger than a pointer");
   MOZ_ASSERT(!initialized());
 #ifdef XP_WIN
   key = TlsAlloc();
@@ -108,28 +102,24 @@ ThreadLocal<T>::init() {
 }
 
 template <typename T>
-inline T
+inline T*
 ThreadLocal<T>::get() const {
   MOZ_ASSERT(initialized());
-  Helper h;
 #ifdef XP_WIN
-  h.ptr = TlsGetValue(key);
+  return reinterpret_cast<T*>(TlsGetValue(key));
 #else
-  h.ptr = pthread_getspecific(key);
+  return reinterpret_cast<T*>(pthread_getspecific(key));
 #endif
-  return h.value;
 }
 
 template <typename T>
 inline bool
-ThreadLocal<T>::set(const T value) {
+ThreadLocal<T>::set(const T* value) {
   MOZ_ASSERT(initialized());
-  Helper h;
-  h.value = value;
 #ifdef XP_WIN
-  return TlsSetValue(key, h.ptr);
+  return TlsSetValue(key, const_cast<T*>(value));
 #else
-  return !pthread_setspecific(key, h.ptr);
+  return !pthread_setspecific(key, value);
 #endif
 }
 

@@ -880,7 +880,7 @@ nsAppStartup::TrackStartupCrashBegin(bool *aIsSafeModeNecessary)
 
   xr->GetInSafeMode(&inSafeMode);
 
-  PRInt64 replacedLockTime;
+  int64_t replacedLockTime;
   rv = xr->GetReplacedLockTime(&replacedLockTime);
 
   if (NS_FAILED(rv) || !replacedLockTime) {

@@ -15,7 +15,7 @@ class ScaledFontFreetype : public ScaledFontBase
 {
 public:
 
-  ScaledFontFreetype(FontOptions* aFont, Float aSize);
+  ScaledFontFreetype(gfxFont* aFont, Float aSize);
 };
 
 }

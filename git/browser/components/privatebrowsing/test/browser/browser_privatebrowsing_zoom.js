@@ -20,30 +20,30 @@ function test() {
   waitForExplicitFinish();
 
   let aboutBrowser = gBrowser.getBrowserForTab(tabAbout);
-  aboutBrowser.addEventListener("load", function onAboutBrowserLoad() {
-    aboutBrowser.removeEventListener("load", onAboutBrowserLoad, true);
-    let tabMozilla = gBrowser.addTab();
-    gBrowser.selectedTab = tabMozilla;
+  aboutBrowser.addEventListener("load", function () {
+    aboutBrowser.removeEventListener("load", arguments.callee, true);
+    let tabRobots = gBrowser.addTab();
+    gBrowser.selectedTab = tabRobots;
 
-    let mozillaBrowser = gBrowser.getBrowserForTab(tabMozilla);
-    mozillaBrowser.addEventListener("load", function onMozillaBrowserLoad() {
-      mozillaBrowser.removeEventListener("load", onMozillaBrowserLoad, true);
-      let mozillaZoom = ZoomManager.zoom;
+    let robotsBrowser = gBrowser.getBrowserForTab(tabRobots);
+    robotsBrowser.addEventListener("load", function () {
+      robotsBrowser.removeEventListener("load", arguments.callee, true);
+      let robotsZoom = ZoomManager.zoom;
 
-      // change the zoom on the mozilla page
+      // change the zoom on the robots page
       FullZoom.enlarge();
       // make sure the zoom level has been changed
-      isnot(ZoomManager.zoom, mozillaZoom, "Zoom level can be changed");
-      mozillaZoom = ZoomManager.zoom;
+      isnot(ZoomManager.zoom, robotsZoom, "Zoom level can be changed");
+      robotsZoom = ZoomManager.zoom;
 
       // switch to about: tab
       gBrowser.selectedTab = tabAbout;
 
-      // switch back to mozilla tab
-      gBrowser.selectedTab = tabMozilla;
+      // switch back to robots tab
+      gBrowser.selectedTab = tabRobots;
 
       // make sure the zoom level has not changed
-      is(ZoomManager.zoom, mozillaZoom,
+      is(ZoomManager.zoom, robotsZoom,
         "Entering private browsing should not reset the zoom on a tab");
 
       // leave private browsing mode
@@ -52,11 +52,11 @@ function test() {
       // cleanup
       gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
       FullZoom.reset();
-      gBrowser.removeTab(tabMozilla);
+      gBrowser.removeTab(tabRobots);
       gBrowser.removeTab(tabAbout);
       finish();
     }, true);
-    mozillaBrowser.contentWindow.location = "about:mozilla";
+    robotsBrowser.contentWindow.location = "about:robots";
   }, true);
   aboutBrowser.contentWindow.location = "about:";
 }

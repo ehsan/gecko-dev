@@ -253,15 +253,13 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
           specific.get_CanvasLayerAttributes().filter());
         break;
 
-      case Specific::TImageLayerAttributes: {
+      case Specific::TImageLayerAttributes:
         MOZ_LAYERS_LOG(("[ParentSide]   image layer"));
 
-        ImageLayer* imageLayer = static_cast<ImageLayer*>(layer);
-        const ImageLayerAttributes& attrs = specific.get_ImageLayerAttributes();
-        imageLayer->SetFilter(attrs.filter());
-        imageLayer->SetForceSingleTile(attrs.forceSingleTile());
+        static_cast<ImageLayer*>(layer)->SetFilter(
+          specific.get_ImageLayerAttributes().filter());
         break;
-      }
+
       default:
         NS_RUNTIMEABORT("not reached");
       }

@@ -102,7 +102,7 @@ var gTestSteps = [
         ensure_opentabs_match_db(nextStep);
       });
     }, true);
-    tab.linkedBrowser.loadURI("about:mozilla");
+    tab.linkedBrowser.loadURI('about:robots');
   },
   function() {
     info("Running step 9 - enter private browsing mode, without keeping session");

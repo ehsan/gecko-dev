@@ -22,10 +22,10 @@ protected:
 
 public:
   virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
+  _Trace(JSTracer* aTrc) MOZ_OVERRIDE;
 
   virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  _Finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
 
 #define IMPL_GETTER_AND_SETTER(_type)                                          \
   JSObject*                                                                    \

@@ -109,11 +109,6 @@ public:
     return aSize <= gfxIntSize(MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE);
   }
 
-  virtual PRInt32 GetMaxTextureSize() const
-  {
-    return MAX_TEXTURE_SIZE;
-  }
-
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
   virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer();
 

@@ -27,7 +27,13 @@ nsDOMAttributeMap::nsDOMAttributeMap(Element* aContent)
 {
   // We don't add a reference to our content. If it goes away,
   // we'll be told to drop our reference
+}
+
+bool
+nsDOMAttributeMap::Init()
+{
   mAttributeCache.Init();
+  return true;
 }
 
 /**

@@ -701,11 +701,6 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
   mContext = ctxNew;
   mJSObject = global;
 
-  // Set the location information for the new global, so that tools like
-  // about:memory may use that information
-  nsIURI *ownerURI = mGlobalObjectOwner->GetURI();
-  xpc::SetLocationForGlobal(mJSObject, ownerURI);
-
   return NS_OK;
 }
 

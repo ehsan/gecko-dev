@@ -266,7 +266,7 @@ Parser::parse(JSObject *chain)
      */
     SharedContext globalsc(context, /* inFunction = */ false);
     TreeContext globaltc(this, &globalsc);
-    if (!globaltc.init())
+    if (!globaltc.init(context))
         return NULL;
     globalsc.setScopeChain(chain);
     if (!GenerateBlockId(&globalsc, globalsc.bodyid))
@@ -1505,7 +1505,7 @@ Parser::functionDef(HandlePropertyName funName, FunctionType type, FunctionSynta
     /* Initialize early for possible flags mutation via destructuringExpr. */
     SharedContext funsc(context, /* inFunction = */ true);
     TreeContext funtc(this, &funsc);
-    if (!funtc.init())
+    if (!funtc.init(context))
         return NULL;
 
     FunctionBox *funbox = EnterFunction(pn, this, funName, kind);
@@ -5428,7 +5428,7 @@ Parser::generatorExpr(ParseNode *kid)
         TreeContext *outertc = tc;
         SharedContext gensc(context, /* inFunction = */ true);
         TreeContext gentc(this, &gensc);
-        if (!gentc.init())
+        if (!gentc.init(context))
             return NULL;
 
         FunctionBox *funbox = EnterFunction(genfn, this);
@@ -6387,7 +6387,7 @@ Parser::parseXMLText(JSObject *chain, bool allowList)
      */
     SharedContext xmlsc(context, /* inFunction = */ false);
     TreeContext xmltc(this, &xmlsc);
-    if (!xmltc.init())
+    if (!xmltc.init(context))
         return NULL;
     JS_ASSERT(!xmlsc.inStrictMode());
     xmlsc.setScopeChain(chain);

@@ -885,7 +885,6 @@ ContainerState::CreateOrRecycleMaskImageLayerFor(Layer* aLayer)
     if (!result)
       return nsnull;
     result->SetUserData(&gMaskLayerUserData, new MaskLayerUserData());
-    result->SetForceSingleTile(true);
   }
   
   return result.forget();
@@ -2805,8 +2804,8 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aCl
   nsRefPtr<ImageLayer> maskLayer =  CreateOrRecycleMaskImageLayerFor(aLayer);
   MaskLayerUserData* userData = GetMaskLayerUserData(maskLayer);
   if (ArrayRangeEquals(userData->mRoundedClipRects,
-                       aClip.mRoundedClipRects,
-                       aRoundedRectClipCount) &&
+                        aClip.mRoundedClipRects,
+                        aRoundedRectClipCount) &&
       userData->mRoundedClipRects.Length() <= aRoundedRectClipCount &&
       layerTransform == userData->mTransform &&
       boundingRect == userData->mBounds) {
@@ -2824,14 +2823,9 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aCl
     return;
   }
   
-  PRUint32 maxSize = mManager->GetMaxTextureSize();
-  NS_ASSERTION(maxSize > 0, "Invalid max texture size");
-  nsIntSize surfaceSize(NS_MIN<PRInt32>(boundingRect.Width(), maxSize),
-                        NS_MIN<PRInt32>(boundingRect.Height(), maxSize));
-
-  nsRefPtr<gfxASurface> surface =
-    aLayer->Manager()->CreateOptimalSurface(surfaceSize,
-                                            aLayer->Manager()->MaskImageFormat());
+   nsRefPtr<gfxASurface> surface =
+     aLayer->Manager()->CreateOptimalSurface(boundingRect.Size(),
+                                             aLayer->Manager()->MaskImageFormat());
 
   // fail if we can't get the right surface
   if (!surface || surface->CairoStatus()) {
@@ -2842,15 +2836,12 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aCl
   nsRefPtr<gfxContext> context = new gfxContext(surface);
 
   gfxMatrix visRgnTranslation;
-  visRgnTranslation.Scale(float(surfaceSize.width)/float(boundingRect.Width()),
-                          float(surfaceSize.height)/float(boundingRect.Height()));
   visRgnTranslation.Translate(-boundingRect.TopLeft());
   context->Multiply(visRgnTranslation);
-
   gfxMatrix scale;
   scale.Scale(mParameters.mXScale, mParameters.mYScale);
   context->Multiply(scale);
-
+  
   // useful for debugging, make masked areas semi-opaque
   //context->SetColor(gfxRGBA(0, 0, 0, 0.3));
   //context->Paint();
@@ -2870,7 +2861,7 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aCl
   NS_ASSERTION(image, "Could not create image container for mask layer.");
   CairoImage::Data data;
   data.mSurface = surface;
-  data.mSize = surfaceSize;
+  data.mSize = boundingRect.Size();
   static_cast<CairoImage*>(image.get())->SetData(data);
   container->SetCurrentImage(image);
 

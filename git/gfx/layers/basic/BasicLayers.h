@@ -146,7 +146,6 @@ public:
   virtual bool IsCompositingCheap() { return false; }
   virtual bool HasShadowManagerInternal() const { return false; }
   bool HasShadowManager() const { return HasShadowManagerInternal(); }
-  virtual PRInt32 GetMaxTextureSize() const { return PR_INT32_MAX; }
 
 protected:
 #ifdef DEBUG
@@ -207,8 +206,6 @@ public:
   {
     return this;
   }
-
-  virtual PRInt32 GetMaxTextureSize() const;
 
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
   virtual bool EndEmptyTransaction();

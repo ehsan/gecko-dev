@@ -249,10 +249,9 @@ function run_test() {
 
   // apply the partial mar
   let exitValue = runUpdate();
-  logTestInfo("testing updater binary process exitValue for failure when " +
+  logTestInfo("testing updater binary process exitValue for success when " +
               "applying a partial mar");
-  // Note that on platforms where we use execv, we cannot trust the return code.
-  do_check_eq(exitValue, USE_EXECV ? 0 : 1);
+  do_check_eq(exitValue, 0);
 
   logTestInfo("testing update.status should be " + STATE_FAILED);
   // The update status format for a failure is failed: # where # is the error

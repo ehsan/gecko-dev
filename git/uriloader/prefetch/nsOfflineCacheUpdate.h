@@ -205,10 +205,6 @@ public:
 
     virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);
 
-protected:
-    friend class nsOfflineCacheUpdateItem;
-    void OnByteProgress(PRUint64 byteIncrement);
-
 private:
     nsresult HandleManifest(bool *aDoUpdate);
     nsresult AddURI(nsIURI *aURI, PRUint32 aItemType);
@@ -281,8 +277,6 @@ private:
     nsRefPtr<nsOfflineCacheUpdate> mImplicitUpdate;
 
     bool                           mPinned;
-
-    PRUint64                       mByteProgress;
 };
 
 class nsOfflineCacheUpdateService : public nsIOfflineCacheUpdateService

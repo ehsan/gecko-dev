@@ -166,10 +166,9 @@ gfxAndroidPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
 RefPtr<ScaledFont>
 gfxAndroidPlatform::GetScaledFontForFont(gfxFont *aFont)
 {
-    NS_ASSERTION(aFont->GetType() == gfxFont::FontType::FONT_TYPE_FT2, "Expecting Freetype font");
     NativeFont nativeFont;
     nativeFont.mType = NATIVE_FONT_SKIA_FONT_FACE;
-    nativeFont.mFont = static_cast<gfxFT2FontBase*>(aFont)->GetFontOptions();
+    nativeFont.mFont = aFont;
     RefPtr<ScaledFont> scaledFont =
       Factory::CreateScaledFontForNativeFont(nativeFont, aFont->GetAdjustedSize());
 

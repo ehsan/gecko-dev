@@ -96,6 +96,11 @@ public:
   nsDOMAttributeMap(Element *aContent);
   virtual ~nsDOMAttributeMap();
 
+  /**
+   * Initialize the map. Must be called before the map is used.
+   */
+  bool Init();
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   // nsIDOMNamedNodeMap interface

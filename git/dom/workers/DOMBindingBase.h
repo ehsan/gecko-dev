@@ -37,10 +37,10 @@ protected:
   virtual ~DOMBindingBase();
 
   virtual void
-  _trace(JSTracer* aTrc);
+  _Trace(JSTracer* aTrc);
 
   virtual void
-  _finalize(JSFreeOp* aFop);
+  _Finalize(JSFreeOp* aFop);
 
   JSContext*
   GetJSContextFromContextStack() const;

@@ -1430,25 +1430,25 @@ XMLHttpRequest::~XMLHttpRequest()
 }
 
 void
-XMLHttpRequest::_trace(JSTracer* aTrc)
+XMLHttpRequest::_Trace(JSTracer* aTrc)
 {
   if (mUpload) {
     JS_CALL_OBJECT_TRACER(aTrc, mUpload->GetJSObject(), "mUpload");
   }
   JS_CALL_VALUE_TRACER(aTrc, mStateData.mResponse, "mResponse");
-  XMLHttpRequestEventTarget::_trace(aTrc);
+  XMLHttpRequestEventTarget::_Trace(aTrc);
 }
 
 void
-XMLHttpRequest::_finalize(JSFreeOp* aFop)
+XMLHttpRequest::_Finalize(JSFreeOp* aFop)
 {
   ReleaseProxy(XHRIsGoingAway);
-  XMLHttpRequestEventTarget::_finalize(aFop);
+  XMLHttpRequestEventTarget::_Finalize(aFop);
 }
 
 // static
 XMLHttpRequest*
-XMLHttpRequest::Constructor(JSContext* aCx, JSObject* aGlobal, ErrorResult& aRv)
+XMLHttpRequest::_Constructor(JSContext* aCx, JSObject* aGlobal, ErrorResult& aRv)
 {
   WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(aCx);
   MOZ_ASSERT(workerPrivate);

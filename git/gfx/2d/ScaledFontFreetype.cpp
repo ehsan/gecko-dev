@@ -4,15 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ScaledFontFreetype.h"
-#include "Logging.h"
 
 #include "gfxFont.h"
 
 #ifdef USE_SKIA
 #include "skia/SkTypeface.h"
 #endif
-
-#include <string>
 
 using namespace std;
 
@@ -21,31 +18,29 @@ namespace gfx {
 
 #ifdef USE_SKIA
 static SkTypeface::Style
-fontStyleToSkia(FontStyle aStyle)
+gfxFontStyleToSkia(const gfxFontStyle* aStyle)
 {
-  switch (aStyle) {
-  case FONT_STYLE_NORMAL:
-    return SkTypeface::kNormal;
-  case FONT_STYLE_ITALIC:
+  if (aStyle->style == NS_FONT_STYLE_ITALIC) {
+    if (aStyle->weight == NS_FONT_WEIGHT_BOLD) {
+      return SkTypeface::kBoldItalic;
+    }
     return SkTypeface::kItalic;
-  case FONT_STYLE_BOLD:
+  }
+  if (aStyle->weight == NS_FONT_WEIGHT_BOLD) {
     return SkTypeface::kBold;
-  case FONT_STYLE_BOLD_ITALIC:
-    return SkTypeface::kBoldItalic;
-   }
-
-  gfxWarning() << "Unknown font style";
+  }
   return SkTypeface::kNormal;
 }
 #endif
 
 // Ideally we want to use FT_Face here but as there is currently no way to get
 // an SkTypeface from an FT_Face we do this.
-ScaledFontFreetype::ScaledFontFreetype(FontOptions* aFont, Float aSize)
+ScaledFontFreetype::ScaledFontFreetype(gfxFont* aFont, Float aSize)
   : ScaledFontBase(aSize)
 {
 #ifdef USE_SKIA
-  mTypeface = SkTypeface::CreateFromName(aFont->mName.c_str(), fontStyleToSkia(aFont->mStyle));
+  NS_LossyConvertUTF16toASCII name(aFont->GetName());
+  mTypeface = SkTypeface::CreateFromName(name.get(), gfxFontStyleToSkia(aFont->GetStyle()));
 #endif
 }
 

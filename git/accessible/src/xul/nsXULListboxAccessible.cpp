@@ -244,26 +244,32 @@ nsXULListboxAccessible::RowCount()
   return itemCount;
 }
 
-nsAccessible*
-nsXULListboxAccessible::CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex)
-{ 
+NS_IMETHODIMP
+nsXULListboxAccessible::GetCellAt(PRInt32 aRow, PRInt32 aColumn,
+                                  nsIAccessible **aAccessibleCell)
+{
+  NS_ENSURE_ARG_POINTER(aAccessibleCell);
+  *aAccessibleCell = nsnull;
+
+  if (IsDefunct())
+    return NS_OK;
+
   nsCOMPtr<nsIDOMXULSelectControlElement> control =
     do_QueryInterface(mContent);
-  NS_ENSURE_TRUE(control, nsnull);
 
   nsCOMPtr<nsIDOMXULSelectControlItemElement> item;
-  control->GetItemAtIndex(aRowIndex, getter_AddRefs(item));
-  if (!item)
-    return nsnull;
+  control->GetItemAtIndex(aRow, getter_AddRefs(item));
+  NS_ENSURE_TRUE(item, NS_ERROR_INVALID_ARG);
 
   nsCOMPtr<nsIContent> itemContent(do_QueryInterface(item));
-  if (!itemContent)
-    return nsnull;
+  NS_ENSURE_TRUE(mDoc, NS_ERROR_FAILURE);
+  nsAccessible *row = mDoc->GetAccessible(itemContent);
+  NS_ENSURE_STATE(row);
 
-  nsAccessible* row = mDoc->GetAccessible(itemContent);
-  NS_ENSURE_TRUE(row, nsnull);
+  nsresult rv = row->GetChildAt(aColumn, aAccessibleCell);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_INVALID_ARG);
 
-  return row->GetChildAt(aColumnIndex);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -25,7 +25,6 @@
 #include "nsIGfxInfo.h"
 #include "npapi.h"
 #include "base/thread.h"
-#include "prenv.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -38,9 +37,6 @@ static bool debug_InSecureKeyboardInputMode = false;
 #ifdef NOISY_WIDGET_LEAKS
 static PRInt32 gNumWidgets;
 #endif
-
-static void InitOnlyOnce();
-static bool sUseOffMainThreadCompositing = false;
 
 using namespace mozilla::layers;
 using namespace mozilla;
@@ -104,9 +100,8 @@ nsBaseWidget::nsBaseWidget()
 #endif
 
 #ifdef DEBUG
-  debug_RegisterPrefCallbacks();
+    debug_RegisterPrefCallbacks();
 #endif
-  InitOnlyOnce();
 }
 
 
@@ -872,9 +867,8 @@ void nsBaseWidget::CreateCompositor()
     AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
     AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
     mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
-    PRInt32 maxTextureSize;
     PLayersChild* shadowManager =
-      mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
+      mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL);
 
     if (shadowManager) {
       ShadowLayerForwarder* lf = lm->AsShadowForwarder();
@@ -885,7 +879,6 @@ void nsBaseWidget::CreateCompositor()
       }
       lf->SetShadowManager(shadowManager);
       lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
-      lf->SetMaxTextureSize(maxTextureSize);
 
       mLayerManager = lm;
     } else {
@@ -894,11 +887,6 @@ void nsBaseWidget::CreateCompositor()
       mCompositorChild = nsnull;
     }
   }
-}
-
-bool nsBaseWidget::UseOffMainThreadCompositing()
-{
-  return sUseOffMainThreadCompositing;
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
@@ -913,7 +901,9 @@ LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
     if (mUseAcceleratedRendering) {
 
       // Try to use an async compositor first, if possible
-      if (UseOffMainThreadCompositing()) {
+      bool useCompositor =
+        Preferences::GetBool("layers.offmainthreadcomposition.enabled", false);
+      if (useCompositor) {
         // e10s uses the parameter to pass in the shadow manager from the TabChild
         // so we don't expect to see it there since this doesn't support e10s.
         NS_ASSERTION(aShadowManager == nsnull, "Async Compositor not supported with e10s");
@@ -1311,25 +1301,6 @@ nsBaseWidget::GetGLFrameBufferFormat()
     return LOCAL_GL_RGBA;
   }
   return LOCAL_GL_NONE;
-}
-
-static void InitOnlyOnce()
-{
-  static bool once = true;
-  if (!once) {
-    return;
-  }
-  once = false;
-
-#ifdef MOZ_X11
-  // On X11 platforms only use OMTC if firefox was initalized with thread-safe 
-  // X11 (else it would crash).
-  sUseOffMainThreadCompositing = (PR_GetEnv("MOZ_USE_OMTC") != NULL);
-#else
-  sUseOffMainThreadCompositing = mozilla::Preferences::GetBool(
-        "layers.offmainthreadcomposition.enabled", 
-        false);
-#endif
 }
 
 #ifdef DEBUG

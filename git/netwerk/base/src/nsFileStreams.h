@@ -23,29 +23,18 @@ template<class CharType> class nsLineBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsFileStreamBase : public nsISeekableStream
+class nsFileStream : public nsISeekableStream
 {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISEEKABLESTREAM
 
-    nsFileStreamBase();
-    virtual ~nsFileStreamBase();
+    nsFileStream();
+    virtual ~nsFileStream();
+
+    nsresult Close();
 
 protected:
-    nsresult Close();
-    nsresult Available(PRUint32* _retval);
-    nsresult Read(char* aBuf, PRUint32 aCount, PRUint32* _retval);
-    nsresult ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,
-                          PRUint32 aCount, PRUint32* _retval);
-    nsresult IsNonBlocking(bool* _retval);
-    nsresult Flush();
-    nsresult Write(const char* aBuf, PRUint32 aCount, PRUint32* _retval);
-    nsresult WriteFrom(nsIInputStream* aFromStream, PRUint32 aCount,
-                       PRUint32* _retval);
-    nsresult WriteSegments(nsReadSegmentFun aReader, void* aClosure,
-                           PRUint32 aCount, PRUint32* _retval);
-
     PRFileDesc* mFD;
 
     /**
@@ -99,38 +88,22 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsFileInputStream : public nsFileStreamBase,
+class nsFileInputStream : public nsFileStream,
                           public nsIFileInputStream,
                           public nsILineInputStream,
                           public nsIIPCSerializable
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
+    NS_DECL_NSIINPUTSTREAM
     NS_DECL_NSIFILEINPUTSTREAM
     NS_DECL_NSILINEINPUTSTREAM
     NS_DECL_NSIIPCSERIALIZABLE
-
-    NS_IMETHOD Close();
-    NS_IMETHOD Available(PRUint32* _retval)
-    {
-        return nsFileStreamBase::Available(_retval);
-    }
-    NS_IMETHOD Read(char* aBuf, PRUint32 aCount, PRUint32* _retval);
-    NS_IMETHOD ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
-                            PRUint32 aCount, PRUint32* _retval)
-    {
-        return nsFileStreamBase::ReadSegments(aWriter, aClosure, aCount,
-                                              _retval);
-    }
-    NS_IMETHOD IsNonBlocking(bool* _retval)
-    {
-        return nsFileStreamBase::IsNonBlocking(_retval);
-    } 
     
-    // Overrided from nsFileStreamBase
+    // Overrided from nsFileStream
     NS_IMETHOD Seek(PRInt32 aWhence, PRInt64 aOffset);
 
-    nsFileInputStream()
+    nsFileInputStream() : nsFileStream() 
     {
         mLineBuffer = nsnull;
     }
@@ -199,19 +172,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsFileOutputStream : public nsFileStreamBase,
+class nsFileOutputStream : public nsFileStream,
                            public nsIFileOutputStream
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
+    NS_DECL_NSIOUTPUTSTREAM
     NS_DECL_NSIFILEOUTPUTSTREAM
-    NS_FORWARD_NSIOUTPUTSTREAM(nsFileStreamBase::)
 
-    virtual ~nsFileOutputStream()
-    {
-        Close();
-    }
-
+    nsFileOutputStream() : nsFileStream() {}
+    virtual ~nsFileOutputStream() { nsFileOutputStream::Close(); }
+    
     static nsresult
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 };
@@ -229,10 +200,7 @@ public:
         mTargetFileExists(true),
         mWriteResult(NS_OK) {}
 
-    virtual ~nsSafeFileOutputStream()
-    {
-        Close();
-    }
+    virtual ~nsSafeFileOutputStream() { nsSafeFileOutputStream::Close(); }
 
     virtual nsresult DoOpen();
 
@@ -246,48 +214,6 @@ protected:
 
     bool     mTargetFileExists;
     nsresult mWriteResult; // Internally set in Write()
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class nsFileStream : public nsFileStreamBase,
-                     public nsIInputStream,
-                     public nsIOutputStream,
-                     public nsIFileStream,
-                     public nsIFileMetadata
-{
-public:
-    NS_DECL_ISUPPORTS_INHERITED
-    NS_DECL_NSIFILESTREAM
-    NS_DECL_NSIFILEMETADATA
-    NS_FORWARD_NSIINPUTSTREAM(nsFileStreamBase::)
-
-    // Can't use NS_FORWARD_NSIOUTPUTSTREAM due to overlapping methods
-    // Close() and IsNonBlocking() 
-    NS_IMETHOD Flush()
-    {
-        return nsFileStreamBase::Flush();
-    }
-    NS_IMETHOD Write(const char* aBuf, PRUint32 aCount, PRUint32* _retval)
-    {
-        return nsFileStreamBase::Write(aBuf, aCount, _retval);
-    }
-    NS_IMETHOD WriteFrom(nsIInputStream* aFromStream, PRUint32 aCount,
-                         PRUint32* _retval)
-    {
-        return nsFileStreamBase::WriteFrom(aFromStream, aCount, _retval);
-    }
-    NS_IMETHOD WriteSegments(nsReadSegmentFun aReader, void* aClosure,
-                             PRUint32 aCount, PRUint32* _retval)
-    {
-        return nsFileStreamBase::WriteSegments(aReader, aClosure, aCount,
-                                               _retval);
-    }
-
-    virtual ~nsFileStream()
-    {
-        Close();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

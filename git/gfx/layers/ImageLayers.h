@@ -604,19 +604,10 @@ public:
     ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
   }
 
-  /**
-   * if true, the image will only be backed by a single tile texture
-   */
-  void SetForceSingleTile(bool aForceSingleTile)
-  {
-    mForceSingleTile = aForceSingleTile;
-    Mutated();
-  }
-
 protected:
   ImageLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData), mFilter(gfxPattern::FILTER_GOOD)
-    , mScaleMode(SCALE_NONE), mForceSingleTile(false) {}
+    , mScaleMode(SCALE_NONE) {}
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
@@ -625,7 +616,6 @@ protected:
   gfxPattern::GraphicsFilter mFilter;
   gfxIntSize mScaleToSize;
   ScaleMode mScaleMode;
-  bool mForceSingleTile;
 };
 
 /****** Image subtypes for the different formats ******/

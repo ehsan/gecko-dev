@@ -533,8 +533,6 @@ PRUint32
 nsHTMLTableAccessible::ColCount()
 {
   nsITableLayout* tableLayout = GetTableLayout();
-  if (!tableLayout)
-    return 0;
 
   PRInt32 rowCount = 0, colCount = 0;
   tableLayout->GetTableSize(rowCount, colCount);
@@ -545,8 +543,6 @@ PRUint32
 nsHTMLTableAccessible::RowCount()
 {
   nsITableLayout* tableLayout = GetTableLayout();
-  if (!tableLayout)
-    return 0;
 
   PRInt32 rowCount = 0, colCount = 0;
   tableLayout->GetTableSize(rowCount, colCount);
@@ -846,23 +842,28 @@ nsHTMLTableAccessible::GetSelectedRowIndices(PRUint32 *aNumRows,
   return rv;
 }
 
-nsAccessible*
-nsHTMLTableAccessible::CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex)
-{ 
+NS_IMETHODIMP
+nsHTMLTableAccessible::GetCellAt(PRInt32 aRow, PRInt32 aColumn,
+                                 nsIAccessible **aTableCellAccessible)
+{
   nsCOMPtr<nsIDOMElement> cellElement;
-  GetCellAt(aRowIndex, aColumnIndex, *getter_AddRefs(cellElement));
-  if (!cellElement)
-    return nsnull;
+  nsresult rv = GetCellAt(aRow, aColumn, *getter_AddRefs(cellElement));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> cellContent(do_QueryInterface(cellElement));
-  if (!cellContent)
-    return nsnull;
-
   nsAccessible* cell = mDoc->GetAccessible(cellContent);
 
-  // XXX bug 576838: crazy tables (like table6 in tables/test_table2.html) may
-  // return itself as a cell what makes Orca hang.
-  return cell == this ? nsnull : cell;
+  if (!cell) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (cell != this) {
+    // XXX bug 576838: crazy tables (like table6 in tables/test_table2.html) may
+    // return itself as a cell what makes Orca hang.
+    NS_ADDREF(*aTableCellAccessible = cell);
+  }
+
+  return NS_OK;
 }
 
 PRInt32

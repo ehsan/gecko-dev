@@ -12,7 +12,6 @@ var gExpectedStatusResult;
 function run_test() {
   do_test_pending();
   do_register_cleanup(end_test);
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_BACKGROUND, false);
   removeUpdateDirsAndFiles();
   setUpdateURLOverride();
   // The mock XMLHttpRequest is MUCH faster

@@ -32,7 +32,7 @@ CPPSRCS = \
   nsWinUtils.cpp \
   ia2AccessibleAction.cpp \
   ia2AccessibleComponent.cpp \
-  ia2AccessibleImage.cpp \
+  CAccessibleImage.cpp \
   CAccessibleText.cpp \
   CAccessibleEditableText.cpp \
   CAccessibleHyperlink.cpp \

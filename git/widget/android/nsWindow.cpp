@@ -692,7 +692,8 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
         return mLayerManager;
     }
 #ifdef MOZ_JAVA_COMPOSITOR
-    bool useCompositor = UseOffMainThreadCompositing();
+    bool useCompositor =
+        Preferences::GetBool("layers.offmainthreadcomposition.enabled", false);
 
     if (useCompositor) {
         CreateCompositor();

@@ -2069,7 +2069,6 @@ nsJSContext::GetNativeGlobal()
 nsresult
 nsJSContext::CreateNativeGlobalForInner(
                                 nsIScriptGlobalObject *aNewInner,
-                                nsIURI *aURI,
                                 bool aIsChrome,
                                 nsIPrincipal *aPrincipal,
                                 JSObject** aNativeGlobal, nsISupports **aHolder)
@@ -2093,12 +2092,6 @@ nsJSContext::CreateNativeGlobalForInner(
   }
   jsholder->GetJSObject(aNativeGlobal);
   jsholder.forget(aHolder);
-
-  // Set the location information for the new global, so that tools like
-  // about:memory may use that information
-  MOZ_ASSERT(aNativeGlobal && *aNativeGlobal);
-  xpc::SetLocationForGlobal(*aNativeGlobal, aURI);
-
   return NS_OK;
 }
 
@@ -3052,9 +3045,9 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
       sFirstCollectionTime = now;
     }
 
-    nsCString gcMsg;
+    nsString gcmsg;
     if (ccResults.mForcedGC) {
-      gcMsg.AssignLiteral(", forced a GC");
+      gcmsg.AssignLiteral(", forced a GC");
     }
 
     NS_NAMED_MULTILINE_LITERAL_STRING(kFmt,
@@ -3068,7 +3061,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
                                         (now - start) / PR_USEC_PER_MSEC, suspected,
                                         ccResults.mVisitedRefCounted, ccResults.mVisitedGCed,
                                         ccResults.mFreedRefCounted, ccResults.mFreedGCed,
-                                        sCCollectedWaitingForGC, gcMsg.get(),
+                                        sCCollectedWaitingForGC, gcmsg.get(),
                                         sForgetSkippableBeforeCC,
                                         sMinForgetSkippableTime / PR_USEC_PER_MSEC,
                                         sMaxForgetSkippableTime / PR_USEC_PER_MSEC,

@@ -96,9 +96,6 @@ namespace {
   typedef Scoped<ScopedResourceUpdateTraits> ScopedResourceUpdate;
 };
 
-#ifdef __MINGW32__
-extern "C"
-#endif
 int
 wmain(int argc, wchar_t** argv)
 {

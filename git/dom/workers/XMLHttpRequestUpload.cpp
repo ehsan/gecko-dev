@@ -20,16 +20,16 @@ XMLHttpRequestUpload::Create(JSContext* aCx, XMLHttpRequest* aXHR)
 }
 
 void
-XMLHttpRequestUpload::_trace(JSTracer* aTrc)
+XMLHttpRequestUpload::_Trace(JSTracer* aTrc)
 {
   if (mXHR) {
     JS_CALL_OBJECT_TRACER(aTrc, mXHR->GetJSObject(), "mXHR");
   }
-  XMLHttpRequestEventTarget::_trace(aTrc);
+  XMLHttpRequestEventTarget::_Trace(aTrc);
 }
 
 void
-XMLHttpRequestUpload::_finalize(JSFreeOp* aFop)
+XMLHttpRequestUpload::_Finalize(JSFreeOp* aFop)
 {
-  XMLHttpRequestEventTarget::_finalize(aFop);
+  XMLHttpRequestEventTarget::_Finalize(aFop);
 }

@@ -109,12 +109,7 @@ var VirtualCursorController = {
     if (last) {
       virtualCursor.moveLast(this.SimpleTraversalRule);
     } else {
-      try {
-        virtualCursor.moveNext(this.SimpleTraversalRule);
-      } catch (x) {
-        virtualCursor.position =
-          gAccRetrieval.getAccessibleFor(document.activeElement);
-      }
+      virtualCursor.moveNext(this.SimpleTraversalRule);
     }
   },
 
@@ -123,12 +118,7 @@ var VirtualCursorController = {
     if (first) {
       virtualCursor.moveFirst(this.SimpleTraversalRule);
     } else {
-      try {
-        virtualCursor.movePrevious(this.SimpleTraversalRule);
-      } catch (x) {
-        virtualCursor.position =
-          gAccRetrieval.getAccessibleFor(document.activeElement);
-      }
+      virtualCursor.movePrevious(this.SimpleTraversalRule);
     }
   },
 

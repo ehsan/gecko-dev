@@ -713,7 +713,6 @@ private:
     bool opIsClear;
     Color color;
     nsRefPtr<gfxPattern> pattern;
-    nsRefPtr<gfxASurface> sourceSurfCairo;
     mozilla::RefPtr<SourceSurface> sourceSurface;
     Matrix surfTransform;
     Matrix transform;
@@ -741,7 +740,7 @@ private:
   void FillAzure(mozilla::gfx::Float aOpacity);
   void PushClipsToDT(mozilla::gfx::DrawTarget *aDT);
   CompositionOp GetOp();
-  void ChangeTransform(const mozilla::gfx::Matrix &aNewMatrix);
+  void TransformWillChange();
 
   bool mPathIsRect;
   bool mTransformChanged;

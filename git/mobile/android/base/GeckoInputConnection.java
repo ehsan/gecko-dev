@@ -744,9 +744,7 @@ public class GeckoInputConnection
             outAttrs.inputType = InputType.TYPE_CLASS_PHONE;
         else if (mIMETypeHint.equalsIgnoreCase("number") ||
                  mIMETypeHint.equalsIgnoreCase("range"))
-            outAttrs.inputType = InputType.TYPE_CLASS_NUMBER |
-                                 InputType.TYPE_NUMBER_FLAG_SIGNED |
-                                 InputType.TYPE_NUMBER_FLAG_DECIMAL;
+            outAttrs.inputType = InputType.TYPE_CLASS_NUMBER;
         else if (mIMETypeHint.equalsIgnoreCase("datetime") ||
                  mIMETypeHint.equalsIgnoreCase("datetime-local"))
             outAttrs.inputType = InputType.TYPE_CLASS_DATETIME |

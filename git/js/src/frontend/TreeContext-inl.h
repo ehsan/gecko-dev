@@ -83,7 +83,7 @@ TreeContext::TreeContext(Parser *prs, SharedContext *sc)
 }
 
 inline bool
-TreeContext::init()
+TreeContext::init(JSContext *cx)
 {
     return decls.init() && lexdeps.ensureMap(sc->context);
 }

@@ -13,9 +13,7 @@
 #ifdef USE_SKIA
 #include "DrawTargetSkia.h"
 #include "ScaledFontBase.h"
-#ifdef MOZ_ENABLE_FREETYPE
 #include "ScaledFontFreetype.h"
-#endif
 #endif
 
 #if defined(WIN32) && defined(USE_SKIA)
@@ -38,8 +36,6 @@
 #endif
 
 #include "DrawTargetDual.h"
-
-#include "SourceSurfaceRawData.h"
 
 #include "Logging.h"
 
@@ -253,12 +249,10 @@ Factory::CreateScaledFontForNativeFont(const NativeFont &aNativeFont, Float aSiz
       return new ScaledFontWin(static_cast<LOGFONT*>(aNativeFont.mFont), aSize);
     }
 #endif
-#ifdef MOZ_ENABLE_FREETYPE
   case NATIVE_FONT_SKIA_FONT_FACE:
     {
-      return new ScaledFontFreetype(static_cast<FontOptions*>(aNativeFont.mFont), aSize);
+      return new ScaledFontFreetype(static_cast<gfxFont*>(aNativeFont.mFont), aSize);
     }
-#endif
 #endif
 #ifdef USE_CAIRO
   case NATIVE_FONT_CAIRO_FONT_FACE:
@@ -364,20 +358,6 @@ Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface)
   }
 
 #endif
-  return NULL;
-}
-
-TemporaryRef<DataSourceSurface>
-Factory::CreateWrappingDataSourceSurface(uint8_t *aData, int32_t aStride,
-                                         const IntSize &aSize,
-                                         SurfaceFormat aFormat)
-{
-  RefPtr<SourceSurfaceRawData> newSurf = new SourceSurfaceRawData();
-
-  if (newSurf->InitWrappingData(aData, aSize, aStride, aFormat, false)) {
-    return newSurf;
-  }
-
   return NULL;
 }
 

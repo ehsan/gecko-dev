@@ -24,7 +24,6 @@ NullHttpTransaction::NullHttpTransaction(nsHttpConnectionInfo *ci,
   , mEventTarget(target)
   , mConnectionInfo(ci)
   , mRequestHead(nsnull)
-  , mIsDone(false)
 {
 }
 
@@ -74,7 +73,7 @@ NullHttpTransaction::OnTransportStatus(nsITransport* transport,
 bool
 NullHttpTransaction::IsDone()
 {
-  return mIsDone;
+  return true;
 }
 
 nsresult
@@ -100,7 +99,6 @@ NullHttpTransaction::ReadSegments(nsAHttpSegmentReader *reader,
                                   PRUint32 count, PRUint32 *countRead)
 {
   *countRead = 0;
-  mIsDone = true;
   return NS_BASE_STREAM_CLOSED;
 }
 
@@ -161,7 +159,6 @@ NullHttpTransaction::Close(nsresult reason)
 {
   mStatus = reason;
   mConnection = nsnull;
-  mIsDone = true;
 }
 
 nsresult

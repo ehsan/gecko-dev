@@ -101,9 +101,6 @@ public:
                         sProperties, sFunctions, NULL, NULL);
   }
 
-  using EventTarget::GetEventListener;
-  using EventTarget::SetEventListener;
-
 protected:
   WorkerGlobalScope(JSContext* aCx, WorkerPrivate* aWorker)
   : EventTarget(aCx), mWorker(aWorker)
@@ -120,24 +117,24 @@ protected:
   }
 
   virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE
+  _Trace(JSTracer* aTrc) MOZ_OVERRIDE
   {
     for (int32 i = 0; i < SLOT_COUNT; i++) {
       JS_CALL_VALUE_TRACER(aTrc, mSlots[i], "WorkerGlobalScope instance slot");
     }
     mWorker->TraceInternal(aTrc);
-    EventTarget::_trace(aTrc);
+    EventTarget::_Trace(aTrc);
   }
 
   virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE
+  _Finalize(JSFreeOp* aFop) MOZ_OVERRIDE
   {
-    EventTarget::_finalize(aFop);
+    EventTarget::_Finalize(aFop);
   }
 
 private:
   static JSBool
-  GetEventListener(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, jsval* aVp)
+  _GetEventListener(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, jsval* aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
     JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
@@ -163,7 +160,7 @@ private:
   }
 
   static JSBool
-  SetEventListener(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSBool aStrict,
+  _SetEventListener(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSBool aStrict,
                    jsval* aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
@@ -617,7 +614,7 @@ JSPropertySpec WorkerGlobalScope::sProperties[] = {
   { sEventStrings[STRING_onerror], STRING_onerror, PROPERTY_FLAGS,
     GetOnErrorListener, SetOnErrorListener },
   { sEventStrings[STRING_onclose], STRING_onclose, PROPERTY_FLAGS,
-    GetEventListener, SetEventListener },
+    _GetEventListener, _SetEventListener },
   { "navigator", SLOT_navigator, PROPERTY_FLAGS, GetNavigator, 
     js_GetterOnlyPropertyStub },
   { "self", 0, PROPERTY_FLAGS, GetSelf, js_GetterOnlyPropertyStub },
@@ -703,11 +700,8 @@ protected:
   }
 
 private:
-  using EventTarget::GetEventListener;
-  using EventTarget::SetEventListener;
-
   static JSBool
-  GetEventListener(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, jsval* aVp)
+  _GetEventListener(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, jsval* aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
     JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
@@ -733,8 +727,8 @@ private:
   }
 
   static JSBool
-  SetEventListener(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSBool aStrict,
-                   jsval* aVp)
+  _SetEventListener(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSBool aStrict,
+                    jsval* aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
     JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
@@ -806,7 +800,7 @@ private:
       UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, Class());
     if (scope) {
       DestroyProtoOrIfaceCache(aObj);
-      scope->_finalize(aFop);
+      scope->_Finalize(aFop);
     }
   }
 
@@ -818,7 +812,7 @@ private:
       UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, Class());
     if (scope) {
       mozilla::dom::TraceProtoOrIfaceCache(aTrc, aObj);
-      scope->_trace(aTrc);
+      scope->_Trace(aTrc);
     }
   }
 
@@ -864,7 +858,7 @@ DOMJSClass DedicatedWorkerGlobalScope::sClass = {
 
 JSPropertySpec DedicatedWorkerGlobalScope::sProperties[] = {
   { sEventStrings[STRING_onmessage], STRING_onmessage, PROPERTY_FLAGS,
-    GetEventListener, SetEventListener },
+    _GetEventListener, _SetEventListener },
   { 0, 0, 0, NULL, NULL }
 };
 

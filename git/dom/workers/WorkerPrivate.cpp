@@ -2047,17 +2047,17 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
 
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::_trace(JSTracer* aTrc)
+WorkerPrivateParent<Derived>::_Trace(JSTracer* aTrc)
 {
   // This should only happen on the parent thread but we can't assert that
   // because it can also happen on the cycle collector thread when this is a
   // top-level worker.
-  EventTarget::_trace(aTrc);
+  EventTarget::_Trace(aTrc);
 }
 
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::_finalize(JSFreeOp* aFop)
+WorkerPrivateParent<Derived>::_Finalize(JSFreeOp* aFop)
 {
   AssertIsOnParentThread();
 
@@ -2083,7 +2083,7 @@ WorkerPrivateParent<Derived>::_finalize(JSFreeOp* aFop)
     NS_ADDREF(extraSelfRef = this);
   }
 
-  EventTarget::_finalize(aFop);
+  EventTarget::_Finalize(aFop);
 
   if (extraSelfRef) {
     nsCOMPtr<nsIRunnable> runnable =

@@ -34,25 +34,19 @@ public class FennecNativeElement implements Element {
         return mId;
     }
 
-    private boolean mClickSuccess;
-
-    public boolean click() {
+    public void click() {
         final SynchronousQueue syncQueue = new SynchronousQueue();
-        mClickSuccess = false;
         mActivity.runOnUiThread(
             new Runnable() {
                 public void run() {
                     View view = (View)mActivity.findViewById(mId);
-                    if (view != null) {
-                        if (view.performClick()) {
-                            mClickSuccess = true;
-                        } else {
+                    if(view != null) {
+                        if (!view.performClick()) {
                             FennecNativeDriver.log(FennecNativeDriver.LogLevel.WARN,
                                 "Robocop called click on an element with no listener");
                         }
                     } else {
-                        FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR,
-                            "click: unable to find view "+mId);
+                        throw new RoboCopException("click: unable to find view "+mId); 
                     }
                     syncQueue.offer(new Object());
                 }
@@ -62,14 +56,12 @@ public class FennecNativeElement implements Element {
         } catch (InterruptedException e) {
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
         }
-        return mClickSuccess;
     }
 
     private Object mText;
 
     public String getText() {
         final SynchronousQueue syncQueue = new SynchronousQueue();
-        mText = null;
         mActivity.runOnUiThread(
             new Runnable() {
                 public void run() {
@@ -91,11 +83,9 @@ public class FennecNativeElement implements Element {
                     } else if (v instanceof TextView) {
                         mText = ((TextView)v).getText(); 
                     } else if (v == null) {
-                        FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR,
-                            "getText: unable to find view "+mId);
+                        throw new RoboCopException("getText: unable to find view "+mId); 
                     } else {
-                        FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR,
-                            "getText: unhandled type for view "+mId);
+                        throw new RoboCopException("getText: unhandled type for view "+mId); 
                     }
                     syncQueue.offer(new Object());
                 } // end of run() method definition
@@ -108,9 +98,7 @@ public class FennecNativeElement implements Element {
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
         }
         if (mText == null) {
-            FennecNativeDriver.log(FennecNativeDriver.LogLevel.WARN,
-                "getText: Text is null for view "+mId);
-            return null;
+            throw new RoboCopException("getText: Text is null for view "+mId);
         }
         return mText.toString();
     }
