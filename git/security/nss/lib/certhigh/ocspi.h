@@ -41,15 +41,12 @@ cert_CreateSingleCertOCSPRequest(CERTOCSPCertID *certID,
                                  PRBool addServiceLocator,
                                  CERTCertificate *signerCert);
 
-typedef enum { ocspMissing, ocspFresh, ocspStale } OCSPFreshness;
-
 SECStatus
-ocsp_GetCachedOCSPResponseStatus(CERTOCSPCertID *certID,
-                                 PRTime time,
-                                 PRBool ignoreOcspFailureMode,
-                                 SECStatus *rvOcsp,
-                                 SECErrorCodes *missingResponseError,
-                                 OCSPFreshness *freshness);
+ocsp_GetCachedOCSPResponseStatusIfFresh(CERTOCSPCertID *certID, 
+                                        PRTime time,
+                                        PRBool ignoreOcspFailureMode,
+                                        SECStatus *rvOcsp,
+                                        SECErrorCodes *missingResponseError);
 
 /*
  * FUNCTION: cert_ProcessOCSPResponse
