@@ -57,7 +57,7 @@ ToNSString(id aValue)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   if ((self = [super initWithAccessible:accessible])) {
-    mGeckoTextAccessible = accessible->AsHyperText();
+    CallQueryInterface(accessible, &mGeckoTextAccessible);
     CallQueryInterface(accessible, &mGeckoEditableTextAccessible);
   }
   return self;
@@ -312,7 +312,7 @@ ToNSString(id aValue)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  mGeckoTextAccessible = nsnull;
+  NS_IF_RELEASE(mGeckoTextAccessible);
   NS_IF_RELEASE(mGeckoEditableTextAccessible);
   [super expire];
 

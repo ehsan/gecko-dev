@@ -11,12 +11,11 @@
 #include "nsIRDFResource.h"
 #include "nsXULTemplateQueryProcessorXML.h"
 #include "nsIXULTemplateResult.h"
-#include "mozilla/Attributes.h"
 
 /**
  * An single result of an query
  */
-class nsXULTemplateResultXML MOZ_FINAL : public nsIXULTemplateResult
+class nsXULTemplateResultXML : public nsIXULTemplateResult
 {
 public:
     NS_DECL_ISUPPORTS

@@ -685,8 +685,9 @@ XULTextFieldAccessible::
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED2(XULTextFieldAccessible,
+NS_IMPL_ISUPPORTS_INHERITED3(XULTextFieldAccessible,
                              Accessible,
+                             HyperTextAccessible,
                              nsIAccessibleText,
                              nsIAccessibleEditableText)
 

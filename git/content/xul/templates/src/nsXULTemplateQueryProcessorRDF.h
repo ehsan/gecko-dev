@@ -30,7 +30,6 @@
 #include "nsClassHashtable.h"
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
 #include "prlog.h"
 #ifdef PR_LOGGING
@@ -43,8 +42,8 @@ class nsXULTemplateResultRDF;
 /**
  * An object that generates results from a query on an RDF graph
  */
-class nsXULTemplateQueryProcessorRDF MOZ_FINAL : public nsIXULTemplateQueryProcessor,
-                                                 public nsIRDFObserver
+class nsXULTemplateQueryProcessorRDF : public nsIXULTemplateQueryProcessor,
+                                       public nsIRDFObserver
 {
 public:
 

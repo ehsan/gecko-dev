@@ -11964,7 +11964,7 @@ nsCSSFrameConstructor::RecomputePosition(nsIFrame* aFrame)
                         nsPoint(newOffsets.left, newOffsets.top));
 
     // Invalidate the new rect
-    aFrame->InvalidateFrameSubtree();
+    aFrame->InvalidateOverflowRect();
 
     return true;
   }
@@ -12038,7 +12038,7 @@ nsCSSFrameConstructor::RecomputePosition(nsIFrame* aFrame)
     }
 
     // Invalidate the old rect
-    aFrame->InvalidateFrameSubtree();
+    aFrame->InvalidateOverflowRect();
 
     // Move the frame
     nsPoint pos(parentBorder.left + reflowState.mComputedOffsets.left +
@@ -12048,7 +12048,7 @@ nsCSSFrameConstructor::RecomputePosition(nsIFrame* aFrame)
     aFrame->SetPosition(pos);
 
     // Invalidate the new rect
-    aFrame->InvalidateFrameSubtree();
+    aFrame->InvalidateOverflowRect();
 
     return true;
   }

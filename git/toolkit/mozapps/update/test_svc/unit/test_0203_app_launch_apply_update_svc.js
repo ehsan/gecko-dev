@@ -27,9 +27,6 @@ const FILE_UPDATER_INI_BAK = "updater.ini.bak";
 // Number of milliseconds for each do_timeout call.
 const CHECK_TIMEOUT_MILLI = 1000;
 
-// How many of CHECK_TIMEOUT_MILLI to wait before we abort the test.
-const MAX_TIMEOUT_RUNS = 300;
-
 // Maximum number of milliseconds the process that is launched can run before
 // the test will try to kill it.
 const APP_TIMER_TIMEOUT = 15000;
@@ -39,7 +36,6 @@ Components.utils.import("resource://gre/modules/ctypes.jsm");
 let gAppTimer;
 let gProcess;
 let gActiveUpdate;
-let gTimeoutRuns = 0;
 
 // Override getUpdatesRootDir on Mac because we need to apply the update
 // inside the bundle directory.
@@ -368,13 +364,9 @@ function getUpdateTestDir() {
  * Checks if the update has finished being applied in the background.
  */
 function checkUpdateApplied() {
-  gTimeoutRuns++;
   // Don't proceed until the update has been applied.
   if (gUpdateManager.activeUpdate.state != STATE_APPLIED_PLATFORM) {
-    if (gTimeoutRuns > MAX_TIMEOUT_RUNS)
-      do_throw("Exceeded MAX_TIMEOUT_RUNS whist waiting for update to be applied to the platform");
-    else
-      do_timeout(CHECK_TIMEOUT_MILLI, checkUpdateApplied);
+    do_timeout(CHECK_TIMEOUT_MILLI, checkUpdateApplied);
     return;
   }
 
@@ -389,10 +381,7 @@ function checkUpdateApplied() {
   let log = getUpdatesDir();
   log.append(FILE_LAST_LOG);
   if (!log.exists()) {
-    if (gTimeoutRuns > MAX_TIMEOUT_RUNS)
-      do_throw("Exceeded MAX_TIMEOUT_RUNS whist waiting for update log to be created");
-    else
-      do_timeout(CHECK_TIMEOUT_MILLI, checkUpdateApplied);
+    do_timeout(CHECK_TIMEOUT_MILLI, checkUpdateApplied);
     return;
   }
 
@@ -479,15 +468,11 @@ function checkUpdateApplied() {
  * the test.
  */
 function checkUpdateFinished() {
-  gTimeoutRuns++;
   // Don't proceed until the update status is no longer applied.
   try {
     let status = readStatusFile();
     if (status != STATE_SUCCEEDED) {
-      if (gTimeoutRuns > MAX_TIMEOUT_RUNS)
-        do_throw("Exceeded MAX_TIMEOUT_RUNS whist waiting for success status");
-      else
-        do_timeout(CHECK_TIMEOUT_MILLI, checkUpdateFinished);
+      do_timeout(CHECK_TIMEOUT_MILLI, checkUpdateFinished);
       return;
     }
   } catch (e) {
@@ -499,12 +484,9 @@ function checkUpdateFinished() {
     getAppConsoleLogPath();
   } catch (e) {
     if (e.result == Components.results.NS_ERROR_FILE_IS_LOCKED) {
-      if (gTimeoutRuns > MAX_TIMEOUT_RUNS)
-        do_throw("Exceeded MAX_TIMEOUT_RUNS whist waiting for file to be unlocked");
-      else
-        // This might happen on Windows in case the callback application has not
-        // finished its job yet.  So, we'll wait some more.
-        do_timeout(CHECK_TIMEOUT_MILLI, checkUpdateFinished);
+      // This might happen on Windows in case the callback application has not
+      // finished its job yet.  So, we'll wait some more.
+      do_timeout(CHECK_TIMEOUT_MILLI, checkUpdateFinished);
       return;
     } else {
       do_throw("getAppConsoleLogPath threw: " + e);

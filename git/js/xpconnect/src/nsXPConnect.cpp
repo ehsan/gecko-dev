@@ -543,33 +543,28 @@ nsXPConnect::FinishTraverse()
     return NS_OK;
 }
 
-class nsXPConnectParticipant: public nsCycleCollectionParticipant
-{
-public:
-    static NS_METHOD RootImpl(void *n)
-    {
-        return NS_OK;
-    }
-    static NS_METHOD UnlinkImpl(void *n)
-    {
-        return NS_OK;
-    }
-    static NS_METHOD UnrootImpl(void *n)
-    {
-        return NS_OK;
-    }
-    static NS_METHOD TraverseImpl(nsXPConnectParticipant *that, void *n,
-                                  nsCycleCollectionTraversalCallback &cb);
-};
-
-static CCParticipantVTable<nsXPConnectParticipant>::Type XPConnect_cycleCollectorGlobal = {
-  NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(nsXPConnectParticipant)
-};
-
 nsCycleCollectionParticipant *
 nsXPConnect::GetParticipant()
 {
-    return XPConnect_cycleCollectorGlobal.GetParticipant();
+    return this;
+}
+
+NS_IMETHODIMP
+nsXPConnect::Root(void *p)
+{
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPConnect::Unlink(void *p)
+{
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPConnect::Unroot(void *p)
+{
+    return NS_OK;
 }
 
 JSBool
@@ -747,7 +742,7 @@ xpc_TryUnmarkWrappedGrayObject(nsISupports* aWrappedJS)
     }
 }
 
-static bool
+static JSBool
 WrapperIsNotMainThreadOnly(XPCWrappedNative *wrapper)
 {
     XPCWrappedNativeProto *proto = wrapper->GetProto();
@@ -755,34 +750,59 @@ WrapperIsNotMainThreadOnly(XPCWrappedNative *wrapper)
         return false;
 
     // If the native participates in cycle collection then we know it can only
-    // be used on the main thread. In that case we assume the wrapped native
+    // be used on the main thread, in that case we assume the wrapped native
     // can only be used on the main thread too.
     nsXPCOMCycleCollectionParticipant* participant;
     return NS_FAILED(CallQueryInterface(wrapper->Native(), &participant));
 }
 
-static inline void
-DescribeGCThing(bool isMarked, void *p, JSGCTraceKind traceKind,
-                nsCycleCollectionTraversalCallback &cb)
+NS_IMETHODIMP
+nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 {
+    JSGCTraceKind traceKind = js_GetGCThingTraceKind(p);
+    JSObject *obj = nsnull;
+    js::Class *clazz = nsnull;
+
+    // We do not want to add wrappers to the cycle collector if they're not
+    // explicitly marked as main thread only, because the cycle collector isn't
+    // able to deal with objects that might be used off of the main thread. We
+    // do want to explicitly mark them for cycle collection if the wrapper has
+    // an external reference, because the wrapper would mark the JS object if
+    // we did add the wrapper to the cycle collector.
+    JSBool dontTraverse = false;
+    JSBool markJSObject = false;
+    if (traceKind == JSTRACE_OBJECT) {
+        obj = static_cast<JSObject*>(p);
+        clazz = js::GetObjectClass(obj);
+
+        if (clazz == &XPC_WN_Tearoff_JSClass) {
+            XPCWrappedNative *wrapper =
+                (XPCWrappedNative*)xpc_GetJSPrivate(js::GetObjectParent(obj));
+            dontTraverse = WrapperIsNotMainThreadOnly(wrapper);
+        } else if (IS_WRAPPER_CLASS(clazz) && IS_WN_WRAPPER_OBJECT(obj)) {
+            XPCWrappedNative *wrapper = (XPCWrappedNative*)xpc_GetJSPrivate(obj);
+            dontTraverse = WrapperIsNotMainThreadOnly(wrapper);
+            markJSObject = dontTraverse && wrapper->HasExternalReference();
+        }
+    }
+
+    bool isMarked = markJSObject || !xpc_IsGrayGCThing(p);
+
     if (cb.WantDebugInfo()) {
         char name[72];
         if (traceKind == JSTRACE_OBJECT) {
-            JSObject *obj = static_cast<JSObject*>(p);
-            js::Class *clasp = js::GetObjectClass(obj);
-            XPCNativeScriptableInfo *si = nsnull;
-
-            if (IS_PROTO_CLASS(clasp)) {
-                XPCWrappedNativeProto *p =
-                    static_cast<XPCWrappedNativeProto*>(xpc_GetJSPrivate(obj));
+            XPCNativeScriptableInfo* si = nsnull;
+            if (IS_PROTO_CLASS(clazz)) {
+                XPCWrappedNativeProto* p =
+                    (XPCWrappedNativeProto*) xpc_GetJSPrivate(obj);
                 si = p->GetScriptableInfo();
             }
             if (si) {
                 JS_snprintf(name, sizeof(name), "JS Object (%s - %s)",
-                            clasp->name, si->GetJSClass()->name);
-            } else if (clasp == &js::FunctionClass) {
-                JSFunction *fun = JS_GetObjectFunction(obj);
-                JSString *str = JS_GetFunctionId(fun);
+                            clazz->name, si->GetJSClass()->name);
+            } else if (clazz == &js::FunctionClass) {
+                JSFunction* fun = JS_GetObjectFunction(obj);
+                JSString* str = JS_GetFunctionId(fun);
                 if (str) {
                     NS_ConvertUTF16toUTF8 fname(JS_GetInternedStringChars(str));
                     JS_snprintf(name, sizeof(name),
@@ -792,7 +812,7 @@ DescribeGCThing(bool isMarked, void *p, JSGCTraceKind traceKind,
                 }
             } else {
                 JS_snprintf(name, sizeof(name), "JS Object (%s)",
-                            clasp->name);
+                            clazz->name);
             }
         } else {
             static const char trace_types[][11] = {
@@ -813,38 +833,36 @@ DescribeGCThing(bool isMarked, void *p, JSGCTraceKind traceKind,
     } else {
         cb.DescribeGCedNode(isMarked, sizeof(js::shadow::Object), "JS Object");
     }
-}
 
-static inline void
-NoteGCThingJSChildren(JSRuntime *rt, void *p, JSGCTraceKind traceKind,
-                      nsCycleCollectionTraversalCallback &cb)
-{
+    // There's no need to trace objects that have already been marked by the JS
+    // GC. Any JS objects hanging from them will already be marked. Only do this
+    // if cb.WantAllTraces() is false, otherwise we do want to know about all JS
+    // objects to get better graphs and explanations.
+    if (!cb.WantAllTraces() && isMarked)
+        return NS_OK;
+
     TraversalTracer trc(cb);
-    JS_TracerInit(&trc, rt, NoteJSChild);
+
+    JS_TracerInit(&trc, GetRuntime()->GetJSRuntime(), NoteJSChild);
     trc.eagerlyTraceWeakMaps = false;
     JS_TraceChildren(&trc, p, traceKind);
-}
 
-static inline void
-NoteGCThingXPCOMChildren(js::Class *clasp, JSObject *obj,
-                         nsCycleCollectionTraversalCallback &cb)
-{
-    MOZ_ASSERT(clasp);
-    MOZ_ASSERT(clasp == js::GetObjectClass(obj));
+    if (traceKind != JSTRACE_OBJECT || dontTraverse)
+        return NS_OK;
 
-    if (clasp == &XPC_WN_Tearoff_JSClass) {
+    if (clazz == &XPC_WN_Tearoff_JSClass) {
         // A tearoff holds a strong reference to its native object
         // (see XPCWrappedNative::FlatJSObjectFinalized). Its XPCWrappedNative
         // will be held alive through the parent of the JSObject of the tearoff.
         XPCWrappedNativeTearOff *to =
-            static_cast<XPCWrappedNativeTearOff*>(xpc_GetJSPrivate(obj));
+            (XPCWrappedNativeTearOff*) xpc_GetJSPrivate(obj);
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)->mNative");
         cb.NoteXPCOMChild(to->GetNative());
     }
     // XXX This test does seem fragile, we should probably whitelist classes
     //     that do hold a strong reference, but that might not be possible.
-    else if (clasp->flags & JSCLASS_HAS_PRIVATE &&
-             clasp->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS) {
+    else if (clazz->flags & JSCLASS_HAS_PRIVATE &&
+             clazz->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)");
         cb.NoteXPCOMChild(static_cast<nsISupports*>(xpc_GetJSPrivate(obj)));
     } else if (binding::instanceIsProxy(obj)) {
@@ -852,64 +870,12 @@ NoteGCThingXPCOMChildren(js::Class *clasp, JSObject *obj,
         nsISupports *identity =
             static_cast<nsISupports*>(js::GetProxyPrivate(obj).toPrivate());
         cb.NoteXPCOMChild(identity);
-    } else if (IsDOMClass(clasp) &&
-               DOMJSClass::FromJSClass(clasp)->mDOMObjectIsISupports) {
+    } else if (IsDOMClass(clazz) &&
+               DOMJSClass::FromJSClass(clazz)->mDOMObjectIsISupports) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "UnwrapDOMObject(obj)");
         nsISupports *identity = UnwrapDOMObject<nsISupports>(obj);
         cb.NoteXPCOMChild(identity);
     }
-}
-
-NS_METHOD
-nsXPConnectParticipant::TraverseImpl(nsXPConnectParticipant *that, void *p,
-                                     nsCycleCollectionTraversalCallback &cb)
-{
-    JSGCTraceKind traceKind = js_GetGCThingTraceKind(p);
-    JSObject *obj = nsnull;
-    js::Class *clasp = nsnull;
-
-    // We do not want to add wrappers to the cycle collector if they're not
-    // explicitly marked as main thread only, because the cycle collector isn't
-    // able to deal with objects that might be used off of the main thread. We
-    // do want to explicitly mark them for cycle collection if the wrapper has
-    // an external reference, because the wrapper would mark the JS object if
-    // we did add the wrapper to the cycle collector.
-    bool dontTraverse = false;
-    bool markJSObject = false;
-    if (traceKind == JSTRACE_OBJECT) {
-        obj = static_cast<JSObject*>(p);
-        clasp = js::GetObjectClass(obj);
-
-        if (clasp == &XPC_WN_Tearoff_JSClass) {
-            XPCWrappedNative *wrapper =
-                static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(js::GetObjectParent(obj)));
-            dontTraverse = WrapperIsNotMainThreadOnly(wrapper);
-        } else if (IS_WRAPPER_CLASS(clasp) && IS_WN_WRAPPER_OBJECT(obj)) {
-            XPCWrappedNative *wrapper =
-                static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(obj));
-            dontTraverse = WrapperIsNotMainThreadOnly(wrapper);
-            markJSObject = dontTraverse && wrapper->HasExternalReference();
-        }
-    }
-
-    bool isMarked = markJSObject || !xpc_IsGrayGCThing(p);
-
-    DescribeGCThing(isMarked, p, traceKind, cb);
-
-    // If this object is alive, then all of its children are alive. For JS objects,
-    // the black-gray invariant ensures the children are also marked black. For C++
-    // objects, the ref count from this object will keep them alive. Thus we don't
-    // need to trace our children, unless we are debugging using WantAllTraces.
-    if (isMarked && !cb.WantAllTraces())
-        return NS_OK;
-
-    NoteGCThingJSChildren(nsXPConnect::GetRuntimeInstance()->GetJSRuntime(),
-                          p, traceKind, cb);
-
-    if (traceKind != JSTRACE_OBJECT || dontTraverse)
-        return NS_OK;
-
-    NoteGCThingXPCOMChildren(clasp, obj, cb);
 
     return NS_OK;
 }
@@ -931,11 +897,11 @@ nsXPConnect::GetOutstandingRequests(JSContext* cx)
 class JSContextParticipant : public nsCycleCollectionParticipant
 {
 public:
-    static NS_METHOD RootImpl(void *n)
+    NS_IMETHOD Root(void *n)
     {
         return NS_OK;
     }
-    static NS_METHOD UnlinkImpl(void *n)
+    NS_IMETHOD Unlink(void *n)
     {
         JSContext *cx = static_cast<JSContext*>(n);
         JSAutoRequest ar(cx);
@@ -943,12 +909,11 @@ public:
         JS_SetGlobalObject(cx, NULL);
         return NS_OK;
     }
-    static NS_METHOD UnrootImpl(void *n)
+    NS_IMETHOD Unroot(void *n)
     {
         return NS_OK;
     }
-    static NS_METHOD TraverseImpl(JSContextParticipant *that, void *n,
-                                  nsCycleCollectionTraversalCallback &cb)
+    NS_IMETHODIMP Traverse(void *n, nsCycleCollectionTraversalCallback &cb)
     {
         JSContext *cx = static_cast<JSContext*>(n);
 
@@ -967,22 +932,20 @@ public:
     }
 };
 
-static CCParticipantVTable<JSContextParticipant>::Type JSContext_cycleCollectorGlobal = {
-  NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(JSContextParticipant)
-};
+static JSContextParticipant JSContext_cycleCollectorGlobal;
 
 // static
 nsCycleCollectionParticipant*
 nsXPConnect::JSContextParticipant()
 {
-    return JSContext_cycleCollectorGlobal.GetParticipant();
+    return &JSContext_cycleCollectorGlobal;
 }
 
 NS_IMETHODIMP_(void)
 nsXPConnect::NoteJSContext(JSContext *aJSContext,
                            nsCycleCollectionTraversalCallback &aCb)
 {
-    aCb.NoteNativeChild(aJSContext, JSContext_cycleCollectorGlobal.GetParticipant());
+    aCb.NoteNativeChild(aJSContext, &JSContext_cycleCollectorGlobal);
 }
 
 

@@ -20,13 +20,9 @@
 #include "pldhash.h"
 #include "nsCOMPtr.h"
 #include "nsColor.h"
-#include "mozilla/Attributes.h"
-
 class nsMappedAttributes;
 
-class nsHTMLStyleSheet MOZ_FINAL : public nsIStyleSheet,
-                                   public nsIStyleRuleProcessor
-{
+class nsHTMLStyleSheet : public nsIStyleSheet, public nsIStyleRuleProcessor {
 public:
   nsHTMLStyleSheet(void);
   nsresult Init();
@@ -87,7 +83,7 @@ private:
 
   class HTMLColorRule;
   friend class HTMLColorRule;
-  class HTMLColorRule MOZ_FINAL : public nsIStyleRule {
+  class HTMLColorRule : public nsIStyleRule {
   public:
     HTMLColorRule() {}
 
@@ -107,10 +103,9 @@ private:
 
   class GenericTableRule;
   friend class GenericTableRule;
-  class GenericTableRule : public nsIStyleRule {
+  class GenericTableRule: public nsIStyleRule {
   public:
     GenericTableRule() {}
-    virtual ~GenericTableRule() {}
 
     NS_DECL_ISUPPORTS
 
@@ -124,7 +119,7 @@ private:
   // this rule handles <th> inheritance
   class TableTHRule;
   friend class TableTHRule;
-  class TableTHRule MOZ_FINAL : public GenericTableRule {
+  class TableTHRule: public GenericTableRule {
   public:
     TableTHRule() {}
 
@@ -132,7 +127,7 @@ private:
   };
 
   // Rule to handle quirk table colors
-  class TableQuirkColorRule MOZ_FINAL : public GenericTableRule {
+  class TableQuirkColorRule : public GenericTableRule {
   public:
     TableQuirkColorRule() {}
 

@@ -243,10 +243,6 @@ IDBDatabase::Invalidate()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (IsInvalidated()) {
-    return;
-  }
-
   // Make sure we're closed too.
   Close();
 

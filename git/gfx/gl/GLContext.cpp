@@ -2371,7 +2371,7 @@ GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
 {
     if (mIsGLES2) {
 
-        NS_ASSERTION(format == (GLenum)internalformat,
+        NS_ASSERTION(format == internalformat,
                     "format and internalformat not the same for glTexImage2D on GLES2");
 
         if (!CanUploadNonPowerOfTwo()

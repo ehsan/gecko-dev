@@ -12,7 +12,6 @@
 #include "nsIDOMSVGAnimatedEnum.h"
 #include "nsISMILAttr.h"
 #include "nsSVGElement.h"
-#include "mozilla/Attributes.h"
 
 class nsIAtom;
 class nsISMILAnimationElement;
@@ -63,7 +62,7 @@ private:
   nsSVGEnumMapping *GetMapping(nsSVGElement *aSVGElement);
 
 public:
-  struct DOMAnimatedEnum MOZ_FINAL : public nsIDOMSVGAnimatedEnumeration
+  struct DOMAnimatedEnum : public nsIDOMSVGAnimatedEnumeration
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedEnum)

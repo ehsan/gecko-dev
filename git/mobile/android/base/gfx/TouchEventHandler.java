@@ -251,7 +251,16 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
      */
     private void dispatchEvent(MotionEvent event) {
         if (mGestureDetector.onTouchEvent(event)) {
-            return;
+            // An up/cancel event should get passed to both detectors, in
+            // case it comes from a pointer the scale detector is tracking.
+            switch (event.getAction() & MotionEvent.ACTION_MASK) {
+                case MotionEvent.ACTION_POINTER_UP:
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    break;
+                default:
+                    return;
+            }
         }
         mScaleGestureDetector.onTouchEvent(event);
         if (mScaleGestureDetector.isInProgress()) {

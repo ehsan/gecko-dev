@@ -71,7 +71,6 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/Util.h" // for DebugOnly
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/Attributes.h"
 
 #include "sampler.h"
 
@@ -842,7 +841,7 @@ public:
     }
   };
 
-  class BreakSink MOZ_FINAL : public nsILineBreakSink {
+  class BreakSink : public nsILineBreakSink {
   public:
     BreakSink(gfxTextRun* aTextRun, gfxContext* aContext, PRUint32 aOffsetIntoTextRun,
               bool aExistingTextRun) :

@@ -9,7 +9,6 @@
 #include "nsIInterfaceInfoManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -17,7 +16,7 @@
 ////////////////////////////////////////////////////////////////////////
 // nsXTFWeakTearoff class
 
-class nsXTFWeakTearoff MOZ_FINAL : protected nsAutoXPTCStub
+class nsXTFWeakTearoff : protected nsAutoXPTCStub
 {
 protected:
   ~nsXTFWeakTearoff();

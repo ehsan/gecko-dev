@@ -18,7 +18,6 @@
 #include "nsSVGStylableElement.h"
 #include "nsSVGViewBox.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
-#include "mozilla/Attributes.h"
 
 class nsIDOMSVGMatrix;
 class nsSMILTimeContainer;
@@ -60,7 +59,7 @@ public:
 
 private:
 
-  struct DOMVal MOZ_FINAL : public nsIDOMSVGPoint {
+  struct DOMVal : public nsIDOMSVGPoint {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS(DOMVal)
 
@@ -174,6 +173,8 @@ public:
  
   // nsSVGSVGElement methods:
   float GetLength(PRUint8 mCtxType);
+  // Copy our width or height to the target
+  void SyncWidthOrHeight(nsIAtom* aName, nsSVGElement *aTarget) const;
 
   // public helpers:
 

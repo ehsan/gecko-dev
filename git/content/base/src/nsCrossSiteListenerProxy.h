@@ -15,7 +15,6 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "mozilla/Attributes.h"
 
 class nsIURI;
 class nsIParser;
@@ -32,10 +31,10 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
                       nsTArray<nsCString>& aACUnsafeHeaders,
                       nsIChannel** aPreflightChannel);
 
-class nsCORSListenerProxy MOZ_FINAL : public nsIStreamListener,
-                                      public nsIInterfaceRequestor,
-                                      public nsIChannelEventSink,
-                                      public nsIAsyncVerifyRedirectCallback
+class nsCORSListenerProxy : public nsIStreamListener,
+                            public nsIInterfaceRequestor,
+                            public nsIChannelEventSink,
+                            public nsIAsyncVerifyRedirectCallback
 {
 public:
   nsCORSListenerProxy(nsIStreamListener* aOuter,

@@ -1589,7 +1589,7 @@ public class GeckoAppShell
                                      int x, int y,
                                      int w, int h,
                                      boolean isFullScreen)
-    {
+{
         ImmutableViewportMetrics pluginViewport;
 
         Log.i(LOGTAG, "addPluginView:" + view + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h + " fullscreen: " + isFullScreen);
@@ -2423,7 +2423,11 @@ class ScreenshotHandler {
                     }
                     case GeckoAppShell.SCREENSHOT_THUMBNAIL:
                     {
-                        GeckoApp.mAppContext.handleThumbnailData(tab, data);
+                        if (Tabs.getInstance().isSelectedTab(tab)) {
+                            Bitmap b = tab.getThumbnailBitmap();
+                            b.copyPixelsFromBuffer(data);
+                            GeckoApp.mAppContext.processThumbnail(tab, b, null);
+                        }
                         break;
                     }
                 }

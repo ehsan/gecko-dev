@@ -1110,8 +1110,8 @@ class TypedArrayTemplate
         if (ValueIsSpecial(obj, &idval, &sid, cx))
             return obj_getSpecial(cx, obj, receiver, Rooted<SpecialId>(cx, sid), vp);
 
-        JSAtom *atom = ToAtom(cx, idval);
-        if (!atom)
+        JSAtom *atom;
+        if (!js_ValueToAtom(cx, idval, &atom))
             return false;
 
         if (atom->isIndex(&index))

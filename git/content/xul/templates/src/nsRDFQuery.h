@@ -9,7 +9,6 @@
 #include "nsAutoPtr.h"
 #include "nsISimpleEnumerator.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
 #define NS_ITEMPLATERDFQUERY_IID \
   {0x8929ff60, 0x1c9c, 0x4d87, \
@@ -37,7 +36,7 @@ public:
     virtual void ClearCachedResults() = 0;
 };
 
-class nsRDFQuery MOZ_FINAL : public nsITemplateRDFQuery
+class nsRDFQuery : public nsITemplateRDFQuery
 {
 public:
 

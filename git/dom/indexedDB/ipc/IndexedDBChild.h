@@ -155,9 +155,6 @@ public:
   }
 
 protected:
-  void
-  FireCompleteEvent(nsresult aRv);
-
   virtual void
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 

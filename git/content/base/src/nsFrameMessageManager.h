@@ -20,7 +20,6 @@
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace dom {
@@ -47,8 +46,8 @@ typedef bool (*nsAsyncMessageCallback)(void* aCallbackData,
                                        const nsAString& aMessage,
                                        const nsAString& aJSON);
 
-class nsFrameMessageManager MOZ_FINAL : public nsIContentFrameMessageManager,
-                                        public nsIChromeFrameMessageManager
+class nsFrameMessageManager : public nsIContentFrameMessageManager,
+                              public nsIChromeFrameMessageManager
 {
 public:
   nsFrameMessageManager(bool aChrome,
@@ -237,7 +236,7 @@ public:
   nsFrameScriptExecutor* mExec;
 };
 
-class nsScriptCacheCleaner MOZ_FINAL : public nsIObserver
+class nsScriptCacheCleaner : public nsIObserver
 {
   NS_DECL_ISUPPORTS
 

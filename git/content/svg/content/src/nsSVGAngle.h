@@ -14,7 +14,6 @@
 #include "nsIDOMSVGAnimatedAngle.h"
 #include "nsISMILAttr.h"
 #include "nsSVGElement.h"
-#include "mozilla/Attributes.h"
 
 class nsISMILAnimationElement;
 class nsSMILValue;
@@ -78,7 +77,7 @@ private:
   nsresult ToDOMAnimVal(nsIDOMSVGAngle **aResult, nsSVGElement* aSVGElement);
 
 public:
-  struct DOMBaseVal MOZ_FINAL : public nsIDOMSVGAngle
+  struct DOMBaseVal : public nsIDOMSVGAngle
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS(DOMBaseVal)
@@ -117,7 +116,7 @@ public:
       { return mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); }
   };
 
-  struct DOMAnimVal MOZ_FINAL : public nsIDOMSVGAngle
+  struct DOMAnimVal : public nsIDOMSVGAngle
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimVal)
@@ -154,7 +153,7 @@ public:
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
   };
 
-  struct DOMAnimatedAngle MOZ_FINAL : public nsIDOMSVGAnimatedAngle
+  struct DOMAnimatedAngle : public nsIDOMSVGAnimatedAngle
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedAngle)
@@ -177,7 +176,7 @@ public:
   // 'marker' element, and 'orient' must be special cased since it can also
   // take the value 'auto', making it a more complex type.
 
-  struct SMILOrient MOZ_FINAL : public nsISMILAttr
+  struct SMILOrient : public nsISMILAttr
   {
   public:
     SMILOrient(nsSVGOrientType* aOrientType,

@@ -250,7 +250,6 @@ IDBTransaction::CommitOrRollback()
     NS_ASSERTION(mActorChild, "Must have an actor!");
 
     mActorChild->SendAllRequestsFinished();
-
     return NS_OK;
   }
 

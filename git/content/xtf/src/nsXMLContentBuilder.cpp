@@ -20,11 +20,10 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
-#include "mozilla/Attributes.h"
 
 static NS_DEFINE_CID(kXMLDocumentCID, NS_XMLDOCUMENT_CID);
 
-class nsXMLContentBuilder MOZ_FINAL : public nsIXMLContentBuilder
+class nsXMLContentBuilder : public nsIXMLContentBuilder
 {
 protected:
   friend nsresult NS_NewXMLContentBuilder(nsIXMLContentBuilder** aResult);

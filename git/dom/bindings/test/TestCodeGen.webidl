@@ -304,6 +304,4 @@ dictionary Dict : ParentDict {
 
 dictionary ParentDict : GrandparentDict {
   long c = 5;
-  TestInterface someInterface;
-  TestExternalInterface someExternalInterface;
 };

@@ -15,7 +15,6 @@
 #include "gfxPlatform.h"
 
 #include "gfxFontTest.h"
-#include "mozilla/Attributes.h"
 
 #if defined(XP_MACOSX)
 #include "gfxTestCocoaHelper.h"
@@ -32,7 +31,7 @@ static FrameTextRunCache *gTextRuns = nsnull;
 /*
  * Cache textruns and expire them after 3*10 seconds of no use.
  */
-class FrameTextRunCache MOZ_FINAL : public nsExpirationTracker<gfxTextRun,3> {
+class FrameTextRunCache : public nsExpirationTracker<gfxTextRun,3> {
 public:
  enum { TIMEOUT_SECONDS = 10 };
  FrameTextRunCache()
