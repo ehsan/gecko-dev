@@ -21,23 +21,28 @@ CPPSRCS += $(EXTRACPPSRCS)
 
 include $(topsrcdir)/config/config.mk
 
-EXTRA_LIBS	+= \
+LIBS		+= \
 		tmreader.$(OBJ_SUFFIX) \
 		adreader.$(OBJ_SUFFIX) \
+		$(XPCOM_GLUE_LDOPTS) \
 		$(NSPR_LIBS) \
 		$(NULL)
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+LIBS += $(DIST)/bin/XUL
+endif
 
 ifdef HAVE_BOUTELL_GD
 ifeq ($(OS_ARCH),WINNT)
 LOCAL_INCLUDES	+= \
 		-I'$(HAVE_BOUTELL_GD)' \
 		$(NULL)
-OS_LIBS		+= \
+LIBS		+= \
 		-lmozz_s \
 		'$(HAVE_BOUTELL_GD)/gd.lib' \
 		$(NULL)
 else
-OS_LIBS		+= \
+LIBS		+= \
 		-lgd \
 		$(NULL)
 endif

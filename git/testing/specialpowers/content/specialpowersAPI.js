@@ -1214,7 +1214,8 @@ SpecialPowersAPI.prototype = {
                  .QueryInterface(Ci.nsIDocShell);
   },
   _getMUDV: function(window) {
-    return this._getDocShell(window).contentViewer;
+    return this._getDocShell(window).contentViewer
+               .QueryInterface(Ci.nsIMarkupDocumentViewer);
   },
   //XXX: these APIs really ought to be removed, they're not e10s-safe.
   // (also they're pretty Firefox-specific)

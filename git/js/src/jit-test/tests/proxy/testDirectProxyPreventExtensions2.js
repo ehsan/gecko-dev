@@ -3,6 +3,7 @@
  * argument.
  */
 var target = {};
+var called = false;
 var handler = {
     preventExtensions: function (target1) {
         assertEq(this, handler);
@@ -12,14 +13,5 @@ var handler = {
         return true;
     }
 };
-
-var proxy = new Proxy(target, handler);
-var called = false;
-Object.preventExtensions(proxy);
-assertEq(called, true);
-
-target = {};
-proxy = Proxy.revocable(target, handler).proxy;
-called = false;
-Object.preventExtensions(proxy);
+Object.preventExtensions(new Proxy(target, handler));
 assertEq(called, true);

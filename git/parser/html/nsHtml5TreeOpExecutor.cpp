@@ -10,6 +10,7 @@
 #include "nsError.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsScriptLoader.h"
+#include "nsIMarkupDocumentViewer.h"
 #include "nsIContentViewer.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShell.h"

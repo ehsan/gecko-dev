@@ -81,17 +81,19 @@ ifdef COMPILE_ENVIRONMENT
 # Compile the tests to $(DIST)/bin.  Make lots of niceties available by default
 # through TestHarness.h, by modifying the list of includes and the libs against
 # which stuff links.
-SIMPLE_PROGRAMS += $(CPP_UNIT_TESTS)
+CPPSRCS += $(CPP_UNIT_TESTS)
+CPP_UNIT_TEST_BINS := $(CPP_UNIT_TESTS:.cpp=$(BIN_SUFFIX))
+SIMPLE_PROGRAMS += $(CPP_UNIT_TEST_BINS)
 INCLUDES += -I$(DIST)/include/testing
-LIBS += $(NSPR_LIBS)
+LIBS += $(XPCOM_GLUE_LDOPTS) $(NSPR_LIBS)
 
 ifndef MOZ_PROFILE_GENERATE
-libs:: $(CPP_UNIT_TESTS) $(call mkdir_deps,$(DIST)/cppunittests)
-	$(NSINSTALL) $(CPP_UNIT_TESTS) $(DIST)/cppunittests
+libs:: $(CPP_UNIT_TEST_BINS) $(call mkdir_deps,$(DIST)/cppunittests)
+	$(NSINSTALL) $(CPP_UNIT_TEST_BINS) $(DIST)/cppunittests
 endif
 
 run-cppunittests::
-	@$(PYTHON) $(topsrcdir)/testing/runcppunittests.py --xre-path=$(DIST)/bin --symbols-path=$(DIST)/crashreporter-symbols $(CPP_UNIT_TESTS)
+	@$(PYTHON) $(topsrcdir)/testing/runcppunittests.py --xre-path=$(DIST)/bin --symbols-path=$(DIST)/crashreporter-symbols $(subst .cpp,$(BIN_SUFFIX),$(CPP_UNIT_TESTS))
 
 cppunittests-remote: DM_TRANS?=adb
 cppunittests-remote:
@@ -101,7 +103,7 @@ cppunittests-remote:
 			--localLib=$(DEPTH)/dist/$(MOZ_APP_NAME) \
 			--dm_trans=$(DM_TRANS) \
 			--deviceIP=${TEST_DEVICE} \
-			$(CPP_UNIT_TESTS) $(EXTRA_TEST_ARGS); \
+			$(subst .cpp,$(BIN_SUFFIX),$(CPP_UNIT_TESTS)) $(EXTRA_TEST_ARGS); \
 	else \
 		echo 'please prepare your host with environment variables for TEST_DEVICE'; \
 	fi
@@ -135,24 +137,15 @@ endif # ENABLE_TESTS
 #
 
 ifndef LIBRARY
-ifdef REAL_LIBRARY
-# Don't build actual static library if a shared library is also built
-ifdef FORCE_SHARED_LIB
-# ... except when we really want one
-ifdef NO_EXPAND_LIBS
-LIBRARY			:= $(REAL_LIBRARY) $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
-else
-LIBRARY			:= $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
-endif
-else
+ifdef STATIC_LIBRARY_NAME
+REAL_LIBRARY		:= $(LIB_PREFIX)$(STATIC_LIBRARY_NAME).$(LIB_SUFFIX)
 # Only build actual library if it is installed in DIST/lib or SDK
 ifeq (,$(SDK_LIBRARY)$(DIST_INSTALL)$(NO_EXPAND_LIBS))
 LIBRARY			:= $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
 else
 LIBRARY			:= $(REAL_LIBRARY) $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
 endif
-endif
-endif # REAL_LIBRARY
+endif # STATIC_LIBRARY_NAME
 endif # LIBRARY
 
 ifndef HOST_LIBRARY
@@ -169,11 +162,43 @@ ifdef LIB_IS_C_ONLY
 MKSHLIB			= $(MKCSHLIB)
 endif
 
+ifneq (,$(filter WINNT,$(OS_ARCH)))
+IMPORT_LIBRARY		:= $(LIB_PREFIX)$(SHARED_LIBRARY_NAME).$(IMPORT_LIB_SUFFIX)
+endif
+
+ifdef MAKE_FRAMEWORK
+SHARED_LIBRARY		:= $(SHARED_LIBRARY_NAME)
+else
+SHARED_LIBRARY		:= $(DLL_PREFIX)$(SHARED_LIBRARY_NAME)$(DLL_SUFFIX)
+endif
+
 EMBED_MANIFEST_AT=2
 
 endif # MKSHLIB
 endif # FORCE_SHARED_LIB
 endif # LIBRARY
+
+ifdef MKSHLIB
+ifdef SONAME
+DSO_SONAME			= $(DLL_PREFIX)$(SONAME)$(DLL_SUFFIX)
+else
+DSO_SONAME			= $(notdir $@)
+endif
+endif # MKSHLIB
+
+ifdef FORCE_STATIC_LIB
+ifndef FORCE_SHARED_LIB
+SHARED_LIBRARY		:= $(NULL)
+DEF_FILE		:= $(NULL)
+IMPORT_LIBRARY		:= $(NULL)
+endif
+endif
+
+ifdef FORCE_SHARED_LIB
+ifndef FORCE_STATIC_LIB
+LIBRARY := $(NULL)
+endif
+endif
 
 ifeq ($(OS_ARCH),WINNT)
 ifndef GNU_CC
@@ -281,7 +306,7 @@ ALL_TRASH = \
 	$(GARBAGE) $(TARGETS) $(OBJS) $(PROGOBJS) LOGS TAGS a.out \
 	$(filter-out $(ASFILES),$(OBJS:.$(OBJ_SUFFIX)=.s)) $(OBJS:.$(OBJ_SUFFIX)=.ii) \
 	$(OBJS:.$(OBJ_SUFFIX)=.i) $(OBJS:.$(OBJ_SUFFIX)=.i_o) \
-	$(HOST_PROGOBJS) $(HOST_OBJS) $(IMPORT_LIBRARY) \
+	$(HOST_PROGOBJS) $(HOST_OBJS) $(IMPORT_LIBRARY) $(DEF_FILE)\
 	$(EXE_DEF_FILE) so_locations _gen _stubs $(wildcard *.res) $(wildcard *.RES) \
 	$(wildcard *.pdb) $(CODFILE) $(IMPORT_LIBRARY) \
 	$(SHARED_LIBRARY:$(DLL_SUFFIX)=.exp) $(wildcard *.ilk) \
@@ -628,7 +653,7 @@ ifdef PROGRAM
 endif
 ifdef SHARED_LIBRARY
 	$(PYTHON) $(topsrcdir)/build/win32/pgomerge.py \
-	  $(patsubst $(DLL_PREFIX)%$(DLL_SUFFIX),%,$(SHARED_LIBRARY)) $(DIST)/bin
+	  $(SHARED_LIBRARY_NAME) $(DIST)/bin
 endif
 endif # SHARED_LIBRARY || PROGRAM
 endif # WINNT_
@@ -715,7 +740,7 @@ ifdef MOZ_PROFILE_GENERATE
 	touch -t `date +%Y%m%d%H%M.%S -d 'now+5seconds'` pgo.relink
 endif
 else # !WINNT || GNU_CC
-	$(EXPAND_CCC) -o $@ $(CXXFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(LIBS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(EXTRA_LIBS) $(OS_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE) $(STLPORT_LIBS)
+	$(EXPAND_CCC) -o $@ $(CXXFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(LIBS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE) $(STLPORT_LIBS)
 	$(call CHECK_BINARY,$@)
 endif # WINNT && !GNU_CC
 
@@ -771,7 +796,7 @@ ifdef MSMANIFEST_TOOL
 	fi
 endif	# MSVC with manifest tool
 else
-	$(EXPAND_CCC) $(CXXFLAGS) -o $@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(LIBS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(EXTRA_LIBS) $(OS_LIBS) $(BIN_FLAGS) $(STLPORT_LIBS)
+	$(EXPAND_CCC) $(CXXFLAGS) -o $@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(LIBS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS) $(STLPORT_LIBS)
 	$(call CHECK_BINARY,$@)
 endif # WINNT && !GNU_CC
 
@@ -802,13 +827,13 @@ endif
 $(filter %.$(LIB_SUFFIX),$(LIBRARY)): $(OBJS) $(EXTRA_DEPS) $(GLOBAL_DEPS)
 	$(REPORT_BUILD)
 	$(RM) $(LIBRARY)
-	$(EXPAND_AR) $(AR_FLAGS) $(OBJS) $(SHARED_LIBRARY_LIBS) $(filter %.$(LIB_SUFFIX),$(EXTRA_LIBS))
+	$(EXPAND_AR) $(AR_FLAGS) $(OBJS) $(SHARED_LIBRARY_LIBS)
 
 $(filter-out %.$(LIB_SUFFIX),$(LIBRARY)): $(filter %.$(LIB_SUFFIX),$(LIBRARY)) $(OBJS) $(EXTRA_DEPS) $(GLOBAL_DEPS)
 # When we only build a library descriptor, blow out any existing library
 	$(REPORT_BUILD)
 	$(if $(filter %.$(LIB_SUFFIX),$(LIBRARY)),,$(RM) $(REAL_LIBRARY))
-	$(EXPAND_LIBS_GEN) -o $@ $(OBJS) $(SHARED_LIBRARY_LIBS) $(filter %.$(LIB_SUFFIX),$(EXTRA_LIBS))
+	$(EXPAND_LIBS_GEN) -o $@ $(OBJS) $(SHARED_LIBRARY_LIBS)
 
 ifeq ($(OS_ARCH),WINNT)
 # Import libraries are created by the rules creating shared libraries.
@@ -843,7 +868,7 @@ endif
 # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
 # so no need to conditionalize on OS version or debugging format.
 
-$(SHARED_LIBRARY): $(OBJS) $(RESFILE) $(LIBRARY) $(EXTRA_DEPS) $(GLOBAL_DEPS)
+$(SHARED_LIBRARY): $(OBJS) $(DEF_FILE) $(RESFILE) $(LIBRARY) $(EXTRA_DEPS) $(GLOBAL_DEPS)
 	$(REPORT_BUILD)
 ifndef INCREMENTAL_LINKER
 	$(RM) $@
@@ -852,10 +877,10 @@ ifdef DTRACE_LIB_DEPENDENT
 ifndef XP_MACOSX
 	dtrace -G -C -s $(MOZILLA_DTRACE_SRC) -o  $(DTRACE_PROBE_OBJ) $(shell $(EXPAND_LIBS) $(MOZILLA_PROBE_LIBS))
 endif
-	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(SUB_SHLOBJS) $(DTRACE_PROBE_OBJ) $(MOZILLA_PROBE_LIBS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(EXTRA_LIBS) $(OS_LIBS) $(SHLIB_LDENDFILE) $(if $(LIB_IS_C_ONLY),,$(STLPORT_LIBS))
+	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(SUB_SHLOBJS) $(DTRACE_PROBE_OBJ) $(MOZILLA_PROBE_LIBS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE) $(if $(LIB_IS_C_ONLY),,$(STLPORT_LIBS))
 	@$(RM) $(DTRACE_PROBE_OBJ)
 else # ! DTRACE_LIB_DEPENDENT
-	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(EXTRA_LIBS) $(OS_LIBS) $(SHLIB_LDENDFILE) $(if $(LIB_IS_C_ONLY),,$(STLPORT_LIBS))
+	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE) $(if $(LIB_IS_C_ONLY),,$(STLPORT_LIBS))
 endif # DTRACE_LIB_DEPENDENT
 	$(call CHECK_BINARY,$@)
 

@@ -26,4 +26,4 @@ LOCAL_INCLUDES += [
     '../workers',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'

@@ -10,8 +10,7 @@ import os
 import mozpack.path as mozpath
 
 from .base import MozbuildObject
-from .util import OrderedDefaultDict
-from collections import defaultdict
+from .util import DefaultOnReadDict
 
 
 def rewrite_test_base(test, new_base, honor_install_to_subdir=False):
@@ -45,8 +44,8 @@ class TestMetadata(object):
     """
 
     def __init__(self, filename=None):
-        self._tests_by_path = OrderedDefaultDict(list)
-        self._tests_by_flavor = defaultdict(set)
+        self._tests_by_path = DefaultOnReadDict({}, global_default=[])
+        self._tests_by_flavor = DefaultOnReadDict({}, global_default=set())
         self._test_dirs = set()
 
         if filename:

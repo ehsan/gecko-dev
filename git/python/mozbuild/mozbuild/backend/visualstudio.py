@@ -20,7 +20,7 @@ from mozpack.files import FileFinder
 from .common import CommonBackend
 from ..frontend.data import (
     Defines,
-    Library,
+    LibraryDefinition,
     LocalInclude,
     VariablePassthru,
 )
@@ -103,7 +103,7 @@ class VisualStudioBackend(CommonBackend):
                     s = self._paths_to_sources.setdefault(reldir, set())
                     s.update(v)
 
-        elif isinstance(obj, Library):
+        elif isinstance(obj, LibraryDefinition):
             self._libs_to_paths[obj.basename] = reldir
 
         elif isinstance(obj, Defines):

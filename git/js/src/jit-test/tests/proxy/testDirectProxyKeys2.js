@@ -3,7 +3,7 @@
  * argument
  */
 var target = {};
-var called;
+var called = false;
 var handler = {
     ownKeys: function (target1) {
         assertEq(this, handler);
@@ -12,9 +12,5 @@ var handler = {
         return [];
     }
 };
-
-for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy]) {
-    called = false;
-    Object.keys(new Proxy(target, handler));
-    assertEq(called, true);
-}
+Object.keys(new Proxy(target, handler));
+assertEq(called, true);

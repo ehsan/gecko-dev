@@ -62,6 +62,8 @@ SOURCES += [
     'WidgetTraceEvent.cpp'
 ]
 
+LIBRARY_NAME = 'widget_gonk'
+
 include('/ipc/chromium/chromium-config.mozbuild')
 
 FINAL_LIBRARY = 'xul'

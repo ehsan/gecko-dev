@@ -21,7 +21,6 @@
 
 #include "nsISMILAttr.h"
 #include "nsIDocument.h"
-#include "mozilla/dom/ShadowRoot.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;

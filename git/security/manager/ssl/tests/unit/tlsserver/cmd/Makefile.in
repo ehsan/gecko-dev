@@ -6,9 +6,13 @@
 
 include $(topsrcdir)/config/config.mk
 
-EXTRA_LIBS += \
+LIBS = \
   $(NSPR_LIBS) \
   $(NSS_LIBS) \
+  $(MOZALLOC_LIB) \
+  ../../../../../../pkix/$(LIB_PREFIX)mozillapkix.$(LIB_SUFFIX) \
+  ../../../../../../pkix/test/lib/$(LIB_PREFIX)pkixtestutil.$(LIB_SUFFIX) \
+  ../lib/$(LIB_PREFIX)tlsserver.$(LIB_SUFFIX) \
   $(NULL)
 
 DEFINES += $(TK_CFLAGS)

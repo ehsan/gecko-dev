@@ -107,6 +107,20 @@ WrapperFactory::WaiveXray(JSContext *cx, JSObject *objArg)
     return CreateXrayWaiver(cx, obj);
 }
 
+// DoubleWrap is called from PrepareForWrapping to maintain the state that
+// we're supposed to waive Xray wrappers for the given on. On entrance, it
+// expects |cx->compartment != obj->compartment()|. The returned object will
+// be in the same compartment as |obj|.
+JSObject *
+WrapperFactory::DoubleWrap(JSContext *cx, HandleObject obj, unsigned flags)
+{
+    if (flags & WrapperFactory::WAIVE_XRAY_WRAPPER_FLAG) {
+        JSAutoCompartment ac(cx, obj);
+        return WaiveXray(cx, obj);
+    }
+    return obj;
+}
+
 // In general, we're trying to deprecate COWs incrementally as we introduce
 // Xrays to the corresponding object types. But switching off COWs for certain
 // things would be too tumultuous at present, so we punt on them for later.
@@ -128,38 +142,10 @@ ForceCOWBehavior(JSObject *obj)
     return false;
 }
 
-inline bool
-ShouldWaiveXray(JSContext *cx, JSObject *originalObj)
-{
-    unsigned flags;
-    (void) js::UncheckedUnwrap(originalObj, /* stopAtOuter = */ true, &flags);
-
-    // If the original object did not point through an Xray waiver, we're done.
-    if (!(flags & WrapperFactory::WAIVE_XRAY_WRAPPER_FLAG))
-        return false;
-
-    // If the original object was not a cross-compartment wrapper, that means
-    // that the caller explicitly created a waiver. Preserve it so that things
-    // like WaiveXrayAndWrap work.
-    if (!(flags & Wrapper::CROSS_COMPARTMENT))
-        return true;
-
-    // Otherwise, this is a case of explicitly passing a wrapper across a
-    // compartment boundary. In that case, we only want to preserve waivers
-    // in transactions between same-origin compartments.
-    JSCompartment *oldCompartment = js::GetObjectCompartment(originalObj);
-    JSCompartment *newCompartment = js::GetContextCompartment(cx);
-    bool sameOrigin =
-        AccessCheck::subsumesConsideringDomain(oldCompartment, newCompartment) &&
-        AccessCheck::subsumesConsideringDomain(newCompartment, oldCompartment);
-    return sameOrigin;
-}
-
 JSObject *
 WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
-                                   HandleObject objArg, HandleObject objectPassedToWrap)
+                                   HandleObject objArg, unsigned flags)
 {
-    bool waive = ShouldWaiveXray(cx, objectPassedToWrap);
     RootedObject obj(cx, objArg);
     // Outerize any raw inner objects at the entry point here, so that we don't
     // have to worry about them for the rest of the wrapping code.
@@ -177,7 +163,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
     // done here, and we can move on to the next phase of wrapping. We handle
     // this case first to allow us to assert against wrappers below.
     if (js::IsOuterObject(obj))
-        return waive ? WaiveXray(cx, obj) : obj;
+        return DoubleWrap(cx, obj, flags);
 
     // Here are the rules for wrapping:
     // We should never get a proxy here (the JS engine unwraps those for us).
@@ -228,7 +214,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
     // wrapper for the new scope instead. Also, global objects don't move
     // between scopes so for those we also want to return the wrapper. So...
     if (!IS_WN_REFLECTOR(obj) || !js::GetObjectParent(obj))
-        return waive ? WaiveXray(cx, obj) : obj;
+        return DoubleWrap(cx, obj, flags);
 
     XPCWrappedNative *wn = XPCWrappedNative::Get(obj);
 
@@ -247,14 +233,14 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
             // wrapper?"
             nsresult rv = wn->GetScriptableInfo()->GetCallback()->
                 PreCreate(wn->Native(), cx, scope, wrapScope.address());
-            NS_ENSURE_SUCCESS(rv, waive ? WaiveXray(cx, obj) : obj);
+            NS_ENSURE_SUCCESS(rv, DoubleWrap(cx, obj, flags));
 
             // If the handed back scope differs from the passed-in scope and is in
             // a separate compartment, then this object is explicitly requesting
             // that we don't create a second JS object for it: create a security
             // wrapper.
             if (js::GetObjectCompartment(scope) != js::GetObjectCompartment(wrapScope))
-                return waive ? WaiveXray(cx, obj) : obj;
+                return DoubleWrap(cx, obj, flags);
 
             RootedObject currentScope(cx, JS_GetGlobalForObject(cx, obj));
             if (MOZ_UNLIKELY(wrapScope != currentScope)) {
@@ -285,7 +271,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
                 // Check for case (2).
                 if (probe != currentScope) {
                     MOZ_ASSERT(probe == wrapScope);
-                    return waive ? WaiveXray(cx, obj) : obj;
+                    return DoubleWrap(cx, obj, flags);
                 }
 
                 // Ok, must be case (1). Fall through and create a new wrapper.
@@ -307,7 +293,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
                  AccessCheck::subsumes(js::GetObjectCompartment(wrapScope),
                                        js::GetObjectCompartment(obj)))
             {
-                return waive ? WaiveXray(cx, obj) : obj;
+                return DoubleWrap(cx, obj, flags);
             }
         }
     }
@@ -339,7 +325,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
         return nullptr;
     newwn->SetSet(unionSet);
 
-    return waive ? WaiveXray(cx, obj) : obj;
+    return DoubleWrap(cx, obj, flags);
 }
 
 #ifdef DEBUG
@@ -444,7 +430,7 @@ SelectAddonWrapper(JSContext *cx, HandleObject obj, const Wrapper *wrapper)
 
 JSObject *
 WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
-                       HandleObject parent)
+                       HandleObject parent, unsigned flags)
 {
     MOZ_ASSERT(!IsWrapper(obj) ||
                GetProxyHandler(obj) == &XrayWaiver ||
@@ -465,6 +451,7 @@ WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
     bool targetSubsumesOrigin = AccessCheck::subsumesConsideringDomain(target, origin);
     bool sameOrigin = targetSubsumesOrigin && originSubsumesTarget;
     XrayType xrayType = GetXrayType(obj);
+    bool waiveXrayFlag = flags & WAIVE_XRAY_WRAPPER_FLAG;
 
     const Wrapper *wrapper;
 
@@ -520,7 +507,7 @@ WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
 
         // If Xrays are warranted, the caller may waive them for non-security
         // wrappers.
-        bool waiveXrays = wantXrays && !securityWrapper && HasWaiveXrayFlag(obj);
+        bool waiveXrays = wantXrays && !securityWrapper && waiveXrayFlag;
 
         // We have slightly different behavior for the case when the object
         // being wrapped is in an XBL scope.

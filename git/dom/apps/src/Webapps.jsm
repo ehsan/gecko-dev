@@ -2080,11 +2080,14 @@ this.DOMApplicationRegistry = {
         return false;
       }
 
-      // Disallow reinstalls from the same manifest url for now.
+      // Disallow multiple hosted apps installations from the same origin for now.
+      // We will remove this code after multiple apps per origin are supported (bug 778277).
+      // This will also disallow reinstalls from the same origin for now.
       for (let id in this.webapps) {
-        if (this.webapps[id].manifestURL == app.manifestURL &&
+        if (this.webapps[id].origin == app.origin &&
+            !this.webapps[id].packageHash &&
             this._isLaunchable(this.webapps[id])) {
-          sendError("REINSTALL_FORBIDDEN");
+          sendError("MULTIPLE_APPS_PER_ORIGIN_FORBIDDEN");
           return false;
         }
       }

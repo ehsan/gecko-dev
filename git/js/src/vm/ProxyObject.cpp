@@ -69,12 +69,6 @@ ProxyObject::initCrossCompartmentPrivate(HandleValue priv)
 }
 
 void
-ProxyObject::setSameCompartmentPrivate(const Value &priv)
-{
-    setSlot(PRIVATE_SLOT, priv);
-}
-
-void
 ProxyObject::initHandler(const BaseProxyHandler *handler)
 {
     initSlot(HANDLER_SLOT, PrivateValue(const_cast<BaseProxyHandler*>(handler)));

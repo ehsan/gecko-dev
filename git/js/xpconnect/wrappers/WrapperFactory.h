@@ -41,17 +41,20 @@ class WrapperFactory {
     static JSObject *CreateXrayWaiver(JSContext *cx, JS::HandleObject obj);
     static JSObject *WaiveXray(JSContext *cx, JSObject *obj);
 
+    static JSObject *DoubleWrap(JSContext *cx, JS::HandleObject obj, unsigned flags);
+
     // Prepare a given object for wrapping in a new compartment.
     static JSObject *PrepareForWrapping(JSContext *cx,
                                         JS::HandleObject scope,
                                         JS::HandleObject obj,
-                                        JS::HandleObject objectPassedToWrap);
+                                        unsigned flags);
 
     // Rewrap an object that is about to cross compartment boundaries.
     static JSObject *Rewrap(JSContext *cx,
                             JS::HandleObject existing,
                             JS::HandleObject obj,
-                            JS::HandleObject parent);
+                            JS::HandleObject parent,
+                            unsigned flags);
 
     // Wrap wrapped object into a waiver wrapper and then re-wrap it.
     static bool WaiveXrayAndWrap(JSContext *cx, JS::MutableHandleValue vp);

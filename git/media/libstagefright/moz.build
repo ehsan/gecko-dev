@@ -97,7 +97,7 @@ LOCAL_INCLUDES += [
     'system/core/include',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'
 
 # Suppress warnings in third-party code.
 if CONFIG['_MSC_VER']:

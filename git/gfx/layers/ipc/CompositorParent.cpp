@@ -19,9 +19,6 @@
 #include "base/tracked.h"               // for FROM_HERE
 #include "gfxContext.h"                 // for gfxContext
 #include "gfxPlatform.h"                // for gfxPlatform
-#ifdef MOZ_WIDGET_GTK
-#include "gfxPlatformGtk.h"             // for gfxPlatform
-#endif
 #include "gfxPrefs.h"                   // for gfxPrefs
 #include "ipc/ShadowLayersManager.h"    // for ShadowLayersManager
 #include "mozilla/AutoRestore.h"        // for AutoRestore
@@ -39,9 +36,6 @@
 #include "mozilla/layers/LayersTypes.h"
 #include "mozilla/layers/PLayerTransactionParent.h"
 #include "mozilla/mozalloc.h"           // for operator new, etc
-#ifdef MOZ_WIDGET_GTK
-#include "basic/X11BasicCompositor.h" // for X11BasicCompositor
-#endif
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsDebug.h"                    // for NS_ABORT_IF_FALSE, etc
 #include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
@@ -904,14 +898,7 @@ CompositorParent::InitializeLayerManager(const nsTArray<LayersBackend>& aBackend
                                      mEGLSurfaceSize.height,
                                      mUseExternalSurfaceSize);
     } else if (aBackendHints[i] == LayersBackend::LAYERS_BASIC) {
-#ifdef MOZ_WIDGET_GTK
-      if (gfxPlatformGtk::GetPlatform()->UseXRender()) {
-        compositor = new X11BasicCompositor(mWidget);
-      } else
-#endif
-      {
-        compositor = new BasicCompositor(mWidget);
-      }
+      compositor = new BasicCompositor(mWidget);
 #ifdef XP_WIN
     } else if (aBackendHints[i] == LayersBackend::LAYERS_D3D11) {
       compositor = new CompositorD3D11(mWidget);

@@ -121,4 +121,4 @@ LOCAL_INCLUDES += [
     '/dom/wifi',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'

@@ -23,6 +23,7 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsIContentViewer.h"
+#include "nsIMarkupDocumentViewer.h"
 #include "mozilla/dom/NodeInfo.h"
 #include "nsToken.h"
 #include "nsIAppShell.h"

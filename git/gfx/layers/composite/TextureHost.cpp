@@ -587,6 +587,7 @@ ShmemTextureHost::ShmemTextureHost(const ipc::Shmem& aShmem,
 ShmemTextureHost::~ShmemTextureHost()
 {
   DeallocateDeviceData();
+  mShmem = nullptr;
   MOZ_COUNT_DTOR(ShmemTextureHost);
 }
 

@@ -407,7 +407,7 @@
                 readonly="true"/>
 
       <property name="markupDocumentViewer"
-                onget="return this.docShell.contentViewer;"
+                onget="return this.docShell.contentViewer.QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);"
                 readonly="true"/>
 
       <property name="contentViewerEdit"

@@ -6,7 +6,10 @@ load(libdir + "asserts.js");
  */
 var target = {};
 Object.preventExtensions(target);
-
-var handler = { ownKeys: () => [ 'foo' ] };
-for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy])
-    assertThrowsInstanceOf(() => Object.getOwnPropertyNames(p), TypeError);
+assertThrowsInstanceOf(function () {
+    Object.getOwnPropertyNames(new Proxy(target, {
+        ownKeys: function (target) {
+            return [ 'foo' ];
+        }
+    }));
+}, TypeError);

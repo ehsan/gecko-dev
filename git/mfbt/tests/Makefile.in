@@ -11,7 +11,6 @@ MOZ_GLUE_PROGRAM_LDFLAGS=
 MOZ_GLUE_LDFLAGS =
 WRAP_LDFLAGS=
 
-# Prevent those tests linking against libxpcom, libxul, and nspr.
-NSPR_LIBS=
-
 include $(topsrcdir)/config/rules.mk
+
+LIBS= $(call EXPAND_LIBNAME_PATH,mfbt,$(DEPTH)/mfbt)

@@ -52,6 +52,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIObserverService.h"
 #include "nsIDocShell.h"
+#include "nsIMarkupDocumentViewer.h"
 #include "nsIDOMWheelEvent.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIDOMUIEvent.h"
@@ -1907,9 +1908,9 @@ EventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
 }
 
 nsresult
-EventStateManager::GetContentViewer(nsIContentViewer** aCv)
+EventStateManager::GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv)
 {
-  *aCv = nullptr;
+  *aMv = nullptr;
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   if(!fm) return NS_ERROR_FAILURE;
@@ -1938,8 +1939,15 @@ EventStateManager::GetContentViewer(nsIContentViewer** aCv)
   nsCOMPtr<nsIDocShell> docshell(presContext->GetDocShell());
   if(!docshell) return NS_ERROR_FAILURE;
 
-  docshell->GetContentViewer(aCv);
-  if(!*aCv) return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIContentViewer> cv;
+  docshell->GetContentViewer(getter_AddRefs(cv));
+  if(!cv) return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIMarkupDocumentViewer> mv(do_QueryInterface(cv));
+  if(!mv) return NS_ERROR_FAILURE;
+
+  *aMv = mv;
+  NS_IF_ADDREF(*aMv);
 
   return NS_OK;
 }
@@ -1947,20 +1955,20 @@ EventStateManager::GetContentViewer(nsIContentViewer** aCv)
 nsresult
 EventStateManager::ChangeTextSize(int32_t change)
 {
-  nsCOMPtr<nsIContentViewer> cv;
-  nsresult rv = GetContentViewer(getter_AddRefs(cv));
+  nsCOMPtr<nsIMarkupDocumentViewer> mv;
+  nsresult rv = GetMarkupDocumentViewer(getter_AddRefs(mv));
   NS_ENSURE_SUCCESS(rv, rv);
 
   float textzoom;
   float zoomMin = ((float)Preferences::GetInt("zoom.minPercent", 50)) / 100;
   float zoomMax = ((float)Preferences::GetInt("zoom.maxPercent", 300)) / 100;
-  cv->GetTextZoom(&textzoom);
+  mv->GetTextZoom(&textzoom);
   textzoom += ((float)change) / 10;
   if (textzoom < zoomMin)
     textzoom = zoomMin;
   else if (textzoom > zoomMax)
     textzoom = zoomMax;
-  cv->SetTextZoom(textzoom);
+  mv->SetTextZoom(textzoom);
 
   return NS_OK;
 }
@@ -1968,20 +1976,20 @@ EventStateManager::ChangeTextSize(int32_t change)
 nsresult
 EventStateManager::ChangeFullZoom(int32_t change)
 {
-  nsCOMPtr<nsIContentViewer> cv;
-  nsresult rv = GetContentViewer(getter_AddRefs(cv));
+  nsCOMPtr<nsIMarkupDocumentViewer> mv;
+  nsresult rv = GetMarkupDocumentViewer(getter_AddRefs(mv));
   NS_ENSURE_SUCCESS(rv, rv);
 
   float fullzoom;
   float zoomMin = ((float)Preferences::GetInt("zoom.minPercent", 50)) / 100;
   float zoomMax = ((float)Preferences::GetInt("zoom.maxPercent", 300)) / 100;
-  cv->GetFullZoom(&fullzoom);
+  mv->GetFullZoom(&fullzoom);
   fullzoom += ((float)change) / 10;
   if (fullzoom < zoomMin)
     fullzoom = zoomMin;
   else if (fullzoom > zoomMax)
     fullzoom = zoomMax;
-  cv->SetFullZoom(fullzoom);
+  mv->SetFullZoom(fullzoom);
 
   return NS_OK;
 }

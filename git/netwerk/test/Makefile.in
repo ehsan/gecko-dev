@@ -6,7 +6,7 @@
 
 
 
-EXTRA_LIBS	+= \
+LIBS		= $(XPCOM_LIBS) \
 		  $(NSPR_LIBS) \
 		  $(NULL)
 

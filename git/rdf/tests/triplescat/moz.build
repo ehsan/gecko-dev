@@ -9,9 +9,3 @@ PROGRAM = 'triplescat'
 SOURCES += [
     'triplescat.cpp',
 ]
-
-USE_LIBS += [
-    'mozalloc',
-    'xpcomglue_s',
-    'xul',
-]

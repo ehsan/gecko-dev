@@ -14,4 +14,4 @@ SOURCES += [
     'nsFindService.cpp',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'toolkitcomps'

@@ -441,8 +441,9 @@ Toolbox.prototype = {
     zoomValue = Math.min(zoomValue, MAX_ZOOM);
 
     let contViewer = this.frame.docShell.contentViewer;
+    let docViewer = contViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
 
-    contViewer.fullZoom = zoomValue;
+    docViewer.fullZoom = zoomValue;
 
     Services.prefs.setCharPref(ZOOM_PREF, zoomValue);
   },

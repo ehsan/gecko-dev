@@ -13,6 +13,7 @@
 #include "nsITextToSubURI.h"
 #include "nsIURL.h"
 #include "nsIContentViewer.h"
+#include "nsIMarkupDocumentViewer.h"
 #include "nsIDocShell.h"
 #include "nsCharsetSource.h" // kCharsetFrom* macro definition
 #include "nsNodeInfoManager.h"

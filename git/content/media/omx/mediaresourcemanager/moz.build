@@ -35,4 +35,4 @@ CXXFLAGS += [
     ]
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'
