@@ -294,11 +294,6 @@ pluginHandleEvent(InstanceData* instanceData, void* event)
         ACTIVATION_STATE_ACTIVATED : ACTIVATION_STATE_DEACTIVATED;
       instanceData->topLevelWindowActivationEventCount = instanceData->topLevelWindowActivationEventCount + 1;
       return 1;
-    case NPCocoaEventFocusChanged:
-      instanceData->focusState = cocoaEvent->data.focus.hasFocus ?
-      ACTIVATION_STATE_ACTIVATED : ACTIVATION_STATE_DEACTIVATED;
-      instanceData->focusEventCount = instanceData->focusEventCount + 1;
-      return 1;
     default:
       return 1;
   }

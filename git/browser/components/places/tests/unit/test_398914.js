@@ -36,6 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+Components.utils.import("resource://gre/modules/utils.js");
+
 const bmsvc = PlacesUtils.bookmarks;
 const testFolderId = PlacesUtils.bookmarksMenuFolderId;
 

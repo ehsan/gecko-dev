@@ -2181,7 +2181,8 @@ nsHTMLInputElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
       ClearBrokenState();
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsHTMLInputElement::MaybeLoadImage));
+        new nsRunnableMethod<nsHTMLInputElement>(this,
+                                                 &nsHTMLInputElement::MaybeLoadImage));
     }
   }
 

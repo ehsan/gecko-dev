@@ -45,7 +45,7 @@
 #include "nsOggCodecState.h"
 #include "nsOggPlayStateMachine.h"
 #include "mozilla/mozalloc.h"
-#include "VideoUtils.h"
+#include "nsOggHacks.h"
 
 using mozilla::MonitorAutoExit;
 
@@ -53,10 +53,10 @@ using mozilla::MonitorAutoExit;
 //#define SEEK_LOGGING
 
 #ifdef PR_LOGGING
-extern PRLogModuleInfo* gBuiltinDecoderLog;
-#define LOG(type, msg) PR_LOG(gBuiltinDecoderLog, type, msg)
+extern PRLogModuleInfo* gOggDecoderLog;
+#define LOG(type, msg) PR_LOG(gOggDecoderLog, type, msg)
 #ifdef SEEK_LOGGING
-#define SEEK_LOG(type, msg) PR_LOG(gBuiltinDecoderLog, type, msg)
+#define SEEK_LOG(type, msg) PR_LOG(gOggDecoderLog, type, msg)
 #else
 #define SEEK_LOG(type, msg)
 #endif
@@ -82,13 +82,12 @@ PRBool MulOverflow32(PRUint32 a, PRUint32 b, PRUint32& aResult) {
   return PR_TRUE;
 }
 
-VideoData* VideoData::Create(PRInt64 aOffset,
-                             PRInt64 aTime,
+VideoData* VideoData::Create(PRInt64 aTime,
                              th_ycbcr_buffer aBuffer,
                              PRBool aKeyframe,
                              PRInt64 aGranulepos)
 {
-  nsAutoPtr<VideoData> v(new VideoData(aOffset, aTime, aKeyframe, aGranulepos));
+  nsAutoPtr<VideoData> v(new VideoData(aTime, aKeyframe, aGranulepos));
   for (PRUint32 i=0; i < 3; ++i) {
     PRUint32 size = 0;
     if (!MulOverflow32(PR_ABS(aBuffer[i].height),
@@ -200,8 +199,7 @@ nsresult nsOggReader::DecodeVorbis(nsTArray<SoundData*>& aChunks,
       PRInt64 duration = mVorbisState->Time((PRInt64)samples);
       PRInt64 startTime = (mVorbisGranulepos != -1) ?
         mVorbisState->Time(mVorbisGranulepos) : -1;
-      SoundData* s = new SoundData(mPageOffset,
-                                   startTime,
+      SoundData* s = new SoundData(startTime,
                                    duration,
                                    samples,
                                    buffer,
@@ -359,16 +357,14 @@ nsresult nsOggReader::DecodeTheora(nsTArray<VideoData*>& aFrames,
   PRInt64 time = (aPacket->granulepos != -1)
     ? mTheoraState->StartTime(aPacket->granulepos) : -1;
   if (ret == TH_DUPFRAME) {
-    aFrames.AppendElement(VideoData::CreateDuplicate(mPageOffset,
-                                                     time,
+    aFrames.AppendElement(VideoData::CreateDuplicate(time,
                                                      aPacket->granulepos));
   } else if (ret == 0) {
     th_ycbcr_buffer buffer;
     ret = th_decode_ycbcr_out(mTheoraState->mCtx, buffer);
     NS_ASSERTION(ret == 0, "th_decode_ycbcr_out failed");
     PRBool isKeyframe = th_packet_iskeyframe(aPacket) == 1;
-    VideoData *v = VideoData::Create(mPageOffset,
-                                     time,
+    VideoData *v = VideoData::Create(time,
                                      buffer,
                                      isKeyframe,
                                      aPacket->granulepos);
@@ -570,7 +566,7 @@ nsresult nsOggReader::GetBufferedBytes(nsTArray<ByteRange>& aRanges)
                "Should be on state machine thread.");
   mMonitor.AssertCurrentThreadIn();
   PRInt64 startOffset = mDataOffset;
-  nsMediaStream* stream = mPlayer->mDecoder->GetCurrentStream();
+  nsMediaStream* stream = mPlayer->mDecoder->mStream;
   while (PR_TRUE) {
     PRInt64 endOffset = stream->GetCachedDataEnd(startOffset);
     if (endOffset == startOffset) {
@@ -616,7 +612,7 @@ nsOggReader::GetSeekRange(const nsTArray<ByteRange>& ranges,
   NS_ASSERTION(mPlayer->OnStateMachineThread(),
                "Should be on state machine thread.");
   PRInt64 so = mDataOffset;
-  PRInt64 eo = mPlayer->mDecoder->GetCurrentStream()->GetLength();
+  PRInt64 eo = mPlayer->mDecoder->mStream->GetLength();
   PRInt64 st = aStartTime;
   PRInt64 et = aEndTime;
   for (PRUint32 i = 0; i < ranges.Length(); i++) {
@@ -644,7 +640,7 @@ nsresult nsOggReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTime
   NS_ASSERTION(mPlayer->OnStateMachineThread(),
                "Should be on state machine thread.");
   LOG(PR_LOG_DEBUG, ("%p About to seek to %lldms", mPlayer->mDecoder, aTarget));
-  nsMediaStream* stream = mPlayer->mDecoder->GetCurrentStream();
+  nsMediaStream* stream = mPlayer->mDecoder->mStream;
 
   if (NS_FAILED(ResetDecode())) {
     return NS_ERROR_FAILURE;
@@ -892,7 +888,7 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
 {
   NS_ASSERTION(mPlayer->OnStateMachineThread(),
                "Should be on state machine thread.");
-  nsMediaStream* stream = mPlayer->mDecoder->GetCurrentStream();
+  nsMediaStream* stream = mPlayer->mDecoder->mStream;
 
   if (aTarget == aRange.mTimeStart) {
     if (NS_FAILED(ResetDecode())) {
@@ -1125,7 +1121,7 @@ PRInt64 nsOggReader::ReadOggPage(ogg_page* aPage)
     // Read from the stream into the buffer
     PRUint32 bytesRead = 0;
 
-    nsresult rv = mPlayer->mDecoder->GetCurrentStream()->Read(buffer, 4096, &bytesRead);
+    nsresult rv = mPlayer->mDecoder->mStream->Read(buffer, 4096, &bytesRead);
     if (NS_FAILED(rv) || (bytesRead == 0 && ret == 0)) {
       // End of file.
       return -1;
@@ -1375,7 +1371,7 @@ VideoData* nsOggReader::FindStartTime(PRInt64 aOffset,
 {
   NS_ASSERTION(mPlayer->OnStateMachineThread(), "Should be on state machine thread.");
 
-  nsMediaStream* stream = mPlayer->mDecoder->GetCurrentStream();
+  nsMediaStream* stream = mPlayer->mDecoder->mStream;
 
   stream->Seek(nsISeekableStream::NS_SEEK_SET, aOffset);
   if (NS_FAILED(ResetDecode())) {
@@ -1431,7 +1427,7 @@ PRInt64 nsOggReader::FindEndTime(PRInt64 aEndOffset)
   MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mPlayer->OnStateMachineThread(), "Should be on state machine thread.");
 
-  nsMediaStream* stream = mPlayer->mDecoder->GetCurrentStream();
+  nsMediaStream* stream = mPlayer->mDecoder->mStream;
   ogg_sync_reset(&mOggState);
 
   stream->Seek(nsISeekableStream::NS_SEEK_SET, aEndOffset);

@@ -281,11 +281,9 @@ endif
 endif # ENABLE_TRACEJIT
 
 ifdef JS_HAS_CTYPES
-VPATH += $(srcdir)/ctypes
-
 CPPSRCS += \
-    CTypes.cpp \
-    Library.cpp \
+    ctypes/CTypes.cpp \
+    ctypes/Library.cpp \
     $(NULL)
 
 LOCAL_INCLUDES = \

@@ -40,12 +40,10 @@
 
 #include "nsXULListboxAccessible.h"
 
-#include "nsAccessibilityService.h"
-#include "nsAccUtils.h"
-
 #include "nsIDOMXULPopupElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
+#include "nsServiceManagerUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColumnsAccessible
@@ -364,8 +362,9 @@ nsXULListboxAccessible::GetCellAt(PRInt32 aRow, PRInt32 aColumn,
 
   nsCOMPtr<nsIDOMNode> itemNode(do_QueryInterface(item));
 
-  nsRefPtr<nsAccessible> accessibleRow =
-    GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell);
+  nsCOMPtr<nsIAccessible> accessibleRow;
+  GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell,
+                                            getter_AddRefs(accessibleRow));
   NS_ENSURE_STATE(accessibleRow);
 
   nsresult rv = accessibleRow->GetChildAt(aColumn, aAccessibleCell);
@@ -630,15 +629,19 @@ nsXULListboxAccessible::GetSelectedCells(nsIArray **aCells)
   for (; index < selectedItemsCount; index++) {
     nsCOMPtr<nsIDOMNode> itemNode;
     selectedItems->Item(index, getter_AddRefs(itemNode));
-    nsRefPtr<nsAccessible> item =
-      GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell);
+    nsCOMPtr<nsIAccessible> item;
+    GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell,
+                                              getter_AddRefs(item));
 
     if (item) {
-      PRInt32 cellCount = item->GetChildCount();
-      for (PRInt32 cellIdx = 0; cellIdx < cellCount; cellIdx++) {
-        nsAccessible *cell = mChildren[cellIdx];
+      nsCOMPtr<nsIAccessible> cell, nextCell;
+      item->GetFirstChild(getter_AddRefs(cell));
+      while (cell) {
         if (nsAccUtils::Role(cell) == nsIAccessibleRole::ROLE_CELL)
-          selCells->AppendElement(static_cast<nsIAccessible*>(cell), PR_FALSE);
+          selCells->AppendElement(cell, PR_FALSE);
+
+        cell->GetNextSibling(getter_AddRefs(nextCell));
+        nextCell.swap(cell);
       }
     }
   }
@@ -874,7 +877,7 @@ nsXULListitemAccessible::
 /** Inherit the ISupports impl from nsAccessible, we handle nsIAccessibleSelectable */
 NS_IMPL_ISUPPORTS_INHERITED0(nsXULListitemAccessible, nsAccessible)
 
-already_AddRefed<nsAccessible>
+already_AddRefed<nsIAccessible>
 nsXULListitemAccessible::GetListAccessible()
 {
   if (IsDefunct())
@@ -892,7 +895,9 @@ nsXULListitemAccessible::GetListAccessible()
   if (!listNode)
     return nsnull;
 
-  return GetAccService()->GetAccessibleInWeakShell(listNode, mWeakShell);
+  nsIAccessible *listAcc = nsnull;
+  GetAccService()->GetAccessibleInWeakShell(listNode, mWeakShell, &listAcc);
+  return listAcc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -923,7 +928,7 @@ nsXULListitemAccessible::GetNameInternal(nsAString& aName)
 nsresult
 nsXULListitemAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  nsRefPtr<nsAccessible> listAcc = GetListAccessible();
+  nsCOMPtr<nsIAccessible> listAcc = GetListAccessible();
   NS_ENSURE_STATE(listAcc);
 
   if (nsAccUtils::Role(listAcc) == nsIAccessibleRole::ROLE_TABLE) {

@@ -947,7 +947,7 @@ void nsChildView::ResetParent()
 }
 
 nsIWidget*
-nsChildView::GetParent()
+nsChildView::GetParent(void)
 {
   return mParentWidget;
 }
@@ -2265,9 +2265,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)updatePluginTopLevelWindowStatus:(BOOL)hasMain
 {
-  if (!mGeckoChild)
-    return;
-
   nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
   NPCocoaEvent cocoaEvent;
   InitNPCocoaEvent(&cocoaEvent);
@@ -2439,7 +2436,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 }
 
 // We accept key and mouse events, so don't keep passing them up the chain. Allow
-// this to be a 'focused' widget for event dispatch.
+// this to be a 'focussed' widget for event dispatch
 - (BOOL)acceptsFirstResponder
 {
   return YES;
@@ -5472,48 +5469,16 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void)updateCocoaPluginFocusStatus:(BOOL)hasFocus
-{
-  if (!mGeckoChild)
-    return;
-
-  nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
-  NPCocoaEvent cocoaEvent;
-  InitNPCocoaEvent(&cocoaEvent);
-  cocoaEvent.type = NPCocoaEventFocusChanged;
-  cocoaEvent.data.focus.hasFocus = hasFocus;
-  pluginEvent.pluginEvent = &cocoaEvent;
-  mGeckoChild->DispatchWindowEvent(pluginEvent);
-}
-
-// We must always call through to our superclass, even when mGeckoChild is
-// nil -- otherwise the keyboard focus can end up in the wrong NSView.
-- (BOOL)becomeFirstResponder
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    [self updateCocoaPluginFocusStatus:YES];
-  }
-
-  return [super becomeFirstResponder];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(YES);
-}
-
+// This method is called when are are about to lose focus.
 // We must always call through to our superclass, even when mGeckoChild is
 // nil -- otherwise the keyboard focus can end up in the wrong NSView.
 - (BOOL)resignFirstResponder
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    [self updateCocoaPluginFocusStatus:NO];
-  }
-
   return [super resignFirstResponder];
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(YES);
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 - (void)viewsWindowDidBecomeKey

@@ -2033,9 +2033,10 @@ NS_IMETHODIMP
 nsRange::CreateContextualFragment(const nsAString& aFragment,
                                   nsIDOMDocumentFragment** aReturn)
 {
+  nsCOMPtr<nsIDOMNode> start = do_QueryInterface(mStartParent);
   if (mIsPositioned) {
-    return nsContentUtils::CreateContextualFragment(mStartParent, aFragment,
-                                                    PR_TRUE, aReturn);
+    return nsContentUtils::CreateContextualFragment(start, aFragment, PR_TRUE,
+                                                    aReturn);
   }
   return NS_ERROR_FAILURE;
 }

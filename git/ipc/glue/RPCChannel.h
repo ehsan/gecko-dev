@@ -196,11 +196,11 @@ protected:
     }
 
     NS_OVERRIDE
-    virtual bool ShouldDeferNotifyMaybeError() const {
+    virtual bool ShouldDeferNotifyMaybeError() {
         return IsOnCxxStack();
     }
 
-    bool EventOccurred() const;
+    bool EventOccurred();
 
     void MaybeProcessDeferredIncall();
     void EnqueuePendingMessages();
@@ -230,7 +230,8 @@ protected:
         { }
 
         void Describe(int32* id, const char** dir, const char** sems,
-                      const char** name) const
+                      const char** name)
+            const
         {
             *id = mMsg->routing_id();
             *dir = (IN_MESSAGE == mDirection) ? "in" : "out";
@@ -281,18 +282,18 @@ protected:
     };
 
     // Called from both threads
-    size_t StackDepth() const {
+    size_t StackDepth() {
         mMutex.AssertCurrentThreadOwns();
         return mStack.size();
     }
 
     void DebugAbort(const char* file, int line, const char* cond,
                     const char* why,
-                    const char* type="rpc", bool reply=false) const;
+                    const char* type="rpc", bool reply=false);
 
     // This method is only safe to call on the worker thread, or in a
     // debugger with all threads paused.  |outfile| defaults to stdout.
-    void DumpRPCStack(FILE* outfile=NULL, const char* const pfx="") const;
+    void DumpRPCStack(FILE* outfile=NULL, const char* const pfx="");
 
     // 
     // Queue of all incoming messages, except for replies to sync
@@ -333,9 +334,8 @@ protected:
     // one RPC call on our stack, the other side *better* not have
     // sent us another blocking message, because it's blocked on a
     // reply from us.
-    //
-    typedef std::queue<Message> MessageQueue;
-    MessageQueue mPending;
+    // 
+    std::queue<Message> mPending;
 
     // 
     // Stack of all the RPC out-calls on which this RPCChannel is

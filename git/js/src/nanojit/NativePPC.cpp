@@ -310,7 +310,7 @@ namespace nanojit
     }
 
     void Assembler::asm_store64(LOpcode op, LIns *value, int32_t dr, LIns *base) {
-        NanoAssert(value->isQorD());
+        NanoAssert(value->isN64());
 
         switch (op) {
             case LIR_stfi:
@@ -546,19 +546,19 @@ namespace nanojit
     }
 
     void Assembler::asm_cmp(LOpcode condop, LIns *a, LIns *b, ConditionRegister cr) {
-        RegisterMask allow = isCmpDOpcode(condop) ? FpRegs : GpRegs;
+        RegisterMask allow = isFCmpOpcode(condop) ? FpRegs : GpRegs;
         Register ra = findRegFor(a, allow);
 
     #if !PEDANTIC
-        if (b->isImmI()) {
-            int32_t d = b->immI();
+        if (b->isconst()) {
+            int32_t d = b->imm32();
             if (isS16(d)) {
-                if (isCmpSIOpcode(condop)) {
+                if (isSICmpOpcode(condop)) {
                     CMPWI(cr, ra, d);
                     return;
                 }
     #if defined NANOJIT_64BIT
-                if (isCmpSQOpcode(condop)) {
+                if (isSQCmpOpcode(condop)) {
                     CMPDI(cr, ra, d);
                     TODO(cmpdi);
                     return;
@@ -566,12 +566,12 @@ namespace nanojit
     #endif
             }
             if (isU16(d)) {
-                if (isCmpUIOpcode(condop)) {
+                if (isUICmpOpcode(condop)) {
                     CMPLWI(cr, ra, d);
                     return;
                 }
     #if defined NANOJIT_64BIT
-                if (isCmpUQOpcode(condop)) {
+                if (isUQCmpOpcode(condop)) {
                     CMPLDI(cr, ra, d);
                     TODO(cmpldi);
                     return;
@@ -583,21 +583,21 @@ namespace nanojit
 
         // general case
         Register rb = b==a ? ra : findRegFor(b, allow & ~rmask(ra));
-        if (isCmpSIOpcode(condop)) {
+        if (isSICmpOpcode(condop)) {
             CMPW(cr, ra, rb);
         }
-        else if (isCmpUIOpcode(condop)) {
+        else if (isUICmpOpcode(condop)) {
             CMPLW(cr, ra, rb);
         }
     #if defined NANOJIT_64BIT
-        else if (isCmpSQOpcode(condop)) {
+        else if (isSQCmpOpcode(condop)) {
             CMPD(cr, ra, rb);
         }
-        else if (isCmpUQOpcode(condop)) {
+        else if (isUQCmpOpcode(condop)) {
             CMPLD(cr, ra, rb);
         }
     #endif
-        else if (isCmpDOpcode(condop)) {
+        else if (isFCmpOpcode(condop)) {
             // set the lt/gt bit for fle/fge.  We don't do this for
             // int/uint because in those cases we can invert the branch condition.
             // for float, we can't because of unordered comparisons
@@ -638,21 +638,21 @@ namespace nanojit
             d = deprecated_disp(i);
             ADDI(r, FP, d);
         }
-        else if (i->isImmI()) {
-            asm_li(r, i->immI());
+        else if (i->isconst()) {
+            asm_li(r, i->imm32());
         }
-        // XXX: should really rematerializable isImmD() and isImmQ() cases
+        // XXX: should really rematerializable isconstf() and isconstq() cases
         // here; canRemat() assumes they will be rematerialized.
         else {
             d = findMemFor(i);
             if (IsFpReg(r)) {
-                NanoAssert(i->isQorD());
+                NanoAssert(i->isN64());
                 LFD(r, d, FP);
-            } else if (i->isQorD()) {
+            } else if (i->isN64()) {
                 NanoAssert(IsGpReg(r));
                 LD(r, d, FP);
             } else {
-                NanoAssert(i->isI());
+                NanoAssert(i->isI32());
                 NanoAssert(IsGpReg(r));
                 LWZ(r, d, FP);
             }
@@ -661,7 +661,7 @@ namespace nanojit
 
     void Assembler::asm_immi(LIns *ins) {
         Register rr = deprecated_prepResultReg(ins, GpRegs);
-        asm_li(rr, ins->immI());
+        asm_li(rr, ins->imm32());
     }
 
     void Assembler::asm_fneg(LIns *ins) {
@@ -729,7 +729,7 @@ namespace nanojit
             ArgType ty = argTypes[j];
             LInsp arg = ins->arg(j);
             NanoAssert(ty != ARGTYPE_V);
-            if (ty != ARGTYPE_D) {
+            if (ty != ARGTYPE_F) {
                 // GP arg
                 if (r <= R10) {
                     asm_regarg(ty, arg, r);
@@ -764,20 +764,20 @@ namespace nanojit
     {
         NanoAssert(r != deprecated_UnknownReg);
         NanoAssert(ty != ARGTYPE_V);
-        if (ty != ARGTYPE_D)
+        if (ty != ARGTYPE_F)
         {
         #ifdef NANOJIT_64BIT
             if (ty == ARGTYPE_I) {
                 // sign extend 32->64
                 EXTSW(r, r);
-            } else if (ty == ARGTYPE_UI) {
+            } else if (ty == ARGTYPE_U) {
                 // zero extend 32->64
                 CLRLDI(r, r, 32);
             }
         #endif
             // arg goes in specific register
-            if (p->isImmI()) {
-                asm_li(r, p->immI());
+            if (p->isconst()) {
+                asm_li(r, p->imm32());
             } else {
                 if (p->isUsed()) {
                     if (!p->deprecated_hasKnownReg()) {
@@ -786,7 +786,7 @@ namespace nanojit
                         if (p->isop(LIR_alloc)) {
                             NanoAssert(isS16(d));
                             ADDI(r, FP, d);
-                        } else if (p->isQorD()) {
+                        } else if (p->isN64()) {
                             LD(r, d, FP);
                         } else {
                             LWZ(r, d, FP);
@@ -850,8 +850,8 @@ namespace nanojit
         Register rr = deprecated_prepResultReg(ins, allow);
         Register ra = findRegFor(lhs, GpRegs);
 
-        if (rhs->isImmI()) {
-            int32_t rhsc = rhs->immI();
+        if (rhs->isconst()) {
+            int32_t rhsc = rhs->imm32();
             if (isS16(rhsc)) {
                 // ppc arith immediate ops sign-exted the imm16 value
                 switch (op) {
@@ -1057,7 +1057,7 @@ namespace nanojit
                     int32_t hi, lo;
                 } w;
             };
-            d = ins->immD();
+            d = ins->imm64f();
             LFD(r, 8, SP);
             STW(R0, 12, SP);
             asm_li(R0, w.lo);
@@ -1065,7 +1065,7 @@ namespace nanojit
             asm_li(R0, w.hi);
         }
         else {
-            int64_t q = ins->immQ();
+            int64_t q = ins->imm64();
             if (isS32(q)) {
                 asm_li(r, int32_t(q));
                 return;
@@ -1099,7 +1099,7 @@ namespace nanojit
                     int32_t hi, lo;
                 } w;
             };
-            d = ins->immD();
+            d = ins->imm64f();
             LFD(r, 8, SP);
             STW(R0, 12, SP);
             asm_li(R0, w.lo);
@@ -1107,7 +1107,7 @@ namespace nanojit
             asm_li(R0, w.hi);
         }
         else {
-            int64_t q = ins->immQ();
+            int64_t q = ins->imm64();
             if (isS32(q)) {
                 asm_li(r, int32_t(q));
                 return;
@@ -1216,10 +1216,10 @@ namespace nanojit
 
         NanoAssert(cond->isCmp());
     #ifdef NANOJIT_64BIT
-        NanoAssert((ins->opcode() == LIR_cmov  && iftrue->isI() && iffalse->isI()) ||
-                   (ins->opcode() == LIR_qcmov && iftrue->isQ() && iffalse->isQ()));
+        NanoAssert((ins->opcode() == LIR_cmov  && iftrue->isI32() && iffalse->isI32()) ||
+                   (ins->opcode() == LIR_qcmov && iftrue->isI64() && iffalse->isI64()));
     #else
-        NanoAssert((ins->opcode() == LIR_cmov  && iftrue->isI() && iffalse->isI()));
+        NanoAssert((ins->opcode() == LIR_cmov  && iftrue->isI32() && iffalse->isI32()));
     #endif
 
         // fixme: we could handle fpu registers here, too, since we're just branching

@@ -1040,7 +1040,9 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
 
           // Dispatch the event
           nsRect baseViewDimensions;
-          baseView->GetDimensions(baseViewDimensions);
+          if (baseView) {
+            baseView->GetDimensions(baseViewDimensions);
+          }
 
           nsPoint pt;
           pt.x = baseViewDimensions.x + 

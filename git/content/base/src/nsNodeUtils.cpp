@@ -223,7 +223,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
     // Delete all properties before tearing down the document. Some of the
     // properties are bound to nsINode objects and the destructor functions of
     // the properties may want to use the owner document of the nsINode.
-    static_cast<nsIDocument*>(aNode)->DeleteAllProperties();
+    static_cast<nsIDocument*>(aNode)->PropertyTable()->DeleteAllProperties();
   }
   else {
     if (aNode->HasProperties()) {
@@ -231,7 +231,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
       // delete the document.
       nsCOMPtr<nsIDocument> document = aNode->GetOwnerDoc();
       if (document) {
-        document->DeleteAllPropertiesFor(aNode);
+        document->PropertyTable()->DeleteAllPropertiesFor(aNode);
       }
     }
 
@@ -357,7 +357,6 @@ struct NS_STACK_CLASS nsHandlerData
   PRUint16 mOperation;
   nsCOMPtr<nsIDOMNode> mSource;
   nsCOMPtr<nsIDOMNode> mDest;
-  nsCxPusher mPusher;
 };
 
 static void
@@ -371,9 +370,6 @@ CallHandler(void *aObject, nsIAtom *aKey, void *aHandler, void *aData)
     static_cast<nsIVariant*>(node->GetProperty(DOM_USER_DATA, aKey));
   NS_ASSERTION(data, "Handler without data?");
 
-  if (!handlerData->mPusher.RePush(node)) {
-    return;
-  }
   nsAutoString key;
   aKey->ToString(key);
   handler->Handle(handlerData->mOperation, key, data, handlerData->mSource,
@@ -390,7 +386,7 @@ nsNodeUtils::CallUserDataHandlers(nsCOMArray<nsINode> &aNodesWithProperties,
                   "Expected aNodesWithProperties to contain original and "
                   "cloned nodes.");
 
-  nsPropertyTable *table = aOwnerDocument->PropertyTable(DOM_USER_DATA_HANDLER);
+  nsPropertyTable *table = aOwnerDocument->PropertyTable();
 
   // Keep the document alive, just in case one of the handlers causes it to go
   // away.
@@ -412,7 +408,8 @@ nsNodeUtils::CallUserDataHandlers(nsCOMArray<nsINode> &aNodesWithProperties,
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    table->Enumerate(nodeWithProperties, CallHandler, &handlerData);
+    table->Enumerate(nodeWithProperties, DOM_USER_DATA_HANDLER, CallHandler,
+                     &handlerData);
   }
 
   return NS_OK;
@@ -437,8 +434,10 @@ nsNodeUtils::TraverseUserData(nsINode* aNode,
     return;
   }
 
-  ownerDoc->PropertyTable(DOM_USER_DATA)->Enumerate(aNode, NoteUserData, &aCb);
-  ownerDoc->PropertyTable(DOM_USER_DATA_HANDLER)->Enumerate(aNode, NoteUserData, &aCb);
+  nsPropertyTable *table = ownerDoc->PropertyTable();
+
+  table->Enumerate(aNode, DOM_USER_DATA, NoteUserData, &aCb);
+  table->Enumerate(aNode, DOM_USER_DATA_HANDLER, NoteUserData, &aCb);
 }
 
 /* static */
@@ -756,7 +755,8 @@ nsNodeUtils::UnlinkUserData(nsINode *aNode)
   // delete the document.
   nsCOMPtr<nsIDocument> document = aNode->GetOwnerDoc();
   if (document) {
-    document->PropertyTable(DOM_USER_DATA)->DeleteAllPropertiesFor(aNode);
-    document->PropertyTable(DOM_USER_DATA_HANDLER)->DeleteAllPropertiesFor(aNode);
+    document->PropertyTable()->DeleteAllPropertiesFor(aNode, DOM_USER_DATA);
+    document->PropertyTable()->DeleteAllPropertiesFor(aNode,
+                                                      DOM_USER_DATA_HANDLER);
   }
 }

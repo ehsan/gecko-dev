@@ -63,6 +63,7 @@ EXPORTS = \
 CPPSRCS = \
         BasicImages.cpp \
         BasicLayers.cpp \
+        glWrapper.cpp \
         LayerManagerOGL.cpp \
         ThebesLayerOGL.cpp \
         ContainerLayerOGL.cpp \
@@ -72,7 +73,6 @@ CPPSRCS = \
 EXTRA_DSO_LIBS = \
         gkgfx \
         thebes \
-        ycbcr \
         $(NULL)
 
 EXTRA_DSO_LDOPTS += \

@@ -40,11 +40,12 @@
 #include <limits>
 #include "nsAudioStream.h"
 #include "nsTArray.h"
-#include "nsBuiltinDecoder.h"
+#include "nsOggDecoder.h"
 #include "nsOggReader.h"
 #include "nsOggPlayStateMachine.h"
+#include "oggplay/oggplay.h"
 #include "mozilla/mozalloc.h"
-#include "VideoUtils.h"
+#include "nsOggHacks.h"
 
 using namespace mozilla::layers;
 using mozilla::MonitorAutoExit;
@@ -54,8 +55,8 @@ using mozilla::MonitorAutoExit;
 static PRBool AddOverflow(PRUint32 a, PRUint32 b, PRUint32& aResult);
 
 #ifdef PR_LOGGING
-extern PRLogModuleInfo* gBuiltinDecoderLog;
-#define LOG(type, msg) PR_LOG(gBuiltinDecoderLog, type, msg)
+extern PRLogModuleInfo* gOggDecoderLog;
+#define LOG(type, msg) PR_LOG(gOggDecoderLog, type, msg)
 #else
 #define LOG(type, msg)
 #endif
@@ -76,27 +77,7 @@ extern PRLogModuleInfo* gBuiltinDecoderLog;
 // be played.
 #define AUDIO_FRAME_RATE 25.0
 
-// If audio queue has less than this many ms of decoded audio, we won't risk
-// trying to decode the video, we'll skip decoding video up to the next
-// keyframe.
-//
-// Also if the decode catches up with the end of the downloaded data,
-// we'll only go into BUFFERING state if we've got audio and have queued
-// less than LOW_AUDIO_MS of audio, or if we've got video and have queued
-// less than LOW_VIDEO_FRAMES frames.
-static const PRUint32 LOW_AUDIO_MS = 100;
-
-// If we have fewer than LOW_VIDEO_FRAMES decoded frames, and
-// we're not "pumping video", we'll skip the video up to the next keyframe
-// which is at or after the current playback position.
-//
-// Also if the decode catches up with the end of the downloaded data,
-// we'll only go into BUFFERING state if we've got audio and have queued
-// less than LOW_AUDIO_MS of audio, or if we've got video and have queued
-// less than LOW_VIDEO_FRAMES frames.
-static const PRUint32 LOW_VIDEO_FRAMES = 1;
-
-nsOggPlayStateMachine::nsOggPlayStateMachine(nsBuiltinDecoder* aDecoder) :
+nsOggPlayStateMachine::nsOggPlayStateMachine(nsOggDecoder* aDecoder) :
   mDecoder(aDecoder),
   mState(DECODER_STATE_DECODING_METADATA),
   mAudioMonitor("media.audiostream"),
@@ -148,6 +129,11 @@ void nsOggPlayStateMachine::DecodeLoop()
   // skipping up to the next keyframe.
   PRBool skipToNextKeyframe = PR_FALSE;
 
+  // If we have fewer than videoKeyframeSkipThreshold decoded frames, and
+  // we're not "pumping video", we'll skip the video up to the next keyframe
+  // which is at or after the current playback position.
+  const unsigned videoKeyframeSkipThreshold = 1;
+
   // Once we've decoded more than videoPumpThreshold video frames, we'll
   // no longer be considered to be "pumping video".
   const unsigned videoPumpThreshold = 5;
@@ -161,6 +147,11 @@ void nsOggPlayStateMachine::DecodeLoop()
   // of decoded audio, we'll start to check whether the audio or video decode
   // is falling behind.
   const unsigned audioPumpThresholdMs = 250;
+
+  // If audio queue has less than this many ms of decoded audio, we won't risk
+  // trying to decode the video, we'll skip decoding video up to the next
+  // keyframe.
+  const unsigned lowAudioThresholdMs = 100;
 
   // If more than this many ms of decoded audio is queued, we'll hold off
   // decoding more audio.
@@ -199,7 +190,7 @@ void nsOggPlayStateMachine::DecodeLoop()
     }
     if (!videoPump &&
         videoPlaying &&
-        videoQueueSize < LOW_VIDEO_FRAMES)
+        videoQueueSize < videoKeyframeSkipThreshold)
     {
       skipToNextKeyframe = PR_TRUE;
     }
@@ -209,7 +200,7 @@ void nsOggPlayStateMachine::DecodeLoop()
     {
       MonitorAutoEnter mon(mDecoder->GetMonitor());
       initialDownloadPosition =
-        mDecoder->GetCurrentStream()->GetCachedDataEnd(mDecoder->mDecoderPosition);
+        mDecoder->mStream->GetCachedDataEnd(mDecoder->mDecoderPosition);
       currentTime = mCurrentFrameTime + mStartTime;
     }
 
@@ -227,7 +218,7 @@ void nsOggPlayStateMachine::DecodeLoop()
     if (audioPump && audioDecoded > audioPumpThresholdMs) {
       audioPump = PR_FALSE;
     }
-    if (!audioPump && audioPlaying && audioDecoded < LOW_AUDIO_MS) {
+    if (!audioPump && audioPlaying && audioDecoded < lowAudioThresholdMs) {
       skipToNextKeyframe = PR_TRUE;
     }
 
@@ -243,7 +234,7 @@ void nsOggPlayStateMachine::DecodeLoop()
     {
       MonitorAutoEnter mon(mDecoder->GetMonitor());
       initialDownloadPosition =
-        mDecoder->GetCurrentStream()->GetCachedDataEnd(mDecoder->mDecoderPosition);
+        mDecoder->mStream->GetCachedDataEnd(mDecoder->mDecoderPosition);
       mDecoder->GetMonitor().NotifyAll();
     }
 
@@ -378,7 +369,6 @@ void nsOggPlayStateMachine::AudioLoop()
                               sound->AudioDataLength(),
                               PR_TRUE);
           mAudioEndTime = sound->mTime + sound->mDuration;
-          mDecoder->UpdatePlaybackOffset(sound->mOffset);
         } else {
           mReader->mAudioQueue.PushFront(sound);
           sound.forget();
@@ -412,7 +402,7 @@ nsresult nsOggPlayStateMachine::Init()
 
 void nsOggPlayStateMachine::StopPlayback(eStopMode aMode)
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
 
@@ -441,7 +431,7 @@ void nsOggPlayStateMachine::StopPlayback(eStopMode aMode)
 
 void nsOggPlayStateMachine::StartPlayback()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
   NS_ASSERTION(!IsPlaying(), "Shouldn't be playing when StartPlayback() is called");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
@@ -468,7 +458,7 @@ void nsOggPlayStateMachine::StartPlayback()
 
 void nsOggPlayStateMachine::UpdatePlaybackPosition(PRInt64 aTime)
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
 
@@ -480,13 +470,13 @@ void nsOggPlayStateMachine::UpdatePlaybackPosition(PRInt64 aTime)
                  "CurrentTime must be after duration if aTime > endTime!");
     mEndTime = aTime;
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::DurationChanged);
+      NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, DurationChanged);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   }
   if (!mPositionChangeQueued) {
     mPositionChangeQueued = PR_TRUE;
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::PlaybackPositionChanged);
+      NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, PlaybackPositionChanged);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   }
 }
@@ -592,7 +582,7 @@ void nsOggPlayStateMachine::Decode()
 
 void nsOggPlayStateMachine::ResetPlayback()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
   mVideoFrameTime = -1;
   mAudioStartTime = -1;
@@ -604,8 +594,8 @@ void nsOggPlayStateMachine::Seek(float aTime)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   MonitorAutoEnter mon(mDecoder->GetMonitor());
-  // nsBuiltinDecoder::mPlayState should be SEEKING while we seek, and
-  // in that case nsBuiltinDecoder shouldn't be calling us.
+  // nsOggDecoder::mPlayState should be SEEKING while we seek, and
+  // in that case nsOggDecoder shouldn't be calling us.
   NS_ASSERTION(mState != DECODER_STATE_SEEKING,
                "We shouldn't already be seeking");
   NS_ASSERTION(mState >= DECODER_STATE_DECODING,
@@ -631,7 +621,7 @@ void nsOggPlayStateMachine::Seek(float aTime)
 
 void nsOggPlayStateMachine::StopDecodeThreads()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
   mStopDecodeThreads = PR_TRUE;
@@ -655,7 +645,7 @@ void nsOggPlayStateMachine::StopDecodeThreads()
 nsresult
 nsOggPlayStateMachine::StartDecodeThreads()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
   mStopDecodeThreads = PR_FALSE;
@@ -666,7 +656,7 @@ nsOggPlayStateMachine::StartDecodeThreads()
       return rv;
     }
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsOggPlayStateMachine::DecodeLoop);
+      NS_NEW_RUNNABLE_METHOD(nsOggPlayStateMachine, this, DecodeLoop);
     mDecodeThread->Dispatch(event, NS_DISPATCH_NORMAL);
   }
   if (HasAudio() && !mAudioThread) {
@@ -676,7 +666,7 @@ nsOggPlayStateMachine::StartDecodeThreads()
       return rv;
     }
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsOggPlayStateMachine::AudioLoop);
+      NS_NEW_RUNNABLE_METHOD(nsOggPlayStateMachine, this, AudioLoop);
     mAudioThread->Dispatch(event, NS_DISPATCH_NORMAL);
   }
   return NS_OK;
@@ -684,9 +674,9 @@ nsOggPlayStateMachine::StartDecodeThreads()
 
 nsresult nsOggPlayStateMachine::Run()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
-  nsMediaStream* stream = mDecoder->GetCurrentStream();
+  nsMediaStream* stream = mDecoder->mStream;
   NS_ENSURE_TRUE(stream, NS_ERROR_NULL_POINTER);
 
   while (PR_TRUE) {
@@ -734,7 +724,7 @@ nsresult nsOggPlayStateMachine::Run()
         // Inform the element that we've loaded the Ogg metadata and the
         // first frame.
         nsCOMPtr<nsIRunnable> metadataLoadedEvent =
-          NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::MetadataLoaded);
+          NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, MetadataLoaded);
         NS_DispatchToMainThread(metadataLoadedEvent, NS_DISPATCH_NORMAL);
 
         if (mState == DECODER_STATE_DECODING_METADATA) {
@@ -743,7 +733,7 @@ nsresult nsOggPlayStateMachine::Run()
         }
 
         // Start playback.
-        if (mDecoder->GetState() == nsBuiltinDecoder::PLAY_STATE_PLAYING) {
+        if (mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING) {
           if (!IsPlaying()) {
             StartPlayback();
           }
@@ -763,12 +753,9 @@ nsresult nsOggPlayStateMachine::Run()
           continue;
 
         if (mBufferExhausted &&
-            mDecoder->GetState() == nsBuiltinDecoder::PLAY_STATE_PLAYING &&
-            !mDecoder->GetCurrentStream()->IsDataCachedToEndOfStream(mDecoder->mDecoderPosition) &&
-            !mDecoder->GetCurrentStream()->IsSuspendedByCache() &&
-            ((HasAudio() && mReader->mAudioQueue.Duration() < LOW_AUDIO_MS) ||
-             (HasVideo() && mReader->mVideoQueue.GetSize() < LOW_VIDEO_FRAMES)))
-        {
+            mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING &&
+            !mDecoder->mStream->IsDataCachedToEndOfStream(mDecoder->mDecoderPosition) &&
+            !mDecoder->mStream->IsSuspendedByCache()) {
           // There is at most one frame in the queue and there's
           // more data to load. Let's buffer to make sure we can play a
           // decent amount of video in the future.
@@ -830,7 +817,7 @@ nsresult nsOggPlayStateMachine::Run()
         {
           MonitorAutoExit exitMon(mDecoder->GetMonitor());
           nsCOMPtr<nsIRunnable> startEvent =
-            NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::SeekingStarted);
+            NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStarted);
           NS_DispatchToMainThread(startEvent, NS_DISPATCH_SYNC);
         }
         if (mCurrentFrameTime != mSeekTime - mStartTime) {
@@ -877,12 +864,12 @@ nsresult nsOggPlayStateMachine::Run()
         if (mCurrentFrameTime == mEndTime) {
           LOG(PR_LOG_DEBUG, ("%p Changed state from SEEKING (to %lldms) to COMPLETED",
                              mDecoder, seekTime));
-          stopEvent = NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::SeekingStoppedAtEnd);
+          stopEvent = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStoppedAtEnd);
           mState = DECODER_STATE_COMPLETED;
         } else {
           LOG(PR_LOG_DEBUG, ("%p Changed state from SEEKING (to %lldms) to DECODING",
                              mDecoder, seekTime));
-          stopEvent = NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::SeekingStopped);
+          stopEvent = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStopped);
           mState = DECODER_STATE_DECODING;
         }
         mBufferExhausted = PR_FALSE;
@@ -899,12 +886,12 @@ nsresult nsOggPlayStateMachine::Run()
       {
         TimeStamp now = TimeStamp::Now();
         if (now - mBufferingStart < TimeDuration::FromSeconds(BUFFERING_WAIT) &&
-            mDecoder->GetCurrentStream()->GetCachedDataEnd(mDecoder->mDecoderPosition) < mBufferingEndOffset &&
-            !mDecoder->GetCurrentStream()->IsDataCachedToEndOfStream(mDecoder->mDecoderPosition) &&
-            !mDecoder->GetCurrentStream()->IsSuspendedByCache()) {
+            mDecoder->mStream->GetCachedDataEnd(mDecoder->mDecoderPosition) < mBufferingEndOffset &&
+            !mDecoder->mStream->IsDataCachedToEndOfStream(mDecoder->mDecoderPosition) &&
+            !mDecoder->mStream->IsSuspendedByCache()) {
           LOG(PR_LOG_DEBUG,
               ("In buffering: buffering data until %d bytes available or %f seconds",
-               PRUint32(mBufferingEndOffset - mDecoder->GetCurrentStream()->GetCachedDataEnd(mDecoder->mDecoderPosition)),
+               PRUint32(mBufferingEndOffset - mDecoder->mStream->GetCachedDataEnd(mDecoder->mDecoderPosition)),
                BUFFERING_WAIT - (now - mBufferingStart).ToSeconds()));
           Wait(1000);
           if (mState == DECODER_STATE_SHUTDOWN)
@@ -922,7 +909,7 @@ nsresult nsOggPlayStateMachine::Run()
           // Notify to allow blocked decoder thread to continue
           mDecoder->GetMonitor().NotifyAll();
           UpdateReadyState();
-          if (mDecoder->GetState() == nsBuiltinDecoder::PLAY_STATE_PLAYING) {
+          if (mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING) {
             if (!IsPlaying()) {
               StartPlayback();
             }
@@ -959,14 +946,14 @@ nsresult nsOggPlayStateMachine::Run()
         LOG(PR_LOG_DEBUG, ("Shutting down the state machine thread"));
         StopDecodeThreads();
 
-        if (mDecoder->GetState() == nsBuiltinDecoder::PLAY_STATE_PLAYING) {
+        if (mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING) {
           PRInt64 videoTime = HasVideo() ? (mVideoFrameTime + mInfo.mCallbackPeriod) : 0;
           PRInt64 clockTime = NS_MAX(mEndTime, NS_MAX(videoTime, GetAudioClock()));
           UpdatePlaybackPosition(clockTime);
           {
             MonitorAutoExit exitMon(mDecoder->GetMonitor());
             nsCOMPtr<nsIRunnable> event =
-              NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::PlaybackEnded);
+              NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, PlaybackEnded);
             NS_DispatchToMainThread(event, NS_DISPATCH_SYNC);
           }
         }
@@ -982,20 +969,52 @@ nsresult nsOggPlayStateMachine::Run()
   return NS_OK;
 }
 
+static void ToARGBHook(const PlanarYCbCrImage::Data& aData, PRUint8* aOutput)
+{
+  OggPlayYUVChannels yuv;
+  NS_ASSERTION(aData.mYStride == aData.mYSize.width,
+               "Stride not supported");
+  NS_ASSERTION(aData.mCbCrStride == aData.mCbCrSize.width,
+               "Stride not supported");
+  yuv.ptry = aData.mYChannel;
+  yuv.ptru = aData.mCbChannel;
+  yuv.ptrv = aData.mCrChannel;
+  yuv.uv_width = aData.mCbCrSize.width;
+  yuv.uv_height = aData.mCbCrSize.height;
+  yuv.y_width = aData.mYSize.width;
+  yuv.y_height = aData.mYSize.height;
+
+  OggPlayRGBChannels rgb;
+  rgb.ptro = aOutput;
+  rgb.rgb_width = aData.mYSize.width;
+  rgb.rgb_height = aData.mYSize.height;
+
+  oggplay_yuv2bgra(&yuv, &rgb);  
+}
+
 void nsOggPlayStateMachine::RenderVideoFrame(VideoData* aData)
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
 
   if (aData->mDuplicate) {
     return;
   }
 
+  unsigned xSubsample = (aData->mBuffer[1].width != 0) ?
+    (aData->mBuffer[0].width / aData->mBuffer[1].width) : 0;
+
+  unsigned ySubsample = (aData->mBuffer[1].height != 0) ?
+    (aData->mBuffer[0].height / aData->mBuffer[1].height) : 0;
+
+  if (xSubsample == 0 || ySubsample == 0) {
+    // We can't perform yCbCr to RGB, so we can't render the frame...
+    return;
+  }
   NS_ASSERTION(mInfo.mPicture.width != 0 && mInfo.mPicture.height != 0,
                "We can only render non-zero-sized video");
-  NS_ASSERTION(aData->mBuffer[0].stride >= 0 && aData->mBuffer[0].height >= 0 &&
-               aData->mBuffer[1].stride >= 0 && aData->mBuffer[1].height >= 0 &&
-               aData->mBuffer[2].stride >= 0 && aData->mBuffer[2].height >= 0,
-               "YCbCr stride and height must be non-negative");
+
+  unsigned cbCrStride = mInfo.mPicture.width / xSubsample;
+  unsigned cbCrHeight = mInfo.mPicture.height / ySubsample;
 
   // Ensure the picture size specified in the headers can be extracted out of
   // the frame we've been supplied without indexing out of bounds.
@@ -1011,11 +1030,8 @@ void nsOggPlayStateMachine::RenderVideoFrame(VideoData* aData)
     return;
   }
 
-  unsigned ySize = aData->mBuffer[0].stride * aData->mBuffer[0].height;
-  unsigned cbSize = aData->mBuffer[1].stride * aData->mBuffer[1].height;
-  unsigned crSize = aData->mBuffer[2].stride * aData->mBuffer[2].height;
-  unsigned cbCrSize = ySize + cbSize + crSize;
-
+  unsigned cbCrSize = PR_ABS(aData->mBuffer[0].stride * aData->mBuffer[0].height) +
+                      PR_ABS(aData->mBuffer[1].stride * aData->mBuffer[1].height) * 2;
   if (cbCrSize != mCbCrSize) {
     mCbCrSize = cbCrSize;
     mCbCrBuffer = static_cast<unsigned char*>(moz_xmalloc(cbCrSize));
@@ -1029,13 +1045,54 @@ void nsOggPlayStateMachine::RenderVideoFrame(VideoData* aData)
   unsigned char* data = mCbCrBuffer.get();
 
   unsigned char* y = data;
-  unsigned char* cb = y + ySize;
-  unsigned char* cr = cb + cbSize;
-  
-  memcpy(y, aData->mBuffer[0].data, ySize);
-  memcpy(cb, aData->mBuffer[1].data, cbSize);
-  memcpy(cr, aData->mBuffer[2].data, crSize);
- 
+  unsigned char* cb = y + (mInfo.mPicture.width * PR_ABS(aData->mBuffer[0].height));
+  unsigned char* cr = cb + (cbCrStride * PR_ABS(aData->mBuffer[1].height));
+
+  unsigned char* p = y;
+  unsigned char* q = aData->mBuffer[0].data + mInfo.mPicture.x +
+                     aData->mBuffer[0].stride * mInfo.mPicture.y;
+  for(PRInt32 i=0; i < mInfo.mPicture.height; ++i) {
+    NS_ASSERTION(q + mInfo.mPicture.width <
+                 aData->mBuffer[0].data + aData->mBuffer[0].stride * aData->mBuffer[0].height,
+                 "Y read must be in bounds");
+    NS_ASSERTION(p + mInfo.mPicture.width < data + mCbCrSize,
+                 "Memory copy 1 will stomp");
+    memcpy(p, q, mInfo.mPicture.width);
+    p += mInfo.mPicture.width;
+    q += aData->mBuffer[0].stride;
+  }
+
+  unsigned xo = xSubsample ? (mInfo.mPicture.x / xSubsample) : 0;
+  unsigned yo = ySubsample ? aData->mBuffer[1].stride * (mInfo.mPicture.y / ySubsample) : 0;
+
+  unsigned cbCrOffset = xo+yo;
+  p = cb;
+  q = aData->mBuffer[1].data + cbCrOffset;
+  unsigned char* p2 = cr;
+  unsigned char* q2 = aData->mBuffer[2].data + cbCrOffset;
+#ifdef DEBUG
+  unsigned char* buffer1Limit =
+    aData->mBuffer[1].data + aData->mBuffer[1].stride * aData->mBuffer[1].height;
+  unsigned char* buffer2Limit =
+    aData->mBuffer[2].data + aData->mBuffer[2].stride * aData->mBuffer[2].height;
+#endif
+  for(unsigned i=0; i < cbCrHeight; ++i) {
+    NS_ASSERTION(q + cbCrStride <= buffer1Limit,
+                 "Cb source read must be within bounds");
+    NS_ASSERTION(q2 + cbCrStride <= buffer2Limit,
+                 "Cr source read must be within bounds");
+    NS_ASSERTION(p + cbCrStride < data + mCbCrSize,
+                 "Cb write destination must be within bounds");
+    NS_ASSERTION(p2 + cbCrStride < data + mCbCrSize,
+                 "Cr write destination must be within bounds");
+    memcpy(p, q, cbCrStride);
+    memcpy(p2, q2, cbCrStride);
+    p += cbCrStride;
+    p2 += cbCrStride;
+    q += aData->mBuffer[1].stride;
+    q2 += aData->mBuffer[2].stride;
+  }
+
   ImageContainer* container = mDecoder->GetImageContainer();
   // Currently our Ogg decoder only knows how to output to PLANAR_YCBCR
   // format.
@@ -1048,26 +1105,26 @@ void nsOggPlayStateMachine::RenderVideoFrame(VideoData* aData)
     NS_ASSERTION(image->GetFormat() == Image::PLANAR_YCBCR,
                  "Wrong format?");
     PlanarYCbCrImage* videoImage = static_cast<PlanarYCbCrImage*>(image.get());
+    // XXX this is only temporary until we get YCbCr code in the layer
+    // system.
+    videoImage->SetRGBConverter(ToARGBHook);
     PlanarYCbCrImage::Data data;
     data.mYChannel = y;
-    data.mYSize = gfxIntSize(mInfo.mFrame.width, mInfo.mFrame.height);
-    data.mYStride = aData->mBuffer[0].stride;
+    data.mYSize = gfxIntSize(mInfo.mPicture.width, mInfo.mPicture.height);
+    data.mYStride = mInfo.mPicture.width;
     data.mCbChannel = cb;
     data.mCrChannel = cr;
-    data.mCbCrSize = gfxIntSize(aData->mBuffer[1].width, aData->mBuffer[1].height);
-    data.mCbCrStride = aData->mBuffer[1].stride;
-    data.mPicX = mInfo.mPicture.x;
-    data.mPicY = mInfo.mPicture.y;
-    data.mPicSize = gfxIntSize(mInfo.mPicture.width, mInfo.mPicture.height);
+    data.mCbCrSize = gfxIntSize(cbCrStride, cbCrHeight);
+    data.mCbCrStride = cbCrStride;
     videoImage->SetData(data);
-    mDecoder->SetVideoData(data.mPicSize, mInfo.mAspectRatio, image);
+    mDecoder->SetVideoData(data.mYSize, mInfo.mAspectRatio, image);
   }
 }
 
 PRInt64
 nsOggPlayStateMachine::GetAudioClock()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
   if (!mAudioStream || !HasAudio())
     return -1;
   PRInt64 t = mAudioStream->GetPosition();
@@ -1076,11 +1133,11 @@ nsOggPlayStateMachine::GetAudioClock()
 
 void nsOggPlayStateMachine::AdvanceFrame()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
 
   // When it's time to display a frame, decode the frame and display it.
-  if (mDecoder->GetState() == nsBuiltinDecoder::PLAY_STATE_PLAYING) {
+  if (mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING) {
     if (!IsPlaying()) {
       StartPlayback();
       mDecoder->GetMonitor().NotifyAll();
@@ -1122,7 +1179,6 @@ void nsOggPlayStateMachine::AdvanceFrame()
         mVideoFrameTime = data->mTime;
         videoData = data;
         mReader->mVideoQueue.PopFront();
-        mDecoder->UpdatePlaybackOffset(data->mOffset);
         if (mReader->mVideoQueue.GetSize() == 0)
           break;
         data = mReader->mVideoQueue.PeekFront();
@@ -1198,7 +1254,7 @@ void nsOggPlayStateMachine::Wait(PRUint32 aMs) {
 
 void nsOggPlayStateMachine::LoadOggHeaders()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
 
@@ -1217,7 +1273,7 @@ void nsOggPlayStateMachine::LoadOggHeaders()
   if (!mInfo.mHasVideo && !mInfo.mHasAudio) {
     mState = DECODER_STATE_SHUTDOWN;      
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::DecodeError);
+      NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, DecodeError);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
     return;
   }
@@ -1249,7 +1305,7 @@ void nsOggPlayStateMachine::LoadOggHeaders()
 
 VideoData* nsOggPlayStateMachine::FindStartTime()
 {
-  NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
+  NS_ASSERTION(IsThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
   PRInt64 startTime = 0;
   mStartTime = 0;
@@ -1278,7 +1334,7 @@ void nsOggPlayStateMachine::FindEndTime()
   NS_ASSERTION(OnStateMachineThread(), "Should be on state machine thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
 
-  nsMediaStream* stream = mDecoder->GetCurrentStream();
+  nsMediaStream* stream = mDecoder->mStream;
 
   // Seek to the end of file to find the length and duration.
   PRInt64 length = stream->GetLength();
@@ -1309,13 +1365,13 @@ void nsOggPlayStateMachine::UpdateReadyState() {
   nsCOMPtr<nsIRunnable> event;
   switch (GetNextFrameStatus()) {
     case nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE_BUFFERING:
-      event = NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::NextFrameUnavailableBuffering);
+      event = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, NextFrameUnavailableBuffering);
       break;
     case nsHTMLMediaElement::NEXT_FRAME_AVAILABLE:
-      event = NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::NextFrameAvailable);
+      event = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, NextFrameAvailable);
       break;
     case nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE:
-      event = NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::NextFrameUnavailable);
+      event = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, NextFrameUnavailable);
       break;
     default:
       PR_NOT_REACHED("unhandled frame state");

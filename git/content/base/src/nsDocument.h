@@ -544,7 +544,8 @@ public:
   /**
    * Get/Set the base target of a link in a document.
    */
-  virtual void GetBaseTarget(nsAString &aBaseTarget);
+  virtual void GetBaseTarget(nsAString &aBaseTarget) const;
+  virtual void SetBaseTarget(const nsAString &aBaseTarget);
 
   /**
    * Return a standard name for the document's character set. This will
@@ -648,6 +649,11 @@ public:
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject);
 
   virtual nsIScriptGlobalObject* GetScopeObject();
+
+  /**
+   * Return the window containing the document (the outer window).
+   */
+  virtual nsPIDOMWindow *GetWindow();
 
   /**
    * Get the script loader for this document
@@ -939,9 +945,6 @@ public:
 
   virtual void RegisterFileDataUri(nsACString& aUri);
 
-  // Only BlockOnload should call this!
-  void AsyncBlockOnload();
-
 protected:
   friend class nsNodeUtils;
   void RegisterNamedItems(nsIContent *aContent);
@@ -1006,7 +1009,6 @@ protected:
                               const nsAString& aType,
                               PRBool aPersisted);
 
-  virtual nsPIDOMWindow *GetWindowInternal();
   virtual nsPIDOMWindow *GetInnerWindowInternal();
 
   // nsContentList match functions for GetElementsByClassName
@@ -1173,10 +1175,7 @@ private:
   // 2)  We haven't had Destroy() called on us yet.
   nsCOMPtr<nsILayoutHistoryState> mLayoutHistoryState;
 
-  // Currently active onload blockers
   PRUint32 mOnloadBlockCount;
-  // Onload blockers which haven't been activated yet
-  PRUint32 mAsyncOnloadBlockCount;
   nsCOMPtr<nsIRequest> mOnloadBlocker;
   ReadyState mReadyState;
 
@@ -1196,7 +1195,7 @@ private:
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
   nsRefPtr<nsRunnableMethod<nsDocument> > mFrameLoaderRunner;
 
-  nsRevocableEventPtr<nsRunnableMethod<nsDocument, void, false> >
+  nsRevocableEventPtr<nsNonOwningRunnableMethod<nsDocument> >
     mPendingTitleChangeEvent;
 
   nsExternalResourceMap mExternalResourceMap;

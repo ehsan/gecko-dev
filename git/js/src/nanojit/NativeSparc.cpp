@@ -190,7 +190,7 @@ namespace nanojit
             {
                 uint32_t j = argc-i-1;
                 ArgType ty = argTypes[j];
-                if (ty == ARGTYPE_D) {
+                if (ty == ARGTYPE_F) {
                     Register r = findRegFor(ins->arg(j), FpRegs);
                     GPRIndex += 2;
                     offset += 8;
@@ -263,8 +263,8 @@ namespace nanojit
             int32_t d = deprecated_disp(i);
             SET32(d, L2);
         }
-        else if (i->isImmI()) {
-            int v = i->immI();
+        else if (i->isconst()) {
+            int v = i->imm32();
             SET32(v, r);
         } else {
             int d = findMemFor(i);
@@ -292,10 +292,10 @@ namespace nanojit
         }
 
         underrunProtect(20);
-        if (value->isImmI())
+        if (value->isconst())
             {
                 Register rb = getBaseReg(base, dr, GpRegs);
-                int c = value->immI();
+                int c = value->imm32();
                 switch (op) {
                 case LIR_sti:
                     STW32(L2, dr, rb);
@@ -310,9 +310,9 @@ namespace nanojit
             {
                 // make sure what is in a register
                 Register ra, rb;
-                if (base->isImmI()) {
+                if (base->isconst()) {
                     // absolute address
-                    dr += base->immI();
+                    dr += base->imm32();
                     ra = findRegFor(value, GpRegs);
                     rb = G0;
                 } else {
@@ -399,15 +399,15 @@ namespace nanojit
         }
 
         underrunProtect(48);
-        if (value->isImmD())
+        if (value->isconstf())
             {
                 // if a constant 64-bit value just store it now rather than
                 // generating a pointless store/load/store sequence
                 Register rb = findRegFor(base, GpRegs);
                 STW32(L2, dr+4, rb);
-                SET32(value->immQorDlo(), L2);
+                SET32(value->imm64_0(), L2);
                 STW32(L2, dr, rb);
-                SET32(value->immQorDhi(), L2);
+                SET32(value->imm64_1(), L2);
                 return;
             }
 
@@ -471,7 +471,7 @@ namespace nanojit
         NIns* at = 0;
         LOpcode condop = cond->opcode();
         NanoAssert(cond->isCmp());
-        if (isCmpDOpcode(condop))
+        if (isFCmpOpcode(condop))
             {
                 return asm_fbranch(branchOnFalse, cond, targ);
             }
@@ -558,12 +558,12 @@ namespace nanojit
         LInsp lhs = cond->oprnd1();
         LInsp rhs = cond->oprnd2();
 
-        NanoAssert(lhs->isI() && rhs->isI());
+        NanoAssert(lhs->isI32() && rhs->isI32());
 
         // ready to issue the compare
-        if (rhs->isImmI())
+        if (rhs->isconst())
             {
-                int c = rhs->immI();
+                int c = rhs->imm32();
                 Register r = findRegFor(lhs, GpRegs);
                 if (c == 0 && cond->isop(LIR_eq)) {
                     ANDCC(r, r, G0);
@@ -587,7 +587,7 @@ namespace nanojit
         Register r = deprecated_prepResultReg(ins, AllowableFlagRegs);
         underrunProtect(8);
         LOpcode condop = ins->opcode();
-        NanoAssert(isCmpDOpcode(condop));
+        NanoAssert(isFCmpOpcode(condop));
         if (condop == LIR_feq)
             MOVFEI(1, 0, 0, 0, r);
         else if (condop == LIR_fle)
@@ -640,7 +640,7 @@ namespace nanojit
 
         Register rb = deprecated_UnknownReg;
         RegisterMask allow = GpRegs;
-        bool forceReg = (op == LIR_mul || op == LIR_mulxov || !rhs->isImmI());
+        bool forceReg = (op == LIR_mul || op == LIR_mulxov || !rhs->isconst());
 
         if (lhs != rhs && forceReg)
             {
@@ -649,10 +649,10 @@ namespace nanojit
                 }
                 allow &= ~rmask(rb);
             }
-        else if ((op == LIR_add || op == LIR_addxov) && lhs->isop(LIR_alloc) && rhs->isImmI()) {
+        else if ((op == LIR_add || op == LIR_addxov) && lhs->isop(LIR_alloc) && rhs->isconst()) {
             // add alloc+const, use lea
             Register rr = deprecated_prepResultReg(ins, allow);
-            int d = findMemFor(lhs) + rhs->immI();
+            int d = findMemFor(lhs) + rhs->imm32();
             ADD(FP, L2, rr);
             SET32(d, L2);
         }
@@ -692,7 +692,7 @@ namespace nanojit
             }
         else
             {
-                int c = rhs->immI();
+                int c = rhs->imm32();
                 if (op == LIR_add || op == LIR_addxov)
                     ADDCC(rr, L2, rr);
                 else if (op == LIR_sub || op == LIR_subxov)
@@ -777,7 +777,7 @@ namespace nanojit
         LIns* iffalse = ins->oprnd3();
 
         NanoAssert(condval->isCmp());
-        NanoAssert(op == LIR_cmov && iftrue->isI() && iffalse->isI());
+        NanoAssert(op == LIR_cmov && iftrue->isI32() && iffalse->isI32());
 
         const Register rr = deprecated_prepResultReg(ins, GpRegs);
 
@@ -814,7 +814,7 @@ namespace nanojit
     {
         underrunProtect(8);
         Register rr = deprecated_prepResultReg(ins, GpRegs);
-        int32_t val = ins->immI();
+        int32_t val = ins->imm32();
         if (val == 0)
             XOR(rr, rr, rr);
         else
@@ -842,9 +842,9 @@ namespace nanojit
         if (d)
             {
                 STW32(L2, d+4, FP);
-                SET32(ins->immQorDlo(), L2);
+                SET32(ins->imm64_0(), L2);
                 STW32(L2, d, FP);
-                SET32(ins->immQorDhi(), L2);
+                SET32(ins->imm64_1(), L2);
             }
     }
 
@@ -938,7 +938,7 @@ namespace nanojit
     {
         NIns *at = 0;
         LOpcode condop = cond->opcode();
-        NanoAssert(isCmpDOpcode(condop));
+        NanoAssert(isFCmpOpcode(condop));
         underrunProtect(32);
         intptr_t tt = ((intptr_t)targ - (intptr_t)_nIns + 8) >> 2;
         // !targ means that it needs patch.

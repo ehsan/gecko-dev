@@ -121,7 +121,6 @@ const char js_amp_entity_str[]    = "&amp;";
 const char js_gt_entity_str[]     = "&gt;";
 const char js_lt_entity_str[]     = "&lt;";
 const char js_quot_entity_str[]   = "&quot;";
-const char js_leftcurly_entity_str[]   = "&#123;";
 
 #define IS_STAR(str)  ((str)->length() == 1 && *(str)->chars() == '*')
 
@@ -1120,7 +1119,7 @@ static const char js_prettyIndent_str[]     = "prettyIndent";
 
 /*
  * NB: These XML static property tinyids must
- * (a) not collide with the generic negative tinyids at the top of jsfun.cpp;
+ * (a) not collide with the generic negative tinyids at the top of jsfun.c;
  * (b) index their corresponding xml_static_props array elements.
  * Don't change 'em!
  */
@@ -2140,7 +2139,7 @@ AppendAttributeValue(JSContext *cx, JSCharBuffer &cb, JSString *valstr)
  * These functions mutate cb, leaving it empty.
  */
 static JSString *
-EscapeElementValue(JSContext *cx, JSCharBuffer &cb, JSString *str, uint32 toSourceFlag)
+EscapeElementValue(JSContext *cx, JSCharBuffer &cb, JSString *str)
 {
     size_t length;
     const jschar *start;
@@ -2161,17 +2160,6 @@ EscapeElementValue(JSContext *cx, JSCharBuffer &cb, JSString *str, uint32 toSour
             if (!js_AppendLiteral(cb, js_amp_entity_str))
                 return NULL;
             break;
-          case '{':
-            /*
-             * If EscapeElementValue is called by toSource/uneval, we also need
-             * to escape '{'. See bug 463360.
-             */
-            if (toSourceFlag) {
-                if (!js_AppendLiteral(cb, js_leftcurly_entity_str))
-                    return NULL;
-                break;
-            }
-            /* FALL THROUGH */
           default:
             if (!cb.append(c))
                 return NULL;
@@ -2481,7 +2469,7 @@ XMLToXMLString(JSContext *cx, JSXML *xml, const JSXMLArray *ancestorNSes,
         } else {
             str = xml->xml_value;
         }
-        return EscapeElementValue(cx, cb, str, indentLevel & TO_SOURCE_FLAG);
+        return EscapeElementValue(cx, cb, str);
 
       case JSXML_CLASS_ATTRIBUTE:
         /* Step 5. */
@@ -2828,7 +2816,7 @@ ToXMLString(JSContext *cx, jsval v, uint32 toSourceFlag)
 
     if (JSVAL_IS_STRING(v)) {
         JSCharBuffer cb(cx);
-        return EscapeElementValue(cx, cb, JSVAL_TO_STRING(v), toSourceFlag);
+        return EscapeElementValue(cx, cb, JSVAL_TO_STRING(v));
     }
 
     obj = JSVAL_TO_OBJECT(v);
@@ -2839,7 +2827,7 @@ ToXMLString(JSContext *cx, jsval v, uint32 toSourceFlag)
         if (!str)
             return NULL;
         JSCharBuffer cb(cx);
-        return EscapeElementValue(cx, cb, str, toSourceFlag);
+        return EscapeElementValue(cx, cb, str);
     }
 
     /* Handle non-element cases in this switch, returning from each case. */
@@ -7532,7 +7520,7 @@ JSString *
 js_EscapeElementValue(JSContext *cx, JSString *str)
 {
     JSCharBuffer cb(cx);
-    return EscapeElementValue(cx, cb, str, 0);
+    return EscapeElementValue(cx, cb, str);
 }
 
 JSString *

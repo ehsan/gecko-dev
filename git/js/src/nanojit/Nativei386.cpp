@@ -854,7 +854,7 @@ namespace nanojit
         IMM32( (uint32_t)offset );
         *(--_nIns) = 0xE8;
         verbose_only(asm_output("call %s",(ci->_name));)
-        debug_only(if (ci->returnType()==ARGTYPE_D) fpu_push();)
+        debug_only(if (ci->returnType()==ARGTYPE_F) fpu_push();)
     }
 
     // indirect call thru register
@@ -863,7 +863,7 @@ namespace nanojit
         underrunProtect(2);
         ALU(0xff, 2, (r));
         verbose_only(asm_output("call %s",gpn(r));)
-        debug_only(if (ci->returnType()==ARGTYPE_D) fpu_push();) (void)ci;
+        debug_only(if (ci->returnType()==ARGTYPE_F) fpu_push();) (void)ci;
     }
 
     void Assembler::nInit(AvmCore*)
@@ -1049,7 +1049,7 @@ namespace nanojit
             uint32_t j = argc-i-1;
             ArgType ty = argTypes[j];
             Register r = UnspecifiedReg;
-            if (n < max_regs && ty != ARGTYPE_D) {
+            if (n < max_regs && ty != ARGTYPE_F) {
                 r = argRegs[n++]; // tell asm_arg what reg to use
             }
             asm_arg(ty, ins->arg(j), r, stkd);
@@ -1142,7 +1142,7 @@ namespace nanojit
         else if (ins->isCmp()) {
             prefer = AllowableFlagRegs;
         }
-        else if (ins->isImmI()) {
+        else if (ins->isconst()) {
             prefer = ScratchRegs;
         }
 
@@ -1169,11 +1169,11 @@ namespace nanojit
             NanoAssert(ins->isInAr());  // must have stack slots allocated
             LEA(r, arDisp(ins), FP);
 
-        } else if (ins->isImmI()) {
-            asm_immi(r, ins->immI(), /*canClobberCCs*/false);
+        } else if (ins->isconst()) {
+            asm_immi(r, ins->imm32(), /*canClobberCCs*/false);
 
-        } else if (ins->isImmD()) {
-            asm_immf(r, ins->immQ(), ins->immD(), /*canClobberCCs*/false);
+        } else if (ins->isconstf()) {
+            asm_immf(r, ins->imm64(), ins->imm64f(), /*canClobberCCs*/false);
 
         } else if (ins->isop(LIR_param) && ins->paramKind() == 0 &&
             (arg = ins->paramArg()) >= (abi_regcount = max_abi_regs[_thisfrag->lirbuf->abi])) {
@@ -1192,11 +1192,11 @@ namespace nanojit
 
         } else {
             int d = findMemFor(ins);
-            if (ins->isI()) {
+            if (ins->isI32()) {
                 NanoAssert(rmask(r) & GpRegs);
                 LD(r, d, FP);
             } else {
-                NanoAssert(ins->isD());
+                NanoAssert(ins->isF64());
                 if (rmask(r) & XmmRegs) {
                     SSE_LDQ(r, d, FP);
                 } else {
@@ -1209,9 +1209,9 @@ namespace nanojit
 
     void Assembler::asm_store32(LOpcode op, LIns* value, int dr, LIns* base)
     {
-        if (value->isImmI()) {
+        if (value->isconst()) {
             Register rb = getBaseReg(base, dr, GpRegs);
-            int c = value->immI();
+            int c = value->imm32();
             switch (op) {
                 case LIR_stb:
                     ST8i(rb, dr, c);
@@ -1235,10 +1235,10 @@ namespace nanojit
                             GpRegs;
 
             Register ra, rb;
-            if (base->isImmI()) {
+            if (base->isconst()) {
                 // absolute address
                 rb = UnspecifiedReg;
-                dr += base->immI();
+                dr += base->imm32();
                 ra = findRegFor(value, SrcRegs);
             } else {
                 getBaseReg2(SrcRegs, value, ra, GpRegs, base, rb, dr);
@@ -1367,9 +1367,9 @@ namespace nanojit
                 FST32(pop?1:0, dr, rb);
             }
 
-        } else if (value->isImmD()) {
-            STi(rb, dr+4, value->immQorDhi());
-            STi(rb, dr,   value->immQorDlo());
+        } else if (value->isconstf()) {
+            STi(rb, dr+4, value->imm64_1());
+            STi(rb, dr,   value->imm64_0());
 
         } else if (value->isop(LIR_ldf)) {
             // value is 64bit struct or int64_t, or maybe a double.
@@ -1431,7 +1431,7 @@ namespace nanojit
         NanoAssert(cond->isCmp());
 
         // Handle float conditions separately.
-        if (isCmpDOpcode(condop)) {
+        if (isFCmpOpcode(condop)) {
             return asm_fbranch(branchOnFalse, cond, targ);
         }
 
@@ -1531,11 +1531,11 @@ namespace nanojit
         LInsp lhs = cond->oprnd1();
         LInsp rhs = cond->oprnd2();
 
-        NanoAssert(lhs->isI() && rhs->isI());
+        NanoAssert(lhs->isI32() && rhs->isI32());
 
         // Ready to issue the compare.
-        if (rhs->isImmI()) {
-            int c = rhs->immI();
+        if (rhs->isconst()) {
+            int c = rhs->imm32();
             // findRegFor() can call asm_restore() -- asm_restore() better not
             // disturb the CCs!
             Register r = findRegFor(lhs, GpRegs);
@@ -1648,10 +1648,10 @@ namespace nanojit
 
         // Second special case.
         // XXX: bug 547125: don't need this once LEA is used for LIR_add in all cases below
-        if (op == LIR_add && lhs->isop(LIR_alloc) && rhs->isImmI()) {
+        if (op == LIR_add && lhs->isop(LIR_alloc) && rhs->isconst()) {
             // LIR_add(LIR_alloc, LIR_int) -- use lea.
             Register rr = prepareResultReg(ins, GpRegs);
-            int d = findMemFor(lhs) + rhs->immI();
+            int d = findMemFor(lhs) + rhs->imm32();
 
             LEA(rr, d, FP);
 
@@ -1684,14 +1684,14 @@ namespace nanojit
         case LIR_lsh:
         case LIR_rsh:
         case LIR_ush:
-            isConstRhs = rhs->isImmI();
+            isConstRhs = rhs->isconst();
             if (!isConstRhs) {
                 rb = findSpecificRegFor(rhs, ECX);
                 allow &= ~rmask(rb);
             }
             break;
         default:
-            isConstRhs = rhs->isImmI();
+            isConstRhs = rhs->isconst();
             if (!isConstRhs && lhs != rhs) {
                 rb = findRegFor(rhs, allow);
                 allow &= ~rmask(rb);
@@ -1730,7 +1730,7 @@ namespace nanojit
             }
 
         } else {
-            int c = rhs->immI();
+            int c = rhs->imm32();
             switch (op) {
             case LIR_add:
                 // this doesn't set cc's, only use it when cc's not required.
@@ -1841,8 +1841,8 @@ namespace nanojit
 
         Register rr = prepareResultReg(ins, GpRegs);
 
-        if (base->isImmI()) {
-            intptr_t addr = base->immI();
+        if (base->isconst()) {
+            intptr_t addr = base->imm32();
             addr += d;
             switch (op) {
                 case LIR_ldzb:
@@ -1889,8 +1889,8 @@ namespace nanojit
             //   W = ld (add(X, shl(Y, 0)))[d]
             //
             int scale;
-            if (rhs->opcode() == LIR_pilsh && rhs->oprnd2()->isImmI()) {
-                scale = rhs->oprnd2()->immI();
+            if (rhs->opcode() == LIR_pilsh && rhs->oprnd2()->isconst()) {
+                scale = rhs->oprnd2()->imm32();
                 if (scale >= 1 && scale <= 3)
                     rhs = rhs->oprnd1();
                 else
@@ -1982,7 +1982,7 @@ namespace nanojit
         LIns* iffalse = ins->oprnd3();
 
         NanoAssert(condval->isCmp());
-        NanoAssert(ins->isop(LIR_cmov) && iftrue->isI() && iffalse->isI());
+        NanoAssert(ins->isop(LIR_cmov) && iftrue->isI32() && iffalse->isI32());
 
         Register rr = prepareResultReg(ins, GpRegs);
 
@@ -2055,7 +2055,7 @@ namespace nanojit
     {
         Register rr = prepareResultReg(ins, GpRegs);
 
-        asm_immi(rr, ins->immI(), /*canClobberCCs*/true);
+        asm_immi(rr, ins->imm32(), /*canClobberCCs*/true);
 
         freeResourcesOf(ins);
     }
@@ -2090,7 +2090,7 @@ namespace nanojit
                 SSE_XORPDr(r, r);   // zero r to ensure no dependency stalls
                 asm_immi(tr, (int)d, canClobberCCs);
             } else {
-                const uint64_t* p = findImmDFromPool(q);
+                const uint64_t* p = findQuadConstant(q);
                 LDSDm(r, (const double*)p);
             }
         } else {
@@ -2101,7 +2101,7 @@ namespace nanojit
             } else if (d == 1.0) {
                 FLD1();
             } else {
-                const uint64_t* p = findImmDFromPool(q);
+                const uint64_t* p = findQuadConstant(q);
                 FLDQdm((const double*)p);
             }
         }
@@ -2109,11 +2109,11 @@ namespace nanojit
 
     void Assembler::asm_immf(LInsp ins)
     {
-        NanoAssert(ins->isImmD());
+        NanoAssert(ins->isconstf());
         if (ins->isInReg()) {
             Register rr = ins->getReg();
             NanoAssert(rmask(rr) & FpRegs);
-            asm_immf(rr, ins->immQ(), ins->immD(), /*canClobberCCs*/true);
+            asm_immf(rr, ins->imm64(), ins->imm64f(), /*canClobberCCs*/true);
         } else {
             // Do nothing, will be rematerialized when necessary.
         }
@@ -2189,11 +2189,11 @@ namespace nanojit
         // If 'r' is known, then that's the register we have to put 'ins'
         // into.
 
-        if (ty == ARGTYPE_I || ty == ARGTYPE_UI) {
+        if (ty == ARGTYPE_I || ty == ARGTYPE_U) {
             if (r != UnspecifiedReg) {
-                if (ins->isImmI()) {
+                if (ins->isconst()) {
                     // Rematerialize the constant.
-                    asm_immi(r, ins->immI(), /*canClobberCCs*/true);
+                    asm_immi(r, ins->imm32(), /*canClobberCCs*/true);
                 } else if (ins->isInReg()) {
                     if (r != ins->getReg())
                         MR(r, ins->getReg());
@@ -2220,7 +2220,7 @@ namespace nanojit
             }
 
         } else {
-            NanoAssert(ty == ARGTYPE_D);
+            NanoAssert(ty == ARGTYPE_F);
             asm_farg(ins, stkd);
         }
     }
@@ -2228,9 +2228,9 @@ namespace nanojit
     void Assembler::asm_pusharg(LInsp ins)
     {
         // arg goes on stack
-        if (!ins->isUsed() && ins->isImmI())
+        if (!ins->isUsed() && ins->isconst())
         {
-            PUSHi(ins->immI());    // small const we push directly
+            PUSHi(ins->imm32());    // small const we push directly
         }
         else if (!ins->isUsed() || ins->isop(LIR_alloc))
         {
@@ -2251,10 +2251,10 @@ namespace nanojit
     void Assembler::asm_stkarg(LInsp ins, int32_t& stkd)
     {
         // arg goes on stack
-        if (!ins->isUsed() && ins->isImmI())
+        if (!ins->isUsed() && ins->isconst())
         {
             // small const we push directly
-            STi(SP, stkd, ins->immI());
+            STi(SP, stkd, ins->imm32());
         }
         else {
             Register ra;
@@ -2270,7 +2270,7 @@ namespace nanojit
 
     void Assembler::asm_farg(LInsp ins, int32_t& stkd)
     {
-        NanoAssert(ins->isD());
+        NanoAssert(ins->isF64());
         Register r = findRegFor(ins, FpRegs);
         if (rmask(r) & XmmRegs) {
             SSE_STQ(stkd, SP, r);
@@ -2362,8 +2362,8 @@ namespace nanojit
             NanoAssert(FST0 == rr);
             NanoAssert(!lhs->isInReg() || FST0 == lhs->getReg());
 
-            if (rhs->isImmD()) {
-                const uint64_t* p = findImmDFromPool(rhs->immQ());
+            if (rhs->isconstf()) {
+                const uint64_t* p = findQuadConstant(rhs->imm64());
 
                 switch (op) {
                 case LIR_fadd:  FADDdm( (const double*)p);  break;
@@ -2545,10 +2545,10 @@ namespace nanojit
     void Assembler::asm_fcmp(LIns *cond)
     {
         LOpcode condop = cond->opcode();
-        NanoAssert(isCmpDOpcode(condop));
+        NanoAssert(isFCmpOpcode(condop));
         LIns* lhs = cond->oprnd1();
         LIns* rhs = cond->oprnd2();
-        NanoAssert(lhs->isD() && rhs->isD());
+        NanoAssert(lhs->isF64() && rhs->isF64());
 
         if (_config.i386_sse2) {
             // First, we convert (a < b) into (b > a), and (a <= b) into (b >= a).
@@ -2689,9 +2689,9 @@ namespace nanojit
             } else {
                 TEST_AH(mask);
                 FNSTSW_AX();        // requires EAX to be free
-                if (rhs->isImmD())
+                if (rhs->isconstf())
                 {
-                    const uint64_t* p = findImmDFromPool(rhs->immQ());
+                    const uint64_t* p = findQuadConstant(rhs->imm64());
                     FCOMdm((pop?1:0), (const double*)p);
                 }
                 else

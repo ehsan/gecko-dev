@@ -875,16 +875,6 @@ CSPServiceRegistration(nsIComponentManager *aCompMgr,
                                 PR_TRUE,
                                 PR_TRUE,
                                 getter_Copies(previous));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = catman->AddCategoryEntry("net-channel-event-sinks",
-                                "CSPService",
-                                CSPSERVICE_CONTRACTID,
-                                PR_TRUE,
-                                PR_TRUE,
-                                getter_Copies(previous));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return rv;
 }
 
@@ -905,10 +895,6 @@ CSPServiceUnregistration(nsIComponentManager *aCompMgr,
   if (NS_FAILED(rv)) return rv;
 
   rv = catman->DeleteCategoryEntry("content-policy",
-                                   "CSPService",
-                                   PR_TRUE);
-
-  rv = catman->DeleteCategoryEntry("net-channel-event-sinks",
                                    "CSPService",
                                    PR_TRUE);
 

@@ -268,14 +268,14 @@ AsyncChannel::OnSpecialMessage(uint16 id, const Message& msg)
 }
 
 void
-AsyncChannel::SendSpecialMessage(Message* msg) const
+AsyncChannel::SendSpecialMessage(Message* msg)
 {
     AssertWorkerThread();
     SendThroughTransport(msg);
 }
 
 void
-AsyncChannel::SendThroughTransport(Message* msg) const
+AsyncChannel::SendThroughTransport(Message* msg)
 {
     AssertWorkerThread();
 
@@ -401,7 +401,7 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
 }
 
 void
-AsyncChannel::ReportConnectionError(const char* channelName) const
+AsyncChannel::ReportConnectionError(const char* channelName)
 {
     const char* errorMsg;
     switch (mChannelState) {

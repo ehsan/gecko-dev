@@ -38,12 +38,8 @@
 
 #include "nsXULTreeGridAccessibleWrap.h"
 
-#include "nsAccCache.h"
-#include "nsAccessibilityService.h"
-#include "nsAccUtils.h"
-#include "nsEventShell.h"
-
 #include "nsITreeSelection.h"
+#include "nsServiceManagerUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridAccessible
@@ -1045,12 +1041,12 @@ nsXULTreeGridCellAccessible::GetColumnHeaderCells(nsIArray **aHeaderCells)
   nsCOMPtr<nsIDOMElement> columnElm;
   mColumn->GetElement(getter_AddRefs(columnElm));
 
-  nsRefPtr<nsAccessible> headerCell =
-    GetAccService()->GetAccessibleInWeakShell(columnElm, mWeakShell);
+  nsCOMPtr<nsIAccessible> headerCell;
+  GetAccService()->GetAccessibleInWeakShell(columnElm, mWeakShell,
+                                            getter_AddRefs(headerCell));
 
   if (headerCell)
-    headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell.get()),
-                               PR_FALSE);
+    headerCells->AppendElement(headerCell, PR_FALSE);
 
   NS_ADDREF(*aHeaderCells = headerCells);
   return NS_OK;
