@@ -528,29 +528,27 @@ describe("loop.webapp", function() {
         );
       });
 
-      it("should start the audio-video conversation establishment process",
-        function() {
-          var button = view.getDOMNode().querySelector(".btn-accept");
-          React.addons.TestUtils.Simulate.click(button);
+      it("should start the conversation establishment process", function() {
+        var button = view.getDOMNode().querySelector(".start-audio-video-call");
+        React.addons.TestUtils.Simulate.click(button);
 
-          sinon.assert.calledOnce(setupOutgoingCall);
-          sinon.assert.calledWithExactly(setupOutgoingCall);
+        sinon.assert.calledOnce(setupOutgoingCall);
+        sinon.assert.calledWithExactly(setupOutgoingCall);
       });
 
-      it("should start the audio-only conversation establishment process",
-        function() {
-          var button = view.getDOMNode().querySelector(".start-audio-only-call");
-          React.addons.TestUtils.Simulate.click(button);
+      it("should start the conversation establishment process", function() {
+        var button = view.getDOMNode().querySelector(".start-audio-only-call");
+        React.addons.TestUtils.Simulate.click(button);
 
-          sinon.assert.calledOnce(setupOutgoingCall);
-          sinon.assert.calledWithExactly(setupOutgoingCall);
-        });
+        sinon.assert.calledOnce(setupOutgoingCall);
+        sinon.assert.calledWithExactly(setupOutgoingCall);
+      });
 
       it("should disable audio-video button once session is initiated",
          function() {
            conversation.set("loopToken", "fake");
 
-           var button = view.getDOMNode().querySelector(".btn-accept");
+           var button = view.getDOMNode().querySelector(".start-audio-video-call");
            React.addons.TestUtils.Simulate.click(button);
 
            expect(button.disabled).to.eql(true);
@@ -578,7 +576,7 @@ describe("loop.webapp", function() {
          it("should set selectedCallType to audio-video", function() {
            conversation.set("loopToken", "fake");
 
-           var button = view.getDOMNode().querySelector(".standalone-call-btn-video-icon");
+           var button = view.getDOMNode().querySelector(".start-audio-video-call");
            React.addons.TestUtils.Simulate.click(button);
 
            expect(conversation.get("selectedCallType")).to.eql("audio-video");

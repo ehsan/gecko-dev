@@ -1912,12 +1912,9 @@ class Mochitest(MochitestUtilsMixin):
         stackFixerCommand = [self.perl, os.path.join(self.utilityPath, "fix-linux-stack.pl")]
         stackFixerProcess = subprocess.Popen(stackFixerCommand, stdin=subprocess.PIPE,
                                              stdout=subprocess.PIPE)
-        def fixFunc(lines):
-          out = []
-          for line in lines.split('\n'):
-            stackFixerProcess.stdin.write(line + '\n')
-            out.append(stackFixerProcess.stdout.readline().rstrip())
-          return '\n'.join(out)
+        def fixFunc(line):
+          stackFixerProcess.stdin.write(line + '\n')
+          return stackFixerProcess.stdout.readline().rstrip()
 
         stackFixerFunction = fixFunc
 

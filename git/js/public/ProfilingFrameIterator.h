@@ -15,11 +15,7 @@
 
 class JSAtom;
 struct JSRuntime;
-
-namespace js {
-    class Activation;
-    class AsmJSProfilingFrameIterator;
-}
+namespace js { class AsmJSActivation; class AsmJSProfilingFrameIterator; }
 
 namespace JS {
 
@@ -29,15 +25,15 @@ namespace JS {
 // unwound.
 class JS_PUBLIC_API(ProfilingFrameIterator)
 {
-    js::Activation *activation_;
+    js::AsmJSActivation *activation_;
 
     static const unsigned StorageSpace = 6 * sizeof(void*);
     mozilla::AlignedStorage<StorageSpace> storage_;
-    js::AsmJSProfilingFrameIterator &asmJSIter() {
+    js::AsmJSProfilingFrameIterator &iter() {
         JS_ASSERT(!done());
         return *reinterpret_cast<js::AsmJSProfilingFrameIterator*>(storage_.addr());
     }
-    const js::AsmJSProfilingFrameIterator &asmJSIter() const {
+    const js::AsmJSProfilingFrameIterator &iter() const {
         JS_ASSERT(!done());
         return *reinterpret_cast<const js::AsmJSProfilingFrameIterator*>(storage_.addr());
     }
@@ -68,12 +64,6 @@ class JS_PUBLIC_API(ProfilingFrameIterator)
     // Return a label suitable for regexp-matching as performed by
     // browser/devtools/profiler/cleopatra/js/parserWorker.js
     const char *label() const;
-
-  private:
-    void iteratorConstruct(const RegisterState &state);
-    void iteratorConstruct();
-    void iteratorDestroy();
-    bool iteratorDone();
 };
 
 } // namespace JS

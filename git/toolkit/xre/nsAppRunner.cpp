@@ -1687,41 +1687,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 static const char kProfileProperties[] =
   "chrome://mozapps/locale/profile/profileSelection.properties";
 
-namespace {
-
-/**
- * This class, instead of a raw nsresult, should be the return type of any
- * function called by SelectProfile that initializes XPCOM.
- */
-class ReturnAbortOnError
-{
-public:
-  MOZ_IMPLICIT ReturnAbortOnError(nsresult aRv)
-  {
-    mRv = ConvertRv(aRv);
-  }
-
-  operator nsresult()
-  {
-    return mRv;
-  }
-
-private:
-  inline nsresult
-  ConvertRv(nsresult aRv)
-  {
-    if (NS_SUCCEEDED(aRv) || aRv == NS_ERROR_LAUNCHED_CHILD_PROCESS) {
-      return aRv;
-    }
-    return NS_ERROR_ABORT;
-  }
-
-  nsresult mRv;
-};
-
-} // anonymous namespace
-
-static ReturnAbortOnError
+static nsresult
 ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
                     nsIProfileUnlocker* aUnlocker,
                     nsINativeAppSupport* aNative, nsIProfileLock* *aResult)
@@ -1891,7 +1857,7 @@ ProfileLockedDialog(nsIToolkitProfile* aProfile, nsIProfileUnlocker* aUnlocker,
 static const char kProfileManagerURL[] =
   "chrome://mozapps/content/profile/profileSelection.xul";
 
-static ReturnAbortOnError
+static nsresult
 ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
                    nsINativeAppSupport* aNative)
 {

@@ -823,13 +823,7 @@ class Shape : public gc::BarrieredCell<Shape>
         /* Property stored in per-object dictionary, not shared property tree. */
         IN_DICTIONARY   = 0x02,
 
-        /*
-         * Slotful property was stored to more than once. This is used as a
-         * hint for type inference.
-         */
-        OVERWRITTEN     = 0x04,
-
-        UNUSED_BITS     = 0x38
+        UNUSED_BITS     = 0x3C
     };
 
     /* Get a shape identical to this one, without parent/kids information. */
@@ -886,13 +880,6 @@ class Shape : public gc::BarrieredCell<Shape>
         return (hasSetterValue() && base()->setterObj)
                ? ObjectValue(*base()->setterObj)
                : UndefinedValue();
-    }
-
-    void setOverwritten() {
-        flags |= OVERWRITTEN;
-    }
-    bool hadOverwrite() const {
-        return flags & OVERWRITTEN;
     }
 
     void update(PropertyOp getter, StrictPropertyOp setter, uint8_t attrs);

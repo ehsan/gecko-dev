@@ -358,7 +358,7 @@ public:
 
     /*
      * For constraints attached to an object property's type set, mark the
-     * property as having changed somehow.
+     * property as having its configuration changed.
      */
     virtual void newPropertyState(JSContext *cx, TypeSet *source) {}
 
@@ -417,9 +417,6 @@ enum MOZ_ENUM_TYPE(uint32_t) {
     /* Whether the property has ever been made non-writable. */
     TYPE_FLAG_NON_WRITABLE_PROPERTY = 0x00010000,
 
-    /* Whether the property might not be constant. */
-    TYPE_FLAG_NON_CONSTANT_PROPERTY = 0x00020000,
-
     /*
      * Whether the property is definitely in a particular slot on all objects
      * from which it has not been deleted or reconfigured. For singletons
@@ -429,8 +426,8 @@ enum MOZ_ENUM_TYPE(uint32_t) {
      * If the property is definite, mask and shift storing the slot + 1.
      * Otherwise these bits are clear.
      */
-    TYPE_FLAG_DEFINITE_MASK       = 0xfffc0000,
-    TYPE_FLAG_DEFINITE_SHIFT      = 18
+    TYPE_FLAG_DEFINITE_MASK       = 0xfffe0000,
+    TYPE_FLAG_DEFINITE_SHIFT      = 17
 };
 typedef uint32_t TypeFlags;
 
@@ -561,9 +558,6 @@ class TypeSet
     bool nonWritableProperty() const {
         return flags & TYPE_FLAG_NON_WRITABLE_PROPERTY;
     }
-    bool nonConstantProperty() const {
-        return flags & TYPE_FLAG_NON_CONSTANT_PROPERTY;
-    }
     bool definiteProperty() const { return flags & TYPE_FLAG_DEFINITE_MASK; }
     unsigned definiteSlot() const {
         JS_ASSERT(definiteProperty());
@@ -682,9 +676,6 @@ class HeapTypeSet : public ConstraintTypeSet
 
     /* Mark this type set as representing a non-writable property. */
     inline void setNonWritableProperty(ExclusiveContext *cx);
-
-    // Mark this type set as being non-constant.
-    inline void setNonConstantProperty(ExclusiveContext *cx);
 };
 
 class CompilerConstraintList;
@@ -774,10 +765,6 @@ class TemporaryTypeSet : public TypeSet
 
     /* Whether any objects in the type set needs a barrier on id. */
     bool propertyNeedsBarrier(CompilerConstraintList *constraints, jsid id);
-
-    /* Whether any objects in the type set might treat id as a constant property. */
-    bool propertyMightBeConstant(CompilerConstraintList *constraints, jsid id);
-    bool propertyIsConstant(CompilerConstraintList *constraints, jsid id, Value *valOut);
 
     /*
      * Whether this set contains all types in other, except (possibly) the
@@ -1417,7 +1404,6 @@ class HeapTypeSetKey
     bool knownSubset(CompilerConstraintList *constraints, const HeapTypeSetKey &other);
     JSObject *singleton(CompilerConstraintList *constraints);
     bool needsBarrier(CompilerConstraintList *constraints);
-    bool constant(CompilerConstraintList *constraints, Value *valOut);
 };
 
 /*

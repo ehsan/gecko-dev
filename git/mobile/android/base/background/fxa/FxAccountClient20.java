@@ -4,10 +4,7 @@
 
 package org.mozilla.gecko.background.fxa;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URLEncoder;
 import java.util.concurrent.Executor;
 
 import org.json.simple.JSONObject;
@@ -97,35 +94,13 @@ public class FxAccountClient20 extends FxAccountClient10 implements FxAccountCli
     post(resource, body, delegate);
   }
 
-  /**
-   * Create account/create URI, encoding query parameters carefully.
-   * <p>
-   * This is equivalent to <code>android.net.Uri.Builder</code>, which is not
-   * present in our JUnit 4 tests.
-   */
-  protected URI getCreateAccountURI(final boolean getKeys, final String service) throws UnsupportedEncodingException, URISyntaxException {
-    if (service == null) {
-      throw new IllegalArgumentException("service must not be null");
-    }
-    final StringBuilder sb = new StringBuilder(serverURI); // serverURI always has a trailing slash.
-    sb.append("account/create?service=");
-    // Be very careful that query parameters are encoded correctly!
-    sb.append(URLEncoder.encode(service, "UTF-8"));
-    if (getKeys) {
-      sb.append("&keys=true");
-    }
-    return new URI(sb.toString());
-  }
-
-  public void createAccount(final byte[] emailUTF8, final byte[] quickStretchedPW,
-      final boolean getKeys,
-      final boolean preVerified,
-      final String service,
+  public void createAccount(final byte[] emailUTF8, final byte[] quickStretchedPW, final boolean getKeys, final boolean preVerified,
       final RequestDelegate<LoginResponse> delegate) {
-    final BaseResource resource;
-    final JSONObject body;
+    BaseResource resource;
+    JSONObject body;
+    final String path = getKeys ? "account/create?keys=true" : "account/create";
     try {
-      resource = new BaseResource(getCreateAccountURI(getKeys, service));
+      resource = new BaseResource(new URI(serverURI + path));
       body = new FxAccount20CreateDelegate(emailUTF8, quickStretchedPW, preVerified).getCreateBody();
     } catch (Exception e) {
       invokeHandleError(delegate, e);
@@ -169,7 +144,7 @@ public class FxAccountClient20 extends FxAccountClient10 implements FxAccountCli
   public void createAccountAndGetKeys(byte[] emailUTF8, PasswordStretcher passwordStretcher, RequestDelegate<LoginResponse> delegate) {
     try {
       byte[] quickStretchedPW = passwordStretcher.getQuickStretchedPW(emailUTF8);
-      createAccount(emailUTF8, quickStretchedPW, true, false, "sync", delegate);
+      createAccount(emailUTF8, quickStretchedPW, true, false, delegate);
     } catch (Exception e) {
       invokeHandleError(delegate, e);
       return;

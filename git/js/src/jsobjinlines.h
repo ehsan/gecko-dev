@@ -665,27 +665,19 @@ JSObject::hasProperty(JSContext *cx, js::HandleObject obj,
 }
 
 inline bool
-JSObject::nativeSetSlotIfHasType(js::Shape *shape, const js::Value &value, bool overwriting)
+JSObject::nativeSetSlotIfHasType(js::Shape *shape, const js::Value &value)
 {
     if (!js::types::HasTypePropertyId(this, shape->propid(), value))
         return false;
     nativeSetSlot(shape->slot(), value);
-
-    if (overwriting)
-        shape->setOverwritten();
-
     return true;
 }
 
 inline void
 JSObject::nativeSetSlotWithType(js::ExclusiveContext *cx, js::Shape *shape,
-                                const js::Value &value, bool overwriting)
+                                const js::Value &value)
 {
     nativeSetSlot(shape->slot(), value);
-
-    if (overwriting)
-        shape->setOverwritten();
-
     js::types::AddTypePropertyId(cx, this, shape->propid(), value);
 }
 

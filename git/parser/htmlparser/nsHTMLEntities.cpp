@@ -73,8 +73,8 @@ static const PLDHashTableOps UnicodeToEntityOps = {
   nullptr,
 };
 
-static PLDHashTable gEntityToUnicode;
-static PLDHashTable gUnicodeToEntity;
+static PLDHashTable gEntityToUnicode = { 0 };
+static PLDHashTable gUnicodeToEntity = { 0 };
 static nsrefcnt gTableRefCnt = 0;
 
 #define HTML_ENTITY(_name, _value) { #_name, _value },

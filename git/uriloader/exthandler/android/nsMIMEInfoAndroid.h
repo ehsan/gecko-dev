@@ -30,9 +30,7 @@ public:
 
   nsMIMEInfoAndroid(const nsACString& aMIMEType);
 
-private:
-  ~nsMIMEInfoAndroid() {}
-
+protected:
   virtual nsresult LaunchDefaultWithFile(nsIFile* aFile);
   virtual nsresult LoadUriInternal(nsIURI *aURI);
   nsCOMPtr<nsIMutableArray> mHandlerApps;
@@ -42,18 +40,16 @@ private:
   nsHandlerInfoAction mPrefAction;
   nsString mDescription;
   nsCOMPtr<nsIHandlerApp> mPrefApp;
-
-public:
+  
   class SystemChooser MOZ_FINAL : public nsIHandlerApp {
   public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIHANDLERAPP
-    SystemChooser(nsMIMEInfoAndroid* aOuter): mOuter(aOuter) {}
-
+    SystemChooser(nsMIMEInfoAndroid* aOuter): mOuter(aOuter) {};
+    
   private:
-    ~SystemChooser() {}
-
     nsMIMEInfoAndroid* mOuter;
+    
   };
 };
 

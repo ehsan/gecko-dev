@@ -418,10 +418,9 @@ class JSObject : public js::ObjectImpl
         return setSlot(slot, value);
     }
 
-    inline bool nativeSetSlotIfHasType(js::Shape *shape, const js::Value &value,
-                                       bool overwriting = true);
+    inline bool nativeSetSlotIfHasType(js::Shape *shape, const js::Value &value);
     inline void nativeSetSlotWithType(js::ExclusiveContext *cx, js::Shape *shape,
-                                      const js::Value &value, bool overwriting = true);
+                                      const js::Value &value);
 
     inline const js::Value &getReservedSlot(uint32_t index) const {
         JS_ASSERT(index < JSSLOT_FREE(getClass()));
