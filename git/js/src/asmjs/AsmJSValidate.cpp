@@ -1491,35 +1491,32 @@ class MOZ_STACK_CLASS ModuleCompiler
         JS_ASSERT(finishedFunctionBodies_);
         module_->exportedFunction(exportIndex).initCodeOffset(begin->offset());
         uint32_t end = masm_.currentOffset();
-        return module_->addCodeRange(AsmJSModule::CodeRange::Entry, begin->offset(), end);
+        return module_->addEntryCodeRange(begin->offset(), end);
+    }
+    bool finishGeneratingFFI(Label *begin, Label *profilingReturn) {
+        JS_ASSERT(finishedFunctionBodies_);
+        uint32_t end = masm_.currentOffset();
+        return module_->addFFICodeRange(begin->offset(), profilingReturn->offset(), end);
     }
     bool finishGeneratingInterpExit(unsigned exitIndex, Label *begin, Label *profilingReturn) {
         JS_ASSERT(finishedFunctionBodies_);
-        uint32_t beg = begin->offset();
-        module_->exit(exitIndex).initInterpOffset(beg);
-        uint32_t pret = profilingReturn->offset();
-        uint32_t end = masm_.currentOffset();
-        return module_->addCodeRange(AsmJSModule::CodeRange::SlowFFI, beg, pret, end);
+        module_->exit(exitIndex).initInterpOffset(begin->offset());
+        return finishGeneratingFFI(begin, profilingReturn);
     }
     bool finishGeneratingIonExit(unsigned exitIndex, Label *begin, Label *profilingReturn) {
         JS_ASSERT(finishedFunctionBodies_);
-        uint32_t beg = begin->offset();
-        module_->exit(exitIndex).initIonOffset(beg);
-        uint32_t pret = profilingReturn->offset();
-        uint32_t end = masm_.currentOffset();
-        return module_->addCodeRange(AsmJSModule::CodeRange::IonFFI, beg, pret, end);
+        module_->exit(exitIndex).initIonOffset(begin->offset());
+        return finishGeneratingFFI(begin, profilingReturn);
     }
     bool finishGeneratingInterrupt(Label *begin, Label *profilingReturn) {
         JS_ASSERT(finishedFunctionBodies_);
-        uint32_t beg = begin->offset();
-        uint32_t pret = profilingReturn->offset();
         uint32_t end = masm_.currentOffset();
-        return module_->addCodeRange(AsmJSModule::CodeRange::Interrupt, beg, pret, end);
+        return module_->addInterruptCodeRange(begin->offset(), profilingReturn->offset(), end);
     }
     bool finishGeneratingInlineStub(Label *begin) {
         JS_ASSERT(finishedFunctionBodies_);
         uint32_t end = masm_.currentOffset();
-        return module_->addCodeRange(AsmJSModule::CodeRange::Inline, begin->offset(), end);
+        return module_->addInlineCodeRange(begin->offset(), end);
     }
     bool finishGeneratingBuiltinThunk(AsmJSExit::BuiltinKind builtin, Label *begin, Label *pret) {
         JS_ASSERT(finishedFunctionBodies_);
@@ -6144,7 +6141,7 @@ GenerateFFIInterpExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &e
     unsigned framePushed = StackDecrementForCall(masm, offsetToArgv + argvBytes);
 
     Label begin;
-    GenerateAsmJSExitPrologue(masm, framePushed, AsmJSExit::SlowFFI, &begin);
+    GenerateAsmJSExitPrologue(masm, framePushed, AsmJSExit::FFI, &begin);
 
     // Fill the argument array.
     unsigned offsetToCallerStackArgs = sizeof(AsmJSFrame) + masm.framePushed();
@@ -6203,7 +6200,7 @@ GenerateFFIInterpExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &e
     }
 
     Label profilingReturn;
-    GenerateAsmJSExitEpilogue(masm, framePushed, AsmJSExit::SlowFFI, &profilingReturn);
+    GenerateAsmJSExitEpilogue(masm, framePushed, AsmJSExit::FFI, &profilingReturn);
     return m.finishGeneratingInterpExit(exitIndex, &begin, &profilingReturn) && !masm.oom();
 }
 
@@ -6258,7 +6255,7 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
     unsigned framePushed = Max(ionFrameSize, coerceFrameSize);
 
     Label begin;
-    GenerateAsmJSExitPrologue(masm, framePushed, AsmJSExit::IonFFI, &begin);
+    GenerateAsmJSExitPrologue(masm, framePushed, AsmJSExit::FFI, &begin);
 
     // 1. Descriptor
     size_t argOffset = offsetToIonArgs;
@@ -6418,7 +6415,7 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
     masm.bind(&done);
 
     Label profilingReturn;
-    GenerateAsmJSExitEpilogue(masm, framePushed, AsmJSExit::IonFFI, &profilingReturn);
+    GenerateAsmJSExitEpilogue(masm, framePushed, AsmJSExit::FFI, &profilingReturn);
 
     if (oolConvert.used()) {
         masm.bind(&oolConvert);

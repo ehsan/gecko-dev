@@ -281,6 +281,14 @@ DedicatedWorkerGlobalScope::DedicatedWorkerGlobalScope(WorkerPrivate* aWorkerPri
 {
 }
 
+/* static */ bool
+DedicatedWorkerGlobalScope::Visible(JSContext* aCx, JSObject* aObj)
+{
+  DedicatedWorkerGlobalScope* self = nullptr;
+  nsresult rv = UNWRAP_WORKER_OBJECT(DedicatedWorkerGlobalScope, aObj, self);
+  return NS_SUCCEEDED(rv) && self;
+}
+
 JSObject*
 DedicatedWorkerGlobalScope::WrapGlobalObject(JSContext* aCx)
 {
@@ -312,6 +320,14 @@ SharedWorkerGlobalScope::SharedWorkerGlobalScope(WorkerPrivate* aWorkerPrivate,
 {
 }
 
+/* static */ bool
+SharedWorkerGlobalScope::Visible(JSContext* aCx, JSObject* aObj)
+{
+  SharedWorkerGlobalScope* self = nullptr;
+  nsresult rv = UNWRAP_WORKER_OBJECT(SharedWorkerGlobalScope, aObj, self);
+  return NS_SUCCEEDED(rv) && self;
+}
+
 JSObject*
 SharedWorkerGlobalScope::WrapGlobalObject(JSContext* aCx)
 {
@@ -331,6 +347,14 @@ ServiceWorkerGlobalScope::ServiceWorkerGlobalScope(WorkerPrivate* aWorkerPrivate
   : WorkerGlobalScope(aWorkerPrivate),
     mScope(NS_ConvertUTF8toUTF16(aScope))
 {
+}
+
+/* static */ bool
+ServiceWorkerGlobalScope::Visible(JSContext* aCx, JSObject* aObj)
+{
+  ServiceWorkerGlobalScope* self = nullptr;
+  nsresult rv = UNWRAP_WORKER_OBJECT(ServiceWorkerGlobalScope, aObj, self);
+  return NS_SUCCEEDED(rv) && self;
 }
 
 JSObject*
