@@ -454,12 +454,7 @@ JSCompartment::wrapId(JSContext *cx, jsid *idp)
     RootedValue value(cx, IdToValue(*idp));
     if (!wrap(cx, value.address()))
         return false;
-    RootedId id(cx);
-    if (!ValueToId(cx, value.get(), &id))
-        return false;
-
-    *idp = id;
-    return true;
+    return ValueToId(cx, value.get(), idp);
 }
 
 bool

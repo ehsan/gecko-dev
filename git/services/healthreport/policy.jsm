@@ -2,22 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/**
- * This file is in transition. It was originally conceived to fulfill the
- * needs of only Firefox Health Report. It is slowly being morphed into
- * fulfilling the needs of all data reporting facilities in Gecko applications.
- * As a result, some things feel a bit weird.
- *
- * DataReportingPolicy is both a driver for data reporting notification
- * (a true policy) and the driver for FHR data submission. The latter should
- * eventually be split into its own type and module.
- */
-
 "use strict";
 
 this.EXPORTED_SYMBOLS = [
   "DataSubmissionRequest", // For test use only.
-  "DataReportingPolicy",
+  "HealthReportPolicy",
 ];
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
@@ -52,7 +41,7 @@ const OLDEST_ALLOWED_YEAR = 2012;
  * signaling explicit user acceptance or rejection of the policy. They do this
  * by calling `onUserAccept` or `onUserReject`, respectively. These functions
  * are essentially proxies to
- * DataReportingPolicy.{recordUserAcceptance,recordUserRejection}.
+ * HealthReportPolicy.{recordUserAcceptance,recordUserRejection}.
  *
  * If the user never explicitly accepts or rejects the policy, it will be
  * implicitly accepted after a specified duration of time. The notice is
@@ -64,7 +53,7 @@ const OLDEST_ALLOWED_YEAR = 2012;
  * the exception of the on* functions.
  *
  * @param policy
- *        (DataReportingPolicy) The policy instance this request came from.
+ *        (HealthReportPolicy) The policy instance this request came from.
  * @param promise
  *        (deferred) The promise that will be fulfilled when display occurs.
  */
@@ -246,17 +235,15 @@ Object.freeze(DataSubmissionRequest.prototype);
  * can have different mechanisms by which they notify the user of data
  * submission practices.
  *
- * @param policyPrefs
+ * @param prefs
  *        (Preferences) Handle on preferences branch on which state will be
  *        queried and stored.
- * @param healthReportPrefs
- *        (Preferences) Handle on preferences branch hold Health Report state.
  * @param listener
  *        (object) Object with callbacks that will be invoked at certain key
  *        events.
  */
-this.DataReportingPolicy = function (prefs, healthReportPrefs, listener) {
-  this._log = Log4Moz.repository.getLogger("Services.DataReporting.Policy");
+this.HealthReportPolicy = function HealthReportPolicy(prefs, listener) {
+  this._log = Log4Moz.repository.getLogger("Services.HealthReport.Policy");
   this._log.level = Log4Moz.Level["Debug"];
 
   for (let handler of this.REQUIRED_LISTENERS) {
@@ -267,7 +254,6 @@ this.DataReportingPolicy = function (prefs, healthReportPrefs, listener) {
   }
 
   this._prefs = prefs;
-  this._healthReportPrefs = healthReportPrefs;
   this._listener = listener;
 
   // If we've never run before, record the current time.
@@ -290,7 +276,7 @@ this.DataReportingPolicy = function (prefs, healthReportPrefs, listener) {
   this._inProgressSubmissionRequest = null;
 }
 
-DataReportingPolicy.prototype = Object.freeze({
+HealthReportPolicy.prototype = {
   /**
    * How long after first run we should notify about data submission.
    */
@@ -459,6 +445,22 @@ DataReportingPolicy.prototype = Object.freeze({
   },
 
   /**
+   * Whether upload of data is allowed.
+   *
+   * This is a kill switch for upload. It is meant to reflect a system or
+   * deployment policy decision. User intent should be reflected in the
+   * "dataSubmissionPolicy" prefs.
+   */
+  get dataUploadEnabled() {
+    // Default is true because we are opt-out.
+    return this._prefs.get("dataUploadEnabled", true);
+  },
+
+  set dataUploadEnabled(value) {
+    this._prefs.set("dataUploadEnabled", !!value);
+  },
+
+  /**
    * Whether the user has accepted that data submission can occur.
    *
    * This overrides dataSubmissionEnabled.
@@ -472,17 +474,13 @@ DataReportingPolicy.prototype = Object.freeze({
     this._prefs.set("dataSubmissionPolicyAccepted", !!value);
   },
 
-  set dataSubmissionPolicyAcceptedVersion(value) {
-    this._prefs.set("dataSubmissionPolicyAcceptedVersion", value);
-  },
-
   /**
    * The state of user notification of the data policy.
    *
-   * This must be DataReportingPolicy.STATE_NOTIFY_COMPLETE before data
+   * This must be HealthReportPolicy.STATE_NOTIFY_COMPLETE before data
    * submission can occur.
    *
-   * @return DataReportingPolicy.STATE_NOTIFY_* constant.
+   * @return HealthReportPolicy.STATE_NOTIFY_* constant.
    */
   get notifyState() {
     if (this.dataSubmissionPolicyResponseDate.getTime()) {
@@ -507,14 +505,13 @@ DataReportingPolicy.prototype = Object.freeze({
    * on scheduling or run-time behavior.
    */
   get lastDataSubmissionRequestedDate() {
-    return CommonUtils.getDatePref(this._healthReportPrefs,
+    return CommonUtils.getDatePref(this._prefs,
                                    "lastDataSubmissionRequestedTime", 0,
                                    this._log, OLDEST_ALLOWED_YEAR);
   },
 
   set lastDataSubmissionRequestedDate(value) {
-    CommonUtils.setDatePref(this._healthReportPrefs,
-                            "lastDataSubmissionRequestedTime",
+    CommonUtils.setDatePref(this._prefs, "lastDataSubmissionRequestedTime",
                             value, OLDEST_ALLOWED_YEAR);
   },
 
@@ -525,14 +522,13 @@ DataReportingPolicy.prototype = Object.freeze({
    * actual scheduling.
    */
   get lastDataSubmissionSuccessfulDate() {
-    return CommonUtils.getDatePref(this._healthReportPrefs,
+    return CommonUtils.getDatePref(this._prefs,
                                    "lastDataSubmissionSuccessfulTime", 0,
                                    this._log, OLDEST_ALLOWED_YEAR);
   },
 
   set lastDataSubmissionSuccessfulDate(value) {
-    CommonUtils.setDatePref(this._healthReportPrefs,
-                            "lastDataSubmissionSuccessfulTime",
+    CommonUtils.setDatePref(this._prefs, "lastDataSubmissionSuccessfulTime",
                             value, OLDEST_ALLOWED_YEAR);
   },
 
@@ -543,15 +539,13 @@ DataReportingPolicy.prototype = Object.freeze({
    * scheduling.
    */
   get lastDataSubmissionFailureDate() {
-    return CommonUtils.getDatePref(this._healthReportPrefs,
-                                   "lastDataSubmissionFailureTime",
+    return CommonUtils.getDatePref(this._prefs, "lastDataSubmissionFailureTime",
                                    0, this._log, OLDEST_ALLOWED_YEAR);
   },
 
   set lastDataSubmissionFailureDate(value) {
-    CommonUtils.setDatePref(this._healthReportPrefs,
-                            "lastDataSubmissionFailureTime",
-                            value, OLDEST_ALLOWED_YEAR);
+    CommonUtils.setDatePref(this._prefs, "lastDataSubmissionFailureTime", value,
+                            OLDEST_ALLOWED_YEAR);
   },
 
   /**
@@ -561,14 +555,12 @@ DataReportingPolicy.prototype = Object.freeze({
    * mutate this value.
    */
   get nextDataSubmissionDate() {
-    return CommonUtils.getDatePref(this._healthReportPrefs,
-                                   "nextDataSubmissionTime", 0,
+    return CommonUtils.getDatePref(this._prefs, "nextDataSubmissionTime", 0,
                                    this._log, OLDEST_ALLOWED_YEAR);
   },
 
   set nextDataSubmissionDate(value) {
-    CommonUtils.setDatePref(this._healthReportPrefs,
-                            "nextDataSubmissionTime", value,
+    CommonUtils.setDatePref(this._prefs, "nextDataSubmissionTime", value,
                             OLDEST_ALLOWED_YEAR);
   },
 
@@ -578,7 +570,7 @@ DataReportingPolicy.prototype = Object.freeze({
    * This is used to drive backoff and scheduling.
    */
   get currentDaySubmissionFailureCount() {
-    let v = this._healthReportPrefs.get("currentDaySubmissionFailureCount", 0);
+    let v = this._prefs.get("currentDaySubmissionFailureCount", 0);
 
     if (!Number.isInteger(v)) {
       v = 0;
@@ -592,7 +584,7 @@ DataReportingPolicy.prototype = Object.freeze({
       throw new Error("Value must be integer: " + value);
     }
 
-    this._healthReportPrefs.set("currentDaySubmissionFailureCount", value);
+    this._prefs.set("currentDaySubmissionFailureCount", value);
   },
 
   /**
@@ -603,22 +595,11 @@ DataReportingPolicy.prototype = Object.freeze({
    * the remote deletion is fulfilled.
    */
   get pendingDeleteRemoteData() {
-    return !!this._healthReportPrefs.get("pendingDeleteRemoteData", false);
+    return !!this._prefs.get("pendingDeleteRemoteData", false);
   },
 
   set pendingDeleteRemoteData(value) {
-    this._healthReportPrefs.set("pendingDeleteRemoteData", !!value);
-  },
-
-  /**
-   * Whether upload of Firefox Health Report data is enabled.
-   */
-  get healthReportUploadEnabled() {
-    return !!this._healthReportPrefs.get("uploadEnabled", true);
-  },
-
-  set healthReportUploadEnabled(value) {
-    this._healthReportPrefs.set("uploadEnabled", !!value);
+    this._prefs.set("pendingDeleteRemoteData", !!value);
   },
 
   /**
@@ -639,7 +620,6 @@ DataReportingPolicy.prototype = Object.freeze({
     this.dataSubmissionPolicyResponseDate = this.now();
     this.dataSubmissionPolicyResponseType = "accepted-" + reason;
     this.dataSubmissionPolicyAccepted = true;
-    this.dataSubmissionPolicyAcceptedVersion = 1;
   },
 
   /**
@@ -773,7 +753,7 @@ DataReportingPolicy.prototype = Object.freeze({
       return this._dispatchSubmissionRequest("onRequestRemoteDelete", true);
     }
 
-    if (!this.healthReportUploadEnabled) {
+    if (!this.dataUploadEnabled) {
       this._log.debug("Data upload is disabled. Doing nothing.");
       return;
     }
@@ -1023,5 +1003,7 @@ DataReportingPolicy.prototype = Object.freeze({
   _futureDate: function _futureDate(offset) {
     return new Date(this.now().getTime() + offset);
   },
-});
+};
+
+Object.freeze(HealthReportPolicy.prototype);
 

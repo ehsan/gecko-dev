@@ -44,7 +44,6 @@
 #include "vm/DateTime.h"
 #include "vm/GlobalObject.h"
 #include "vm/NumericConversions.h"
-#include "vm/String.h"
 #include "vm/StringBuffer.h"
 
 #include "jsinferinlines.h"
@@ -768,7 +767,7 @@ DaysInMonth(int year, int month)
  */
 
 static JSBool
-date_parseISOString(Handle<JSLinearString*> str, double *result, DateTimeInfo *dtInfo)
+date_parseISOString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
 {
     double msec;
 
@@ -907,7 +906,7 @@ date_parseISOString(Handle<JSLinearString*> str, double *result, DateTimeInfo *d
 }
 
 static JSBool
-date_parseString(Handle<JSLinearString*> str, double *result, DateTimeInfo *dtInfo)
+date_parseString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
 {
     double msec;
 
@@ -1181,21 +1180,21 @@ syntax:
 static JSBool
 date_parse(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() == 0) {
+    JSString *str;
+    double result;
+
+    if (argc == 0) {
         vp->setDouble(js_NaN);
         return true;
     }
-
-    RootedString str(cx, ToString(cx, args[0]));
+    str = ToString(cx, vp[2]);
     if (!str)
-        return false;
-
-    Rooted<JSLinearString*> linearStr(cx, str->ensureLinear(cx));
+        return JS_FALSE;
+    vp[2].setString(str);
+    JSLinearString *linearStr = str->ensureLinear(cx);
     if (!linearStr)
         return false;
 
-    double result;
     if (!date_parseString(linearStr, &result, &cx->runtime->dateTimeInfo)) {
         vp->setDouble(js_NaN);
         return true;
@@ -2492,7 +2491,7 @@ date_toGMTString_impl(JSContext *cx, CallArgs args)
     else
         print_gmt_string(buf, sizeof buf, utctime);
 
-    UnrootedString str = JS_NewStringCopyZ(cx, buf);
+    JSString *str = JS_NewStringCopyZ(cx, buf);
     if (!str)
         return false;
     args.rval().setString(str);
@@ -2521,7 +2520,7 @@ date_toISOString_impl(JSContext *cx, CallArgs args)
     char buf[100];
     print_iso_string(buf, sizeof buf, utctime);
 
-    UnrootedString str = JS_NewStringCopyZ(cx, buf);
+    JSString *str = JS_NewStringCopyZ(cx, buf);
     if (!str)
         return false;
     args.rval().setString(str);
@@ -2612,9 +2611,10 @@ typedef enum formatspec {
 
 /* helper function */
 static JSBool
-date_format(JSContext *cx, double date, formatspec format, MutableHandleValue rval)
+date_format(JSContext *cx, double date, formatspec format, CallReceiver call)
 {
     char buf[100];
+    JSString *str;
     char tzbuf[100];
     JSBool usetz;
     size_t i, tzlen;
@@ -2718,15 +2718,15 @@ date_format(JSContext *cx, double date, formatspec format, MutableHandleValue rv
         }
     }
 
-    UnrootedString str = JS_NewStringCopyZ(cx, buf);
+    str = JS_NewStringCopyZ(cx, buf);
     if (!str)
-        return false;
-    rval.setString(str);
-    return true;
+        return JS_FALSE;
+    call.rval().setString(str);
+    return JS_TRUE;
 }
 
 static bool
-ToLocaleHelper(JSContext *cx, HandleObject obj, const char *format, MutableHandleValue rval)
+ToLocaleHelper(JSContext *cx, CallReceiver call, HandleObject obj, const char *format)
 {
     double utctime = obj->getDateUTCTime().toNumber();
 
@@ -2744,7 +2744,7 @@ ToLocaleHelper(JSContext *cx, HandleObject obj, const char *format, MutableHandl
 
         /* If it failed, default to toString. */
         if (result_len == 0)
-            return date_format(cx, utctime, FORMATSPEC_FULL, rval);
+            return date_format(cx, utctime, FORMATSPEC_FULL, call);
 
         /* Hacked check against undesired 2-digit year 00/00/00 form. */
         if (strcmp(format, "%x") == 0 && result_len >= 6 &&
@@ -2762,29 +2762,29 @@ ToLocaleHelper(JSContext *cx, HandleObject obj, const char *format, MutableHandl
     }
 
     if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode)
-        return cx->localeCallbacks->localeToUnicode(cx, buf, rval.address());
+        return cx->localeCallbacks->localeToUnicode(cx, buf, call.rval().address());
 
-    UnrootedString str = JS_NewStringCopyZ(cx, buf);
+    JSString *str = JS_NewStringCopyZ(cx, buf);
     if (!str)
         return false;
-    rval.setString(str);
+    call.rval().setString(str);
     return true;
 }
 
 static bool
-ToLocaleStringHelper(JSContext *cx, HandleObject thisObj, MutableHandleValue rval)
+ToLocaleStringHelper(JSContext *cx, CallReceiver call, HandleObject thisObj)
 {
     /*
      * Use '%#c' for windows, because '%c' is backward-compatible and non-y2k
      * with msvc; '%#c' requests that a full year be used in the result string.
      */
-    return ToLocaleHelper(cx, thisObj,
+    return ToLocaleHelper(cx, call, thisObj,
 #if defined(_WIN32) && !defined(__MWERKS__)
                           "%#c"
 #else
                           "%c"
 #endif
-                         , rval);
+                         );
 }
 
 /* ES5 15.9.5.5. */
@@ -2794,7 +2794,7 @@ date_toLocaleString_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     RootedObject thisObj(cx, &args.thisv().toObject());
-    return ToLocaleStringHelper(cx, thisObj, args.rval());
+    return ToLocaleStringHelper(cx, args, thisObj);
 }
 
 static JSBool
@@ -2823,7 +2823,7 @@ date_toLocaleDateString_impl(JSContext *cx, CallArgs args)
                                    ;
 
     RootedObject thisObj(cx, &args.thisv().toObject());
-    return ToLocaleHelper(cx, thisObj, format, args.rval());
+    return ToLocaleHelper(cx, args, thisObj, format);
 }
 
 static JSBool
@@ -2840,7 +2840,7 @@ date_toLocaleTimeString_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     RootedObject thisObj(cx, &args.thisv().toObject());
-    return ToLocaleHelper(cx, thisObj, "%X", args.rval());
+    return ToLocaleHelper(cx, args, thisObj, "%X");
 }
 
 static JSBool
@@ -2858,17 +2858,18 @@ date_toLocaleFormat_impl(JSContext *cx, CallArgs args)
     RootedObject thisObj(cx, &args.thisv().toObject());
 
     if (args.length() == 0)
-        return ToLocaleStringHelper(cx, thisObj, args.rval());
+        return ToLocaleStringHelper(cx, args, thisObj);
 
-    RootedString fmt(cx, ToString(cx, args[0]));
+    JSString *fmt = ToString(cx, args[0]);
     if (!fmt)
         return false;
 
+    args[0].setString(fmt);
     JSAutoByteString fmtbytes(cx, fmt);
     if (!fmtbytes)
         return false;
 
-    return ToLocaleHelper(cx, thisObj, fmtbytes.ptr(), args.rval());
+    return ToLocaleHelper(cx, args, thisObj, fmtbytes.ptr());
 }
 
 static JSBool
@@ -2885,7 +2886,7 @@ date_toTimeString_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     return date_format(cx, args.thisv().toObject().getDateUTCTime().toNumber(),
-                       FORMATSPEC_TIME, args.rval());
+                       FORMATSPEC_TIME, args);
 }
 
 static JSBool
@@ -2902,7 +2903,7 @@ date_toDateString_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     return date_format(cx, args.thisv().toObject().getDateUTCTime().toNumber(),
-                       FORMATSPEC_DATE, args.rval());
+                       FORMATSPEC_DATE, args);
 }
 
 static JSBool
@@ -2926,7 +2927,7 @@ date_toSource_impl(JSContext *cx, CallArgs args)
         return false;
     }
 
-    UnrootedString str = sb.finishString();
+    JSString *str = sb.finishString();
     if (!str)
         return false;
     args.rval().setString(str);
@@ -2946,7 +2947,7 @@ date_toString_impl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(IsDate(args.thisv()));
     return date_format(cx, args.thisv().toObject().getDateUTCTime().toNumber(),
-                       FORMATSPEC_FULL, args.rval());
+                       FORMATSPEC_FULL, args);
 }
 
 static JSBool
@@ -3041,7 +3042,7 @@ js_Date(JSContext *cx, unsigned argc, Value *vp)
 
     /* Date called as function. */
     if (!IsConstructing(args))
-        return date_format(cx, NowAsMillis(), FORMATSPEC_FULL, args.rval());
+        return date_format(cx, NowAsMillis(), FORMATSPEC_FULL, args);
 
     /* Date called as constructor. */
     double d;
@@ -3057,11 +3058,11 @@ js_Date(JSContext *cx, unsigned argc, Value *vp)
 
         if (args[0].isString()) {
             /* Step 2. */
-            UnrootedString str = args[0].toString();
+            JSString *str = ToString(cx, args[0]);
             if (!str)
                 return false;
-
-            Rooted<JSLinearString*> linearStr(cx, DropUnrooted(str)->ensureLinear(cx));
+            args[0].setString(str);
+            JSLinearString *linearStr = str->ensureLinear(cx);
             if (!linearStr)
                 return false;
 

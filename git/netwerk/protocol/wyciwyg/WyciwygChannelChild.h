@@ -98,7 +98,6 @@ private:
   enum WyciwygChannelChildState mState;
 
   bool mIPCOpen;
-  bool mSentAppData;
   ChannelEventQueue mEventQ;
 
   friend class WyciwygStartRequestEvent;

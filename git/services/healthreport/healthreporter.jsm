@@ -11,6 +11,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-common/bagheeraclient.js");
 Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-common/observers.js");
 Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://gre/modules/commonjs/promise/core.js");
@@ -19,6 +20,7 @@ Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/services/healthreport/policy.jsm");
 
 
 // Oldest year to allow in date preferences. This module was implemented in
@@ -79,17 +81,10 @@ const DEFAULT_DATABASE_NAME = "healthreport.sqlite";
  * @param branch
  *        (string) The preferences branch to use for state storage. The value
  *        must end with a period (.).
- *
- * @param policy
- *        (HealthReportPolicy) Policy driving execution of HealthReporter.
  */
-function HealthReporter(branch, policy) {
+function HealthReporter(branch) {
   if (!branch.endsWith(".")) {
     throw new Error("Branch must end with a period (.): " + branch);
-  }
-
-  if (!policy) {
-    throw new Error("Must provide policy to HealthReporter constructor.");
   }
 
   this._log = Log4Moz.repository.getLogger("Services.HealthReport.HealthReporter");
@@ -105,9 +100,10 @@ function HealthReporter(branch, policy) {
     throw new Error("No server namespace defined. Did you forget a pref?");
   }
 
-  this._policy = policy;
-
   this._dbName = this._prefs.get("dbName") || DEFAULT_DATABASE_NAME;
+
+  let policyBranch = new Preferences(branch + "policy.");
+  this._policy = new HealthReportPolicy(policyBranch, this);
 
   this._storage = null;
   this._storageInProgress = false;
@@ -215,14 +211,6 @@ HealthReporter.prototype = Object.freeze({
   },
 
   /**
-   * Whether this instance will upload data to a server.
-   */
-  get willUploadData() {
-    return this._policy.dataSubmissionPolicyAccepted &&
-           this._policy.healthReportUploadEnabled;
-  },
-
-  /**
    * Whether remote data is currently stored.
    *
    * @return bool
@@ -301,6 +289,7 @@ HealthReporter.prototype = Object.freeze({
       return;
     }
 
+    this._policy.startPolling();
     this._log.info("HealthReporter started.");
     this._initialized = true;
     Services.obs.addObserver(this, "idle-daily", false);
@@ -337,6 +326,9 @@ HealthReporter.prototype = Object.freeze({
 
     this._initialized = false;
     this._shutdownRequested = true;
+
+    // Safe to call multiple times.
+    this._policy.stopPolling();
 
     if (this._collectorInProgress) {
       this._log.warn("Collector is in progress of initializing. Waiting to finish.");
@@ -560,14 +552,45 @@ HealthReporter.prototype = Object.freeze({
   },
 
   /**
-   * Called to initiate a data upload.
+   * Record the user's rejection of the data submission policy.
    *
-   * The passed argument is a `DataSubmissionRequest` from policy.jsm.
+   * This should be what everything uses to disable data submission.
+   *
+   * @param reason
+   *        (string) Why data submission is being disabled.
    */
-  requestDataUpload: function (request) {
-    this.collectMeasurements()
-        .then(this._uploadData.bind(this, request),
-              this._onSubmitDataRequestFailure.bind(this));
+  recordPolicyRejection: function (reason) {
+    this._policy.recordUserRejection(reason);
+  },
+
+  /**
+   * Record the user's acceptance of the data submission policy.
+   *
+   * This should be what everything uses to enable data submission.
+   *
+   * @param reason
+   *        (string) Why data submission is being enabled.
+   */
+  recordPolicyAcceptance: function (reason) {
+    this._policy.recordUserAcceptance(reason);
+  },
+
+  /**
+   * Whether the data submission policy has been accepted.
+   *
+   * If this is true, health data will be submitted unless one of the kill
+   * switches is active.
+   */
+  get dataSubmissionPolicyAccepted() {
+    return this._policy.dataSubmissionPolicyAccepted;
+  },
+
+  /**
+   * Whether this health reporter will upload data to a server.
+   */
+  get willUploadData() {
+    return this._policy.dataSubmissionPolicyAccepted &&
+           this._policy.dataUploadEnabled;
   },
 
   /**
@@ -745,7 +768,7 @@ HealthReporter.prototype = Object.freeze({
     }.bind(this));
   },
 
-  deleteRemoteData: function (request) {
+  _deleteRemoteData: function (request) {
     if (!this.lastSubmitID) {
       this._log.info("Received request to delete remote data but no data stored.");
       request.onNoDataAvailable();
@@ -836,5 +859,28 @@ HealthReporter.prototype = Object.freeze({
     return new Date();
   },
 
+  //-----------------------------
+  // HealthReportPolicy listeners
+  //-----------------------------
+
+  onRequestDataUpload: function (request) {
+    this.collectMeasurements()
+        .then(this._uploadData.bind(this, request),
+              this._onSubmitDataRequestFailure.bind(this));
+  },
+
+  onNotifyDataPolicy: function (request) {
+    // This isn't very loosely coupled. We may want to have this call
+    // registered listeners instead.
+    Observers.notify("healthreport:notify-data-policy:request", request);
+  },
+
+  onRequestRemoteDelete: function (request) {
+    this._deleteRemoteData(request);
+  },
+
+  //------------------------------------
+  // End of HealthReportPolicy listeners
+  //------------------------------------
 });
 

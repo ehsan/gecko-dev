@@ -69,6 +69,7 @@
 #include "nsIParserService.h"
 #include "mozilla/Selection.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/dom/HTMLBodyElement.h"
 #include "nsTextFragment.h"
 
 using namespace mozilla;
@@ -1898,7 +1899,7 @@ nsHTMLEditor::GetHTMLBackgroundColorState(bool *aMixed, nsAString &aOutColor)
 
     // No color is set, but we need to report visible color inherited 
     // from nested cells/tables, so search up parent chain
-    element = element->GetParentElement();
+    element = element->GetElementParent();
   }
 
   // If no table or cell found, get page body

@@ -238,10 +238,10 @@ ToAtom(JSContext *cx, const js::Value &v);
 
 bool
 InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,
-                      MutableHandleId idp, MutableHandleValue vp);
+                      jsid *idp, MutableHandleValue vp);
 
 inline bool
-InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval, MutableHandleId idp)
+InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid *idp)
 {
     RootedValue dummy(cx);
     return InternNonIntElementId(cx, obj, idval, idp, &dummy);

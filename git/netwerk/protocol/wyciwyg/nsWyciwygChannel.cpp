@@ -85,9 +85,7 @@ nsWyciwygChannel::nsWyciwygChannel()
     mNeedToWriteCharset(false),
     mCharsetSource(kCharsetUninitialized),
     mContentLength(-1),
-    mLoadFlags(LOAD_NORMAL),
-    mAppId(NECKO_NO_APP_ID),
-    mInBrowser(false)
+    mLoadFlags(LOAD_NORMAL)
 {
 }
 
@@ -200,7 +198,6 @@ nsWyciwygChannel::SetLoadGroup(nsILoadGroup* aLoadGroup)
                                 NS_GET_IID(nsIProgressEventSink),
                                 getter_AddRefs(mProgressSink));
   mPrivateBrowsing = NS_UsePrivateBrowsing(this);
-  NS_GetAppInfo(this, &mAppId, &mInBrowser);
   return NS_OK;
 }
 
@@ -285,7 +282,6 @@ nsWyciwygChannel::SetNotificationCallbacks(nsIInterfaceRequestor* aNotificationC
                                 getter_AddRefs(mProgressSink));
 
   mPrivateBrowsing = NS_UsePrivateBrowsing(this);
-  NS_GetAppInfo(this, &mAppId, &mInBrowser);
 
   return NS_OK;
 }
@@ -697,13 +693,9 @@ nsWyciwygChannel::OpenCacheEntry(const nsACString & aCacheKey,
     storagePolicy = nsICache::STORE_ANYWHERE;
 
   nsCOMPtr<nsICacheSession> cacheSession;
-  nsAutoCString sessionName;
-  nsWyciwygProtocolHandler::GetCacheSessionName(mAppId, mInBrowser,
-                                                mPrivateBrowsing,
-                                                sessionName);
-
   // Open a stream based cache session.
-  rv = cacheService->CreateSession(sessionName.get(), storagePolicy, true,
+  const char* sessionName = mPrivateBrowsing ? "wyciwyg-private" : "wyciwyg";
+  rv = cacheService->CreateSession(sessionName, storagePolicy, true,
                                    getter_AddRefs(cacheSession));
   if (!cacheSession) 
     return NS_ERROR_FAILURE;

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -265,7 +266,7 @@ Shape::matchesParamsAfterId(UnrootedBaseShape base, uint32_t aslot,
 }
 
 inline bool
-Shape::getUserId(JSContext *cx, MutableHandleId idp) const
+Shape::getUserId(JSContext *cx, jsid *idp) const
 {
     AssertCanGC();
     const Shape *self = this;
@@ -279,9 +280,9 @@ Shape::getUserId(JSContext *cx, MutableHandleId idp) const
         int16_t id = self->shortid();
         if (id < 0)
             return ValueToId(cx, Int32Value(id), idp);
-        idp.set(INT_TO_JSID(id));
+        *idp = INT_TO_JSID(id);
     } else {
-        idp.set(self->propid());
+        *idp = self->propid();
     }
     return true;
 }
@@ -298,7 +299,7 @@ Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, 
 
     Rooted<Shape *> self(cx, this);
     RootedId id(cx);
-    if (!self->getUserId(cx, &id))
+    if (!self->getUserId(cx, id.address()))
         return false;
 
     return CallJSPropertyOp(cx, self->getterOp(), receiver, id, vp);
@@ -319,7 +320,7 @@ Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, 
 
     Rooted<Shape *> self(cx, this);
     RootedId id(cx);
-    if (!self->getUserId(cx, &id))
+    if (!self->getUserId(cx, id.address()))
         return false;
 
     /*
