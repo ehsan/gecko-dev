@@ -120,12 +120,7 @@ CheckPermissionsHelper::Run()
 
   nsresult rv;
   if (mHasPrompted) {
-    // Add permissions to the database, but only if we are in the parent
-    // process (if we are in the child process, we have already
-    // set the permission when the prompt was shown in the parent, as
-    // we cannot set the permission from the child).
-    if (permission != nsIPermissionManager::UNKNOWN_ACTION &&
-        XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (permission != nsIPermissionManager::UNKNOWN_ACTION) {
       nsCOMPtr<nsIURI> uri;
       rv = NS_NewURI(getter_AddRefs(uri), mASCIIOrigin);
       NS_ENSURE_SUCCESS(rv, rv);

@@ -1205,8 +1205,6 @@ ConsoleAPIObserver.init();
 
 var TouchEventHandler = {
   element: null,
-  isCancellable: true,
-
   init: function() {
     addMessageListener("Browser:MouseUp", this);
     addMessageListener("Browser:MouseDown", this);
@@ -1214,30 +1212,22 @@ var TouchEventHandler = {
   },
 
   receiveMessage: function(aMessage) {
-    if (Util.isParentProcess())
+    if (!content.QueryInterface(Ci.nsIInterfaceRequestor)
+                .getInterface(Ci.nsIDOMWindowUtils)
+                .mayHaveTouchEventListeners || Util.isParentProcess())
       return;
-
-    if (!content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).mayHaveTouchEventListeners) {
-      sendAsyncMessage("Browser:CaptureEvents", {
-        messageId: json.messageId,
-        click: false, panning: false,
-        contentMightCaptureMouse: false
-      });
-      return;
-    }
 
     let json = aMessage.json;
     let cancelled = false;
 
     switch (aMessage.name) {
       case "Browser:MouseDown":
-        this.isCancellable = true;
-        this.element = elementFromPoint(json.x, json.y);
+        let cwu = Util.getWindowUtils(content);
+        this.element = cwu.elementFromPoint(json.x, json.y, false, false);
         cancelled = !this.sendEvent("touchstart", json, this.element);
         break;
 
       case "Browser:MouseUp":
-        this.isCancellable = false;
         if (this.element)
           this.sendEvent("touchend", json, this.element);
         this.element = null;
@@ -1249,17 +1239,9 @@ var TouchEventHandler = {
         break;
     }
 
-    if (this.isCancellable) {
+    if (aMessage.name != "Browser:MouseUp")
       sendAsyncMessage("Browser:CaptureEvents", { messageId: json.messageId,
-                                                  contentMightCaptureMouse: true,
-                                                  click: cancelled && aMessage.name == "Browser:MouseDown",
                                                   panning: cancelled });
-      // Panning can be cancelled only during the "touchstart" event and the
-      // first "touchmove" event.  After it's cancelled, it stays cancelled
-      // until the next touchstart event.
-      if (cancelled || aMessage.name == "Browser:MouseMove")
-        this.isCancellable = false;
-    }
   },
 
   sendEvent: function(aName, aData, aElement) {

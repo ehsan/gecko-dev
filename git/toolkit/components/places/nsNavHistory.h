@@ -331,9 +331,6 @@ public:
   nsresult BookmarkIdToResultNode(PRInt64 aBookmarkId,
                                   nsNavHistoryQueryOptions* aOptions,
                                   nsNavHistoryResultNode** aResult);
-  nsresult URIToResultNode(nsIURI* aURI,
-                           nsNavHistoryQueryOptions* aOptions,
-                           nsNavHistoryResultNode** aResult);
 
   // used by other places components to send history notifications (for example,
   // when the favicon has changed)
@@ -644,7 +641,6 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBVisitToURLResult; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBVisitToVisitResult; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBBookmarkToUrlResult; // kGetInfoIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBUrlToUrlResult; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBUpdateFrecency;
   nsCOMPtr<mozIStorageStatement> mDBUpdateHiddenOnFrecency;
   nsCOMPtr<mozIStorageStatement> mDBGetPlaceVisitStats;

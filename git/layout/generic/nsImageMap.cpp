@@ -61,6 +61,7 @@
 #include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsCoord.h"
+#include "nsIImageMap.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIStringBundle.h"
@@ -705,12 +706,13 @@ nsImageMap::~nsImageMap()
   NS_ASSERTION(mAreas.Length() == 0, "Destroy was not called");
 }
 
-NS_IMPL_ISUPPORTS3(nsImageMap,
+NS_IMPL_ISUPPORTS4(nsImageMap,
                    nsIMutationObserver,
                    nsIDOMFocusListener,
-                   nsIDOMEventListener)
+                   nsIDOMEventListener,
+                   nsIImageMap)
 
-nsresult
+NS_IMETHODIMP
 nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
                                     nsRect& aBounds)
 {

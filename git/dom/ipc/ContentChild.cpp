@@ -112,8 +112,6 @@ using namespace mozilla::docshell;
 namespace mozilla {
 namespace dom {
 
-nsString* gIndexedDBPath = nsnull;
-
 class MemoryReportRequestChild : public PMemoryReportRequestChild
 {
 public:
@@ -231,8 +229,6 @@ ContentChild::ContentChild()
 
 ContentChild::~ContentChild()
 {
-    delete gIndexedDBPath;
-    gIndexedDBPath = nsnull;
 }
 
 bool
@@ -672,17 +668,6 @@ ContentChild::RecvFlushMemory(const nsString& reason)
     if (os)
         os->NotifyObservers(nsnull, "memory-pressure", reason.get());
   return true;
-}
-
-nsString&
-ContentChild::GetIndexedDBPath()
-{
-    if (!gIndexedDBPath) {
-        gIndexedDBPath = new nsString(); // cleaned up in the destructor
-        SendGetIndexedDBDirectory(gIndexedDBPath);
-    }
-
-    return *gIndexedDBPath;
 }
 
 } // namespace dom

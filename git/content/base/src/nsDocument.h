@@ -52,6 +52,7 @@
 #include "nsTArray.h"
 #include "nsHashSets.h"
 #include "nsIDOMXMLDocument.h"
+#include "nsIDOMDocumentView.h"
 #include "nsIDOMDocumentXBL.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMNSDocumentStyle.h"
@@ -498,6 +499,7 @@ class nsDocument : public nsIDocument,
                    public nsIDOMDocumentEvent,
                    public nsIDOM3DocumentEvent,
                    public nsIDOMNSDocumentStyle,
+                   public nsIDOMDocumentView,
                    public nsIDOMDocumentRange,
                    public nsIDOMDocumentTraversal,
                    public nsIDOMDocumentXBL,
@@ -813,6 +815,9 @@ public:
 
   // nsIDOMNSDocumentStyle
   NS_DECL_NSIDOMNSDOCUMENTSTYLE
+
+  // nsIDOMDocumentView
+  NS_DECL_NSIDOMDOCUMENTVIEW
 
   // nsIDOMDocumentRange
   NS_DECL_NSIDOMDOCUMENTRANGE
@@ -1263,6 +1268,7 @@ protected:
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocument, nsDocument)      \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNSDocument, nsDocument)    \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentEvent, nsDocument) \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentView, nsDocument)  \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentTraversal,         \
                                      nsDocument)                              \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \

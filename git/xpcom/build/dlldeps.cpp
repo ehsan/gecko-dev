@@ -282,7 +282,7 @@ void XXXNeverCalled()
     NS_SetHasLoadedNewDLLs();
     NS_NewWindowsRegKey(nsnull);
     NS_SetDllDirectory(nsnull);
-#if defined (DEBUG)
+#if defined (DEBUG) && !defined (WINCE)
     PurePrintf(0);
 #endif
 #endif

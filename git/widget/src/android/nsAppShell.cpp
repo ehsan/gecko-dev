@@ -315,7 +315,7 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         break;
 
     case AndroidGeckoEvent::SENSOR_EVENT:
-        gAccel->AccelerationChanged(-curEvent->Alpha(), curEvent->Beta(), curEvent->Gamma());
+        gAccel->AccelerationChanged(-curEvent->X(), curEvent->Y(), curEvent->Z());
         break;
 
     case AndroidGeckoEvent::LOCATION_EVENT: {

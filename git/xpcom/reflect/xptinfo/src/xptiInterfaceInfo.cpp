@@ -51,7 +51,7 @@ using namespace mozilla;
 static int DEBUG_TotalInfos = 0;
 static int DEBUG_CurrentInfos = 0;
 static int DEBUG_MaxInfos = 0;
-static int DEBUG_ReentrantMonitorEntryCount = 0;
+static int DEBUG_MonitorEntryCount = 0;
 
 #define LOG_INFO_CREATE(t)                                                  \
     DEBUG_TotalInfos++;                                                     \
@@ -63,7 +63,7 @@ static int DEBUG_ReentrantMonitorEntryCount = 0;
     DEBUG_CurrentInfos-- /* no ';' */
 
 #define LOG_INFO_MONITOR_ENTRY                                              \
-    DEBUG_ReentrantMonitorEntryCount++ /* no ';' */
+    DEBUG_MonitorEntryCount++ /* no ';' */
 
 #else /* SHOW_INFO_COUNT_STATS */
 
@@ -620,7 +620,7 @@ nsresult
 xptiInterfaceEntry::GetInterfaceInfo(xptiInterfaceInfo** info)
 {
 #ifdef DEBUG
-    xptiInterfaceInfoManager::GetSingleton()->GetWorkingSet()->mTableReentrantMonitor.
+    xptiInterfaceInfoManager::GetSingleton()->GetWorkingSet()->mTableMonitor.
         AssertCurrentThreadIn();
 #endif
     LOG_INFO_MONITOR_ENTRY;
@@ -652,8 +652,8 @@ xptiInterfaceEntry::LockedInvalidateInterfaceInfo()
 PRBool
 xptiInterfaceInfo::BuildParent()
 {
-    mozilla::ReentrantMonitorAutoEnter monitor(xptiInterfaceInfoManager::GetSingleton()->
-                                    GetWorkingSet()->mTableReentrantMonitor);
+    mozilla::MonitorAutoEnter monitor(xptiInterfaceInfoManager::GetSingleton()->
+                                    GetWorkingSet()->mTableMonitor);
     NS_ASSERTION(mEntry && 
                  mEntry->IsFullyResolved() && 
                  !mParent &&
@@ -695,9 +695,9 @@ xptiInterfaceInfo::Release(void)
     NS_LOG_RELEASE(this, cnt, "xptiInterfaceInfo");
     if(!cnt)
     {
-        mozilla::ReentrantMonitorAutoEnter monitor(xptiInterfaceInfoManager::
+        mozilla::MonitorAutoEnter monitor(xptiInterfaceInfoManager::
                                           GetSingleton()->GetWorkingSet()->
-                                          mTableReentrantMonitor);
+                                          mTableMonitor);
         LOG_INFO_MONITOR_ENTRY;
 
         // If GetInterfaceInfo added and *released* a reference before we 

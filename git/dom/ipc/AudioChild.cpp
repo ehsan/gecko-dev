@@ -48,7 +48,7 @@ NS_IMPL_THREADSAFE_RELEASE(AudioChild);
 AudioChild::AudioChild()
   : mLastSampleOffset(-1),
     mLastSampleOffsetTime(0),
-    mAudioReentrantMonitor("AutoChild.mReentrantMonitor"),
+    mAudioMonitor("media.audiochild.monitor"),
     mIPCOpen(PR_TRUE),
     mDrained(PR_FALSE)
 {
@@ -78,18 +78,18 @@ AudioChild::RecvSampleOffsetUpdate(const PRInt64& offset,
 bool
 AudioChild::RecvDrainDone()
 {
-  ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
+  mozilla::MonitorAutoEnter mon(mAudioMonitor);
   mDrained = PR_TRUE;
-  mAudioReentrantMonitor.NotifyAll();
+  mAudioMonitor.NotifyAll();
   return true;
 }
 
 void
 AudioChild::WaitForDrain()
 {
-  ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
+  mozilla::MonitorAutoEnter mon(mAudioMonitor);
   while (!mDrained && mIPCOpen) {
-    mAudioReentrantMonitor.Wait();
+    mAudioMonitor.Wait();
   }
 }
 

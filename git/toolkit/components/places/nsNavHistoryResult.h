@@ -378,7 +378,6 @@ public:
   nsCString mURI; // not necessarily valid for containers, call GetUri
   nsCString mTitle;
   nsString mTags;
-  bool mAreTagsSorted;
   PRUint32 mAccessCount;
   PRInt64 mTime;
   nsCString mFaviconURI;
@@ -778,9 +777,6 @@ public:
   virtual void GetSortingAnnotation(nsACString& aSortingAnnotation);
   virtual void RecursiveSort(const char* aData,
                              SortComparator aComparator);
-
-  nsCOMPtr<nsIURI> mRemovingURI;
-  nsresult NotifyIfTagsChanged(nsIURI* aURI);
 };
 
 

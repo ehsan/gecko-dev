@@ -39,7 +39,7 @@
 #ifndef VideoUtils_h
 #define VideoUtils_h
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 
 // This file contains stuff we'd rather put elsewhere, but which is
 // dependent on other changes which we don't want to wait for. We plan to
@@ -64,13 +64,13 @@
 namespace mozilla {
 
 /**
- * ReentrantMonitorAutoExit
- * Exit the ReentrantMonitor when it enters scope, and enters it when it leaves 
+ * MonitorAutoExit
+ * Exit the Monitor when it enters scope, and enters it when it leaves 
  * scope.
  *
- * MUCH PREFERRED to bare calls to ReentrantMonitor.Exit and Enter.
+ * MUCH PREFERRED to bare calls to Monitor.Exit and Enter.
  */ 
-class NS_STACK_CLASS ReentrantMonitorAutoExit
+class NS_STACK_CLASS MonitorAutoExit
 {
 public:
     /**
@@ -79,30 +79,31 @@ public:
      * acquires the lock. The lock must be held before constructing
      * this object!
      * 
-     * @param aReentrantMonitor A valid mozilla::ReentrantMonitor*. It
-     *                 must be already locked.
+     * @param aMonitor A valid mozilla::Monitor* returned by 
+     *                 mozilla::Monitor::NewMonitor. It must be
+     *                 already locked.
      **/
-    ReentrantMonitorAutoExit(ReentrantMonitor& aReentrantMonitor) :
-        mReentrantMonitor(&aReentrantMonitor)
+    MonitorAutoExit(mozilla::Monitor &aMonitor) :
+        mMonitor(&aMonitor)
     {
-        NS_ASSERTION(mReentrantMonitor, "null monitor");
-        mReentrantMonitor->AssertCurrentThreadIn();
-        mReentrantMonitor->Exit();
+        NS_ASSERTION(mMonitor, "null monitor");
+        mMonitor->AssertCurrentThreadIn();
+        mMonitor->Exit();
     }
     
-    ~ReentrantMonitorAutoExit(void)
+    ~MonitorAutoExit(void)
     {
-        mReentrantMonitor->Enter();
+        mMonitor->Enter();
     }
  
 private:
-    ReentrantMonitorAutoExit();
-    ReentrantMonitorAutoExit(const ReentrantMonitorAutoExit&);
-    ReentrantMonitorAutoExit& operator =(const ReentrantMonitorAutoExit&);
+    MonitorAutoExit();
+    MonitorAutoExit(const MonitorAutoExit&);
+    MonitorAutoExit& operator =(const MonitorAutoExit&);
     static void* operator new(size_t) CPP_THROW_NEW;
     static void operator delete(void*);
 
-    ReentrantMonitor* mReentrantMonitor;
+    mozilla::Monitor* mMonitor;
 };
 
 } // namespace mozilla

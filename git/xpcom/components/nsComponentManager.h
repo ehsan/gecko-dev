@@ -47,7 +47,7 @@
 #include "nsILocalFile.h"
 #include "mozilla/Module.h"
 #include "mozilla/ModuleLoader.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "nsXULAppAPI.h"
 #include "nsNativeComponentLoader.h"
 #include "nsIFactory.h"
@@ -150,7 +150,7 @@ public:
     nsDataHashtable<nsIDHashKey, nsFactoryEntry*> mFactories;
     nsDataHashtable<nsCStringHashKey, nsFactoryEntry*> mContractIDs;
 
-    mozilla::ReentrantMonitor mMon;
+    mozilla::Monitor    mMon;
 
     static void InitializeStaticModules();
     static void InitializeModuleLocations();

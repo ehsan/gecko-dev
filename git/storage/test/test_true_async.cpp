@@ -43,10 +43,10 @@
 
 #include "sqlite3.h"
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 
-using mozilla::ReentrantMonitor;
-using mozilla::ReentrantMonitorAutoEnter;
+using mozilla::Monitor;
+using mozilla::MonitorAutoEnter;
 
 /**
  * Verify that mozIStorageAsyncStatement's life-cycle never triggers a mutex on
@@ -140,7 +140,7 @@ class ThreadWedger : public nsRunnable
 {
 public:
   ThreadWedger(nsIEventTarget *aTarget)
-  : mReentrantMonitor("thread wedger")
+  : mMonitor("thread wedger")
   , unwedged(false)
   {
     aTarget->Dispatch(this, aTarget->NS_DISPATCH_NORMAL);
@@ -148,7 +148,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    ReentrantMonitorAutoEnter automon(mReentrantMonitor);
+    MonitorAutoEnter automon(mMonitor);
 
     if (!unwedged)
       automon.Wait();
@@ -158,13 +158,13 @@ public:
 
   void unwedge()
   {
-    ReentrantMonitorAutoEnter automon(mReentrantMonitor);
+    MonitorAutoEnter automon(mMonitor);
     unwedged = true;
     automon.Notify();
   }
 
 private:
-  ReentrantMonitor mReentrantMonitor;
+  Monitor mMonitor;
   bool unwedged;
 };
 
