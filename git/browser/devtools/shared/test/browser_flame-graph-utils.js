@@ -1,8 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-// Tests that text metrics and data conversion from profiler samples
-// widget work properly in the flame graph.
+// Tests that text metrics in the flame graph widget work properly.
 
 let {FlameGraphUtils} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
 

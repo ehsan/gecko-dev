@@ -76,7 +76,7 @@ LoginManager.prototype = {
     },
 
 
-    /* ---------- private members ---------- */
+    /* ---------- private memebers ---------- */
 
 
     __formFillService : null, // FormFillController, for username autocompleting
@@ -130,8 +130,6 @@ LoginManager.prototype = {
             // Initialize storage so that asynchronous data loading can start.
             this._initStorage();
         }
-
-        Services.obs.addObserver(this._observer, "gather-telemetry", false);
     },
 
 
@@ -200,18 +198,10 @@ LoginManager.prototype = {
                   Services.obs.notifyObservers(null,
                                "passwordmgr-storage-replace-complete", null);
                 }.bind(this));
-            } else if (topic == "gather-telemetry") {
-                this._pwmgr._gatherTelemetry();
             } else {
                 log("Oops! Unexpected notification:", topic);
             }
         }
-    },
-
-    _gatherTelemetry : function() {
-      let numPasswordsHist = Services.telemetry.getHistogramById("PWMGR_NUM_SAVED_PASSWORDS");
-      numPasswordsHist.clear();
-      numPasswordsHist.add(this.countLogins("", "", ""));
     },
 
 

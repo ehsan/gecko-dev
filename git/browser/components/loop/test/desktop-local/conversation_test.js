@@ -53,9 +53,7 @@ describe("loop.conversation", function() {
 
     fakeWindow = {
       navigator: { mozLoop: navigator.mozLoop },
-      close: sinon.stub(),
-      addEventListener: function() {},
-      removeEventListener: function() {}
+      close: sandbox.stub(),
     };
     loop.shared.mixins.setRootObject(fakeWindow);
 

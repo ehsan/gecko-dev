@@ -14,7 +14,7 @@ let test = Task.async(function*() {
 
   // Verify original recording.
 
-  let originalData = PerformanceController.getCurrentRecording().getAllData();
+  let originalData = PerformanceController.getAllData();
   ok(originalData, "The original recording is not empty.");
 
   // Save recording.
@@ -42,7 +42,7 @@ let test = Task.async(function*() {
 
   // Verify imported recording.
 
-  let importedData = PerformanceController.getCurrentRecording().getAllData();
+  let importedData = PerformanceController.getAllData();
 
   is(importedData.startTime, originalData.startTime,
     "The impored data is identical to the original data (1).");

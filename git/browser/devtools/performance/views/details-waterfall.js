@@ -48,9 +48,8 @@ let WaterfallView = {
    * Method for handling all the set up for rendering a new waterfall.
    */
   render: function() {
-    let recording = PerformanceController.getCurrentRecording();
-    let { startTime, endTime } = recording.getInterval();
-    let markers = recording.getMarkers();
+    let { startTime, endTime } = PerformanceController.getInterval();
+    let markers = PerformanceController.getMarkers();
 
     this.waterfall.setData(markers, startTime, startTime, endTime);
 
@@ -85,11 +84,12 @@ let WaterfallView = {
    * updating the markers detail view.
    */
   _onMarkerSelected: function (event, marker) {
-    let recording = PerformanceController.getCurrentRecording();
-    let frames = recording.getFrames();
-
     if (event === "selected") {
-      this.details.render({ toolbox: gToolbox, marker, frames });
+      this.details.render({
+        toolbox: gToolbox,
+        marker: marker,
+        frames: PerformanceController.getFrames()
+      });
     }
     if (event === "unselected") {
       this.details.empty();

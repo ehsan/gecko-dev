@@ -23,13 +23,6 @@ devtools.lazyRequireGetter(this, "L10N",
   "devtools/profiler/global", true);
 devtools.lazyRequireGetter(this, "PerformanceIO",
   "devtools/performance/io", true);
-devtools.lazyRequireGetter(this, "RecordingModel",
-  "devtools/performance/recording-model", true);
-devtools.lazyRequireGetter(this, "RECORDING_IN_PROGRESS",
-  "devtools/performance/recording-model", true);
-devtools.lazyRequireGetter(this, "RECORDING_UNAVAILABLE",
-  "devtools/performance/recording-model", true);
-
 devtools.lazyRequireGetter(this, "MarkersOverview",
   "devtools/timeline/markers-overview", true);
 devtools.lazyRequireGetter(this, "MemoryOverview",
@@ -42,19 +35,22 @@ devtools.lazyRequireGetter(this, "CallView",
   "devtools/profiler/tree-view", true);
 devtools.lazyRequireGetter(this, "ThreadNode",
   "devtools/profiler/tree-model", true);
-devtools.lazyRequireGetter(this, "FrameNode",
-  "devtools/profiler/tree-model", true);
+
 
 devtools.lazyImporter(this, "CanvasGraphUtils",
   "resource:///modules/devtools/Graphs.jsm");
 devtools.lazyImporter(this, "LineGraphWidget",
   "resource:///modules/devtools/Graphs.jsm");
+devtools.lazyImporter(this, "SideMenuWidget",
+  "resource:///modules/devtools/SideMenuWidget.jsm");
+
+const { RecordingModel, RECORDING_IN_PROGRESS, RECORDING_UNAVAILABLE } =
+  devtools.require("devtools/performance/recording-model");
+
 devtools.lazyImporter(this, "FlameGraphUtils",
   "resource:///modules/devtools/FlameGraph.jsm");
 devtools.lazyImporter(this, "FlameGraph",
   "resource:///modules/devtools/FlameGraph.jsm");
-devtools.lazyImporter(this, "SideMenuWidget",
-  "resource:///modules/devtools/SideMenuWidget.jsm");
 
 // Events emitted by various objects in the panel.
 const EVENTS = {
@@ -207,11 +203,11 @@ let PerformanceController = {
    * when the front has started to record.
    */
   startRecording: Task.async(function *() {
-    let recording = this.createNewRecording();
-    this.setCurrentRecording(recording);
-    yield recording.startRecording();
+    let model = this.createNewRecording();
+    this.setCurrentRecording(model);
+    yield model.startRecording();
 
-    this.emit(EVENTS.RECORDING_STARTED, recording);
+    this.emit(EVENTS.RECORDING_STARTED, model);
   }),
 
   /**
@@ -219,7 +215,7 @@ let PerformanceController = {
    * when the front has stopped recording.
    */
   stopRecording: Task.async(function *() {
-    let recording = this._getLatestRecording();
+    let recording = this._getLatest();
     yield recording.stopRecording();
 
     this.emit(EVENTS.RECORDING_STOPPED, recording);
@@ -247,33 +243,28 @@ let PerformanceController = {
    *        The file to import the data from.
    */
   importRecording: Task.async(function*(_, file) {
-    let recording = this.createNewRecording();
-    yield recording.importRecording(file);
+    let model = this.createNewRecording();
+    yield model.importRecording(file);
 
-    this.emit(EVENTS.RECORDING_IMPORTED, recording);
+    this.emit(EVENTS.RECORDING_IMPORTED, model.getAllData(), model);
   }),
 
   /**
    * Creates a new RecordingModel, fires events and stores it
    * internally in the controller.
-   *
-   * @return RecordingModel
-   *         The newly created recording model.
    */
   createNewRecording: function () {
-    let recording = new RecordingModel({
+    let model = new RecordingModel({
       front: gFront,
       performance: performance
     });
-    this._recordings.push(recording);
-
-    this.emit(EVENTS.RECORDING_CREATED, recording);
-    return recording;
+    this._recordings.push(model);
+    this.emit(EVENTS.RECORDING_CREATED, model);
+    return model;
   },
 
   /**
-   * Sets the currently active RecordingModel.
-   * @param RecordingModel recording
+   * Sets the active RecordingModel to `recording`.
    */
   setCurrentRecording: function (recording) {
     if (this._currentRecording !== recording) {
@@ -283,18 +274,79 @@ let PerformanceController = {
   },
 
   /**
-   * Gets the currently active RecordingModel.
-   * @return RecordingModel
+   * Return the current active RecordingModel.
    */
   getCurrentRecording: function () {
     return this._currentRecording;
   },
 
   /**
-   * Get most recently added recording that was triggered manually (via UI).
-   * @return RecordingModel
+   * Gets the amount of time elapsed locally after starting a recording.
    */
-  _getLatestRecording: function () {
+  getLocalElapsedTime: function () {
+    return this.getCurrentRecording().getLocalElapsedTime;
+  },
+
+  /**
+   * Gets the time interval for the current recording.
+   * @return object
+   */
+  getInterval: function() {
+    return this.getCurrentRecording().getInterval();
+  },
+
+  /**
+   * Gets the accumulated markers in the current recording.
+   * @return array
+   */
+  getMarkers: function() {
+    return this.getCurrentRecording().getMarkers();
+  },
+
+  /**
+   * Gets the accumulated stack frames in the current recording.
+   * @return array
+   */
+  getFrames: function() {
+    return this.getCurrentRecording().getFrames();
+  },
+
+  /**
+   * Gets the accumulated memory measurements in this recording.
+   * @return array
+   */
+  getMemory: function() {
+    return this.getCurrentRecording().getMemory();
+  },
+
+  /**
+   * Gets the accumulated refresh driver ticks in this recording.
+   * @return array
+   */
+  getTicks: function() {
+    return this.getCurrentRecording().getTicks();
+  },
+
+  /**
+   * Gets the profiler data in this recording.
+   * @return array
+   */
+  getProfilerData: function() {
+    return this.getCurrentRecording().getProfilerData();
+  },
+
+  /**
+   * Gets all the data in this recording.
+   */
+  getAllData: function() {
+    return this.getCurrentRecording().getAllData();
+  },
+
+  /**
+  /**
+   * Get most recently added profile that was triggered manually (via UI)
+   */
+  _getLatest: function () {
     for (let i = this._recordings.length - 1; i >= 0; i--) {
       return this._recordings[i];
     }
@@ -310,8 +362,8 @@ let PerformanceController = {
   },
 
   /**
-   * Fired from RecordingsView, we listen on the PerformanceController so we can
-   * set it here and re-emit on the controller, where all views can listen.
+   * Fired from RecordingsView, we listen on the PerformanceController
+   * so we can set it here and re-emit on the controller, where all views can listen.
    */
   _onRecordingSelectFromView: function (_, recording) {
     this.setCurrentRecording(recording);
@@ -327,9 +379,7 @@ EventEmitter.decorate(PerformanceController);
  * Shortcuts for accessing various profiler preferences.
  */
 const Prefs = new ViewHelpers.Prefs("devtools.profiler", {
-  flattenTreeRecursion: ["Bool", "ui.flatten-tree-recursion"],
-  showPlatformData: ["Bool", "ui.show-platform-data"],
-  showIdleBlocks: ["Bool", "ui.show-idle-blocks"],
+  showPlatformData: ["Bool", "ui.show-platform-data"]
 });
 
 /**

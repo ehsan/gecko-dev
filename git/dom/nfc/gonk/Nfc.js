@@ -61,6 +61,8 @@ const NFC_IPC_MSG_ENTRIES = [
 
   { permission: "nfc",
     messages: ["NFC:ReadNDEF",
+               "NFC:Connect",
+               "NFC:Close",
                "NFC:WriteNDEF",
                "NFC:MakeReadOnly",
                "NFC:Format",
@@ -512,7 +514,9 @@ Nfc.prototype = {
           gMessageManager.onRFStateChange(this.rfState);
         }
         break;
-      case "ReadNDEFResponse": // Fall through.
+      case "ConnectResponse": // Fall through.
+      case "CloseResponse":
+      case "ReadNDEFResponse":
       case "MakeReadOnlyResponse":
       case "FormatResponse":
       case "TransceiveResponse":
@@ -574,6 +578,12 @@ Nfc.prototype = {
         break;
       case "NFC:Transceive":
         this.sendToNfcService("transceive", message.data);
+        break;
+      case "NFC:Connect":
+        this.sendToNfcService("connect", message.data);
+        break;
+      case "NFC:Close":
+        this.sendToNfcService("close", message.data);
         break;
       case "NFC:SendFile":
         // Chrome process is the arbitrator / mediator between

@@ -83,6 +83,7 @@
   // Local mocks
 
   var mockMozLoopRooms = _.extend({}, navigator.mozLoop);
+  mockMozLoopRooms.roomsEnabled = true;
 
   var mockContact = {
     name: ["Mr Smith"],
@@ -92,6 +93,7 @@
   };
 
   var mockClient = {
+    requestCallUrl: noop,
     requestCallUrlInfo: noop
   };
 
@@ -218,21 +220,33 @@
             <p className="note">
               <strong>Note:</strong> 332px wide.
             </p>
-            <Example summary="Room list tab" dashed="true" style={{width: "332px"}}>
+            <Example summary="Call URL retrieved" dashed="true" style={{width: "332px"}}>
               <PanelView client={mockClient} notifications={notifications}
-                         userProfile={{email: "test@example.com"}}
-                         mozLoop={mockMozLoopRooms}
+                         callUrl="http://invalid.example.url/"
+                         mozLoop={navigator.mozLoop}
                          dispatcher={dispatcher}
-                         roomStore={roomStore}
-                         selectedTab="rooms" />
+                         roomStore={roomStore} />
             </Example>
-            <Example summary="Contact list tab" dashed="true" style={{width: "332px"}}>
+            <Example summary="Call URL retrieved - authenticated" dashed="true" style={{width: "332px"}}>
+              <PanelView client={mockClient} notifications={notifications}
+                         callUrl="http://invalid.example.url/"
+                         userProfile={{email: "test@example.com"}}
+                         mozLoop={navigator.mozLoop}
+                         dispatcher={dispatcher}
+                         roomStore={roomStore} />
+            </Example>
+            <Example summary="Pending call url retrieval" dashed="true" style={{width: "332px"}}>
+              <PanelView client={mockClient} notifications={notifications}
+                         mozLoop={navigator.mozLoop}
+                         dispatcher={dispatcher}
+                         roomStore={roomStore} />
+            </Example>
+            <Example summary="Pending call url retrieval - authenticated" dashed="true" style={{width: "332px"}}>
               <PanelView client={mockClient} notifications={notifications}
                          userProfile={{email: "test@example.com"}}
-                         mozLoop={mockMozLoopRooms}
+                         mozLoop={navigator.mozLoop}
                          dispatcher={dispatcher}
-                         roomStore={roomStore}
-                         selectedTab="contacts" />
+                         roomStore={roomStore} />
             </Example>
             <Example summary="Error Notification" dashed="true" style={{width: "332px"}}>
               <PanelView client={mockClient} notifications={errNotifications}
@@ -247,21 +261,13 @@
                          dispatcher={dispatcher}
                          roomStore={roomStore} />
             </Example>
-            <Example summary="Contact import success" dashed="true" style={{width: "332px"}}>
-              <PanelView notifications={new loop.shared.models.NotificationCollection([{level: "success", message: "Import success"}])}
+            <Example summary="Room list tab" dashed="true" style={{width: "332px"}}>
+              <PanelView client={mockClient} notifications={notifications}
                          userProfile={{email: "test@example.com"}}
                          mozLoop={mockMozLoopRooms}
                          dispatcher={dispatcher}
                          roomStore={roomStore}
-                         selectedTab="contacts" />
-            </Example>
-            <Example summary="Contact import error" dashed="true" style={{width: "332px"}}>
-              <PanelView notifications={new loop.shared.models.NotificationCollection([{level: "error", message: "Import error"}])}
-                         userProfile={{email: "test@example.com"}}
-                         mozLoop={mockMozLoopRooms}
-                         dispatcher={dispatcher}
-                         roomStore={roomStore}
-                         selectedTab="contacts" />
+                         selectedTab="rooms" />
             </Example>
           </Section>
 

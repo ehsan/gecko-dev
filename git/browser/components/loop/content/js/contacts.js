@@ -263,11 +263,6 @@ loop.contacts = (function(_, mozL10n) {
       loop.shared.mixins.WindowCloseMixin
     ],
 
-    propTypes: {
-      notifications: React.PropTypes.instanceOf(
-        loop.shared.models.NotificationCollection).isRequired
-    },
-
     /**
      * Contacts collection object
      */
@@ -394,14 +389,10 @@ loop.contacts = (function(_, mozL10n) {
         service: "google"
       }, (err, stats) => {
         this.setState({ importBusy: false });
+        // TODO: bug 1076764 - proper error and success reporting.
         if (err) {
-          console.error("Contact import error", err);
-          this.props.notifications.errorL10n("import_contacts_failure_message");
-          return;
+          throw err;
         }
-        this.props.notifications.successL10n("import_contacts_success_message", {
-          total: stats.total
-        });
       });
     },
 

@@ -14,7 +14,7 @@ let test = Task.async(function*() {
   yield stopRecording(panel);
 
   // Get data from the current profiler
-  let data = PerformanceController.getCurrentRecording().getAllData();
+  let data = PerformanceController.getAllData();
 
   // Create a structure from the data that mimics the old profiler's data.
   // Different name for `ticks`, different way of storing time,
@@ -46,7 +46,7 @@ let test = Task.async(function*() {
 
   // Verify imported recording.
 
-  let importedData = PerformanceController.getCurrentRecording().getAllData();
+  let importedData = PerformanceController.getAllData();
 
   is(importedData.startTime, data.startTime,
     "The imported legacy data was successfully converted for the current tool (1).");
