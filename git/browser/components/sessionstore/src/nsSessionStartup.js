@@ -250,7 +250,7 @@ SessionStartup.prototype = {
 /* ........ Public API ................*/
 
   /**
-   * Get the session state as a jsval
+   * Get the session state as a string
    */
   get state() {
     return this._initialState;
