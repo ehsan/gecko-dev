@@ -603,21 +603,15 @@ nsWindow :: DealWithPopups ( ULONG inMsg, MRESULT* outResult )
       
       // If we're dealing with menus, we probably have submenus and we don't
       // want to rollup if the click is in a parent menu of the current submenu.
-      PRUint32 popupsToRollup = PR_UINT32_MAX;
       if (rollup) {
         nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
         if ( menuRollup ) {
           nsAutoTArray<nsIWidget*, 5> widgetChain;
-          PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
+          menuRollup->GetSubmenuWidgetChain ( &widgetChain );
           for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) {
             nsIWidget* widget = widgetChain[i];
             if ( nsWindow::EventIsInsideWindow((nsWindow*)widget) ) {
-              if (i < sameTypeCount) {
-                rollup = PR_FALSE;
-              }
-              else {
-                popupsToRollup = sameTypeCount;
-              }
+              rollup = PR_FALSE;
               break;
             }
           } // foreach parent menu widget
@@ -627,7 +621,7 @@ nsWindow :: DealWithPopups ( ULONG inMsg, MRESULT* outResult )
       // if we've determined that we should still rollup everything, do it.
       if ( rollup ) {
         // only need to deal with the last rollup for left mouse down events.
-        gRollupListener->Rollup(popupsToRollup, inMsg == WM_BUTTON1DOWN ? &mLastRollup : nsnull);
+        gRollupListener->Rollup(inMsg == WM_BUTTON1DOWN ? &mLastRollup : nsnull);
 
         // return TRUE tells Windows that the event is consumed, 
         // false allows the event to be dispatched

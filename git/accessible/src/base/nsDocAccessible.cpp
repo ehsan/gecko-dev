@@ -380,12 +380,10 @@ NS_IMETHODIMP nsDocAccessible::TakeFocus()
     if (document) {
       // focus the document
       nsCOMPtr<nsIDOMElement> newFocus;
-      return fm->MoveFocus(document->GetWindow(), nsnull,
-                           nsIFocusManager::MOVEFOCUS_ROOT, 0,
-                           getter_AddRefs(newFocus));
+      fm->MoveFocus(document->GetWindow(), nsnull, nsIFocusManager::MOVEFOCUS_ROOT, 0,
+                    getter_AddRefs(newFocus));
     }
   }
-  return NS_ERROR_FAILURE;
 }
 
 // ------- nsIAccessibleDocument Methods (5) ---------------

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -35,51 +35,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsISupports.idl"
 
+%{C++
+#include "nsplugindefs.h"
 
-#ifndef nsCommandGroup_h__
-#define nsCommandGroup_h__
+// {a55d21ca-1dd1-11b2-9b0f-8fe1adaf129d}
+#define NS_CLASSIC_PLUGIN_FACTORY_CID \
+{ 0xa55d21ca, 0x1dd1, 0x11b2, { 0x9b, 0x0f, 0x8f, 0xe1, 0xad, 0xaf, 0x12, 0x9d } }
 
-#include "nsIController.h"
+// Prefix for ContractID of all plugins
+#define NS_CLASSIC_PLUGIN_FACTORY_CONTRACTID "@mozilla.org/plugin/classicpluginfactory;1"
 
-#include "nsHashtable.h"
+struct PRLibrary;
+%}
 
+interface nsIServiceManagerObsolete;
+interface nsIPlugin;
 
-// {ecd55a01-2780-11d5-a73c-ca641a6813bc}
-#define NS_CONTROLLER_COMMAND_GROUP_CID \
-{ 0xecd55a01, 0x2780, 0x11d5, { 0xa7, 0x3c, 0xca, 0x64, 0x1a, 0x68, 0x13, 0xbc } }
+[ptr] native PRLibraryPtr(PRLibrary);
 
-#define NS_CONTROLLER_COMMAND_GROUP_CONTRACTID \
- "@mozilla.org/embedcomp/controller-command-group;1"
-
-
-class nsControllerCommandGroup : public nsIControllerCommandGroup
+[uuid(07bfa284-1dd2-11b2-90f8-fef5608e8a56)]
+interface nsIClassicPluginFactory : nsISupports
 {
-public:
-
-                    nsControllerCommandGroup();
-  virtual           ~nsControllerCommandGroup();
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSICONTROLLERCOMMANDGROUP
-
-
-protected:
-
-  void              ClearGroupsHash();
-
-protected:
-
-  static PRBool ClearEnumerator(nsHashKey *aKey, void *aData, void* closure);
-
-protected:
-
-  nsHashtable       mGroupsHash;    // hash keyed on command group.
-                                    // Entries are nsTArrays of pointers to char*
-                                    // This could be made more space-efficient, maybe with atoms
-  
+ /**
+  * A factory method for constructing 4.x plugins. 
+  * Constructs and initializes an ns4xPlugin object
+  */
+  void createPlugin(in nsIServiceManagerObsolete aServiceMgr,
+                    in string aFileName, in string aFullPath,
+                    in PRLibraryPtr aLibrary, out nsIPlugin aResult);
 };
-
-
-#endif // nsCommandGroup_h__
-
