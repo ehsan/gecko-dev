@@ -7,8 +7,6 @@
 
 #include "IOInterposer.h"
 
-#include "IOInterposerPrivate.h"
-#include "MainThreadIOLogger.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/Mutex.h"
 #if defined(MOZILLA_INTERNAL_API)
@@ -49,7 +47,7 @@ void VectorRemove(std::vector<T>& vector, const T& element)
 }
 
 /** Lists of Observers */
-struct ObserverLists : public mozilla::AtomicRefCounted<ObserverLists>
+struct ObserverLists : public AtomicRefCounted<ObserverLists>
 {
   ObserverLists()
   {
@@ -62,10 +60,9 @@ struct ObserverLists : public mozilla::AtomicRefCounted<ObserverLists>
     , mFSyncObservers(aOther.mFSyncObservers)
     , mStatObservers(aOther.mStatObservers)
     , mCloseObservers(aOther.mCloseObservers)
-    , mStageObservers(aOther.mStageObservers)
   {
   }
-  // Lists of observers for I/O events.
+  // Lists of observers for read, write and fsync events respectively
   // These are implemented as vectors since they are allowed to survive gecko,
   // without reporting leaks. This is necessary for the IOInterposer to be used
   // for late-write checks.
@@ -75,7 +72,24 @@ struct ObserverLists : public mozilla::AtomicRefCounted<ObserverLists>
   std::vector<IOInterposeObserver*>  mFSyncObservers;
   std::vector<IOInterposeObserver*>  mStatObservers;
   std::vector<IOInterposeObserver*>  mCloseObservers;
-  std::vector<IOInterposeObserver*>  mStageObservers;
+};
+
+/**
+ * A quick and dirty RAII class to automatically lock a PRLock
+ */
+class AutoPRLock
+{
+  PRLock* mLock;
+public:
+  AutoPRLock(PRLock* aLock)
+   : mLock(aLock)
+  {
+    PR_Lock(aLock);
+  }
+  ~AutoPRLock()
+  {
+    PR_Unlock(mLock);
+  }
 };
 
 class PerThreadData
@@ -130,11 +144,6 @@ public:
           observers = &mObserverLists->mCloseObservers;
         }
         break;
-      case IOInterposeObserver::OpNextStage:
-        {
-          observers = &mObserverLists->mStageObservers;
-        }
-        break;
       default:
         {
           // Invalid IO operation, see documentation comment for
@@ -185,13 +194,16 @@ class MasterList
 {
 public:
   MasterList()
-    : mObservedOperations(IOInterposeObserver::OpNone)
+    : mLock(PR_NewLock())
+    , mObservedOperations(IOInterposeObserver::OpNone)
     , mIsEnabled(true)
   {
   }
 
   ~MasterList()
   {
+    PR_DestroyLock(mLock);
+    mLock = nullptr;
   }
 
   inline void
@@ -203,7 +215,7 @@ public:
   void
   Register(IOInterposeObserver::Operation aOp, IOInterposeObserver* aObserver)
   {
-    IOInterposer::AutoLock lock(mLock);
+    AutoPRLock lock(mLock);
 
     ObserverLists* newLists = nullptr;
     if (mObserverLists) {
@@ -237,10 +249,6 @@ public:
         !VectorContains(newLists->mCloseObservers, aObserver)) {
       newLists->mCloseObservers.push_back(aObserver);
     }
-    if (aOp & IOInterposeObserver::OpNextStage &&
-        !VectorContains(newLists->mStageObservers, aObserver)) {
-      newLists->mStageObservers.push_back(aObserver);
-    }
     mObserverLists = newLists;
     mObservedOperations = (IOInterposeObserver::Operation)
                             (mObservedOperations | aOp);
@@ -251,7 +259,7 @@ public:
   void
   Unregister(IOInterposeObserver::Operation aOp, IOInterposeObserver* aObserver)
   {
-    IOInterposer::AutoLock lock(mLock);
+    AutoPRLock lock(mLock);
 
     ObserverLists* newLists = nullptr;
     if (mObserverLists) {
@@ -303,13 +311,6 @@ public:
                          (mObservedOperations & ~IOInterposeObserver::OpClose);
       }
     }
-    if (aOp & IOInterposeObserver::OpNextStage) {
-      VectorRemove(newLists->mStageObservers, aObserver);
-      if (newLists->mStageObservers.empty()) {
-        mObservedOperations = (IOInterposeObserver::Operation)
-                         (mObservedOperations & ~IOInterposeObserver::OpNextStage);
-      }
-    }
     mObserverLists = newLists;
     mCurrentGeneration++;
   }
@@ -322,7 +323,7 @@ public:
     }
     // If the generation counts don't match then we need to update the current
     // thread's observer list with the new master list.
-    IOInterposer::AutoLock lock(mLock);
+    AutoPRLock lock(mLock);
     aPtd.SetObserverLists(mCurrentGeneration, mObserverLists);
   }
 
@@ -344,25 +345,13 @@ private:
   // unregister observers during shutdown an OffTheBooksMutex is not an option
   // either, as its base calls into sDeadlockDetector which may be nullptr
   // during shutdown.
-  IOInterposer::Mutex               mLock;
+  PRLock*                           mLock;
   // Flags tracking which operations are being observed
   IOInterposeObserver::Operation    mObservedOperations;
   // Used for quickly disabling everything by IOInterposer::Disable()
   Atomic<bool>                      mIsEnabled;
   // Used to inform threads that the master observer list has changed
   Atomic<uint32_t>                  mCurrentGeneration;
-};
-
-// Special observation used by IOInterposer::EnteringNextStage()
-class NextStageObservation : public IOInterposeObserver::Observation
-{
-public:
-  NextStageObservation()
-    : IOInterposeObserver::Observation(IOInterposeObserver::OpNextStage,
-                                       "IOInterposer", false)
-  {
-    mStart = TimeStamp::Now();
-  }
 };
 
 // List of observers registered
@@ -395,29 +384,6 @@ IOInterposeObserver::Observation::Observation(Operation aOperation,
 {
 }
 
-const char*
-IOInterposeObserver::Observation::ObservedOperationString() const
-{
-  switch(mOperation) {
-    case OpCreateOrOpen:
-      return "create/open";
-    case OpRead:
-      return "read";
-    case OpWrite:
-      return "write";
-    case OpFSync:
-      return "fsync";
-    case OpStat:
-      return "stat";
-    case OpClose:
-      return "close";
-    case OpNextStage:
-      return "NextStage";
-    default:
-      return "unknown";
-  }
-}
-
 void
 IOInterposeObserver::Observation::Report()
 {
@@ -427,7 +393,7 @@ IOInterposeObserver::Observation::Report()
   }
 }
 
-bool
+/* static */ bool
 IOInterposer::Init()
 {
   // Don't initialize twice...
@@ -446,8 +412,6 @@ IOInterposer::Init()
   RegisterCurrentThread(isMainThread);
   sMasterList = new MasterList();
 
-  MainThreadIOLogger::Init();
-
   // Now we initialize the various interposers depending on platform
   InitPoisonIOInterposer();
   // We don't hook NSPR on Windows because PoisonIOInterposer captures a
@@ -458,7 +422,7 @@ IOInterposer::Init()
   return true;
 }
 
-bool
+/* static */ bool
 IOInterposeObserver::IsMainThread()
 {
   if (!sThreadLocalData.initialized()) {
@@ -471,13 +435,13 @@ IOInterposeObserver::IsMainThread()
   return ptd->IsMainThread();
 }
 
-void
+/* static */ void
 IOInterposer::Clear()
 {
   sMasterList = nullptr;
 }
 
-void
+/* static */ void
 IOInterposer::Disable()
 {
   if (!sMasterList) {
@@ -486,7 +450,7 @@ IOInterposer::Disable()
   sMasterList->Disable();
 }
 
-void
+/* static */ void
 IOInterposer::Report(IOInterposeObserver::Observation& aObservation)
 {
   MOZ_ASSERT(sMasterList);
@@ -511,13 +475,13 @@ IOInterposer::Report(IOInterposeObserver::Observation& aObservation)
   ptd->CallObservers(aObservation);
 }
 
-bool
+/* static */ bool
 IOInterposer::IsObservedOperation(IOInterposeObserver::Operation aOp)
 {
   return sMasterList && sMasterList->IsObservedOperation(aOp);
 }
 
-void
+/* static */ void
 IOInterposer::Register(IOInterposeObserver::Operation aOp,
                        IOInterposeObserver* aObserver)
 {
@@ -529,7 +493,7 @@ IOInterposer::Register(IOInterposeObserver::Operation aOp,
   sMasterList->Register(aOp, aObserver);
 }
 
-void
+/* static */ void
 IOInterposer::Unregister(IOInterposeObserver::Operation aOp,
                          IOInterposeObserver* aObserver)
 {
@@ -540,7 +504,7 @@ IOInterposer::Unregister(IOInterposeObserver::Operation aOp,
   sMasterList->Unregister(aOp, aObserver);
 }
 
-void
+/* static */ void
 IOInterposer::RegisterCurrentThread(bool aIsMainThread)
 {
   if (!sThreadLocalData.initialized()) {
@@ -551,7 +515,7 @@ IOInterposer::RegisterCurrentThread(bool aIsMainThread)
   sThreadLocalData.set(curThreadData);
 }
 
-void
+/* static */ void
 IOInterposer::UnregisterCurrentThread()
 {
   if (!sThreadLocalData.initialized()) {
@@ -561,15 +525,5 @@ IOInterposer::UnregisterCurrentThread()
   MOZ_ASSERT(curThreadData);
   sThreadLocalData.set(nullptr);
   delete curThreadData;
-}
-
-void
-IOInterposer::EnteringNextStage()
-{
-  if (!sMasterList) {
-    return;
-  }
-  NextStageObservation observation;
-  Report(observation);
 }
 

@@ -15,7 +15,6 @@
 using namespace js;
 using namespace js::jit;
 
-using mozilla::Abs;
 using mozilla::FloorLog2;
 
 LTableSwitch *
@@ -138,29 +137,26 @@ LIRGeneratorX86Shared::lowerDivI(MDiv *div)
     if (div->rhs()->isConstant()) {
         int32_t rhs = div->rhs()->toConstant()->value().toInt32();
 
-        // Division by powers of two can be done by shifting, and division by
-        // other numbers can be done by a reciprocal multiplication technique.
-        int32_t shift = FloorLog2(Abs(rhs));
-        if (rhs != 0 && uint32_t(1) << shift == Abs(rhs)) {
+        // Check for division by a positive power of two, which is an easy and
+        // important case to optimize. Note that other optimizations are also
+        // possible; division by negative powers of two can be optimized in a
+        // similar manner as positive powers of two, and division by other
+        // constants can be optimized by a reciprocal multiplication technique.
+        int32_t shift = FloorLog2(rhs);
+        if (rhs > 0 && 1 << shift == rhs) {
             LAllocation lhs = useRegisterAtStart(div->lhs());
             LDivPowTwoI *lir;
             if (!div->canBeNegativeDividend()) {
                 // Numerator is unsigned, so does not need adjusting.
-                lir = new(alloc()) LDivPowTwoI(lhs, lhs, shift, rhs < 0);
+                lir = new(alloc()) LDivPowTwoI(lhs, lhs, shift);
             } else {
                 // Numerator is signed, and needs adjusting, and an extra
                 // lhs copy register is needed.
-                lir = new(alloc()) LDivPowTwoI(lhs, useRegister(div->lhs()), shift, rhs < 0);
+                lir = new(alloc()) LDivPowTwoI(lhs, useRegister(div->lhs()), shift);
             }
             if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
                 return false;
             return defineReuseInput(lir, div, 0);
-        } else if (rhs != 0) {
-            LDivOrModConstantI *lir;
-            lir = new(alloc()) LDivOrModConstantI(useRegister(div->lhs()), rhs, tempFixed(eax));
-            if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
-                return false;
-            return defineFixed(lir, div, LAllocation(AnyRegister(edx)));
         }
     }
 
@@ -179,18 +175,12 @@ LIRGeneratorX86Shared::lowerModI(MMod *mod)
 
     if (mod->rhs()->isConstant()) {
         int32_t rhs = mod->rhs()->toConstant()->value().toInt32();
-        int32_t shift = FloorLog2(Abs(rhs));
-        if (rhs != 0 && uint32_t(1) << shift == Abs(rhs)) {
+        int32_t shift = FloorLog2(rhs);
+        if (rhs > 0 && 1 << shift == rhs) {
             LModPowTwoI *lir = new(alloc()) LModPowTwoI(useRegisterAtStart(mod->lhs()), shift);
             if (mod->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
                 return false;
             return defineReuseInput(lir, mod, 0);
-        } else if (rhs != 0) {
-            LDivOrModConstantI *lir;
-            lir = new(alloc()) LDivOrModConstantI(useRegister(mod->lhs()), rhs, tempFixed(edx));
-            if (mod->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
-                return false;
-            return defineFixed(lir, mod, LAllocation(AnyRegister(eax)));
         }
     }
 
