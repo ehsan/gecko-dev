@@ -397,18 +397,8 @@ endif
 
 ifdef MOZ_OMNIJAR
 
-# Set MOZ_CAN_RUN_PROGRAMS for trivial cases.
-ifndef MOZ_CAN_RUN_PROGRAMS
-ifdef UNIVERSAL_BINARY
-MOZ_CAN_RUN_PROGRAMS=1
-endif
-ifndef CROSS_COMPILE
-MOZ_CAN_RUN_PROGRAMS=1
-endif
-endif # MOZ_CAN_RUN_PROGRAMS
-
 ifdef GENERATE_CACHE
-ifdef MOZ_CAN_RUN_PROGRAMS
+ifneq (1_,$(if $(CROSS_COMPILE),1,0)_$(UNIVERSAL_BINARY))
 ifdef RUN_TEST_PROGRAM
 _ABS_RUN_TEST_PROGRAM = $(call core_abspath,$(RUN_TEST_PROGRAM))
 endif
@@ -424,13 +414,13 @@ PRECOMPILE_GRE=$$PWD
 endif
 
 GENERATE_CACHE = \
-  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(call core_abspath,$(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js) -e "populate_startupcache('$(PRECOMPILE_DIR)', 'omni.jar', 'startupCache.zip');" && \
+  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js -e "populate_startupcache('$(PRECOMPILE_DIR)', 'omni.jar', 'startupCache.zip');" && \
   rm -rf jsloader && \
   $(UNZIP) startupCache.zip && \
   rm startupCache.zip && \
   $(ZIP) -r9m omni.jar jsloader/resource/$(PRECOMPILE_RESOURCE)
 else
-GENERATE_CACHE =
+GENERATE_CACHE = true
 endif
 endif
 
@@ -487,7 +477,7 @@ endif
 
 # dummy macro if we don't have PSM built
 SIGN_NSS		=
-ifdef MOZ_CAN_RUN_PROGRAMS
+ifneq (1_,$(if $(CROSS_COMPILE),1,0)_$(UNIVERSAL_BINARY))
 ifdef MOZ_PSM
 SIGN_NSS		= @echo signing nss libraries;
 

@@ -87,7 +87,7 @@ ic::GetGlobalName(VMFrame &f, ic::GetGlobalNameIC *ic)
     JSAtom *atom = f.script()->getAtom(GET_INDEX(f.pc()));
     jsid id = ATOM_TO_JSID(atom);
 
-    const Shape *shape = obj->nativeLookup(f.cx, id);
+    const Shape *shape = obj->nativeLookup(id);
     if (!shape ||
         !shape->hasDefaultGetterOrIsMethod() ||
         !shape->hasSlot())
@@ -322,7 +322,7 @@ ic::SetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic)
     JSObject *obj = f.fp()->scopeChain().getGlobal();
     JSScript *script = f.script();
     JSAtom *atom = script->getAtom(GET_INDEX(f.pc()));
-    const Shape *shape = obj->nativeLookup(f.cx, ATOM_TO_JSID(atom));
+    const Shape *shape = obj->nativeLookup(ATOM_TO_JSID(atom));
 
     LookupStatus status = UpdateSetGlobalName(f, ic, obj, shape);
     if (status == Lookup_Error)
@@ -775,7 +775,7 @@ class CallCompiler : public BaseCompiler
         RegisterID t0 = tempRegs.takeAnyReg().reg();
 
         /* Guard that it's actually a function object. */
-        Jump claspGuard = masm.testObjClass(Assembler::NotEqual, ic.funObjReg, &FunctionClass);
+        Jump claspGuard = masm.testObjClass(Assembler::NotEqual, ic.funObjReg, &js_FunctionClass);
 
         /* Guard that it's the same function. */
         JSFunction *fun = obj->getFunctionPrivate();
@@ -1354,7 +1354,7 @@ ic::GenerateArgumentCheckStub(VMFrame &f)
     JSC::CodeLocationLabel cs = linker.finalize();
 
     JaegerSpew(JSpew_PICs, "generated ARGS CHECK stub %p (%lu bytes)\n",
-               cs.executableAddress(), (unsigned long)masm.size());
+               cs.executableAddress(), masm.size());
 
     Repatcher repatch(jit);
     repatch.relink(jit->argsCheckJump, cs);

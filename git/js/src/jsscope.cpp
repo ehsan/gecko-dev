@@ -170,10 +170,9 @@ PropertyTable::init(JSRuntime *rt, Shape *lastProp)
 }
 
 bool
-Shape::hashify(JSContext *cx)
+Shape::hashify(JSRuntime *rt)
 {
     JS_ASSERT(!hasTable());
-    JSRuntime *rt = cx->runtime;
     PropertyTable *table = rt->new_<PropertyTable>(entryCount());
     if (!table)
         return false;
@@ -367,7 +366,7 @@ Shape::getChild(JSContext *cx, const js::Shape &child, Shape **listp)
                 newShape->setTable(table);
             } else {
                 if (!newShape->hasTable())
-                    newShape->hashify(cx);
+                    newShape->hashify(cx->runtime);
             }
             return newShape;
         }
@@ -494,7 +493,7 @@ Shape::newDictionaryList(JSContext *cx, Shape **listp)
     root->listp = listp;
 
     JS_ASSERT(root->inDictionary());
-    root->hashify(cx);
+    root->hashify(cx->runtime);
     return root;
 }
 
@@ -636,7 +635,7 @@ JSObject::addProperty(JSContext *cx, jsid id,
     NormalizeGetterAndSetter(cx, this, id, attrs, flags, getter, setter);
 
     /* Search for id with adding = true in order to claim its entry. */
-    Shape **spp = nativeSearch(cx, id, true);
+    Shape **spp = nativeSearch(id, true);
     JS_ASSERT(!SHAPE_FETCH(spp));
     return addPropertyInternal(cx, id, getter, setter, slot, attrs, flags, shortid, spp);
 }
@@ -655,7 +654,7 @@ JSObject::addPropertyInternal(JSContext *cx, jsid id,
         if (lastProp->entryCount() >= PropertyTree::MAX_HEIGHT) {
             if (!toDictionaryMode(cx))
                 return NULL;
-            spp = nativeSearch(cx, id, true);
+            spp = nativeSearch(id, true);
             table = lastProp->getTable();
         }
     } else if (lastProp->hasTable()) {
@@ -743,7 +742,7 @@ JSObject::putProperty(JSContext *cx, jsid id,
     NormalizeGetterAndSetter(cx, this, id, attrs, flags, getter, setter);
 
     /* Search for id in order to claim its entry if table has been allocated. */
-    Shape **spp = nativeSearch(cx, id, true);
+    Shape **spp = nativeSearch(id, true);
     Shape *shape = SHAPE_FETCH(spp);
     if (!shape) {
         /*
@@ -789,7 +788,7 @@ JSObject::putProperty(JSContext *cx, jsid id,
     if (shape != lastProp && !inDictionaryMode()) {
         if (!toDictionaryMode(cx))
             return NULL;
-        spp = nativeSearch(cx, shape->propid);
+        spp = nativeSearch(shape->propid);
         shape = SHAPE_FETCH(spp);
     }
 
@@ -894,7 +893,7 @@ JSObject::changeProperty(JSContext *cx, const Shape *shape, uintN attrs, uintN m
 {
     JS_ASSERT_IF(inDictionaryMode(), !lastProp->frozen());
     JS_ASSERT(!JSID_IS_VOID(shape->propid));
-    JS_ASSERT(nativeContains(cx, *shape));
+    JS_ASSERT(nativeContains(*shape));
 
     attrs |= shape->attrs & mask;
 
@@ -965,7 +964,7 @@ JSObject::changeProperty(JSContext *cx, const Shape *shape, uintN attrs, uintN m
         if (newShape) {
             JS_ASSERT(newShape == lastProp);
             if (newShape->hasTable()) {
-                Shape **spp = nativeSearch(cx, shape->propid);
+                Shape **spp = nativeSearch(shape->propid);
                 JS_ASSERT(SHAPE_FETCH(spp) == newShape);
             }
         }
@@ -990,7 +989,7 @@ JSObject::changeProperty(JSContext *cx, const Shape *shape, uintN attrs, uintN m
 bool
 JSObject::removeProperty(JSContext *cx, jsid id)
 {
-    Shape **spp = nativeSearch(cx, id);
+    Shape **spp = nativeSearch(id);
     Shape *shape = SHAPE_FETCH(spp);
     if (!shape)
         return true;
@@ -1007,7 +1006,7 @@ JSObject::removeProperty(JSContext *cx, jsid id)
     if (shape != lastProp && !inDictionaryMode()) {
         if (!toDictionaryMode(cx))
             return false;
-        spp = nativeSearch(cx, shape->propid);
+        spp = nativeSearch(shape->propid);
         shape = SHAPE_FETCH(spp);
     }
 
@@ -1037,7 +1036,7 @@ JSObject::removeProperty(JSContext *cx, jsid id)
                  */
                 const Shape *aprop = lastProp;
                 for (int n = 50; --n >= 0 && aprop->parent; aprop = aprop->parent)
-                    JS_ASSERT_IF(aprop != shape, nativeContains(cx, *aprop));
+                    JS_ASSERT_IF(aprop != shape, nativeContains(*aprop));
 #endif
             }
         }

@@ -285,9 +285,9 @@ struct TraceMonitor {
     bool outOfMemory() const;
 
     JS_FRIEND_API(void) getCodeAllocStats(size_t &total, size_t &frag_size, size_t &free_size) const;
-    JS_FRIEND_API(size_t) getVMAllocatorsMainSize(JSUsableSizeFun usf) const;
-    JS_FRIEND_API(size_t) getVMAllocatorsReserveSize(JSUsableSizeFun usf) const;
-    JS_FRIEND_API(size_t) getTraceMonitorSize(JSUsableSizeFun usf) const;
+    JS_FRIEND_API(size_t) getVMAllocatorsMainSize() const;
+    JS_FRIEND_API(size_t) getVMAllocatorsReserveSize() const;
+    JS_FRIEND_API(size_t) getTraceMonitorSize() const;
 };
 
 namespace mjit {
@@ -394,7 +394,8 @@ struct JS_FRIEND_API(JSCompartment) {
     JSRuntime                    *rt;
     JSPrincipals                 *principals;
 
-    js::gc::ArenaLists           arenas;
+    js::gc::ArenaList            arenas[js::gc::FINALIZE_LIMIT];
+    js::gc::FreeLists            freeLists;
 
     uint32                       gcBytes;
     uint32                       gcTriggerBytes;
@@ -534,6 +535,12 @@ struct JS_FRIEND_API(JSCompartment) {
     void markTypes(JSTracer *trc);
     void sweep(JSContext *cx, uint32 releaseInterval);
     void purge(JSContext *cx);
+    void finishArenaLists();
+    void finalizeObjectArenaLists(JSContext *cx);
+    void finalizeStringArenaLists(JSContext *cx);
+    void finalizeShapeArenaLists(JSContext *cx);
+    void finalizeScriptArenaLists(JSContext *cx);
+    bool arenaListsAreEmpty();
 
     void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
     void reduceGCTriggerBytes(uint32 amount);

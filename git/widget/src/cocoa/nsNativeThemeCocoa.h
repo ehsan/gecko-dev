@@ -44,12 +44,12 @@
 #include "nsITheme.h"
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
+#include "nsILookAndFeel.h"
 #include "nsNativeTheme.h"
 #include "gfxASurface.h"
 
 @class CellDrawView;
 @class NSProgressBarCell;
-@class ContextAwareSearchFieldCell;
 class nsDeviceContext;
 struct SegmentedControlRenderSettings;
 
@@ -95,6 +95,7 @@ public:
 
 protected:  
 
+  nsresult GetSystemColor(PRUint8 aWidgetType, nsILookAndFeel::nsColorID& aColorID);
   nsIntMargin RTLAwareMargin(const nsIntMargin& aMargin, nsIFrame* aFrame);
   nsIFrame* SeparatorResponsibility(nsIFrame* aBefore, nsIFrame* aAfter);
   CGRect SeparatorAdjustedRect(CGRect aRect, nsIFrame* aLeft,
@@ -154,7 +155,7 @@ private:
   NSButtonCell* mPushButtonCell;
   NSButtonCell* mRadioButtonCell;
   NSButtonCell* mCheckboxCell;
-  ContextAwareSearchFieldCell* mSearchFieldCell;
+  NSSearchFieldCell* mSearchFieldCell;
   NSPopUpButtonCell* mDropdownCell;
   NSComboBoxCell* mComboBoxCell;
   NSProgressBarCell* mProgressBarCell;

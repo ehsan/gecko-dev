@@ -87,12 +87,23 @@ var BrowserSearch = {
     popup.hidden = false;
     popup.top = BrowserUI.toolbarH - popup.offset;
     let searchButton = document.getElementById("tool-search");
-    let anchorPosition = "";
-    if (Util.isTablet())
-      anchorPosition = "after_start";
-    else if (popup.hasAttribute("left"))
+    if (Util.isTablet()) {
+      let width = list.getBoundingClientRect().width;
+      let searchButtonRect = searchButton.getBoundingClientRect();
+      let left = searchButtonRect.left;
+      if (Util.localeDir > 0) {
+        if (left + width > window.innerWidth)
+          left = window.innerWidth - width;
+      } else {
+        left = searchButtonRect.right - width;
+        if (left < 0)
+          left = 0;
+      }
+      popup.left = left;
+    } else if (popup.hasAttribute("left")) {
       popup.removeAttribute("left");
-    popup.anchorTo(searchButton, anchorPosition);
+    }
+    popup.anchorTo(searchButton);
 
     document.getElementById("urlbar-icons").setAttribute("open", "true");
     BrowserUI.pushPopup(this, [popup, this._button]);
@@ -393,9 +404,8 @@ var PageActions = {
     for (let i = 0; i < visibleCount; i++)
       visibleNodes[i].classList.remove("odd-last-child");
 
-    visibleNodes[visibleCount - 1].classList.add("last-child");
     if (visibleCount % 2)
-      visibleNodes[visibleCount - 1].classList.add("odd");
+      visibleNodes[visibleCount - 1].classList.add("odd-last-child");
   }
 };
 
@@ -445,11 +455,13 @@ var NewTabPopup = {
       let boxRect = this.box.getBoundingClientRect();
       this.box.top = tabRect.top + (tabRect.height / 2) - (boxRect.height / 2);
 
+      let tabs = document.getElementById("tabs");
+
       // We don't use anchorTo() here because the tab
       // being anchored to might be overflowing the tabs
       // scrollbox which confuses the dynamic arrow direction
       // calculation (see bug 662520).
-      if (Elements.tabList.getBoundingClientRect().left < 0)
+      if (tabs.getBoundingClientRect().left < 0)
         this.box.pointLeftAt(aTab);
       else
         this.box.pointRightAt(aTab);
@@ -521,7 +533,7 @@ var FindHelperUI = {
     Elements.browsers.addEventListener("PanFinished", this, false);
 
     // Listen for events where form assistant should be closed
-    Elements.tabList.addEventListener("TabSelect", this, true);
+    document.getElementById("tabs").addEventListener("TabSelect", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);
   },
 
@@ -673,7 +685,7 @@ var FormHelperUI = {
     messageManager.addMessageListener("FormAssist:AutoComplete", this);
 
     // Listen for events where form assistant should be closed or updated
-    let tabs = Elements.tabList;
+    let tabs = document.getElementById("tabs");
     tabs.addEventListener("TabSelect", this, true);
     tabs.addEventListener("TabClose", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);
@@ -815,7 +827,7 @@ var FormHelperUI = {
         if (focusedElement && focusedElement.localName == "browser")
           return;
 
-        Browser.keySender.handleEvent(aEvent);
+        Browser.keyFilter.handleEvent(aEvent);
         break;
 
       case "SizeChanged":
@@ -1348,6 +1360,21 @@ var SelectionHelper = {
 
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
+      case "PanBegin":
+        window.removeEventListener("PanBegin", this, true);
+        window.removeEventListener("TapUp", this, true);
+        window.addEventListener("PanFinished", this, true);
+        this._start.hidden = true;
+        this._end.hidden = true;
+        break;
+      case "PanFinished":
+        window.removeEventListener("PanFinished", this, true);
+        try {
+          this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionMeasure", {});
+        } catch (e) {
+          Cu.reportError(e);
+        }
+        break
       case "TapDown":
         if (aEvent.target == this._start || aEvent.target == this._end) {
           this.target = aEvent.target;
@@ -1355,14 +1382,22 @@ var SelectionHelper = {
           this.deltaY = (aEvent.clientY - this.target.top);
           window.addEventListener("TapMove", this, true);
         } else {
-          this.hide(aEvent);
+          window.addEventListener("PanBegin", this, true);
+          window.addEventListener("TapUp", this, true);
+          this.target = null;
         }
         break;
       case "TapUp":
-        window.removeEventListener("TapMove", this, true);
-        this.target = null;
-        this.deltaX = -1;
-        this.deltaY = -1;
+        if (this.target) {
+          window.removeEventListener("TapMove", this, true);
+          this.target = null;
+          this.deltaX = -1;
+          this.deltaY = -1;
+        } else {
+          window.removeEventListener("PanBegin", this, true);
+          window.removeEventListener("TapUp", this, true);
+          this.hide(aEvent);
+        }
         break;
       case "TapMove":
         if (this.target) {
@@ -1382,6 +1417,14 @@ var SelectionHelper = {
       case "resize":
       case "SizeChanged":
       case "ZoomChanged":
+      {
+        try {
+          this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionMeasure", {});
+        } catch (e) {
+          Cu.reportError(e);
+        }
+        break        
+      }
       case "URLChanged":
       case "keypress":
         this.hide(aEvent);

@@ -1560,9 +1560,9 @@ ValueToScript(JSContext *cx, jsval v)
         JSObject *obj = JSVAL_TO_OBJECT(v);
         JSClass *clasp = JS_GET_CLASS(cx, obj);
 
-        if (clasp == Jsvalify(&ScriptClass)) {
+        if (clasp == Jsvalify(&js_ScriptClass)) {
             script = (JSScript *) JS_GetPrivate(cx, obj);
-        } else if (clasp == Jsvalify(&GeneratorClass)) {
+        } else if (clasp == Jsvalify(&js_GeneratorClass)) {
             JSGenerator *gen = (JSGenerator *) JS_GetPrivate(cx, obj);
             fun = gen->floatingFrame()->fun();
             script = fun->script();
@@ -1620,8 +1620,8 @@ GetTrapArgs(JSContext *cx, uintN argc, jsval *argv, JSScript **scriptp,
         v = argv[0];
         intarg = 0;
         if (!JSVAL_IS_PRIMITIVE(v) &&
-            (JS_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == Jsvalify(&FunctionClass) ||
-             JS_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == Jsvalify(&ScriptClass))) {
+            (JS_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == Jsvalify(&js_FunctionClass) ||
+             JS_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == Jsvalify(&js_ScriptClass))) {
             script = ValueToScript(cx, v);
             if (!script)
                 return JS_FALSE;
@@ -4069,24 +4069,14 @@ MJitCodeStats(JSContext *cx, uintN argc, jsval *vp)
 
 #ifdef JS_METHODJIT
 
-static size_t
-zero_usable_size(void *p)
-{
-    return 0;
-}
-
 static void
-SumJitDataSizeCallback(JSContext *cx, void *data, void *thing,
+SumJitDataSizeCallabck(JSContext *cx, void *data, void *thing,
                        JSGCTraceKind traceKind, size_t thingSize)
 {
     size_t *sump = static_cast<size_t *>(data);
     JS_ASSERT(traceKind == JSTRACE_SCRIPT);
     JSScript *script = static_cast<JSScript *>(thing);
-    /*
-     * Passing in zero_usable_size causes jitDataSize to fall back to its
-     * secondary size computation.
-     */
-    *sump += script->jitDataSize(zero_usable_size);
+    *sump += script->jitDataSize();
 }
 
 #endif
@@ -4096,7 +4086,7 @@ MJitDataStats(JSContext *cx, uintN argc, jsval *vp)
 {
 #ifdef JS_METHODJIT
     size_t n = 0;
-    IterateCells(cx, NULL, gc::FINALIZE_SCRIPT, &n, SumJitDataSizeCallback);
+    IterateCells(cx, NULL, gc::FINALIZE_TYPE_OBJECT, &n, SumJitDataSizeCallabck);
     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(n));
 #else
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -4527,9 +4517,6 @@ Help(JSContext *cx, uintN argc, jsval *vp)
                     const char *p = strchr(msg, '(');
                     JS_ASSERT(p);
 
-                    if (size_t(p - msg) != str->length())
-                        continue;
-
                     if (strncmp(funcName.ptr(), msg, p - msg) == 0) {
                         if (!did_header) {
                             did_header = 1;
@@ -4884,7 +4871,6 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 
     if (!report) {
         fprintf(gErrFile, "%s\n", message);
-        fflush(gErrFile);
         return;
     }
 
@@ -4947,7 +4933,6 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
     }
     fputs("^\n", gErrFile);
  out:
-    fflush(gErrFile);
     if (!JSREPORT_IS_WARNING(report->flags)) {
         if (report->errorNumber == JSMSG_OUT_OF_MEMORY) {
             gExitCode = EXITCODE_OUT_OF_MEMORY;
@@ -5124,7 +5109,7 @@ env_setProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
     ToString valstr(cx, *vp, JS_TRUE);
     if (valstr.threw())
         return JS_FALSE;
-#if defined XP_WIN || defined HPUX || defined OSF1
+#if defined XP_WIN || defined HPUX || defined OSF1 || defined IRIX
     {
         char *waste = JS_smprintf("%s=%s", idstr.getBytes(), valstr.getBytes());
         if (!waste) {

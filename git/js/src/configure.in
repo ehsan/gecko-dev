@@ -291,28 +291,6 @@ case "$target" in
     android_platform_tools="$android_sdk"/../../platform-tools
     if test ! -d "$android_platform_tools" ; then
         android_platform_tools="$android_sdk"/tools # SDK Tools < r8
-    else
-        if ! test -e "$android_sdk"/source.properties ; then
-            AC_MSG_ERROR([The path in --with-android-sdk isn't valid (source.properties hasn't been found).])
-        fi
-
-        # Minimum Android SDK API Level we require.
-        android_min_api_level=13
-
-        # Get the api level from "$android_sdk"/source.properties.
-        android_api_level=`$AWK -F = '$1 == "AndroidVersion.ApiLevel" {print $2}' "$android_sdk"/source.properties`
-
-        if test -z "$android_api_level" ; then
-            AC_MSG_ERROR([Unexpected error: no AndroidVersion.ApiLevel field has been found in source.properties.])
-        fi
-
-        if ! test "$android_api_level" -eq "$android_api_level" ; then
-            AC_MSG_ERROR([Unexpected error: the found android api value isn't a number! (found $android_api_level)])
-        fi
-
-        if test $android_api_level -lt $android_min_api_level ; then
-            AC_MSG_ERROR([The given Android SDK provides API level $android_api_level ($android_min_api_level or higher required).])
-        fi
     fi
 
     if test -z "$android_toolchain" ; then
@@ -1285,7 +1263,7 @@ if test -n "$CROSS_COMPILE"; then
         kfreebsd*-gnu) OS_ARCH=GNU_kFreeBSD OS_TARGET=GNU_kFreeBSD ;;
         gnu*)         OS_ARCH=GNU ;;
         solaris*)     OS_ARCH=SunOS OS_RELEASE=5 ;;
-        mingw*)       OS_ARCH=WINNT OS_TARGET=WINNT ;;
+        mingw*)       OS_ARCH=WINNT ;;
         darwin*)      OS_ARCH=Darwin OS_TARGET=Darwin ;;
     esac
     case "${target}" in
@@ -1355,35 +1333,8 @@ solaris*)
 BSD_386)
     HOST_OS_ARCH=BSD
     ;;
-dgux)
-    HOST_OS_ARCH=DGUX
-    ;;
-UNIX_SV)
-    if "`cat /etc/bcheckrc | grep -c NCR 2>/dev/null`" != "0"; then
-        HOST_OS_ARCH=NCR
-    else
-        HOST_OS_ARCH=UNIXWARE
-    fi
-    ;;
-ncr)
-    HOST_OS_ARCH=NCR
-    ;;
-UNIX_SYSTEM_V)
-    HOST_OS_ARCH=NEC
-    ;;
-OSF1)
-    ;;
 OS_2)
     HOST_OS_ARCH=OS2
-    ;;
-SCO_SV)
-    HOST_OS_ARCH=SCOOS
-    ;;
-SINIX-N | SINIX-Y | SINIX-Z |ReliantUNIX-M)
-    HOST_OS_ARCH=SINIX
-    ;;
-UnixWare)
-    HOST_OS_ARCH=UNIXWARE
     ;;
 esac
 
@@ -1431,51 +1382,9 @@ AIX)
 BSD_386)
     OS_ARCH=BSD
     ;;
-dgux)
-    OS_ARCH=DGUX
-    ;;
-UNIX_SV)
-    if "`cat /etc/bcheckrc | grep -c NCR 2>/dev/null`" != "0"; then
-        OS_ARCH=NCR
-    else
-        OS_ARCH=UNIXWARE
-        OS_RELEASE=`uname -v`
-    fi
-    ;;
-ncr)
-    OS_ARCH=NCR
-    ;;
-UNIX_SYSTEM_V)
-    OS_ARCH=NEC
-    ;;
-OSF1)
-    case `uname -v` in
-    148)
-        OS_RELEASE=V3.2C
-        ;;
-    564)
-        OS_RELEASE=V4.0B
-        ;;
-    878)
-        OS_RELEASE=V4.0D
-        ;;
-    esac
-    ;;
 OS_2)
     OS_ARCH=OS2
     OS_TARGET=OS2
-    OS_RELEASE=`uname -v`
-    ;;
-SCO_SV)
-    OS_ARCH=SCOOS
-    OS_RELEASE=5.0
-    ;;
-SINIX-N | SINIX-Y | SINIX-Z |ReliantUNIX-M)
-    OS_ARCH=SINIX
-    OS_TEST=`uname -p`
-    ;;
-UnixWare)
-    OS_ARCH=UNIXWARE
     OS_RELEASE=`uname -v`
     ;;
 Darwin)
@@ -1497,12 +1406,6 @@ Darwin)
     esac
     ;;
 esac
-
-if test "$OS_ARCH" = "NCR"; then
-    changequote(,)
-    OS_RELEASE=`awk '{print $3}' /etc/.relid | sed 's/^\([0-9]\)\(.\)\(..\)\(.*\)$/\2.\3/'`
-    changequote([,])
-fi
 
 # Only set CPU_ARCH if we recognize the value of OS_TEST
 
@@ -1994,7 +1897,13 @@ case "$target" in
 *-darwin*)
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
-    MOZ_OPTIMIZE_FLAGS="-O3 -fno-stack-protector"
+    # If we're building with --enable-profiling, we need a frame pointer.
+    if test -z "$MOZ_PROFILING"; then
+        MOZ_FRAMEPTR_FLAGS="-fomit-frame-pointer"
+    else
+        MOZ_FRAMEPTR_FLAGS="-fno-omit-frame-pointer"
+    fi
+    MOZ_OPTIMIZE_FLAGS="-O3 $MOZ_FRAMEPTR_FLAGS -fno-stack-protector"
     _PEDANTIC=
     CFLAGS="$CFLAGS -fpascal-strings -fno-common"
     CXXFLAGS="$CXXFLAGS -fpascal-strings -fno-common"
@@ -2099,7 +2008,13 @@ ia64*-hpux*)
     TARGET_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
 
     MOZ_GFX_OPTIMIZE_MOBILE=1
-    MOZ_OPTIMIZE_FLAGS="-O3 -freorder-blocks -fno-reorder-functions"
+    # If we're building with --enable-profiling, we need a frame pointer.
+    if test -z "$MOZ_PROFILING"; then
+        MOZ_FRAMEPTR_FLAGS="-fomit-frame-pointer"
+    else
+        MOZ_FRAMEPTR_FLAGS="-fno-omit-frame-pointer"
+    fi
+    MOZ_OPTIMIZE_FLAGS="-O3 -freorder-blocks -fno-reorder-functions $MOZ_FRAMEPTR_FLAGS"
     # The Maemo builders don't know about this flag
     MOZ_ARM_VFP_FLAGS="-mfpu=vfp"
     ;;
@@ -2119,8 +2034,14 @@ ia64*-hpux*)
             # -Os is broken on gcc 4.1.x 4.2.x, 4.5.x we need to tweak it to get good results.
             MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
         esac
-        MOZ_PGO_OPTIMIZE_FLAGS="-O3"
-        MOZ_OPTIMIZE_FLAGS="-O3 -freorder-blocks $MOZ_OPTIMIZE_SIZE_TWEAK"
+        # If we're building with --enable-profiling, we need a frame pointer.
+        if test -z "$MOZ_PROFILING"; then
+            MOZ_FRAMEPTR_FLAGS="-fomit-frame-pointer"
+        else
+            MOZ_FRAMEPTR_FLAGS="-fno-omit-frame-pointer"
+        fi
+        MOZ_PGO_OPTIMIZE_FLAGS="-O3 $MOZ_FRAMEPTR_FLAGS"
+        MOZ_OPTIMIZE_FLAGS="-O3 -freorder-blocks $MOZ_OPTIMIZE_SIZE_TWEAK $MOZ_FRAMEPTR_FLAGS"
         MOZ_DEBUG_FLAGS="-g"
     fi
 
@@ -2240,7 +2161,13 @@ ia64*-hpux*)
         MOZ_DEBUG_FLAGS='-Zi'
         MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
         WARNINGS_AS_ERRORS='-WX'
-        MOZ_OPTIMIZE_FLAGS="-O2"
+        # If we're building with --enable-profiling, we need -Oy-, which forces a frame pointer.
+        if test -z "$MOZ_PROFILING"; then
+            MOZ_FRAMEPTR_FLAGS=
+        else
+            MOZ_FRAMEPTR_FLAGS='-Oy-'
+        fi
+        MOZ_OPTIMIZE_FLAGS="-O2 $MOZ_FRAMEPTR_FLAGS"
         MOZ_JS_LIBS='$(libdir)/mozjs.lib'
         MOZ_FIX_LINK_PATHS=
         DYNAMIC_XPCOM_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xpcom_core.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
@@ -2470,15 +2397,6 @@ alpha*-*-osf*)
     AC_DEFINE(NEED_USLEEP_PROTOTYPE)
     ;;
 
-*-sco*)
-    AC_DEFINE(NSCAP_DISABLE_TEST_DONTQUERY_CASES)
-    AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
-    CXXFLAGS="$CXXFLAGS -I/usr/include/CC"
-    if test ! "$GNU_CC"; then
-       DSO_LDOPTS='-G'
-    fi
-    ;;
-
 *-solaris*)
     AC_DEFINE(SOLARIS)
     TARGET_NSPR_MDCPUCFG='\"md/_solaris.cfg\"'
@@ -2583,10 +2501,6 @@ alpha*-*-osf*)
     esac
     ;;
 
-*-sysv4.2uw7*)
-	NSPR_LIBS="-lnspr$NSPR_VERSION -lplc$NSPR_VERSION -lplds$NSPR_VERSION -L/usr/ccs/lib -lcrt"
-    ;;
-
 *-os2*)
     HOST_NSPR_MDCPUCFG='\"md/_os2.cfg\"'
     ;;
@@ -2642,9 +2556,6 @@ case "$target" in
           MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
          fi
         fi
-        ;;
-    *-nto*)
-        MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
         ;;
     *-darwin*)
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,-exported_symbols_list -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-export-list'
@@ -3397,10 +3308,6 @@ then
 			;;
 
 	    *-*-linux*|*-*-kfreebsd*-gnu|*-*-gnu*)
-			AC_DEFINE(_REENTRANT)
-			;;
-
-	    *-*-nto*)
 			AC_DEFINE(_REENTRANT)
 			;;
 
@@ -4391,8 +4298,6 @@ else
     MOZ_OPTIMIZE=
 fi ], MOZ_OPTIMIZE=1)
 
-MOZ_SET_FRAMEPTR_FLAGS
-
 if test "$COMPILE_ENVIRONMENT"; then
 if test -n "$MOZ_OPTIMIZE"; then
     AC_MSG_CHECKING([for valid optimization flags])
@@ -4411,7 +4316,6 @@ fi
 fi # COMPILE_ENVIRONMENT
 
 AC_SUBST(MOZ_OPTIMIZE)
-AC_SUBST(MOZ_FRAMEPTR_FLAGS)
 AC_SUBST(MOZ_OPTIMIZE_FLAGS)
 AC_SUBST(MOZ_OPTIMIZE_LDFLAGS)
 AC_SUBST(MOZ_OPTIMIZE_SIZE_TWEAK)
@@ -4544,7 +4448,7 @@ if test "$MOZ_MEMORY"; then
     ;;
   *-mingw*)
     AC_DEFINE(MOZ_MEMORY_WINDOWS)
-    # the interesting bits will get passed down in MOZ_MEMORY_LDFLAGS
+    # the interesting bits will get passed down in MOZ_UTILS_LDFLAGS
     ;;
   *)
     AC_MSG_ERROR([--enable-jemalloc not supported on ${target}])
@@ -4559,7 +4463,8 @@ if test "$MOZ_MEMORY"; then
   fi
 fi
 AC_SUBST(MOZ_MEMORY)
-AC_SUBST(MOZ_MEMORY_LDFLAGS)
+AC_SUBST(MOZ_UTILS_LDFLAGS)
+AC_SUBST(MOZ_UTILS_PROGRAM_LDFLAGS)
 
 dnl ========================================================
 dnl = Use malloc wrapper lib

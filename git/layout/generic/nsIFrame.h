@@ -6,7 +6,7 @@
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
+ * http://www.mozilla.org/MPL/I
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -561,7 +561,7 @@ public:
   /**
    * Destroys this frame and each of its child frames (recursively calls
    * Destroy() for each child). If this frame is a first-continuation, this
-   * also removes the frame from the primary frame map and clears undisplayed
+   * also removes the frame from the primary frame man and clears undisplayed
    * content for its content node.
    * If the frame is a placeholder, it also ensures the out-of-flow frame's
    * removal and destruction.
@@ -2396,11 +2396,19 @@ public:
    * this frame returns a child frame, then the child frame must be sure
    * to return a grandparent or higher!
    *
-   * @return The frame whose style context should be the parent of this frame's
-   *         style context.  Null is permitted, and means that this frame's
-   *         style context should be the root of the style context tree.
+   * @param aPresContext:   PresContext
+   * @param aProviderFrame: The frame whose style context should be the
+   *                        parent of this frame's style context.  Null
+   *                        is permitted, and means that this frame's
+   *                        style context should be the root of the
+   *                        style context tree.
+   * @param aIsChild:       True if |aProviderFrame| is set to a child
+   *                        of this frame; false if it is an ancestor or
+   *                        null.
    */
-  virtual nsIFrame* GetParentStyleContextFrame() = 0;
+  NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild) = 0;
 
   /**
    * Determines whether a frame is visible for painting;

@@ -707,6 +707,7 @@
       </property>
 
       <method name="startEditing">
+        <parameter name="autoSelect"/>
         <body>
           <![CDATA[
             if (!this.itemId || this.isReadOnly)
@@ -726,7 +727,8 @@
             this.updateFields();
 
             this._nameField.focus();
-            this._nameField.select();
+            if (autoSelect)
+              this._nameField.select();
           ]]>
         </body>
       </method>

@@ -41,7 +41,7 @@
 #include "nsAudioAvailableEventManager.h"
 #include "VideoUtils.h"
 
-static const nsTArray< nsCOMPtr<nsIRunnable> >::size_type MAX_PENDING_EVENTS = 100;
+#define MAX_PENDING_EVENTS 100
 
 using namespace mozilla;
 

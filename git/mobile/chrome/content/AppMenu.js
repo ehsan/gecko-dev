@@ -50,7 +50,7 @@ var AppMenu = {
         item.onclick = function() { child.click(); }
 
         let label = document.createElement("label");
-        label.textContent = child.label;
+        label.setAttribute("value", child.label);
         item.appendChild(label);
 
         if (item.classList.contains("appmenu-pageaction"))
@@ -58,8 +58,14 @@ var AppMenu = {
         else
           listbox.appendChild(item);
       }
+
+      this.popup.top = menuButton.getBoundingClientRect().bottom;
+
+      let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(Ci.nsIXULChromeRegistry);
+      this.popup.setAttribute(chromeReg.isLocaleRTL("global") ? "left" : "right", this.offset);
+
       this.popup.hidden = false;
-      this.popup.anchorTo(menuButton, "after_end");
+      this.popup.anchorTo(menuButton);
 
       BrowserUI.lockToolbar();
       BrowserUI.pushPopup(this, [this.popup, menuButton]);

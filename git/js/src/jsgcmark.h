@@ -50,6 +50,9 @@
 namespace js {
 namespace gc {
 
+template<typename T>
+void Mark(JSTracer *trc, T *thing);
+
 void
 MarkString(JSTracer *trc, JSString *str);
 

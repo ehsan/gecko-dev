@@ -293,7 +293,7 @@ class Debugger {
      * them and returns true. If not, it returns false.
      */
     static void markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer);
-    static bool markAllIteratively(GCMarker *trc);
+    static bool markAllIteratively(GCMarker *trc, JSGCInvocationKind gckind);
     static void sweepAll(JSContext *cx);
     static void detachAllDebuggersFromGlobal(JSContext *cx, GlobalObject *global,
                                              GlobalObjectSet::Enum *compartmentEnum);
@@ -403,7 +403,7 @@ class Debugger {
 
 class BreakpointSite {
     friend class js::Breakpoint;
-    friend struct ::JSCompartment;
+    friend class ::JSCompartment;
     friend class js::Debugger;
 
   public:
@@ -460,7 +460,7 @@ class BreakpointSite {
  * JSCompartment::sweepBreakpoints.
  */
 class Breakpoint {
-    friend struct ::JSCompartment;
+    friend class ::JSCompartment;
     friend class js::Debugger;
 
   public:

@@ -43,6 +43,7 @@
 
 #include "nsIEditorSpellCheck.h"
 #include "nsISpellChecker.h"
+#include "nsIObserver.h"
 #include "nsIURI.h"
 #include "nsWeakReference.h"
 #include "nsCOMPtr.h"

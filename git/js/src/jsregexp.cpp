@@ -141,10 +141,11 @@ SwapObjectRegExp(JSContext *cx, JSObject *obj, AlreadyIncRefed<RegExp> newRegExp
 JSObject * JS_FASTCALL
 js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *proto)
 {
-    JS_ASSERT(obj->isRegExp());
-    JS_ASSERT(proto->isRegExp());
+    JS_ASSERT(obj->getClass() == &js_RegExpClass);
+    JS_ASSERT(proto);
+    JS_ASSERT(proto->getClass() == &js_RegExpClass);
 
-    JSObject *clone = NewNativeClassInstance(cx, &RegExpClass, proto, proto->getParent());
+    JSObject *clone = NewNativeClassInstance(cx, &js_RegExpClass, proto, proto->getParent());
     if (!clone)
         return NULL;
 
@@ -193,40 +194,6 @@ js_ObjectIsRegExp(JSObject *obj)
 /*
  * js::RegExp
  */
-
-#if !ENABLE_YARR_JIT
-void
-RegExp::reportPCREError(JSContext *cx, int error)
-{
-#define REPORT(msg_) \
-    JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL, msg_); \
-    return
-    switch (error) {
-      case -2: REPORT(JSMSG_REGEXP_TOO_COMPLEX);
-      case 0: JS_NOT_REACHED("Precondition violation: an error must have occurred."); 
-      case 1: REPORT(JSMSG_TRAILING_SLASH);
-      case 2: REPORT(JSMSG_TRAILING_SLASH); 
-      case 3: REPORT(JSMSG_REGEXP_TOO_COMPLEX);
-      case 4: REPORT(JSMSG_BAD_QUANTIFIER);
-      case 5: REPORT(JSMSG_BAD_QUANTIFIER);
-      case 6: REPORT(JSMSG_BAD_CLASS_RANGE);
-      case 7: REPORT(JSMSG_REGEXP_TOO_COMPLEX);
-      case 8: REPORT(JSMSG_BAD_CLASS_RANGE);
-      case 9: REPORT(JSMSG_BAD_QUANTIFIER);
-      case 10: REPORT(JSMSG_UNMATCHED_RIGHT_PAREN);
-      case 11: REPORT(JSMSG_REGEXP_TOO_COMPLEX);
-      case 12: REPORT(JSMSG_UNMATCHED_RIGHT_PAREN);
-      case 13: REPORT(JSMSG_REGEXP_TOO_COMPLEX);
-      case 14: REPORT(JSMSG_MISSING_PAREN);
-      case 15: REPORT(JSMSG_BAD_BACKREF);
-      case 16: REPORT(JSMSG_REGEXP_TOO_COMPLEX);
-      case 17: REPORT(JSMSG_REGEXP_TOO_COMPLEX);
-      default:
-        JS_NOT_REACHED("Precondition violation: unknown PCRE error code.");
-    }
-#undef REPORT
-}
-#endif
 
 void
 RegExp::reportYarrError(JSContext *cx, TokenStream *ts, JSC::Yarr::ErrorCode error)
@@ -465,7 +432,7 @@ js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp)
     if (!JS_XDRString(xdr, &source) || !JS_XDRUint32(xdr, &flagsword))
         return false;
     if (xdr->mode == JSXDR_DECODE) {
-        JSObject *obj = NewBuiltinClassInstance(xdr->cx, &RegExpClass);
+        JSObject *obj = NewBuiltinClassInstance(xdr->cx, &js_RegExpClass);
         if (!obj)
             return false;
         obj->clearParent();
@@ -493,7 +460,7 @@ js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp)
 
 #endif /* !JS_HAS_XDR */
 
-Class js::RegExpClass = {
+js::Class js_RegExpClass = {
     js_RegExp_str,
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(JSObject::REGEXP_CLASS_RESERVED_SLOTS) |
@@ -523,7 +490,7 @@ JSBool
 js_regexp_toString(JSContext *cx, JSObject *obj, Value *vp)
 {
     if (!obj->isRegExp()) {
-        ReportIncompatibleMethod(cx, vp, &RegExpClass);
+        ReportIncompatibleMethod(cx, vp, &js_RegExpClass);
         return false;
     }
 
@@ -642,7 +609,7 @@ ExecuteRegExp(JSContext *cx, ExecType execType, uintN argc, Value *vp)
     if (!obj)
         return false;
     if (!obj->isRegExp()) {
-        ReportIncompatibleMethod(cx, vp, &RegExpClass);
+        ReportIncompatibleMethod(cx, vp, &js_RegExpClass);
         return false;
     }
 
@@ -736,7 +703,7 @@ CompileRegExpAndSwap(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Valu
         return SwapRegExpInternals(cx, obj, rval, cx->runtime->emptyString);
 
     Value sourceValue = argv[0];
-    if (sourceValue.isObject() && sourceValue.toObject().isRegExp()) {
+    if (sourceValue.isObject() && sourceValue.toObject().getClass() == &js_RegExpClass) {
         /*
          * If we get passed in a RegExp object we return a new object with the
          * same RegExp (internal matcher program) guts.
@@ -792,7 +759,7 @@ regexp_compile(JSContext *cx, uintN argc, Value *vp)
     if (!obj)
         return false;
     if (!obj->isRegExp()) {
-        ReportIncompatibleMethod(cx, vp, &RegExpClass);
+        ReportIncompatibleMethod(cx, vp, &js_RegExpClass);
         return false;
     }
 
@@ -817,7 +784,7 @@ regexp_construct(JSContext *cx, uintN argc, Value *vp)
         }
     }
 
-    JSObject *obj = NewBuiltinClassInstance(cx, &RegExpClass);
+    JSObject *obj = NewBuiltinClassInstance(cx, &js_RegExpClass);
     if (!obj)
         return false;
 
@@ -842,7 +809,7 @@ js_InitRegExpClass(JSContext *cx, JSObject *obj)
 
     GlobalObject *global = obj->asGlobal();
 
-    JSObject *proto = global->createBlankPrototype(cx, &RegExpClass);
+    JSObject *proto = global->createBlankPrototype(cx, &js_RegExpClass);
     if (!proto)
         return NULL;
 
@@ -864,7 +831,7 @@ js_InitRegExpClass(JSContext *cx, JSObject *obj)
     if (!DefinePropertiesAndBrand(cx, proto, NULL, regexp_methods))
         return NULL;
 
-    JSFunction *ctor = global->createConstructor(cx, regexp_construct, &RegExpClass,
+    JSFunction *ctor = global->createConstructor(cx, regexp_construct, &js_RegExpClass,
                                                  CLASS_ATOM(cx, RegExp), 2);
     if (!ctor)
         return NULL;

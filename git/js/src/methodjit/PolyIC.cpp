@@ -54,8 +54,6 @@
 #include "jsinterpinlines.h"
 #include "jsautooplen.h"
 
-#include "vm/CallObject-inl.h"
-
 #if defined JS_POLYIC
 
 using namespace js;
@@ -325,7 +323,7 @@ class SetPropCompiler : public PICStubCompiler
                 return error();
         }
 
-        JS_ASSERT_IF(!shape->hasDefaultSetter(), obj->isCall());
+        JS_ASSERT_IF(!shape->hasDefaultSetter(), obj->getClass() == &js_CallClass);
 
         MaybeJump skipOver;
 
@@ -423,7 +421,7 @@ class SetPropCompiler : public PICStubCompiler
             //    \\     V     and getters, and
             //      \===/    2. arguments and locals have different getters
             //              then we can rely on fun->nargs remaining invariant.
-            JSFunction *fun = obj->asCall().getCalleeFunction();
+            JSFunction *fun = obj->getCallObjCalleeFunction();
             uint16 slot = uint16(shape->shortid);
 
             /* Guard that the call object has a frame. */
@@ -443,7 +441,7 @@ class SetPropCompiler : public PICStubCompiler
                 if (shape->setterOp() == SetCallVar)
                     slot += fun->nargs;
 
-                slot += CallObject::RESERVED_SLOTS;
+                slot += JSObject::CALL_RESERVED_SLOTS;
                 Address address = masm.objPropAddress(obj, pic.objReg, slot);
 
                 masm.storeValue(pic.u.vr, address);
@@ -693,10 +691,9 @@ class SetPropCompiler : public PICStubCompiler
                  * objects may differ due to eval(), DEFFUN, etc.).
                  */
                 RecompilationMonitor monitor(cx);
-                JSFunction *fun = obj->asCall().getCalleeFunction();
-                JSScript *script = fun->script();
+                JSScript *script = obj->getCallObjCalleeFunction()->script();
                 uint16 slot = uint16(shape->shortid);
-                if (!script->ensureHasTypes(cx, fun))
+                if (!script->ensureHasTypes(cx))
                     return error();
                 {
                     types::AutoEnterTypeInference enter(cx);
@@ -917,8 +914,8 @@ class GetPropCompiler : public PICStubCompiler
         Assembler masm;
 
         masm.loadObjClass(pic.objReg, pic.shapeReg);
-        Jump isDense = masm.testClass(Assembler::Equal, pic.shapeReg, &ArrayClass);
-        Jump notArray = masm.testClass(Assembler::NotEqual, pic.shapeReg, &SlowArrayClass);
+        Jump isDense = masm.testClass(Assembler::Equal, pic.shapeReg, &js_ArrayClass);
+        Jump notArray = masm.testClass(Assembler::NotEqual, pic.shapeReg, &js_SlowArrayClass);
 
         isDense.linkTo(masm.label(), &masm);
         masm.load32(Address(pic.objReg, offsetof(JSObject, privateData)), pic.objReg);
@@ -1497,7 +1494,7 @@ class ScopeNameCompiler : public PICStubCompiler
          * tree in ComputeImplicitThis.
          */
         if (pic.kind == ic::PICInfo::CALLNAME) {
-            JS_ASSERT(obj->isCall());
+            JS_ASSERT(obj->getClass() == &js_CallClass);
             Value *thisVp = &cx->regs().sp[1];
             Address thisSlot(JSFrameReg, StackFrame::offsetOfFixed(thisVp - cx->fp()->slots()));
             masm.storeValue(UndefinedValue(), thisSlot);
@@ -1506,7 +1503,7 @@ class ScopeNameCompiler : public PICStubCompiler
         /* Get callobj's stack frame. */
         masm.loadObjPrivate(pic.objReg, pic.shapeReg);
 
-        JSFunction *fun = getprop.holder->asCall().getCalleeFunction();
+        JSFunction *fun = getprop.holder->getCallObjCalleeFunction();
         uint16 slot = uint16(shape->shortid);
 
         Jump skipOver;
@@ -1527,7 +1524,7 @@ class ScopeNameCompiler : public PICStubCompiler
             if (kind == VAR)
                 slot += fun->nargs;
 
-            slot += CallObject::RESERVED_SLOTS;
+            slot += JSObject::CALL_RESERVED_SLOTS;
             Address address = masm.objPropAddress(obj, pic.objReg, slot);
 
             /* Safe because type is loaded first. */
@@ -1600,7 +1597,7 @@ class ScopeNameCompiler : public PICStubCompiler
         if (obj != getprop.holder)
             return disable("property is on proto of a scope object");
 
-        if (obj->isCall())
+        if (obj->getClass() == &js_CallClass)
             return generateCallStub(obj);
 
         LookupStatus status = getprop.testForGet();
@@ -1644,7 +1641,7 @@ class ScopeNameCompiler : public PICStubCompiler
 
         const Shape *shape = getprop.shape;
         JSObject *normalized = obj;
-        if (obj->isWith() && !shape->hasDefaultGetter())
+        if (obj->getClass() == &js_WithClass && !shape->hasDefaultGetter())
             normalized = js_UnwrapWithObject(cx, obj);
         NATIVE_GET(cx, normalized, holder, shape, JSGET_METHOD_BARRIER, vp, return false);
         if (thisvp)
@@ -2052,7 +2049,7 @@ ic::CallProp(VMFrame &f, ic::PICInfo *pic)
 #if JS_HAS_NO_SUCH_METHOD
     if (JS_UNLIKELY(rval.isPrimitive()) && regs.sp[-1].isObject()) {
         regs.sp[-2].setString(JSID_TO_STRING(id));
-        if (!OnUnknownMethod(cx, regs.sp - 2))
+        if (!js_OnUnknownMethod(cx, regs.sp - 2))
             THROW();
     }
 #endif
@@ -2224,14 +2221,13 @@ inline uint32 frameCountersOffset(JSContext *cx)
 LookupStatus
 BaseIC::disable(JSContext *cx, const char *reason, void *stub)
 {
-    JITScript *jit = cx->fp()->jit();
-    if (jit->pcLengths) {
+    if (cx->hasRunOption(JSOPTION_PCCOUNT)) {
         uint32 offset = frameCountersOffset(cx);
-        jit->pcLengths[offset].picsLength = 0;
+        cx->fp()->jit()->pcLengths[offset].picsLength = 0;
     }
 
     spew(cx, "disabled", reason);
-    Repatcher repatcher(jit);
+    Repatcher repatcher(cx->fp()->jit());
     repatcher.relink(slowPathCall, FunctionPtr(stub));
     return Lookup_Uncacheable;
 }
@@ -2239,10 +2235,9 @@ BaseIC::disable(JSContext *cx, const char *reason, void *stub)
 void
 BaseIC::updatePCCounters(JSContext *cx, Assembler &masm)
 {
-    JITScript *jit = cx->fp()->jit();
-    if (jit->pcLengths) {
+    if (cx->hasRunOption(JSOPTION_PCCOUNT)) {
         uint32 offset = frameCountersOffset(cx);
-        jit->pcLengths[offset].picsLength += masm.size();
+        cx->fp()->jit()->pcLengths[offset].picsLength += masm.size();
     }
 }
 
@@ -2810,7 +2805,7 @@ ic::CallElement(VMFrame &f, ic::GetElementIC *ic)
     if (JS_UNLIKELY(f.regs.sp[-2].isPrimitive()) && thisv.isObject()) {
         f.regs.sp[-2] = f.regs.sp[-1];
         f.regs.sp[-1].setObject(*thisObj);
-        if (!OnUnknownMethod(cx, f.regs.sp - 2))
+        if (!js_OnUnknownMethod(cx, f.regs.sp - 2))
             THROW();
     } else
 #endif

@@ -252,7 +252,8 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
   // If this interval is active, we must have a non-negative mSampleTime
   NS_ABORT_IF_FALSE(mSampleTime >= 0 || !mIsActive,
       "Negative sample time for active animation");
-  NS_ABORT_IF_FALSE(mSimpleDuration.IsResolved() || mLastValue,
+  NS_ABORT_IF_FALSE(mSimpleDuration.IsResolved() ||
+      mSimpleDuration.IsIndefinite() || mLastValue,
       "Unresolved simple duration for active or frozen animation");
 
   // If we want to add but don't have a base value then just fail outright.
@@ -407,7 +408,7 @@ nsSMILAnimationFunction::InterpolateResult(const nsSMILValueArray& aValues,
   // its starting point.
   double simpleProgress = 0.0;
 
-  if (mSimpleDuration.IsDefinite()) {
+  if (mSimpleDuration.IsResolved()) {
     nsSMILTime dur = mSimpleDuration.GetMillis();
 
     NS_ABORT_IF_FALSE(dur >= 0, "Simple duration should not be negative");

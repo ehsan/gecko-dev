@@ -349,7 +349,9 @@ public:
 
   nsFrameList& GetColGroups();
 
-  virtual nsIFrame* GetParentStyleContextFrame();
+  NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild);
 
   /**
    * Get the "type" of the frame
@@ -551,8 +553,8 @@ protected:
   nscoord GetCollapsedWidth(nsMargin aBorderPadding);
 
   
-  /** Adjust the table for visibility.collapse set on rowgroups, rows,
-    * colgroups and cols
+  /** Adjust the table for visibilty.collapse set on rowgroups, rows, colgroups
+    * and cols
     * @param aDesiredSize    the metrics of the table
     * @param aBorderPadding  the border and padding of the table
     */

@@ -104,7 +104,9 @@
 #include "nsIServiceManager.h"
 #include "imgIContainer.h"
 #include "imgIRequest.h"
+#include "nsILookAndFeel.h"
 #include "nsLayoutCID.h"
+#include "nsWidgetsCID.h"     // for NS_LOOKANDFEEL_CID
 #include "nsUnicharUtils.h"
 #include "nsLayoutErrors.h"
 #include "nsContentErrors.h"
@@ -122,10 +124,11 @@
 #include "CSSCalc.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
+
+static NS_DEFINE_CID(kLookAndFeelCID,  NS_LOOKANDFEEL_CID);
 
 // Struct containing cached metrics for box-wrapped frames.
 struct nsBoxLayoutMetrics
@@ -783,17 +786,7 @@ nsIFrame::IsTransformed() const
 PRBool
 nsIFrame::Preserves3DChildren() const
 {
-  if (GetStyleDisplay()->mTransformStyle != NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D || !IsTransformed())
-      return PR_FALSE;
-
-  // If we're all scroll frame, then all descendants will be clipped, so we can't preserve 3d.
-  if (GetType() == nsGkAtoms::scrollFrame)
-      return PR_FALSE;
-
-  nsRect temp;
-  return (!ApplyOverflowClipping(nsnull, this, GetStyleDisplay(), &temp) &&
-      !ApplyAbsPosClipping(nsnull, GetStyleDisplay(), this, &temp) &&
-      !nsSVGIntegrationUtils::UsingEffectsForFrame(this));
+  return GetStyleDisplay()->mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D && IsTransformed();
 }
 
 PRBool
@@ -802,7 +795,11 @@ nsIFrame::Preserves3D() const
   if (!GetParent() || !GetParent()->Preserves3DChildren() || !IsTransformed()) {
     return PR_FALSE;
   }
-  return PR_TRUE;
+
+  nsRect temp;
+  return (!ApplyOverflowClipping(nsnull, this, GetStyleDisplay(), &temp) &&
+          !ApplyAbsPosClipping(nsnull, GetStyleDisplay(), this, &temp) &&
+          !nsSVGIntegrationUtils::UsingEffectsForFrame(this));
 }
 
 nsRect
@@ -1058,17 +1055,22 @@ private:
 void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
                                       nsRenderingContext* aCtx)
 {
-  LookAndFeel::ColorID colorID;
+  nscolor color = NS_RGB(255, 255, 255);
+  
+  nsILookAndFeel::nsColorID colorID;
   nsresult result;
   if (mSelectionValue == nsISelectionController::SELECTION_ON) {
-    colorID = LookAndFeel::eColorID_TextSelectBackground;
+    colorID = nsILookAndFeel::eColor_TextSelectBackground;
   } else if (mSelectionValue == nsISelectionController::SELECTION_ATTENTION) {
-    colorID = LookAndFeel::eColorID_TextSelectBackgroundAttention;
+    colorID = nsILookAndFeel::eColor_TextSelectBackgroundAttention;
   } else {
-    colorID = LookAndFeel::eColorID_TextSelectBackgroundDisabled;
+    colorID = nsILookAndFeel::eColor_TextSelectBackgroundDisabled;
   }
 
-  nscolor color = LookAndFeel::GetColor(colorID, NS_RGB(255, 255, 255));
+  nsCOMPtr<nsILookAndFeel> look;
+  look = do_GetService(kLookAndFeelCID, &result);
+  if (NS_SUCCEEDED(result) && look)
+    look->GetColor(colorID, color);
 
   gfxRGBA c(color);
   c.a = .5;
@@ -1475,14 +1477,12 @@ WrapPreserve3DList(nsIFrame *aFrame, nsDisplayListBuilder *aBuilder, nsDisplayLi
   nsresult rv = NS_OK;
   nsDisplayList newList;
   while (nsDisplayItem *item = aList->RemoveBottom()) {
-    nsIFrame *childFrame = item->GetUnderlyingFrame();
-    NS_ASSERTION(childFrame, "All display items to be wrapped must have a frame!");
-    if (childFrame->GetParent()->Preserves3DChildren()) {
+    if (item->GetUnderlyingFrame() && item->GetUnderlyingFrame()->GetParent()->Preserves3DChildren()) {
       switch (item->GetType()) {
         case nsDisplayItem::TYPE_TRANSFORM: {
           // The child transform frame should always preserve 3d. In the cases where preserve-3d is disabled
           // such as clipping, this would be wrapped in a clip display object, and we wouldn't reach this point.
-          NS_ASSERTION(childFrame->Preserves3D(), "Child transform frame must preserve 3d!");
+          NS_ASSERTION(item->GetUnderlyingFrame()->Preserves3D(), "Child transform frame must preserve 3d!");
           break;
         }
         case nsDisplayItem::TYPE_WRAP_LIST: {
@@ -1496,12 +1496,12 @@ WrapPreserve3DList(nsIFrame *aFrame, nsDisplayListBuilder *aBuilder, nsDisplayLi
           break;
         }
         default: {
-          item = new (aBuilder) nsDisplayTransform(aBuilder, childFrame, item);
+          item = new (aBuilder) nsDisplayTransform(aBuilder, item->GetUnderlyingFrame(), item);
           break;
         }
       } 
     } else {
-      item = new (aBuilder) nsDisplayTransform(aBuilder, childFrame, item);
+      item = new (aBuilder) nsDisplayTransform(aBuilder, item->GetUnderlyingFrame(), item);
     }
  
     if (NS_FAILED(rv) || !item)
@@ -1538,20 +1538,13 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   nsRect dirtyRect = aDirtyRect;
 
   PRBool inTransform = aBuilder->IsInTransform();
+  /* If we're being transformed, we need to invert the matrix transform so that we don't 
+   * grab points in the wrong coordinate system!
+   */
   if ((mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
       disp->HasTransform()) {
-    // Transform dirtyRect into our frame's local coordinate space. Note that
-    // the new value is the bounds of the old value's transformed vertices, so
-    // the area covered by dirtyRect may increase here.
-    //
-    // Although we don't bother to check for and maintain the 1x1 size of the
-    // magic rect indicating a hit test point, in reality this is extremely
-    // unlikely to matter. The rect starts off with dimensions of 1x1 *app*
-    // units, and it would require a very large number of elements with
-    // transforms along a parent chain to noticably expand this by an entire
-    // device pixel.
+    /* If we have a complex transform, just grab the entire overflow rect instead. */
     if (Preserves3DChildren() || !nsDisplayTransform::UntransformRect(dirtyRect, this, nsPoint(0, 0), &dirtyRect)) {
-      // we have a singular transform - just grab the entire overflow rect
       dirtyRect = GetVisualOverflowRectRelativeToSelf();
     }
     inTransform = PR_TRUE;
@@ -1644,11 +1637,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   // 8, 9: non-negative z-index children
   resultList.AppendToTop(set.PositionedDescendants());
 
-  /* If we have absolute position clipping and we have, or will have, items to
-   * be clipped, wrap the list in a clip wrapper.
-   */
-  if (applyAbsPosClipping &&
-      (!resultList.IsEmpty() || usingSVGEffects)) {
+  if (applyAbsPosClipping) {
     nsAbsPosClipWrapper wrapper(absPosClip);
     nsDisplayItem* item = wrapper.WrapList(aBuilder, this, &resultList);
     if (!item)
@@ -1656,23 +1645,20 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     // resultList was emptied
     resultList.AppendToTop(item);
   }
-
-  /* If there are any SVG effects, wrap the list up in an SVG effects item
-   * (which also handles CSS group opacity). Note that we create an SVG effects
-   * item even if resultList is empty, since a filter can produce graphical
-   * output even if the element being filtered wouldn't otherwise do so.
-   */
+ 
+  /* If there are any SVG effects, wrap up the list in an effects list. */
   if (usingSVGEffects) {
     /* List now emptied, so add the new list to the top. */
     rv = resultList.AppendNewToTop(
         new (aBuilder) nsDisplaySVGEffects(aBuilder, this, &resultList));
     if (NS_FAILED(rv))
       return rv;
-  }
-  /* Else, if the list is non-empty and there is CSS group opacity without SVG
-   * effects, wrap it up in an opacity item.
+  } else
+
+  /* If there is any opacity, wrap it up in an opacity list.
+   * If there's nothing in the list, don't add anything.
    */
-  else if (disp->mOpacity < 1.0f && !resultList.IsEmpty()) {
+  if (disp->mOpacity < 1.0f && !resultList.IsEmpty()) {
     rv = resultList.AppendNewToTop(
         new (aBuilder) nsDisplayOpacity(aBuilder, this, &resultList));
     if (NS_FAILED(rv))
@@ -1815,12 +1801,11 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
 
   // Child is composited if it's transformed, partially transparent, or has
   // SVG effects.
-  PRBool isVisuallyAtomic = disp->mOpacity != 1.0f
-    || aChild->IsTransformed()
+  PRBool isComposited = disp->mOpacity != 1.0f || aChild->IsTransformed()
     || nsSVGIntegrationUtils::UsingEffectsForFrame(aChild);
 
   PRBool isPositioned = disp->IsPositioned();
-  if (isVisuallyAtomic || isPositioned || disp->IsFloating() ||
+  if (isComposited || isPositioned || disp->IsFloating() ||
       (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // If you change this, also change IsPseudoStackingContextFromStyle()
     pseudoStackingContext = PR_TRUE;
@@ -1865,7 +1850,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   nsDisplayList extraPositionedDescendants;
   const nsStylePosition* pos = aChild->GetStylePosition();
   if ((isPositioned && pos->mZIndex.GetUnit() == eStyleUnit_Integer) ||
-      isVisuallyAtomic || (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
+      isComposited || (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // True stacking context
     rv = aChild->BuildDisplayListForStackingContext(aBuilder, dirty, &list);
     if (NS_SUCCEEDED(rv)) {
@@ -1876,8 +1861,8 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     PRBool applyAbsPosClipping =
         ApplyAbsPosClipping(aBuilder, disp, aChild, &clipRect);
     // A pseudo-stacking context (e.g., a positioned element with z-index auto).
-    // We allow positioned descendants of the child to escape to our parent
-    // stacking context's positioned descendant list, because they might be
+    // we allow positioned descendants of this element to escape to our
+    // container's positioned descendant list, because they might be
     // z-index:non-auto
     nsDisplayListCollection pseudoStack;
     nsRect clippedDirtyRect = dirty;
@@ -1917,7 +1902,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   }
   NS_ENSURE_SUCCESS(rv, rv);
     
-  if (isPositioned || isVisuallyAtomic ||
+  if (isPositioned || isComposited ||
       (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // Genuine stacking contexts, and positioned pseudo-stacking-contexts,
     // go in this level.
@@ -6520,6 +6505,15 @@ nsFrame::ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
   }
 }
 
+NS_IMETHODIMP 
+nsFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                    nsIFrame**      aProviderFrame,
+                                    PRBool*         aIsChild)
+{
+  return DoGetParentStyleContextFrame(aPresContext, aProviderFrame, aIsChild);
+}
+
+
 /**
  * This function takes a "special" frame and _if_ that frame is an anonymous
  * block created by an ib split it returns the block's preceding inline.  This
@@ -6566,22 +6560,26 @@ GetIBSpecialSiblingForAnonymousBlock(nsIFrame* aFrame)
  * Also skip anonymous scrolled-content parents; inherit directly from the
  * outer scroll frame.
  */
-static nsIFrame*
-GetCorrectedParent(const nsIFrame* aFrame)
+static nsresult
+GetCorrectedParent(nsPresContext* aPresContext, nsIFrame* aFrame,
+                   nsIFrame** aSpecialParent)
 {
   nsIFrame *parent = aFrame->GetParent();
   if (!parent) {
-    return nsnull;
+    *aSpecialParent = nsnull;
+  } else {
+    nsIAtom* pseudo = aFrame->GetStyleContext()->GetPseudo();
+    // Outer tables are always anon boxes; if we're in here for an outer
+    // table, that actually means its the _inner_ table that wants to
+    // know its parent.  So get the pseudo of the inner in that case.
+    if (pseudo == nsCSSAnonBoxes::tableOuter) {
+      pseudo = aFrame->GetFirstPrincipalChild()
+                         ->GetStyleContext()->GetPseudo();
+    }
+    *aSpecialParent = nsFrame::CorrectStyleParentFrame(parent, pseudo);
   }
 
-  // Outer tables are always anon boxes; if we're in here for an outer
-  // table, that actually means its the _inner_ table that wants to
-  // know its parent.  So get the pseudo of the inner in that case.
-  nsIAtom* pseudo = aFrame->GetStyleContext()->GetPseudo();
-  if (pseudo == nsCSSAnonBoxes::tableOuter) {
-    pseudo = aFrame->GetFirstPrincipalChild()->GetStyleContext()->GetPseudo();
-  }
-  return nsFrame::CorrectStyleParentFrame(parent, pseudo);
+  return NS_OK;
 }
 
 /* static */
@@ -6646,13 +6644,17 @@ nsFrame::CorrectStyleParentFrame(nsIFrame* aProspectiveParent,
   return nsnull;
 }
 
-nsIFrame*
-nsFrame::DoGetParentStyleContextFrame()
+nsresult
+nsFrame::DoGetParentStyleContextFrame(nsPresContext* aPresContext,
+                                      nsIFrame**      aProviderFrame,
+                                      PRBool*         aIsChild)
 {
+  *aIsChild = PR_FALSE;
+  *aProviderFrame = nsnull;
   if (mContent && !mContent->GetParent() &&
       !GetStyleContext()->GetPseudo()) {
     // we're a frame for the root.  We have no style context parent.
-    return nsnull;
+    return NS_OK;
   }
   
   if (!(mState & NS_FRAME_OUT_OF_FLOW)) {
@@ -6662,16 +6664,17 @@ nsFrame::DoGetParentStyleContextFrame()
      * inline. We can get to it using GetIBSpecialSiblingForAnonymousBlock.
      */
     if (mState & NS_FRAME_IS_SPECIAL) {
-      nsIFrame* specialSibling = GetIBSpecialSiblingForAnonymousBlock(this);
-      if (specialSibling) {
-        return specialSibling;
+      *aProviderFrame = GetIBSpecialSiblingForAnonymousBlock(this);
+
+      if (*aProviderFrame) {
+        return NS_OK;
       }
     }
 
     // If this frame is one of the blocks that split an inline, we must
     // return the "special" inline parent, i.e., the parent that this
     // frame would have if we didn't mangle the frame structure.
-    return GetCorrectedParent(this);
+    return GetCorrectedParent(aPresContext, this, aProviderFrame);
   }
 
   // For out-of-flow frames, we must resolve underneath the
@@ -6683,14 +6686,21 @@ nsFrame::DoGetParentStyleContextFrame()
     // have placeholders. Use their first-in-flow's placeholder.
     oofFrame = oofFrame->GetFirstInFlow();
   }
-  nsIFrame* placeholder = oofFrame->PresContext()->FrameManager()->
-                            GetPlaceholderFrameFor(oofFrame);
+  nsIFrame *placeholder =
+    aPresContext->FrameManager()->GetPlaceholderFrameFor(oofFrame);
   if (!placeholder) {
     NS_NOTREACHED("no placeholder frame for out-of-flow frame");
-    return GetCorrectedParent(this);
+    GetCorrectedParent(aPresContext, this, aProviderFrame);
+    return NS_ERROR_FAILURE;
   }
-  return placeholder->GetParentStyleContextFrame();
+  return static_cast<nsFrame*>(placeholder)->
+    GetParentStyleContextFrame(aPresContext, aProviderFrame, aIsChild);
 }
+
+//-----------------------------------------------------------------------------------
+
+
+
 
 void
 nsFrame::GetLastLeaf(nsPresContext* aPresContext, nsIFrame **aFrame)

@@ -467,15 +467,9 @@ abstract public class GeckoApp
         componentsDir.mkdir();
         componentsDir.setLastModified(applicationPackage.lastModified());
 
-        surfaceView.mSplashStatusMsg =
-                    getResources().getString(R.string.splash_firstrun);
-        surfaceView.drawSplashScreen();
-
-        GeckoAppShell.killAnyZombies();
-
         ZipFile zip = new ZipFile(applicationPackage);
 
-        byte[] buf = new byte[32768];
+        byte[] buf = new byte[8192];
         try {
             if (unpackFile(zip, buf, null, "removed-files"))
                 removeFiles();
@@ -526,6 +520,8 @@ abstract public class GeckoApp
         
     }
 
+    boolean haveKilledZombies = false;
+
     private boolean unpackFile(ZipFile zip, byte[] buf, ZipEntry fileEntry,
                             String name)
         throws IOException, FileNotFoundException
@@ -537,12 +533,22 @@ abstract public class GeckoApp
                                             zip.getName());
 
         File outFile = new File(sGREDir, name);
-        if (outFile.lastModified() == fileEntry.getTime() &&
+        if (outFile.exists() &&
+            outFile.lastModified() == fileEntry.getTime() &&
             outFile.length() == fileEntry.getSize())
             return false;
 
+        surfaceView.mSplashStatusMsg =
+                    getResources().getString(R.string.splash_firstrun);
+        surfaceView.drawSplashScreen();
+
+        if (!haveKilledZombies) {
+            haveKilledZombies = true;
+            GeckoAppShell.killAnyZombies();
+        }
+
         File dir = outFile.getParentFile();
-        if (!dir.exists())
+        if (!outFile.exists())
             dir.mkdirs();
 
         InputStream fileStream;

@@ -62,27 +62,27 @@ extern PRLogModuleInfo* gBuiltinDecoderLog;
 #endif
 
 // Magic values that identify RIFF chunks we're interested in.
-static const PRUint32 RIFF_CHUNK_MAGIC = 0x52494646;
-static const PRUint32 WAVE_CHUNK_MAGIC = 0x57415645;
-static const PRUint32 FRMT_CHUNK_MAGIC = 0x666d7420;
-static const PRUint32 DATA_CHUNK_MAGIC = 0x64617461;
+#define RIFF_CHUNK_MAGIC 0x52494646
+#define WAVE_CHUNK_MAGIC 0x57415645
+#define FRMT_CHUNK_MAGIC 0x666d7420
+#define DATA_CHUNK_MAGIC 0x64617461
 
 // Size of RIFF chunk header.  4 byte chunk header type and 4 byte size field.
-static const PRUint16 RIFF_CHUNK_HEADER_SIZE = 8;
+#define RIFF_CHUNK_HEADER_SIZE 8
 
 // Size of RIFF header.  RIFF chunk and 4 byte RIFF type.
-static const PRUint16 RIFF_INITIAL_SIZE = RIFF_CHUNK_HEADER_SIZE + 4;
+#define RIFF_INITIAL_SIZE (RIFF_CHUNK_HEADER_SIZE + 4)
 
 // Size of required part of format chunk.  Actual format chunks may be
 // extended (for non-PCM encodings), but we skip any extended data.
-static const PRUint16 WAVE_FORMAT_CHUNK_SIZE = 16;
+#define WAVE_FORMAT_CHUNK_SIZE 16
 
 // PCM encoding type from format chunk.  Linear PCM is the only encoding
 // supported by nsAudioStream.
-static const PRUint16 WAVE_FORMAT_ENCODING_PCM = 1;
+#define WAVE_FORMAT_ENCODING_PCM 1
 
 // Maximum number of channels supported
-static const PRUint8 MAX_CHANNELS = 2;
+#define MAX_CHANNELS 2
 
 namespace {
   PRUint32

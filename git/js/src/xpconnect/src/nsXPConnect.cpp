@@ -733,8 +733,8 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     JSContext *cx = mCycleCollectionContext->GetJSContext();
 
     JSGCTraceKind traceKind = js_GetGCThingTraceKind(p);
-    JSObject *obj = nsnull;
-    js::Class *clazz = nsnull;
+    JSObject *obj;
+    js::Class *clazz;
 
     // We do not want to add wrappers to the cycle collector if they're not
     // explicitly marked as main thread only, because the cycle collector isn't
@@ -794,6 +794,8 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
         char name[72];
         if(traceKind == JSTRACE_OBJECT)
         {
+            JSObject *obj = static_cast<JSObject*>(p);
+            js::Class *clazz = obj->getClass();
             XPCNativeScriptableInfo* si = nsnull;
             if(IS_PROTO_CLASS(clazz))
             {
@@ -806,7 +808,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
                 JS_snprintf(name, sizeof(name), "JS Object (%s - %s)",
                             clazz->name, si->GetJSClass()->name);
             }
-            else if(clazz == &js::ScriptClass)
+            else if(clazz == &js_ScriptClass)
             {
                 JSScript* script = (JSScript*) xpc_GetJSPrivate(obj);
                 if(script->filename)
@@ -820,7 +822,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
                     JS_snprintf(name, sizeof(name), "JS Object (Script)");
                 }
             }
-            else if(clazz == &js::FunctionClass)
+            else if(clazz == &js_FunctionClass)
             {
                 JSFunction* fun = (JSFunction*) xpc_GetJSPrivate(obj);
                 JSString* str = JS_GetFunctionId(fun);
@@ -1061,7 +1063,7 @@ CreateNewCompartment(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
     *global = tempGlobal;
     *compartment = tempGlobal->compartment();
 
-    JS::AutoSwitchCompartment sc(cx, *compartment);
+    js::SwitchToCompartment sc(cx, *compartment);
     JS_SetCompartmentPrivate(cx, *compartment, priv_holder.forget());
     return true;
 }
@@ -1093,7 +1095,7 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
     }
     else
     {
-        JS::AutoSwitchCompartment sc(cx, *compartment);
+        js::SwitchToCompartment sc(cx, *compartment);
 
         JSObject *tempGlobal = JS_NewGlobalObject(cx, clasp);
         if(!tempGlobal)
@@ -1130,7 +1132,7 @@ xpc_CreateMTGlobalObject(JSContext *cx, JSClass *clasp,
     }
     else
     {
-        JS::AutoSwitchCompartment sc(cx, *compartment);
+        js::SwitchToCompartment sc(cx, *compartment);
 
         JSObject *tempGlobal = JS_NewGlobalObject(cx, clasp);
         if(!tempGlobal)
@@ -2108,6 +2110,18 @@ nsXPConnect::EvalInSandboxObject(const nsAString& source, JSContext *cx,
                              JSVERSION_DEFAULT, returnStringOnly, rval);
 }
 
+/* void GetXPCWrappedNativeJSClassInfo(out JSEqualityOp equality); */
+NS_IMETHODIMP
+nsXPConnect::GetXPCWrappedNativeJSClassInfo(JSEqualityOp *equality)
+{
+    // Expose the equality pointer used by IS_WRAPPER_CLASS(). If that macro
+    // ever changes, this function needs to stay in sync.
+
+    *equality = &XPC_WN_Equality;
+
+    return NS_OK;
+}
+
 /* nsIXPConnectJSObjectHolder getWrappedNativePrototype (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsIClassInfo aClassInfo); */
 NS_IMETHODIMP 
 nsXPConnect::GetWrappedNativePrototype(JSContext * aJSContext, 
@@ -2551,7 +2565,7 @@ nsXPConnect::CheckForDebugMode(JSRuntime *rt) {
         js::CompartmentVector &vector = rt->compartments;
         for (JSCompartment **p = vector.begin(); p != vector.end(); ++p) {
             JSCompartment *comp = *p;
-            if (!JS_GetCompartmentPrincipals(comp)) {
+            if (!comp->principals) {
                 /* Ignore special compartments (atoms, JSD compartments) */
                 continue;
             }

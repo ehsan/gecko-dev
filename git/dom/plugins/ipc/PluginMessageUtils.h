@@ -110,7 +110,7 @@ typedef nsCString Buffer;
 
 struct NPRemoteWindow
 {
-  uint64_t window;
+  unsigned long window;
   int32_t x;
   int32_t y;
   uint32_t width;
@@ -213,7 +213,6 @@ NPNVariableToString(NPNVariable aVar)
         VARSTR(NPNVSupportsWindowless);
 
         VARSTR(NPNVprivateModeBool);
-        VARSTR(NPNVdocumentOrigin);
 
     default: return "???";
     }
@@ -364,7 +363,7 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    aMsg->WriteUInt64(aParam.window);
+    aMsg->WriteULong(aParam.window);
     WriteParam(aMsg, aParam.x);
     WriteParam(aMsg, aParam.y);
     WriteParam(aMsg, aParam.width);
@@ -382,12 +381,12 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint64_t window;
+    unsigned long window;
     int32_t x, y;
     uint32_t width, height;
     NPRect clipRect;
     NPWindowType type;
-    if (!(aMsg->ReadUInt64(aIter, &window) &&
+    if (!(aMsg->ReadULong(aIter, &window) &&
           ReadParam(aMsg, aIter, &x) &&
           ReadParam(aMsg, aIter, &y) &&
           ReadParam(aMsg, aIter, &width) &&

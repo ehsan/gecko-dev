@@ -1949,6 +1949,9 @@ FrameState::pushCopyOf(FrameEntry *backing)
 FrameEntry *
 FrameState::walkTrackerForUncopy(FrameEntry *original)
 {
+    /* Temporary entries are immutable and should never be uncopied. */
+    JS_ASSERT(!isTemporary(original));
+
     uint32 firstCopy = InvalidIndex;
     FrameEntry *bestFe = NULL;
     uint32 ncopies = 0;
@@ -1975,7 +1978,7 @@ FrameState::walkTrackerForUncopy(FrameEntry *original)
 
     JS_ASSERT(firstCopy != InvalidIndex);
     JS_ASSERT(bestFe);
-    JS_ASSERT_IF(!isTemporary(original), bestFe > original);
+    JS_ASSERT(bestFe > original);
 
     /* Mark all extra copies as copies of the new backing index. */
     bestFe->setCopyOf(NULL);
@@ -2653,8 +2656,9 @@ FrameState::allocForBinary(FrameEntry *lhs, FrameEntry *rhs, JSOp op, BinaryAllo
     }
 
     /*
-     * Allocate data registers. If the op is not commutative, the LHS
-     * _must_ be in a register.
+     * Data is a little more complicated. If the op is MUL, not all CPUs
+     * have multiplication on immediates, so a register is needed. Also,
+     * if the op is not commutative, the LHS _must_ be in a register.
      */
     JS_ASSERT_IF(lhs->isConstant(), !rhs->isConstant());
     JS_ASSERT_IF(rhs->isConstant(), !lhs->isConstant());
@@ -2663,16 +2667,23 @@ FrameState::allocForBinary(FrameEntry *lhs, FrameEntry *rhs, JSOp op, BinaryAllo
         if (backingLeft->data.inMemory()) {
             alloc.lhsData = tempRegForData(lhs);
             pinReg(alloc.lhsData.reg());
-        } else if (!commu) {
+        } else if (op == JSOP_MUL || !commu) {
             JS_ASSERT(lhs->isConstant());
             alloc.lhsData = allocReg();
             alloc.extraFree = alloc.lhsData;
             masm.move(Imm32(lhs->getValue().toInt32()), alloc.lhsData.reg());
         }
     }
-    if (!alloc.rhsData.isSet() && backingRight->data.inMemory()) {
-        alloc.rhsData = tempRegForData(rhs);
-        pinReg(alloc.rhsData.reg());
+    if (!alloc.rhsData.isSet()) {
+        if (backingRight->data.inMemory()) {
+            alloc.rhsData = tempRegForData(rhs);
+            pinReg(alloc.rhsData.reg());
+        } else if (op == JSOP_MUL) {
+            JS_ASSERT(rhs->isConstant());
+            alloc.rhsData = allocReg();
+            alloc.extraFree = alloc.rhsData;
+            masm.move(Imm32(rhs->getValue().toInt32()), alloc.rhsData.reg());
+        }
     }
 
     alloc.lhsNeedsRemat = false;
@@ -2862,8 +2873,6 @@ FrameState::clearTemporaries()
     for (FrameEntry *fe = temporaries; fe < temporariesTop; fe++) {
         if (!fe->isTracked())
             continue;
-        if (fe->isCopied())
-            uncopy(fe);
         forgetAllRegs(fe);
         fe->resetSynced();
     }
