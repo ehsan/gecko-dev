@@ -69,7 +69,6 @@ abstract public class GeckoApp
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
     public static boolean mFullscreen = false;
-    public static boolean mStartedEarly = false;
     public static File sGREDir = null;
     static Thread mLibLoadThread = null;
 
@@ -127,7 +126,6 @@ abstract public class GeckoApp
         final Intent i = intent;
         new Thread() { 
             public void run() {
-                long startup_time = System.currentTimeMillis();
                 try {
                     if (mLibLoadThread != null)
                         mLibLoadThread.join();
@@ -158,9 +156,6 @@ abstract public class GeckoApp
         
                 // and then fire us up
                 String env = i.getStringExtra("env0");
-                if (GeckoApp.mStartedEarly) {
-                    GeckoAppShell.putenv("MOZ_APP_RESTART=" + startup_time);
-                }
                 GeckoAppShell.runGecko(getApplication().getPackageResourcePath(),
                                        i.getStringExtra("args"),
                                        i.getDataString());

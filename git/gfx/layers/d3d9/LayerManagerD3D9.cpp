@@ -47,7 +47,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
-#include "gfxFailure.h"
 
 namespace mozilla {
 namespace layers {
@@ -250,8 +249,6 @@ LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
   msg.AppendLiteral(" Error code: ");
   msg.AppendInt(PRUint32(aCode));
   NS_WARNING(msg.BeginReading());
-
-  gfx::LogFailure(msg);
 }
 
 void
