@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const CURRENT_SCHEMA_VERSION = 12;
-
 const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const NS_APP_PROFILE_DIR_STARTUP = "ProfDS";
 const NS_APP_BOOKMARKS_50_FILE = "BMarks";
@@ -147,7 +145,7 @@ function readInputStreamData(aStream) {
     bistream.setInputStream(aStream);
     let expectedData = [];
     let avail;
-    while ((avail = bistream.available())) {
+    while (avail = bistream.available()) {
       expectedData = expectedData.concat(bistream.readByteArray(avail));
     }
     return expectedData;

@@ -40,9 +40,6 @@ import time
 import sys
 import os
 import socket
-import automationutils
-import tempfile
-import shutil
 
 from automation import Automation
 from devicemanager import DeviceManager, NetworkTools
@@ -107,15 +104,6 @@ class RemoteAutomation(Automation):
             proc.kill()
 
         return status
-
-    def checkForCrashes(self, directory, symbolsPath):
-        dumpDir = tempfile.mkdtemp()
-        self._devicemanager.getDirectory(self._remoteProfile + '/minidumps/', dumpDir)
-        automationutils.checkForCrashes(dumpDir, symbolsPath, self.lastTestSeen)
-        try:
-          shutil.rmtree(dumpDir)
-        except:
-          print "WARNING: unable to remove directory: %s" % (dumpDir)
 
     def buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs):
         # If remote profile is specified, use that instead

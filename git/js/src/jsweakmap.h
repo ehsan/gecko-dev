@@ -291,14 +291,14 @@ class DefaultMarkPolicy<JSObject *, Value> {
 };
 
 template <>
-class DefaultMarkPolicy<gc::Cell *, JSObject *> {
+class DefaultMarkPolicy<JSObject *, JSObject *> {
   protected:
     JSTracer *tracer;
   public:
     DefaultMarkPolicy(JSTracer *t) : tracer(t) { }
-    bool keyMarked(gc::Cell *k)   { return !IsAboutToBeFinalized(tracer->context, k); }
+    bool keyMarked(JSObject *k)   { return !IsAboutToBeFinalized(tracer->context, k); }
     bool valueMarked(JSObject *v) { return !IsAboutToBeFinalized(tracer->context, v); }
-    bool markEntryIfLive(gc::Cell *k, JSObject *v) {
+    bool markEntryIfLive(JSObject *k, JSObject *v) {
         if (keyMarked(k) && !valueMarked(v)) {
             js::gc::MarkObject(tracer, *v, "WeakMap entry value");
             return true;
@@ -317,7 +317,7 @@ class DefaultMarkPolicy<gc::Cell *, JSObject *> {
 // default mark policy. We give it a distinct name anyway, in case this ever
 // changes.
 //
-typedef DefaultMarkPolicy<gc::Cell *, JSObject *> CrossCompartmentMarkPolicy;
+typedef DefaultMarkPolicy<JSObject *, JSObject *> CrossCompartmentMarkPolicy;
 
 }
 

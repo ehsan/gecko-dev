@@ -205,13 +205,13 @@ public:
   nsresult FireDelayedAccessibleEvent(AccEvent* aEvent);
 
   /**
-   * Get/set the anchor jump.
+   * Handle anchor jump when page is loaded.
    */
-  inline nsAccessible* AnchorJump()
-    { return GetAccessibleOrContainer(mAnchorJumpElm); }
-
-  inline void SetAnchorJump(nsIContent* aTargetNode)
-    { mAnchorJumpElm = aTargetNode; }
+  inline void HandleAnchorJump(nsIContent* aTargetNode)
+  {
+    HandleNotification<nsDocAccessible, nsIContent>
+      (this, &nsDocAccessible::ProcessAnchorJump, aTargetNode);
+  }
 
   /**
    * Bind the child document to the tree.
@@ -468,6 +468,11 @@ protected:
   void ProcessPendingEvent(AccEvent* aEvent);
 
   /**
+   * Process anchor jump notification and fire scrolling end event.
+   */
+  void ProcessAnchorJump(nsIContent* aTargetNode);
+
+  /**
    * Update the accessible tree for inserted content.
    */
   void ProcessContentInserted(nsAccessible* aContainer,
@@ -566,11 +571,6 @@ protected:
    * Type of document load event fired after the document is loaded completely.
    */
   PRUint32 mLoadEventType;
-
-  /**
-   * Reference to anchor jump element.
-   */
-  nsCOMPtr<nsIContent> mAnchorJumpElm;
 
   /**
    * Keep the ARIA attribute old value that is initialized by

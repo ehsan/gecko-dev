@@ -176,14 +176,8 @@ AutoSwitchCompartment::~AutoSwitchCompartment()
 JS_FRIEND_API(void)
 js::CheckReservedSlot(const JSObject *obj, size_t slot)
 {
-    CheckSlot(obj, slot);
-    JS_ASSERT(slot < JSSLOT_FREE(obj->getClass()));
-}
-
-JS_FRIEND_API(void)
-js::CheckSlot(const JSObject *obj, size_t slot)
-{
     JS_ASSERT(slot < obj->numSlots());
+    JS_ASSERT(slot < JSSLOT_FREE(obj->getClass()));
 }
 #endif
 

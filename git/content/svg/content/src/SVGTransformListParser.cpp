@@ -44,7 +44,7 @@
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsContentUtils.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsIAtom.h"
 
 using namespace mozilla;

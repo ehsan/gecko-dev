@@ -93,10 +93,15 @@
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
+#include "jsregexpinlines.h"
 #include "jsscriptinlines.h"
 
 #include "frontend/ParseMaps-inl.h"
-#include "vm/RegExpObject-inl.h"
+
+// Grr, windows.h or something under it #defines CONST...
+#ifdef CONST
+#undef CONST
+#endif
 
 using namespace js;
 using namespace js::gc;
@@ -933,7 +938,8 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
                         : NULL;
 
     JS_ASSERT_IF(globalObj, globalObj->isNative());
-    JS_ASSERT_IF(globalObj, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalObj->getClass()));
+    JS_ASSERT_IF(globalObj, (globalObj->getClass()->flags & JSCLASS_GLOBAL_FLAGS) ==
+                            JSCLASS_GLOBAL_FLAGS);
 
     /* Null script early in case of error, to reduce our code footprint. */
     script = NULL;
@@ -8871,26 +8877,29 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
         if (!pn)
             return NULL;
 
-        const jschar *chars = tokenStream.getTokenbuf().begin();
-        size_t length = tokenStream.getTokenbuf().length();
-        RegExpFlag flags = RegExpFlag(tokenStream.currentToken().t_reflags);
-        RegExpStatics *res = context->regExpStatics();
-
-        RegExpObject *reobj;
-        if (context->hasfp())
-            reobj = RegExpObject::create(context, res, chars, length, flags, &tokenStream);
-        else
-            reobj = RegExpObject::createNoStatics(context, chars, length, flags, &tokenStream);
-
-        if (!reobj)
-            return NULL;
-
-        if (!tc->compileAndGo()) {
-            reobj->clearParent();
-            reobj->clearType();
+        JSObject *obj;
+        if (context->hasfp()) {
+            obj = RegExp::createObject(context, context->regExpStatics(),
+                                       tokenStream.getTokenbuf().begin(),
+                                       tokenStream.getTokenbuf().length(),
+                                       tokenStream.currentToken().t_reflags,
+                                       &tokenStream);
+        } else {
+            obj = RegExp::createObjectNoStatics(context,
+                                                tokenStream.getTokenbuf().begin(),
+                                                tokenStream.getTokenbuf().length(),
+                                                tokenStream.currentToken().t_reflags,
+                                                &tokenStream);
         }
 
-        pn->pn_objbox = tc->parser->newObjectBox(reobj);
+        if (!obj)
+            return NULL;
+        if (!tc->compileAndGo()) {
+            obj->clearParent();
+            obj->clearType();
+        }
+
+        pn->pn_objbox = tc->parser->newObjectBox(obj);
         if (!pn->pn_objbox)
             return NULL;
 

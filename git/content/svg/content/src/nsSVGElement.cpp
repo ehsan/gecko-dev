@@ -324,6 +324,7 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
         if (aAttribute == *lengthListInfo.mLengthListInfo[i].mName) {
           rv = lengthListInfo.mLengthLists[i].SetBaseValueString(aValue);
           if (NS_FAILED(rv)) {
+            ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
             lengthListInfo.Reset(i);
           }
           foundMatch = PR_TRUE;
@@ -339,6 +340,7 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
         if (aAttribute == *numberListInfo.mNumberListInfo[i].mName) {
           rv = numberListInfo.mNumberLists[i].SetBaseValueString(aValue);
           if (NS_FAILED(rv)) {
+            ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
             numberListInfo.Reset(i);
           }
           foundMatch = PR_TRUE;
@@ -354,6 +356,7 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
         if (pointList) {
           rv = pointList->SetBaseValueString(aValue);
           if (NS_FAILED(rv)) {
+            ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
             // The spec says we parse everything up to the failure, so we don't
             // call pointList->ClearBaseValue()
           }
@@ -369,6 +372,7 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
         if (segList) {
           rv = segList->SetBaseValueString(aValue);
           if (NS_FAILED(rv)) {
+            ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
             // The spec says we parse everything up to the failure, so we don't
             // call segList->ClearBaseValue()
           }
@@ -552,12 +556,13 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
                                           aResult);
 }
 
-void
-nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
-                                bool aNotify)
+nsresult
+nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                        bool aNotify)
 {
   // XXXbz there's a bunch of redundancy here with AfterSetAttr.
   // Maybe consolidate?
+  nsresult rv = nsSVGElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
 
   if (aNamespaceID == kNameSpaceID_None) {
     // If this is an svg presentation attribute, remove rule to force an update
@@ -570,7 +575,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
         nsIAtom* eventName = GetEventNameForAttr(aName);
         manager->RemoveScriptEventListener(eventName);
       }
-      return;
+      return rv;
     }
     
     // Check if this is a length attribute going away
@@ -580,7 +585,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *lenInfo.mLengthInfo[i].mName) {
         lenInfo.Reset(i);
         DidChangeLength(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -591,7 +596,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *lengthListInfo.mLengthListInfo[i].mName) {
         lengthListInfo.Reset(i);
         DidChangeLengthList(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -602,7 +607,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *numberListInfo.mNumberListInfo[i].mName) {
         numberListInfo.Reset(i);
         DidChangeNumberList(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -611,7 +616,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       SVGAnimatedPointList *pointList = GetAnimatedPointList();
       if (pointList) {
         pointList->ClearBaseValue();
-        return;
+        return rv;
       }
     }
 
@@ -621,7 +626,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (segList) {
         segList->ClearBaseValue();
         DidChangePathSegList(PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -632,7 +637,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *numInfo.mNumberInfo[i].mName) {
         numInfo.Reset(i);
         DidChangeNumber(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -643,7 +648,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *numPairInfo.mNumberPairInfo[i].mName) {
         numPairInfo.Reset(i);
         DidChangeNumberPair(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -654,7 +659,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *intInfo.mIntegerInfo[i].mName) {
         intInfo.Reset(i);
         DidChangeInteger(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -665,7 +670,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *intPairInfo.mIntegerPairInfo[i].mName) {
         intPairInfo.Reset(i);
         DidChangeIntegerPair(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -676,7 +681,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *angleInfo.mAngleInfo[i].mName) {
         angleInfo.Reset(i);
         DidChangeAngle(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -687,7 +692,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *boolInfo.mBooleanInfo[i].mName) {
         boolInfo.Reset(i);
         DidChangeBoolean(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -698,7 +703,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (aName == *enumInfo.mEnumInfo[i].mName) {
         enumInfo.Reset(i);
         DidChangeEnum(i, PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -708,10 +713,9 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (viewBox) {
         viewBox->Init();
         DidChangeViewBox(PR_FALSE);
-        return;
+        return rv;
       }
     }
-
     // Check if this is a preserveAspectRatio attribute going away
     if (aName == nsGkAtoms::preserveAspectRatio) {
       SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
@@ -720,7 +724,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (preserveAspectRatio) {
         preserveAspectRatio->Init();
         DidChangePreserveAspectRatio(PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -730,7 +734,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (transformList) {
         transformList->ClearBaseValue();
         DidChangeTransformList(PR_FALSE);
-        return;
+        return rv;
       }
     }
 
@@ -740,7 +744,7 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
 
       if (svgClass) {
         svgClass->Init();
-        return;
+        return rv;
       }
     }
   }
@@ -753,17 +757,11 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
         aName == *stringInfo.mStringInfo[i].mName) {
       stringInfo.Reset(i);
       DidChangeString(i);
-      return;
+      return rv;
     }
   }
-}
 
-nsresult
-nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                        bool aNotify)
-{
-  UnsetAttrInternal(aNamespaceID, aName, aNotify);
-  return nsSVGElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
+  return rv;
 }
 
 nsChangeHint
@@ -1306,7 +1304,7 @@ nsSVGElement::SetLength(nsIAtom* aName, const nsSVGLength2 &aLength)
   for (PRUint32 i = 0; i < lengthInfo.mLengthCount; i++) {
     if (aName == *lengthInfo.mLengthInfo[i].mName) {
       lengthInfo.mLengths[i] = aLength;
-      DidAnimateLength(i);
+      DidChangeLength(i, PR_TRUE);
       return;
     }
   }

@@ -131,9 +131,8 @@ using namespace QtMobility;
 #include "keysym2ucs.h"
 #if MOZ_PLATFORM_MAEMO == 6
 #include <X11/Xatom.h>
-static Atom sPluginIMEAtom = nsnull;
+static Atom sPluginIMEAtom;
 #define PLUGIN_VKB_REQUEST_PROP "_NPAPI_PLUGIN_REQUEST_VKB"
-#include <QThread>
 #endif
 #endif //MOZ_X11
 
@@ -259,10 +258,7 @@ nsWindow::nsWindow()
         gGlobalsInitialized = PR_TRUE;
 
 #if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
-        // This cannot be called on non-main thread
-        if (QThread::currentThread() == qApp->thread()) {
-            sPluginIMEAtom = XInternAtom(QX11Info::display(), PLUGIN_VKB_REQUEST_PROP, False);
-        }
+        sPluginIMEAtom = XInternAtom(QX11Info::display(), PLUGIN_VKB_REQUEST_PROP, False);
 #endif
         // It's OK if either of these fail, but it may not be one day.
         initialize_prefs();
@@ -3240,21 +3236,19 @@ nsWindow::SetInputMode(const IMEContext& aContext)
     mIMEContext = aContext;
 
 #if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
-    if (sPluginIMEAtom) {
-        static QCoreApplication::EventFilter currentEventFilter = NULL;
-        if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN && currentEventFilter != x11EventFilter) {
-            // Install event filter for listening Plugin IME state changes
-            previousEventFilter = QCoreApplication::instance()->setEventFilter(x11EventFilter);
-            currentEventFilter = x11EventFilter;
-        } else if (mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN && currentEventFilter == x11EventFilter) {
-            // Remove event filter
-            QCoreApplication::instance()->setEventFilter(previousEventFilter);
-            currentEventFilter = previousEventFilter;
-            previousEventFilter = NULL;
-            QWidget* view = GetViewWidget();
-            if (view) {
-                SetVKBState(view->winId(), VKBUndefined);
-            }
+    static QCoreApplication::EventFilter currentEventFilter = NULL;
+    if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN && currentEventFilter != x11EventFilter) {
+        // Install event filter for listening Plugin IME state changes
+        previousEventFilter = QCoreApplication::instance()->setEventFilter(x11EventFilter);
+        currentEventFilter = x11EventFilter;
+    } else if (mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN && currentEventFilter == x11EventFilter) {
+        // Remove event filter
+        QCoreApplication::instance()->setEventFilter(previousEventFilter);
+        currentEventFilter = previousEventFilter;
+        previousEventFilter = NULL;
+        QWidget* view = GetViewWidget();
+        if (view) {
+            SetVKBState(view->winId(), VKBUndefined);
         }
     }
 #endif
@@ -3297,7 +3291,7 @@ nsWindow::SetSoftwareKeyboardState(bool aOpen)
         }
 #if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
         // doen't open VKB if plugin did set closed state
-        else if (sPluginIMEAtom) {
+        else {
             QWidget* view = GetViewWidget();
             if (view && GetPluginVKBState(view->winId()) == VKBClose) {
                 return;

@@ -52,6 +52,7 @@ interface nsIDOMNodeIterator;
 interface nsIDOMNodeFilter;
 interface nsIDOMTreeWalker;
 interface nsIDOMLocation;
+interface nsIDOMCaretPosition;
 
 /**
  * The nsIDOMDocument interface represents the entire HTML or XML document.
@@ -66,7 +67,7 @@ interface nsIDOMLocation;
  * http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html
  */
 
-[scriptable, uuid(ed54b6e5-2f05-4069-af07-7b89bd997312)]
+[scriptable, uuid(86bdbe61-760c-4982-a822-c6a0df63b8d2)]
 interface nsIDOMDocument : nsIDOMNode
 {
   readonly attribute nsIDOMDocumentType         doctype;
@@ -370,6 +371,8 @@ interface nsIDOMDocument : nsIDOMNode
    */
   void mozSetImageElement(in DOMString aImageElementId,
                           in nsIDOMElement aImageElement);
+
+  nsIDOMCaretPosition caretPositionFromPoint(in float x, in float y);
   
   /**
    * Element which is currently the full-screen element as per the DOM

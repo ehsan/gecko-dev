@@ -335,8 +335,8 @@ members = [
     'nsIDOMNSHTMLElement.offsetWidth',
     'nsIDOMNSHTMLElement.scrollIntoView',
     'nsIDOMNSHTMLFrameElement.contentWindow',
-    'nsIDOMHTMLOptionsCollection.selectedIndex',
-    'nsIDOMHTMLOptionsCollection.add',
+    'nsIDOMNSHTMLOptionCollection.selectedIndex',
+    'nsIDOMNSHTMLOptionCollection.add',
 
     # dom/interfaces/json - None.
     # All methods of nsIJSON call GetCurrentNativeCallContext.
@@ -470,6 +470,7 @@ members = [
 #
 irregularFilenames = {
     # abbreviations
+    'nsIDOMNSHTMLOptionCollection': 'nsIDOMNSHTMLOptionCollectn',
     'nsIDOMHTMLTableSectionElement': 'nsIDOMHTMLTableSectionElem',
 
     # stowaways

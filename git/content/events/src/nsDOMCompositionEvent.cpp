@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsDOMCompositionEvent.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 
 nsDOMCompositionEvent::nsDOMCompositionEvent(nsPresContext* aPresContext,
                                              nsCompositionEvent* aEvent)

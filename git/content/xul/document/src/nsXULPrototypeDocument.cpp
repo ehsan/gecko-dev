@@ -143,11 +143,10 @@ nsXULPDGlobalObject_resolve(JSContext *cx, JSObject *obj, jsid id)
 
 JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
     "nsXULPrototypeScript compilation scope",
-    XPCONNECT_GLOBAL_FLAGS,
+    JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, nsXULPDGlobalObject_resolve,  JS_ConvertStub,
-    nsXULPDGlobalObject_finalize, NULL, NULL, NULL, NULL, NULL, NULL,
-    TraceXPCGlobal
+    nsXULPDGlobalObject_finalize
 };
 
 

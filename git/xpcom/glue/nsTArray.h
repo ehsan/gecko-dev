@@ -1289,14 +1289,12 @@ private:
 template<class E, PRUint32 N, class Alloc=nsTArrayDefaultAllocator>
 class nsAutoTArray : public nsAutoArrayBase<nsTArray<E, Alloc>, N>
 {
-  typedef nsAutoArrayBase<nsTArray<E, Alloc>, N> Base;
-
 public:
   nsAutoTArray() {}
 
   template<typename Allocator>
   nsAutoTArray(const nsTArray<E, Allocator>& other) {
-    Base::AppendElements(other);
+    AppendElements(other);
   }
 };
 
@@ -1319,14 +1317,12 @@ PR_STATIC_ASSERT(sizeof(nsAutoTArray<PRUint32, 2>) ==
 template<class E, PRUint32 N>
 class AutoFallibleTArray : public nsAutoArrayBase<FallibleTArray<E>, N>
 {
-  typedef nsAutoArrayBase<FallibleTArray<E>, N> Base;
-
 public:
   AutoFallibleTArray() {}
 
   template<typename Allocator>
   AutoFallibleTArray(const nsTArray<E, Allocator>& other) {
-    Base::AppendElements(other);
+    AppendElements(other);
   }
 };
 
@@ -1334,14 +1330,12 @@ public:
 template<class E, PRUint32 N>
 class AutoInfallibleTArray : public nsAutoArrayBase<InfallibleTArray<E>, N>
 {
-  typedef nsAutoArrayBase<InfallibleTArray<E>, N> Base;
-
 public:
   AutoInfallibleTArray() {}
 
   template<typename Allocator>
   AutoInfallibleTArray(const nsTArray<E, Allocator>& other) {
-    Base::AppendElements(other);
+    AppendElements(other);
   }
 };
 #endif

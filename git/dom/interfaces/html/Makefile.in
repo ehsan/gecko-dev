@@ -123,6 +123,7 @@ XPIDLSRCS = 					\
 	nsIDOMHTMLUnknownElement.idl \
 	nsIDOMNSHTMLElement.idl			\
 	nsIDOMNSHTMLFrameElement.idl		\
+	nsIDOMNSHTMLOptionCollectn.idl		\
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

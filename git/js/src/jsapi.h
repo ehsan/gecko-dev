@@ -2209,9 +2209,6 @@ js_TransplantObjectWithWrapper(JSContext *cx,
                                JSObject *targetobj,
                                JSObject *targetwrapper);
 
-extern JS_FRIEND_API(void *)
-js_GetCompartmentPrivate(JSCompartment *compartment);
-
 #ifdef __cplusplus
 JS_END_EXTERN_C
 
@@ -2858,7 +2855,7 @@ typedef enum JSGCParamKey {
     /* Select GC mode. */
     JSGC_MODE = 6,
 
-    /* Number of cached empty GC chunks. */
+    /* Number of GC chunks waiting to expire. */
     JSGC_UNUSED_CHUNKS = 7,
 
     /* Total number of allocated GC chunks. */
@@ -3046,8 +3043,6 @@ struct JSClass {
 #define JSCLASS_FREEZE_PROTO            (1<<(JSCLASS_HIGH_FLAGS_SHIFT+5))
 #define JSCLASS_FREEZE_CTOR             (1<<(JSCLASS_HIGH_FLAGS_SHIFT+6))
 
-#define JSCLASS_XPCONNECT_GLOBAL        (1<<(JSCLASS_HIGH_FLAGS_SHIFT+7))
-
 /* Global flags. */
 #define JSGLOBAL_FLAGS_CLEARED          0x1
 
@@ -3063,13 +3058,8 @@ struct JSClass {
  * prevously allowed, but is now an ES5 violation and thus unsupported.
  */
 #define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 8)
-#define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
-    (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \
-    JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(0)
-#define JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(clasp)                              \
-  (((clasp)->flags & JSCLASS_IS_GLOBAL)                                       \
-   && JSCLASS_RESERVED_SLOTS(clasp) >= JSCLASS_GLOBAL_SLOT_COUNT)
+    (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT))
 
 /* Fast access to the original value of each standard class's prototype. */
 #define JSCLASS_CACHED_PROTO_SHIFT      (JSCLASS_HIGH_FLAGS_SHIFT + 8)
@@ -3700,9 +3690,6 @@ JS_ObjectIsFunction(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_ObjectIsCallable(JSContext *cx, JSObject *obj);
-
-extern JS_PUBLIC_API(JSBool)
-JS_IsNativeFunction(JSObject *funobj, JSNative call);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineFunctions(JSContext *cx, JSObject *obj, JSFunctionSpec *fs);
@@ -4649,6 +4636,8 @@ JS_ObjectIsDate(JSContext *cx, JSObject *obj);
 #define JSREG_GLOB      0x02    /* global exec, creates array of matches */
 #define JSREG_MULTILINE 0x04    /* treat ^ and $ as begin and end of line */
 #define JSREG_STICKY    0x08    /* only match starting at lastIndex */
+#define JSREG_FLAT      0x10    /* parse as a flat regexp */
+#define JSREG_NOCOMPILE 0x20    /* do not try to compile to native code */
 
 extern JS_PUBLIC_API(JSObject *)
 JS_NewRegExpObject(JSContext *cx, JSObject *obj, char *bytes, size_t length, uintN flags);

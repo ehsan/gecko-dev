@@ -82,6 +82,7 @@ XPIDLSRCS =					\
 	nsIDOMAnimationEvent.idl		\
 	nsIDOMPopStateEvent.idl			\
 	nsIDOMCloseEvent.idl			\
+	nsIDOMEventException.idl		\
 	nsIDOMTouchEvent.idl			\
 	nsIDOMHashChangeEvent.idl		\
 	nsIDOMCustomEvent.idl			\

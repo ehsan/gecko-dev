@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsXPathNSResolver.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsDOMString.h"
 #include "nsContentUtils.h"
 

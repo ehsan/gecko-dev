@@ -39,7 +39,7 @@
 #include "nsXPathEvaluator.h"
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsXPathExpression.h"
 #include "nsXPathNSResolver.h"
 #include "nsXPathResult.h"
