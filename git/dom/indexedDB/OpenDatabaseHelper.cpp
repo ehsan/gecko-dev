@@ -537,21 +537,13 @@ public:
                        const nsAString& aName,
                        const nsACString& aASCIIOrigin)
   : AsyncConnectionHelper(static_cast<IDBDatabase*>(nsnull), aRequest),
-    mOpenHelper(aHelper), mOpenRequest(aRequest),
+    mOpenRequest(aRequest), mOpenHelper(aHelper),
     mCurrentVersion(aCurrentVersion), mName(aName),
     mASCIIOrigin(aASCIIOrigin)
   { }
 
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
-
-  void ReleaseMainThreadObjects()
-  {
-    mOpenHelper = nsnull;
-    mOpenRequest = nsnull;
-
-    AsyncConnectionHelper::ReleaseMainThreadObjects();
-  }
 
 protected:
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);

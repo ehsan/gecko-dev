@@ -46,10 +46,16 @@ MODULE = appcomps
 
 include $(topsrcdir)/config/config.mk
 
+ifdef MOZ_RDF
 DIRS += \
-    windowds \
-    directory \
-    build \
-    $(NULL)
+        windowds \
+        $(NULL)
+endif
+
+# build should be last
+DIRS += \
+        directory \
+        build \
+        $(NULL)
 
 include $(topsrcdir)/config/rules.mk

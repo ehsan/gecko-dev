@@ -1491,9 +1491,6 @@ nsHttpConnectionMgr::nsHalfOpenSocket::Abandon()
 {
     LOG(("nsHalfOpenSocket::Abandon [this=%p ent=%s]",
          this, mEnt->mConnInfo->Host()));
-
-    NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-
     nsRefPtr<nsHalfOpenSocket> deleteProtector(this);
 
     if (mStreamOut) {
@@ -1630,14 +1627,8 @@ nsHttpConnectionMgr::nsHalfOpenSocket::OnTransportStatus(nsITransport *trans,
     switch (status) {
     case nsISocketTransport::STATUS_CONNECTING_TO:
         // Passed DNS resolution, now trying to connect, start the backup timer
-        // only prevent creating another backup transport.
-        // We also check for mEnt presence to not instantiate the timer after
-        // this half open socket has already been abandoned.  It may happen
-        // when we get this notification right between main-thread calls to
-        // nsHttpConnectionMgr::Shutdown and nsSocketTransportService::Shutdown
-        // where the first abandones all half open socket instances and only
-        // after that the second stops the socket thread.
-        if (mEnt && !mBackupTransport && !mSynTimer)
+        // only prevent creating another backup transport
+        if (!mBackupTransport && !mSynTimer)
             SetupBackupTimer();
         break;
 
