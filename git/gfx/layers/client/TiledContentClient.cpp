@@ -1065,8 +1065,6 @@ ClientTiledLayerBuffer::PostValidate(const nsIntRegion& aPaintRegion)
     drawTarget->SetTransform(Matrix());
 
     RefPtr<gfxContext> ctx = new gfxContext(drawTarget);
-    ctx->SetMatrix(
-      ctx->CurrentMatrix().Scale(mResolution, mResolution));
 
     mCallback(mThebesLayer, ctx, aPaintRegion, DrawRegionClip::DRAW, nsIntRegion(), mCallbackData);
     mMoz2DTiles.clear();
@@ -1109,6 +1107,14 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
     aTile.SetLayerManager(mManager);
   }
   aTile.SetCompositableClient(mCompositableClient);
+
+  // Discard our front and backbuffers if our contents changed. In this case
+  // the calling code will already have taken care of invalidating the entire
+  // layer.
+  if (HasFormatChanged()) {
+    aTile.DiscardBackBuffer();
+    aTile.DiscardFrontBuffer();
+  }
 
   bool createdTextureClient = false;
   nsIntRegion offsetScaledDirtyRegion = aDirtyRegion.MovedBy(-aTileOrigin);
@@ -1184,7 +1190,7 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
     } else {
       moz2DTile.mDrawTarget = dt;
     }
-    moz2DTile.mTileOrigin = gfx::IntPoint(aTileOrigin.x * mResolution, aTileOrigin.y * mResolution);
+    moz2DTile.mTileOrigin = gfx::IntPoint(aTileOrigin.x, aTileOrigin.y);
     if (!dt || (backBufferOnWhite && !dtOnWhite)) {
       aTile.DiscardFrontBuffer();
       return aTile;

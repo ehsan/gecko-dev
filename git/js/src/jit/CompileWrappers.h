@@ -66,7 +66,6 @@ class CompileRuntime
     bool profilingScripts();
 
     const JSAtomState &names();
-    const PropertyName *emptyString();
     const StaticStrings &staticStrings();
     const Value &NaNValue();
     const Value &positiveInfinityValue();

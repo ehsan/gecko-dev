@@ -893,9 +893,5 @@ ManifestHelper.prototype = {
 
   get role() {
     return this._manifest.role || "";
-  },
-
-  get csp() {
-    return this._manifest.csp || "";
   }
 }
