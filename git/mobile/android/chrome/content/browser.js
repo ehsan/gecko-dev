@@ -75,9 +75,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "Haptic",
 XPCOMUtils.defineLazyServiceGetter(this, "DOMUtils",
   "@mozilla.org/inspector/dom-utils;1", "inIDOMUtils");
 
-XPCOMUtils.defineLazyServiceGetter(window, "URIFixup",
-  "@mozilla.org/docshell/urifixup;1", "nsIURIFixup");
-
 const kStateActive = 0x00000001; // :active pseudoclass for elements
 
 const kXLinkNamespace = "http://www.w3.org/1999/xlink";
@@ -154,6 +151,14 @@ var Strings = {};
   });
 });
 
+var MetadataProvider = {
+  getDrawMetadata: function getDrawMetadata() {
+    let viewport = BrowserApp.selectedTab.getViewport();
+    viewport.zoom = BrowserApp.selectedTab._drawZoom;
+    return JSON.stringify(viewport);
+  },
+};
+
 var BrowserApp = {
   _tabs: [],
   _selectedTab: null,
@@ -167,6 +172,8 @@ var BrowserApp = {
     this.deck = document.getElementById("browsers");
     BrowserEventHandler.init();
     ViewportHandler.init();
+
+    getBridge().setDrawMetadataProvider(MetadataProvider);
 
     getBridge().browserApp = this;
 
@@ -1906,15 +1913,11 @@ Tab.prototype = {
       height: gScreenHeight,
       cssWidth: gScreenWidth / this._zoom,
       cssHeight: gScreenHeight / this._zoom,
-      pageLeft: 0,
-      pageTop: 0,
-      pageRight: gScreenWidth,
-      pageBottom: gScreenHeight,
+      pageWidth: gScreenWidth,
+      pageHeight: gScreenHeight,
       // We make up matching css page dimensions
-      cssPageLeft: 0,
-      cssPageTop: 0,
-      cssPageRight: gScreenWidth / this._zoom,
-      cssPageBottom: gScreenHeight / this._zoom,
+      cssPageWidth: gScreenWidth / this._zoom,
+      cssPageHeight: gScreenHeight / this._zoom,
       zoom: this._zoom,
     };
 
@@ -1928,31 +1931,30 @@ Tab.prototype = {
 
     let doc = this.browser.contentDocument;
     if (doc != null) {
-      let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      let cssPageRect = cwu.getRootBounds();
+      let [pageWidth, pageHeight] = this.getPageSize(doc, viewport.cssWidth, viewport.cssHeight);
+
+      let cssPageWidth = pageWidth;
+      let cssPageHeight = pageHeight;
+
+      /* Transform the page width and height based on the zoom factor. */
+      pageWidth *= viewport.zoom;
+      pageHeight *= viewport.zoom;
 
       /*
        * Avoid sending page sizes of less than screen size before we hit DOMContentLoaded, because
        * this causes the page size to jump around wildly during page load. After the page is loaded,
        * send updates regardless of page size; we'll zoom to fit the content as needed.
        *
-       * In the check below, we floor the viewport size because there might be slight rounding errors
-       * introduced in the CSS page size due to the conversion to and from app units in Gecko. The
-       * error should be no more than one app unit so doing the floor is overkill, but safe in the
-       * sense that the extra page size updates that get sent as a result will be mostly harmless.
+       * Also, we need to compare the page size returned from getPageSize (in CSS pixels) to the floored
+       * screen size in CSS pixels because the page size returned from getPageSize may also be floored.
        */
-      let pageLargerThanScreen = (cssPageRect.width >= Math.floor(viewport.cssWidth))
-                              && (cssPageRect.height >= Math.floor(viewport.cssHeight));
+      let pageLargerThanScreen = (cssPageWidth >= Math.floor(viewport.cssWidth))
+                              && (cssPageHeight >= Math.floor(viewport.cssHeight));
       if (doc.readyState === 'complete' || pageLargerThanScreen) {
-        viewport.cssPageLeft = cssPageRect.left;
-        viewport.cssPageTop = cssPageRect.top;
-        viewport.cssPageRight = cssPageRect.right;
-        viewport.cssPageBottom = cssPageRect.bottom;
-        /* Transform the page width and height based on the zoom factor. */
-        viewport.pageLeft = (viewport.cssPageLeft * viewport.zoom);
-        viewport.pageTop = (viewport.cssPageTop * viewport.zoom);
-        viewport.pageRight = (viewport.cssPageRight * viewport.zoom);
-        viewport.pageBottom = (viewport.cssPageBottom * viewport.zoom);
+        viewport.cssPageWidth = cssPageWidth;
+        viewport.cssPageHeight = cssPageHeight;
+        viewport.pageWidth = pageWidth;
+        viewport.pageHeight = pageHeight;
       }
     }
 
@@ -2246,19 +2248,10 @@ Tab.prototype = {
     if (contentWin != contentWin.top)
         return;
 
-    let fixedURI = aLocationURI;
-    try {
-      fixedURI = URIFixup.createExposableURI(aLocationURI);
-    } catch (ex) { }
-
+    let uri = aLocationURI.spec;
     let documentURI = contentWin.document.documentURIObject.spec;
     let contentType = contentWin.document.contentType;
-    
-    // XXX If fixedURI matches browser.lastURI, we assume this isn't a real location
-    // change but rather a spurious addition like a wyciwyg URI prefix. See Bug 747883.
-    let sameDocument = (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) != 0 ||
-                       ((this.browser.lastURI != null) && fixedURI.equals(this.browser.lastURI));
-    this.browser.lastURI = fixedURI;
+    let sameDocument = (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) != 0;
 
     // Reset state of click-to-play plugin notifications.
     clearTimeout(this.pluginDoorhangerTimeout);
@@ -2270,7 +2263,7 @@ Tab.prototype = {
       gecko: {
         type: "Content:LocationChange",
         tabID: this.id,
-        uri: fixedURI.spec,
+        uri: uri,
         documentURI: documentURI,
         contentType: contentType,
         sameDocument: sameDocument
@@ -2751,13 +2744,13 @@ var BrowserEventHandler = {
 
       let viewport = BrowserApp.selectedTab.getViewport();
       let vRect = new Rect(viewport.cssX, viewport.cssY, viewport.cssWidth, viewport.cssHeight);
-      let bRect = new Rect(Math.max(viewport.cssPageLeft, rect.x - margin),
+      let bRect = new Rect(Math.max(0,rect.x - margin),
                            rect.y,
                            rect.w + 2*margin,
                            rect.h);
 
-      // constrict the rect to the screen's right edge
-      bRect.width = Math.min(bRect.width, viewport.cssPageRight - bRect.x);
+      // constrict the rect to the screen width
+      bRect.width = Math.min(bRect.width, viewport.cssPageWidth - bRect.x);
 
       let overlap = vRect.intersect(bRect);
       let overlapArea = overlap.width*overlap.height;

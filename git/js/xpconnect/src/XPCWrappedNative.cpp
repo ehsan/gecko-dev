@@ -1883,8 +1883,8 @@ return_tearoff:
 
         // Unwrap any wrapper wrappers.
         JSObject *unsafeObj = cx
-                              ? XPCWrapper::Unwrap(cx, cur, /* stopAtOuter = */ false)
-                              : js::UnwrapObject(cur, /* stopAtOuter = */ false);
+                              ? XPCWrapper::Unwrap(cx, cur)
+                              : XPCWrapper::UnsafeUnwrapSecurityWrapper(cur);
         if (unsafeObj) {
             obj = unsafeObj;
             goto restart;

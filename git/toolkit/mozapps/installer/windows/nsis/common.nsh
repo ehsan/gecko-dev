@@ -6937,16 +6937,12 @@
             WriteRegStr HKLM "$R8" "$R9" "$AppUserModelID"
             ${If} ${Errors}
               ClearErrors
-              WriteRegStr HKCU "$R8" "$R9" "$AppUserModelID"
+              WriteRegStr HKLM "$R8" "$R9" "$AppUserModelID"
               ${If} ${Errors}
                 StrCpy $AppUserModelID "error"
               ${EndIf}
             ${EndIf}
-          ${Else}
-            StrCpy $AppUserModelID $R7
           ${EndIf}
-        ${Else}
-          StrCpy $AppUserModelID $R7
         ${EndIf}
       ${EndIf}
 

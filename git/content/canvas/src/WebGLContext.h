@@ -914,6 +914,7 @@ protected:
     WebGLFastArray<WebGLShader*> mShaders;
     WebGLFastArray<WebGLRenderbuffer*> mRenderbuffers;
     WebGLFastArray<WebGLFramebuffer*> mFramebuffers;
+    WebGLFastArray<WebGLUniformLocation*> mUniformLocations;
 
     // PixelStore parameters
     PRUint32 mPixelStorePackAlignment, mPixelStoreUnpackAlignment, mPixelStoreColorspaceConversion;
@@ -2552,6 +2553,7 @@ public:
 class WebGLUniformLocation MOZ_FINAL
     : public nsIWebGLUniformLocation
     , public WebGLContextBoundObject
+    , public WebGLRefCountedObject<WebGLUniformLocation>
 {
 public:
     WebGLUniformLocation(WebGLContext *context, WebGLProgram *program, GLint location, const WebGLUniformInfo& info)
@@ -2562,14 +2564,17 @@ public:
         , mInfo(info)
     {
         mElementSize = info.ElementSize();
+        mMonotonicHandle = mContext->mUniformLocations.AppendElement(this);
     }
 
     ~WebGLUniformLocation() {
+        DeleteOnce();
     }
 
-    // needed for certain helper functions like ValidateObject.
-    // WebGLUniformLocation's can't be 'Deleted' in the WebGL sense.
-    bool IsDeleted() const { return false; }
+    void Delete() {
+        mProgram = nsnull;
+        mContext->mUniformLocations.RemoveElement(mMonotonicHandle);
+    }
 
     const WebGLUniformInfo &Info() const { return mInfo; }
 
@@ -2589,6 +2594,7 @@ protected:
     GLint mLocation;
     WebGLUniformInfo mInfo;
     int mElementSize;
+    WebGLMonotonicHandle mMonotonicHandle;
     friend class WebGLProgram;
 };
 
