@@ -13,11 +13,11 @@
 [Pref="media.eme.enabled", Constructor(DOMString type, optional MediaKeyMessageEventInit eventInitDict)]
 interface MediaKeyMessageEvent : Event {
   [Throws]
-  readonly attribute ArrayBuffer message;
+  readonly attribute Uint8Array message;
   readonly attribute DOMString? destinationURL;
 };
 
 dictionary MediaKeyMessageEventInit : EventInit {
-  ArrayBuffer message;
-  DOMString? destinationURL = null;
+  Uint8Array message;
+  DOMString? destinationURL = "";
 };

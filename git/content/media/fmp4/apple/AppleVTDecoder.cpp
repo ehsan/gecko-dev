@@ -119,8 +119,7 @@ AppleVTDecoder::Flush()
   if (NS_FAILED(rv)) {
     LOG("AppleVTDecoder::Drain failed waiting for platform decoder.");
   }
-  ClearReorderedFrames();
-
+  mReorderQueue.Clear();
   return rv;
 }
 
@@ -219,14 +218,6 @@ AppleVTDecoder::DrainReorderedFrames()
 {
   while (!mReorderQueue.IsEmpty()) {
     mCallback->Output(mReorderQueue.Pop());
-  }
-}
-
-void
-AppleVTDecoder::ClearReorderedFrames()
-{
-  while (!mReorderQueue.IsEmpty()) {
-    delete mReorderQueue.Pop();
   }
 }
 

@@ -15,6 +15,7 @@
 #include "nsDisplayList.h"
 #include "RenderFrameUtils.h"
 
+class nsContentView;
 class nsFrameLoader;
 class nsSubDocumentFrame;
 
@@ -64,6 +65,12 @@ public:
   virtual ~RenderFrameParent();
 
   void Destroy();
+
+  /**
+   * Helper functions for getting a non-owning reference to a scrollable.
+   * @param aId The ID of the frame.
+   */
+  nsContentView* GetRootContentView();
 
   void BuildDisplayList(nsDisplayListBuilder* aBuilder,
                         nsSubDocumentFrame* aFrame,
@@ -132,6 +139,10 @@ private:
   nsRefPtr<RemoteContentController> mContentController;
 
   layers::APZCTreeManager* GetApzcTreeManager();
+
+  // This contains the views for all the scrollable frames currently in the
+  // painted region of our remote content.
+  nsRefPtr<nsContentView> mRootContentView;
 
   // True after Destroy() has been called, which is triggered
   // originally by nsFrameLoader::Destroy().  After this point, we can

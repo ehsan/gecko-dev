@@ -1694,7 +1694,7 @@ nsCSSRendering::GetBackgroundClip(const nsStyleBackground::Layer& aLayer,
       NS_STYLE_BG_CLIP_MOZ_ALMOST_PADDING : NS_STYLE_BG_CLIP_PADDING;
   }
 
-  aClipState->mBGClipArea = clipBorderArea;
+  aClipState->mBGClipArea = aBorderArea;
   aClipState->mHasAdditionalBGClipArea = false;
   aClipState->mCustomClip = false;
 

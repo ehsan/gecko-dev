@@ -607,11 +607,11 @@ nsPersistentProperties::Enumerate(nsISimpleEnumerator** aResult)
   nsCOMArray<nsIPropertyElement> props;
 
   // We know the necessary size; we can avoid growing it while adding elements
-  props.SetCapacity(mTable.EntryCount());
+  props.SetCapacity(mTable.entryCount);
 
   // Step through hash entries populating a transient array
   uint32_t n = PL_DHashTableEnumerate(&mTable, AddElemToArray, (void*)&props);
-  if (n < mTable.EntryCount()) {
+  if (n < mTable.entryCount) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

@@ -147,21 +147,14 @@ TiledLayerBufferComposite::ValidateTile(TileHost aTile,
 #endif
 
   MOZ_ASSERT(aTile.mTextureHost->GetFlags() & TextureFlags::IMMEDIATE_UPLOAD);
-
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  MOZ_ASSERT(!aTile.mTextureHostOnWhite);
   // We possibly upload the entire texture contents here. This is a purposeful
   // decision, as sub-image upload can often be slow and/or unreliable, but
   // we may want to reevaluate this in the future.
   // For !HasInternalBuffer() textures, this is likely a no-op.
   aTile.mTextureHost->Updated(nullptr);
-#else
-  nsIntRegion tileUpdated = aDirtyRect.MovedBy(-aTileOrigin);
-  aTile.mTextureHost->Updated(&tileUpdated);
   if (aTile.mTextureHostOnWhite) {
-    aTile.mTextureHostOnWhite->Updated(&tileUpdated);
+    aTile.mTextureHostOnWhite->Updated(nullptr);
   }
-#endif
 
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
   if (PR_IntervalNow() - start > 1) {

@@ -9005,9 +9005,9 @@ nsRuleNode::SweepChildren(nsTArray<nsRuleNode*>& aSweepQueue)
   nsRuleNode* survivorsWithChildren = nullptr;
   if (ChildrenAreHashed()) {
     PLDHashTable* children = ChildrenHash();
-    uint32_t oldChildCount = children->EntryCount();
+    uint32_t oldChildCount = children->entryCount;
     PL_DHashTableEnumerate(children, SweepHashEntry, &survivorsWithChildren);
-    childrenDestroyed = oldChildCount - children->EntryCount();
+    childrenDestroyed = oldChildCount - children->entryCount;
     if (childrenDestroyed == oldChildCount) {
       PL_DHashTableDestroy(children);
       mChildren.asVoid = nullptr;

@@ -2,8 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef PNGLCONF_H
-#define PNGLCONF_H
+#ifndef MOZPNGCONF_H
+#define MOZPNGCONF_H
+#define PNGLCONF_H /* So we don't try to use libpng's pnglibconf.h */
 
 /* limit image dimensions (bug #251381, #591822, and #967656) */
 #ifndef MOZ_PNG_MAX_DIMENSION
@@ -25,10 +26,6 @@
 #define PNG_Z_DEFAULT_COMPRESSION (-1)
 #define PNG_Z_DEFAULT_NOFILTER_STRATEGY 0
 #define PNG_Z_DEFAULT_STRATEGY 1
-#define PNG_sRGB_PROFILE_CHECKS -1
-
-/* This can be deleted when libpng-1.6.14 lands. */
-#define PNG_SET_OPTION_SUPPORTED
 
 #ifdef _MSC_VER
 /* The PNG_PEDANTIC_WARNINGS (attributes) fail to build with some MSC
@@ -398,10 +395,6 @@
 #define png_set_keep_unknown_chunks     MOZ_PNG_set_keep_unknown_chunks
 #define png_set_mem_fn                  MOZ_PNG_set_mem_fn
 #define png_set_oFFs                    MOZ_PNG_set_oFFs
-
-/* This can be deleted when libpng-1.6.14 lands. */
-#define png_set_option                  MOZ_PNG_set_option
-
 #define png_set_packing                 MOZ_PNG_set_packing
 #define png_set_packswap                MOZ_PNG_set_packswap
 #define png_set_palette_to_rgb          MOZ_PNG_set_palette_to_rgb
@@ -687,4 +680,4 @@
 #define png_set_packing  MOZ_PNG_set_packing
 #endif
 
-#endif /* PNGLCONF_H */
+#endif /* MOZPNGCONF_H */

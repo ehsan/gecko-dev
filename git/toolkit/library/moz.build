@@ -50,7 +50,7 @@ USE_LIBS += [
     'js',
 ]
 
-if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_ARCH'] == 'WINNT':
+if CONFIG['OS_ARCH'] == 'WINNT':
     USE_LIBS += [
         'sandboxbroker',
     ]

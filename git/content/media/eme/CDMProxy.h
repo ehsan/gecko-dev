@@ -10,6 +10,7 @@
 #include "nsString.h"
 #include "nsAutoPtr.h"
 #include "mozilla/dom/MediaKeys.h"
+#include "mozilla/dom/TypedArray.h"
 #include "mozilla/Monitor.h"
 #include "nsIThread.h"
 #include "GMPDecryptorProxy.h"
@@ -38,6 +39,7 @@ public:
 class CDMProxy {
   typedef dom::PromiseId PromiseId;
   typedef dom::SessionType SessionType;
+  typedef dom::Uint8Array Uint8Array;
 public:
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CDMProxy)
@@ -52,12 +54,12 @@ public:
 
   // Main thread only.
   // Uses the CDM to create a key session.
+  // Caller is responsible for calling aInitData.ComputeLengthAndData().
   // Calls MediaKeys::OnSessionActivated() when session is created.
-  // Assumes ownership of (Move()s) aInitData's contents.
   void CreateSession(dom::SessionType aSessionType,
                      PromiseId aPromiseId,
                      const nsAString& aInitDataType,
-                     nsTArray<uint8_t>& aInitData);
+                     const Uint8Array& aInitData);
 
   // Main thread only.
   // Uses the CDM to load a presistent session stored on disk.
@@ -67,20 +69,20 @@ public:
 
   // Main thread only.
   // Sends a new certificate to the CDM.
+  // Caller is responsible for calling aCert.ComputeLengthAndData().
   // Calls MediaKeys->ResolvePromise(aPromiseId) after the CDM has
   // processed the request.
-  // Assumes ownership of (Move()s) aCert's contents.
   void SetServerCertificate(PromiseId aPromiseId,
-                            nsTArray<uint8_t>& aCert);
+                            const Uint8Array& aCert);
 
   // Main thread only.
   // Sends an update to the CDM.
+  // Caller is responsible for calling aResponse.ComputeLengthAndData().
   // Calls MediaKeys->ResolvePromise(aPromiseId) after the CDM has
   // processed the request.
-  // Assumes ownership of (Move()s) aResponse's contents.
   void UpdateSession(const nsAString& aSessionId,
                      PromiseId aPromiseId,
-                     nsTArray<uint8_t>& aResponse);
+                     const Uint8Array& aResponse);
 
   // Main thread only.
   // Calls MediaKeys->ResolvePromise(aPromiseId) after the CDM has

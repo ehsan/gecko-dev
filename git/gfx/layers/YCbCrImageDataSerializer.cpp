@@ -276,7 +276,8 @@ YCbCrImageDataDeserializer::ToDataSourceSurface()
 {
   RefPtr<DataSourceSurface> result =
     Factory::CreateDataSourceSurface(GetYSize(), gfx::SurfaceFormat::B8G8R8X8);
-  if (NS_WARN_IF(!result)) {
+  if (!result) {
+    NS_WARNING("Failed to create SourceSurface.");
     return nullptr;
   }
 

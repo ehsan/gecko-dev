@@ -1316,7 +1316,7 @@ InMemoryDataSource::LockedUnassert(nsIRDFResource* aSource,
             }
             else {
                 // If this second-level hash empties out, clean it up.
-                if (!root->u.hash.mPropertyHash->EntryCount()) {
+                if (!root->u.hash.mPropertyHash->entryCount) {
                     root->Release();
                     SetForwardArcs(aSource, nullptr);
                 }
@@ -1661,7 +1661,7 @@ NS_IMETHODIMP
 InMemoryDataSource::GetAllResources(nsISimpleEnumerator** aResult)
 {
     nsCOMArray<nsIRDFNode> nodes;
-    nodes.SetCapacity(mForwardArcs.EntryCount());
+    nodes.SetCapacity(mForwardArcs.entryCount);
 
     // Enumerate all of our entries into an nsCOMArray
     PL_DHashTableEnumerate(&mForwardArcs, ResourceEnumerator, &nodes);
@@ -1920,7 +1920,7 @@ InMemoryDataSource::SweepForwardArcsEntries(PLDHashTable* aTable,
                                SweepForwardArcsEntries, info);
 
         // If the sub-hash is now empty, clean it up.
-        if (!as->u.hash.mPropertyHash->EntryCount()) {
+        if (!as->u.hash.mPropertyHash->entryCount) {
             as->Release();
             result = PL_DHASH_REMOVE;
         }

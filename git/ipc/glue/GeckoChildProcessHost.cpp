@@ -126,7 +126,7 @@ GeckoChildProcessHost::GetPathToBinary(FilePath& exePath)
   if (ShouldHaveDirectoryService()) {
     MOZ_ASSERT(gGREPath);
 #ifdef OS_WIN
-    exePath = FilePath(char16ptr_t(gGREPath));
+    exePath = FilePath(gGREPath);
 #else
     nsCString path;
     NS_CopyUnicodeToNative(nsDependentString(gGREPath), path);
@@ -781,13 +781,11 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       // shouldSandboxCurrentProcess = true;
       break;
     case GeckoProcessType_GMPlugin:
-#ifdef MOZ_SANDBOX
       if (!PR_GetEnv("MOZ_DISABLE_GMP_SANDBOX")) {
         mSandboxBroker.SetSecurityLevelForGMPlugin();
         cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
         shouldSandboxCurrentProcess = true;
       }
-#endif
       break;
     case GeckoProcessType_Default:
     default:
@@ -817,7 +815,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   // Process type
   cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
 
-#if defined(XP_WIN) && defined(MOZ_SANDBOX)
+#if defined(XP_WIN)
   if (shouldSandboxCurrentProcess) {
     mSandboxBroker.LaunchApp(cmdLine.program().c_str(),
                              cmdLine.command_line_string().c_str(),

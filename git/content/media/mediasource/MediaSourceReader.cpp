@@ -398,18 +398,12 @@ private:
 bool
 MediaSourceReader::DecodersContainTime(double aTime)
 {
-  bool found = false;
-
   for (uint32_t i = 0; i < mDecoders.Length(); ++i) {
-    if (!mDecoders[i]->IsDiscarded()) {
-      if (!mDecoders[i]->ContainsTime(aTime)) {
-        // No use to continue searching, one source buffer isn't ready yet
-        return false;
-      }
-      found = true;
+    if (!mDecoders[i]->IsDiscarded() && mDecoders[i]->ContainsTime(aTime)) {
+      return true;
     }
   }
-  return found;
+  return false;
 }
 
 nsresult

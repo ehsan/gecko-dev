@@ -214,8 +214,7 @@ public:
     const nsINode* aPossibleDescendant, const nsINode* aPossibleAncestor);
 
   /**
-   * Similar to ContentIsDescendantOf except it crosses document boundaries,
-   * also crosses ShadowRoot boundaries from ShadowRoot to its host.
+   * Similar to ContentIsDescendantOf except it crosses document boundaries.
    */
   static bool ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
                                               nsINode* aPossibleAncestor);

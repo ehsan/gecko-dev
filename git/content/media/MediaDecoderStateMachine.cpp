@@ -1472,10 +1472,6 @@ void MediaDecoderStateMachine::Seek(const SeekTarget& aTarget)
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
-  if (mState == DECODER_STATE_SHUTDOWN) {
-    return;
-  }
-
   // We need to be able to seek both at a transport level and at a media level
   // to seek.
   if (!mDecoder->IsMediaSeekable()) {
@@ -2606,7 +2602,7 @@ void MediaDecoderStateMachine::AdvanceFrame()
 #ifdef PR_LOGGING
       if (currentFrame) {
         VERBOSE_LOG("discarding video frame mTime=%lld clock_time=%lld (%d so far)",
-                    currentFrame->mTime, clock_time, ++droppedFrames);
+                    currentFrame->mTime, ++droppedFrames);
       }
 #endif
       currentFrame = frame;
