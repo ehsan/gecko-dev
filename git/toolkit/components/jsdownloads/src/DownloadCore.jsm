@@ -417,18 +417,7 @@ Download.prototype = {
         // Execute the actual download through the saver object.
         yield this.saver.execute(DS_setProgressBytes.bind(this),
                                  DS_setProperties.bind(this));
-        // Check for application reputation, which requires the entire file to
-        // be downloaded.
-        if (yield DownloadIntegration.shouldBlockForReputationCheck(this)) {
-          // Delete the target file that BackgroundFileSaver already moved
-          // into place.
-          try {
-            yield OS.File.remove(this.target.path);
-          } catch (ex) {
-            Cu.reportError(ex);
-          }
-          throw new DownloadError({ becauseBlockedByReputationCheck: true });
-        }
+
         // Update the status properties for a successful download.
         this.progress = 100;
         this.succeeded = true;
@@ -1196,8 +1185,7 @@ function DownloadError(aProperties)
   if (aProperties.message) {
     this.message = aProperties.message;
   } else if (aProperties.becauseBlocked ||
-             aProperties.becauseBlockedByParentalControls ||
-             aProperties.becauseBlockedByReputationCheck) {
+             aProperties.becauseBlockedByParentalControls) {
     this.message = "Download blocked.";
   } else {
     let exception = new Components.Exception("", this.result);
@@ -1221,10 +1209,8 @@ function DownloadError(aProperties)
   if (aProperties.becauseBlockedByParentalControls) {
     this.becauseBlocked = true;
     this.becauseBlockedByParentalControls = true;
-  } else if (aProperties.becauseBlockedByReputationCheck) {
-    this.becauseBlocked = true;
-    this.becauseBlockedByReputationCheck = true;
-  } else if (aProperties.becauseBlocked) {
+  }
+  else if (aProperties.becauseBlocked) {
     this.becauseBlocked = true;
   }
 
@@ -1260,12 +1246,6 @@ DownloadError.prototype = {
    * disallowed by the Parental Controls or Family Safety features on Windows.
    */
   becauseBlockedByParentalControls: false,
-
-  /**
-   * Indicates the download was blocked because it failed the reputation check
-   * and may be malware.
-   */
-  becauseBlockedByReputationCheck: false,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1394,15 +1374,7 @@ DownloadSaver.prototype = {
   {
     throw new Error("Not implemented.");
   },
-
-  /**
-   * Returns the SHA-256 hash of the downloaded file, if it exists.
-   */
-  getSha256Hash: function ()
-  {
-    throw new Error("Not implemented.");
-  }
-}; // DownloadSaver
+};
 
 /**
  * Creates a new DownloadSaver object from its serializable representation.
@@ -1453,12 +1425,6 @@ DownloadCopySaver.prototype = {
    * the BackgroundFileSaver instance has been created.
    */
   _canceled: false,
-
-  /**
-   * Save the SHA-256 hash in raw bytes of the downloaded file. This is null
-   * unless BackgroundFileSaver has successfully completed saving the file.
-   */
-  _sha256Hash: null,
 
   /**
    * True if the associated download has already been added to browsing history.
@@ -1531,11 +1497,14 @@ DownloadCopySaver.prototype = {
           // returned by this download execution function.
           backgroundFileSaver.observer = {
             onTargetChange: function () { },
-            onSaveComplete: (aSaver, aStatus) => {
+            onSaveComplete: function DCSE_onSaveComplete(aSaver, aStatus)
+            {
+              // Free the reference cycle, to release resources earlier.
+              backgroundFileSaver.observer = null;
+              this._backgroundFileSaver = null;
+
               // Send notifications now that we can restart if needed.
               if (Components.isSuccessCode(aStatus)) {
-                // Save the hash before freeing backgroundFileSaver.
-                this._sha256Hash = aSaver.sha256Hash;
                 deferSaveComplete.resolve();
               } else {
                 // Infer the origin of the error from the failure code, because
@@ -1543,9 +1512,6 @@ DownloadCopySaver.prototype = {
                 let properties = { result: aStatus, inferCause: true };
                 deferSaveComplete.reject(new DownloadError(properties));
               }
-              // Free the reference cycle, to release resources earlier.
-              backgroundFileSaver.observer = null;
-              this._backgroundFileSaver = null;
             },
           };
 
@@ -1643,8 +1609,6 @@ DownloadCopySaver.prototype = {
                 }
               }
 
-              // Enable hashing before setting the target.
-              backgroundFileSaver.enableSha256();
               if (partFilePath) {
                 // If we actually resumed a request, append to the partial data.
                 if (resumeAttempted) {
@@ -1763,14 +1727,6 @@ DownloadCopySaver.prototype = {
     serializeUnknownProperties(this, serializable);
     return serializable;
   },
-
-  /**
-   * Implements "DownloadSaver.getSha256Hash"
-   */
-  getSha256Hash: function ()
-  {
-    return this._sha256Hash;
-  }
 };
 
 /**
@@ -1810,13 +1766,6 @@ function DownloadLegacySaver()
 
 DownloadLegacySaver.prototype = {
   __proto__: DownloadSaver.prototype,
-
-  /**
-   * Save the SHA-256 hash in raw bytes of the downloaded file. This may be
-   * null when nsExternalHelperAppService (and thus BackgroundFileSaver) is not
-   * invoked.
-   */
-  _sha256Hash: null,
 
   /**
    * nsIRequest object associated to the status and progress updates we
@@ -2068,25 +2017,6 @@ DownloadLegacySaver.prototype = {
     // across different browser sessions, this object is transformed into a
     // DownloadCopySaver for the purpose of serialization.
     return DownloadCopySaver.prototype.toSerializable.call(this);
-  },
-
-  /**
-   * Implements "DownloadSaver.getSha256Hash".
-   */
-  getSha256Hash: function ()
-  {
-    if (this.copySaver) {
-      return this.copySaver.getSha256Hash();
-    }
-    return this._sha256Hash;
-  },
-
-  /**
-   * Called by the nsITransfer implementation when the hash is available.
-   */
-  setSha256Hash: function (hash)
-  {
-    this._sha256Hash = hash;
   },
 };
 

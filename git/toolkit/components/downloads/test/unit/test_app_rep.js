@@ -103,8 +103,6 @@ function run_test() {
   run_next_test();
 }
 
-/*
-// Uncomment when remote lookups are enabled (bug 933432)
 add_test(function test_shouldBlock() {
   gAppRep.queryReputation({
     sourceURI: createURI("http://evil.com"),
@@ -126,7 +124,6 @@ add_test(function test_shouldNotBlock() {
     run_next_test();
   });
 });
-*/
 
 add_test(function test_nullSourceURI() {
   gAppRep.queryReputation({
@@ -164,8 +161,6 @@ add_test(function test_disabled() {
   });
 });
 
-/*
-// Uncomment when remote lookups are enabled (bug 933432)
 add_test(function test_garbage() {
   Services.prefs.setCharPref("browser.safebrowsing.appRepURL",
                              "http://localhost:4444/download");
@@ -179,7 +174,6 @@ add_test(function test_garbage() {
     run_next_test();
   });
 });
-*/
 
 // Set up the local whitelist.
 add_test(function test_local_list() {

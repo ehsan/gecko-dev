@@ -445,8 +445,12 @@ class nsTSubstring_CharT
       /**
        * Append the given float to this string 
        */
-      void NS_FASTCALL AppendFloat( float aFloat );
-      void NS_FASTCALL AppendFloat( double aFloat );
+      void AppendFloat( float aFloat )
+                      { DoAppendFloat(aFloat, 6); }
+      void AppendFloat( double aFloat )
+                      { DoAppendFloat(aFloat, 15); }
+  private:
+      void NS_FASTCALL DoAppendFloat( double aFloat, int digits );
   public:
 
     // AppendLiteral must ONLY be applied to an actual literal string.

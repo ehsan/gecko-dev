@@ -24,7 +24,7 @@ MappableFile::Create(const char *path)
   int fd = open(path, O_RDONLY);
   if (fd != -1)
     return new MappableFile(fd);
-  return nullptr;
+  return NULL;
 }
 
 MemoryRange
@@ -60,7 +60,7 @@ MappableExtractFile::Create(const char *name, Zip *zip, Zip::Stream *stream)
   if (!cachePath || !*cachePath) {
     LOG("Warning: MOZ_LINKER_EXTRACT is set, but not MOZ_LINKER_CACHE; "
         "not extracting");
-    return nullptr;
+    return NULL;
   }
   mozilla::ScopedDeleteArray<char> path;
   path = new char[strlen(cachePath) + strlen(name) + 2];
@@ -80,21 +80,21 @@ MappableExtractFile::Create(const char *name, Zip *zip, Zip::Stream *stream)
                   S_IRUSR | S_IWUSR);
   if (fd == -1) {
     LOG("Couldn't open %s to decompress library", path.get());
-    return nullptr;
+    return NULL;
   }
   AutoUnlinkFile file;
   file = path.forget();
   if (stream->GetType() == Zip::Stream::DEFLATE) {
     if (ftruncate(fd, stream->GetUncompressedSize()) == -1) {
       LOG("Couldn't ftruncate %s to decompress library", file.get());
-      return nullptr;
+      return NULL;
     }
     /* Map the temporary file for use as inflate buffer */
-    MappedPtr buffer(MemoryRange::mmap(nullptr, stream->GetUncompressedSize(),
+    MappedPtr buffer(MemoryRange::mmap(NULL, stream->GetUncompressedSize(),
                                        PROT_WRITE, MAP_SHARED, fd, 0));
     if (buffer == MAP_FAILED) {
       LOG("Couldn't map %s to decompress library", file.get());
-      return nullptr;
+      return NULL;
     }
 
     z_stream zStream = stream->GetZStream(buffer);
@@ -102,44 +102,44 @@ MappableExtractFile::Create(const char *name, Zip *zip, Zip::Stream *stream)
     /* Decompress */
     if (inflateInit2(&zStream, -MAX_WBITS) != Z_OK) {
       LOG("inflateInit failed: %s", zStream.msg);
-      return nullptr;
+      return NULL;
     }
     if (inflate(&zStream, Z_FINISH) != Z_STREAM_END) {
       LOG("inflate failed: %s", zStream.msg);
-      return nullptr;
+      return NULL;
     }
     if (inflateEnd(&zStream) != Z_OK) {
       LOG("inflateEnd failed: %s", zStream.msg);
-      return nullptr;
+      return NULL;
     }
     if (zStream.total_out != stream->GetUncompressedSize()) {
       LOG("File not fully uncompressed! %ld / %d", zStream.total_out,
           static_cast<unsigned int>(stream->GetUncompressedSize()));
-      return nullptr;
+      return NULL;
     }
   } else if (stream->GetType() == Zip::Stream::STORE) {
     SeekableZStream zStream;
     if (!zStream.Init(stream->GetBuffer(), stream->GetSize())) {
       LOG("Couldn't initialize SeekableZStream for %s", name);
-      return nullptr;
+      return NULL;
     }
     if (ftruncate(fd, zStream.GetUncompressedSize()) == -1) {
       LOG("Couldn't ftruncate %s to decompress library", file.get());
-      return nullptr;
+      return NULL;
     }
-    MappedPtr buffer(MemoryRange::mmap(nullptr, zStream.GetUncompressedSize(),
+    MappedPtr buffer(MemoryRange::mmap(NULL, zStream.GetUncompressedSize(),
                                        PROT_WRITE, MAP_SHARED, fd, 0));
     if (buffer == MAP_FAILED) {
       LOG("Couldn't map %s to decompress library", file.get());
-      return nullptr;
+      return NULL;
     }
 
     if (!zStream.Decompress(buffer, 0, zStream.GetUncompressedSize())) {
       LOG("%s: failed to decompress", name);
-      return nullptr;
+      return NULL;
     }
   } else {
-    return nullptr;
+    return NULL;
   }
 
   return new MappableExtractFile(fd.forget(), file.forget());
@@ -175,12 +175,12 @@ public:
     /* On Android, initialize an ashmem region with the given length */
     fd = open("/" ASHMEM_NAME_DEF, O_RDWR, 0600);
     if (fd == -1)
-      return nullptr;
+      return NULL;
     char str[ASHMEM_NAME_LEN];
     strlcpy(str, name, sizeof(str));
     ioctl(fd, ASHMEM_SET_NAME, str);
     if (ioctl(fd, ASHMEM_SET_SIZE, length))
-      return nullptr;
+      return NULL;
 
     /* The Gecko crash reporter is confused by adjacent memory mappings of
      * the same file and chances are we're going to map from the same file
@@ -189,8 +189,7 @@ public:
      * depending on how mappings grow in the address space.
      */
 #if defined(__arm__)
-    void *buf = ::mmap(nullptr, length + PAGE_SIZE, PROT_READ | PROT_WRITE,
-                       MAP_SHARED, fd, 0);
+    void *buf = ::mmap(NULL, length + PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (buf != MAP_FAILED) {
       ::mmap(AlignedEndPtr(reinterpret_cast<char *>(buf) + length, PAGE_SIZE),
              PAGE_SIZE, PROT_NONE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -200,7 +199,7 @@ public:
     }
 #elif defined(__i386__)
     size_t anon_mapping_length = length + PAGE_SIZE;
-    void *buf = ::mmap(nullptr, anon_mapping_length, PROT_NONE,
+    void *buf = ::mmap(NULL, anon_mapping_length, PROT_NONE,
                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (buf != MAP_FAILED) {
       char *first_page = reinterpret_cast<char *>(buf);
@@ -211,7 +210,7 @@ public:
       if (actual_buf == MAP_FAILED) {
         ::munmap(buf, anon_mapping_length);
         DEBUG_LOG("Fixed allocation of decompression buffer at %p failed", map_page);
-        return nullptr;
+        return NULL;
       }
 
       DEBUG_LOG("Decompression buffer of size 0x%x in ashmem \"%s\", mapped @%p",
@@ -229,19 +228,18 @@ public:
     sprintf(path, "/dev/shm/%s.XXXXXX", name);
     fd = mkstemp(path);
     if (fd == -1)
-      return nullptr;
+      return NULL;
     unlink(path);
     ftruncate(fd, length);
 
-    void *buf = ::mmap(nullptr, length, PROT_READ | PROT_WRITE,
-                       MAP_SHARED, fd, 0);
+    void *buf = ::mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (buf != MAP_FAILED) {
       DEBUG_LOG("Decompression buffer of size %ld in \"%s\", mapped @%p",
                 length, path, buf);
       return new _MappableBuffer(fd.forget(), buf, length);
     }
 #endif
-    return nullptr;
+    return NULL;
   }
 
   void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset)
@@ -287,7 +285,7 @@ MappableDeflate::Create(const char *name, Zip *zip, Zip::Stream *stream)
   _MappableBuffer *buf = _MappableBuffer::Create(name, stream->GetUncompressedSize());
   if (buf)
     return new MappableDeflate(buf, zip, stream);
-  return nullptr;
+  return NULL;
 }
 
 MappableDeflate::MappableDeflate(_MappableBuffer *buf, Zip *zip,
@@ -355,9 +353,9 @@ MappableDeflate::finalize()
   /* Free zlib internal buffers */
   inflateEnd(&zStream);
   /* Free decompression buffer */
-  buffer = nullptr;
+  buffer = NULL;
   /* Remove reference to Zip archive */
-  zip = nullptr;
+  zip = NULL;
 }
 
 size_t
@@ -379,15 +377,15 @@ MappableSeekableZStream::Create(const char *name, Zip *zip,
   pthread_mutexattr_settype(&recursiveAttr, PTHREAD_MUTEX_RECURSIVE);
 
   if (pthread_mutex_init(&mappable->mutex, &recursiveAttr))
-    return nullptr;
+    return NULL;
 
   if (!mappable->zStream.Init(stream->GetBuffer(), stream->GetSize()))
-    return nullptr;
+    return NULL;
 
   mappable->buffer = _MappableBuffer::Create(name,
                               mappable->zStream.GetUncompressedSize());
   if (!mappable->buffer)
-    return nullptr;
+    return NULL;
 
   mappable->chunkAvail = new unsigned char[mappable->zStream.GetChunksNum()];
   memset(mappable->chunkAvail, 0, mappable->zStream.GetChunksNum());
