@@ -72,9 +72,6 @@ let UI = {
 
     AppProjects.load().then(() => {
       this.autoSelectProject();
-    }, e => {
-      console.error(e);
-      this.reportError("error_appProjectsLoadFailed");
     });
 
     // Auto install the ADB Addon Helper and Tools Adapters. Only once.
@@ -259,7 +256,7 @@ let UI = {
     this._busyTimeout = setTimeout(() => {
       this.unbusy();
       UI.reportError("error_operationTimeout", this._busyOperationDescription);
-    }, Services.prefs.getIntPref("devtools.webide.busyTimeout"));
+    }, 6000);
   },
 
   cancelBusyTimeout: function() {

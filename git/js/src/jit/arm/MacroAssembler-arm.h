@@ -1833,9 +1833,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void loadAsmJSHeapRegisterFromGlobalData() {
         loadPtr(Address(GlobalReg, AsmJSHeapGlobalDataOffset - AsmJSGlobalRegBias), HeapReg);
     }
-    void pushReturnAddress() {
-        push(lr);
-    }
 };
 
 typedef MacroAssemblerARMCompat MacroAssemblerSpecific;

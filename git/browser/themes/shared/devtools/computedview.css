@@ -27,10 +27,6 @@ body {
   flex: 1;
 }
 
-.row-striped {
-  background: var(--theme-body-background);
-}
-
 .property-view-hidden,
 .property-content-hidden {
   display: none;

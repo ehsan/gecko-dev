@@ -611,7 +611,6 @@ class GCRuntime
     void updateAllCellPointersSerial(MovingTracer *trc, ArenasToUpdate &source);
     void updatePointersToRelocatedCells();
     void releaseRelocatedArenas(ArenaHeader *relocatedList);
-    void releaseRelocatedArenasWithoutUnlocking(ArenaHeader *relocatedList, const AutoLockGC& lock);
 #ifdef DEBUG
     void protectRelocatedArenas(ArenaHeader *relocatedList);
     void unprotectRelocatedArenas(ArenaHeader *relocatedList);

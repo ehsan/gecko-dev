@@ -281,13 +281,6 @@ loop.panel = (function(_, mozL10n) {
       }
     },
 
-    handleHelpEntry: function(event) {
-      event.preventDefault();
-      var helloSupportUrl = navigator.mozLoop.getLoopPref('support_url');
-      window.open(helloSupportUrl);
-      window.close();
-    },
-
     _isSignedIn: function() {
       return !!navigator.mozLoop.userProfile;
     },
@@ -326,9 +319,6 @@ loop.panel = (function(_, mozL10n) {
                                    onClick={this.handleClickAuthEntry}
                                    displayed={navigator.mozLoop.fxAEnabled}
                                    icon={this._isSignedIn() ? "signout" : "signin"} />
-            <SettingsDropdownEntry label={mozL10n.get("help_label")}
-                                   onClick={this.handleHelpEntry}
-                                   icon="help" />
           </ul>
         </div>
       );

@@ -1,5 +1,6 @@
 import BaseHTTPServer
 import errno
+import logging
 import os
 import re
 import socket
@@ -11,13 +12,15 @@ import traceback
 import types
 import urlparse
 
-import routes as default_routes
-from logger import get_logger
 from request import Server, Request
 from response import Response
 from router import Router
+import routes as default_routes
 from utils import HTTPException
 
+
+logger = logging.getLogger("wptserve")
+logger.setLevel(logging.DEBUG)
 
 """HTTP server designed for testing purposes.
 
@@ -64,7 +67,6 @@ class RequestRewriter(object):
         self.rules = {}
         for rule in reversed(rules):
             self.register(*rule)
-        self.logger = get_logger()
 
     def register(self, methods, input_path, output_path):
         """Register a rewrite rule.
@@ -93,7 +95,7 @@ class RequestRewriter(object):
         if split_url.path in self.rules:
             methods, destination = self.rules[split_url.path]
             if "*" in methods or request_handler.command in methods:
-                self.logger.debug("Rewriting request path %s to %s" %
+                logger.debug("Rewriting request path %s to %s" %
                              (request_handler.path, destination))
                 new_url = list(split_url)
                 new_url[2] = destination
@@ -104,7 +106,6 @@ class RequestRewriter(object):
 class WebTestServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
     allow_reuse_address = True
     acceptable_errors = (errno.EPIPE, errno.ECONNABORTED)
-    request_queue_size = 2000
 
     # Ensure that we don't hang on shutdown waiting for requests
     daemon_threads = True
@@ -142,7 +143,6 @@ class WebTestServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         self.rewriter = rewriter
 
         self.scheme = "https" if use_ssl else "http"
-        self.logger = get_logger()
 
         if bind_hostname:
             hostname_port = server_address
@@ -155,7 +155,7 @@ class WebTestServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         if config is not None:
             Server.config = config
         else:
-            self.logger.debug("Using default configuration")
+            logger.debug("Using default configuration")
             Server.config = {"host": server_address[0],
                              "domains": {"": server_address[0]},
                              "ports": {"http": [self.server_address[1]]}}
@@ -177,7 +177,7 @@ class WebTestServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
              error.errno in self.acceptable_errors)):
             pass  # remote hang up before the result is sent
         else:
-            self.logger.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
 
 
 class WebTestRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -187,7 +187,6 @@ class WebTestRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def handle_one_request(self):
         response = None
-        logger = get_logger()
         try:
             self.close_connection = False
             request_line_is_valid = self.get_request_line()
@@ -226,11 +225,8 @@ class WebTestRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                         err = []
                         err.append(traceback.format_exc())
                     response.set_error(500, "\n".join(err))
-            logger.debug("%i %s %s (%s) %i" % (response.status[0],
-                                               request.method,
-                                               request.request_path,
-                                               request.headers.get('Referer'),
-                                               request.raw_input.length))
+            logger.info("%i %s %s (%s) %i" % (response.status[0], request.method,
+                                         request.request_path, request.headers.get('Referer'), request.raw_input.length))
 
             if not response.writer.content_written:
                 response.write()
@@ -265,10 +261,10 @@ class WebTestRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.close_connection = True
             return False
         if len(self.raw_requestline) > 65536:
-            self.requestline = ''
-            self.request_version = ''
-            self.command = ''
-            return False
+                self.requestline = ''
+                self.request_version = ''
+                self.command = ''
+                return False
         if not self.raw_requestline:
             self.close_connection = True
         return True
@@ -338,7 +334,6 @@ class WebTestHttpd(object):
         self.rewriter = rewriter_cls(rewrites if rewrites is not None else [])
 
         self.use_ssl = use_ssl
-        self.logger = get_logger()
 
         if server_cls is None:
             server_cls = WebTestServer
@@ -362,7 +357,7 @@ class WebTestHttpd(object):
 
             _host, self.port = self.httpd.socket.getsockname()
         except Exception:
-            self.logger.error('Init failed! You may need to modify your hosts file. Refer to README.md.');
+            logger.error('Init failed! You may need to modify your hosts file. Refer to README.md.');
             raise
 
     def start(self, block=False):
@@ -370,7 +365,7 @@ class WebTestHttpd(object):
 
         :param block: True to run the server on the current thread, blocking,
                       False to run on a separate thread."""
-        self.logger.info("Starting http server on %s:%s" % (self.host, self.port))
+        logger.info("Starting http server on %s:%s" % (self.host, self.port))
         self.started = True
         if block:
             self.httpd.serve_forever()
@@ -391,7 +386,7 @@ class WebTestHttpd(object):
                 self.httpd.server_close()
                 self.server_thread.join()
                 self.server_thread = None
-                self.logger.info("Stopped http server on %s:%s" % (self.host, self.port))
+                logger.info("Stopped http server on %s:%s" % (self.host, self.port))
             except AttributeError:
                 pass
             self.started = False

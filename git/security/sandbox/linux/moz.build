@@ -6,10 +6,7 @@
 
 FAIL_ON_WARNINGS = True
 
-if CONFIG['OS_TARGET'] == 'Android':
-    SharedLibrary('mozsandbox')
-else:
-    Library('mozsandbox')
+SharedLibrary('mozsandbox')
 
 EXPORTS.mozilla += [
     'Sandbox.h',
@@ -46,6 +43,5 @@ if CONFIG['OS_TARGET'] != 'Android':
     ]
 
 DIRS += [
-    'common',
     'glue',
 ]

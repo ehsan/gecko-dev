@@ -2,14 +2,16 @@ from collections import OrderedDict
 from datetime import datetime, timedelta
 import Cookie
 import json
+import logging
 import types
 import uuid
 import socket
 
 from constants import response_codes
-from logger import get_logger
 
+logger = logging.getLogger("wptserve")
 missing = object()
+
 
 class Response(object):
     """Object representing the response to a HTTP request
@@ -74,8 +76,6 @@ class Response(object):
         self._status = (200, None)
         self.headers = ResponseHeaders()
         self.content = []
-
-        self.logger = get_logger()
 
     @property
     def status(self):
@@ -213,7 +213,7 @@ class Response(object):
                         ("Content-Length", len(data))]
         self.content = data
         if code == 500:
-            self.logger.error(message)
+            logger.error(message)
 
 
 class MultipartContent(object):
@@ -403,7 +403,7 @@ class ResponseWriter(object):
             self.write_default_headers()
 
         self.write("\r\n")
-        if "content-length" not in self._headers_seen:
+        if not "content-length" in self._headers_seen:
             self._response.close_connection = True
         if not self._response.explicit_flush:
             self.flush()

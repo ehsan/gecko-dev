@@ -1095,10 +1095,7 @@ PrepareAndExecuteRegExp(JSContext *cx, MacroAssembler &masm, Register regexp, Re
     RegExpStatics *res = cx->global()->getRegExpStatics(cx);
     if (!res)
         return false;
-#ifdef JS_USE_LINK_REGISTER
-    if (mode != RegExpShared::MatchOnly)
-        masm.pushReturnAddress();
-#endif
+
     if (mode == RegExpShared::Normal) {
         // First, fill in a skeletal MatchPairs instance on the stack. This will be
         // passed to the OOL stub in the caller if we aren't able to execute the
@@ -1575,10 +1572,6 @@ JitCompartment::generateRegExpTestStub(JSContext *cx)
     Register temp3 = regs.takeAny();
 
     MacroAssembler masm(cx);
-
-#ifdef JS_USE_LINK_REGISTER
-    masm.pushReturnAddress();
-#endif
 
     masm.reserveStack(sizeof(irregexp::InputOutputData));
 
@@ -6180,9 +6173,7 @@ JitCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
     Register forkJoinContext = CallTempReg4;
 
     Label failure, failurePopTemps;
-#ifdef JS_USE_LINK_REGISTER
-    masm.pushReturnAddress();
-#endif
+
     // If lhs is empty, return rhs.
     Label leftEmpty;
     masm.loadStringLength(lhs, temp1);
@@ -6293,9 +6284,6 @@ JitRuntime::generateMallocStub(JSContext *cx)
     MacroAssembler masm(cx);
 
     RegisterSet regs = RegisterSet::Volatile();
-#ifdef JS_USE_LINK_REGISTER
-    masm.pushReturnAddress();
-#endif
     regs.takeUnchecked(regNBytes);
     masm.PushRegsInMask(regs);
 
@@ -6331,9 +6319,7 @@ JitRuntime::generateFreeStub(JSContext *cx)
     const Register regSlots = CallTempReg0;
 
     MacroAssembler masm(cx);
-#ifdef JS_USE_LINK_REGISTER
-    masm.pushReturnAddress();
-#endif
+
     RegisterSet regs = RegisterSet::Volatile();
     regs.takeUnchecked(regSlots);
     masm.PushRegsInMask(regs);
@@ -6366,26 +6352,15 @@ JitCode *
 JitRuntime::generateLazyLinkStub(JSContext *cx)
 {
     MacroAssembler masm(cx);
-#ifdef JS_USE_LINK_REGISTER
-    masm.push(lr);
-#endif
 
     Label call;
     GeneralRegisterSet regs = GeneralRegisterSet::Volatile();
     Register temp0 = regs.takeAny();
 
     masm.callWithExitFrame(&call);
-#ifdef JS_USE_LINK_REGISTER
-    // sigh, this should probably attempt to bypass the push lr that starts off the block
-    // but oh well.
-    masm.pop(lr);
-#endif
     masm.jump(ReturnReg);
 
     masm.bind(&call);
-#ifdef JS_USE_LINK_REGISTER
-        masm.push(lr);
-#endif
     masm.enterExitFrame();
     masm.setupUnalignedABICall(1, temp0);
     masm.loadJSContext(temp0);

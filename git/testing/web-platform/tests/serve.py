@@ -1,6 +1,7 @@
  # -*- coding: utf-8 -*-
 import argparse
 import json
+import logging
 import os
 import signal
 import socket
@@ -18,8 +19,6 @@ repo_root = os.path.abspath(os.path.split(__file__)[0])
 sys.path.insert(1, os.path.join(repo_root, "tools", "wptserve"))
 from wptserve import server as wptserve, handlers
 from wptserve.router import any_method
-from wptserve.logger import set_logger
-
 sys.path.insert(1, os.path.join(repo_root, "tools", "pywebsocket", "src"))
 from mod_pywebsocket import standalone as pywebsocket
 
@@ -40,12 +39,12 @@ subdomains = [u"www",
               u"天気の良い日",
               u"élève"]
 
-def setup_logger(level):
-    import logging
-    global logger
+logger = None
+
+def default_logger(level):
     logger = logging.getLogger("web-platform-tests")
     logging.basicConfig(level=getattr(logging, level.upper()))
-    set_logger(logger)
+    return logger
 
 def open_socket(port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -324,10 +323,12 @@ def load_config(default_path, override_path=None):
     return rv
 
 def main():
+    global logger
+
     config = load_config("config.default.json",
                          "config.json")
 
-    setup_logger(config["log_level"])
+    logger = default_logger(config["log_level"])
 
     config_, servers = start(config)
 

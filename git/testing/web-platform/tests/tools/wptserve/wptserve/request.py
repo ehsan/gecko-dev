@@ -1,6 +1,8 @@
 import base64
 import cgi
 import Cookie
+import logging
+import os
 import StringIO
 import tempfile
 import urlparse
@@ -8,6 +10,7 @@ import urlparse
 import stash
 from utils import HTTPException
 
+logger = logging.getLogger("wptserve")
 missing = object()
 
 
@@ -371,7 +374,7 @@ class RequestHeaders(dict):
         a list"""
         try:
             return dict.__getitem__(self, key.lower())
-        except KeyError:
+        except:
             if default is not missing:
                 return default
             else:

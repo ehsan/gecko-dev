@@ -8204,12 +8204,8 @@ IonBuilder::jsop_setelem()
     if (!setElemTryArguments(&emitted, object, index, value) || emitted)
         return emitted;
 
-    if (script()->argumentsHasVarBinding() &&
-        object->mightBeType(MIRType_MagicOptimizedArguments) &&
-        info().executionMode() != ArgumentsUsageAnalysis)
-    {
+    if (script()->argumentsHasVarBinding() && object->mightBeType(MIRType_MagicOptimizedArguments))
         return abort("Type is not definitely lazy arguments.");
-    }
 
     if (!setElemTryCache(&emitted, object, index, value) || emitted)
         return emitted;

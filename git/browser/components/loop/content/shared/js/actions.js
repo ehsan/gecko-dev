@@ -225,10 +225,7 @@ loop.shared.actions = (function() {
      * XXX: should move to some roomActions module - refs bug 1079284
      */
     GetAllRoomsError: Action.define("getAllRoomsError", {
-      // There's two types of error possible - one thrown by our code (and Error)
-      // and the other is an Object about the error codes from the server as
-      // returned by the Hawk request.
-      error: [Error, Object]
+      error: Error
     }),
 
     /**
@@ -328,28 +325,6 @@ loop.shared.actions = (function() {
      * Used to indicate the user wishes to leave the room.
      */
     LeaveRoom: Action.define("leaveRoom", {
-    }),
-
-    /**
-     * Requires detailed information on sad feedback.
-     */
-    RequireFeedbackDetails: Action.define("requireFeedbackDetails", {
-    }),
-
-    /**
-     * Send feedback data.
-     */
-    SendFeedback: Action.define("sendFeedback", {
-      happy: Boolean,
-      category: String,
-      description: String
-    }),
-
-    /**
-     * Reacts on feedback submission error.
-     */
-    SendFeedbackError: Action.define("sendFeedbackError", {
-      error: Error
     })
   };
 })();

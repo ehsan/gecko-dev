@@ -26,8 +26,6 @@ namespace jit {
     _(Alias)                                \
     /* Information during GVN */            \
     _(GVN)                                  \
-    /* Information during sinking */        \
-    _(Sink)                                 \
     /* Information during Range analysis */ \
     _(Range)                                \
     /* Information during loop unrolling */ \

@@ -38,7 +38,6 @@ struct JitOptions
     bool disableInlining;
     bool disableEdgeCaseAnalysis;
     bool disableRangeAnalysis;
-    bool disableSink;
     bool disableLoopUnrolling;
     bool disableEaa;
     bool eagerCompilation;

@@ -384,7 +384,7 @@ let EventTargetParent = {
       // Check if |target| is somewhere on the patch from the
       // <tabbrowser> up to the root element.
       let window = target.ownerDocument.defaultView;
-      if (window && target.contains(window.gBrowser)) {
+      if (target.contains(window.gBrowser)) {
         return window;
       }
     }
