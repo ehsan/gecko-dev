@@ -26,6 +26,12 @@ namespace dom {
 
 class TabContext;
 
+namespace quota {
+
+class OriginOrPatternString;
+
+} // namespace quota
+
 namespace indexedDB {
 
 class FileManager;
@@ -33,6 +39,7 @@ class FileManagerInfo;
 
 class IndexedDatabaseManager MOZ_FINAL : public nsIObserver
 {
+  typedef mozilla::dom::quota::OriginOrPatternString OriginOrPatternString;
   typedef mozilla::dom::quota::PersistenceType PersistenceType;
 
 public:
@@ -89,7 +96,7 @@ public:
 
   void
   InvalidateFileManagers(PersistenceType aPersistenceType,
-                         const nsACString& aOrigin);
+                         const OriginOrPatternString& aOriginOrPattern);
 
   void
   InvalidateFileManager(PersistenceType aPersistenceType,
@@ -142,6 +149,11 @@ private:
 
   void
   Destroy();
+
+  static PLDHashOperator
+  InvalidateAndRemoveFileManagers(const nsACString& aKey,
+                                  nsAutoPtr<FileManagerInfo>& aValue,
+                                  void* aUserArg);
 
   // Maintains a list of all file managers per origin. This list isn't
   // protected by any mutex but it is only ever touched on the IO thread.

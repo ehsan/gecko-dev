@@ -49,7 +49,6 @@ if (!window.runTest) {
   {
     SimpleTest.waitForExplicitFinish();
 
-    allowIndexedDB();
     if (limitedQuota) {
       denyUnlimitedQuota();
     }
@@ -67,11 +66,10 @@ if (!window.runTest) {
 
 function finishTest()
 {
-  resetArchiveReader();
-  resetExperimental();
-  resetTesting();
   resetUnlimitedQuota();
-  resetIndexedDB();
+  resetExperimental();
+  resetArchiveReader();
+  resetTesting();
   SpecialPowers.notifyObserversInParentProcess(null, "disk-space-watcher",
                                                "free");
 
@@ -197,16 +195,6 @@ function removePermission(type, url)
     url = window.document;
   }
   SpecialPowers.removePermission(type, url);
-}
-
-function allowIndexedDB(url)
-{
-  addPermission("indexedDB", true, url);
-}
-
-function resetIndexedDB(url)
-{
-  removePermission("indexedDB", url);
 }
 
 function allowUnlimitedQuota(url)

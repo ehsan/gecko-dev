@@ -75,9 +75,6 @@ public:
   NS_DECL_NSIREFLOWOBSERVER
   NS_DECL_NSISELECTIONLISTENER
 
-  // Notify selection carets about the blur event to hidden itself
-  void NotifyBlur();
-
   // nsIScrollObserver
   virtual void ScrollPositionChanged() MOZ_OVERRIDE;
 
@@ -89,6 +86,11 @@ public:
   void Terminate();
 
   nsEventStatus HandleEvent(WidgetEvent* aEvent);
+
+  /**
+   * Set visibility for selection caret.
+   */
+  void SetVisibility(bool aVisible);
 
   bool GetVisibility() const
   {
@@ -108,11 +110,6 @@ private:
   virtual ~SelectionCarets();
 
   SelectionCarets() MOZ_DELETE;
-
-  /**
-   * Set visibility for selection caret.
-   */
-  void SetVisibility(bool aVisible);
 
   /**
    * Update selection caret position base on current selection range.

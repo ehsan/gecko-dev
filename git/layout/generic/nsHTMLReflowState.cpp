@@ -523,7 +523,7 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext, nsIAtom* aFrameT
 
       // FIXME: This isn't so great for the cases where
       // nsHTMLReflowState::SetComputedWidth is called, if the first time
-      // we go through InitResizeFlags we set IsHResize() to true, and then
+      // we go through InitResizeFlags we set mHResize to true, and then
       // the second time we'd set it to false even without the
       // NS_FRAME_IS_DIRTY bit already set.
       if (frame->GetType() == nsGkAtoms::svgForeignObjectFrame) {
@@ -577,8 +577,8 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext, nsIAtom* aFrameT
     }
   }
 
-  SetHResize(!(frame->GetStateBits() & NS_FRAME_IS_DIRTY) &&
-             isHResize);
+  mFlags.mHResize = !(frame->GetStateBits() & NS_FRAME_IS_DIRTY) &&
+                    isHResize;
 
   // XXX Should we really need to null check mCBReflowState?  (We do for
   // at least nsBoxFrame).
@@ -588,27 +588,27 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext, nsIAtom* aFrameT
          NS_TABLE_CELL_HAD_SPECIAL_REFLOW)) &&
       (frame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_HEIGHT)) {
     // Need to set the bit on the cell so that
-    // mCBReflowState->IsVResize() is set correctly below when
+    // mCBReflowState->mFlags.mVResize is set correctly below when
     // reflowing descendant.
-    SetVResize(true);
+    mFlags.mVResize = true;
   } else if (mCBReflowState && !nsLayoutUtils::IsNonWrapperBlock(frame)) {
     // XXX Is this problematic for relatively positioned inlines acting
     // as containing block for absolutely positioned elements?
     // Possibly; in that case we should at least be checking
     // NS_SUBTREE_DIRTY, I'd think.
-    SetVResize(mCBReflowState->IsVResize());
+    mFlags.mVResize = mCBReflowState->mFlags.mVResize;
   } else if (ComputedHeight() == NS_AUTOHEIGHT) {
     if (eCompatibility_NavQuirks == aPresContext->CompatibilityMode() &&
         mCBReflowState) {
-      SetVResize(mCBReflowState->IsVResize());
+      mFlags.mVResize = mCBReflowState->mFlags.mVResize;
     } else {
-      SetVResize(IsHResize());
+      mFlags.mVResize = mFlags.mHResize;
     }
-    SetVResize(IsVResize() || NS_SUBTREE_DIRTY(frame));
+    mFlags.mVResize = mFlags.mVResize || NS_SUBTREE_DIRTY(frame);
   } else {
     // not 'auto' height
-    SetVResize(frame->GetSize().height !=
-               ComputedHeight() + ComputedPhysicalBorderPadding().TopBottom());
+    mFlags.mVResize = frame->GetSize().height !=
+                        ComputedHeight() + ComputedPhysicalBorderPadding().TopBottom();
   }
 
   bool dependsOnCBHeight =
@@ -638,12 +638,12 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext, nsIAtom* aFrameT
   // special height reflow.  However, don't do this if it actually is
   // the special height reflow, since in that case it will already be
   // set correctly above if we need it set.
-  if (!IsVResize() && mCBReflowState &&
+  if (!mFlags.mVResize && mCBReflowState &&
       (IS_TABLE_CELL(mCBReflowState->frame->GetType()) || 
        mCBReflowState->mFlags.mHeightDependsOnAncestorCell) &&
       !mCBReflowState->mFlags.mSpecialHeightReflow && 
       dependsOnCBHeight) {
-    SetVResize(true);
+    mFlags.mVResize = true;
     mFlags.mHeightDependsOnAncestorCell = true;
   }
 
@@ -2355,13 +2355,8 @@ nsHTMLReflowState::CalculateBlockSideMargins(nsIAtom* aFrameType)
   WritingMode cbWM =
     mCBReflowState ? mCBReflowState->GetWritingMode(): GetWritingMode();
 
-  nscoord availISizeCBWM = AvailableSize(cbWM).ISize(cbWM);
   nscoord computedISizeCBWM = ComputedSize(cbWM).ISize(cbWM);
-  if (computedISizeCBWM == NS_UNCONSTRAINEDSIZE) {
-    // For orthogonal flows, where we found a parent orthogonal-limit
-    // for AvailableISize() in Init(), we'll use the same here as well.
-    computedISizeCBWM = availISizeCBWM;
-  }
+  nscoord availISizeCBWM = AvailableSize(cbWM).ISize(cbWM);
 
   NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != computedISizeCBWM &&
                    NS_UNCONSTRAINEDSIZE != availISizeCBWM,

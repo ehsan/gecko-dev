@@ -40,7 +40,6 @@
       {
         const databaseName = window.location.pathname;
         const databaseVersion = 1;
-        const databaseStorage = "persistent";
         const objectStoreName = "foo";
 
         info("setting quota pref");
@@ -51,8 +50,7 @@
 
         info("opening database");
 
-        let request = indexedDB.open(databaseName, {version: databaseVersion,
-                                                    storage: databaseStorage});
+        let request = indexedDB.open(databaseName, databaseVersion);
         request.onerror = errorHandler;
         request.onupgradeneeded = grabEventAndContinueHandler;
         request.onsuccess = unexpectedSuccessHandler;

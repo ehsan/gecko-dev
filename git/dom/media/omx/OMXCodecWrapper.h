@@ -256,7 +256,6 @@ private:
 
   // For creator function to access hidden constructor.
   friend class OMXCodecWrapper;
-  friend class InputBufferHelper;
 
   /**
    * If the input sample rate does not divide 48kHz evenly, the input data are

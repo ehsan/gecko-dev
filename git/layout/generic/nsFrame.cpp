@@ -1796,7 +1796,6 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder,
       switch (item->GetType()) {
         case nsDisplayItem::TYPE_TRANSFORM: {
           if (!aTemp->IsEmpty()) {
-            // Flush current aTemp contents
             aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
                 aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
           }
@@ -1820,7 +1819,6 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder,
         }
         case nsDisplayItem::TYPE_OPACITY: {
           if (!aTemp->IsEmpty()) {
-            // Flush current aTemp contents
             aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
                 aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
           }
@@ -1835,9 +1833,6 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder,
             output.AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
                 aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
           }
-
-          opacity->SetVisibleRect(output.GetVisibleRect());
-          opacity->SetReferenceFrame(output.GetBottom()->ReferenceFrame());
           opacity->GetChildren()->AppendToTop(&output);
           opacity->UpdateBounds(aBuilder);
           aOutput->AppendToTop(item);
@@ -8524,7 +8519,7 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
     // However, mLastSize can also be the size passed to BoxReflow by
     // RefreshSizeCache, so that doesn't really make sense.
     if (metrics->mLastSize.width != aWidth) {
-      reflowState.SetHResize(true);
+      reflowState.mFlags.mHResize = true;
 
       // When font size inflation is enabled, a horizontal resize
       // requires a full reflow.  See nsHTMLReflowState::InitResizeFlags
@@ -8534,7 +8529,7 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
       }
     }
     if (metrics->mLastSize.height != aHeight)
-      reflowState.SetVResize(true);
+      reflowState.mFlags.mVResize = true;
 
     #ifdef DEBUG_REFLOW
       nsAdaptorAddIndents();
@@ -9663,10 +9658,10 @@ static void DisplayReflowEnterPrint(nsPresContext*          aPresContext,
     if (aReflowState.mFlags.mSpecialHeightReflow)
       printf("special-height ");
 
-    if (aReflowState.IsHResize())
+    if (aReflowState.mFlags.mHResize)
       printf("h-resize ");
 
-    if (aReflowState.IsVResize())
+    if (aReflowState.mFlags.mVResize)
       printf("v-resize ");
 
     nsIFrame* inFlow = aFrame->GetPrevInFlow();

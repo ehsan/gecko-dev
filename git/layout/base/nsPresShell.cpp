@@ -9267,7 +9267,7 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
     bool hasUnconstrainedBSize = size.BSize(wm) == NS_UNCONSTRAINEDSIZE;
 
     if (hasUnconstrainedBSize || mLastRootReflowHadUnconstrainedBSize) {
-      reflowState.SetVResize(true);
+      reflowState.mFlags.mVResize = true;
     }
 
     mLastRootReflowHadUnconstrainedBSize = hasUnconstrainedBSize;

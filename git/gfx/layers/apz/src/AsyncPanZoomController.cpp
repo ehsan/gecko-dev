@@ -2335,11 +2335,7 @@ bool AsyncPanZoomController::SnapBackIfOverscrolled() {
 
 bool AsyncPanZoomController::IsMovingFast() const {
   ReentrantMonitorAutoEnter lock(mMonitor);
-  if (GetVelocityVector().Length() > gfxPrefs::APZFlingStopOnTapThreshold()) {
-    APZC_LOG("%p is moving fast\n", this);
-    return true;
-  }
-  return false;
+  return (GetVelocityVector().Length() > gfxPrefs::APZFlingStopOnTapThreshold());
 }
 
 bool AsyncPanZoomController::IsPannable() const {

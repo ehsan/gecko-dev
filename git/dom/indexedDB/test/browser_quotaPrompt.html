@@ -35,9 +35,7 @@
         window.removeEventListener("indexedDB-addMore", onAddMore, true);
         window.removeEventListener("indexedDB-done", onDone, true);
 
-        let request =
-          indexedDB.open(window.location.pathname, { version: version++,
-                                                     storage: "persistent" });
+        let request = indexedDB.open(window.location.pathname, version++);
         request.onerror = errorHandler;
         request.onupgradeneeded = function(event) {
           db.deleteObjectStore("foo");
@@ -57,8 +55,7 @@
         window.addEventListener("indexedDB-addMore", onAddMore, true);
         window.addEventListener("indexedDB-done", onDone, true);
 
-        let request = indexedDB.open(name, { version: version++,
-                                             storage: "persistent" });
+        let request = indexedDB.open(name, version++);
         request.onerror = errorHandler;
         request.onupgradeneeded = grabEventAndContinueHandler;
         let event = yield undefined;

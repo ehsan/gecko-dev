@@ -132,9 +132,6 @@ public:
 #endif
 
 private:
-  void ParseAtCommand(const nsACString& aAtCommand, const int aStart,
-                      nsTArray<nsCString>& aRetValues);
-
   class CloseScoTask;
   class GetVolumeTask;
 #ifdef MOZ_B2G_RIL
