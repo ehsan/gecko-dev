@@ -209,7 +209,7 @@ struct JSObjectMap {
 
     explicit JSObjectMap(const JSObjectOps *ops, uint32 shape) : ops(ops), shape(shape) {}
 
-    enum { INVALID_SHAPE = 0x8fffffff, SHAPELESS = 0xffffffff };
+    enum { SHAPELESS = 0xffffffff };
 
 private:
     /* No copy or assignment semantics. */
@@ -447,10 +447,10 @@ struct JSObject {
      * Array-specific getters and setters (for both dense and slow arrays).
      */
 
+  private:
     // Used by dense and slow arrays.
     static const uint32 JSSLOT_ARRAY_LENGTH = JSSLOT_PRIVATE;
 
-  private:
     // Used only by dense arrays.
     static const uint32 JSSLOT_DENSE_ARRAY_COUNT     = JSSLOT_PRIVATE + 1;
     static const uint32 JSSLOT_DENSE_ARRAY_MINLENCAP = JSSLOT_PRIVATE + 2;
@@ -1348,8 +1348,6 @@ JS_FRIEND_API(void) DumpValue(const js::Value &val);
 JS_FRIEND_API(void) DumpId(jsid id);
 JS_FRIEND_API(void) DumpStackFrame(JSContext *cx, JSStackFrame *start = NULL);
 JS_FRIEND_API(void) DumpStackFrameChain(JSContext *cx, JSStackFrame *start = NULL);
-bool IsSaneThisObject(JSObject &obj);
-
 }
 #endif
 
