@@ -119,7 +119,9 @@ nsXULButtonAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // get focus and disable status from base class
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   PRBool disabled = PR_FALSE;
   nsCOMPtr<nsIDOMXULControlElement> xulFormElement(do_QueryInterface(mDOMNode));
@@ -294,14 +296,12 @@ nsXULDropmarkerAccessible::GetStateInternal(PRUint32 *aState,
                                             PRUint32 *aExtraState)
 {
   *aState = 0;
-
-  if (IsDefunct()) {
-    if (aExtraState)
+  if (!mDOMNode) {
+    if (aExtraState) {
       *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
+    }
+    return NS_OK;
   }
-
   if (aExtraState)
     *aExtraState = 0;
 
@@ -382,7 +382,9 @@ nsXULCheckboxAccessible::GetStateInternal(PRUint32 *aState,
 {
   // Get focus and disable status from base class
   nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
   
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
@@ -556,7 +558,9 @@ nsXULRadioButtonAccessible::GetStateInternal(PRUint32 *aState,
                                              PRUint32 *aExtraState)
 {
   nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
@@ -612,14 +616,15 @@ nsresult
 nsXULRadioGroupAccessible::GetStateInternal(PRUint32 *aState,
                                             PRUint32 *aExtraState)
 {
+  // The radio group is not focusable.
+  // Sometimes the focus controller will report that it is focused.
+  // That means that the actual selected radio button should be considered focused
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
-
-  // The radio group is not focusable. Sometimes the focus controller will
-  // report that it is focused. That means that the actual selected radio button
-  // should be considered focused.
-  *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
-               nsIAccessibleStates::STATE_FOCUSED);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (mDOMNode) {
+    *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
+                 nsIAccessibleStates::STATE_FOCUSED);
+  }
 
   return NS_OK;
 }
@@ -740,17 +745,9 @@ nsXULToolbarSeparatorAccessible::GetStateInternal(PRUint32 *aState,
                                                   PRUint32 *aExtraState)
 {
   *aState = 0;  // no special state flags for toolbar separator
-
-  if (IsDefunct()) {
-    if (aExtraState)
-      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
+  if (aExtraState) {
+    *aExtraState = mDOMNode ? 0 : nsIAccessibleStates::EXT_STATE_DEFUNCT;
   }
-
-  if (aExtraState)
-    *aExtraState = 0;
-
   return NS_OK;
 }
 
@@ -807,7 +804,9 @@ nsXULTextFieldAccessible::GetStateInternal(PRUint32 *aState,
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsCOMPtr<nsIDOMNode> inputField = GetInputField();
   NS_ENSURE_TRUE(inputField, NS_ERROR_FAILURE);

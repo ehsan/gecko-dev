@@ -1196,12 +1196,10 @@ nsCSSStyleSheet::SetEnabled(PRBool aEnabled)
   PRBool oldDisabled = mDisabled;
   mDisabled = !aEnabled;
 
-  if (mInner->mComplete && oldDisabled != mDisabled) {
+  if (mDocument && mInner->mComplete && oldDisabled != mDisabled) {
     ClearRuleCascades();
 
-    if (mDocument) {
-      mDocument->SetStyleSheetApplicableState(this, !mDisabled);
-    }
+    mDocument->SetStyleSheetApplicableState(this, !mDisabled);
   }
 
   return NS_OK;

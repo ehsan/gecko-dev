@@ -61,11 +61,9 @@ var gAdvancedPane = {
       advancedPrefs.selectedIndex = preference.value;
     }
 
-#ifdef MOZ_UPDATER
     this.updateAppUpdateItems();
     this.updateAutoItems();
     this.updateModeItems();
-#endif
     this.updateOfflineApps();
   },
 
@@ -377,7 +375,6 @@ var gAdvancedPane = {
    *             iii 0/1/2   t         true   
    * 
    */
-#ifdef MOZ_UPDATER
   updateAppUpdateItems: function () 
   {
     var aus = 
@@ -423,6 +420,18 @@ var gAdvancedPane = {
                   !autoPref.value || modePref.locked;
     warnIncompatible.disabled = disable;
   },
+
+  /**
+   * The Extensions checkbox and button are disabled only if the enable Addon
+   * update preference is locked. 
+   */
+  updateAddonUpdateUI: function ()
+  {
+    var enabledPref = document.getElementById("extensions.update.enabled");
+    var enableAddonUpdate = document.getElementById("enableAddonUpdate");
+
+    enableAddonUpdate.disabled = enabledPref.locked;
+  },  
 
   /**
    * Stores the value of the app.update.mode preference, which is a tristate
@@ -474,19 +483,6 @@ var gAdvancedPane = {
                              .createInstance(Components.interfaces.nsIUpdatePrompt);
     prompter.showUpdateHistory(window);
   },
-#endif
-
-  /**
-   * The Extensions checkbox and button are disabled only if the enable Addon
-   * update preference is locked. 
-   */
-  updateAddonUpdateUI: function ()
-  {
-    var enabledPref = document.getElementById("extensions.update.enabled");
-    var enableAddonUpdate = document.getElementById("enableAddonUpdate");
-
-    enableAddonUpdate.disabled = enabledPref.locked;
-  },  
   
   // ENCRYPTION TAB
 

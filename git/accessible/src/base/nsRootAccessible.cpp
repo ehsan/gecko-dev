@@ -214,7 +214,9 @@ nsresult
 nsRootAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsDocAccessibleWrap::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
 #ifdef MOZ_XUL
   PRUint32 chromeFlags = GetChromeFlags();

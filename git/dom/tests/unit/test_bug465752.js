@@ -14,7 +14,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- *      Boris Zbarsky <bzbarsky@mit.edu>.
+ *      Boris Zbarskt <bzbarsky@mit.edu>.
  *
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
