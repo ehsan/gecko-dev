@@ -3956,12 +3956,6 @@ ThreadSources.prototype = {
             line: aLine,
             column: aColumn
           };
-        })
-        .then(null, error => {
-          if (!DevToolsUtils.reportingDisabled) {
-            DevToolsUtils.reportException(error);
-          }
-          return { url: null, line: null, column: null };
         });
     }
 

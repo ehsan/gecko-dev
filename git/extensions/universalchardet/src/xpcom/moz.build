@@ -6,7 +6,7 @@
 
 MODULE = 'universalchardet'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsUdetXPCOMWrapper.cpp',
     'nsUniversalCharDetModule.cpp',
 ]

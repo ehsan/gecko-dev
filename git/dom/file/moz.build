@@ -35,7 +35,7 @@ EXPORTS.mozilla.dom.file += [
     'LockedFile.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'ArchiveEvent.cpp',
     'ArchiveReader.cpp',
     'ArchiveRequest.cpp',

@@ -37,7 +37,7 @@ EXPORTS += [
     'nsCTooltipTextProvider.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsCommandHandler.cpp',
     'nsContextMenuInfo.cpp',
     'nsDocShellTreeOwner.cpp',

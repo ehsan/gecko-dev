@@ -15,7 +15,7 @@ EXPORTS += [
 
 if CONFIG['MOZ_WEBRTC']:
     EXPORTS += ['MediaEngineWebRTC.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'MediaEngineTabVideoSource.cpp',
         'MediaEngineWebRTC.cpp',
         'MediaEngineWebRTCAudio.cpp',
@@ -25,13 +25,11 @@ XPIDL_SOURCES += [
         'nsITabSource.idl'
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'MediaEngineDefault.cpp',
 ]
 
 LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'gkconwebrtc_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

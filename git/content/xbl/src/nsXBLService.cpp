@@ -46,7 +46,6 @@
 #include "nsIScriptError.h"
 #include "nsXBLSerialize.h"
 #include "nsDOMEvent.h"
-#include "nsEventListenerManager.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPrototypeCache.h"

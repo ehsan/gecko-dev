@@ -15,7 +15,7 @@ EXPORTS.mozilla.dom += [
     'ImageDocument.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'HTMLAllCollection.cpp',
     'ImageDocument.cpp',
     'MediaDocument.cpp',

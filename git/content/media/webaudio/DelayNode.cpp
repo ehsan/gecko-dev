@@ -27,7 +27,7 @@ NS_IMPL_RELEASE_INHERITED(DelayNode, AudioNode)
 
 class DelayNodeEngine : public AudioNodeEngine
 {
-  typedef PlayingRefChangeHandler PlayingRefChanged;
+  typedef PlayingRefChangeHandler<DelayNode> PlayingRefChanged;
 public:
   DelayNodeEngine(AudioNode* aNode, AudioDestinationNode* aDestination,
                   int aMaxDelayFrames)
@@ -84,29 +84,27 @@ public:
                                  mProcessor.BufferChannelCount() :
                                  aInput.mChannelData.Length();
 
+    bool playedBackAllLeftOvers = false;
     if (!aInput.IsNull()) {
       if (mLeftOverData <= 0) {
         nsRefPtr<PlayingRefChanged> refchanged =
           new PlayingRefChanged(aStream, PlayingRefChanged::ADDREF);
-        aStream->Graph()->
-          DispatchToMainThreadAfterStreamStateUpdate(refchanged.forget());
+        NS_DispatchToMainThread(refchanged);
       }
       mLeftOverData = mProcessor.MaxDelayFrames();
-    } else if (mLeftOverData > 0) {
+    } else if (mLeftOverData != INT32_MIN) {
       mLeftOverData -= WEBAUDIO_BLOCK_SIZE;
-    } else {
-      if (mLeftOverData != INT32_MIN) {
-        mLeftOverData = INT32_MIN;
-        // Delete our buffered data now we no longer need it
-        mProcessor.Reset();
+      if (mLeftOverData <= 0) {
+        // Continue spamming the main thread with messages until we are destroyed.
+        // This isn't great, but it ensures a message will get through even if
+        // some are ignored by DelayNode::AcceptPlayingRefRelease
+        mLeftOverData = 0;
+        playedBackAllLeftOvers = true;
 
         nsRefPtr<PlayingRefChanged> refchanged =
           new PlayingRefChanged(aStream, PlayingRefChanged::RELEASE);
-        aStream->Graph()->
-          DispatchToMainThreadAfterStreamStateUpdate(refchanged.forget());
+        NS_DispatchToMainThread(refchanged);
       }
-      *aOutput = aInput;
-      return;
     }
 
     AllocateAudioBlock(numChannels, aOutput);
@@ -153,6 +151,12 @@ public:
       mProcessor.Process(computedDelay, inputChannels, outputChannels,
                          numChannels, WEBAUDIO_BLOCK_SIZE);
     }
+
+
+    if (playedBackAllLeftOvers) {
+      // Delete our buffered data once we no longer need it
+      mProcessor.Reset();
+    }
   }
 
   AudioNodeStream* mSource;
@@ -169,6 +173,7 @@ DelayNode::DelayNode(AudioContext* aContext, double aMaxDelay)
               2,
               ChannelCountMode::Max,
               ChannelInterpretation::Speakers)
+  , mMediaStreamGraphUpdateIndexAtLastInputConnection(0)
   , mDelay(new AudioParam(MOZ_THIS_IN_INITIALIZER_LIST(),
                           SendDelayToStream, 0.0f))
 {

@@ -10,7 +10,7 @@ EXPORTS.mozilla.dom += [
     'XPathEvaluator.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsXPathExpression.cpp',
     'nsXPathNSResolver.cpp',
     'nsXPathResult.cpp',

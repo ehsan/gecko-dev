@@ -6,7 +6,7 @@
 
 MODULE = 'simple'
 
-SOURCES += [
+CPP_SOURCES += [
     'SimpleTest.cpp',
 ]
 

@@ -21,7 +21,7 @@ EXPORTS.mozilla.widget += [
     'AudioSession.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AudioSession.cpp',
     'GfxInfo.cpp',
     'IEnumFE.cpp',
@@ -67,19 +67,19 @@ SOURCES += [
 ]
 
 if CONFIG['MOZ_CRASHREPORTER']:
-    SOURCES += [
+    CPP_SOURCES += [
         'LSPAnnotator.cpp',
     ]
 
 if CONFIG['NS_PRINTING']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsDeviceContextSpecWin.cpp',
         'nsPrintOptionsWin.cpp',
         'nsPrintSettingsWin.cpp',
     ]
 
 if CONFIG['NS_ENABLE_TSF']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsTextStore.cpp',
     ]
 
@@ -90,6 +90,4 @@ MSVC_ENABLE_PGO = True
 LIBRARY_NAME = 'widget_windows'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

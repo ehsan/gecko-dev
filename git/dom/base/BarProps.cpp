@@ -17,10 +17,9 @@ namespace dom {
 //
 //  Basic (virtual) BarProp class implementation
 //
-BarProp::BarProp(nsGlobalWindow* aWindow)
+BarProp::BarProp(nsGlobalWindow *aWindow)
   : mDOMWindow(aWindow)
 {
-  MOZ_ASSERT(aWindow->IsInnerWindow());
   SetIsDOMBinding();
 }
 

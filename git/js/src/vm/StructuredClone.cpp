@@ -323,12 +323,12 @@ WriteStructuredClone(JSContext *cx, HandleValue v, uint64_t **bufp, size_t *nbyt
 }
 
 bool
-ReadStructuredClone(JSContext *cx, uint64_t *data, size_t nbytes, MutableHandleValue vp,
+ReadStructuredClone(JSContext *cx, uint64_t *data, size_t nbytes, Value *vp,
                     const JSStructuredCloneCallbacks *cb, void *cbClosure)
 {
     SCInput in(cx, data, nbytes);
     JSStructuredCloneReader r(in, cb, cbClosure);
-    return r.read(vp.address());
+    return r.read(vp);
 }
 
 // This may acquire new ways of discarding transfer map entries as new
@@ -1494,7 +1494,7 @@ JSStructuredCloneReader::readTransferMap()
         if (!in.read(&userdata))
             return false;
 
-        RootedObject obj(context(), JS_NewArrayBufferWithContents(context(), content));
+        JSObject *obj = JS_NewArrayBufferWithContents(context(), content);
         if (!obj)
             return false;
 
@@ -1551,7 +1551,7 @@ using namespace js;
 
 JS_PUBLIC_API(bool)
 JS_ReadStructuredClone(JSContext *cx, uint64_t *buf, size_t nbytes,
-                       uint32_t version, JS::MutableHandleValue vp,
+                       uint32_t version, JS::Value *vp,
                        const JSStructuredCloneCallbacks *optionalCallbacks,
                        void *closure)
 {
@@ -1570,10 +1570,11 @@ JS_ReadStructuredClone(JSContext *cx, uint64_t *buf, size_t nbytes,
 }
 
 JS_PUBLIC_API(bool)
-JS_WriteStructuredClone(JSContext *cx, JS::HandleValue value, uint64_t **bufp, size_t *nbytesp,
+JS_WriteStructuredClone(JSContext *cx, JS::Value valueArg, uint64_t **bufp, size_t *nbytesp,
                         const JSStructuredCloneCallbacks *optionalCallbacks,
-                        void *closure, JS::HandleValue transferable)
+                        void *closure, JS::Value transferable)
 {
+    RootedValue value(cx, valueArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, value);
@@ -1605,10 +1606,11 @@ JS_StructuredCloneHasTransferables(const uint64_t *data, size_t nbytes,
 }
 
 JS_PUBLIC_API(bool)
-JS_StructuredClone(JSContext *cx, JS::HandleValue value, JS::MutableHandleValue vp,
+JS_StructuredClone(JSContext *cx, JS::Value valueArg, JS::Value *vp,
                    const JSStructuredCloneCallbacks *optionalCallbacks,
                    void *closure)
 {
+    RootedValue value(cx, valueArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
@@ -1619,7 +1621,7 @@ JS_StructuredClone(JSContext *cx, JS::HandleValue value, JS::MutableHandleValue 
       if (!cx->compartment()->wrap(cx, strValue.address())) {
         return false;
       }
-      vp.setString(strValue);
+      *vp = JS::StringValue(strValue);
       return true;
     }
 
@@ -1698,7 +1700,7 @@ JSAutoStructuredCloneBuffer::steal(uint64_t **datap, size_t *nbytesp, uint32_t *
 }
 
 bool
-JSAutoStructuredCloneBuffer::read(JSContext *cx, JS::MutableHandleValue vp,
+JSAutoStructuredCloneBuffer::read(JSContext *cx, JS::Value *vp,
                                   const JSStructuredCloneCallbacks *optionalCallbacks,
                                   void *closure)
 {
@@ -1709,20 +1711,21 @@ JSAutoStructuredCloneBuffer::read(JSContext *cx, JS::MutableHandleValue vp,
 }
 
 bool
-JSAutoStructuredCloneBuffer::write(JSContext *cx, JS::HandleValue value,
+JSAutoStructuredCloneBuffer::write(JSContext *cx, JS::Value valueArg,
                                    const JSStructuredCloneCallbacks *optionalCallbacks,
                                    void *closure)
 {
-    JS::HandleValue transferable = JS::UndefinedHandleValue;
-    return write(cx, value, transferable, optionalCallbacks, closure);
+    JS::Value transferable = JSVAL_VOID;
+    return write(cx, valueArg, transferable, optionalCallbacks, closure);
 }
 
 bool
-JSAutoStructuredCloneBuffer::write(JSContext *cx, JS::HandleValue value,
-                                   JS::HandleValue transferable,
+JSAutoStructuredCloneBuffer::write(JSContext *cx, JS::Value valueArg,
+                                   JS::Value transferable,
                                    const JSStructuredCloneCallbacks *optionalCallbacks,
                                    void *closure)
 {
+    RootedValue value(cx, valueArg);
     clear();
     bool ok = !!JS_WriteStructuredClone(cx, value, &data_, &nbytes_,
                                         optionalCallbacks, closure,

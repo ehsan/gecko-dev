@@ -30,7 +30,6 @@ class MediaSource;
 class nsHostObjectProtocolHandler : public nsIProtocolHandler
 {
 public:
-  nsHostObjectProtocolHandler();
   virtual ~nsHostObjectProtocolHandler() {}
   NS_DECL_ISUPPORTS
 

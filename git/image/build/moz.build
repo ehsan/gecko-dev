@@ -6,7 +6,7 @@
 
 MODULE = 'imglib2'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsImageModule.cpp',
 ]
 

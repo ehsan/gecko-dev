@@ -42,7 +42,7 @@ EXPORTS.mozilla += [
     'PluginPRLibrary.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsJSNPRuntime.cpp',
     'nsNPAPIPlugin.cpp',
     'nsNPAPIPluginInstance.cpp',
@@ -57,35 +57,35 @@ SOURCES += [
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsPluginDirServiceProvider.cpp',
         'nsPluginNativeWindowWin.cpp',
         'nsPluginsDirWin.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsPluginNativeWindowOS2.cpp',
         'nsPluginsDirOS2.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsPluginNativeWindow.cpp',
         'nsPluginsDirDarwin.cpp',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsPluginsDirUnix.cpp',
     ]
     if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk2':
-        SOURCES += [
+        CPP_SOURCES += [
             'nsPluginNativeWindowGtk2.cpp',
         ]
     elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
-        SOURCES += [
+        CPP_SOURCES += [
             'nsPluginNativeWindowQt.cpp',
         ]
     else:
-        SOURCES += [
+        CPP_SOURCES += [
             'nsPluginNativeWindow.cpp',
         ]
 
@@ -103,11 +103,3 @@ LIBRARY_NAME = 'gkplugin'
 
 EXPORT_LIBRARY = True
 
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/dom/base',
-    '/layout/generic',
-    '/layout/xul/base/src',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')

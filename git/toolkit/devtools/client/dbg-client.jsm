@@ -195,7 +195,6 @@ const UnsolicitedNotifications = {
   "newSource": "newSource",
   "tabDetached": "tabDetached",
   "tabListChanged": "tabListChanged",
-  "reflowActivity": "reflowActivity",
   "addonListChanged": "addonListChanged",
   "tabNavigated": "tabNavigated",
   "pageError": "pageError",
@@ -241,7 +240,6 @@ this.DebuggerClient = function DebuggerClient(aTransport)
   this.compat = new ProtocolCompatibility(this, [
     new SourcesShim(),
   ]);
-  this.traits = {};
 
   this.request = this.request.bind(this);
   this.localTransport = this._transport.onOutputStreamReady === undefined;
@@ -361,12 +359,11 @@ DebuggerClient.prototype = {
    *        received from the debugging server.
    */
   connect: function DC_connect(aOnConnected) {
-    this.addOneTimeListener("connected", (aName, aApplicationType, aTraits) => {
-      this.traits = aTraits;
-      if (aOnConnected) {
+    if (aOnConnected) {
+      this.addOneTimeListener("connected", function(aName, aApplicationType, aTraits) {
         aOnConnected(aApplicationType, aTraits);
-      }
-    });
+      });
+    }
 
     this._transport.ready();
   },

@@ -206,12 +206,10 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
                                           Float(tileRegionRect.width) / texRect.width,
                                           Float(tileRegionRect.height) / texRect.height);
             GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain, aOpacity, aTransform, aOffset);
-            if (usingTiles) {
-              DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT | DIAGNOSTIC_BIGIMAGE;
-              diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
-              GetCompositor()->DrawDiagnostics(diagnostics, rect, aClipRect,
-                                               aTransform, aOffset);
-            }
+            DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT;
+            diagnostics |= usingTiles ? DIAGNOSTIC_BIGIMAGE : 0;
+            diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
+            GetCompositor()->DrawDiagnostics(diagnostics, rect, aClipRect, aTransform, aOffset);
         }
       }
     }
@@ -227,10 +225,6 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
   if (iterOnWhite) {
     iterOnWhite->EndTileIteration();
   }
-
-  DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT;
-  diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
-  GetCompositor()->DrawDiagnostics(diagnostics, *aVisibleRegion, aClipRect, aTransform, aOffset);
 }
 
 void

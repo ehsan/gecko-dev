@@ -6,7 +6,7 @@
 
 MODULE = 'webbrwsr'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsWebBrowserModule.cpp',
 ]
 

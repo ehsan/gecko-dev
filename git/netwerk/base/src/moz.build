@@ -18,7 +18,7 @@ EXPORTS.mozilla.net += [
     'DashboardTypes.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'ArrayBufferInputStream.cpp',
     'BackgroundFileSaver.cpp',
     'Dashboard.cpp',
@@ -78,26 +78,26 @@ SOURCES += [
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsURLHelperOS2.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsAutodialWin.cpp',
         'nsNativeConnectionHelper.cpp',
         'nsURLHelperWin.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsURLHelperOSX.cpp',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsURLHelperUnix.cpp',
     ]
 
 if CONFIG['MOZ_ENABLE_QTNETWORK']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsAutodialQt.cpp',
     ]
 
@@ -112,6 +112,4 @@ LIBXUL_LIBRARY = True
 MSVC_ENABLE_PGO = True
 
 LIBRARY_NAME = 'neckobase_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -6,12 +6,12 @@
 
 MODULE = 'uconv'
 
-SOURCES += [
+CPP_SOURCES += [
     'UnifiedUCV.cpp',
 ]
 
 if CONFIG['INTEL_ARCHITECTURE']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsUTF8ToUnicodeSSE2.cpp',
     ]
 

@@ -53,9 +53,7 @@ uint32_t AudioStream::mPreferredSampleRate = 0;
  * dumped-audio-<nnn>.wav, one per nsBufferedAudioStream created, containing
  * the audio for the stream including any skips due to underruns.
  */
-#if defined(MOZ_CUBEB)
 static int gDumpedAudioCount = 0;
-#endif
 
 static int PrefChanged(const char* aPref, void* aClosure)
 {
@@ -80,13 +78,13 @@ static int PrefChanged(const char* aPref, void* aClosure)
   return 0;
 }
 
-#if defined(MOZ_CUBEB)
 static double GetVolumeScale()
 {
   MutexAutoLock lock(*gAudioPrefsLock);
   return gVolumeScale;
 }
 
+#if defined(MOZ_CUBEB)
 static cubeb* gCubebContext;
 
 static cubeb* GetCubebContext()
@@ -468,7 +466,6 @@ int AudioStream::PreferredSampleRate()
   return mPreferredSampleRate;
 }
 
-#if defined(MOZ_CUBEB)
 static void SetUint16LE(uint8_t* aDest, uint16_t aValue)
 {
   aDest[0] = aValue & 0xFF;
@@ -538,6 +535,7 @@ WriteDumpFile(FILE* aDumpFile, AudioStream* aStream, uint32_t aFrames,
   fflush(aDumpFile);
 }
 
+#if defined(MOZ_CUBEB)
 BufferedAudioStream::BufferedAudioStream()
   : mMonitor("BufferedAudioStream"), mLostFrames(0), mDumpFile(nullptr),
     mVolume(1.0), mBytesPerFrame(0), mState(INITIALIZED)

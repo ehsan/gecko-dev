@@ -9,7 +9,7 @@ MODULE = 'dom'
 EXPORTS += [
     'nsDOMOfflineResourceList.h',
 ]
-SOURCES += [
+CPP_SOURCES += [
     'nsDOMOfflineResourceList.cpp',
 ]
 

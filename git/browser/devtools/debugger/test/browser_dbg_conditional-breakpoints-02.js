@@ -92,21 +92,21 @@ function test() {
 
   function addBreakpoint2() {
     let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.BREAKPOINT_ADDED);
-    setCaretPosition(19);
+    setContextPosition(19);
     gSources._onCmdAddBreakpoint();
     return finished;
   }
 
   function modBreakpoint2() {
     let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.CONDITIONAL_BREAKPOINT_POPUP_SHOWING);
-    setCaretPosition(19);
+    setContextPosition(19);
     gSources._onCmdAddConditionalBreakpoint();
     return finished;
   }
 
   function addBreakpoint3() {
     let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.BREAKPOINT_ADDED);
-    setCaretPosition(20);
+    setContextPosition(20);
     gSources._onCmdAddConditionalBreakpoint();
     return finished;
   }
@@ -120,14 +120,14 @@ function test() {
 
   function addBreakpoint4() {
     let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.BREAKPOINT_ADDED);
-    setCaretPosition(21);
+    setContextPosition(21);
     gSources._onCmdAddBreakpoint();
     return finished;
   }
 
   function delBreakpoint4() {
     let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.BREAKPOINT_REMOVED);
-    setCaretPosition(21);
+    setContextPosition(21);
     gSources._onCmdAddBreakpoint();
     return finished;
   }
@@ -182,6 +182,10 @@ function test() {
 
   function setCaretPosition(aLine) {
     gEditor.setCursor({ line: aLine - 1, ch: 0 });
+  }
+
+  function setContextPosition(aLine) {
+    gSources._editorContextMenuLineNumber = aLine - 1;
   }
 
   function clickOnBreakpoint(aIndex) {

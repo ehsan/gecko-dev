@@ -6,5 +6,4 @@
 
 MODULE = 'test_devtools'
 
-MOCHITEST_CHROME_MANIFESTS += ['mochitest/chrome.ini']
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']

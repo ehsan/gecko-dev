@@ -29,6 +29,7 @@ histoenums_DEST = $(DIST)/include/mozilla
 histoenums_TARGET := export
 
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 histograms_file := $(srcdir)/Histograms.json
 histogram_enum_file := TelemetryHistogramEnums.h

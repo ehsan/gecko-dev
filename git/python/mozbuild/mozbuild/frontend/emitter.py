@@ -23,7 +23,6 @@ from .data import (
     DirectoryTraversal,
     Exports,
     GeneratedEventWebIDLFile,
-    GeneratedInclude,
     GeneratedWebIDLFile,
     InstallationTarget,
     IPDLFile,
@@ -128,7 +127,7 @@ class TreeMetadataEmitter(LoggingMixin):
             yield XPIDLFile(sandbox, mozpath.join(sandbox['SRCDIR'], idl),
                 xpidl_module)
 
-        for symbol in ('SOURCES', 'GTEST_SOURCES', 'HOST_SOURCES'):
+        for symbol in ('CPP_SOURCES', 'CSRCS'):
             for src in (sandbox[symbol] or []):
                 if not os.path.exists(os.path.join(sandbox['SRCDIR'], src)):
                     raise SandboxValidationError('Reference to a file that '
@@ -143,7 +142,11 @@ class TreeMetadataEmitter(LoggingMixin):
             # Makefile.in : moz.build
             ANDROID_GENERATED_RESFILES='ANDROID_GENERATED_RESFILES',
             ANDROID_RESFILES='ANDROID_RESFILES',
+            ASFILES='ASFILES',
+            CMMSRCS='CMMSRCS',
+            CPPSRCS='CPP_SOURCES',
             CPP_UNIT_TESTS='CPP_UNIT_TESTS',
+            CSRCS='CSRCS',
             EXPORT_LIBRARY='EXPORT_LIBRARY',
             EXTRA_COMPONENTS='EXTRA_COMPONENTS',
             EXTRA_JS_MODULES='EXTRA_JS_MODULES',
@@ -152,6 +155,11 @@ class TreeMetadataEmitter(LoggingMixin):
             FAIL_ON_WARNINGS='FAIL_ON_WARNINGS',
             FORCE_SHARED_LIB='FORCE_SHARED_LIB',
             FORCE_STATIC_LIB='FORCE_STATIC_LIB',
+            GTEST_CMMSRCS='GTEST_CMM_SOURCES',
+            GTEST_CPPSRCS='GTEST_CPP_SOURCES',
+            GTEST_CSRCS='GTEST_C_SOURCES',
+            HOST_CPPSRCS='HOST_CPPSRCS',
+            HOST_CSRCS='HOST_CSRCS',
             HOST_LIBRARY_NAME='HOST_LIBRARY_NAME',
             IS_COMPONENT='IS_COMPONENT',
             JS_MODULES_PATH='JS_MODULES_PATH',
@@ -165,28 +173,11 @@ class TreeMetadataEmitter(LoggingMixin):
             SDK_LIBRARY='SDK_LIBRARY',
             SHARED_LIBRARY_LIBS='SHARED_LIBRARY_LIBS',
             SIMPLE_PROGRAMS='SIMPLE_PROGRAMS',
+            SSRCS='SSRCS',
         )
         for mak, moz in varmap.items():
             if sandbox[moz]:
                 passthru.variables[mak] = sandbox[moz]
-
-        varmap = dict(
-            ASFILES=('SOURCES', ('.s', '.asm')),
-            CSRCS=('SOURCES', '.c'),
-            CMMSRCS=('SOURCES', '.mm'),
-            CPPSRCS=('SOURCES', ('.cc', '.cpp')),
-            SSRCS=('SOURCES', '.S'),
-            HOST_CPPSRCS=('HOST_SOURCES', ('.cc', '.cpp')),
-            HOST_CSRCS=('HOST_SOURCES', '.c'),
-            GTEST_CMMSRCS=('GTEST_SOURCES', '.mm'),
-            GTEST_CPPSRCS=('GTEST_SOURCES', ('.cc', '.cpp')),
-            GTEST_CSRCS=('GTEST_SOURCES', '.c'),
-        )
-        for mak, (moz, ext) in varmap.items():
-            if sandbox[moz]:
-                filtered = [f for f in sandbox[moz] if f.endswith(ext)]
-                if filtered:
-                    passthru.variables[mak] = filtered
 
         if passthru.variables:
             yield passthru
@@ -209,7 +200,6 @@ class TreeMetadataEmitter(LoggingMixin):
             ('GENERATED_WEBIDL_FILES', GeneratedWebIDLFile),
             ('IPDL_SOURCES', IPDLFile),
             ('LOCAL_INCLUDES', LocalInclude),
-            ('GENERATED_INCLUDES', GeneratedInclude),
             ('PREPROCESSED_TEST_WEBIDL_FILES', PreprocessedTestWebIDLFile),
             ('PREPROCESSED_WEBIDL_FILES', PreprocessedWebIDLFile),
             ('TEST_WEBIDL_FILES', TestWebIDLFile),

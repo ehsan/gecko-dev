@@ -6,7 +6,7 @@
 
 MODULE = 'imgpnge'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsPNGEncoder.cpp',
 ]
 

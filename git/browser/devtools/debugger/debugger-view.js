@@ -457,8 +457,7 @@ let DebuggerView = {
       }
 
       if (!aFlags.noCaret) {
-        this.editor.setCursor({ line: aLine -1, ch: aFlags.columnOffset || 0 },
-                              aFlags.align);
+        this.editor.setCursor({ line: aLine -1, ch: aFlags.columnOffset || 0 });
       }
 
       if (!aFlags.noDebug) {

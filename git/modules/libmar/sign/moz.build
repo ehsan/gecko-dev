@@ -8,7 +8,7 @@ MODULE = 'signmar'
 
 LIBRARY_NAME = 'signmar'
 
-SOURCES += [
+CSRCS += [
     'mar_sign.c',
     'nss_secutil.c',
 ]

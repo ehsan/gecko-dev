@@ -6,7 +6,7 @@
 
 MODULE = 'hyphenation'
 
-SOURCES += [
+CPP_SOURCES += [
     'hnjstdio.cpp',
     'nsHyphenationManager.cpp',
     'nsHyphenator.cpp',
@@ -16,7 +16,7 @@ LIBRARY_NAME = 'hyphenation_s'
 
 LIBXUL_LIBRARY = True
 
-SOURCES += [
+CSRCS += [
     'hyphen.c',
 ]
 

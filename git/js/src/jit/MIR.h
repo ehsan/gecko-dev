@@ -8747,7 +8747,8 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
     MAsmJSLoadHeap(ArrayBufferView::ViewType vt, MDefinition *ptr)
       : MUnaryInstruction(ptr), MAsmJSHeapAccess(vt, false)
     {
-        setMovable();
+        // Disabled due to errors, see bug 919958
+        // setMovable();
         if (vt == ArrayBufferView::TYPE_FLOAT32 || vt == ArrayBufferView::TYPE_FLOAT64)
             setResultType(MIRType_Double);
         else

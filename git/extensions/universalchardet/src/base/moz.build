@@ -6,7 +6,7 @@
 
 MODULE = 'universalchardet_s'
 
-SOURCES += [
+CPP_SOURCES += [
     'CharDistribution.cpp',
     'JpCntx.cpp',
     'LangBulgarianModel.cpp',

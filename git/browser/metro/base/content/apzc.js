@@ -61,14 +61,13 @@ var APZCObserver = {
       case 'TabOpen': {
         let browser = aEvent.originalTarget.linkedBrowser;
         browser.addEventListener("pageshow", this, true);
-        // Register for notifications from content about scroll actions.
-        browser.messageManager.addMessageListener("Browser:ContentScroll", this);
+        browser.messageManager.addMessageListener("scroll", this);
         break;
       }
       case 'TabClose': {
         let browser = aEvent.originalTarget.linkedBrowser;
         browser.removeEventListener("pageshow", this, true);
-        browser.messageManager.removeMessageListener("Browser:ContentScroll", this);
+        browser.messageManager.removeMessageListener("scroll", this);
         break;
       }
     }
@@ -100,7 +99,7 @@ var APZCObserver = {
                                 getInterface(Ci.nsIDOMWindowUtils);
       windowUtils.setScrollPositionClampingScrollPortSize(compositedRect.width,
                                                           compositedRect.height);
-      Browser.selectedBrowser.messageManager.sendAsyncMessage("Content:SetDisplayPort", {
+      Browser.selectedBrowser.messageManager.sendAsyncMessage("Content:SetCacheViewport", {
         scrollX: scrollTo.x,
         scrollY: scrollTo.y,
         x: displayPort.x + scrollTo.x,
@@ -134,12 +133,7 @@ var APZCObserver = {
   receiveMessage: function(aMessage) {
     let json = aMessage.json;
     switch (aMessage.name) {
-       // Content notifies us here (syncronously) if it has scrolled
-       // independent of the apz. This can happen in a lot of
-       // cases: keyboard shortcuts, scroll wheel, or content script.
-       // Let the apz know about this change so that it can update
-       // its scroll offset data.
-      case "Browser:ContentScroll": {
+      case "scroll": {
         let data = json.viewId + " " + json.presShellId + " (" + json.scrollOffset.x + ", " + json.scrollOffset.y + ")";
         Services.obs.notifyObservers(null, "scroll-offset-changed", data);
         break;

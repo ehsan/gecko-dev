@@ -7,7 +7,6 @@
 #define MOZILLA_SVGPATHSEGUTILS_H__
 
 #include "gfxPoint.h"
-#include "mozilla/gfx/Point.h"
 #include "nsDebug.h"
 #include "nsMemory.h"
 
@@ -47,8 +46,6 @@ static const unsigned short PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL = 19;
  */
 struct SVGPathTraversalState
 {
-  typedef gfx::Point Point;
-
   enum TraversalMode {
     eUpdateAll,
     eUpdateOnlyStartAndCurrentPos
@@ -65,17 +62,17 @@ struct SVGPathTraversalState
 
   bool ShouldUpdateLengthAndControlPoints() { return mode == eUpdateAll; }
 
-  Point start; // start point of current sub path (reset each moveto)
+  gfxPoint start; // start point of current sub path (reset each moveto)
 
-  Point pos;   // current position (end point of previous segment)
+  gfxPoint pos;   // current position (end point of previous segment)
 
-  Point cp1;   // quadratic control point - if the previous segment was a
-               // quadratic bezier curve then this is set to the absolute
-               // position of its control point, otherwise its set to pos
+  gfxPoint cp1;   // quadratic control point - if the previous segment was a
+                  // quadratic bezier curve then this is set to the absolute
+                  // position of its control point, otherwise its set to pos
 
-  Point cp2;   // cubic control point - if the previous segment was a cubic
-               // bezier curve then this is set to the absolute position of
-               // its second control point, otherwise it's set to pos
+  gfxPoint cp2;   // cubic control point - if the previous segment was a cubic
+                  // bezier curve then this is set to the absolute position of
+                  // its second control point, otherwise it's set to pos
 
   float length;   // accumulated path length
 

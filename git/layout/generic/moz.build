@@ -43,7 +43,7 @@ EXPORTS.mozilla.layout += [
     'FrameChildList.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'FrameChildList.cpp',
     'nsAbsoluteContainingBlock.cpp',
     'nsBlockFrame.cpp',
@@ -92,7 +92,7 @@ SOURCES += [
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CMMSRCS += [
         'nsPluginUtilsOSX.mm',
     ]
 
@@ -103,6 +103,4 @@ LIBXUL_LIBRARY = True
 MSVC_ENABLE_PGO = True
 
 LIBRARY_NAME = 'gkgeneric_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -4,8 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSVGPathDataParser.h"
-
-#include "mozilla/gfx/Point.h"
 #include "nsSVGDataParser.h"
 #include "SVGPathData.h"
 #include "SVGPathSegUtils.h"
@@ -13,7 +11,6 @@
 #include <math.h>
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 nsresult nsSVGPathDataParser::Match()
 {
@@ -845,9 +842,9 @@ CalcVectorAngle(double ux, double uy, double vx, double vy)
 }
 
 
-nsSVGArcConverter::nsSVGArcConverter(const Point& from,
-                                     const Point& to,
-                                     const Point& radii,
+nsSVGArcConverter::nsSVGArcConverter(const gfxPoint &from,
+                                     const gfxPoint &to,
+                                     const gfxPoint &radii,
                                      double angle,
                                      bool largeArcFlag,
                                      bool sweepFlag)
@@ -917,7 +914,7 @@ nsSVGArcConverter::nsSVGArcConverter(const Point& from,
 }
 
 bool
-nsSVGArcConverter::GetNextSegment(Point* cp1, Point* cp2, Point* to)
+nsSVGArcConverter::GetNextSegment(gfxPoint *cp1, gfxPoint *cp2, gfxPoint *to)
 {
   if (mSegIndex == mNumSegs) {
     return false;

@@ -6,7 +6,7 @@
 
 MODULE = 'rdf'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsRDFDataSourceDS.cpp',
     'nsRDFDataSourceFactory.cpp',
 ]

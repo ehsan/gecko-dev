@@ -84,8 +84,8 @@ IsYV12Format(const VideoData::YCbCrBuffer::Plane& aYPlane,
 
 bool
 VideoInfo::ValidateVideoRegion(const nsIntSize& aFrame,
-                               const nsIntRect& aPicture,
-                               const nsIntSize& aDisplay)
+                                 const nsIntRect& aPicture,
+                                 const nsIntSize& aDisplay)
 {
   return
     aFrame.width <= PlanarYCbCrImage::MAX_DIMENSION &&
@@ -106,30 +106,34 @@ VideoInfo::ValidateVideoRegion(const nsIntSize& aFrame,
     aDisplay.width * aDisplay.height != 0;
 }
 
-VideoData::VideoData(int64_t aOffset, int64_t aTime, int64_t aDuration, int64_t aTimecode)
-  : MediaData(VIDEO_FRAME, aOffset, aTime, aDuration),
+VideoData::  VideoData(int64_t aOffset, int64_t aTime, int64_t aEndTime, int64_t aTimecode)
+  : mOffset(aOffset),
+    mTime(aTime),
+    mEndTime(aEndTime),
     mTimecode(aTimecode),
     mDuplicate(true),
     mKeyframe(false)
 {
   MOZ_COUNT_CTOR(VideoData);
-  NS_ASSERTION(mDuration >= 0, "Frame must have non-negative duration.");
+  NS_ASSERTION(aEndTime >= aTime, "Frame must start before it ends.");
 }
 
 VideoData::VideoData(int64_t aOffset,
-                     int64_t aTime,
-                     int64_t aDuration,
-                     bool aKeyframe,
-                     int64_t aTimecode,
-                     nsIntSize aDisplay)
-  : MediaData(VIDEO_FRAME, aOffset, aTime, aDuration),
-    mDisplay(aDisplay),
+          int64_t aTime,
+          int64_t aEndTime,
+          bool aKeyframe,
+          int64_t aTimecode,
+          nsIntSize aDisplay)
+  : mDisplay(aDisplay),
+    mOffset(aOffset),
+    mTime(aTime),
+    mEndTime(aEndTime),
     mTimecode(aTimecode),
     mDuplicate(false),
     mKeyframe(aKeyframe)
 {
   MOZ_COUNT_CTOR(VideoData);
-  NS_ASSERTION(mDuration >= 0, "Frame must have non-negative duration.");
+  NS_ASSERTION(aEndTime >= aTime, "Frame must start before it ends.");
 }
 
 VideoData::~VideoData()
@@ -137,26 +141,13 @@ VideoData::~VideoData()
   MOZ_COUNT_DTOR(VideoData);
 }
 
-/* static */
-VideoData* VideoData::ShallowCopyUpdateDuration(VideoData* aOther,
-                                                int64_t aDuration)
-{
-  VideoData* v = new VideoData(aOther->mOffset,
-                               aOther->mTime,
-                               aDuration,
-                               aOther->mKeyframe,
-                               aOther->mTimecode,
-                               aOther->mDisplay);
-  v->mImage = aOther->mImage;
-  return v;
-}
 
 VideoData* VideoData::Create(VideoInfo& aInfo,
                              ImageContainer* aContainer,
                              Image* aImage,
                              int64_t aOffset,
                              int64_t aTime,
-                             int64_t aDuration,
+                             int64_t aEndTime,
                              const YCbCrBuffer& aBuffer,
                              bool aKeyframe,
                              int64_t aTimecode,
@@ -167,7 +158,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
     // send to media streams if necessary.
     nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                          aTime,
-                                         aDuration,
+                                         aEndTime,
                                          aKeyframe,
                                          aTimecode,
                                          aInfo.mDisplay));
@@ -208,7 +199,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
 
   nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                        aTime,
-                                       aDuration,
+                                       aEndTime,
                                        aKeyframe,
                                        aTimecode,
                                        aInfo.mDisplay));
@@ -267,13 +258,13 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
                              ImageContainer* aContainer,
                              int64_t aOffset,
                              int64_t aTime,
-                             int64_t aDuration,
+                             int64_t aEndTime,
                              const YCbCrBuffer& aBuffer,
                              bool aKeyframe,
                              int64_t aTimecode,
                              nsIntRect aPicture)
 {
-  return Create(aInfo, aContainer, nullptr, aOffset, aTime, aDuration, aBuffer,
+  return Create(aInfo, aContainer, nullptr, aOffset, aTime, aEndTime, aBuffer,
                 aKeyframe, aTimecode, aPicture);
 }
 
@@ -281,13 +272,13 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
                              Image* aImage,
                              int64_t aOffset,
                              int64_t aTime,
-                             int64_t aDuration,
+                             int64_t aEndTime,
                              const YCbCrBuffer& aBuffer,
                              bool aKeyframe,
                              int64_t aTimecode,
                              nsIntRect aPicture)
 {
-  return Create(aInfo, nullptr, aImage, aOffset, aTime, aDuration, aBuffer,
+  return Create(aInfo, nullptr, aImage, aOffset, aTime, aEndTime, aBuffer,
                 aKeyframe, aTimecode, aPicture);
 }
 
@@ -295,7 +286,7 @@ VideoData* VideoData::CreateFromImage(VideoInfo& aInfo,
                                       ImageContainer* aContainer,
                                       int64_t aOffset,
                                       int64_t aTime,
-                                      int64_t aDuration,
+                                      int64_t aEndTime,
                                       const nsRefPtr<Image>& aImage,
                                       bool aKeyframe,
                                       int64_t aTimecode,
@@ -303,7 +294,7 @@ VideoData* VideoData::CreateFromImage(VideoInfo& aInfo,
 {
   nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                        aTime,
-                                       aDuration,
+                                       aEndTime,
                                        aKeyframe,
                                        aTimecode,
                                        aInfo.mDisplay));
@@ -316,7 +307,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
                              ImageContainer* aContainer,
                              int64_t aOffset,
                              int64_t aTime,
-                             int64_t aDuration,
+                             int64_t aEndTime,
                              mozilla::layers::GraphicBufferLocked* aBuffer,
                              bool aKeyframe,
                              int64_t aTimecode,
@@ -327,7 +318,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
     // send to media streams if necessary.
     nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                          aTime,
-                                         aDuration,
+                                         aEndTime,
                                          aKeyframe,
                                          aTimecode,
                                          aInfo.mDisplay));
@@ -354,7 +345,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
 
   nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                        aTime,
-                                       aDuration,
+                                       aEndTime,
                                        aKeyframe,
                                        aTimecode,
                                        aInfo.mDisplay));
@@ -510,7 +501,7 @@ nsresult MediaDecoderReader::DecodeToTarget(int64_t aTarget)
       video = VideoQueue().PeekFront();
       // If the frame end time is less than the seek target, we won't want
       // to display this frame after the seek, so discard it.
-      if (video && video->GetEndTime() <= aTarget) {
+      if (video && video->mEndTime <= aTarget) {
         if (startTime == -1) {
           startTime = video->mTime;
         }

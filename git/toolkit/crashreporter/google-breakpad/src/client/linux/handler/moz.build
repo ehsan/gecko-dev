@@ -6,7 +6,7 @@
 
 MODULE = 'handler'
 
-SOURCES += [
+CPP_SOURCES += [
     '../log/log.cc',
     'exception_handler.cc',
     'minidump_descriptor.cc',

@@ -6,7 +6,7 @@
 
 MODULE = 'widget'
 
-SOURCES += [
+CPP_SOURCES += [
     'APZController.cpp',
     'FrameworkView.cpp',
     'MetroApp.cpp',
@@ -32,6 +32,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'widget_winrt'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -6,7 +6,7 @@
 
 PROGRAM = 'metrotestharness'
 
-SOURCES += [
+CPP_SOURCES += [
     'metrotestharness.cpp',
 ]
 

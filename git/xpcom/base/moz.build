@@ -87,7 +87,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'WindowsVersion.h',
     ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AvailableMemoryTracker.cpp',
     'ClearOnShutdown.cpp',
     'CycleCollectedJSRuntime.cpp',
@@ -112,15 +112,15 @@ SOURCES += [
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsMacUtilsImpl.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsCrashOnException.cpp',
     ]
 
-SOURCES += [
+CSRCS += [
     'nsErrorAssertsC.c',
 ]
 
@@ -130,6 +130,4 @@ LIBXUL_LIBRARY = True
 MSVC_ENABLE_PGO = True
 
 LIBRARY_NAME = 'xpcombase_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -6,7 +6,7 @@
 
 MODULE = 'transformiix'
 
-SOURCES += [
+CPP_SOURCES += [
     'txBufferingHandler.cpp',
     'txCurrentFunctionCall.cpp',
     'txDocumentFunctionCall.cpp',

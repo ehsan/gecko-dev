@@ -10,7 +10,6 @@
 #include "MediaResource.h"
 #include "MediaDecoderReader.h"
 #include "ImageContainer.h"
-#include "nsAutoPtr.h"
 #include "mozilla/layers/SharedRGBImage.h"
  
 #include "MPAPI.h"
@@ -39,7 +38,7 @@ class MediaPluginReader : public MediaDecoderReader
   nsIntSize mInitialFrame;
   int64_t mVideoSeekTimeUs;
   int64_t mAudioSeekTimeUs;
-  nsAutoPtr<VideoData> mLastVideoFrame;
+  VideoData *mLastVideoFrame;
 public:
   MediaPluginReader(AbstractMediaDecoder* aDecoder,
                     const nsACString& aContentType);

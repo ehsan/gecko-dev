@@ -3665,7 +3665,7 @@ nsGlobalWindow::GetPrompter(nsIPrompt** aPrompt)
 NS_IMETHODIMP
 nsGlobalWindow::GetMenubar(nsISupports** aMenubar)
 {
-  FORWARD_TO_INNER(GetMenubar, (aMenubar), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_OUTER(GetMenubar, (aMenubar), NS_ERROR_NOT_INITIALIZED);
 
   *aMenubar = nullptr;
 
@@ -3684,7 +3684,7 @@ nsGlobalWindow::GetMenubar(nsISupports** aMenubar)
 NS_IMETHODIMP
 nsGlobalWindow::GetToolbar(nsISupports** aToolbar)
 {
-  FORWARD_TO_INNER(GetToolbar, (aToolbar), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_OUTER(GetToolbar, (aToolbar), NS_ERROR_NOT_INITIALIZED);
 
   *aToolbar = nullptr;
 
@@ -3703,7 +3703,7 @@ nsGlobalWindow::GetToolbar(nsISupports** aToolbar)
 NS_IMETHODIMP
 nsGlobalWindow::GetLocationbar(nsISupports** aLocationbar)
 {
-  FORWARD_TO_INNER(GetLocationbar, (aLocationbar), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_OUTER(GetLocationbar, (aLocationbar), NS_ERROR_NOT_INITIALIZED);
 
   *aLocationbar = nullptr;
 
@@ -3722,7 +3722,7 @@ nsGlobalWindow::GetLocationbar(nsISupports** aLocationbar)
 NS_IMETHODIMP
 nsGlobalWindow::GetPersonalbar(nsISupports** aPersonalbar)
 {
-  FORWARD_TO_INNER(GetPersonalbar, (aPersonalbar), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_OUTER(GetPersonalbar, (aPersonalbar), NS_ERROR_NOT_INITIALIZED);
 
   *aPersonalbar = nullptr;
 
@@ -3741,7 +3741,7 @@ nsGlobalWindow::GetPersonalbar(nsISupports** aPersonalbar)
 NS_IMETHODIMP
 nsGlobalWindow::GetStatusbar(nsISupports** aStatusbar)
 {
-  FORWARD_TO_INNER(GetStatusbar, (aStatusbar), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_OUTER(GetStatusbar, (aStatusbar), NS_ERROR_NOT_INITIALIZED);
 
   *aStatusbar = nullptr;
 
@@ -3758,9 +3758,8 @@ nsGlobalWindow::GetStatusbar(nsISupports** aStatusbar)
 }
 
 mozilla::dom::BarProp*
-nsGlobalWindow::GetScrollbars()
+nsGlobalWindow::Scrollbars()
 {
-  FORWARD_TO_INNER(GetScrollbars, (), nullptr);
   if (!mScrollbars) {
     mScrollbars = new ScrollbarsProp(this);
   }
@@ -3771,7 +3770,9 @@ nsGlobalWindow::GetScrollbars()
 NS_IMETHODIMP
 nsGlobalWindow::GetScrollbars(nsISupports** aScrollbars)
 {
-  NS_IF_ADDREF(*aScrollbars = GetScrollbars());
+  FORWARD_TO_OUTER(GetScrollbars, (aScrollbars), NS_ERROR_NOT_INITIALIZED);
+
+  NS_ADDREF(*aScrollbars = Scrollbars());
   return NS_OK;
 }
 
@@ -3876,7 +3877,7 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
 NS_IMETHODIMP
 nsGlobalWindow::GetCrypto(nsIDOMCrypto** aCrypto)
 {
-  FORWARD_TO_INNER(GetCrypto, (aCrypto), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_OUTER(GetCrypto, (aCrypto), NS_ERROR_NOT_INITIALIZED);
 
   if (!mCrypto) {
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
@@ -5770,12 +5771,13 @@ nsGlobalWindow::Blur()
 
   // If embedding apps don't implement nsIEmbeddingSiteWindow, we
   // shouldn't throw exceptions to web content.
+  nsresult rv = NS_OK;
 
   nsCOMPtr<nsIDocShellTreeOwner> treeOwner = GetTreeOwner();
   nsCOMPtr<nsIEmbeddingSiteWindow> siteWindow(do_GetInterface(treeOwner));
   if (siteWindow) {
     // This method call may cause mDocShell to become nullptr.
-    siteWindow->Blur();
+    rv = siteWindow->Blur();
 
     // if the root is focused, clear the focus
     nsIFocusManager* fm = nsFocusManager::GetFocusManager();
@@ -5788,7 +5790,7 @@ nsGlobalWindow::Blur()
     }
   }
 
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -6976,7 +6978,8 @@ PostMessageEvent::Run()
     scInfo.event = this;
     scInfo.window = targetWindow;
 
-    if (!buffer.read(cx, &messageData, &kPostMessageCallbacks, &scInfo)) {
+    if (!buffer.read(cx, messageData.address(), &kPostMessageCallbacks,
+                     &scInfo)) {
       return NS_ERROR_DOM_DATA_CLONE_ERR;
     }
   }
@@ -7126,9 +7129,7 @@ nsGlobalWindow::PostMessageMoz(const JS::Value& aMessage,
   if (NS_FAILED(callerPrin->Subsumes(principal, &scInfo.subsumes)))
     return NS_ERROR_DOM_DATA_CLONE_ERR;
 
-  JS::Rooted<JS::Value> message(aCx, aMessage);
-  JS::Rooted<JS::Value> transfer(aCx, aTransfer);
-  if (!buffer.write(aCx, message, transfer, &kPostMessageCallbacks, &scInfo))
+  if (!buffer.write(aCx, aMessage, aTransfer, &kPostMessageCallbacks, &scInfo))
     return NS_ERROR_DOM_DATA_CLONE_ERR;
 
   event->SetJSData(buffer);
@@ -12121,7 +12122,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
                                              JS::Value *vp) {                \
     nsEventListenerManager *elm = GetExistingListenerManager();              \
     if (elm) {                                                               \
-      OnBeforeUnloadEventHandlerNonNull* h =                                 \
+      BeforeUnloadEventHandlerNonNull* h =                                   \
         elm->GetOnBeforeUnloadEventHandler();                                \
       if (h) {                                                               \
         *vp = JS::ObjectValue(*h->Callable());                               \
@@ -12138,11 +12139,11 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
       return NS_ERROR_OUT_OF_MEMORY;                                         \
     }                                                                        \
                                                                              \
-    nsRefPtr<OnBeforeUnloadEventHandlerNonNull> handler;                     \
+    nsRefPtr<BeforeUnloadEventHandlerNonNull> handler;                       \
     JSObject *callable;                                                      \
     if (v.isObject() &&                                                      \
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
-      handler = new OnBeforeUnloadEventHandlerNonNull(callable);             \
+      handler = new BeforeUnloadEventHandlerNonNull(callable);               \
     }                                                                        \
     elm->SetEventHandler(handler);                                           \
     return NS_OK;                                                            \
