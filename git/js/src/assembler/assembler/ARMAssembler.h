@@ -60,11 +60,6 @@
 
 // TODO: We don't print the condition code in our JaegerSpew lines. Doing this
 // is awkward whilst maintaining a consistent field width.
-namespace js {
-    namespace ion {
-        class Assembler;
-    }
-}
 
 namespace JSC {
 
@@ -93,8 +88,7 @@ namespace JSC {
             r14,
             lr = r14,
             r15,
-            pc = r15,
-            invalid_reg
+            pc = r15
         } RegisterID;
 
         typedef enum {
@@ -130,8 +124,7 @@ namespace JSC {
             d28,
             d29,
             d30,
-            d31,
-            invalid_freg
+            d31
         } FPRegisterID;
 
         inline FPRegisterID floatShadow(FPRegisterID s)
@@ -143,6 +136,7 @@ namespace JSC {
             return (FPRegisterID)(d / 2);
         }
     } // namespace ARMRegisters
+
     class ARMAssembler {
     public:
         
@@ -153,6 +147,7 @@ namespace JSC {
 #else
         ARMAssembler() { }
 #endif
+
         typedef ARMRegisters::RegisterID RegisterID;
         typedef ARMRegisters::FPRegisterID FPRegisterID;
         typedef AssemblerBufferWithConstantPool<2048, 4, 4, ARMAssembler> ARMBuffer;
@@ -284,13 +279,12 @@ namespace JSC {
 
         class JmpSrc {
             friend class ARMAssembler;
-            friend class js::ion::Assembler;
         public:
             JmpSrc()
                 : m_offset(-1)
             {
             }
-            int offset() {return m_offset;}
+
         private:
             JmpSrc(int offset)
                 : m_offset(offset)
@@ -302,7 +296,6 @@ namespace JSC {
 
         class JmpDst {
             friend class ARMAssembler;
-            friend class js::ion::Assembler;
         public:
             JmpDst()
                 : m_offset(-1)
@@ -591,7 +584,7 @@ namespace JSC {
             }
             char const * off_sign = (posOffset) ? ("+") : ("-");
             js::JaegerSpew(js::JSpew_Insns, 
-                           IPFX "%sr%s%s %s, [%s, #%s%u]\n",
+                           IPFX "%sr%s%s %s, [%s, #%s%u]\n", 
                            MAYBE_PAD, mnemonic_act, mnemonic_sign, mnemonic_size,
                            nameGpReg(rd), nameGpReg(rb), off_sign, offset);
             if (size == 32 || (size == 8 && !isSigned)) {
@@ -928,9 +921,9 @@ namespace JSC {
             m_buffer.flushWithoutBarrier(true);
         }
 
-        size_t size() const
+        int size()
         {
-            return m_buffer.uncheckedSize();
+            return m_buffer.size();
         }
 
         void ensureSpace(int insnSpace, int constSpace)
@@ -1042,7 +1035,7 @@ namespace JSC {
         static void linkPointer(void* code, JmpDst from, void* to)
         {
             js::JaegerSpew(js::JSpew_Insns,
-                           "##linkPointer     ((%p + %#x)) points to ((%p))\n",
+                           ISPFX "##linkPointer     ((%p + %#x)) points to ((%p))\n",
                            code, from.m_offset, to);
 
             patchPointerInternal(reinterpret_cast<intptr_t>(code) + from.m_offset, to);
@@ -1060,7 +1053,7 @@ namespace JSC {
         static void repatchPointer(void* from, void* to)
         {
             js::JaegerSpew(js::JSpew_Insns,
-                           "##repatchPointer  ((%p)) points to ((%p))\n",
+                           ISPFX "##repatchPointer  ((%p)) points to ((%p))\n",
                            from, to);
 
             patchPointerInternal(reinterpret_cast<intptr_t>(from), to);
@@ -1283,6 +1276,7 @@ namespace JSC {
         static char const * nameCC(Condition cc)
         {
             ASSERT(cc <= AL);
+            ASSERT(cc >= 0);
             ASSERT((cc & 0x0fffffff) == 0);
 
             uint32_t    ccIndex = cc >> 28;
@@ -1608,7 +1602,7 @@ namespace JSC {
         void fcpyd_r(int dd, int dm, Condition cc = AL)
         {
             js::JaegerSpew(js::JSpew_Insns,
-                           IPFX   "%-15s %s, %s\n", MAYBE_PAD, "vmov.f64",
+                    IPFX   "%-15s %s, %s\n", MAYBE_PAD, "vmov.f64", 
                            nameFpRegD(dd), nameFpRegD(dm));
             // TODO: emitInst doesn't work for VFP instructions, though it
             // seems to work for current usage.
@@ -1731,21 +1725,7 @@ namespace JSC {
             // seems to work for current usage.
             m_buffer.putInt(static_cast<ARMWord>(cc) | FMSTAT);
         }
-
-
-        // things added to make IONMONKEY happy!
-        // what is the offset (from the beginning of the buffer) to the address
-        // of the next instruction
-        int nextOffset() {
-            return m_buffer.uncheckedSize();
-        }
-        void putInst32(uint32_t data) {
-            m_buffer.putInt(data);
-        }
-        uint32_t *editSrc(JmpSrc src) {
-            return (uint32_t*)(((char*)m_buffer.data()) + src.offset());
-        }
-    }; // ARMAssembler
+    };
 
 } // namespace JSC
 

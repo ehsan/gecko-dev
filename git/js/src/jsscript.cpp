@@ -33,7 +33,6 @@
 #include "frontend/Parser.h"
 #include "js/MemoryMetrics.h"
 #include "methodjit/MethodJIT.h"
-#include "ion/IonCode.h"
 #include "methodjit/Retcon.h"
 #include "vm/Debugger.h"
 #include "vm/Xdr.h"
@@ -93,9 +92,8 @@ Bindings::initWithTemporaryStorage(JSContext *cx, InternalHandle<Bindings*> self
     JS_STATIC_ASSERT(CallObject::RESERVED_SLOTS == 2);
     gc::AllocKind allocKind = gc::FINALIZE_OBJECT2_BACKGROUND;
     JS_ASSERT(gc::GetGCKindSlots(allocKind) == CallObject::RESERVED_SLOTS);
-    self->callObjShape_ =
-        EmptyShape::getInitialShape(cx, &CallClass, NULL, cx->global(),
-                                    allocKind, BaseShape::VAROBJ | BaseShape::DELEGATE);
+    self->callObjShape_ = EmptyShape::getInitialShape(cx, &CallClass, NULL, cx->global(),
+                                                      allocKind, BaseShape::VAROBJ);
 
 #ifdef DEBUG
     HashSet<PropertyName *> added(cx);
@@ -116,7 +114,7 @@ Bindings::initWithTemporaryStorage(JSContext *cx, InternalHandle<Bindings*> self
             return false;
 #endif
 
-        StackBaseShape base(&CallClass, cx->global(), BaseShape::VAROBJ | BaseShape::DELEGATE);
+        StackBaseShape base(&CallClass, cx->global(), BaseShape::VAROBJ);
         UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
         if (!nbase)
             return false;
@@ -1742,15 +1740,6 @@ JSScript::numNotes()
 }
 
 bool
-JSScript::isShortRunning()
-{
-    return length < 100 &&
-           hasAnalysis() &&
-           !analysis()->hasFunctionCalls() &&
-           getMaxLoopCount() < 40;
-}
-
-bool
 JSScript::enclosingScriptsCompiledSuccessfully() const
 {
     /*
@@ -1815,10 +1804,6 @@ JSScript::finalize(FreeOp *fop)
 
 #ifdef JS_METHODJIT
     mjit::ReleaseScriptCode(fop, this);
-# ifdef JS_ION
-    if (hasIonScript())
-        ion::IonScript::Destroy(fop, ion);
-# endif
 #endif
 
     destroyScriptCounts(fop);
@@ -2494,11 +2479,6 @@ JSScript::markChildren(JSTracer *trc)
                 MarkValue(trc, &site->trapClosure, "trap closure");
         }
     }
-
-#ifdef JS_ION
-    if (hasIonScript())
-        ion::IonScript::Trace(trc, ion);
-#endif
 }
 
 void

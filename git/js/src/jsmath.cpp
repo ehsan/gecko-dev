@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -248,14 +247,8 @@ js_math_ceil(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js::math_cos_impl(MathCache *cache, double x)
-{
-    return cache->lookup(cos, x);
-}
-
-JSBool
-js::math_cos(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_cos(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, z;
 
@@ -268,7 +261,7 @@ js::math_cos(JSContext *cx, unsigned argc, Value *vp)
     MathCache *mathCache = cx->runtime->getMathCache(cx);
     if (!mathCache)
         return JS_FALSE;
-    z = math_cos_impl(mathCache, x);
+    z = mathCache->lookup(cos, x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -328,18 +321,8 @@ js_math_floor(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js::math_log_impl(MathCache *cache, double x)
-{
-#if defined(SOLARIS) && defined(__GNUC__)
-    if (x < 0)
-        return js_NaN;
-#endif
-    return cache->lookup(log, x);
-}
-
-JSBool
-js::math_log(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_log(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, z;
 
@@ -349,10 +332,16 @@ js::math_log(JSContext *cx, unsigned argc, Value *vp)
     }
     if (!ToNumber(cx, vp[2], &x))
         return JS_FALSE;
+#if defined(SOLARIS) && defined(__GNUC__)
+    if (x < 0) {
+        vp->setDouble(js_NaN);
+        return JS_TRUE;
+    }
+#endif
     MathCache *mathCache = cx->runtime->getMathCache(cx);
     if (!mathCache)
         return JS_FALSE;
-    z = math_log_impl(mathCache, x);
+    z = mathCache->lookup(log, x);
     vp->setNumber(z);
     return JS_TRUE;
 }
@@ -417,8 +406,8 @@ js_math_min(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js::powi(double x, int y)
+static double
+powi(double x, int y)
 {
     unsigned n = (y < 0) ? -y : y;
     double m = x;
@@ -443,18 +432,6 @@ js::powi(double x, int y)
         }
         m *= m;
     }
-}
-
-double
-js::ecmaPow(double x, double y)
-{
-    /*
-     * Because C99 and ECMA specify different behavior for pow(),
-     * we need to wrap the libm call to make it ECMA compliant.
-     */
-    if (!MOZ_DOUBLE_IS_FINITE(y) && (x == 1.0 || x == -1.0))
-        return js_NaN;
-    return pow(x, y);
 }
 
 JSBool
@@ -482,6 +459,14 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
             return JS_TRUE;
         }
     }
+    /*
+     * Because C99 and ECMA specify different behavior for pow(),
+     * we need to wrap the libm call to make it ECMA compliant.
+     */
+    if (!MOZ_DOUBLE_IS_FINITE(y) && (x == 1.0 || x == -1.0)) {
+        vp->setDouble(js_NaN);
+        return JS_TRUE;
+    }
     /* pow(x, +-0) is always 1, even for x = NaN. */
     if (y == 0) {
         vp->setInt32(1);
@@ -496,7 +481,7 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
     if (int32_t(y) == y)
         z = powi(x, int32_t(y));
     else
-        z = ecmaPow(x, y);
+        z = pow(x, y);
 
     vp->setNumber(z);
     return JS_TRUE;
@@ -583,14 +568,8 @@ js_math_round(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-double
-js::math_sin_impl(MathCache *cache, double x)
-{
-    return cache->lookup(sin, x);
-}
-
-JSBool
-js::math_sin(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_sin(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, z;
 
@@ -603,7 +582,7 @@ js::math_sin(JSContext *cx, unsigned argc, Value *vp)
     MathCache *mathCache = cx->runtime->getMathCache(cx);
     if (!mathCache)
         return JS_FALSE;
-    z = math_sin_impl(mathCache, x);
+    z = mathCache->lookup(sin, x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -627,14 +606,8 @@ js_math_sqrt(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js::math_tan_impl(MathCache *cache, double x)
-{
-    return cache->lookup(tan, x);
-}
-
-JSBool
-js::math_tan(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_tan(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, z;
 
@@ -647,7 +620,7 @@ js::math_tan(JSContext *cx, unsigned argc, Value *vp)
     MathCache *mathCache = cx->runtime->getMathCache(cx);
     if (!mathCache)
         return JS_FALSE;
-    z = math_tan_impl(mathCache, x);
+    z = mathCache->lookup(tan, x);
     vp->setDouble(z);
     return JS_TRUE;
 }
