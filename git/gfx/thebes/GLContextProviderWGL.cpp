@@ -219,8 +219,7 @@ public:
           mContext(aContext),
           mWnd(aWindow),
           mPBuffer(NULL),
-          mPixelFormat(0),
-          mIsDoubleBuffered(PR_FALSE)
+          mPixelFormat(0)
     {
     }
 
@@ -235,8 +234,7 @@ public:
           mContext(aContext),
           mWnd(NULL),
           mPBuffer(aPbuffer),
-          mPixelFormat(aPixelFormat),
-          mIsDoubleBuffered(PR_FALSE)
+          mPixelFormat(aPixelFormat)
     {
     }
 
@@ -269,7 +267,7 @@ public:
         return InitWithPrefix("gl", PR_TRUE);
     }
 
-    PRBool MakeCurrent(PRBool aForce = PR_FALSE)
+    PRBool MakeCurrent()
     {
         BOOL succeeded = PR_TRUE;
 
@@ -277,26 +275,12 @@ public:
         // of its TLS slot, so no need to do our own tls slot.
         // You would think that wglMakeCurrent would avoid doing
         // work if mContext was already current, but not so much..
-        if (aForce || sWGLLibrary.fGetCurrentContext() != mContext) {
+        if (sWGLLibrary.fGetCurrentContext() != mContext) {
             succeeded = sWGLLibrary.fMakeCurrent(mDC, mContext);
             NS_ASSERTION(succeeded, "Failed to make GL context current!");
         }
 
         return succeeded;
-    }
-
-    void SetIsDoubleBuffered(PRBool aIsDB) {
-        mIsDoubleBuffered = aIsDB;
-    }
-
-    virtual PRBool IsDoubleBuffered() {
-        return mIsDoubleBuffered;
-    }
-
-    virtual PRBool SwapBuffers() {
-        if (!mIsDoubleBuffered)
-            return PR_FALSE;
-        return ::SwapBuffers(mDC);
     }
 
     PRBool SetupLookupFunction()
@@ -336,8 +320,6 @@ protected:
     HWND mWnd;
     HANDLE mPBuffer;
     int mPixelFormat;
-
-    PRPackedBool mIsDoubleBuffered;
 };
 
 PRBool
@@ -451,28 +433,17 @@ protected:
     virtual already_AddRefed<gfxASurface>
     CreateUpdateSurface(const gfxIntSize& aSize, ImageFormat aFmt)
     {
-        mUpdateSize = aSize;
-        mUpdateFormat = aFmt;
-
         return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, aFmt);
     }
 
     virtual already_AddRefed<gfxImageSurface>
     GetImageForUpload(gfxASurface* aUpdateSurface)
     {
-        nsRefPtr<gfxImageSurface> uploadImage;
-
-        if (aUpdateSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
-            gfxWindowsSurface* ws = static_cast<gfxWindowsSurface*>(aUpdateSurface);
-            uploadImage = ws->GetImageSurface();
-        } else {
-            uploadImage = new gfxImageSurface(mUpdateSize, mUpdateFormat);
-            nsRefPtr<gfxContext> cx(new gfxContext(uploadImage));
-            cx->SetSource(aUpdateSurface);
-            cx->SetOperator(gfxContext::OPERATOR_SOURCE);
-            cx->Paint();
-        }
-
+        NS_ASSERTION(gfxASurface::SurfaceTypeWin32 == aUpdateSurface->GetType(),
+                     "unexpected surface type");
+        nsRefPtr<gfxImageSurface> uploadImage(
+            static_cast<gfxWindowsSurface*>(aUpdateSurface)->
+            GetImageSurface());
         return uploadImage.forget();
     }
 
@@ -483,9 +454,6 @@ private:
                     GLContext* aContext)
         : BasicTextureImage(aTexture, aSize, aContentType, aContext)
     {}
-
-    gfxIntSize mUpdateSize;
-    ImageFormat mUpdateFormat;
 };
 
 already_AddRefed<TextureImage>

@@ -150,7 +150,6 @@ public:
     virtual PExternalHelperAppParent* AllocPExternalHelperApp(
             const IPC::URI& uri,
             const nsCString& aMimeContentType,
-            const nsCString& aContentDisposition,
             const bool& aForceSave,
             const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
@@ -200,8 +199,8 @@ public:
     virtual bool DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* actor);
 
 
-    virtual PContentPermissionRequestParent* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
-    virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
+    virtual PGeolocationRequestParent* AllocPGeolocationRequest(const IPC::URI& uri);
+    virtual bool DeallocPGeolocationRequest(PGeolocationRequestParent* actor);
 
     JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 

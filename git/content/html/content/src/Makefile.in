@@ -72,7 +72,6 @@ CPPSRCS		= \
 		nsHTMLBodyElement.cpp \
 		nsHTMLButtonElement.cpp \
 		nsHTMLCanvasElement.cpp \
-		nsHTMLDataListElement.cpp \
 		nsHTMLDelElement.cpp \
 		nsHTMLDivElement.cpp \
 		nsHTMLFieldSetElement.cpp \

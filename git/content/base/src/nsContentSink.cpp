@@ -1853,7 +1853,6 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::dir,
   &nsGkAtoms::disabled,
   &nsGkAtoms::enctype,
-  &nsGkAtoms::face,
   &nsGkAtoms::_for,
   &nsGkAtoms::frame,
   &nsGkAtoms::headers,

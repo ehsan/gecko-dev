@@ -18,7 +18,7 @@ function test() {
     id: "addon1@tests.mozilla.org",
     name: "auto updating addon",
     version: "1.0",
-    applyBackgroundUpdates: AddonManager.AUTOUPDATE_ENABLE
+    applyBackgroundUpdates: true
   }]);
 
   open_manager(null, function(aWindow) {
@@ -43,7 +43,7 @@ add_test(function() {
     id: "addon2@tests.mozilla.org",
     name: "manually updating addon",
     version: "1.0",
-    applyBackgroundUpdates: AddonManager.AUTOUPDATE_DISABLE
+    applyBackgroundUpdates: false
   }]);
   
   is(gCategoryUtilities.isVisible(gAvailableCategory), true, "Available Updates category should now be visible");
@@ -56,9 +56,9 @@ add_test(function() {
       is(gCategoryUtilities.isVisible(gAvailableCategory), true, "Available Updates category should be visible");
       run_next_test();
     }, false);
-    gProvider.addons[1].applyBackgroundUpdates = AddonManager.AUTOUPDATE_DISABLE;
+    gProvider.addons[1].applyBackgroundUpdates = false;
   }, false);
-  gProvider.addons[1].applyBackgroundUpdates = AddonManager.AUTOUPDATE_ENABLE;
+  gProvider.addons[1].applyBackgroundUpdates = true;
 });
 
 

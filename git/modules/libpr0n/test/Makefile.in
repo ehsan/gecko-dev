@@ -48,8 +48,6 @@ MODULE		= test_libpr0n
 
 XPCSHELL_TESTS  = unit
 
-DIRS += mochitest \
-        browser \
-        $(NULL)
+DIRS            += mochitest
 
 include $(topsrcdir)/config/rules.mk

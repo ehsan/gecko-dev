@@ -94,10 +94,18 @@ nsInlineFrame::GetType() const
 }
 
 static inline PRBool
-IsMarginZero(const nsStyleCoord &aCoord)
+IsPaddingZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
 {
-  return aCoord.GetUnit() == eStyleUnit_Auto ||
-         nsLayoutUtils::IsMarginZero(aCoord);
+    return ((aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
+            (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
+}
+
+static inline PRBool
+IsMarginZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
+{
+    return (aUnit == eStyleUnit_Auto ||
+            (aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
+            (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
 }
 
 /* virtual */ PRBool
@@ -118,12 +126,16 @@ nsInlineFrame::IsSelfEmpty()
   // ZeroEffectiveSpanBox, anymore, so what should this really be?
   PRBool haveRight =
     border->GetActualBorderWidth(NS_SIDE_RIGHT) != 0 ||
-    !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetRight()) ||
-    !IsMarginZero(margin->mMargin.GetRight());
+    !IsPaddingZero(padding->mPadding.GetRightUnit(),
+                   padding->mPadding.GetRight()) ||
+    !IsMarginZero(margin->mMargin.GetRightUnit(),
+                  margin->mMargin.GetRight());
   PRBool haveLeft =
     border->GetActualBorderWidth(NS_SIDE_LEFT) != 0 ||
-    !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetLeft()) ||
-    !IsMarginZero(margin->mMargin.GetLeft());
+    !IsPaddingZero(padding->mPadding.GetLeftUnit(),
+                   padding->mPadding.GetLeft()) ||
+    !IsMarginZero(margin->mMargin.GetLeftUnit(),
+                  margin->mMargin.GetLeft());
   if (haveLeft || haveRight) {
     if (GetStateBits() & NS_FRAME_IS_SPECIAL) {
       PRBool haveStart, haveEnd;
@@ -194,7 +206,7 @@ nsInlineFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // normally don't have any size, but in Editor we use CSS to display
   // an image to represent this "hidden" element.
   if (!mFrames.FirstChild()) {
-    rv = DisplaySelectionOverlay(aBuilder, aLists.Content());
+    rv = DisplaySelectionOverlay(aBuilder, aLists);
   }
   return rv;
 }

@@ -127,7 +127,6 @@ const PAGEID_LICENSE          = "license";               // Done
 const PAGEID_INCOMPAT_LIST    = "incompatibleList";      // Done
 const PAGEID_DOWNLOADING      = "downloading";           // Done
 const PAGEID_ERRORS           = "errors";                // Done
-const PAGEID_ERROR_EXTRA      = "errorextra";            // Done
 const PAGEID_ERROR_PATCHING   = "errorpatching";         // Done
 const PAGEID_FINISHED         = "finished";              // Done
 const PAGEID_FINISHED_BKGRD   = "finishedBackground";    // Done
@@ -141,6 +140,8 @@ const URL_UPDATE = URL_HOST + URL_PATH + "/update.sjs";
 
 const URI_UPDATE_PROMPT_DIALOG  = "chrome://mozapps/content/update/updates.xul";
 
+const CRC_ERROR = 4;
+
 const ADDON_ID_SUFFIX = "@appupdatetest.mozilla.org";
 const ADDON_PREP_DIR = "appupdateprep";
 // Preference for storing add-ons that are disabled by the tests to prevent them
@@ -153,18 +154,17 @@ const TEST_ADDONS = [ "appdisabled_1", "appdisabled_2",
                       "updateversion_1", "updateversion_2",
                       "userdisabled_1", "userdisabled_2" ];
 
-const DEBUG = false;
+const DEBUG_DUMP = false;
 
 const TEST_TIMEOUT = 30000; // 30 seconds
 var gTimeoutTimer;
 
 // The following vars are for restoring previous preference values (if present)
 // when the test finishes.
-var gAppUpdateChannel;    // app.update.channel (default prefbranch)
-var gAppUpdateEnabled;    // app.update.enabled
-var gAppUpdateURLDefault; // app.update.url (default prefbranch)
-var gAppUpdateURL;        // app.update.url.override
-var gExtUpdateURL;        // extensions.update.url
+var gAppUpdateChannel; // app.update.channel (default prefbranch)
+var gAppUpdateEnabled; // app.update.enabled
+var gAppUpdateURL;     // app.update.url.override
+var gExtUpdateURL;     // extensions.update.url
 
 var gTestCounter = -1;
 var gWin;
@@ -175,7 +175,7 @@ var gDisableNoUpdateAddon = false;
 #include ../shared.js
 
 function debugDump(msg) {
-  if (DEBUG) {
+  if (DEBUG_DUMP) {
     dump("*** " + msg + "\n");
   }
 }
@@ -454,7 +454,6 @@ function getExpectedButtonStates() {
     case PAGEID_NO_UPDATES_FOUND:
     case PAGEID_MANUAL_UPDATE:
     case PAGEID_ERRORS:
-    case PAGEID_ERROR_EXTRA:
     case PAGEID_INSTALLED:
       return { finish: { disabled: false, hidden: false } };
     case PAGEID_ERROR_PATCHING:
@@ -609,29 +608,6 @@ function checkPrefHasUserValue(aPrefHasValue) {
 }
 
 /**
- * Checks whether the link is hidden (certificate attribute check error with an
- * update) or not (certificate attribute check error without an update) on the
- * errorcertcheck page and that the app.update.cert.errors preference does note
- & have a user value.
- *
- * @param  aShouldBeHidden (optional)
- *         The expected value for the label's hidden attribute for the link. If
- *         aShouldBeHidden is undefined the value of the current test's
- *         shouldBeHidden property will be used.
- */
-function checkCertErrorPage(aShouldBeHidden) {
-  let shouldBeHidden = aShouldBeHidden === undefined ? gTest.shouldBeHidden
-                                                     : aShouldBeHidden;
-  is(gWin.document.getElementById("errorCertAttrLinkLabel").hidden, shouldBeHidden,
-     "Checking errorCertAttrLinkLabel hidden attribute equals " +
-     (shouldBeHidden ? "true" : "false"));
-
-  ok(!Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_ERRORS),
-     "Preference " + PREF_APP_UPDATE_CERT_ERRORS + " should not have a " +
-     "user value");
-}
-
-/**
  * Gets the update version info for the update url parameters to send to
  * update.sjs.
  *
@@ -708,10 +684,6 @@ function setupPrefs() {
   gAppUpdateChannel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
   setUpdateChannel();
 
-  if (DEBUG) {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_LOG, true)
-  }
-
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
     gAppUpdateURL = Services.prefs.setIntPref(PREF_APP_UPDATE_URL_OVERRIDE);
   }
@@ -730,7 +702,6 @@ function setupPrefs() {
   debugDump("extensions.update.url: " + extUpdateUrl);
 
   Services.prefs.setIntPref(PREF_APP_UPDATE_IDLETIME, 0);
-  Services.prefs.setIntPref(PREF_APP_UPDATE_PROMPTWAITTIME, 0);
 }
 
 /**
@@ -742,10 +713,6 @@ function resetPrefs() {
   }
   else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_URL_OVERRIDE);
-  }
-
-  if (gAppUpdateURLDefault) {
-    gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_URL, gAppUpdateURLDefault);
   }
 
   if (gAppUpdateChannel !== undefined) {
@@ -770,10 +737,6 @@ function resetPrefs() {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_IDLETIME);
   }
 
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_PROMPTWAITTIME)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_PROMPTWAITTIME);
-  }
-
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_DETAILS)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_URL_DETAILS);
   }
@@ -784,31 +747,6 @@ function resetPrefs() {
 
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_LOG)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_LOG);
-  }
-
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_MAXERRORS)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_MAXERRORS);
-  }
-
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_INVALID_ATTR_NAME)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_INVALID_ATTR_NAME);
-  }
-
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_REQUIREBUILTIN)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_REQUIREBUILTIN);
-  }
-
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_CHECKATTRS)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_CHECKATTRS);
-  }
-
-  try {
-    CERT_ATTRS.forEach(function(aCertAttrName) {
-      Services.prefs.clearUserPref(PREF_APP_UPDATE_CERTS_BRANCH + "1." +
-                                   aCertAttrName);
-    });
-  }
-  catch (e) {
   }
 
   try {
@@ -1105,79 +1043,49 @@ function getUpdateWindow() {
 }
 
 /**
- * Helper for certificate attribute check errors.
- */
-var certErrorsPrefObserver = {
-  /**
-   * Sets up the app.update.cert.errors preference observer and sets the
-   * app.update.cert.maxErrors preference.
-   *
-   * @param  aMaxErrors
-   *         The value to set the app.update.cert.maxErrors preference to.
-   */
-  init: function(aMaxErrors) {
-    let maxErrors = aMaxErrors ? aMaxErrors : 5;
-    Services.prefs.setIntPref(PREF_APP_UPDATE_CERT_MAXERRORS, maxErrors);
-    Services.prefs.addObserver(PREF_APP_UPDATE_CERT_ERRORS, this, false);
-  },
-
-  /**
-   * Preference observer for the app.update.cert.errors preference.
-   */
-  observe: function XPI_observe(aSubject, aTopic, aData) {
-    if (aData == PREF_APP_UPDATE_CERT_ERRORS) {
-      let errCount = Services.prefs.getIntPref(PREF_APP_UPDATE_CERT_ERRORS);
-      let errMax = Services.prefs.getIntPref(PREF_APP_UPDATE_CERT_MAXERRORS);
-      if (errCount >= errMax) {
-        debugDump("prefObserver - removing pref observer");
-        Services.prefs.removeObserver(PREF_APP_UPDATE_CERT_ERRORS, this);
-      }
-      else {
-        debugDump("prefObserver - notifying AUS");
-        SimpleTest.executeSoon(function() {
-          gAUS.notify(null);
-        });
-      }
-    }
-  }
-};
-
-/**
  * nsIObserver for receiving window open and close notifications.
  */
 var gWindowObserver = {
+  loaded: false,
+
   observe: function WO_observe(aSubject, aTopic, aData) {
     let win = aSubject.QueryInterface(AUS_Ci.nsIDOMEventTarget);
 
     if (aTopic == "domwindowclosed") {
-      if (win.location != URI_UPDATE_PROMPT_DIALOG) {
-        debugDump("gWindowObserver:observe - domwindowclosed event for " +
-                  "window not being tested - location: " + win.location +
-                  "... returning early");
-        return;
-      }
-      // Allow tests the ability to provide their own function (it must be
-      // named finishTest) for finishing the test.
-      try {
-        finishTest();
-      }
-      catch (e) {
-        finishTestDefault();
+      if (win.location == URI_UPDATE_PROMPT_DIALOG) {
+        // Allow tests the ability to provide their own function (it must be
+        // named finishTest) for finishing the test.
+        try {
+          finishTest();
+        }
+        catch (e) {
+          finishTestDefault();
+        }
       }
       return;
     }
 
+    // Defensive measure to prevent adding multiple listeners.
+    if (this.loaded) {
+      // This should never happen but if it does this will provide a clue for
+      // diagnosing the cause.
+      ok(false, "Unexpected gWindowObserver:observe - called with aTopic = " +
+         aTopic + "... returning early");
+      return;
+    }
+
     win.addEventListener("load", function onLoad() {
-      win.removeEventListener("load", onLoad, false);
-      // Ignore windows other than the update UI window.
+      // Defensive measure to prevent windows we shouldn't see from breaking
+      // a test.
       if (win.location != URI_UPDATE_PROMPT_DIALOG) {
-        debugDump("gWindowObserver:observe:onLoad - load event for window " +
-                  "not being tested - location: " + win.location +
-                  "... returning early");
+        // This should never happen.
+        ok(false, "Unexpected load event - win.location got: " + location +
+           ", expected: " + URI_UPDATE_PROMPT_DIALOG + "... returning early");
         return;
       }
 
-      // The first wizard page should always be the dummy page.
+      // Defensive measure to prevent an unexpected wizard page from breaking
+      // a test.
       let pageid = win.document.documentElement.currentPage.pageid;
       if (pageid != PAGEID_DUMMY) {
         // This should never happen but if it does this will provide a clue
@@ -1187,6 +1095,7 @@ var gWindowObserver = {
         return;
       }
 
+      win.removeEventListener("load", onLoad, false);
       gTimeoutTimer = AUS_Cc["@mozilla.org/timer;1"].
                       createInstance(AUS_Ci.nsITimer);
       gTimeoutTimer.initWithCallback(finishTestTimeout, TEST_TIMEOUT,
@@ -1196,5 +1105,7 @@ var gWindowObserver = {
       gDocElem = gWin.document.documentElement;
       gDocElem.addEventListener("pageshow", onPageShowDefault, false);
     }, false);
+
+    this.loaded = true;
   }
 };

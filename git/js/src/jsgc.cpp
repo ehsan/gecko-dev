@@ -78,14 +78,14 @@
 #include "jsscript.h"
 #include "jsstaticcheck.h"
 #include "jsstr.h"
+#include "jstask.h"
 #include "jstracer.h"
-#include "methodjit/MethodJIT.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"
 #endif
 
-#include "jsprobes.h"
+#include "jsdtracef.h"
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 #include "jshashtable.h"
@@ -633,9 +633,7 @@ static JSGCArena *
 NewGCArena(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
-    if (!JS_THREAD_DATA(cx)->waiveGCQuota &&
-        (rt->gcBytes >= rt->gcMaxBytes ||
-        rt->gcBytes > GC_HEAP_GROWTH_FACTOR * rt->gcNewArenaTriggerBytes)) {
+    if (!JS_THREAD_DATA(cx)->waiveGCQuota && rt->gcBytes >= rt->gcMaxBytes) {
         /*
          * FIXME bug 524051 We cannot run a last-ditch GC on trace for now, so
          * just pretend we are out of memory which will throw us off trace and
@@ -643,7 +641,7 @@ NewGCArena(JSContext *cx)
          */
         if (!JS_ON_TRACE(cx))
             return NULL;
-        TriggerGC(rt);
+        js_TriggerGC(cx, true);
     }
 
     if (rt->gcFreeArenaChunks.empty()) {
@@ -803,7 +801,7 @@ GetFinalizableTraceKind(size_t thingKind)
         JSTRACE_OBJECT,     /* FINALIZE_FUNCTION */
 #if JS_HAS_XML_SUPPORT      /* FINALIZE_XML */
         JSTRACE_XML,
-#endif
+#endif                      
         JSTRACE_STRING,     /* FINALIZE_SHORT_STRING */
         JSTRACE_STRING,     /* FINALIZE_STRING */
         JSTRACE_STRING,     /* FINALIZE_EXTERNAL_STRING0 */
@@ -930,16 +928,7 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
         return false;
 
 #ifdef JS_THREADSAFE
-    rt->gcLock = JS_NEW_LOCK();
-    if (!rt->gcLock)
-        return false;
-    rt->gcDone = JS_NEW_CONDVAR(rt->gcLock);
-    if (!rt->gcDone)
-        return false;
-    rt->requestDone = JS_NEW_CONDVAR(rt->gcLock);
-    if (!rt->requestDone)
-        return false;
-    if (!rt->gcHelperThread.init(rt))
+    if (!rt->gcHelperThread.init())
         return false;
 #endif
 
@@ -963,7 +952,6 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
      * (during JS engine start).
      */
     rt->setGCLastBytes(8192);
-    rt->gcNewArenaTriggerBytes = GC_ARENA_ALLOCATION_TRIGGER;
 
     METER(PodZero(&rt->gcStats));
     return true;
@@ -1110,7 +1098,7 @@ MarkWordConservatively(JSTracer *trc, jsuword w)
         }
 #endif
     }
-
+        
 #if defined JS_DUMP_CONSERVATIVE_GC_ROOTS || defined JS_GCMETER
     if (IS_GC_MARKING_TRACER(trc))
         static_cast<GCMarker *>(trc)->conservativeStats.counter[test]++;
@@ -1125,70 +1113,47 @@ MarkRangeConservatively(JSTracer *trc, jsuword *begin, jsuword *end)
         MarkWordConservatively(trc, *i);
 }
 
-static void
-MarkThreadDataConservatively(JSTracer *trc, JSThreadData *td)
-{
-    ConservativeGCThreadData *ctd = &td->conservativeGC;
-    JS_ASSERT(ctd->hasStackToScan());
-    jsuword *stackMin, *stackEnd;
-#if JS_STACK_GROWTH_DIRECTION > 0
-    stackMin = td->nativeStackBase;
-    stackEnd = ctd->nativeStackTop;
-#else
-    stackMin = ctd->nativeStackTop + 1;
-    stackEnd = td->nativeStackBase;
-#endif
-    JS_ASSERT(stackMin <= stackEnd);
-    MarkRangeConservatively(trc, stackMin, stackEnd);
-    MarkRangeConservatively(trc, ctd->registerSnapshot.words,
-                            JS_ARRAY_END(ctd->registerSnapshot.words));
-
-}
-
-void
-MarkStackRangeConservatively(JSTracer *trc, Value *beginv, Value *endv)
-{
-    jsuword *begin = (jsuword *) beginv;
-    jsuword *end = (jsuword *) endv;
-#ifdef JS_NUNBOX32
-    /*
-     * With 64-bit jsvals on 32-bit systems, we can optimize a bit by
-     * scanning only the payloads.
-     */
-    JS_ASSERT(begin <= end);
-    for (jsuword *i = begin; i != end; i += 2)
-        MarkWordConservatively(trc, *i);
-#else
-    MarkRangeConservatively(trc, begin, end);
-#endif
-}
-
 void
 MarkConservativeStackRoots(JSTracer *trc)
 {
-#ifdef JS_THREADSAFE
-    for (JSThread::Map::Range r = trc->context->runtime->threads.all(); !r.empty(); r.popFront()) {
-        JSThread *thread = r.front().value;
-        ConservativeGCThreadData *ctd = &thread->data.conservativeGC;
-        if (ctd->hasStackToScan()) {
-            JS_ASSERT_IF(!thread->requestDepth, thread->suspendCount);
-            MarkThreadDataConservatively(trc, &thread->data);
-        } else {
-            JS_ASSERT(!thread->suspendCount);
-            JS_ASSERT(thread->requestDepth <= ctd->requestThreshold);
+    /* Do conservative scanning of the stack and registers. */
+    for (ThreadDataIter i(trc->context->runtime); !i.empty(); i.popFront()) {
+        JSThreadData *td = i.threadData();
+        ConservativeGCThreadData *ctd = &td->conservativeGC;
+        if (ctd->isEnabled()) {
+            jsuword *stackMin, *stackEnd;
+#if JS_STACK_GROWTH_DIRECTION > 0
+            stackMin = td->nativeStackBase;
+            stackEnd = ctd->nativeStackTop;
+#else
+            stackMin = ctd->nativeStackTop + 1;
+            stackEnd = td->nativeStackBase;
+#endif
+            JS_ASSERT(stackMin <= stackEnd);
+            MarkRangeConservatively(trc, stackMin, stackEnd);
+            MarkRangeConservatively(trc, ctd->registerSnapshot.words,
+                                    JS_ARRAY_END(ctd->registerSnapshot.words));
         }
     }
-#else
-    MarkThreadDataConservatively(trc, &trc->context->runtime->threadData);
-#endif
 }
 
-JS_NEVER_INLINE void
-ConservativeGCThreadData::recordStackTop()
+JS_NEVER_INLINE JS_FRIEND_API(void)
+ConservativeGCThreadData::enable(bool knownStackBoundary)
 {
+    ++enableCount;
+    if (enableCount <= 0)
+        return;
+
     /* Update the native stack pointer if it points to a bigger stack. */
+#if JS_STACK_GROWTH_DIRECTION > 0
+# define CMP >
+#else
+# define CMP <
+#endif
     jsuword dummy;
-    nativeStackTop = &dummy;
+    if (knownStackBoundary || enableCount == 1 || &dummy CMP nativeStackTop)
+        nativeStackTop = &dummy;
+#undef CMP
 
     /* Update the register snapshot with the latest values. */
 #if defined(_MSC_VER)
@@ -1202,18 +1167,14 @@ ConservativeGCThreadData::recordStackTop()
 
 }
 
-static inline void
-RecordNativeStackTopForGC(JSContext *cx)
+JS_NEVER_INLINE JS_FRIEND_API(void)
+ConservativeGCThreadData::disable()
 {
-    ConservativeGCThreadData *ctd = &JS_THREAD_DATA(cx)->conservativeGC;
-
-#ifdef JS_THREADSAFE
-    /* Record the stack top here only if we are called from a request. */
-    JS_ASSERT(cx->thread->requestDepth >= ctd->requestThreshold);
-    if (cx->thread->requestDepth == ctd->requestThreshold)
-        return;
+    --enableCount;
+#ifdef DEBUG
+    if (enableCount == 0)
+        nativeStackTop = NULL;
 #endif
-    ctd->recordStackTop();
 }
 
 } /* namespace js */
@@ -1235,7 +1196,7 @@ js_FinishGC(JSRuntime *rt)
 #endif
 
 #ifdef JS_THREADSAFE
-    rt->gcHelperThread.finish(rt);
+    rt->gcHelperThread.cancel();
 #endif
     FinishGCArenaLists(rt);
 
@@ -1931,7 +1892,7 @@ Mark(JSTracer *trc, void *thing, uint32 kind)
                 }
                 str = iter.next();
             } while (str);
-
+           
         } else if (MarkIfUnmarkedGCThing(thing, gcmarker->getMarkColor())) {
             /*
              * With JS_GC_ASSUME_LOW_C_STACK defined the mark phase of GC
@@ -1961,7 +1922,7 @@ void
 MarkGCThing(JSTracer *trc, void *thing)
 {
     JS_ASSERT(size_t(thing) % JS_GCTHING_ALIGN == 0);
-
+    
     if (!thing)
         return;
 
@@ -2054,8 +2015,8 @@ AutoGCRooter::trace(JSTracer *trc)
         MarkValue(trc, static_cast<AutoValueRooter *>(this)->val, "js::AutoValueRooter.val");
         return;
 
-      case SHAPE:
-        static_cast<AutoShapeRooter *>(this)->shape->trace(trc);
+      case SPROP:
+        static_cast<AutoScopePropertyRooter *>(this)->sprop->trace(trc);
         return;
 
       case PARSER:
@@ -2146,10 +2107,8 @@ AutoGCRooter::trace(JSTracer *trc)
     MarkValueRange(trc, tag, static_cast<AutoArrayRooter *>(this)->array, "js::AutoArrayRooter.array");
 }
 
-namespace js {
-
 void
-MarkContext(JSTracer *trc, JSContext *acx)
+js_TraceContext(JSTracer *trc, JSContext *acx)
 {
     /* Stack frames and slots are traced by StackSpace::mark. */
 
@@ -2186,7 +2145,7 @@ MarkContext(JSTracer *trc, JSContext *acx)
 }
 
 JS_REQUIRES_STACK void
-MarkRuntime(JSTracer *trc)
+js_TraceRuntime(JSTracer *trc)
 {
     JSRuntime *rt = trc->context->runtime;
 
@@ -2204,9 +2163,9 @@ MarkRuntime(JSTracer *trc)
     while (JSContext *acx = js_ContextIterator(rt, JS_TRUE, &iter)) {
         for (AutoGCRooter *gcr = acx->autoGCRooters; gcr; gcr = gcr->down) {
 #ifdef JS_THREADSAFE
-            JS_ASSERT_IF(!acx->thread->requestDepth, acx->thread->suspendCount);
+            JS_ASSERT(acx->outstandingRequests != 0);
 #endif
-            JS_ASSERT(JS_THREAD_DATA(acx)->conservativeGC.hasStackToScan());
+            JS_ASSERT(JS_THREAD_DATA(acx)->conservativeGC.isEnabled());
             void *thing;
             switch (gcr->tag) {
               default:
@@ -2250,7 +2209,7 @@ MarkRuntime(JSTracer *trc)
                         (long) ((jsword) JS_THREAD_DATA(acx)->nativeStackBase - (jsword) gcr),
                         (long) ((jsword) JS_THREAD_DATA(acx)->nativeStackBase -
                                 (jsword) JS_THREAD_DATA(acx)->conservativeGC.nativeStackTop),
-                        int(JS_THREAD_DATA(acx)->conservativeGC.hasStackToScan()));
+                        JS_THREAD_DATA(acx)->conservativeGC.enableCount);
                 JS_ASSERT(false);
                 abort();
             }
@@ -2269,23 +2228,10 @@ MarkRuntime(JSTracer *trc)
 
     iter = NULL;
     while (JSContext *acx = js_ContextIterator(rt, JS_TRUE, &iter))
-        MarkContext(trc, acx);
+        js_TraceContext(trc, acx);
 
     for (ThreadDataIter i(rt); !i.empty(); i.popFront())
         i.threadData()->mark(trc);
-
-    if (rt->emptyArgumentsShape)
-        rt->emptyArgumentsShape->trace(trc);
-    if (rt->emptyBlockShape)
-        rt->emptyBlockShape->trace(trc);
-    if (rt->emptyCallShape)
-        rt->emptyCallShape->trace(trc);
-    if (rt->emptyDeclEnvShape)
-        rt->emptyDeclEnvShape->trace(trc);
-    if (rt->emptyEnumeratorShape)
-        rt->emptyEnumeratorShape->trace(trc);
-    if (rt->emptyWithShape)
-        rt->emptyWithShape->trace(trc);
 
     /*
      * We mark extra roots at the last thing so it can use use additional
@@ -2309,8 +2255,13 @@ MarkRuntime(JSTracer *trc)
 }
 
 void
-TriggerGC(JSRuntime *rt)
+js_TriggerGC(JSContext *cx, JSBool gcLocked)
 {
+    JSRuntime *rt = cx->runtime;
+
+#ifdef JS_THREADSAFE
+    JS_ASSERT(cx->requestDepth > 0);
+#endif
     JS_ASSERT(!rt->gcRunning);
     if (rt->gcIsNeeded)
         return;
@@ -2319,11 +2270,9 @@ TriggerGC(JSRuntime *rt)
      * Trigger the GC when it is safe to call an operation callback on any
      * thread.
      */
-    rt->gcIsNeeded = true;
-    TriggerAllOperationCallbacks(rt);
+    rt->gcIsNeeded = JS_TRUE;
+    js_TriggerAllOperationCallbacks(rt, gcLocked);
 }
-
-} /* namespace js */
 
 void
 js_DestroyScriptsToGC(JSContext *cx, JSThreadData *data)
@@ -2355,9 +2304,17 @@ FinalizeObject(JSContext *cx, JSObject *obj, unsigned thingKind)
     if (clasp->finalize)
         clasp->finalize(cx, obj);
 
-    Probes::finalizeObject(obj);
+    DTrace::finalizeObject(obj);
 
-    obj->finish(cx);
+    if (JS_LIKELY(obj->isNative())) {
+        JSScope *scope = obj->scope();
+        if (scope->isSharedEmpty())
+            static_cast<JSEmptyScope *>(scope)->dropFromGC(cx);
+        else
+            scope->destroy(cx);
+    }
+    if (obj->hasSlotsArray())
+        obj->freeSlotsArray(cx);
 }
 
 inline void
@@ -2594,90 +2551,8 @@ FinalizeArenaList(JSContext *cx, unsigned thingKind)
 
 namespace js {
 
-bool
-GCHelperThread::init(JSRuntime *rt)
-{
-    if (!(wakeup = PR_NewCondVar(rt->gcLock)))
-        return false;
-    if (!(sweepingDone = PR_NewCondVar(rt->gcLock)))
-        return false;
-
-    thread = PR_CreateThread(PR_USER_THREAD, threadMain, rt, PR_PRIORITY_NORMAL,
-                             PR_LOCAL_THREAD, PR_JOINABLE_THREAD, 0);
-    return !!thread;
-
-}
-
-void
-GCHelperThread::finish(JSRuntime *rt)
-{
-    PRThread *join = NULL;
-    {
-        AutoLockGC lock(rt);
-        if (thread && !shutdown) {
-            shutdown = true;
-            PR_NotifyCondVar(wakeup);
-            join = thread;
-        }
-    }
-    if (join) {
-        /* PR_DestroyThread is not necessary. */
-        PR_JoinThread(join);
-    }
-    if (wakeup)
-        PR_DestroyCondVar(wakeup);
-    if (sweepingDone)
-        PR_DestroyCondVar(sweepingDone);
-}
-
-/* static */
-void
-GCHelperThread::threadMain(void *arg)
-{
-    JSRuntime *rt = static_cast<JSRuntime *>(arg);
-    rt->gcHelperThread.threadLoop(rt);
-}
-
-void
-GCHelperThread::threadLoop(JSRuntime *rt)
-{
-    AutoLockGC lock(rt);
-    while (!shutdown) {
-        /*
-         * Sweeping can be true here on the first iteration if a GC and the
-         * corresponding startBackgroundSweep call happen before this thread
-         * has a chance to run.
-         */
-        if (!sweeping)
-            PR_WaitCondVar(wakeup, PR_INTERVAL_NO_TIMEOUT);
-        if (sweeping) {
-            AutoUnlockGC unlock(rt);
-            doSweep();
-        }
-        sweeping = false;
-        PR_NotifyAllCondVar(sweepingDone);
-    }
-}
-
-void
-GCHelperThread::startBackgroundSweep(JSRuntime *rt)
-{
-    /* The caller takes the GC lock. */
-    JS_ASSERT(!sweeping);
-    sweeping = true;
-    PR_NotifyCondVar(wakeup);
-}
-
-void
-GCHelperThread::waitBackgroundSweepEnd(JSRuntime *rt)
-{
-    AutoLockGC lock(rt);
-    while (sweeping)
-        PR_WaitCondVar(sweepingDone, PR_INTERVAL_NO_TIMEOUT);
-}
-
 JS_FRIEND_API(void)
-GCHelperThread::replenishAndFreeLater(void *ptr)
+BackgroundSweepTask::replenishAndFreeLater(void *ptr)
 {
     JS_ASSERT(freeCursor == freeCursorEnd);
     do {
@@ -2696,7 +2571,7 @@ GCHelperThread::replenishAndFreeLater(void *ptr)
 }
 
 void
-GCHelperThread::doSweep()
+BackgroundSweepTask::run()
 {
     if (freeCursor) {
         void **array = freeCursorEnd - FREE_ARRAY_LENGTH;
@@ -2709,7 +2584,6 @@ GCHelperThread::doSweep()
         void **array = *iter;
         freeElementsAndArray(array, array + FREE_ARRAY_LENGTH);
     }
-    freeVector.resize(0);
 }
 
 }
@@ -2724,10 +2598,10 @@ SweepCompartments(JSContext *cx)
     JSCompartment **read = rt->compartments.begin();
     JSCompartment **end = rt->compartments.end();
     JSCompartment **write = read;
-
+    
     /* Delete defaultCompartment only during runtime shutdown */
     rt->defaultCompartment->marked = true;
-
+    
     while (read < end) {
         JSCompartment *compartment = (*read++);
         if (compartment->marked) {
@@ -2748,7 +2622,7 @@ SweepCompartments(JSContext *cx)
 
 /*
  * Common cache invalidation and so forth that must be done before GC. Even if
- * GCUntilDone calls GC several times, this work needs to be done only once.
+ * GCUntilDone calls GC several times, this work only needs to be done once.
  */
 static void
 PreGCCleanup(JSContext *cx, JSGCInvocationKind gckind)
@@ -2779,7 +2653,8 @@ PreGCCleanup(JSContext *cx, JSGCInvocationKind gckind)
 #endif
         ) {
         rt->gcRegenShapes = true;
-        rt->shapeGen = Shape::LAST_RESERVED_SHAPE;
+        rt->gcRegenShapesScopeFlag ^= JSScope::SHAPE_REGEN;
+        rt->shapeGen = JSScope::LAST_RESERVED_SHAPE;
         rt->protoHazardShape = 0;
     }
 
@@ -2799,7 +2674,7 @@ PreGCCleanup(JSContext *cx, JSGCInvocationKind gckind)
  * to finish. Note that the caller does not hold rt->gcLock.
  */
 static void
-MarkAndSweep(JSContext *cx  GCTIMER_PARAM)
+GC(JSContext *cx  GCTIMER_PARAM)
 {
     JSRuntime *rt = cx->runtime;
     rt->gcNumber++;
@@ -2811,11 +2686,11 @@ MarkAndSweep(JSContext *cx  GCTIMER_PARAM)
     JS_ASSERT(IS_GC_MARKING_TRACER(&gcmarker));
     JS_ASSERT(gcmarker.getMarkColor() == BLACK);
     rt->gcMarkingTracer = &gcmarker;
-
+   
     for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront())
         GCChunkInfo::fromChunk(r.front())->clearMarkBitmap();
-
-    MarkRuntime(&gcmarker);
+   
+    js_TraceRuntime(&gcmarker);
     js_MarkScriptFilenames(rt);
 
     /*
@@ -2830,15 +2705,9 @@ MarkAndSweep(JSContext *cx  GCTIMER_PARAM)
         (void) rt->gcCallback(cx, JSGC_MARK_END);
 
 #ifdef JS_THREADSAFE
-    /*
-     * cx->gcBackgroundFree is set if we need several mark-and-sweep loops to
-     * finish the GC.
-     */
-    if(!cx->gcBackgroundFree) {
-        /* Wait until the sweeping from the previois GC finishes. */
-        rt->gcHelperThread.waitBackgroundSweepEnd(rt);
-        cx->gcBackgroundFree = &rt->gcHelperThread;
-    }
+    JS_ASSERT(!cx->gcSweepTask);
+    if (!rt->gcHelperThread.busy())
+        cx->gcSweepTask = new js::BackgroundSweepTask();
 #endif
 
     /*
@@ -2863,12 +2732,7 @@ MarkAndSweep(JSContext *cx  GCTIMER_PARAM)
 
 #ifdef DEBUG
     /* Save the pre-sweep count of scope-mapped properties. */
-    rt->liveObjectPropsPreSweep = rt->liveObjectProps;
-#endif
-
-#ifdef JS_METHODJIT
-    /* Fix-up call ICs guarding against unreachable objects. */
-    mjit::SweepCallICs(cx);
+    rt->liveScopePropsPreSweep = rt->liveScopeProps;
 #endif
 
     /*
@@ -2898,20 +2762,15 @@ MarkAndSweep(JSContext *cx  GCTIMER_PARAM)
          ++i) {
         FinalizeArenaList<JSString, FinalizeExternalString>(cx, i);
     }
-
-    rt->gcNewArenaTriggerBytes = rt->gcBytes < GC_ARENA_ALLOCATION_TRIGGER ?
-                                 GC_ARENA_ALLOCATION_TRIGGER :
-                                 rt->gcBytes;
-
     TIMESTAMP(sweepStringEnd);
 
     SweepCompartments(cx);
 
     /*
-     * Sweep the runtime's property trees after finalizing objects, in case any
+     * Sweep the runtime's property tree after finalizing objects, in case any
      * had watchpoints referencing tree nodes.
      */
-    js::PropertyTree::sweepShapes(cx);
+    js::SweepScopeProperties(cx);
 
     /*
      * Sweep script filenames after sweeping functions in the generic loop
@@ -2930,6 +2789,13 @@ MarkAndSweep(JSContext *cx  GCTIMER_PARAM)
      */
     FreeGCChunks(rt);
     TIMESTAMP(sweepDestroyEnd);
+
+#ifdef JS_THREADSAFE
+    if (cx->gcSweepTask) {
+        rt->gcHelperThread.schedule(cx->gcSweepTask);
+        cx->gcSweepTask = NULL;
+    }
+#endif
 
     if (rt->gcCallback)
         (void) rt->gcCallback(cx, JSGC_FINALIZE_END);
@@ -2982,7 +2848,7 @@ LetOtherGCFinish(JSContext *cx)
     JS_ASSERT(rt->gcThread);
     JS_ASSERT(cx->thread != rt->gcThread);
 
-    size_t requestDebit = cx->thread->requestDepth ? 1 : 0;
+    size_t requestDebit = cx->thread->requestContext ? 1 : 0;
     JS_ASSERT(requestDebit <= rt->requestCount);
 #ifdef JS_TRACER
     JS_ASSERT_IF(requestDebit == 0, !JS_ON_TRACE(cx));
@@ -3013,53 +2879,38 @@ LetOtherGCFinish(JSContext *cx)
      * finish before we wait.
      */
     JS_ASSERT(rt->gcThread);
+    JS_THREAD_DATA(cx)->conservativeGC.enable(true);
 
     /*
      * Wait for GC to finish on the other thread, even if requestDebit is 0
      * and even if GC has not started yet because the gcThread is waiting in
-     * AutoGCSession. This ensures that js_GC never returns without a full GC
+     * BeginGCSession. This ensures that js_GC never returns without a full GC
      * cycle happening.
      */
     do {
         JS_AWAIT_GC_DONE(rt);
     } while (rt->gcThread);
 
+    JS_THREAD_DATA(cx)->conservativeGC.disable();
     cx->thread->gcWaiting = false;
     rt->requestCount += requestDebit;
 }
 
 #endif
 
-class AutoGCSession {
-  public:
-    explicit AutoGCSession(JSContext *cx);
-    ~AutoGCSession();
-
-  private:
-    JSContext   *context;
-
-    /* Disable copy constructor or assignments */
-    AutoGCSession(const AutoGCSession&);
-    void operator=(const AutoGCSession&);
-};
-
 /*
- * Start a new GC session. Together with LetOtherGCFinish this function
- * contains the rendezvous algorithm by which we stop the world for GC.
+ * Start a new GC session assuming no GC is running on this or other threads.
+ * Together with LetOtherGCFinish this function contains the rendezvous
+ * algorithm by which we stop the world for GC.
  *
  * This thread becomes the GC thread. Wait for all other threads to quiesce.
- * Then set rt->gcRunning and return.
+ * Then set rt->gcRunning and return. The caller must call EndGCSession when
+ * GC work is done.
  */
-AutoGCSession::AutoGCSession(JSContext *cx)
-  : context(cx)
+static void
+BeginGCSession(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
-
-#ifdef JS_THREADSAFE
-    if (rt->gcThread && rt->gcThread != cx->thread)
-        LetOtherGCFinish(cx);
-#endif
-
     JS_ASSERT(!rt->gcRunning);
 
 #ifdef JS_THREADSAFE
@@ -3085,7 +2936,8 @@ AutoGCSession::AutoGCSession(JSContext *cx)
      * JS_NOTIFY_REQUEST_DONE, which will wake us up, is only called on
      * rt->requestCount transitions to 0.
      */
-    size_t requestDebit = cx->thread->requestDepth ? 1 : 0;
+    JS_ASSERT_IF(cx->requestDepth != 0, cx->thread->requestContext);
+    size_t requestDebit = cx->thread->requestContext ? 1 : 0;
     JS_ASSERT(requestDebit <= rt->requestCount);
     if (requestDebit != rt->requestCount) {
         rt->requestCount -= requestDebit;
@@ -3117,12 +2969,14 @@ AutoGCSession::AutoGCSession(JSContext *cx)
 }
 
 /* End the current GC session and allow other threads to proceed. */
-AutoGCSession::~AutoGCSession()
+static void
+EndGCSession(JSContext *cx)
 {
-    JSRuntime *rt = context->runtime;
+    JSRuntime *rt = cx->runtime;
+
     rt->gcRunning = false;
 #ifdef JS_THREADSAFE
-    JS_ASSERT(rt->gcThread == context->thread);
+    JS_ASSERT(rt->gcThread == cx->thread);
     rt->gcThread = NULL;
     JS_NOTIFY_GC_DONE(rt);
 #endif
@@ -3141,27 +2995,44 @@ GCUntilDone(JSContext *cx, JSGCInvocationKind gckind  GCTIMER_PARAM)
     JSRuntime *rt = cx->runtime;
 
     /* Recursive GC or a call from another thread restarts the GC cycle. */
-    if (rt->gcMarkAndSweep) {
+#ifndef JS_THREADSAFE
+    if (rt->gcRunning) {
         rt->gcPoke = true;
-#ifdef JS_THREADSAFE
-        JS_ASSERT(rt->gcThread);
-        if (rt->gcThread != cx->thread) {
-            /* We do not return until another GC finishes. */
-            LetOtherGCFinish(cx);
-        }
-#endif
         return;
     }
+#else /* JS_THREADSAFE */
+    if (rt->gcThread) {
+        rt->gcPoke = true;
+        if (cx->thread == rt->gcThread) {
+            JS_ASSERT(rt->gcRunning);
+            return;
+        }
+        LetOtherGCFinish(cx);
 
-    AutoGCSession gcsession(cx);
+        /*
+         * Check if the GC on another thread have collected the garbage and
+         * it was not a set slot request.
+         */
+        if (!rt->gcPoke)
+            return;
+    }
+#endif /* JS_THREADSAFE */
+
+    BeginGCSession(cx);
 
     METER(rt->gcStats.poke++);
 
-    bool firstRun = true;
-    rt->gcMarkAndSweep = true;
+    /*
+     * Do not scan the current thread on the shutdown or when the GC is called
+     * outside a request.
+     */
+    bool scanGCThreadStack = (rt->state != JSRTS_LANDING);
 #ifdef JS_THREADSAFE
-    JS_ASSERT(!cx->gcBackgroundFree);
+    scanGCThreadStack &= !!cx->thread->requestContext;
 #endif
+    if (scanGCThreadStack)
+        JS_THREAD_DATA(cx)->conservativeGC.enable(true);
+    bool firstRun = true;
     do {
         rt->gcPoke = false;
 
@@ -3171,7 +3042,7 @@ GCUntilDone(JSContext *cx, JSGCInvocationKind gckind  GCTIMER_PARAM)
             TIMESTAMP(startMark);
             firstRun = false;
         }
-        MarkAndSweep(cx  GCTIMER_ARG);
+        GC(cx  GCTIMER_ARG);
 
         // GC again if:
         //   - another thread, not in a request, called js_GC
@@ -3179,15 +3050,13 @@ GCUntilDone(JSContext *cx, JSGCInvocationKind gckind  GCTIMER_PARAM)
         //   - a finalizer called js_RemoveRoot or js_UnlockGCThingRT.
     } while (rt->gcPoke);
 
-#ifdef JS_THREADSAFE
-    JS_ASSERT(cx->gcBackgroundFree == &rt->gcHelperThread);
-    cx->gcBackgroundFree = NULL;
-    rt->gcHelperThread.startBackgroundSweep(rt);
-#endif
+    if (scanGCThreadStack)
+        JS_THREAD_DATA(cx)->conservativeGC.disable();
 
-    rt->gcMarkAndSweep = false;
     rt->gcRegenShapes = false;
     rt->setGCLastBytes(rt->gcBytes);
+
+    EndGCSession(cx);
 }
 
 /*
@@ -3207,8 +3076,6 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
      */
     if (rt->state != JSRTS_UP && gckind != GC_LAST_CONTEXT)
         return;
-
-    RecordNativeStackTopForGC(cx);
 
     GCTIMER_BEGIN();
 
@@ -3253,69 +3120,52 @@ namespace js {
 bool
 SetProtoCheckingForCycles(JSContext *cx, JSObject *obj, JSObject *proto)
 {
+    JSRuntime *rt = cx->runtime;
+
     /*
      * This function cannot be called during the GC and always requires a
      * request.
      */
 #ifdef JS_THREADSAFE
-    JS_ASSERT(cx->thread->requestDepth);
-
-    /*
-     * This is only necessary if AutoGCSession below would wait for GC to
-     * finish on another thread, but to capture the minimal stack space and
-     * for code simplicity we do it here unconditionally.
-     */
-    RecordNativeStackTopForGC(cx);
+    JS_ASSERT(cx->requestDepth);
 #endif
 
-    JSRuntime *rt = cx->runtime;
     AutoLockGC lock(rt);
-    AutoGCSession gcsession(cx);
-    AutoUnlockGC unlock(rt);
 
-    bool cycle = false;
-    for (JSObject *obj2 = proto; obj2;) {
-        obj2 = obj2->wrappedObject(cx);
-        if (obj2 == obj) {
-            cycle = true;
-            break;
-        }
-        obj2 = obj2->getProto();
+    /*
+     * The set slot request cannot be called recursively and must not be
+     * called during a normal GC. So if at this point JSRuntime::gcThread is
+     * set it must be a GC or a set slot request from another thread.
+     */
+#ifdef JS_THREADSAFE
+    if (rt->gcThread) {
+        JS_ASSERT(cx->thread != rt->gcThread);
+        LetOtherGCFinish(cx);
     }
-    if (!cycle)
-        obj->setProto(proto);
+#endif
+
+    BeginGCSession(cx);
+
+    bool cycle;
+    {
+        AutoUnlockGC unlock(rt);
+
+        cycle = false;
+        for (JSObject *obj2 = proto; obj2;) {
+            obj2 = obj2->wrappedObject(cx);
+            if (obj2 == obj) {
+                cycle = true;
+                break;
+            }
+            obj2 = obj2->getProto();
+        }
+        if (!cycle)
+            obj->setProto(proto);
+    }
+
+    EndGCSession(cx);
 
     return !cycle;
-}
-
-void
-TraceRuntime(JSTracer *trc)
-{
-    LeaveTrace(trc->context);
-
-#ifdef JS_THREADSAFE
-    {
-        JSContext *cx = trc->context;
-        JSRuntime *rt = cx->runtime;
-        AutoLockGC lock(rt);
-
-        if (rt->gcThread != cx->thread) {
-            AutoGCSession gcsession(cx);
-            AutoUnlockGC unlock(rt);
-            RecordNativeStackTopForGC(trc->context);
-            MarkRuntime(trc);
-            return;
-        }
-    }
-#else
-    RecordNativeStackTopForGC(trc->context);
-#endif
-
-    /*
-     * Calls from inside a normal GC or a recursive calls are OK and do not
-     * require session setup.
-     */
-    MarkRuntime(trc);
 }
 
 JSCompartment *

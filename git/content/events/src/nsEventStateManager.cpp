@@ -184,7 +184,6 @@ static PRBool sKeyCausesActivation = PR_TRUE;
 static PRUint32 sESMInstanceCount = 0;
 static PRInt32 sChromeAccessModifier = 0, sContentAccessModifier = 0;
 PRInt32 nsEventStateManager::sUserInputEventDepth = 0;
-PRBool nsEventStateManager::sNormalLMouseEventInProcess = PR_FALSE;
 
 static PRUint32 gMouseOrKeyboardEventCounter = 0;
 static nsITimer* gUserInteractionTimer = nsnull;
@@ -779,6 +778,7 @@ nsEventStateManager::nsEventStateManager()
     mLClickCount(0),
     mMClickCount(0),
     mRClickCount(0),
+    mNormalLMouseEventInProcess(PR_FALSE),
     m_haveShutdown(PR_FALSE),
     mLastLineScrollConsumedX(PR_FALSE),
     mLastLineScrollConsumedY(PR_FALSE),
@@ -1085,7 +1085,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 #endif
       mLClickCount = ((nsMouseEvent*)aEvent)->clickCount;
       SetClickCount(aPresContext, (nsMouseEvent*)aEvent, aStatus);
-      sNormalLMouseEventInProcess = PR_TRUE;
+      mNormalLMouseEventInProcess = PR_TRUE;
       break;
     case nsMouseEvent::eMiddleButton:
       mMClickCount = ((nsMouseEvent*)aEvent)->clickCount;
@@ -1109,7 +1109,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 #ifndef XP_OS2
         StopTrackingDragGesture();
 #endif
-        sNormalLMouseEventInProcess = PR_FALSE;
+        mNormalLMouseEventInProcess = PR_FALSE;
       case nsMouseEvent::eRightButton:
 #ifdef XP_OS2
         StopTrackingDragGesture();
@@ -2799,7 +2799,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
   case NS_MOUSE_BUTTON_DOWN:
     {
       if (static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton &&
-          !sNormalLMouseEventInProcess) {
+          !mNormalLMouseEventInProcess) {
         // We got a mouseup event while a mousedown event was being processed.
         // Make sure that the capturing content is cleared.
         nsIPresShell::SetCapturingContent(nsnull, 0);
@@ -3945,17 +3945,16 @@ nsEventStateManager::SetClickCount(nsPresContext* aPresContext,
 {
   nsCOMPtr<nsIContent> mouseContent;
   mCurrentTarget->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(mouseContent));
-  nsIContent* mouseContentParent = GetParentContentForMouseTarget(mouseContent);
 
   switch (aEvent->button) {
   case nsMouseEvent::eLeftButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastLeftMouseDownContent = mouseContent;
-      mLastLeftMouseDownContentParent = mouseContentParent;
+      mLastLeftMouseDownContentParent =
+        GetParentContentForMouseTarget(mouseContent);
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
       if (mLastLeftMouseDownContent == mouseContent ||
-          mLastLeftMouseDownContentParent == mouseContent ||
-          mLastLeftMouseDownContent == mouseContentParent) {
+          mLastLeftMouseDownContentParent == mouseContent) {
         aEvent->clickCount = mLClickCount;
         mLClickCount = 0;
       } else {
@@ -3969,11 +3968,11 @@ nsEventStateManager::SetClickCount(nsPresContext* aPresContext,
   case nsMouseEvent::eMiddleButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastMiddleMouseDownContent = mouseContent;
-      mLastMiddleMouseDownContentParent = mouseContentParent;
+      mLastMiddleMouseDownContentParent =
+        GetParentContentForMouseTarget(mouseContent);
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
       if (mLastMiddleMouseDownContent == mouseContent ||
-          mLastMiddleMouseDownContentParent == mouseContent ||
-          mLastMiddleMouseDownContent == mouseContentParent) {
+          mLastMiddleMouseDownContentParent == mouseContent) {
         aEvent->clickCount = mMClickCount;
         mMClickCount = 0;
       } else {
@@ -3987,11 +3986,11 @@ nsEventStateManager::SetClickCount(nsPresContext* aPresContext,
   case nsMouseEvent::eRightButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastRightMouseDownContent = mouseContent;
-      mLastRightMouseDownContentParent = mouseContentParent;
+      mLastRightMouseDownContentParent =
+        GetParentContentForMouseTarget(mouseContent);
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
       if (mLastRightMouseDownContent == mouseContent ||
-          mLastRightMouseDownContentParent == mouseContent ||
-          mLastRightMouseDownContent == mouseContentParent) {
+          mLastRightMouseDownContentParent == mouseContent) {
         aEvent->clickCount = mRClickCount;
         mRClickCount = 0;
       } else {
@@ -4493,7 +4492,7 @@ nsEventStateManager::EventStatusOK(nsGUIEvent* aEvent, PRBool *aOK)
   *aOK = PR_TRUE;
   if (aEvent->message == NS_MOUSE_BUTTON_DOWN &&
       static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) {
-    if (!sNormalLMouseEventInProcess) {
+    if (!mNormalLMouseEventInProcess) {
       *aOK = PR_FALSE;
     }
   }

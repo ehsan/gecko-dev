@@ -157,12 +157,11 @@ protected:
     
     struct tHeader {
         tHeader(tHeader* nextPage, size_t pageCount) :
-            nextPage(nextPage),
-            pageCount(pageCount)
 #ifdef GUARD_BLOCKS
-          , lastAllocation(0)
+            lastAllocation(0),
 #endif
-            { }
+            nextPage(nextPage),
+            pageCount(pageCount) { }
 
         ~tHeader() {
 #ifdef GUARD_BLOCKS

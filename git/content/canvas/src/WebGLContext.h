@@ -226,7 +226,7 @@ class WebGLBuffer;
 
 struct WebGLVertexAttribData {
     WebGLVertexAttribData()
-        : buf(0), stride(0), size(0), byteOffset(0), type(0), enabled(PR_FALSE), normalized(PR_FALSE)
+        : buf(0), stride(0), size(0), byteOffset(0), type(0), enabled(PR_FALSE)
     { }
 
     WebGLObjectRefPtr<WebGLBuffer> buf;
@@ -235,7 +235,6 @@ struct WebGLVertexAttribData {
     GLuint byteOffset;
     GLenum type;
     PRBool enabled;
-    PRBool normalized;
 
     GLuint componentSize() const {
         switch(type) {
@@ -332,12 +331,9 @@ public:
     }
 
     PRBool NeedFakeBlack();
+
     void BindFakeBlackTextures();
     void UnbindFakeBlackTextures();
-
-    PRBool NeedFakeVertexAttrib0();
-    void DoFakeVertexAttrib0(WebGLuint vertexCount);
-    void UndoFakeVertexAttrib0();
 
 protected:
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
@@ -352,7 +348,6 @@ protected:
 
     PRPackedBool mInvalidated;
     PRPackedBool mResetLayer;
-    PRPackedBool mVerbose;
 
     WebGLuint mActiveTexture;
     WebGLenum mSynthesizedGLError;
@@ -480,16 +475,10 @@ protected:
     WebGLuint mBlackTexture2D, mBlackTextureCubeMap;
     PRBool mBlackTexturesAreInitialized;
 
-    WebGLfloat mVertexAttrib0Vector[4];
-    nsAutoArrayPtr<WebGLfloat> mFakeVertexAttrib0Array;
-
 public:
     // console logging helpers
-    static void LogMessage(const char *fmt, ...);
+    static void LogMessage (const char *fmt, ...);
     static void LogMessage(const char *fmt, va_list ap);
-    // if display is false, this won't actually do anything
-    static void LogMessage(bool display, const char *fmt, ...);
-    void LogMessageIfVerbose(const char *fmt, ...);
 
     friend class WebGLTexture;
 };
@@ -696,7 +685,7 @@ public:
         mFacesCount(0),
         mMaxLevelWithCustomImages(0),
         mHaveGeneratedMipmap(PR_FALSE),
-        mFakeBlackStatus(DoNotNeedFakeBlack)
+        mFakeBlackStatus(DontKnowIfNeedFakeBlack)
     {}
 
     void Delete() {
@@ -924,13 +913,12 @@ public:
         mHaveGeneratedMipmap = PR_FALSE;
     }
 
-    PRBool IsFirstImagePowerOfTwo() const {
-        return ImageInfoAt(0, 0).IsPowerOfTwo();
-    }
-
-    PRBool AreAllLevel0ImageInfosEqual() const {
-        for (size_t face = 1; face < mFacesCount; ++face) {
-            if (ImageInfoAt(0, face) != ImageInfoAt(0, 0))
+    PRBool IsGenerateMipmapAllowed() const {
+        const ImageInfo &first = ImageInfoAt(0, 0);
+        if (!first.IsPowerOfTwo())
+            return PR_FALSE;
+        for (size_t face = 0; face < mFacesCount; ++face) {
+            if (ImageInfoAt(0, face) != first)
                 return PR_FALSE;
         }
         return PR_TRUE;
@@ -939,7 +927,7 @@ public:
     PRBool IsMipmapTexture2DComplete() const {
         if (mTarget != LOCAL_GL_TEXTURE_2D)
             return PR_FALSE;
-        if (!ImageInfoAt(0, 0).IsPositive())
+        if (!mImageInfos[0].IsPositive())
             return PR_FALSE;
         if (mHaveGeneratedMipmap)
             return PR_TRUE;
@@ -952,7 +940,11 @@ public:
         const ImageInfo &first = ImageInfoAt(0, 0);
         if (!first.IsPositive() || !first.IsSquare())
             return PR_FALSE;
-        return AreAllLevel0ImageInfosEqual();
+        for (size_t face = 0; face < mFacesCount; ++face) {
+            if (ImageInfoAt(0, face) != first)
+                return PR_FALSE;
+        }
+        return PR_TRUE;
     }
 
     PRBool IsMipmapCubeComplete() const {
@@ -974,43 +966,26 @@ public:
             // Determine if the texture needs to be faked as a black texture.
             // See 3.8.2 Shader Execution in the OpenGL ES 2.0.24 spec.
 
-            const char *msg_rendering_as_black
-                = "A texture is going to be rendered as if it were black, as per the OpenGL ES 2.0.24 spec section 3.8.2, "
-                  "because it";
-
             if (mTarget == LOCAL_GL_TEXTURE_2D)
             {
                 if (DoesMinFilterRequireMipmap())
                 {
-                    if (!IsMipmapTexture2DComplete()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter requiring a mipmap, "
-                             "and is not mipmap complete (as defined in section 3.7.10).", msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    } else if (!ImageInfoAt(0, 0).IsPowerOfTwo()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter requiring a mipmap, "
-                             "and either its width or height is not a power of two.", msg_rendering_as_black);
+                    if (!IsMipmapTexture2DComplete() ||
+                        !mImageInfos[0].IsPowerOfTwo())
+                    {
                         mFakeBlackStatus = DoNeedFakeBlack;
                     }
                 }
                 else // no mipmap required
                 {
-                    if (!ImageInfoAt(0, 0).IsPositive()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture and its width or height is equal to zero.",
-                             msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    } else if (!AreBothWrapModesClampToEdge() && !ImageInfoAt(0, 0).IsPowerOfTwo()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter not requiring a mipmap, "
-                             "with its width or height not a power of two, and with a wrap mode "
-                             "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
+                    if (!mImageInfos[0].IsPositive() ||
+                        (!AreBothWrapModesClampToEdge() && !mImageInfos[0].IsPowerOfTwo()))
+                    {
                         mFakeBlackStatus = DoNeedFakeBlack;
                     }
                 }
             }
-            else // cube map
+            else if (mTarget == LOCAL_GL_TEXTURE_CUBE_MAP)
             {
                 PRBool areAllLevel0ImagesPOT = PR_TRUE;
                 for (size_t face = 0; face < mFacesCount; ++face)
@@ -1018,29 +993,17 @@ public:
 
                 if (DoesMinFilterRequireMipmap())
                 {
-                    if (!IsMipmapCubeComplete()) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter requiring a mipmap, "
-                                   "and is not mipmap cube complete (as defined in section 3.7.10).",
-                                   msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    } else if (!areAllLevel0ImagesPOT) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter requiring a mipmap, "
-                                   "and either the width or the height of some level 0 image is not a power of two.",
-                                   msg_rendering_as_black);
+                    if (!IsMipmapCubeComplete() ||
+                        !areAllLevel0ImagesPOT)
+                    {
                         mFakeBlackStatus = DoNeedFakeBlack;
                     }
                 }
                 else // no mipmap required
                 {
-                    if (!IsCubeComplete()) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter not requiring a mipmap, "
-                                   "and is not cube complete (as defined in section 3.7.10).",
-                                   msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    } else if (!AreBothWrapModesClampToEdge() && !areAllLevel0ImagesPOT) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter not requiring a mipmap, "
-                                   "with some level 0 image having width or height not a power of two, and with a wrap mode "
-                                   "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
+                    if (!IsCubeComplete() ||
+                        (!AreBothWrapModesClampToEdge() && !areAllLevel0ImagesPOT))
+                    {
                         mFakeBlackStatus = DoNeedFakeBlack;
                     }
                 }
@@ -1356,6 +1319,7 @@ protected:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WebGLActiveInfo, WEBGLACTIVEINFO_PRIVATE_IID)
+
 
 /**
  ** Template implementations

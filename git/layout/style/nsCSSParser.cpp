@@ -119,7 +119,8 @@ namespace css = mozilla::css;
 // This is an extra bit that says that a VARIANT_ANGLE allows unitless zero:
 #define VARIANT_ZERO_ANGLE    0x02000000  // unitless zero for angles
 #define VARIANT_CALC          0x04000000  // eCSSUnit_Calc
-#define VARIANT_ELEMENT       0x08000000  // eCSSUnit_Element
+#define VARIANT_CALC_NO_MIN_MAX 0x08000000 // no min() and max() for calc()
+#define VARIANT_ELEMENT       0x10000000  // eCSSUnit_Element
 
 // Common combinations of variants
 #define VARIANT_AL   (VARIANT_AUTO | VARIANT_LENGTH)
@@ -153,12 +154,12 @@ namespace css = mozilla::css;
 #define VARIANT_HN   (VARIANT_INHERIT | VARIANT_NUMBER)
 #define VARIANT_HON  (VARIANT_HN | VARIANT_NONE)
 #define VARIANT_HOS  (VARIANT_INHERIT | VARIANT_NONE | VARIANT_STRING)
-#define VARIANT_LPN  (VARIANT_LP | VARIANT_NUMBER)
 #define VARIANT_TIMING_FUNCTION (VARIANT_KEYWORD | VARIANT_CUBIC_BEZIER)
 #define VARIANT_UK   (VARIANT_URL | VARIANT_KEYWORD)
 #define VARIANT_UO   (VARIANT_URL | VARIANT_NONE)
 #define VARIANT_ANGLE_OR_ZERO (VARIANT_ANGLE | VARIANT_ZERO_ANGLE)
-#define VARIANT_TRANSFORM_LPCALC (VARIANT_LP | VARIANT_CALC)
+#define VARIANT_TRANSFORM_LPCALC (VARIANT_LP | VARIANT_CALC | \
+                                  VARIANT_CALC_NO_MIN_MAX)
 #define VARIANT_IMAGE (VARIANT_URL | VARIANT_NONE | VARIANT_GRADIENT | \
                        VARIANT_IMAGE_RECT | VARIANT_ELEMENT)
 
@@ -466,6 +467,8 @@ protected:
                                            PRInt32& aVariantMask,
                                            PRBool *aHadFinalWS);
   PRBool ParseCalcTerm(nsCSSValue& aValue, PRInt32& aVariantMask);
+  PRBool ParseCalcMinMax(nsCSSValue& aValue, nsCSSUnit aUnit,
+                         PRInt32& aVariantMask);
   PRBool RequireWhitespace();
 
   // for 'clip' and '-moz-image-region'
@@ -1790,9 +1793,6 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
           feature->mValueType == nsMediaFeature::eBoolInteger &&
           expr->mValue.GetIntValue() > 1)
         rv = PR_FALSE;
-      break;
-    case nsMediaFeature::eFloat:
-      rv = ParseNonNegativeVariant(expr->mValue, VARIANT_NUMBER, nsnull);
       break;
     case nsMediaFeature::eIntRatio:
       {
@@ -4209,7 +4209,8 @@ CSSParserImpl::TranslateDimension(nsCSSValue& aValue,
   VARIANT_GRADIENT | \
   VARIANT_CUBIC_BEZIER | \
   VARIANT_ALL | \
-  VARIANT_CALC
+  VARIANT_CALC | \
+  VARIANT_CALC_NO_MIN_MAX
 
 // Note that callers passing VARIANT_CALC in aVariantMask will get
 // full-range parsing inside the calc() expression, and the code that
@@ -4492,9 +4493,12 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
   }
   if ((aVariantMask & VARIANT_CALC) &&
       (eCSSToken_Function == tk->mType) &&
-      tk->mIdent.LowerCaseEqualsLiteral("-moz-calc")) {
+      (tk->mIdent.LowerCaseEqualsLiteral("-moz-calc") ||
+       tk->mIdent.LowerCaseEqualsLiteral("-moz-min") ||
+       tk->mIdent.LowerCaseEqualsLiteral("-moz-max"))) {
     // calc() currently allows only lengths and percents inside it.
-    return ParseCalc(aValue, aVariantMask & VARIANT_LP);
+    return ParseCalc(aValue,
+                     aVariantMask & (VARIANT_LP | VARIANT_CALC_NO_MIN_MAX));
   }
 
   UngetToken();
@@ -5064,13 +5068,13 @@ CSSParserImpl::ParseBoxCornerRadius(nsCSSProperty aPropID)
 {
   nsCSSValue dimenX, dimenY;
   // required first value
-  if (! ParseNonNegativeVariant(dimenX, VARIANT_HLP | VARIANT_CALC, nsnull))
+  if (! ParseNonNegativeVariant(dimenX, VARIANT_HLP, nsnull))
     return PR_FALSE;
 
   // optional second value (forbidden if first value is inherit/initial)
   if (dimenX.GetUnit() != eCSSUnit_Inherit &&
       dimenX.GetUnit() != eCSSUnit_Initial) {
-    ParseNonNegativeVariant(dimenY, VARIANT_LP | VARIANT_CALC, nsnull);
+    ParseNonNegativeVariant(dimenY, VARIANT_LP, nsnull);
   }
 
   if (dimenX == dimenY || dimenY.GetUnit() == eCSSUnit_Null) {
@@ -5094,9 +5098,7 @@ CSSParserImpl::ParseBoxCornerRadii(const nsCSSProperty aPropIDs[])
 
   NS_FOR_CSS_SIDES (side) {
     if (! ParseNonNegativeVariant(dimenX.*nsCSSRect::sides[side],
-                                  (side > 0 ? 0 : VARIANT_INHERIT) |
-                                    VARIANT_LP | VARIANT_CALC,
-                                  nsnull))
+                                  side > 0 ? VARIANT_LP : VARIANT_HLP, nsnull))
       break;
     countX++;
   }
@@ -5106,7 +5108,7 @@ CSSParserImpl::ParseBoxCornerRadii(const nsCSSProperty aPropIDs[])
   if (ExpectSymbol('/', PR_TRUE)) {
     NS_FOR_CSS_SIDES (side) {
       if (! ParseNonNegativeVariant(dimenY.*nsCSSRect::sides[side],
-                                    VARIANT_LP | VARIANT_CALC, nsnull))
+                                    VARIANT_LP, nsnull))
         break;
       countY++;
     }
@@ -5177,10 +5179,10 @@ static const nsCSSProperty kBorderColorIDs[] = {
   eCSSProperty_border_left_color_value
 };
 static const nsCSSProperty kBorderRadiusIDs[] = {
-  eCSSProperty_border_top_left_radius,
-  eCSSProperty_border_top_right_radius,
-  eCSSProperty_border_bottom_right_radius,
-  eCSSProperty_border_bottom_left_radius
+  eCSSProperty__moz_border_radius_topLeft,
+  eCSSProperty__moz_border_radius_topRight,
+  eCSSProperty__moz_border_radius_bottomRight,
+  eCSSProperty__moz_border_radius_bottomLeft
 };
 static const nsCSSProperty kOutlineRadiusIDs[] = {
   eCSSProperty__moz_outline_radius_topLeft,
@@ -5276,15 +5278,15 @@ CSSParserImpl::ParseProperty(nsCSSProperty aPropID)
   case eCSSProperty_border_start_style:
     return ParseDirectionalBoxProperty(eCSSProperty_border_start_style,
                                        NS_BOXPROP_SOURCE_LOGICAL);
-  case eCSSProperty_border_radius:
+  case eCSSProperty__moz_border_radius:
     return ParseBoxCornerRadii(kBorderRadiusIDs);
   case eCSSProperty__moz_outline_radius:
     return ParseBoxCornerRadii(kOutlineRadiusIDs);
 
-  case eCSSProperty_border_top_left_radius:
-  case eCSSProperty_border_top_right_radius:
-  case eCSSProperty_border_bottom_right_radius:
-  case eCSSProperty_border_bottom_left_radius:
+  case eCSSProperty__moz_border_radius_topLeft:
+  case eCSSProperty__moz_border_radius_topRight:
+  case eCSSProperty__moz_border_radius_bottomRight:
+  case eCSSProperty__moz_border_radius_bottomLeft:
   case eCSSProperty__moz_outline_radius_topLeft:
   case eCSSProperty__moz_outline_radius_topRight:
   case eCSSProperty__moz_outline_radius_bottomRight:
@@ -5483,11 +5485,11 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_border_top:
   case eCSSProperty_border_width:
   case eCSSProperty_background_size:
-  case eCSSProperty_border_radius:
-  case eCSSProperty_border_top_left_radius:
-  case eCSSProperty_border_top_right_radius:
-  case eCSSProperty_border_bottom_right_radius:
-  case eCSSProperty_border_bottom_left_radius:
+  case eCSSProperty__moz_border_radius:
+  case eCSSProperty__moz_border_radius_topLeft:
+  case eCSSProperty__moz_border_radius_topRight:
+  case eCSSProperty__moz_border_radius_bottomRight:
+  case eCSSProperty__moz_border_radius_bottomLeft:
   case eCSSProperty_box_shadow:
   case eCSSProperty_clip:
   case eCSSProperty__moz_column_rule:
@@ -5635,8 +5637,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty__moz_column_width:
     return ParseNonNegativeVariant(aValue, VARIANT_AHL | VARIANT_CALC, nsnull);
   case eCSSProperty__moz_column_gap:
-    return ParseNonNegativeVariant(aValue, VARIANT_HL | VARIANT_NORMAL |
-                                   VARIANT_CALC, nsnull);
+    return ParseNonNegativeVariant(aValue, VARIANT_HL | VARIANT_NORMAL, nsnull);
   case eCSSProperty_bottom:
   case eCSSProperty_top:
   case eCSSProperty_left:
@@ -5827,7 +5828,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_margin_right_value: // for internal use
   case eCSSProperty_margin_start_value: // for internal use
   case eCSSProperty_margin_top:
-    return ParseVariant(aValue, VARIANT_AHLP | VARIANT_CALC, nsnull);
+    return ParseVariant(aValue, VARIANT_AHLP, nsnull);
   case eCSSProperty_marker_offset:
     return ParseVariant(aValue, VARIANT_AHL | VARIANT_CALC, nsnull);
   case eCSSProperty_marks:
@@ -5856,7 +5857,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kOutlineStyleKTable);
   case eCSSProperty_outline_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_HKL | VARIANT_CALC,
+    return ParseNonNegativeVariant(aValue, VARIANT_HKL,
                                    nsCSSProps::kBorderWidthKTable);
   case eCSSProperty_outline_offset:
     return ParseVariant(aValue, VARIANT_HL | VARIANT_CALC, nsnull);
@@ -5870,7 +5871,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_padding_right_value: // for internal use
   case eCSSProperty_padding_start_value: // for internal use
   case eCSSProperty_padding_top:
-    return ParseNonNegativeVariant(aValue, VARIANT_HLP | VARIANT_CALC, nsnull);
+    return ParseNonNegativeVariant(aValue, VARIANT_HLP, nsnull);
   case eCSSProperty_page:
     return ParseVariant(aValue, VARIANT_AUTO | VARIANT_IDENTIFIER, nsnull);
   case eCSSProperty_page_break_after:
@@ -5938,7 +5939,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_text_decoration:
     return ParseTextDecoration(aValue);
   case eCSSProperty_text_indent:
-    return ParseVariant(aValue, VARIANT_HLP | VARIANT_CALC, nsnull);
+    return ParseVariant(aValue, VARIANT_HLP, nsnull);
   case eCSSProperty_text_transform:
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kTextTransformKTable);
@@ -5958,7 +5959,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kUserSelectKTable);
   case eCSSProperty_vertical_align:
-    return ParseVariant(aValue, VARIANT_HKLP | VARIANT_CALC,
+    return ParseVariant(aValue, VARIANT_HKLP,
                         nsCSSProps::kVerticalAlignKTable);
   case eCSSProperty_visibility:
     return ParseVariant(aValue, VARIANT_HK,
@@ -6910,7 +6911,23 @@ CSSParserImpl::ParseBorderColors(nsCSSProperty aProperty)
   return PR_TRUE;
 }
 
-// Parse the top level of a calc() expression.
+static PRBool
+HasMinMax(const nsCSSValue::Array *aArray)
+{
+  for (PRUint32 i = 0, i_end = aArray->Count(); i != i_end; ++i) {
+    const nsCSSValue &v = aArray->Item(i);
+    if (v.IsCalcUnit() &&
+        (v.GetUnit() == eCSSUnit_Calc_Minimum ||
+         v.GetUnit() == eCSSUnit_Calc_Maximum ||
+         HasMinMax(v.GetArrayValue()))) {
+      return PR_TRUE;
+    }
+  }
+  return PR_FALSE;
+}
+
+// Parse the top level of a calc() expression, which can be calc(),
+// min(), or max().
 PRBool
 CSSParserImpl::ParseCalc(nsCSSValue &aValue, PRInt32 aVariantMask)
 {
@@ -6920,6 +6937,28 @@ CSSParserImpl::ParseCalc(nsCSSValue &aValue, PRInt32 aVariantMask)
   // values cannot themselves be numbers.
   NS_ASSERTION(!(aVariantMask & VARIANT_NUMBER), "unexpected variant mask");
   NS_ABORT_IF_FALSE(aVariantMask != 0, "unexpected variant mask");
+
+  PRBool noMinMax = aVariantMask & VARIANT_CALC_NO_MIN_MAX;
+  aVariantMask &= ~VARIANT_CALC_NO_MIN_MAX;
+
+  nsCSSUnit unit;
+  if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-min")) {
+    unit = eCSSUnit_Calc_Minimum;
+  } else if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-max")) {
+    unit = eCSSUnit_Calc_Maximum;
+  } else {
+    NS_ASSERTION(mToken.mIdent.LowerCaseEqualsLiteral("-moz-calc"),
+                 "unexpected function");
+    unit = eCSSUnit_Calc;
+  }
+
+  if (unit != eCSSUnit_Calc) {
+    if (noMinMax) {
+      SkipUntil(')');
+      return PR_FALSE;
+    }
+    return ParseCalcMinMax(aValue, unit, aVariantMask);
+  }
 
   // One-iteration loop so we can break to the error-handling case.
   do {
@@ -6935,6 +6974,10 @@ CSSParserImpl::ParseCalc(nsCSSValue &aValue, PRInt32 aVariantMask)
 
     if (!ExpectSymbol(')', PR_TRUE))
       break;
+
+    if (noMinMax && HasMinMax(arr)) {
+      return PR_FALSE;
+    }
 
     aValue.SetArrayValue(arr, eCSSUnit_Calc);
     return PR_TRUE;
@@ -7138,6 +7181,14 @@ CSSParserImpl::ParseCalcTerm(nsCSSValue& aValue, PRInt32& aVariantMask)
     }
     return PR_TRUE;
   }
+  // ... or a min() or max() expression
+  if (mToken.mType == eCSSToken_Function &&
+      (mToken.mIdent.LowerCaseEqualsLiteral("min") ||
+       mToken.mIdent.LowerCaseEqualsLiteral("max"))) {
+    nsCSSUnit unit = mToken.mIdent.LowerCaseEqualsLiteral("min")
+                       ? eCSSUnit_Calc_Minimum : eCSSUnit_Calc_Maximum;
+    return ParseCalcMinMax(aValue, unit, aVariantMask);
+  }
   // ... or just a value
   UngetToken();
   if (!ParseVariant(aValue, aVariantMask, nsnull)) {
@@ -7152,6 +7203,69 @@ CSSParserImpl::ParseCalcTerm(nsCSSValue& aValue, PRInt32& aVariantMask)
       aVariantMask &= ~PRInt32(VARIANT_NUMBER);
     }
   }
+  return PR_TRUE;
+}
+
+// This function handles and modifies aVariantMask exactly as
+// described for ParcCalcTerm above.
+PRBool
+CSSParserImpl::ParseCalcMinMax(nsCSSValue& aValue, nsCSSUnit aUnit,
+                               PRInt32& aVariantMask)
+{
+  NS_ABORT_IF_FALSE(aVariantMask != 0, "unexpected variant mask");
+  NS_ASSERTION(aUnit == eCSSUnit_Calc_Minimum ||
+               aUnit == eCSSUnit_Calc_Maximum,
+               "unexpected unit");
+  NS_ASSERTION(mToken.mType == eCSSToken_Function, "unexpected current token");
+  NS_ASSERTION(aUnit != eCSSUnit_Calc_Minimum ||
+               mToken.mIdent.LowerCaseEqualsLiteral("min") ||
+               mToken.mIdent.LowerCaseEqualsLiteral("-moz-min"),
+               "unexpected current token");
+  NS_ASSERTION(aUnit != eCSSUnit_Calc_Maximum ||
+               mToken.mIdent.LowerCaseEqualsLiteral("max") ||
+               mToken.mIdent.LowerCaseEqualsLiteral("-moz-max"),
+               "unexpected current token");
+
+  nsAutoTArray<nsCSSValue, 4> values;
+  for (;;) {
+    nsCSSValue *v = values.AppendElement();
+    if (!v) {
+      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
+      return PR_FALSE;
+    }
+
+    if (!ParseCalcAdditiveExpression(*v, aVariantMask))
+      return PR_FALSE;
+
+    NS_ABORT_IF_FALSE(!(aVariantMask & VARIANT_NUMBER) ||
+                      !(aVariantMask & ~PRInt32(VARIANT_NUMBER)),
+                      "parsing additive expr did not adjust variant mask");
+    NS_ABORT_IF_FALSE(aVariantMask != 0, "unexpected variant mask");
+
+    if (ExpectSymbol(',', PR_TRUE))
+      continue;
+
+    if (ExpectSymbol(')', PR_TRUE))
+      break;
+
+    SkipUntil(')');
+    return PR_FALSE;
+  }
+
+  // We allow min() and max() to take 1 or more arguments; the code
+  // above already ensures that.
+  NS_ABORT_IF_FALSE(values.Length() > 0, "unexpected length");
+
+  nsRefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(values.Length());
+  if (!arr) {
+    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
+    return PR_FALSE;
+  }
+  for (PRUint32 i = 0, i_end = values.Length(); i < i_end; ++i) {
+    arr->Item(i) = values[i];
+  }
+
+  aValue.SetArrayValue(arr, aUnit);
   return PR_TRUE;
 }
 
@@ -8918,7 +9032,9 @@ CSSParserImpl::ParseDasharray()
   } else {
     nsCSSValueList *cur = value.SetListValue();
     for (;;) {
-      if (!ParseNonNegativeVariant(cur->mValue, VARIANT_LPN, nsnull)) {
+      if (!ParseVariant(cur->mValue,
+                        VARIANT_LENGTH | VARIANT_PERCENT | VARIANT_NUMBER,
+                        nsnull)) {
         return PR_FALSE;
       }
       if (CheckEndProperty()) {

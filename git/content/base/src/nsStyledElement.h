@@ -80,8 +80,6 @@ public:
 
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
-  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                                const nsAString* aValue, PRBool aNotify);
 
   nsIDOMCSSStyleDeclaration* GetStyle(nsresult* retval);
 

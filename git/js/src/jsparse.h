@@ -298,33 +298,6 @@ typedef enum JSParseNodeArity {
 
 struct JSDefinition;
 
-namespace js {
-
-struct GlobalScope {
-    GlobalScope(JSContext *cx, JSObject *globalObj, JSCodeGenerator *cg)
-      : globalObj(globalObj), cg(cg), defs(ContextAllocPolicy(cx))
-    { }
-
-    struct GlobalDef {
-        JSAtom *atom;
-        JSFunctionBox *funbox;
-
-        GlobalDef() { }
-        GlobalDef(JSAtom *atom) : atom(atom), funbox(NULL)
-        { }
-        GlobalDef(JSAtom *atom, JSFunctionBox *box) :
-          atom(atom), funbox(box)
-        { }
-    };
-
-    JSObject *globalObj;
-    JSCodeGenerator *cg;
-    Vector<GlobalDef, 16, ContextAllocPolicy> defs;
-    uint32 globalFreeSlot;
-};
-
-} /* namespace js */
-
 struct JSParseNode {
     uint32              pn_type:16,     /* TOK_* type, see jsscan.h */
                         pn_op:8,        /* see JSOp enum and jsopcode.tbl */
@@ -477,10 +450,9 @@ public:
 #define PND_DEOPTIMIZED 0x400           /* former pn_used name node, pn_lexdef
                                            still valid, but this use no longer
                                            optimizable via an upvar opcode */
-#define PND_CLOSED      0x800           /* variable is closed over */
 
 /* Flags to propagate from uses to definition. */
-#define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_FUNARG | PND_CLOSED)
+#define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_FUNARG)
 
 /* PN_LIST pn_xflags bits. */
 #define PNX_STRCAT      0x01            /* TOK_PLUS list has string term */
@@ -929,9 +901,9 @@ struct JSFunctionBox : public JSObjectBox
      * be joined to one compiler-created null closure shared among N different
      * closure environments.
      *
-     * We despecialize from caching function objects, caching slots or shapes
+     * We despecialize from caching function objects, caching slots or sprops
      * instead, because an unbranded object may still have joined methods (for
-     * which shape->isMethod), since PropertyCache::fill gives precedence to
+     * which sprop->isMethod), since PropertyCache::fill gives precedence to
      * joined methods over branded methods.
      */
     bool shouldUnbrand(uintN methods, uintN slowMethods) const;
@@ -1153,7 +1125,6 @@ Parser::reportErrorNumber(JSParseNode *pn, uintN flags, uintN errorNumber, ...)
 struct Compiler
 {
     Parser parser;
-    GlobalScope *globalScope;
 
     Compiler(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL)
       : parser(cx, prin, cfp)
@@ -1181,7 +1152,7 @@ struct Compiler
                   const jschar *chars, size_t length,
                   FILE *file, const char *filename, uintN lineno,
                   JSString *source = NULL,
-                  uintN staticLevel = 0);
+                  unsigned staticLevel = 0);
 };
 
 } /* namespace js */

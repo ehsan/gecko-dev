@@ -58,9 +58,8 @@ function test()
   actual = f + '';
   compareSource(expect, actual, summary + ': before trap');
 
-  if (typeof trap == 'function' && typeof setDebug == 'function')
+  if (typeof trap == 'function')
   {
-    setDebug(true);
     trap(f, 0, "");
 
     actual = f + '';

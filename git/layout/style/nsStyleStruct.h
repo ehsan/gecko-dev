@@ -558,7 +558,7 @@ struct nsStyleMargin {
 #endif
   static PRBool ForceCompare() { return PR_TRUE; }
 
-  nsStyleSides  mMargin;          // [reset] coord, percent, calc, auto
+  nsStyleSides  mMargin;          // [reset] coord, percent, auto
 
   PRBool GetMargin(nsMargin& aMargin) const
   {
@@ -592,7 +592,7 @@ struct nsStylePadding {
 #endif
   static PRBool ForceCompare() { return PR_TRUE; }
 
-  nsStyleSides  mPadding;         // [reset] coord, percent, calc
+  nsStyleSides  mPadding;         // [reset] coord, percent
 
   PRBool GetPadding(nsMargin& aPadding) const
   {
@@ -749,7 +749,7 @@ struct nsStyleBorder {
   static PRBool ForceCompare() { return PR_FALSE; }
   PRBool ImageBorderDiffers() const;
 
-  nsStyleCorners mBorderRadius;    // [reset] coord, percent, calc
+  nsStyleCorners mBorderRadius;    // [reset] coord, percent
   nsStyleSides  mBorderImageSplit; // [reset] integer, percent
   PRUint8       mFloatEdge;       // [reset] see nsStyleConsts.h
   PRUint8       mBorderImageHFill; // [reset]
@@ -868,11 +868,6 @@ struct nsStyleBorder {
   inline void SetBorderImage(imgIRequest* aImage);
   inline imgIRequest* GetBorderImage() const;
 
-  bool HasBorderImage() {return !!mBorderImage;}
-
-  void TrackImage(nsPresContext* aContext);
-  void UntrackImage(nsPresContext* aContext);
-
   // These methods are used for the caller to caches the sub images created during
   // a border-image paint operation
   inline void SetSubImage(PRUint8 aIndex, imgIContainer* aSubImage) const;
@@ -908,10 +903,6 @@ struct nsStyleBorder {
     mBorderStyle[aSide] |= BORDER_COLOR_FOREGROUND;
   }
 
-#ifdef DEBUG
-  bool mImageTracked;
-#endif
-
 protected:
   // mComputedBorder holds the CSS2.1 computed border-width values.  In
   // particular, these widths take into account the border-style for the
@@ -945,8 +936,6 @@ private:
   nsCOMArray<imgIContainer> mSubImages;
 
   nscoord       mTwipsPerPixel;
-
-  nsStyleBorder& operator=(const nsStyleBorder& aOther); // Not to be implemented
 };
 
 
@@ -972,7 +961,7 @@ struct nsStyleOutline {
 #endif
   static PRBool ForceCompare() { return PR_FALSE; }
 
-  nsStyleCorners  mOutlineRadius; // [reset] coord, percent, calc
+  nsStyleCorners  mOutlineRadius; // [reset] coord, percent
 
   // Note that this is a specified value.  You can get the actual values
   // with GetOutlineWidth.  You cannot get the computed value directly.
@@ -1162,7 +1151,7 @@ struct nsStyleTextReset {
   PRUint8 mTextDecoration;              // [reset] see nsStyleConsts.h
   PRUint8 mUnicodeBidi;                 // [reset] see nsStyleConsts.h
 
-  nsStyleCoord  mVerticalAlign;         // [reset] coord, percent, calc, enum (see nsStyleConsts.h)
+  nsStyleCoord  mVerticalAlign;         // [reset] coord, percent, enum (see nsStyleConsts.h)
 };
 
 struct nsStyleText {
@@ -1192,7 +1181,7 @@ struct nsStyleText {
 
   nsStyleCoord  mLetterSpacing;         // [inherited] coord, normal
   nsStyleCoord  mLineHeight;            // [inherited] coord, factor, normal
-  nsStyleCoord  mTextIndent;            // [inherited] coord, percent, calc
+  nsStyleCoord  mTextIndent;            // [inherited] coord, percent
   nscoord mWordSpacing;                 // [inherited]
 
   nsRefPtr<nsCSSShadowArray> mTextShadow; // [inherited] NULL in case of a zero-length

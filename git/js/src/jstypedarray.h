@@ -62,9 +62,11 @@ struct JS_FRIEND_API(ArrayBuffer) {
     static JSBool prop_getByteLength(JSContext *cx, JSObject *obj, jsid id, Value *vp);
     static void class_finalize(JSContext *cx, JSObject *obj);
 
-    static JSBool class_constructor(JSContext *cx, uintN argc, Value *vp);
+    static JSBool class_constructor(JSContext *cx, JSObject *obj, uintN argc, Value *argv,
+                                    Value *rval);
 
-    static bool create(JSContext *cx, uintN argc, Value *argv, Value *rval);
+    static bool create(JSContext *cx, JSObject *obj, uintN argc,
+                       Value *argv, Value *rval);
 
     static ArrayBuffer *fromJSObject(JSObject *obj);
 

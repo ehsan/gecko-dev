@@ -72,10 +72,10 @@
 PR_STATIC_ASSERT((((1 << nsStyleStructID_Length) - 1) &
                   ~(NS_STYLE_INHERIT_MASK)) == 0);
 
-inline PRBool IsFixedUnit(const nsStyleCoord& aCoord, PRBool aEnumOK)
+inline PRBool IsFixedUnit(nsStyleUnit aUnit, PRBool aEnumOK)
 {
-  return aCoord.ConvertsToLength() || 
-         (aEnumOK && aCoord.GetUnit() == eStyleUnit_Enumerated);
+  return PRBool((aUnit == eStyleUnit_Coord) || 
+                (aEnumOK && (aUnit == eStyleUnit_Enumerated)));
 }
 
 static PRBool EqualURIs(nsIURI *aURI1, nsIURI *aURI2)
@@ -224,7 +224,7 @@ nsChangeHint nsStyleFont::CalcFontDifference(const nsFont& aFont1, const nsFont&
 static PRBool IsFixedData(const nsStyleSides& aSides, PRBool aEnumOK)
 {
   NS_FOR_CSS_SIDES(side) {
-    if (!IsFixedUnit(aSides.Get(side), aEnumOK))
+    if (!IsFixedUnit(aSides.GetUnit(side), aEnumOK))
       return PR_FALSE;
   }
   return PR_TRUE;
@@ -234,17 +234,22 @@ static nscoord CalcCoord(const nsStyleCoord& aCoord,
                          const nscoord* aEnumTable, 
                          PRInt32 aNumEnums)
 {
-  if (aCoord.GetUnit() == eStyleUnit_Enumerated) {
-    NS_ABORT_IF_FALSE(aEnumTable, "must have enum table");
-    PRInt32 value = aCoord.GetIntValue();
-    if (0 <= value && value < aNumEnums) {
-      return aEnumTable[aCoord.GetIntValue()];
-    }
-    NS_NOTREACHED("unexpected enum value");
-    return 0;
+  switch (aCoord.GetUnit()) {
+    case eStyleUnit_Coord:
+      return aCoord.GetCoordValue();
+    case eStyleUnit_Enumerated:
+      if (nsnull != aEnumTable) {
+        PRInt32 value = aCoord.GetIntValue();
+        if ((0 <= value) && (value < aNumEnums)) {
+          return aEnumTable[aCoord.GetIntValue()];
+        }
+      }
+      break;
+    default:
+      NS_ERROR("bad unit type");
+      break;
   }
-  NS_ABORT_IF_FALSE(aCoord.ConvertsToLength(), "unexpected unit");
-  return nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
+  return 0;
 }
 
 nsStyleMargin::nsStyleMargin() {
@@ -344,9 +349,7 @@ void nsStylePadding::RecalcData()
 {
   if (IsFixedData(mPadding, PR_FALSE)) {
     NS_FOR_CSS_SIDES(side) {
-      // Clamp negative calc() to 0.
-      mCachedPadding.side(side) =
-        NS_MAX(CalcCoord(mPadding.Get(side), nsnull, 0), 0);
+      mCachedPadding.side(side) = CalcCoord(mPadding.Get(side), nsnull, 0);
     }
     mHasCachedPadding = PR_TRUE;
   }
@@ -377,12 +380,9 @@ nsChangeHint nsStylePadding::MaxDifference()
 #endif
 
 nsStyleBorder::nsStyleBorder(nsPresContext* aPresContext)
-  : mHaveBorderImageWidth(PR_FALSE)
-  , mComputedBorder(0, 0, 0, 0)
-  , mBorderImage(nsnull)
-#ifdef DEBUG
-  , mImageTracked(false)
-#endif
+  : mHaveBorderImageWidth(PR_FALSE),
+    mComputedBorder(0, 0, 0, 0),
+    mBorderImage(nsnull)
 {
   MOZ_COUNT_CTOR(nsStyleBorder);
   nscoord medium =
@@ -456,8 +456,6 @@ nsStyleBorder::nsStyleBorder(const nsStyleBorder& aSrc)
 
 nsStyleBorder::~nsStyleBorder()
 {
-  NS_ABORT_IF_FALSE(!mImageTracked,
-                    "nsStyleBorder being destroyed while still tracking image!");
   MOZ_COUNT_DTOR(nsStyleBorder);
   if (mBorderColors) {
     for (PRInt32 i = 0; i < 4; i++)
@@ -476,8 +474,6 @@ nsStyleBorder::operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
   
 void 
 nsStyleBorder::Destroy(nsPresContext* aContext) {
-  if (mBorderImage)
-    UntrackImage(aContext);
   this->~nsStyleBorder();
   aContext->FreeToShell(sizeof(nsStyleBorder), this);
 }
@@ -563,42 +559,6 @@ nsStyleBorder::GetActualBorder() const
     return mComputedBorder;
 }
 
-void
-nsStyleBorder::TrackImage(nsPresContext* aContext)
-{
-  // Sanity
-  NS_ABORT_IF_FALSE(!mImageTracked, "Already tracking image!");
-  NS_ABORT_IF_FALSE(mBorderImage, "Can't track null image!");
-
-  // Register the image with the document
-  nsIDocument* doc = aContext->Document();
-  if (doc)
-    doc->AddImage(mBorderImage);
-
-  // Mark state
-#ifdef DEBUG
-  mImageTracked = true;
-#endif
-}
-
-void
-nsStyleBorder::UntrackImage(nsPresContext* aContext)
-{
-  // Sanity
-  NS_ABORT_IF_FALSE(mImageTracked, "Image not tracked!");
-  NS_ABORT_IF_FALSE(mBorderImage, "Can't track null image!");
-
-  // Unregister the image with the document
-  nsIDocument* doc = aContext->Document();
-  if (doc)
-    doc->RemoveImage(mBorderImage);
-
-  // Mark state
-#ifdef DEBUG
-  mImageTracked = false;
-#endif
-}
-
 nsStyleOutline::nsStyleOutline(nsPresContext* aPresContext)
 {
   MOZ_COUNT_CTOR(nsStyleOutline);
@@ -629,10 +589,9 @@ nsStyleOutline::RecalcData(nsPresContext* aContext)
   if (NS_STYLE_BORDER_STYLE_NONE == GetOutlineStyle()) {
     mCachedOutlineWidth = 0;
     mHasCachedOutline = PR_TRUE;
-  } else if (IsFixedUnit(mOutlineWidth, PR_TRUE)) {
-    // Clamp negative calc() to 0.
+  } else if (IsFixedUnit(mOutlineWidth.GetUnit(), PR_TRUE)) {
     mCachedOutlineWidth =
-      NS_MAX(CalcCoord(mOutlineWidth, aContext->GetBorderWidthTable(), 3), 0);
+      CalcCoord(mOutlineWidth, aContext->GetBorderWidthTable(), 3);
     mCachedOutlineWidth =
       NS_ROUND_BORDER_TO_PIXELS(mCachedOutlineWidth, mTwipsPerPixel);
     mHasCachedOutline = PR_TRUE;
@@ -2029,13 +1988,16 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
                                       nsChangeHint_NeedDirtyReflow)));
   }
 
+  if (mClipFlags != aOther.mClipFlags || mClip != aOther.mClip) {
+    // FIXME: Bug 507764.  Could we use a more precise hint here?
+    NS_UpdateHint(hint, nsChangeHint_ReflowFrame);
+  }
   // XXX the following is conservative, for now: changing float breaking shouldn't
   // necessarily require a repaint, reflow should suffice.
   if (mBreakType != aOther.mBreakType
       || mBreakBefore != aOther.mBreakBefore
       || mBreakAfter != aOther.mBreakAfter
-      || mAppearance != aOther.mAppearance
-      || mClipFlags != aOther.mClipFlags || mClip != aOther.mClip)
+      || mAppearance != aOther.mAppearance)
     NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_ReflowFrame, nsChangeHint_RepaintFrame));
 
   if (mOpacity != aOther.mOpacity) {

@@ -42,8 +42,6 @@
 #include "nsFormSubmission.h"
 #include "nsTArray.h"
 
-class nsIDOMFile;
-
 class nsFormData : public nsIDOMFormData,
                    public nsIXHRSendable,
                    public nsFormSubmission
@@ -61,14 +59,16 @@ public:
   virtual nsresult AddNameValuePair(const nsAString& aName,
                                     const nsAString& aValue);
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIDOMFile* aFile);
+                                   nsIFile* aFile);
+
+  
 
 private:
   struct FormDataTuple
   {
     nsString name;
     nsString stringValue;
-    nsCOMPtr<nsIDOMFile> fileValue;
+    nsCOMPtr<nsIFile> fileValue;
     PRBool valueIsFile;
   };
   

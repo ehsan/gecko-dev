@@ -93,7 +93,6 @@ DOMCI_CLASS(HTMLBRElement)
 DOMCI_CLASS(HTMLBaseElement)
 DOMCI_CLASS(HTMLBodyElement)
 DOMCI_CLASS(HTMLButtonElement)
-DOMCI_CLASS(HTMLDataListElement)
 DOMCI_CLASS(HTMLDListElement)
 DOMCI_CLASS(HTMLDelElement)
 DOMCI_CLASS(HTMLDirectoryElement)
@@ -485,9 +484,6 @@ DOMCI_CLASS(TransitionEvent)
 DOMCI_CLASS(ContentFrameMessageManager)
 
 DOMCI_CLASS(FormData)
-
-DOMCI_CLASS(DesktopNotification)
-DOMCI_CLASS(DesktopNotificationCenter)
 
 // WebSocket
 DOMCI_CLASS(WebSocket)

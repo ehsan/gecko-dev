@@ -1,10 +1,10 @@
 /*
  *  Copyright (c) 2010 The VP8 project authors. All Rights Reserved.
  *
- *  Use of this source code is governed by a BSD-style license
+ *  Use of this source code is governed by a BSD-style license 
  *  that can be found in the LICENSE file in the root of the source
  *  tree. An additional intellectual property rights grant can be found
- *  in the file PATENTS.  All contributing project authors may
+ *  in the file PATENTS.  All contributing project authors may 
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
@@ -48,20 +48,21 @@ typedef struct
 
 typedef struct
 {
-    int const *scan;
-    UINT8 const *ptr_block2leftabove;
-    vp8_tree_index const *vp8_coef_tree_ptr;
-    TOKENEXTRABITS const *teb_base_ptr;
+    int *scan;
+    UINT8 *ptr_onyxblock2context_leftabove;
+    vp8_tree_index *vp8_coef_tree_ptr;  //onyx_coef_tree_ptr; ???
+    TOKENEXTRABITS *teb_base_ptr;
     unsigned char *norm_ptr;
-    UINT8 *ptr_coef_bands_x;
+//  UINT16 *ptr_onyx_coef_bands_x;
+    UINT8 *ptr_onyx_coef_bands_x;
 
-    ENTROPY_CONTEXT_PLANES *A;
-    ENTROPY_CONTEXT_PLANES *L;
+    ENTROPY_CONTEXT   **A;
+    ENTROPY_CONTEXT(*L)[4];
 
     INT16 *qcoeff_start_ptr;
     BOOL_DECODER *current_bc;
 
-    vp8_prob const *coef_probs[4];
+    UINT8 *coef_probs[4];
 
     UINT8 eob[25];
 
@@ -94,22 +95,20 @@ typedef struct VP8Decompressor
     int current_mb_col_main;
     int decoding_thread_count;
     int allocated_decoding_thread_count;
-    int *current_mb_col;                  //Each row remembers its already decoded column.
-    int mt_baseline_filter_level[MAX_MB_SEGMENTS];
 
     // variable for threading
     DECLARE_ALIGNED(16, MACROBLOCKD, lpfmb);
 #if CONFIG_MULTITHREAD
-    //pthread_t           h_thread_lpf;         // thread for postprocessing
-    sem_t               h_event_end_lpf;          // Event for post_proc completed
-    sem_t               *h_event_start_lpf;
+    pthread_t           h_thread_lpf;         // thread for postprocessing
+    sem_t               h_event_lpf;          // Event for post_proc completed
+    sem_t               h_event_start_lpf;
 #endif
     MB_ROW_DEC           *mb_row_di;
     DECODETHREAD_DATA   *de_thread_data;
 #if CONFIG_MULTITHREAD
     pthread_t           *h_decoding_thread;
-    sem_t               *h_event_start_decoding;
-    sem_t               h_event_end_decoding;
+    sem_t               *h_event_mbrdecoding;
+    sem_t               h_event_main;
     // end of threading data
 #endif
     vp8_reader *mbc;

@@ -48,9 +48,9 @@ function createAndUploadSymKey(url) {
 function setUpTestFixtures() {
   let cryptoService = new FakeCryptoService();
 
-  Service.clusterURL = "http://localhost:8080/";
-  Service.username = "johndoe";
-  Service.passphrase = "secret";
+  Weave.Service.clusterURL = "http://localhost:8080/";
+  Weave.Service.username = "johndoe";
+  Weave.Service.passphrase = "secret";
 
   createAndUploadKeypair();
   createAndUploadSymKey("http://localhost:8080/1.0/johndoe/storage/crypto/steam");
@@ -59,7 +59,7 @@ function setUpTestFixtures() {
 }
 
 function test_withCollectionList_failOnCrypto() {
-  _("Service.wipeServer() deletes collections given as argument and aborts if a collection delete fails.");
+  _("Weave.Service.wipeServer() deletes collections given as argument and aborts if a collection delete fails.");
 
   let steam_coll = new FakeCollection();
   let petrol_coll = new FakeCollection();
@@ -97,7 +97,7 @@ function test_withCollectionList_failOnCrypto() {
     _("wipeServer() will happily ignore the non-existent collection, delete the 'steam' collection and abort after an receiving an error on the 'petrol' collection's symkey.");
     let error;
     try {
-      Service.wipeServer(["non-existent", "steam", "petrol", "diesel"]);
+      Weave.Service.wipeServer(["non-existent", "steam", "petrol", "diesel"]);
     } catch(ex) {
       error = ex;
     }
@@ -124,7 +124,7 @@ function test_withCollectionList_failOnCrypto() {
 }
 
 function test_withCollectionList_failOnCollection() {
-  _("Service.wipeServer() deletes collections given as argument.");
+  _("Weave.Service.wipeServer() deletes collections given as argument.");
 
   let steam_coll = new FakeCollection();
   let diesel_coll = new FakeCollection();
@@ -162,7 +162,7 @@ function test_withCollectionList_failOnCollection() {
     _("wipeServer() will happily ignore the non-existent collection, delete the 'steam' collection and abort after an receiving an error on the 'petrol' collection.");
     let error;
     try {
-      Service.wipeServer(["non-existent", "steam", "petrol", "diesel"]);
+      Weave.Service.wipeServer(["non-existent", "steam", "petrol", "diesel"]);
     } catch(ex) {
       error = ex;
     }

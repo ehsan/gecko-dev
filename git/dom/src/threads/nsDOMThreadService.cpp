@@ -395,41 +395,35 @@ public:
     JS_TriggerOperationCallback(cx);
 
     PRBool killWorkerWhenDone;
-    {
-      nsLazyAutoRequest ar;
-      JSAutoCrossCompartmentCall axcc;
 
-      // Tell the worker which context it will be using
-      if (mWorker->SetGlobalForContext(cx, &ar, &axcc)) {
-        NS_ASSERTION(ar.entered(), "SetGlobalForContext must enter request on success");
-        NS_ASSERTION(axcc.entered(), "SetGlobalForContext must enter xcc on success");
+    // Tell the worker which context it will be using
+    if (mWorker->SetGlobalForContext(cx)) {
+      RunQueue(cx, &killWorkerWhenDone);
 
-        RunQueue(cx, &killWorkerWhenDone);
+      // Code in XPConnect assumes that the context's global object won't be
+      // replaced outside of a request.
+      JSAutoRequest ar(cx);
 
-        // Remove the global object from the context so that it might be garbage
-        // collected.
+      // Remove the global object from the context so that it might be garbage
+      // collected.
+      JS_SetGlobalObject(cx, NULL);
+      JS_SetContextPrivate(cx, NULL);
+    }
+    else {
+      {
+        // Code in XPConnect assumes that the context's global object won't be
+        // replaced outside of a request.
+        JSAutoRequest ar(cx);
+
+        // This is usually due to a parse error in the worker script...
         JS_SetGlobalObject(cx, NULL);
         JS_SetContextPrivate(cx, NULL);
       }
-      else {
-        NS_ASSERTION(!ar.entered(), "SetGlobalForContext must not enter request on failure");
-        NS_ASSERTION(!axcc.entered(), "SetGlobalForContext must not enter xcc on failure");
 
-        {
-          // Code in XPConnect assumes that the context's global object won't be
-          // replaced outside of a request.
-          JSAutoRequest ar2(cx);
-
-          // This is usually due to a parse error in the worker script...
-          JS_SetGlobalObject(cx, NULL);
-          JS_SetContextPrivate(cx, NULL);
-        }
-
-        nsAutoMonitor mon(gDOMThreadService->mMonitor);
-        killWorkerWhenDone = mKillWorkerWhenDone;
-        gDOMThreadService->WorkerComplete(this);
-        mon.NotifyAll();
-      }
+      nsAutoMonitor mon(gDOMThreadService->mMonitor);
+      killWorkerWhenDone = mKillWorkerWhenDone;
+      gDOMThreadService->WorkerComplete(this);
+      mon.NotifyAll();
     }
 
     if (killWorkerWhenDone) {

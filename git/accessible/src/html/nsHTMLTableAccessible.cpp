@@ -86,10 +86,11 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLTableCellAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLTableCellAccessible: nsAccessible implementation
 
-PRUint32
-nsHTMLTableCellAccessible::NativeRole()
+nsresult
+nsHTMLTableCellAccessible::GetRoleInternal(PRUint32 *aResult)
 {
-  return nsIAccessibleRole::ROLE_CELL;
+  *aResult = nsIAccessibleRole::ROLE_CELL;
+  return NS_OK;
 }
 
 nsresult
@@ -267,15 +268,20 @@ nsHTMLTableCellAccessible::IsSelected(PRBool *aIsSelected)
 already_AddRefed<nsIAccessibleTable>
 nsHTMLTableCellAccessible::GetTableAccessible()
 {
-  nsAccessible* parent = this;
-  while ((parent = parent->GetParent())) {
-    PRUint32 role = parent->Role();
+  nsCOMPtr<nsIAccessible> childAcc(this), parentAcc;
+  childAcc->GetParent(getter_AddRefs(parentAcc));
+
+  while (parentAcc) {
+    PRUint32 role = nsAccUtils::Role(parentAcc);
     if (role == nsIAccessibleRole::ROLE_TABLE ||
         role == nsIAccessibleRole::ROLE_TREE_TABLE) {
       nsIAccessibleTable* tableAcc = nsnull;
-      CallQueryInterface(parent, &tableAcc);
+      CallQueryInterface(parentAcc, &tableAcc);
       return tableAcc;
     }
+
+    parentAcc.swap(childAcc);
+    childAcc->GetParent(getter_AddRefs(parentAcc));
   }
 
   return nsnull;
@@ -329,9 +335,9 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
 
         if (headerCell &&
             (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells &&
-             headerCell->Role() == nsIAccessibleRole::ROLE_ROWHEADER ||
+             nsAccUtils::Role(headerCell) == nsIAccessibleRole::ROLE_ROWHEADER ||
              aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells &&
-             headerCell->Role() == nsIAccessibleRole::ROLE_COLUMNHEADER))
+             nsAccUtils::Role(headerCell) == nsIAccessibleRole::ROLE_COLUMNHEADER))
           headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
                                      PR_FALSE);
       }
@@ -366,8 +372,8 @@ nsHTMLTableHeaderCellAccessible::
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLTableHeaderAccessible: nsAccessible implementation
 
-PRUint32
-nsHTMLTableHeaderCellAccessible::NativeRole()
+nsresult
+nsHTMLTableHeaderCellAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   // Check value of @scope attribute.
   static nsIContent::AttrValuesArray scopeValues[] =
@@ -378,18 +384,17 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
 
   switch (valueIdx) {
     case 0:
-      return nsIAccessibleRole::ROLE_COLUMNHEADER;
+      *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
+      return NS_OK;
     case 1:
-      return nsIAccessibleRole::ROLE_ROWHEADER;
+      *aRole = nsIAccessibleRole::ROLE_ROWHEADER;
+      return NS_OK;
   }
 
   // Assume it's columnheader if there are headers in siblings, oterwise
   // rowheader.
   nsIContent *parent = mContent->GetParent();
-  if (!parent) {
-    NS_ERROR("Deattached content on alive accessible?");
-    return nsIAccessibleRole::ROLE_NOTHING;
-  }
+  NS_ENSURE_STATE(parent);
 
   PRInt32 indexInParent = parent->IndexOf(mContent);
 
@@ -397,8 +402,11 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
     nsIContent* sibling = parent->GetChildAt(idx);
     if (sibling && sibling->IsElement()) {
       if (nsCoreUtils::IsHTMLTableHeader(sibling))
-        return nsIAccessibleRole::ROLE_COLUMNHEADER;
-      return nsIAccessibleRole::ROLE_ROWHEADER;
+        *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
+      else
+        *aRole = nsIAccessibleRole::ROLE_ROWHEADER;
+
+      return NS_OK;
     }
   }
 
@@ -407,14 +415,19 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
     nsIContent* sibling = parent->GetChildAt(idx);
     if (sibling && sibling->IsElement()) {
       if (nsCoreUtils::IsHTMLTableHeader(sibling))
-        return nsIAccessibleRole::ROLE_COLUMNHEADER;
-      return nsIAccessibleRole::ROLE_ROWHEADER;
+        *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
+      else
+        *aRole = nsIAccessibleRole::ROLE_ROWHEADER;
+      
+      return NS_OK;
     }
   }
 
   // No elements in siblings what means the table has one column only. Therefore
   // it should be column header.
-  return nsIAccessibleRole::ROLE_COLUMNHEADER;
+  *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -448,7 +461,7 @@ nsHTMLTableAccessible::CacheChildren()
 
   nsRefPtr<nsAccessible> child;
   while ((child = walker.GetNextChild())) {
-    if (child->Role() == nsIAccessibleRole::ROLE_CAPTION) {
+    if (nsAccUtils::Role(child) == nsIAccessibleRole::ROLE_CAPTION) {
       InsertChildAt(0, child);
       while ((child = walker.GetNextChild()) && AppendChild(child));
       break;
@@ -457,10 +470,11 @@ nsHTMLTableAccessible::CacheChildren()
   }
 }
 
-PRUint32
-nsHTMLTableAccessible::NativeRole()
+nsresult
+nsHTMLTableAccessible::GetRoleInternal(PRUint32 *aResult)
 {
-  return nsIAccessibleRole::ROLE_TABLE;
+  *aResult = nsIAccessibleRole::ROLE_TABLE;
+  return NS_OK;
 }
 
 nsresult
@@ -527,8 +541,9 @@ nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
 NS_IMETHODIMP
 nsHTMLTableAccessible::GetCaption(nsIAccessible **aCaption)
 {
-  nsAccessible* firstChild = GetChildAt(0);
-  if (firstChild && firstChild->Role() == nsIAccessibleRole::ROLE_CAPTION)
+  nsCOMPtr<nsIAccessible> firstChild;
+  GetFirstChild(getter_AddRefs(firstChild));
+  if (nsAccUtils::Role(firstChild) == nsIAccessibleRole::ROLE_CAPTION)
     NS_ADDREF(*aCaption = firstChild);
 
   return NS_OK;
@@ -1383,7 +1398,8 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
 
   // Check to see if an ARIA role overrides the role from native markup,
   // but for which we still expose table semantics (treegrid, for example).
-  PRBool hasNonTableRole = (Role() != nsIAccessibleRole::ROLE_TABLE);
+  PRBool hasNonTableRole =
+    (nsAccUtils::Role(this) != nsIAccessibleRole::ROLE_TABLE);
   if (hasNonTableRole) {
     RETURN_LAYOUT_ANSWER(PR_FALSE, "Has role attribute");
   }
@@ -1544,8 +1560,9 @@ nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
   return NS_OK;
 }
 
-PRUint32
-nsHTMLCaptionAccessible::NativeRole()
+nsresult
+nsHTMLCaptionAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_CAPTION;
+  *aRole = nsIAccessibleRole::ROLE_CAPTION;
+  return NS_OK;
 }

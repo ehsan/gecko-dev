@@ -69,7 +69,7 @@ using namespace js;
 
 /* Forward declarations for js_ErrorClass's initializer. */
 static JSBool
-Exception(JSContext *cx, uintN argc, Value *vp);
+Exception(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval);
 
 static void
 exn_trace(JSTracer *trc, JSObject *obj);
@@ -696,27 +696,31 @@ StringToFilename(JSContext *cx, JSString *str)
 }
 
 static JSBool
-Exception(JSContext *cx, uintN argc, Value *vp)
+Exception(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval)
 {
     JSString *message, *filename;
     JSStackFrame *fp;
 
-    /*
-     * ECMA ed. 3, 15.11.1 requires Error, etc., to construct even when
-     * called as functions, without operator new.  But as we do not give
-     * each constructor a distinct JSClass, whose .name member is used by
-     * NewNativeClassInstance to find the class prototype, we must get the
-     * class prototype ourselves.
-     */
-    JSObject &callee = vp[0].toObject();
-    Value protov;
-    if (!callee.getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom), &protov))
-        return JS_FALSE;
-
-    JSObject *errProto = &protov.toObject();
-    JSObject *obj = NewNativeClassInstance(cx, &js_ErrorClass, errProto, errProto->getParent());
-    if (!obj)
-        return JS_FALSE;
+    if (!JS_IsConstructing(cx)) {
+        /*
+         * ECMA ed. 3, 15.11.1 requires Error, etc., to construct even when
+         * called as functions, without operator new.  But as we do not give
+         * each constructor a distinct JSClass, whose .name member is used by
+         * NewNativeClassInstance to find the class prototype, we must get the
+         * class prototype ourselves.
+         */
+        if (!argv[-2].toObject().getProperty(cx,
+                                             ATOM_TO_JSID(cx->runtime->atomState
+                                                          .classPrototypeAtom),
+                                             rval)) {
+            return JS_FALSE;
+        }
+        JSObject *errProto = &rval->toObject();
+        obj = NewNativeClassInstance(cx, &js_ErrorClass, errProto, errProto->getParent());
+        if (!obj)
+            return JS_FALSE;
+        rval->setObject(*obj);
+    }
 
     /*
      * If it's a new object of class Exception, then null out the private
@@ -726,7 +730,6 @@ Exception(JSContext *cx, uintN argc, Value *vp)
         obj->setPrivate(NULL);
 
     /* Set the 'message' property. */
-    Value *argv = vp + 2;
     if (argc != 0) {
         message = js_ValueToString(cx, argv[0]);
         if (!message)
@@ -765,13 +768,8 @@ Exception(JSContext *cx, uintN argc, Value *vp)
         lineno = (fp && fp->pc(cx)) ? js_FramePCToLineNumber(cx, fp) : 0;
     }
 
-    if (obj->getClass() == &js_ErrorClass &&
-        !InitExnPrivate(cx, obj, message, filename, lineno, NULL)) {
-        return JS_FALSE;
-    }
-
-    vp->setObject(*obj);
-    return JS_TRUE;
+    return (obj->getClass() != &js_ErrorClass) ||
+            InitExnPrivate(cx, obj, message, filename, lineno, NULL);
 }
 
 /*
@@ -782,7 +780,7 @@ Exception(JSContext *cx, uintN argc, Value *vp)
  * number information along with this message.
  */
 static JSBool
-exn_toString(JSContext *cx, uintN argc, Value *vp)
+exn_toString(JSContext *cx, uintN argc, jsval *vp)
 {
     JSObject *obj;
     jsval v;
@@ -790,11 +788,11 @@ exn_toString(JSContext *cx, uintN argc, Value *vp)
     jschar *chars, *cp;
     size_t name_length, message_length, length;
 
-    obj = ComputeThisFromVp(cx, vp);
+    obj = JS_THIS_OBJECT(cx, vp);
     if (!obj || !obj->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.nameAtom), Valueify(&v)))
         return JS_FALSE;
     name = JSVAL_IS_STRING(v) ? JSVAL_TO_STRING(v) : cx->runtime->emptyString;
-    vp->setString(name);
+    *vp = STRING_TO_JSVAL(name);
 
     if (!JS_GetProperty(cx, obj, js_message_str, &v))
         return JS_FALSE;
@@ -827,7 +825,7 @@ exn_toString(JSContext *cx, uintN argc, Value *vp)
         result = name;
     }
 
-    vp->setString(result);
+    *vp = STRING_TO_JSVAL(result);
     return JS_TRUE;
 }
 
@@ -836,7 +834,7 @@ exn_toString(JSContext *cx, uintN argc, Value *vp)
  * Return a string that may eval to something similar to the original object.
  */
 static JSBool
-exn_toSource(JSContext *cx, uintN argc, Value *vp)
+exn_toSource(JSContext *cx, uintN argc, jsval *vp)
 {
     JSObject *obj;
     JSString *name, *message, *filename, *lineno_as_str, *result;
@@ -844,13 +842,13 @@ exn_toSource(JSContext *cx, uintN argc, Value *vp)
     size_t lineno_length, name_length, message_length, filename_length, length;
     jschar *chars, *cp;
 
-    obj = ComputeThisFromVp(cx, vp);
-    if (!obj || !obj->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.nameAtom), vp))
+    obj = JS_THIS_OBJECT(cx, vp);
+    if (!obj || !obj->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.nameAtom), Valueify(vp)))
         return false;
-    name = js_ValueToString(cx, *vp);
+    name = js_ValueToString(cx, Valueify(*vp));
     if (!name)
         return false;
-    vp->setString(name);
+    *vp = STRING_TO_JSVAL(name);
 
     {
         AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(localroots), Valueify(localroots));
@@ -950,7 +948,7 @@ exn_toSource(JSContext *cx, uintN argc, Value *vp)
             cx->free(chars);
             return false;
         }
-        vp->setString(result);
+        *vp = STRING_TO_JSVAL(result);
         return true;
     }
 }
@@ -1032,7 +1030,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
         /* Make a constructor function for the current name. */
         JSProtoKey protoKey = GetExceptionProtoKey(i);
         JSAtom *atom = cx->runtime->atomState.classAtoms[protoKey];
-        JSFunction *fun = js_DefineFunction(cx, obj, atom, Exception, 3, JSFUN_CONSTRUCTOR);
+        JSFunction *fun = js_DefineFunction(cx, obj, atom, Exception, 3, 0);
         if (!fun)
             return NULL;
         roots[2] = OBJECT_TO_JSVAL(FUN_OBJECT(fun));
