@@ -46,8 +46,6 @@ import org.mozilla.gecko.ui.PanZoomController;
 import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
 import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.Tab;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -74,7 +72,7 @@ import java.util.TimerTask;
  *
  * Many methods require that the monitor be held, with a synchronized (controller) { ... } block.
  */
-public class LayerController implements Tabs.OnTabsChangedListener {
+public class LayerController {
     private static final String LOGTAG = "GeckoLayerController";
 
     private Layer mRootLayer;                   /* The root layer. */
@@ -125,12 +123,6 @@ public class LayerController implements Tabs.OnTabsChangedListener {
         mViewportMetrics = new ViewportMetrics();
         mPanZoomController = new PanZoomController(this);
         mView = new LayerView(context, this);
-
-        Tabs.getInstance().registerOnTabsChangedListener(this);
-    }
-
-    public void onDestroy() {
-        Tabs.getInstance().unregisterOnTabsChangedListener(this);
     }
 
     public void setRoot(Layer layer) { mRootLayer = layer; }
@@ -473,11 +465,6 @@ public class LayerController implements Tabs.OnTabsChangedListener {
         }
     }
 
-    public void onTabChanged(Tab tab, Tabs.TabEvents msg) {
-        if ((Tabs.getInstance().isSelectedTab(tab) && msg == Tabs.TabEvents.STOP) || msg == Tabs.TabEvents.SELECTED) {
-            mWaitForTouchListeners = tab.getHasTouchListeners();
-        }
-    }
     public void setWaitForTouchListeners(boolean aValue) {
         mWaitForTouchListeners = aValue;
     }

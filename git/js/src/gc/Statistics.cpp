@@ -138,28 +138,22 @@ Statistics::formatData()
     else
         fmt(", Reason: %s", ExplainReason(slices[0].reason));
 
-    if (nonincrementalReason)
-        fmt(", NonIncrementalReason: %s", nonincrementalReason);
+    if (wasReset)
+        fmt(", ***RESET***");
 
     fmt(", +chunks: %d, -chunks: %d\n", counts[STAT_NEW_CHUNK], counts[STAT_DESTROY_CHUNK]);
 
     if (slices.length() > 1) {
         for (size_t i = 0; i < slices.length(); i++) {
             int64_t width = slices[i].duration();
-            if (i != 0 && i != slices.length() - 1 && width < SLICE_MIN_REPORT_TIME &&
-                !slices[i].resetReason)
-            {
+            if (i != 0 && i != slices.length() - 1 && width < SLICE_MIN_REPORT_TIME)
                 continue;
-            }
 
-            fmt("    Slice %d @ %.1fms (Pause: %.1f, Reason: %s",
+            fmt("    Slice %d @ %.1fms (Pause: %.1f, Reason: %s): ",
                 i,
                 t(slices[i].end - slices[0].start),
                 t(width),
                 ExplainReason(slices[i].reason));
-            if (slices[i].resetReason)
-                fmt(", Reset: %s", slices[i].resetReason);
-            fmt("): ");
             formatPhases(slices[i].phaseTimes);
             fmt("\n");
         }
@@ -179,7 +173,7 @@ Statistics::Statistics(JSRuntime *rt)
     fp(NULL),
     fullFormat(false),
     compartment(NULL),
-    nonincrementalReason(NULL),
+    wasReset(false),
     needComma(false)
 {
     PodArrayZero(phaseTotals);
@@ -254,7 +248,7 @@ Statistics::beginGC()
     PodArrayZero(phaseTimes);
 
     slices.clearAndFree();
-    nonincrementalReason = NULL;
+    wasReset = false;
 
     Probes::GCStart();
 }
@@ -273,7 +267,7 @@ Statistics::endGC()
         (*cb)(JS_TELEMETRY_GC_MS, t(gcDuration()));
         (*cb)(JS_TELEMETRY_GC_MARK_MS, t(phaseTimes[PHASE_MARK]));
         (*cb)(JS_TELEMETRY_GC_SWEEP_MS, t(phaseTimes[PHASE_SWEEP]));
-        (*cb)(JS_TELEMETRY_GC_NON_INCREMENTAL, !!nonincrementalReason);
+        (*cb)(JS_TELEMETRY_GC_RESET, wasReset);
         (*cb)(JS_TELEMETRY_GC_INCREMENTAL_DISABLED, !runtime->gcIncrementalEnabled);
 
         double mmu50 = computeMMU(50 * PRMJ_USEC_PER_MSEC);
@@ -312,10 +306,8 @@ Statistics::endSlice()
 {
     slices.back().end = PRMJ_Now();
 
-    if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback) {
+    if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback)
         (*cb)(JS_TELEMETRY_GC_SLICE_MS, t(slices.back().end - slices.back().start));
-        (*cb)(JS_TELEMETRY_GC_RESET, !!slices.back().resetReason);
-    }
 
     bool last = runtime->gcIncrementalState == gc::NO_INCREMENTAL;
     if (last)
