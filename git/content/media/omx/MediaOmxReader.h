@@ -15,7 +15,7 @@
 
 namespace android {
 class OmxDecoder;
-class MOZ_EXPORT MediaExtractor;
+class MediaExtractor;
 }
 
 namespace mozilla {

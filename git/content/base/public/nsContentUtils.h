@@ -2170,7 +2170,6 @@ private:
   static nsIXPConnect *sXPConnect;
 
   static nsIScriptSecurityManager *sSecurityManager;
-  static nsIPrincipal *sSystemPrincipal;
 
   static nsIParserService *sParserService;
 

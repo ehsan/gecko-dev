@@ -1485,7 +1485,11 @@ const LayerMargin AsyncPanZoomController::CalculatePendingDisplayPort(
   const ScreenPoint& aVelocity,
   double aEstimatedPaintDuration)
 {
-  CSSSize compositionSize = aFrameMetrics.CalculateBoundedCompositedSizeInCssPixels();
+  CSSSize compositionBounds = aFrameMetrics.CalculateCompositedSizeInCssPixels();
+  CSSSize compositionSize = aFrameMetrics.GetRootCompositionSize();
+  compositionSize =
+    CSSSize(std::min(compositionBounds.width, compositionSize.width),
+            std::min(compositionBounds.height, compositionSize.height));
   CSSPoint velocity = aVelocity / aFrameMetrics.GetZoom();
   CSSPoint scrollOffset = aFrameMetrics.GetScrollOffset();
   CSSRect scrollableRect = aFrameMetrics.GetExpandedScrollableRect();
@@ -1591,7 +1595,10 @@ GetDisplayPortRect(const FrameMetrics& aFrameMetrics)
   // This computation is based on what happens in CalculatePendingDisplayPort. If that
   // changes then this might need to change too
   CSSRect baseRect(aFrameMetrics.GetScrollOffset(),
-                   aFrameMetrics.CalculateBoundedCompositedSizeInCssPixels());
+                   CSSSize(std::min(aFrameMetrics.CalculateCompositedSizeInCssPixels().width,
+                                    aFrameMetrics.GetRootCompositionSize().width),
+                           std::min(aFrameMetrics.CalculateCompositedSizeInCssPixels().height,
+                                    aFrameMetrics.GetRootCompositionSize().height)));
   baseRect.Inflate(aFrameMetrics.GetDisplayPortMargins() / aFrameMetrics.LayersPixelsPerCSSPixel());
   return baseRect;
 }

@@ -172,6 +172,7 @@ public:
   nsCOMPtr<nsISupports> m_kungFuDeathGrip;
   JSContext *m_cx;
   JS::PersistentRooted<JSObject*> m_scope;
+  nsCOMPtr<nsIPrincipal> m_principals;
   nsXPIDLCString m_jsCallback;
   NS_DECL_ISUPPORTS
 };
@@ -2036,7 +2037,24 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
   // when the request has been generated.
   //
 
-  MOZ_ASSERT(nsContentUtils::GetCurrentJSContext());
+  nsCOMPtr<nsIScriptSecurityManager> secMan =
+    do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
+  if (MOZ_UNLIKELY(!secMan)) {
+    aRv.Throw(NS_ERROR_UNEXPECTED);
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIPrincipal> principals;
+  nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(principals));
+  if (NS_FAILED(nrv)) {
+    aRv.Throw(nrv);
+    return nullptr;
+  }
+  if (MOZ_UNLIKELY(!principals)) {
+    aRv.Throw(NS_ERROR_UNEXPECTED);
+    return nullptr;
+  }
+
   nsCryptoRunArgs *args = new nsCryptoRunArgs(aContext);
 
   args->m_kungFuDeathGrip = GetISupportsFromContext(aContext);
@@ -2044,10 +2062,11 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
   if (!aJsCallback.IsVoid()) {
     args->m_jsCallback = aJsCallback;
   }
+  args->m_principals = principals;
 
   nsCryptoRunnable *cryptoRunnable = new nsCryptoRunnable(args);
 
-  nsresult rv = NS_DispatchToMainThread(cryptoRunnable);
+  rv = NS_DispatchToMainThread(cryptoRunnable);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     delete cryptoRunnable;

@@ -350,20 +350,13 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
 
     // Move the frame
     if (display->mPosition == NS_STYLE_POSITION_STICKY) {
-      // Update sticky positioning for an entire element at once, starting with
-      // the first continuation or ib-split sibling.
-      // It's rare that the frame we already have isn't already the first
-      // continuation or ib-split sibling, but it can happen when styles differ
-      // across continuations such as ::first-line or ::first-letter, and in
-      // those cases we will generally (but maybe not always) do the work twice.
-      nsIFrame *firstContinuation =
-        nsLayoutUtils::FirstContinuationOrIBSplitSibling(aFrame);
-
-      StickyScrollContainer::ComputeStickyOffsets(firstContinuation);
+      // Update sticky positioning for an entire element at once when
+      // RecomputePosition is called with the first continuation in a chain.
+      StickyScrollContainer::ComputeStickyOffsets(aFrame);
       StickyScrollContainer* ssc =
-        StickyScrollContainer::GetStickyScrollContainerForFrame(firstContinuation);
+        StickyScrollContainer::GetStickyScrollContainerForFrame(aFrame);
       if (ssc) {
-        ssc->PositionContinuations(firstContinuation);
+        ssc->PositionContinuations(aFrame);
       }
     } else {
       MOZ_ASSERT(NS_STYLE_POSITION_RELATIVE == display->mPosition,

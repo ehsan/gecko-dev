@@ -18,7 +18,6 @@
 
 #define RTSP_SOURCE_H_
 
-#include "mozilla/Types.h"
 #include <utils/RefBase.h>
 #include <media/stagefright/foundation/AString.h>
 #include <media/stagefright/foundation/AHandlerReflector.h>
@@ -30,10 +29,10 @@
 
 namespace android {
 
-struct MOZ_EXPORT MetaData;
-struct MOZ_EXPORT ABuffer;
-struct MOZ_EXPORT ALooper;
-struct MOZ_EXPORT AnotherPacketSource;
+struct MetaData;
+struct ABuffer;
+struct ALooper;
+struct AnotherPacketSource;
 struct RtspConnectionHandler;
 
 class RTSPSource : public RefBase
