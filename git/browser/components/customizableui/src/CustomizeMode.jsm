@@ -497,34 +497,12 @@ CustomizeMode.prototype = {
   },
 
   _getCustomizableChildForNode: function(aNode) {
-    // NB: adjusted from _getCustomizableParent to keep that method fast
-    // (it's used during drags), and avoid multiple DOM loops
-    let areas = CustomizableUI.areas;
-    // Caching this length is important because otherwise we'll also iterate
-    // over items we add to the end from within the loop.
-    let numberOfAreas = areas.length;
-    for (let i = 0; i < numberOfAreas; i++) {
-      let area = areas[i];
-      let areaNode = aNode.ownerDocument.getElementById(area);
-      let customizationTarget = areaNode && areaNode.customizationTarget;
-      if (customizationTarget && customizationTarget != areaNode) {
-        areas.push(customizationTarget.id);
-      }
-      let overflowTarget = areaNode.getAttribute("overflowtarget");
-      if (overflowTarget) {
-        areas.push(overflowTarget);
-      }
+    let area = this._getCustomizableParent(aNode);
+    area = area.customizationTarget || area;
+    while (aNode && aNode.parentNode != area) {
+      aNode = aNode.parentNode;
     }
-    areas.push(kPaletteId);
-
-    while (aNode && aNode.parentNode) {
-      let parent = aNode.parentNode;
-      if (areas.indexOf(parent.id) != -1) {
-        return aNode;
-      }
-      aNode = parent;
-    }
-    return null;
+    return aNode;
   },
 
   addToToolbar: function(aNode) {
@@ -1021,8 +999,8 @@ CustomizeMode.prototype = {
   },
 
   _updateUndoResetButton: function() {
-    let undoResetButton =  this.document.getElementById("customization-undo-reset-button");
-    undoResetButton.hidden = !CustomizableUI.canUndoReset;
+    let undoReset =  this.document.getElementById("customization-undo-reset");
+    undoReset.hidden = !CustomizableUI.canUndoReset;
   },
 
   handleEvent: function(aEvent) {
@@ -1074,9 +1052,7 @@ CustomizeMode.prototype = {
   observe: function(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "nsPref:changed":
-        this._updateResetButton();
         this._updateTitlebarButton();
-        this._updateUndoResetButton();
         break;
     }
   },

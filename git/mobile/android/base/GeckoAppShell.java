@@ -194,6 +194,7 @@ public class GeckoAppShell
 
     private static volatile boolean mLocationHighAccuracy;
 
+    public static ActivityHandlerHelper sActivityHelper = new ActivityHandlerHelper();
     static NotificationClient sNotificationClient;
 
     /* The Android-side API: API methods that Android calls */

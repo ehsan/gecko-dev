@@ -15,27 +15,17 @@ function start() {
   window[test]();
 }
 
-var messageId;
-
 function addMessage() {
-  messageId = Home.banner.add({
+  Home.banner.add({
     text: TEXT,
     onclick: function() {
       sendMessageToJava({ type: "TestHomeBanner:MessageClicked" });
     },
     onshown: function() {
       sendMessageToJava({ type: "TestHomeBanner:MessageShown" });
-    },
-    ondismiss: function() {
-      sendMessageToJava({ type: "TestHomeBanner:MessageDismissed" });
     }
   });
   sendMessageToJava({ type: "TestHomeBanner:MessageAdded" });
-}
-
-function removeMessage() {
-  Home.banner.remove(messageId);
-  sendMessageToJava({ type: "TestHomeBanner:MessageRemoved" });
 }
 
     </script>

@@ -176,14 +176,8 @@ Files referenced by manifests are automatically installed into the object
 directory into paths defined in
 :py:func:`mozbuild.frontend.emitter.TreeMetadataEmitter._process_test_manifest`.
 
-Relative paths resolving to parent directory (e.g.
-``support-files = ../foo.txt`` have special behavior.
-
-For ``support-files``, the file will be installed to the default destination
-for that manifest. Only the file's base name is used to construct the final
-path: directories are irrelevant.
-
-For all other entry types, the file installation is skipped.
+Referenced files in the manifest not in the same directory tree as the manifest
+file are **not** installed.
 
 .. _reftest_manifests:
 

@@ -77,7 +77,6 @@ var FindHelper = {
         this._targetTab.sendViewportUpdate();
       }
     } else {
-      ZoomHelper.zoomToRect(aData.rect, -1, false, true);
       this._viewportChanged = true;
     }
   }

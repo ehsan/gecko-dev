@@ -770,13 +770,6 @@ this.WidgetMethods = {
   },
 
   /**
-   * Sugar for ensuring the selected item is visible in this container.
-   */
-  ensureSelectedItemIsVisible: function() {
-    this.ensureItemIsVisible(this.selectedItem);
-  },
-
-  /**
    * If supported by the widget, the label string temporarily added to this
    * container when there are no child items present.
    */
@@ -903,9 +896,6 @@ this.WidgetMethods = {
     } else if (selectedIndex == j) {
       this._widget.selectedItem = aSecond._target;
     }
-
-    // 6. Let the outside world know that these two items were swapped.
-    ViewHelpers.dispatchEvent(aFirst.target, "swap", [aSecond, aFirst]);
   },
 
   /**
