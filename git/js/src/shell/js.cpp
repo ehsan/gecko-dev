@@ -1013,11 +1013,10 @@ Options(JSContext *cx, uintN argc, jsval *vp)
         JS_ReportOutOfMemory(cx);
         return JS_FALSE;
     }
-    str = JS_NewString(cx, names, strlen(names));
-    if (!str) {
-        free(names);
+    str = JS_NewStringCopyZ(cx, names);
+    free(names);
+    if (!str)
         return JS_FALSE;
-    }
     *vp = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
@@ -1136,11 +1135,10 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
      * Turn buf into a JSString. Note that buflength includes the trailing null
      * character.
      */
-    str = JS_NewString(cx, buf, sawNewline ? buflength - 1 : buflength);
-    if (!str) {
-        JS_free(cx, buf);
+    str = JS_NewStringCopyN(cx, buf, sawNewline ? buflength - 1 : buflength);
+    JS_free(cx, buf);
+    if (!str)
         return JS_FALSE;
-    }
 
     *vp = STRING_TO_JSVAL(str);
     return JS_TRUE;
@@ -1977,7 +1975,7 @@ TryNotes(JSContext *cx, JSScript *script)
 {
     JSTryNote *tn, *tnlimit;
 
-    if (script->trynotesOffset == 0)
+    if (!JSScript::isValidOffset(script->trynotesOffset))
         return JS_TRUE;
 
     tn = script->trynotes()->vector;
@@ -2055,7 +2053,7 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
     SrcNotes(cx, script);
     TryNotes(cx, script);
 
-    if (recursive && script->objectsOffset != 0) {
+    if (recursive && JSScript::isValidOffset(script->objectsOffset)) {
         JSObjectArray *objects = script->objects();
         for (uintN i = 0; i != objects->length; ++i) {
             JSObject *obj = objects->vector[i];
@@ -2140,11 +2138,6 @@ DisassFile(JSContext *cx, uintN argc, jsval *vp)
     JS_SetOptions(cx, oldopts);
     if (!script)
         return JS_FALSE;
-
-    if (script->isEmpty()) {
-        JS_SET_RVAL(cx, vp, JSVAL_VOID);
-        return JS_TRUE;
-    }
 
     JSObject *obj = JS_NewScriptObject(cx, script);
     if (!obj)
@@ -4143,12 +4136,10 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
         return ok;
     }
 
-    buf[len] = '\0';
-    str = JS_NewString(cx, buf, len);
-    if (!str) {
-        JS_free(cx, buf);
+    str = JS_NewStringCopyN(cx, buf, len);
+    JS_free(cx, buf);
+    if (!str)
         return JS_FALSE;
-    }
     *vp = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
