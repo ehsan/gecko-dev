@@ -20,7 +20,6 @@ const {InplaceEditor, editableItem} = devtools.require("devtools/shared/inplace-
 const {parseDeclarations} = devtools.require("devtools/styleinspector/css-parsing-utils");
 
 const NUMERIC = /^-?[\d\.]+$/;
-const LONG_TEXT_ROTATE_LIMIT = 3;
 
 /**
  * An instance of EditingSession tracks changes that have been made during the
@@ -224,13 +223,9 @@ LayoutView.prototype = {
     let session = new EditingSession(document, this.elementRules);
     let initialValue = session.getProperty(realProperty);
 
-    let editor = new InplaceEditor({
+    new InplaceEditor({
       element: element,
       initial: initialValue,
-
-      start: (editor) => {
-        editor.elt.parentNode.classList.add("editing");
-      },
 
       change: (value) => {
         if (NUMERIC.test(value))
@@ -250,7 +245,6 @@ LayoutView.prototype = {
       },
 
       done: (value, commit) => {
-        editor.elt.parentNode.classList.remove("editing");
         if (!commit)
           session.revert();
       }
@@ -393,7 +387,6 @@ LayoutView.prototype = {
           continue;
         }
         span.textContent = this.map[i].value;
-        this.manageOverflowingText(span);
       }
 
       width -= this.map.borderLeft.value + this.map.borderRight.value +
@@ -427,15 +420,6 @@ LayoutView.prototype = {
 
     toolbox.highlighterUtils.unhighlight();
   },
-
-  manageOverflowingText: function(span) {
-    let classList = span.parentNode.classList;
-
-    if (classList.contains("left") || classList.contains("right")) {
-      let force = span.textContent.length > LONG_TEXT_ROTATE_LIMIT;
-      classList.toggle("rotate", force);
-    }
-  }
 };
 
 let elts;

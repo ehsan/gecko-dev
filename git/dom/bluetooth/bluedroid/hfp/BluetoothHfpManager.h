@@ -62,7 +62,6 @@ enum PhoneType {
 class Call {
 public:
   Call();
-  void Set(const nsAString& aNumber, const bool aIsOutgoing);
   void Reset();
   bool IsActive();
 
@@ -148,11 +147,9 @@ private:
   void ResetCallArray();
   uint32_t FindFirstCall(uint16_t aState);
   uint32_t GetNumberOfCalls(uint16_t aState);
-  uint16_t GetCallSetupState();
-  bool IsTransitionState(uint16_t aCallState, bool aIsConference);
   bthf_call_state_t ConvertToBthfCallState(int aCallState);
 
-  void UpdatePhoneCIND(uint32_t aCallIndex);
+  void UpdatePhoneCIND(uint32_t aCallIndex, bool aSend = true);
   void UpdateDeviceCIND();
   void SendCLCC(Call& aCall, int aIndex);
   void SendLine(const char* aMessage);
@@ -161,6 +158,8 @@ private:
   int mConnectionState;
   int mPrevConnectionState;
   int mAudioState;
+  // Phone CIND
+  int mCallSetupState;
   // Device CIND
   int mBattChg;
   int mService;

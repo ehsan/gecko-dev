@@ -163,14 +163,12 @@ private:
 nsresult
 AsyncExecuteStatements::execute(StatementDataArray &aStatements,
                                 Connection *aConnection,
-                                sqlite3 *aNativeConnection,
                                 mozIStorageStatementCallback *aCallback,
                                 mozIStoragePendingStatement **_stmt)
 {
   // Create our event to run in the background
   nsRefPtr<AsyncExecuteStatements> event =
-    new AsyncExecuteStatements(aStatements, aConnection, aNativeConnection,
-                               aCallback);
+    new AsyncExecuteStatements(aStatements, aConnection, aCallback);
   NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
   // Dispatch it to the background
@@ -196,11 +194,9 @@ AsyncExecuteStatements::execute(StatementDataArray &aStatements,
 
 AsyncExecuteStatements::AsyncExecuteStatements(StatementDataArray &aStatements,
                                                Connection *aConnection,
-                                               sqlite3 *aNativeConnection,
                                                mozIStorageStatementCallback *aCallback)
 : mConnection(aConnection)
-, mNativeConnection(aNativeConnection)
-, mHasTransaction(false)
+, mTransactionManager(nullptr)
 , mCallback(aCallback)
 , mCallingThread(::do_GetCurrentThread())
 , mMaxWait(TimeDuration::FromMilliseconds(MAX_MILLISECONDS_BETWEEN_RESULTS))
@@ -214,11 +210,6 @@ AsyncExecuteStatements::AsyncExecuteStatements(StatementDataArray &aStatements,
   (void)mStatements.SwapElements(aStatements);
   NS_ASSERTION(mStatements.Length(), "We weren't given any statements!");
   NS_IF_ADDREF(mCallback);
-}
-
-AsyncExecuteStatements::~AsyncExecuteStatements()
-{
-  MOZ_ASSERT(!mHasTransaction, "There should be no transaction at this point");
 }
 
 bool
@@ -342,7 +333,7 @@ AsyncExecuteStatements::executeStatement(sqlite3_stmt *aStatement)
     // lock the sqlite mutex so sqlite3_errmsg cannot change
     SQLiteMutexAutoLock lockedScope(mDBMutex);
 
-    int rc = mConnection->stepStatement(mNativeConnection, aStatement);
+    int rc = mConnection->stepStatement(aStatement);
     // Stop if we have no more results.
     if (rc == SQLITE_DONE)
     {
@@ -373,9 +364,8 @@ AsyncExecuteStatements::executeStatement(sqlite3_stmt *aStatement)
 
     // Construct the error message before giving up the mutex (which we cannot
     // hold during the call to notifyError).
-    nsCOMPtr<mozIStorageError> errorObj(
-      new Error(rc, ::sqlite3_errmsg(mNativeConnection))
-    );
+    sqlite3 *db = mConnection->GetNativeConnection();
+    nsCOMPtr<mozIStorageError> errorObj(new Error(rc, ::sqlite3_errmsg(db)));
     // We cannot hold the DB mutex while calling notifyError.
     SQLiteMutexAutoUnlock unlockedScope(mDBMutex);
     (void)notifyError(errorObj);
@@ -443,9 +433,9 @@ AsyncExecuteStatements::notifyComplete()
   mStatements.Clear();
 
   // Handle our transaction, if we have one
-  if (mHasTransaction) {
+  if (mTransactionManager) {
     if (mState == COMPLETED) {
-      nsresult rv = mConnection->commitTransactionInternal(mNativeConnection);
+      nsresult rv = mTransactionManager->Commit();
       if (NS_FAILED(rv)) {
         mState = ERROR;
         (void)notifyError(mozIStorageError::ERROR,
@@ -453,9 +443,10 @@ AsyncExecuteStatements::notifyComplete()
       }
     }
     else {
-      NS_WARN_IF(NS_FAILED(mConnection->rollbackTransactionInternal(mNativeConnection)));
+      (void)mTransactionManager->Rollback();
     }
-    mHasTransaction = false;
+    delete mTransactionManager;
+    mTransactionManager = nullptr;
   }
 
   // Always generate a completion notification; it is what guarantees that our
@@ -572,8 +563,6 @@ AsyncExecuteStatements::Cancel()
 NS_IMETHODIMP
 AsyncExecuteStatements::Run()
 {
-  MOZ_ASSERT(!mConnection->isClosed());
-
   // Do not run if we have been canceled.
   {
     MutexAutoLock lockedScope(mMutex);
@@ -585,15 +574,8 @@ AsyncExecuteStatements::Run()
 
   if (statementsNeedTransaction()) {
     Connection* rawConnection = static_cast<Connection*>(mConnection.get());
-    if (NS_SUCCEEDED(mConnection->beginTransactionInternal(mNativeConnection,
-                                                           mozIStorageConnection::TRANSACTION_IMMEDIATE))) {
-      mHasTransaction = true;
-    }
-#ifdef DEBUG
-    else {
-      NS_WARNING("Unable to create a transaction for async execution.");
-    }
-#endif
+    mTransactionManager = new mozStorageAsyncTransaction(rawConnection, false,
+                                                         mozIStorageConnection::TRANSACTION_IMMEDIATE);
   }
 
   // Execute each statement, giving the callback results if it returns any.
@@ -610,8 +592,9 @@ AsyncExecuteStatements::Run()
         mState = ERROR;
 
         // Build the error object; can't call notifyError with the lock held
+        sqlite3 *db = mConnection->GetNativeConnection();
         nsCOMPtr<mozIStorageError> errorObj(
-          new Error(rc, ::sqlite3_errmsg(mNativeConnection))
+          new Error(rc, ::sqlite3_errmsg(db))
         );
         {
           // We cannot hold the DB mutex and call notifyError.

@@ -107,8 +107,8 @@ TestTabActor.prototype = {
   },
 
   /* Support for DebuggerServer.addTabActor. */
-  _createExtraActors: createExtraActors,
-  _appendExtraActors: appendExtraActors
+  _createExtraActors: CommonCreateExtraActors,
+  _appendExtraActors: CommonAppendExtraActors
 };
 
 TestTabActor.prototype.requestTypes = {
