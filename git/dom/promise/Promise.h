@@ -17,6 +17,7 @@
 #include "nsWrapperCache.h"
 #include "nsAutoPtr.h"
 #include "js/TypeDecls.h"
+#include "jsapi.h"
 
 #include "mozilla/dom/workers/bindings/WorkerFeature.h"
 
@@ -121,10 +122,11 @@ public:
          JS::Handle<JS::Value> aValue, ErrorResult& aRv);
 
   already_AddRefed<Promise>
-  Then(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback);
+  Then(JSContext* aCx, AnyCallback* aResolveCallback,
+       AnyCallback* aRejectCallback);
 
   already_AddRefed<Promise>
-  Catch(AnyCallback* aRejectCallback);
+  Catch(JSContext* aCx, AnyCallback* aRejectCallback);
 
   static already_AddRefed<Promise>
   All(const GlobalObject& aGlobal, JSContext* aCx,
@@ -253,9 +255,7 @@ private:
                     JSContext* aCx,
                     JS::MutableHandle<JS::Value> aValue)
   {
-    JS::Rooted<JSObject*> scope(aCx, JS::CurrentGlobalOrNull(aCx));
-
-    nsresult rv = nsContentUtils::WrapNative(aCx, scope, &aArgument, aValue);
+    nsresult rv = nsContentUtils::WrapNative(aCx, &aArgument, aValue);
     return NS_SUCCEEDED(rv);
   }
 
@@ -266,6 +266,30 @@ private:
                     JS::MutableHandle<JS::Value> aValue)
   {
     return ArgumentToJSValue(*aArgument.get(), aCx, aValue);
+  }
+
+  // Accept arrays of other things we accept
+  template <typename T>
+  bool
+  ArgumentToJSValue(const nsTArray<T>& aArgument,
+                    JSContext* aCx,
+                    JS::MutableHandle<JS::Value> aValue)
+  {
+    JS::AutoValueVector v(aCx);
+    if (!v.resize(aArgument.Length())) {
+      return false;
+    }
+    for (uint32_t i = 0; i < aArgument.Length(); ++i) {
+      if (!ArgumentToJSValue(aArgument[i], aCx, v.handleAt(i))) {
+        return false;
+      }
+    }
+    JSObject* arrayObj = JS_NewArrayObject(aCx, v);
+    if (!arrayObj) {
+      return false;
+    }
+    aValue.setObject(*arrayObj);
+    return true;
   }
 
   template <typename T>
