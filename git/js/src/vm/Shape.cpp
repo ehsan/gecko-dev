@@ -387,7 +387,7 @@ NativeObject::getChildPropertyOnDictionary(ExclusiveContext *cx, HandleNativeObj
         if (!shape)
             return nullptr;
         if (childRoot->hasSlot() && childRoot->slot() >= obj->lastProperty()->base()->slotSpan()) {
-            if (!obj->setSlotSpan(cx, childRoot->slot() + 1))
+            if (!setSlotSpan(cx, obj, childRoot->slot() + 1))
                 return nullptr;
         }
         shape->initDictionaryShape(*childRoot, obj->numFixedSlots(), &obj->shape_);
@@ -401,7 +401,7 @@ NativeObject::getChildProperty(ExclusiveContext *cx,
                                HandleNativeObject obj, HandleShape parent, StackShape &unrootedChild)
 {
     RootedGeneric<StackShape*> child(cx, &unrootedChild);
-    Shape *shape = getChildPropertyOnDictionary(cx, obj, parent, *child);
+    RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, *child));
 
     if (!obj->inDictionaryMode()) {
         shape = cx->compartment()->propertyTree.getChild(cx, parent, *child);
@@ -409,7 +409,7 @@ NativeObject::getChildProperty(ExclusiveContext *cx,
             return nullptr;
         //MOZ_ASSERT(shape->parent == parent);
         //MOZ_ASSERT_IF(parent != lastProperty(), parent == lastProperty()->parent);
-        if (!obj->setLastProperty(cx, shape))
+        if (!setLastProperty(cx, obj, shape))
             return nullptr;
     }
 
@@ -1026,7 +1026,7 @@ NativeObject::removeProperty(ExclusiveContext *cx, jsid id_)
 /* static */ void
 NativeObject::clear(JSContext *cx, HandleNativeObject obj)
 {
-    Shape *shape = obj->lastProperty();
+    RootedShape shape(cx, obj->lastProperty());
     MOZ_ASSERT(obj->inDictionaryMode() == shape->inDictionary());
 
     while (shape->parent) {
@@ -1038,7 +1038,7 @@ NativeObject::clear(JSContext *cx, HandleNativeObject obj)
     if (obj->inDictionaryMode())
         shape->listp = &obj->shape_;
 
-    JS_ALWAYS_TRUE(obj->setLastProperty(cx, shape));
+    JS_ALWAYS_TRUE(setLastProperty(cx, obj, shape));
 
     ++cx->runtime()->propertyRemovals;
     obj->checkShapeConsistency();
@@ -1205,12 +1205,12 @@ Shape::setObjectMetadata(JSContext *cx, JSObject *metadata, TaggedProto proto, S
 }
 
 bool
-JSObject::setFlags(ExclusiveContext *cx, /*BaseShape::Flag*/ uint32_t flags_,
-                   GenerateShape generateShape)
+JSObject::setFlag(ExclusiveContext *cx, /*BaseShape::Flag*/ uint32_t flag_,
+                  GenerateShape generateShape)
 {
-    BaseShape::Flag flags = (BaseShape::Flag) flags_;
+    BaseShape::Flag flag = (BaseShape::Flag) flag_;
 
-    if ((lastProperty()->getObjectFlags() & flags) == flags)
+    if (lastProperty()->getObjectFlags() & flag)
         return true;
 
     RootedObject self(cx, this);
@@ -1219,7 +1219,7 @@ JSObject::setFlags(ExclusiveContext *cx, /*BaseShape::Flag*/ uint32_t flags_,
         if (generateShape == GENERATE_SHAPE && !as<NativeObject>().generateOwnShape(cx))
             return false;
         StackBaseShape base(self->lastProperty());
-        base.flags |= flags;
+        base.flags |= flag;
         UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
         if (!nbase)
             return false;
@@ -1229,7 +1229,7 @@ JSObject::setFlags(ExclusiveContext *cx, /*BaseShape::Flag*/ uint32_t flags_,
     }
 
     Shape *newShape =
-        Shape::setObjectFlags(cx, flags, self->getTaggedProto(), self->lastProperty());
+        Shape::setObjectFlag(cx, flag, self->getTaggedProto(), self->lastProperty());
     if (!newShape)
         return false;
 
@@ -1256,13 +1256,13 @@ NativeObject::clearFlag(ExclusiveContext *cx, BaseShape::Flag flag)
 }
 
 /* static */ Shape *
-Shape::setObjectFlags(ExclusiveContext *cx, BaseShape::Flag flags, TaggedProto proto, Shape *last)
+Shape::setObjectFlag(ExclusiveContext *cx, BaseShape::Flag flag, TaggedProto proto, Shape *last)
 {
-    if ((last->getObjectFlags() & flags) == flags)
+    if (last->getObjectFlags() & flag)
         return last;
 
     StackBaseShape base(last);
-    base.flags |= flags;
+    base.flags |= flag;
 
     RootedShape lastRoot(cx, last);
     return replaceLastProperty(cx, base, proto, lastRoot);

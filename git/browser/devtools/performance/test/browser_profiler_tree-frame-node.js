@@ -7,7 +7,6 @@
 
 function test() {
   let { FrameNode } = devtools.require("devtools/shared/profiler/tree-model");
-  let { CATEGORY_OTHER } = devtools.require("devtools/shared/profiler/global");
 
   let frame1 = new FrameNode({
     location: "hello/<.world (http://foo/bar.js:123:987)",
@@ -133,7 +132,7 @@ function test() {
     location: "Foo::Bar::Baz",
     line: 456,
     column: 123,
-    category: CATEGORY_OTHER
+    category: 8
   });
 
   is(frame6.getInfo().nodeType, "Frame",

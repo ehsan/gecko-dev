@@ -97,20 +97,6 @@ public:
     return mRefCnt;
   }
 
-#ifdef DEBUG
-  void FrameAddRef() {
-    ++mFrameRefCnt;
-  }
-
-  void FrameRelease() {
-    --mFrameRefCnt;
-  }
-
-  uint32_t FrameRefCnt() const {
-    return mFrameRefCnt;
-  }
-#endif
-
   bool HasSingleReference() const {
     NS_ASSERTION(mRefCnt != 0,
                  "do not call HasSingleReference on a newly created "
@@ -565,9 +551,6 @@ private:
   uint32_t                mRefCnt;
 
 #ifdef DEBUG
-  uint32_t                mFrameRefCnt; // number of frames that use this
-                                        // as their style context
-
   nsStyleStructID         mComputingStruct;
 
   static bool DependencyAllowed(nsStyleStructID aOuterSID,

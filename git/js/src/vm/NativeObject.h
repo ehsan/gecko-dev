@@ -399,9 +399,12 @@ class NativeObject : public JSObject
         return getElementsHeader()->capacity;
     }
 
-    // Update the last property, keeping the number of allocated slots in sync
-    // with the object's new slot span.
-    bool setLastProperty(ExclusiveContext *cx, Shape *shape);
+    /*
+     * Update the last property, keeping the number of allocated slots in sync
+     * with the object's new slot span.
+     */
+    static bool setLastProperty(ExclusiveContext *cx,
+                                HandleNativeObject obj, HandleShape shape);
 
     // As for setLastProperty(), but allows the number of fixed slots to
     // change. This can only be used when fixed slots are being erased from the
@@ -417,7 +420,8 @@ class NativeObject : public JSObject
     // As for setLastProperty(), but changes the class associated with the
     // object to a native one. The object's type has already been changed, and
     // this brings the shape into sync with it.
-    void setLastPropertyMakeNative(ExclusiveContext *cx, Shape *shape);
+    static void setLastPropertyMakeNative(ExclusiveContext *cx, HandleNativeObject obj,
+                                          HandleShape shape);
 
   protected:
 #ifdef DEBUG
@@ -443,7 +447,7 @@ class NativeObject : public JSObject
      * Update the slot span directly for a dictionary object, and allocate
      * slots to cover the new span if necessary.
      */
-    bool setSlotSpan(ExclusiveContext *cx, uint32_t span);
+    static bool setSlotSpan(ExclusiveContext *cx, HandleNativeObject obj, uint32_t span);
 
     bool toDictionaryMode(ExclusiveContext *cx);
 
@@ -586,8 +590,10 @@ class NativeObject : public JSObject
      * The number of allocated slots is not stored explicitly, and changes to
      * the slots must track changes in the slot span.
      */
-    bool growSlots(ExclusiveContext *cx, uint32_t oldCount, uint32_t newCount);
-    void shrinkSlots(ExclusiveContext *cx, uint32_t oldCount, uint32_t newCount);
+    static bool growSlots(ExclusiveContext *cx, HandleNativeObject obj, uint32_t oldCount,
+                          uint32_t newCount);
+    static void shrinkSlots(ExclusiveContext *cx, HandleNativeObject obj, uint32_t oldCount,
+                            uint32_t newCount);
 
     bool hasDynamicSlots() const { return !!slots_; }
 
@@ -785,7 +791,8 @@ class NativeObject : public JSObject
     static const uint32_t MAX_FIXED_SLOTS = 16;
 
   protected:
-    inline bool updateSlotsForSpan(ExclusiveContext *cx, size_t oldSpan, size_t newSpan);
+    static inline bool updateSlotsForSpan(ExclusiveContext *cx,
+                                          HandleNativeObject obj, size_t oldSpan, size_t newSpan);
 
   public:
     /*

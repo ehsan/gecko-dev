@@ -910,7 +910,8 @@ class Marionette(object):
         '''
         A JSON dictionary representing the capabilities of the current session.
         '''
-        return self.session
+        response = self._send_message('getSessionCapabilities', 'value')
+        return response
 
     def set_script_timeout(self, timeout):
         '''

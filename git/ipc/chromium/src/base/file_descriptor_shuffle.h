@@ -5,8 +5,6 @@
 #ifndef BASE_FILE_DESCRIPTOR_SHUFFLE_H_
 #define BASE_FILE_DESCRIPTOR_SHUFFLE_H_
 
-#include "mozilla/Attributes.h"
-
 // This code exists to perform the shuffling of file descriptors which is
 // commonly needed when forking subprocesses. The naive approve is very simple,
 // just call dup2 to setup the desired descriptors, but wrong. It's tough to
@@ -44,9 +42,9 @@ class InjectionDelegate {
 // An implementation of the InjectionDelegate interface using the file
 // descriptor table of the current process as the domain.
 class FileDescriptorTableInjection : public InjectionDelegate {
-  virtual bool Duplicate(int* result, int fd) MOZ_OVERRIDE;
-  virtual bool Move(int src, int dest) MOZ_OVERRIDE;
-  virtual void Close(int fd) MOZ_OVERRIDE;
+  bool Duplicate(int* result, int fd);
+  bool Move(int src, int dest);
+  void Close(int fd);
 };
 
 // A single arc of the directed graph which describes an injective multimapping.

@@ -4228,6 +4228,7 @@ class MAssertRange
       : MUnaryInstruction(ins), assertedRange_(assertedRange)
     {
         setGuard();
+        setMovable();
         setResultType(MIRType_None);
     }
 

@@ -86,9 +86,8 @@ exports["test Panel API"] = test(function*(assert) {
   yield closeToolbox();
 
   assert.equal(panel.readyState, "destroyed", "panel is destroyed");
-
-  myTool.destroy();
 });
+
 
 exports["test Panel communication"] = test(function*(assert) {
   const MyPanel = Class({
@@ -151,7 +150,6 @@ exports["test Panel communication"] = test(function*(assert) {
   yield closeToolbox();
 
   assert.equal(panel.readyState, "destroyed", "panel is destroyed");
-  myTool.destroy();
 });
 
 exports["test communication with debuggee"] = test(function*(assert) {
@@ -235,8 +233,6 @@ exports["test communication with debuggee"] = test(function*(assert) {
   yield closeToolbox();
 
   assert.equal(panel.readyState, "destroyed", "panel is destroyed");
-
-  myTool.destroy();
 });
 
 
@@ -271,8 +267,6 @@ exports["test viewFor panel"] = test(function*(assert) {
   assert.equal(frame.contentDocument.URL, url, "is expected iframe");
 
   yield closeToolbox();
-
-  myTool.destroy();
 });
 
 
@@ -320,8 +314,6 @@ exports["test createView panel"] = test(function*(assert) {
   assert.equal(frame.contentDocument.URL, url, "is expected iframe");
 
   yield closeToolbox();
-
-  myTool.destroy();
 });
 
 require("sdk/test").run(exports);

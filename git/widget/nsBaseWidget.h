@@ -18,7 +18,6 @@
 #include "nsIObserver.h"
 #include "nsIWidgetListener.h"
 #include "nsPIDOMWindow.h"
-#include "nsWeakReference.h"
 #include <algorithm>
 class nsIContent;
 class nsAutoRollup;
@@ -80,7 +79,7 @@ public:
  * class, but it gives them a head start.)
  */
 
-class nsBaseWidget : public nsIWidget, public nsSupportsWeakReference
+class nsBaseWidget : public nsIWidget
 {
   friend class nsAutoRollup;
 

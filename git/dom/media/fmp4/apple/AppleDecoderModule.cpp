@@ -64,7 +64,7 @@ AppleDecoderModule::Init()
   bool haveVideoToolbox = AppleVTLinker::Link();
   sIsVTAvailable = haveCoreMedia && haveVideoToolbox;
 
-  sIsVTHWAvailable = AppleVTLinker::skPropEnableHWAccel != nullptr;
+  sIsVTHWAvailable = AppleVTLinker::skPropHWAccel != nullptr;
 
   if (sIsVDAAvailable) {
     AppleVDALinker::Unlink();

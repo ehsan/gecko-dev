@@ -174,8 +174,6 @@ public:
 
     void NotifyAttachableChanged() const;
 
-    bool ValidateForRead(const char* info, TexInternalFormat* const out_format);
-
 private:
     ~WebGLFramebuffer() {
         DeleteOnce();
@@ -189,7 +187,6 @@ private:
     Attachment mDepthAttachment;
     Attachment mStencilAttachment;
     Attachment mDepthStencilAttachment;
-    GLenum mReadBufferMode;
 };
 
 } // namespace mozilla

@@ -5319,12 +5319,6 @@ ThreadSources.prototype = {
         }
       } catch(ex) {
         // Not a valid URI.
-
-        // bug 1124536: fix getSourceText on scripts associated "javascript:SOURCE" urls
-        // (e.g. 'evaluate(sandbox, sourcecode, "javascript:"+sourcecode)' )
-        if (url.indexOf("javascript:") === 0) {
-          spec.contentType = "text/javascript";
-        } 
       }
     }
     else {
@@ -5819,7 +5813,7 @@ function getInnerId(window) {
                 getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
 };
 
-const symbolProtoToString = Symbol.prototype.toString;
+const symbolProtoToString = typeof Symbol === "function" ? Symbol.prototype.toString : null;
 
 function getSymbolName(symbol) {
   const name = symbolProtoToString.call(symbol).slice("Symbol(".length, -1);

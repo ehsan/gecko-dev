@@ -105,6 +105,7 @@ private:
 private:
   ProcessType mUpdaterPID;
   nsCOMPtr<nsIThread> mProcessWatcher;
+  nsCOMPtr<nsIUpdate> mUpdate;
   StagedUpdateInfo mInfo;
 };
 #endif

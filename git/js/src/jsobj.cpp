@@ -1038,7 +1038,7 @@ js::SetIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level)
         }
 
         MOZ_ASSERT(nobj->lastProperty()->slotSpan() == last->slotSpan());
-        JS_ALWAYS_TRUE(nobj->setLastProperty(cx, last));
+        JS_ALWAYS_TRUE(NativeObject::setLastProperty(cx, nobj, last));
     } else {
         RootedId id(cx);
         Rooted<PropertyDescriptor> desc(cx);
@@ -1098,7 +1098,7 @@ js::SetIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level)
     return true;
 }
 
-// ES6 draft rev33 (12 Feb 2015) 7.3.15
+/* ES6 rev 29 (6 Dec 2014) 7.3.14. */
 bool
 js::TestIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level, bool *result)
 {
@@ -1111,26 +1111,38 @@ js::TestIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level, bo
         return true;
     }
 
+    if (IsAnyTypedArray(obj)) {
+        if (level == IntegrityLevel::Sealed) {
+            // Typed arrays are considered sealed (bug 1120503).
+            *result = true;
+        } else {
+            // Typed arrays cannot be frozen, but an empty typed array is
+            // considered frozen (bug 1120503).
+            *result = (AnyTypedArrayLength(obj) == 0);
+        }
+        return true;
+    }
+
     // Steps 7-8.
     AutoIdVector props(cx);
     if (!GetPropertyKeys(cx, obj, JSITER_HIDDEN | JSITER_OWNONLY | JSITER_SYMBOLS, &props))
         return false;
 
-    // Step 9.
+    // Step 11.
     RootedId id(cx);
     Rooted<PropertyDescriptor> desc(cx);
     for (size_t i = 0, len = props.length(); i < len; i++) {
         id = props[i];
 
-        // Steps 9.a-b.
+        // Steps 11.a-b.
         if (!GetOwnPropertyDescriptor(cx, obj, id, &desc))
             return false;
 
-        // Step 9.c.
+        // Step 11.c.
         if (!desc.object())
             continue;
 
-        // Steps 9.c.i-ii.
+        // Steps 11.c.i-ii.
         if (!desc.isPermanent() ||
             (level == IntegrityLevel::Frozen && desc.isDataDescriptor() && desc.isWritable()))
         {
@@ -1139,7 +1151,7 @@ js::TestIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level, bo
         }
     }
 
-    // Step 10.
+    // Step 12.
     *result = true;
     return true;
 }
@@ -1218,20 +1230,6 @@ NewObjectCache::fillProto(EntryIndex entry, const Class *clasp, js::TaggedProto 
     return fill(entry, clasp, proto.raw(), kind, obj);
 }
 
-static bool
-NewObjectWithTaggedProtoIsCachable(ExclusiveContext *cxArg, Handle<TaggedProto> proto,
-                                   NewObjectKind newKind, const Class *clasp,
-                                   HandleObject parentArg)
-{
-    return cxArg->isJSContext() &&
-           proto.isObject() &&
-           newKind == GenericObject &&
-           clasp->isNative() &&
-           !cxArg->asJSContext()->compartment()->hasObjectMetadataCallback() &&
-           (!parentArg || parentArg == proto.toObject()->getParent()) &&
-           !proto.toObject()->is<GlobalObject>();
-}
-
 JSObject *
 js::NewObjectWithGivenTaggedProto(ExclusiveContext *cxArg, const Class *clasp,
                                   Handle<TaggedProto> proto, HandleObject parentArg,
@@ -1240,16 +1238,25 @@ js::NewObjectWithGivenTaggedProto(ExclusiveContext *cxArg, const Class *clasp,
     if (CanBeFinalizedInBackground(allocKind, clasp))
         allocKind = GetBackgroundAllocKind(allocKind);
 
-    bool isCachable = NewObjectWithTaggedProtoIsCachable(cxArg, proto, newKind, clasp, parentArg);
-    if (isCachable) {
-        JSContext *cx = cxArg->asJSContext();
+    NewObjectCache::EntryIndex entry = -1;
+    uint64_t gcNumber = 0;
+    if (JSContext *cx = cxArg->maybeJSContext()) {
         JSRuntime *rt = cx->runtime();
         NewObjectCache &cache = rt->newObjectCache;
-        NewObjectCache::EntryIndex entry = -1;
-        if (cache.lookupProto(clasp, proto.toObject(), allocKind, &entry)) {
-            JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
-            if (obj)
-                return obj;
+        if (proto.isObject() &&
+            newKind == GenericObject &&
+            clasp->isNative() &&
+            !cx->compartment()->hasObjectMetadataCallback() &&
+            (!parentArg || parentArg == proto.toObject()->getParent()) &&
+            !proto.toObject()->is<GlobalObject>())
+        {
+            if (cache.lookupProto(clasp, proto.toObject(), allocKind, &entry)) {
+                JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
+                if (obj)
+                    return obj;
+            } else {
+                gcNumber = rt->gc.gcNumber();
+            }
         }
     }
 
@@ -1269,11 +1276,12 @@ js::NewObjectWithGivenTaggedProto(ExclusiveContext *cxArg, const Class *clasp,
     if (!obj)
         return nullptr;
 
-    if (isCachable && !obj->as<NativeObject>().hasDynamicSlots()) {
-        NewObjectCache &cache = cxArg->asJSContext()->runtime()->newObjectCache;
-        NewObjectCache::EntryIndex entry = -1;
-        cache.lookupProto(clasp, proto.toObject(), allocKind, &entry);
-        cache.fillProto(entry, clasp, proto, allocKind, &obj->as<NativeObject>());
+    if (entry != -1 && !obj->as<NativeObject>().hasDynamicSlots() &&
+        cxArg->asJSContext()->runtime()->gc.gcNumber() == gcNumber)
+    {
+        cxArg->asJSContext()->runtime()->newObjectCache.fillProto(entry, clasp,
+                                                                  proto, allocKind,
+                                                                  &obj->as<NativeObject>());
     }
 
     return obj;
@@ -1373,17 +1381,6 @@ FindProto(ExclusiveContext *cx, const js::Class *clasp, MutableHandleObject prot
     return true;
 }
 
-static bool
-NewObjectWithClassProtoIsCachable(ExclusiveContext *cxArg, HandleObject parent,
-                                  JSProtoKey protoKey, NewObjectKind newKind, const Class *clasp)
-{
-    return cxArg->isJSContext() &&
-           parent->is<GlobalObject>() &&
-           protoKey != JSProto_Null &&
-           newKind == GenericObject &&
-           clasp->isNative() &&
-           !cxArg->asJSContext()->compartment()->hasObjectMetadataCallback();
-}
 
 JSObject *
 js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
@@ -1411,16 +1408,24 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
      */
     JSProtoKey protoKey = ClassProtoKeyOrAnonymousOrNull(clasp);
 
-    bool isCachable = NewObjectWithClassProtoIsCachable(cxArg, parent, protoKey, newKind, clasp);
-    if (isCachable) {
-        JSContext *cx = cxArg->asJSContext();
+    NewObjectCache::EntryIndex entry = -1;
+    uint64_t gcNumber = 0;
+    if (JSContext *cx = cxArg->maybeJSContext()) {
         JSRuntime *rt = cx->runtime();
         NewObjectCache &cache = rt->newObjectCache;
-        NewObjectCache::EntryIndex entry = -1;
-        if (cache.lookupGlobal(clasp, &parent->as<GlobalObject>(), allocKind, &entry)) {
-            JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
-            if (obj)
-                return obj;
+        if (parent->is<GlobalObject>() &&
+            protoKey != JSProto_Null &&
+            newKind == GenericObject &&
+            clasp->isNative() &&
+            !cx->compartment()->hasObjectMetadataCallback())
+        {
+            if (cache.lookupGlobal(clasp, &parent->as<GlobalObject>(), allocKind, &entry)) {
+                JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
+                if (obj)
+                    return obj;
+            } else {
+                gcNumber = rt->gc.gcNumber();
+            }
         }
     }
 
@@ -1437,27 +1442,15 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
     if (!obj)
         return nullptr;
 
-    if (isCachable && !obj->as<NativeObject>().hasDynamicSlots()) {
-        NewObjectCache &cache = cxArg->asJSContext()->runtime()->newObjectCache;
-        NewObjectCache::EntryIndex entry = -1;
-        cache.lookupGlobal(clasp, &parent->as<GlobalObject>(), allocKind, &entry);
-        cache.fillGlobal(entry, clasp, &parent->as<GlobalObject>(), allocKind,
-                         &obj->as<NativeObject>());
+    if (entry != -1 && !obj->as<NativeObject>().hasDynamicSlots() &&
+        cxArg->asJSContext()->runtime()->gc.gcNumber() == gcNumber)
+    {
+        cxArg->asJSContext()->runtime()->newObjectCache.fillGlobal(entry, clasp,
+                                                                   &parent->as<GlobalObject>(),
+                                                                   allocKind, &obj->as<NativeObject>());
     }
 
     return obj;
-}
-
-static bool
-NewObjectWithGroupIsCachable(JSContext *cx, HandleObjectGroup group, HandleObject parent,
-                             NewObjectKind newKind)
-{
-    return group->proto().isObject() &&
-           parent == group->proto().toObject()->getParent() &&
-           newKind == GenericObject &&
-           group->clasp()->isNative() &&
-           (!group->newScript() || group->newScript()->analyzed()) &&
-           !cx->compartment()->hasObjectMetadataCallback();
 }
 
 /*
@@ -1474,15 +1467,24 @@ js::NewObjectWithGroupCommon(JSContext *cx, HandleObjectGroup group, HandleObjec
     if (CanBeFinalizedInBackground(allocKind, group->clasp()))
         allocKind = GetBackgroundAllocKind(allocKind);
 
-    bool isCachable = NewObjectWithGroupIsCachable(cx, group, parent, newKind);
-    if (isCachable) {
-        NewObjectCache &cache = cx->runtime()->newObjectCache;
-        NewObjectCache::EntryIndex entry = -1;
+    NewObjectCache &cache = cx->runtime()->newObjectCache;
+
+    NewObjectCache::EntryIndex entry = -1;
+    uint64_t gcNumber = 0;
+    if (group->proto().isObject() &&
+        parent == group->proto().toObject()->getParent() &&
+        newKind == GenericObject &&
+        group->clasp()->isNative() &&
+        (!group->newScript() || group->newScript()->analyzed()) &&
+        !cx->compartment()->hasObjectMetadataCallback())
+    {
         if (cache.lookupGroup(group, allocKind, &entry)) {
             JSObject *obj = cache.newObjectFromHit(cx, entry,
                                                    GetInitialHeap(newKind, group->clasp()));
             if (obj)
                 return obj;
+        } else {
+            gcNumber = cx->runtime()->gc.gcNumber();
         }
     }
 
@@ -1490,10 +1492,9 @@ js::NewObjectWithGroupCommon(JSContext *cx, HandleObjectGroup group, HandleObjec
     if (!obj)
         return nullptr;
 
-    if (isCachable && !obj->as<NativeObject>().hasDynamicSlots()) {
-        NewObjectCache &cache = cx->runtime()->newObjectCache;
-        NewObjectCache::EntryIndex entry = -1;
-        cache.lookupGroup(group, allocKind, &entry);
+    if (entry != -1 && !obj->as<NativeObject>().hasDynamicSlots() &&
+        cx->runtime()->gc.gcNumber() == gcNumber)
+    {
         cache.fillGroup(entry, group, allocKind, &obj->as<NativeObject>());
     }
 
@@ -1856,7 +1857,7 @@ js::DeepCloneObjectLiteral(JSContext *cx, HandleNativeObject obj, NewObjectKind 
     MOZ_ASSERT(!obj->hasPrivate());
     RootedShape shape(cx, obj->lastProperty());
     size_t span = shape->slotSpan();
-    clone->setLastProperty(cx, shape);
+    clone->setLastProperty(cx, clone, shape);
     for (size_t i = 0; i < span; i++) {
         v = obj->getSlot(i);
         if (v.isObject()) {
@@ -2148,7 +2149,7 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
 
         RootedShape newShape(cx, ReshapeForParentAndAllocKind(cx, srcObj->lastProperty(),
                                                               TaggedProto(proto), parent, kind));
-        if (!newShape || !res->setLastProperty(cx, newShape))
+        if (!newShape || !NativeObject::setLastProperty(cx, res, newShape))
             return nullptr;
 
         return res;
@@ -3150,7 +3151,7 @@ js::PreventExtensions(JSContext *cx, HandleObject obj, bool *succeeded)
         return false;
 
     *succeeded = true;
-    return obj->setFlags(cx, BaseShape::NOT_EXTENSIBLE, JSObject::GENERATE_SHAPE);
+    return obj->setFlag(cx, BaseShape::NOT_EXTENSIBLE, JSObject::GENERATE_SHAPE);
 }
 
 bool
@@ -3245,7 +3246,7 @@ js::SetImmutablePrototype(ExclusiveContext *cx, HandleObject obj, bool *succeede
         return Proxy::setImmutablePrototype(cx->asJSContext(), obj, succeeded);
     }
 
-    if (!obj->setFlags(cx, BaseShape::IMMUTABLE_PROTOTYPE))
+    if (!obj->setFlag(cx, BaseShape::IMMUTABLE_PROTOTYPE))
         return false;
     *succeeded = true;
     return true;

@@ -1255,7 +1255,8 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
               const nsLineList::iterator* aForFrameLine,
               nsTextFrame::TextRunType aWhichTextRun)
 {
-  MOZ_ASSERT(aForFrame, "for no frame?");
+  NS_ASSERTION(aForFrame || aLineContainer,
+               "One of aForFrame or aLineContainer must be set!");
   NS_ASSERTION(!aForFrameLine || aLineContainer,
                "line but no line container");
   
@@ -1267,20 +1268,24 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
     }
     aLineContainer = FindLineContainer(lineContainerChild);
   } else {
-    NS_ASSERTION((aLineContainer == FindLineContainer(aForFrame) ||
+    NS_ASSERTION(!aForFrame ||
+                 (aLineContainer == FindLineContainer(aForFrame) ||
+                  aLineContainer->GetType() == nsGkAtoms::rubyTextContainerFrame ||
                   (aLineContainer->GetType() == nsGkAtoms::letterFrame &&
                    aLineContainer->IsFloating())),
                  "Wrong line container hint");
   }
 
-  if (aForFrame->HasAnyStateBits(TEXT_IS_IN_TOKEN_MATHML)) {
-    aLineContainer->AddStateBits(TEXT_IS_IN_TOKEN_MATHML);
-    if (aForFrame->HasAnyStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI)) {
-      aLineContainer->AddStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI);
+  if (aForFrame) {
+    if (aForFrame->HasAnyStateBits(TEXT_IS_IN_TOKEN_MATHML)) {
+      aLineContainer->AddStateBits(TEXT_IS_IN_TOKEN_MATHML);
+      if (aForFrame->HasAnyStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI)) {
+        aLineContainer->AddStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI);
+      }
     }
-  }
-  if (aForFrame->HasAnyStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT)) {
-    aLineContainer->AddStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT);
+    if (aForFrame->HasAnyStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT)) {
+      aLineContainer->AddStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT);
+    }
   }
 
   nsPresContext* presContext = aLineContainer->PresContext();
@@ -1290,26 +1295,13 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   nsBlockFrame* block = nsLayoutUtils::GetAsBlock(aLineContainer);
 
   if (!block) {
-    nsIFrame* textRunContainer = aLineContainer;
-    if (aLineContainer->GetType() == nsGkAtoms::rubyTextContainerFrame) {
-      textRunContainer = aForFrame;
-      while (textRunContainer &&
-             textRunContainer->GetType() != nsGkAtoms::rubyTextFrame) {
-        textRunContainer = textRunContainer->GetParent();
-      }
-      MOZ_ASSERT(textRunContainer &&
-                 textRunContainer->GetParent() == aLineContainer);
-    } else {
-      NS_ASSERTION(
-        !aLineContainer->GetPrevInFlow() && !aLineContainer->GetNextInFlow(),
-        "Breakable non-block line containers other than "
-        "ruby text container is not supported");
-    }
+    NS_ASSERTION(!aLineContainer->GetPrevInFlow() && !aLineContainer->GetNextInFlow(),
+                 "Breakable non-block line containers not supported");
     // Just loop through all the children of the linecontainer ... it's really
     // just one line
     scanner.SetAtStartOfLine();
     scanner.SetCommonAncestorWithLastFrame(nullptr);
-    nsIFrame* child = textRunContainer->GetFirstPrincipalChild();
+    nsIFrame* child = aLineContainer->GetFirstPrincipalChild();
     while (child) {
       scanner.ScanFrame(child);
       child = child->GetNextSibling();

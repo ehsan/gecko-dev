@@ -330,6 +330,4 @@ make_EE eeIssuedByV1Cert 'CN=EE Issued by V1 Cert' v1Cert "localhost,*.example.c
 make_EE eeIssuedByIntermediate 'CN=EE issued by intermediate' testINT "localhost"
 export_cert eeIssuedByIntermediate test-int-ee.der
 
-make_EE badSubjectAltNames 'CN=EE with bad subjectAltNames' testCA "*.*.example.com"
-
 cleanup

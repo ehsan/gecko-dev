@@ -13,6 +13,7 @@
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "mozilla/ipc/InputStreamUtils.h"
 
+using namespace base;
 using namespace mozilla::ipc;
 using namespace mozilla::jsipc;
 

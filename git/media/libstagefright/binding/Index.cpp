@@ -157,10 +157,7 @@ MP4Sample* SampleIterator::GetNext()
 Sample* SampleIterator::Get()
 {
   if (!mIndex->mMoofParser) {
-    MOZ_ASSERT(!mCurrentMoof);
-    return mCurrentSample < mIndex->mIndex.Length()
-      ? &mIndex->mIndex[mCurrentSample]
-      : nullptr;
+    return nullptr;
   }
 
   nsTArray<Moof>& moofs = mIndex->mMoofParser->Moofs();
@@ -212,15 +209,26 @@ void SampleIterator::Seek(Microseconds aTime)
 Microseconds
 SampleIterator::GetNextKeyframeTime()
 {
-  SampleIterator itr(*this);
-  Sample* sample;
-  while (!!(sample = itr.Get())) {
-    if (sample->mSync) {
-      return sample->mCompositionRange.start;
+  nsTArray<Moof>& moofs = mIndex->mMoofParser->Moofs();
+  size_t sample = mCurrentSample + 1;
+  size_t moof = mCurrentMoof;
+  while (true) {
+    while (true) {
+      if (moof == moofs.Length()) {
+        return -1;
+      }
+      if (sample < moofs[moof].mIndex.Length()) {
+        break;
+      }
+      sample = 0;
+      ++moof;
     }
-    itr.Next();
+    if (moofs[moof].mIndex[sample].mSync) {
+      return moofs[moof].mIndex[sample].mDecodeTime;
+    }
+    ++sample;
   }
-  return -1;
+  MOZ_ASSERT(false); // should not be reached.
 }
 
 Index::Index(const stagefright::Vector<MediaSource::Indice>& aIndex,

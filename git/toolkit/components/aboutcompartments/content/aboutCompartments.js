@@ -59,7 +59,7 @@ function go() {
             name.className = "addon";
             time.className = "time";
             cpow.className = "cpow";
-            name.textContent = comp.compartmentName;
+            name.textContent = comp.label;
             time.textContent = comp.time +"μs";
             cpow.textContent = comp.CPOWTime +"μs";
             c.appendChild(time);

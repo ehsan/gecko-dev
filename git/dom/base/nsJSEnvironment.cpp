@@ -2204,11 +2204,8 @@ DOMGCSliceCallback(JSRuntime *aRt, JS::GCProgress aProgress, const JS::GCDescrip
         nsJSContext::KillFullGCTimer();
 
         // Avoid shrinking during heavy activity, which is suggested by
-        // compartment GC. We don't need to shrink after a shrinking GC as this
-        // happens automatically in this case.
-        if (aDesc.invocationKind_ == GC_NORMAL) {
-          nsJSContext::PokeShrinkGCBuffers();
-        }
+        // compartment GC.
+        nsJSContext::PokeShrinkGCBuffers();
       }
 
       if (ShouldTriggerCC(nsCycleCollector_suspectedCount())) {

@@ -211,15 +211,13 @@ class BacktrackingAllocator
     bool tryGroupRegisters(uint32_t vreg0, uint32_t vreg1);
     bool tryGroupReusedRegister(uint32_t def, uint32_t use);
     bool groupAndQueueRegisters();
-    bool tryAllocateFixed(LiveInterval *interval, bool *success, bool *pfixed,
-                          LiveIntervalVector &conflicting);
-    bool tryAllocateNonFixed(LiveInterval *interval, bool *success, bool *pfixed,
-                             LiveIntervalVector &conflicting);
+    bool tryAllocateFixed(LiveInterval *interval, bool *success, bool *pfixed, LiveInterval **pconflicting);
+    bool tryAllocateNonFixed(LiveInterval *interval, bool *success, bool *pfixed, LiveInterval **pconflicting);
     bool processInterval(LiveInterval *interval);
     bool processGroup(VirtualRegisterGroup *group);
     bool setIntervalRequirement(LiveInterval *interval);
     bool tryAllocateRegister(PhysicalRegister &r, LiveInterval *interval,
-                             bool *success, bool *pfixed, LiveIntervalVector &conflicting);
+                             bool *success, bool *pfixed, LiveInterval **pconflicting);
     bool tryAllocateGroupRegister(PhysicalRegister &r, VirtualRegisterGroup *group,
                                   bool *psuccess, bool *pfixed, LiveInterval **pconflicting);
     bool evictInterval(LiveInterval *interval);
@@ -262,8 +260,6 @@ class BacktrackingAllocator
 
     size_t computePriority(const VirtualRegisterGroup *group);
     size_t computeSpillWeight(const VirtualRegisterGroup *group);
-
-    size_t maximumSpillWeight(const LiveIntervalVector &intervals);
 
     bool chooseIntervalSplit(LiveInterval *interval, bool fixed, LiveInterval *conflict);
 
