@@ -560,11 +560,9 @@ TraceRecorder::nativeFrameOffset(void* p) const
         JSObject* varobj = global->varobj;
         /* Its not safe to pull in globals in heavy-weight functions */
         JS_ASSERT(varobj->fslots[JSSLOT_PARENT] == JSVAL_NULL);
-        if (vp >= varobj->fslots && vp < varobj->fslots + JS_INITIAL_NSLOTS)
-            return size_t(vp - varobj->fslots) * sizeof(double);
-        if (vp >= varobj->dslots && vp < varobj->dslots + 
-                STOBJ_NSLOTS(varobj) - JS_INITIAL_NSLOTS)
-            return size_t(vp - varobj->dslots + JS_INITIAL_NSLOTS) * sizeof(double);
+        for (unsigned n = 0; n < global->script->ngvars; ++n)
+            if (p == &STOBJ_GET_SLOT(global->varobj, (uint32)JSVAL_TO_INT(global->vars[n])))
+                return n * sizeof(double);
         JS_NOT_REACHED("nativeFrameOffset");
     }
     /* Globals sit at the very beginning for the native frame, before all the values
@@ -917,12 +915,6 @@ TraceRecorder::checkType(jsval& v, uint8& t)
         return true;
     }
     /* for non-number types we expect a precise match of the type */
-#ifdef DEBUG
-    if (JSVAL_TAG(v) != TYPEMAP_GET_TYPE(t)) {
-        printf("Type mismatch: val %c, map %c ", "OID?S?B"[JSVAL_TAG(v)],
-               "OID?S?B"[t]);
-    }
-#endif
     return JSVAL_TAG(v) == TYPEMAP_GET_TYPE(t);
 }
 
@@ -938,33 +930,17 @@ TraceRecorder::verifyTypeStability(JSStackFrame* fp, JSFrameRegs& regs, uint8* m
         JSObject* varobj = global->varobj;
         unsigned ngvars = global->script->ngvars;
         unsigned n;
-        for (n = 0; n < ngvars; ++n) {
-            jsval slotval = fp->vars[n];
-            if (slotval == JSVAL_NULL)
-                continue;
-            if (!checkType(STOBJ_GET_SLOT(varobj, (uintN)JSVAL_TO_INT(slotval)), *m++)) {
-#ifdef DEBUG
-                printf(" (gvar %d)\n", n);
-#endif
+        for (n = 0; n < ngvars; ++n)
+            if (!checkType(STOBJ_GET_SLOT(varobj, n), *m++))
                 return false;
-            }
-        }
     }
     if (fp->down) {
         for (unsigned n = 0; n < fp->argc; ++n, ++m)
-            if (!checkType(fp->argv[n], *m)) {
-#ifdef DEBUG
-                printf(" (arg %d)\n", n);
-#endif
+            if (!checkType(fp->argv[n], *m))
                 return false;
-            }
         for (unsigned n = 0; n < fp->nvars; ++n, ++m)
-            if (!checkType(fp->vars[n], *m)) {
-#ifdef DEBUG
-                printf(" (var %d)\n", n);
-#endif
+            if (!checkType(fp->vars[n], *m))
                 return false;
-            }
     }
     for (jsval* sp = fp->spbase; sp < regs.sp; ++sp, ++m)
         if (!checkType(*sp, *m))
