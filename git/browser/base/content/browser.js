@@ -440,8 +440,6 @@ const gPopupBlockerObserver = {
 
     if (gPrivateBrowsingUI.privateBrowsingEnabled)
       blockedPopupAllowSite.setAttribute("disabled", "true");
-    else
-      blockedPopupAllowSite.removeAttribute("disabled");
 
     var item = aEvent.target.lastChild;
     while (item && item.getAttribute("observes") != "blockedPopupsSeparator") {
@@ -2294,7 +2292,7 @@ function SetPageProxyState(aState)
     gLastValidURLStr = gURLBar.value;
     gURLBar.addEventListener("input", UpdatePageProxyState, false);
 
-    PageProxySetIcon(gBrowser.getIcon());
+    PageProxySetIcon(gBrowser.selectedBrowser.mIconURL);
   } else if (aState == "invalid") {
     gURLBar.removeEventListener("input", UpdatePageProxyState, false);
     PageProxyClearIcon();
@@ -3093,10 +3091,10 @@ const BrowserSearch = {
       return;
     }
 #endif
-    var searchBar = this.searchBar;
-    if (searchBar && window.fullScreen)
+    if (window.fullScreen)
       FullScreen.mouseoverToggle(true);
 
+    var searchBar = this.searchBar;
     if (isElementVisible(searchBar)) {
       searchBar.select();
       searchBar.focus();
@@ -3104,7 +3102,7 @@ const BrowserSearch = {
       var ss = Cc["@mozilla.org/browser/search-service;1"].
                getService(Ci.nsIBrowserSearchService);
       var searchForm = ss.defaultEngine.searchForm;
-      openUILinkIn(searchForm, "current");
+      loadURI(searchForm, null, null, false);
     }
   },
 
@@ -3915,9 +3913,9 @@ var XULBrowserWindow = {
     }
   },
   
-  onLinkIconAvailable: function (aBrowser, aIconURL) {
+  onLinkIconAvailable: function (aBrowser) {
     if (gProxyFavIcon && gBrowser.userTypedValue === null)
-      PageProxySetIcon(aIconURL); // update the favicon in the URL bar
+      PageProxySetIcon(aBrowser.mIconURL); // update the favicon in the URL bar
   },
 
   onProgressChange: function (aWebProgress, aRequest,
@@ -3982,7 +3980,7 @@ var XULBrowserWindow = {
         if (aWebProgress.DOMWindow == content) {
           if (aRequest)
             this.endDocumentLoad(aRequest, aStatus);
-          if (!gBrowser.mTabbedMode && !gBrowser.getIcon())
+          if (!gBrowser.mTabbedMode && !gBrowser.selectedBrowser.mIconURL)
             gBrowser.useDefaultIcon(gBrowser.selectedTab);
         }
       }

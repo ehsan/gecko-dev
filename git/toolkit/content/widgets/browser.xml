@@ -1124,7 +1124,8 @@
       <handler event="mousedown" phase="capturing">
         <![CDATA[
           if (!this._scrollable && event.button == 1) {
-            if (!this.autoscrollEnabled ||
+            if (!this.autoscrollEnabled  ||
+                this.currentURI.spec == "about:blank"|| 
                 this.isAutoscrollBlocker(event.originalTarget))
               return;
 

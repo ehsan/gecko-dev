@@ -146,7 +146,7 @@ js_CheckKeyword(const jschar *str, size_t length)
 }
 
 JS_FRIEND_API(void)
-js_MapKeywords(JSMapKeywordFun mapfun)
+js_MapKeywords(void (*mapfun)(const char *))
 {
     size_t i;
 
@@ -607,7 +607,7 @@ ReportCompileErrorNumberVA(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
      * which is likely spurious.
      */
     if (!(ts->flags & TSF_ERROR)) {
-        if (js_ErrorToException(cx, message, &report, NULL, NULL))
+        if (js_ErrorToException(cx, message, &report))
             onError = NULL;
     }
 

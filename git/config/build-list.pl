@@ -1,3 +1,5 @@
+#!env perl
+
 #
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -15,11 +17,12 @@
 # The Original Code is mozilla.org code.
 #
 # The Initial Developer of the Original Code is
-# Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2007
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 2001
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
+#   Christopher Seawood <cls@seawood.org>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -35,60 +38,77 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
-relativesrcdir  = modules/plugin/test
+#
+# A generic script to add entries to a file 
+# if the entry does not already exist
+# 
+# Usage: $0 [-l] <filename> <entry> [<entry> <entry>]
+#
+#   -l do not attempt flock the file.
 
-include $(DEPTH)/config/autoconf.mk
-include $(topsrcdir)/config/rules.mk
+use Fcntl qw(:DEFAULT :flock);
+use Getopt::Std;
+use mozLock;
 
-_MOCHITEST_FILES = \
-		test_npobject_getters.html \
-		test_npruntime_npnevaluate.html \
-		test_npruntime_npninvoke.html \
-		test_npruntime_npninvokedefault.html \
-		test_npruntime_npnsetexception.html \
-		loremipsum.txt \
-		loremipsum_file.txt \
-		post.sjs \
-		pluginstream.js \
-		plugin_window.html \
-		test_pluginstream_err.html \
-		test_pluginstream_src.html \
-		test_pluginstream_geturl.html \
-		test_pluginstream_geturlnotify.html \
-		test_pluginstream_asfile.html \
-		test_pluginstream_asfileonly.html \
-		test_pluginstream_post.html \
-		test_pluginstream_poststream.html \
-		test_pluginstream_seek.html \
-		test_pluginstream_newstream.html \
-		$(NULL)
+sub usage() {
+    print "$0 [-l] <filename> <entry>\n";
+    exit(1);
+}
 
-ifeq ($(OS_ARCH),WINNT)
-_MOCHITEST_FILES += \
- 		test_windowed_invalidate.html \
-        $(NULL)
-endif
+$nofilelocks = 0;
 
-_MOCHICHROME_FILES = \
-		test_bug479979.xul \
-		test_npruntime.xul   \
-		test_privatemode.xul \
-		test_wmode.xul \
-		test_npapi_timers.xul \
-		$(NULL)
+getopts("l");
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-_MOCHICHROME_FILES += \
-		test_convertpoint.xul \
-		$(NULL)
-endif
+$nofilelocks = 1 if defined($::opt_l);
 
-libs:: $(_MOCHICHROME_FILES)
-	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
+$file = shift;
 
-libs:: $(_MOCHITEST_FILES)
-	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+undef @entrylist;
+while (defined($entry = shift)) {
+    push @entrylist, $entry;
+}
+
+$lockfile = $file . ".lck";
+
+# touch the file if it doesn't exist
+if ( ! -e "$file") {
+    $now = time;
+    utime $now, $now, $file;
+}
+
+# This needs to be atomic
+mozLock($lockfile) unless $nofilelocks;
+
+# Read entire file into mem
+undef @inbuf;
+if ( -e "$file" ) {
+    open(IN, "$file") || die ("$file: $!\n");
+    binmode(IN);
+    while ($tmp = <IN>) {
+	chomp($tmp);
+	push @inbuf, $tmp;
+    }
+    close(IN);
+}
+
+undef @outbuf;
+# Add each entry to file if it's not already there
+foreach $entry (@entrylist) {
+    push @outbuf, $entry if (!grep(/^$entry$/, @inbuf));
+}
+
+$count = $#outbuf + 1;
+
+# Append new entry to file
+if ($count) {
+    open(OUT, ">>$file") || die ("$file: $!\n");
+    binmode(OUT);
+    foreach $entry (@outbuf) {
+	print OUT "$entry\n";
+    }
+    close(OUT);
+}
+
+mozUnlock($lockfile) unless $nofilelocks;
+
+exit(0);

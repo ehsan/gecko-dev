@@ -97,12 +97,9 @@ testprivatecl.prototype = {
 function do_test() {
   // initialization
   let pb = Cc[PRIVATEBROWSING_CONTRACT_ID].
-           getService(Ci.nsIPrivateBrowsingService).
-           QueryInterface(Ci.nsIObserver);
+           getService(Ci.nsIPrivateBrowsingService);
 
   let testcl = new testprivatecl();
-
-  pb.observe(testcl, "command-line-startup", null);
 
   let catMan = Cc["@mozilla.org/categorymanager;1"].
                getService(Ci.nsICategoryManager);

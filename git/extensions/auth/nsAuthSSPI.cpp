@@ -244,24 +244,9 @@ nsAuthSSPI::Init(const char *serviceName,
     SEC_WCHAR *package;
 
     package = (SEC_WCHAR *) pTypeName[(int)mPackage];
-
-    if (mPackage == PACKAGE_TYPE_NTLM) {
-        // (bug 535193) For NTLM, just use the uri host, do not do canonical host lookups.
-        // The incoming serviceName is in the format: "protocol@hostname", SSPI expects
-        // "<service class>/<hostname>", so swap the '@' for a '/'.
-        mServiceName.Assign(serviceName);
-        PRInt32 index = mServiceName.FindChar('@');
-        if (index == kNotFound)
-            return NS_ERROR_UNEXPECTED;
-        mServiceName.Replace(index, 1, '/');
-    }
-    else {
-        // Kerberos requires the canonical host, MakeSN takes care of this through a
-        // DNS lookup.
-        rv = MakeSN(serviceName, mServiceName);
-        if (NS_FAILED(rv))
-            return rv;
-    }
+    rv = MakeSN(serviceName, mServiceName);
+    if (NS_FAILED(rv))
+        return rv;
 
     mServiceFlags = serviceFlags;
 
@@ -329,11 +314,6 @@ nsAuthSSPI::GetNextToken(const void *inToken,
     SecBuffer ib, ob;
 
     LOG(("entering nsAuthSSPI::GetNextToken()\n"));
-
-    if (!mCred.dwLower && !mCred.dwUpper) {
-        LOG(("nsAuthSSPI::GetNextToken(), not initialized. exiting."));
-        return NS_ERROR_NOT_INITIALIZED;
-    }
 
     if (mServiceFlags & REQ_DELEGATE)
         ctxReq |= ISC_REQ_DELEGATE;

@@ -793,15 +793,10 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
                   goto starttagloop_end;
                 }
                 case NS_HTML5TREE_BUILDER_FORM: {
-                  if (!!formPointer) {
 
-                    goto starttagloop_end;
-                  } else {
-
-                    appendVoidFormToCurrent(attributes);
-                    attributes = nsnull;
-                    goto starttagloop_end;
-                  }
+                  appendVoidElementToCurrent(kNameSpaceID_XHTML, name, attributes);
+                  attributes = nsnull;
+                  goto starttagloop_end;
                 }
                 default: {
 
@@ -2995,7 +2990,7 @@ nsHtml5TreeBuilder::resetTheInsertionMode()
     } else if (nsHtml5Atoms::table == name) {
       mode = NS_HTML5TREE_BUILDER_IN_TABLE;
       return;
-    } else if (kNameSpaceID_XHTML != ns) {
+    } else if (kNameSpaceID_XHTML != node->ns) {
       foreignFlag = NS_HTML5TREE_BUILDER_IN_FOREIGN;
       mode = NS_HTML5TREE_BUILDER_IN_BODY;
       return;
@@ -3705,15 +3700,15 @@ nsHtml5TreeBuilder::appendVoidElementToCurrent(PRInt32 ns, nsIAtom* name, nsHtml
 }
 
 void 
-nsHtml5TreeBuilder::appendVoidFormToCurrent(nsHtml5HtmlAttributes* attributes)
+nsHtml5TreeBuilder::appendVoidElementToCurrent(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes)
 {
   flushCharacters();
-  nsIContent** elt = createElement(kNameSpaceID_XHTML, nsHtml5Atoms::form, attributes);
-  formPointer = elt;
+  nsIContent** elt = createElement(ns, name, attributes);
   nsHtml5StackNode* current = stack[currentPtr];
   appendElement(elt, current->node);
-  elementPushed(kNameSpaceID_XHTML, nsHtml5Atoms::form, elt);
-  elementPopped(kNameSpaceID_XHTML, nsHtml5Atoms::form, elt);
+  elementPushed(ns, name, elt);
+  elementPopped(ns, name, elt);
+  ;
 }
 
 void 

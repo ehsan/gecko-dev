@@ -222,6 +222,18 @@ nsHtml5Tokenizer::appendStrBuf(PRUnichar c)
   strBuf[strBufLen++] = c;
 }
 
+void 
+nsHtml5Tokenizer::appendStrBufForceWrite(PRUnichar c)
+{
+  if (strBufLen == strBuf.length) {
+    jArray<PRUnichar,PRInt32> newBuf = jArray<PRUnichar,PRInt32>(strBuf.length + NS_HTML5TOKENIZER_BUFFER_GROW_BY);
+    nsHtml5ArrayCopy::arraycopy(strBuf, newBuf, strBuf.length);
+    strBuf.release();
+    strBuf = newBuf;
+  }
+  strBuf[strBufLen++] = c;
+}
+
 nsString* 
 nsHtml5Tokenizer::strBufToString()
 {
@@ -401,8 +413,8 @@ void
 nsHtml5Tokenizer::addAttributeWithValue()
 {
   if (!!attributeName) {
-    nsString* val = longStrBufToString();
-    attributes->addAttribute(attributeName, val);
+    nsString* value = longStrBufToString();
+    attributes->addAttribute(attributeName, value);
     attributeName = nsnull;
   }
 }
@@ -441,9 +453,10 @@ nsHtml5Tokenizer::tokenizeBuffer(nsHtml5UTF16Buffer* buffer)
     case NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPE_START_DASH:
     case NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_DASH:
     case NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_DASH_DASH:
+    case NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN:
     case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPE_START:
     case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED:
-    case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN:
+    case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN:
     case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_DASH:
     case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH:
     case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPE_END: {
@@ -2657,7 +2670,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             case '<': {
               flushChars(buf, pos);
               returnState = state;
-              state = NS_HTML5TOKENIZER_SCRIPT_DATA_LESS_THAN_SIGN;
+              state = NS_HTML5TOKENIZER_SCRIPT_DATA_LESS_THAN_SIGN_STATE;
               goto scriptdataloop_end;
             }
             case '\0': {
@@ -2678,7 +2691,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
         }
         scriptdataloop_end: ;
       }
-      case NS_HTML5TOKENIZER_SCRIPT_DATA_LESS_THAN_SIGN: {
+      case NS_HTML5TOKENIZER_SCRIPT_DATA_LESS_THAN_SIGN_STATE: {
         for (; ; ) {
           if (++pos == endPos) {
             goto stateloop_end;
@@ -2760,7 +2773,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             }
             case '<': {
               flushChars(buf, pos);
-              state = NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN;
+              state = NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN;
               goto stateloop;
             }
             case '>': {
@@ -2805,7 +2818,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             }
             case '<': {
               flushChars(buf, pos);
-              state = NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN;
+              state = NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN;
               goto stateloop;
             }
             case '\0': {
@@ -2839,7 +2852,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             }
             case '<': {
               flushChars(buf, pos);
-              state = NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN;
+              state = NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN;
               goto scriptdataescapeddashloop_end;
             }
             case '\0': {
@@ -2863,7 +2876,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
         }
         scriptdataescapeddashloop_end: ;
       }
-      case NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN: {
+      case NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN: {
         for (; ; ) {
           if (++pos == endPos) {
             goto stateloop_end;
@@ -2958,7 +2971,8 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
               goto scriptdatadoubleescapedloop_end;
             }
             case '<': {
-              state = NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN;
+              flushChars(buf, pos);
+              state = NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN;
               goto stateloop;
             }
             case '\0': {
@@ -2991,7 +3005,8 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
               goto scriptdatadoubleescapeddashloop_end;
             }
             case '<': {
-              state = NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN;
+              flushChars(buf, pos);
+              state = NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN;
               goto stateloop;
             }
             case '\0': {
@@ -3026,7 +3041,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
               continue;
             }
             case '<': {
-              state = NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN;
+              state = NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN;
               goto scriptdatadoubleescapeddashdashloop_end;
             }
             case '>': {
@@ -3054,7 +3069,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
         }
         scriptdatadoubleescapeddashdashloop_end: ;
       }
-      case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN: {
+      case NS_HTML5TOKENIZER_SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN: {
         for (; ; ) {
           if (++pos == endPos) {
             goto stateloop_end;
@@ -3189,7 +3204,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             case '<': {
               flushChars(buf, pos);
               returnState = state;
-              state = NS_HTML5TOKENIZER_RAWTEXT_RCDATA_LESS_THAN_SIGN;
+              state = NS_HTML5TOKENIZER_RAWTEXT_RCDATA_LESS_THAN_SIGN_STATE;
               goto stateloop;
             }
             case '\0': {
@@ -3224,7 +3239,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             case '<': {
               flushChars(buf, pos);
               returnState = state;
-              state = NS_HTML5TOKENIZER_RAWTEXT_RCDATA_LESS_THAN_SIGN;
+              state = NS_HTML5TOKENIZER_RAWTEXT_RCDATA_LESS_THAN_SIGN_STATE;
               goto rawtextloop_end;
             }
             case '\0': {
@@ -3245,7 +3260,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
         }
         rawtextloop_end: ;
       }
-      case NS_HTML5TOKENIZER_RAWTEXT_RCDATA_LESS_THAN_SIGN: {
+      case NS_HTML5TOKENIZER_RAWTEXT_RCDATA_LESS_THAN_SIGN_STATE: {
         for (; ; ) {
           if (++pos == endPos) {
             goto stateloop_end;
@@ -3448,8 +3463,7 @@ nsHtml5Tokenizer::eof()
   PRInt32 returnState = returnStateSave;
   eofloop: for (; ; ) {
     switch(state) {
-      case NS_HTML5TOKENIZER_SCRIPT_DATA_LESS_THAN_SIGN:
-      case NS_HTML5TOKENIZER_SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN: {
+      case NS_HTML5TOKENIZER_SCRIPT_DATA_LESS_THAN_SIGN_STATE: {
         tokenHandler->characters(nsHtml5Tokenizer::LT_GT, 0, 1);
         goto eofloop_end;
       }
@@ -3458,14 +3472,13 @@ nsHtml5Tokenizer::eof()
         tokenHandler->characters(nsHtml5Tokenizer::LT_GT, 0, 1);
         goto eofloop_end;
       }
-      case NS_HTML5TOKENIZER_RAWTEXT_RCDATA_LESS_THAN_SIGN: {
-        tokenHandler->characters(nsHtml5Tokenizer::LT_GT, 0, 1);
-        goto eofloop_end;
-      }
       case NS_HTML5TOKENIZER_NON_DATA_END_TAG_NAME: {
-        tokenHandler->characters(nsHtml5Tokenizer::LT_SOLIDUS, 0, 2);
-        emitStrBuf();
-        goto eofloop_end;
+        if (index < contentModelElementNameAsArray.length) {
+          goto eofloop_end;
+        } else {
+
+          goto eofloop_end;
+        }
       }
       case NS_HTML5TOKENIZER_CLOSE_TAG_OPEN: {
 
@@ -3903,7 +3916,6 @@ nsHtml5Tokenizer::loadState(nsHtml5Tokenizer* other)
   }
   nsHtml5ArrayCopy::arraycopy(other->longStrBuf, longStrBuf, longStrBufLen);
   stateSave = other->stateSave;
-  returnStateSave = other->returnStateSave;
   lastCR = other->lastCR;
   index = other->index;
   forceQuirks = other->forceQuirks;

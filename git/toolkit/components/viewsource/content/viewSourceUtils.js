@@ -290,6 +290,7 @@ var gViewSourceUtils = {
     onProgressChange: function() {return 0;},
     onStatusChange: function() {return 0;},
     onSecurityChange: function() {return 0;},
+    onLinkIconAvailable: function() {return 0;},
 
     webShell: null,
     editor: null,

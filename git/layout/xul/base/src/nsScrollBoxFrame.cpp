@@ -77,12 +77,7 @@ protected:
     nsButtonBoxFrame(aPresShell, aContext) {}
   
   void StartRepeat() {
-    if (IsActivatedOnHover()) {
-      // No initial delay on hover.
-      nsRepeatService::GetInstance()->Start(Notify, this, 0);
-    } else {
-      nsRepeatService::GetInstance()->Start(Notify, this);
-    }
+    nsRepeatService::GetInstance()->Start(Notify, this, 0);
   }
   void StopRepeat() {
     nsRepeatService::GetInstance()->Stop(Notify, this);

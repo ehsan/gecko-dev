@@ -517,9 +517,9 @@ TabWindow.prototype = {
   },
   onStatusChange: function () {
   },
-  onLinkIconAvailable: function (aBrowser, aIconURL) {
+  onLinkIconAvailable: function (aBrowser) {
     let self = this;
-    getFaviconAsImage(aIconURL, function (img) {
+    getFaviconAsImage(aBrowser.mIconURL, function (img) {
       let index = self.tabbrowser.browsers.indexOf(aBrowser);
       // Only add it if we've found the index.  The tab could have closed!
       if (index != -1)

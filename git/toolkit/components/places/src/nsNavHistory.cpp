@@ -4925,12 +4925,7 @@ nsNavHistory::SetCharsetForURI(nsIURI* aURI,
     nsresult rv = annosvc->SetPageAnnotationString(aURI, CHARSET_ANNO,
                                                    aCharset, 0,
                                                    nsAnnotationService::EXPIRE_NEVER);
-    if (rv == NS_ERROR_INVALID_ARG) {
-      // We don't have this page.  Silently fail.
-      return NS_OK;
-    }
-    else if (NS_FAILED(rv))
-      return rv;
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;

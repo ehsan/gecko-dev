@@ -263,6 +263,7 @@ NO_PKG_FILES += \
 	msmap* \
 	nm2tsv* \
 	nsinstall* \
+	rebasedlls* \
 	res/samples \
 	res/throbber \
 	shlibsign* \
@@ -528,7 +529,6 @@ upload:
 		$(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
-		$(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR))) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \

@@ -414,7 +414,6 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
       if (!doc || doc->HasFlag(NODE_IS_EDITABLE) ||
           !HasFlag(NODE_IS_EDITABLE)) {
         nsIContent* editorRoot = GetEditorRootContent(editor);
-        NS_ENSURE_TRUE(editorRoot, nsnull);
         return nsContentUtils::IsInSameAnonymousTree(this, editorRoot) ?
                  editorRoot :
                  GetRootForContentSubtree(static_cast<nsIContent*>(this));
@@ -446,7 +445,6 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
 
   // This node might be in another subtree, if so, we should find this subtree's
   // root.  Otherwise, we can return the content simply.
-  NS_ENSURE_TRUE(content, nsnull);
   return nsContentUtils::IsInSameAnonymousTree(this, content) ?
            content : GetRootForContentSubtree(static_cast<nsIContent*>(this));
 }
@@ -2786,8 +2784,6 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
 {
   //FIXME! Document how this event retargeting works, Bug 329124.
   aVisitor.mCanHandle = PR_TRUE;
-  aVisitor.mMayHaveListenerManager =
-    aContent->HasFlag(NODE_HAS_LISTENERMANAGER);
 
   // Don't propagate mouseover and mouseout events when mouse is moving
   // inside native anonymous content.

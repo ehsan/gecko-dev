@@ -700,7 +700,7 @@
                 let p = this.mProgressListeners[i];
                 if ('onLinkIconAvailable' in p)
                   try {
-                    p.onLinkIconAvailable(browser, browser.mIconURL);
+                    p.onLinkIconAvailable(browser);
                   } catch (e) {
                     // don't inhibit other listeners
                     Components.utils.reportError(e);
@@ -712,22 +712,12 @@
               let p = this.mTabsProgressListeners[i];
               if ('onLinkIconAvailable' in p)
                 try {
-                  p.onLinkIconAvailable(browser, browser.mIconURL);
+                  p.onLinkIconAvailable(browser);
                 } catch (e) {
                   // don't inhibit other listeners
                   Components.utils.reportError(e);
                 }
             }
-          ]]>
-        </body>
-      </method>
-
-      <method name="getIcon">
-        <parameter name="aTab"/>
-        <body>
-          <![CDATA[
-            let browser = aTab ? this.getBrowserForTab(aTab) : this.selectedBrowser;
-            return browser.mIconURL;
           ]]>
         </body>
       </method>

@@ -790,16 +790,6 @@ nsInlineFrame::PullOneFrame(nsPresContext* aPresContext,
         ReparentFloatsForInlineChild(irs.mLineContainer, frame, PR_FALSE);
       }
       nextInFlow->mFrames.RemoveFirstChild();
-
-      // If we removed the last frame from the principal child list then move
-      // any overflow frames to it.
-      if (!nextInFlow->mFrames.FirstChild()) {
-        nsAutoPtr<nsFrameList> overflowFrames(nextInFlow->StealOverflowFrames());
-        if (overflowFrames) {
-          nextInFlow->mFrames.SetFrames(*overflowFrames);
-        }
-      }
-
       mFrames.InsertFrame(this, irs.mPrevFrame, frame);
       isComplete = PR_FALSE;
       if (irs.mLineLayout) {
@@ -1020,7 +1010,6 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
   InlineReflowState irs;
   irs.mPrevFrame = nsnull;
   irs.mLineContainer = lineContainer;
-  irs.mLineLayout = aReflowState.mLineLayout;
   irs.mNextInFlow = (nsInlineFrame*) GetNextInFlow();
 
   nsresult rv;
