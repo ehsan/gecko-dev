@@ -80,7 +80,7 @@ jsd_DebuggerHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
 
 JSTrapStatus
 jsd_ThrowHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
-                 jsval *rvalArg, void *closure)
+                 jsval *rval, void *closure)
 {
     JSDScript*      jsdscript;
     JSDContext*     jsdc = (JSDContext*) closure;
@@ -107,13 +107,10 @@ jsd_ThrowHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
     if( ! jsdscript )
         return JSTRAP_CONTINUE;
 
-    JS::RootedValue rval(cx);
-    JS_GetPendingException(cx, &rval);
+    JS_GetPendingException(cx, rval);
 
-    JSTrapStatus result = jsd_CallExecutionHook(jsdc, cx, JSD_HOOK_THROW,
-                                                hook, hookData, rval.address());
-    *rvalArg = rval;
-    return result;
+    return jsd_CallExecutionHook(jsdc, cx, JSD_HOOK_THROW,
+                                 hook, hookData, rval);
 }
 
 JSTrapStatus

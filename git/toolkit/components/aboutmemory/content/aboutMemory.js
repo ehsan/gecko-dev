@@ -483,9 +483,6 @@ function updateAboutMemoryFromReporters()
 }
 
 // Increment this if the JSON format changes.
-//
-// If/when this changes to 2, the beLenient() function and its use can be
-// removed.
 var gCurrentFileFormatVersion = 1;
 
 /**
@@ -961,29 +958,8 @@ function getPCollsByProcess(aProcessReports)
                   "non-sentence explicit description");
 
     } else {
-      const kLenientPrefixes =
-        ['rss/', 'pss/', 'size/', 'swap/', 'compartments/', 'ghost-windows/'];
-      let beLenient = function(aUnsafePath) {
-        for (let i = 0; i < kLenientPrefixes.length; i++) {
-          if (aUnsafePath.startsWith(kLenientPrefixes[i])) {
-            return true;
-          }
-        }
-        return false;
-      }
-
-      // In general, non-explicit reports should have a description that is a
-      // complete sentence.  However, we want to be able to read old saved
-      // reports, so we are lenient in a couple of situations where we used to
-      // allow non-sentence descriptions:
-      // - smaps reports (which were removed in bug 912165);
-      // - compartment and ghost-window reports (which had empty descriptions
-      //   prior to bug 911641).
-      if (!beLenient(aUnsafePath)) {
-        assertInput(gSentenceRegExp.test(aDescription),
-                    "non-sentence other description: " + aUnsafePath + ", " +
-                    aDescription);
-      }
+      assertInput(gSentenceRegExp.test(aDescription),
+                  "non-sentence other description");
     }
 
     assert(aPresence === undefined ||
@@ -1761,9 +1737,7 @@ function appendTreeElements(aP, aRoot, aProcess, aPadText)
       tIsInvalid = true;
       let unsafePath = aUnsafeNames.join("/");
       gUnsafePathsWithInvalidValuesForThisProcess.push(unsafePath);
-      reportAssertionFailure("Invalid value (" + aT._amount + " / " +
-                             aRoot._amount + ") for " +
-                             flipBackslashes(unsafePath));
+      reportAssertionFailure("Invalid value for " + flipBackslashes(unsafePath));
     }
 
     // For non-leaf nodes, the entire sub-tree is put within a span so it can

@@ -981,8 +981,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
         return false;
     }
 
-    RootedValue errValue(cx, OBJECT_TO_JSVAL(errObject));
-    JS_SetPendingException(cx, errValue);
+    JS_SetPendingException(cx, OBJECT_TO_JSVAL(errObject));
 
     /* Flag the error report passed in to indicate an exception was raised. */
     reportp->flags |= JSREPORT_EXCEPTION;
@@ -1020,7 +1019,7 @@ js_ReportUncaughtException(JSContext *cx)
         return true;
 
     RootedValue exn(cx);
-    if (!JS_GetPendingException(cx, &exn))
+    if (!JS_GetPendingException(cx, exn.address()))
         return false;
 
     AutoValueVector roots(cx);

@@ -181,8 +181,7 @@ ErrorResult::ReportJSException(JSContext* cx)
   MOZ_ASSERT(!mMightHaveUnreportedJSException,
              "Why didn't you tell us you planned to handle JS exceptions?");
   if (JS_WrapValue(cx, &mJSException)) {
-    JS::RootedValue exception(cx, mJSException);
-    JS_SetPendingException(cx, exception);
+    JS_SetPendingException(cx, mJSException);
   }
   // If JS_WrapValue failed, not much we can do about it...  No matter
   // what, go ahead and unroot mJSException.

@@ -14,7 +14,6 @@ import android.database.Cursor;
 import android.os.Bundle;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.LoaderManager;
-import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
 import android.support.v4.widget.CursorAdapter;
 import android.text.Editable;
@@ -39,6 +38,9 @@ class PinBookmarkDialog extends DialogFragment {
     // Cursor loader ID for search query
     private static final int LOADER_ID_SEARCH = 0;
 
+    // Cursor loader ID for favicons query
+    private static final int LOADER_ID_FAVICONS = 1;
+
     // Holds the current search term to use in the query
     private String mSearchTerm;
 
@@ -51,7 +53,7 @@ class PinBookmarkDialog extends DialogFragment {
     // Search results
     private ListView mList;
 
-    // Callbacks used for the search loader
+    // Callbacks used for the search and favicon cursor loaders
     private CursorLoaderCallbacks mLoaderCallbacks;
 
     // Bookmark selected listener
@@ -123,14 +125,15 @@ class PinBookmarkDialog extends DialogFragment {
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
 
+        final Activity activity = getActivity();
         final LoaderManager manager = getLoaderManager();
 
         // Initialize the search adapter
-        mAdapter = new SearchAdapter(getActivity());
+        mAdapter = new SearchAdapter(activity);
         mList.setAdapter(mAdapter);
 
         // Create callbacks before the initial loader is started
-        mLoaderCallbacks = new CursorLoaderCallbacks();
+        mLoaderCallbacks = new CursorLoaderCallbacks(activity, manager);
 
         // Reconnect to the loader only if present
         manager.initLoader(LOADER_ID_SEARCH, null, mLoaderCallbacks);
@@ -176,20 +179,42 @@ class PinBookmarkDialog extends DialogFragment {
         }
     }
 
-    private class CursorLoaderCallbacks implements LoaderCallbacks<Cursor> {
+    private class CursorLoaderCallbacks extends HomeCursorLoaderCallbacks {
+        public CursorLoaderCallbacks(Context context, LoaderManager loaderManager) {
+            super(context, loaderManager);
+        }
+
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            return SearchLoader.createInstance(getActivity(), args);
+            if (id == LOADER_ID_SEARCH) {
+                return SearchLoader.createInstance(getActivity(), args);
+            } else {
+                return super.onCreateLoader(id, args);
+            }
         }
 
         @Override
         public void onLoadFinished(Loader<Cursor> loader, Cursor c) {
-            mAdapter.swapCursor(c);
+            if (loader.getId() == LOADER_ID_SEARCH) {
+                mAdapter.swapCursor(c);
+                loadFavicons(c);
+            } else {
+                super.onLoadFinished(loader, c);
+            }
         }
 
         @Override
         public void onLoaderReset(Loader<Cursor> loader) {
-            mAdapter.swapCursor(null);
+            if (loader.getId() == LOADER_ID_SEARCH) {
+                mAdapter.swapCursor(null);
+            } else {
+                super.onLoaderReset(loader);
+            }
+        }
+
+        @Override
+        public void onFaviconsLoaded() {
+            mAdapter.notifyDataSetChanged();
         }
     }
 }

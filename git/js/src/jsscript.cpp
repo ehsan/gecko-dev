@@ -991,18 +991,19 @@ ScriptSource::adjustDataSize(size_t nbytes)
 }
 
 /* static */ bool
-JSScript::loadSource(JSContext *cx, ScriptSource *ss, bool *worked)
+JSScript::loadSource(JSContext *cx, HandleScript script, bool *worked)
 {
-    JS_ASSERT(!ss->hasSourceData());
+    JS_ASSERT(!script->scriptSource()->hasSourceData());
     *worked = false;
-    if (!cx->runtime()->sourceHook || !ss->sourceRetrievable())
+    if (!cx->runtime()->sourceHook || !script->scriptSource()->sourceRetrievable())
         return true;
     jschar *src = NULL;
     uint32_t length;
-    if (!cx->runtime()->sourceHook(cx, ss->filename(), &src, &length))
+    if (!cx->runtime()->sourceHook(cx, script, &src, &length))
         return false;
     if (!src)
         return true;
+    ScriptSource *ss = script->scriptSource();
     ss->setSource(src, length);
     *worked = true;
     return true;
@@ -2957,20 +2958,6 @@ JSScript::updateBaselineOrIonRaw()
         baselineOrIonSkipArgCheck = NULL;
     }
 #endif
-}
-
-bool
-JSScript::hasLoops()
-{
-    if (!hasTrynotes())
-        return false;
-    JSTryNote *tn = trynotes()->vector;
-    JSTryNote *tnlimit = tn + trynotes()->length;
-    for (; tn < tnlimit; tn++) {
-        if (tn->kind == JSTRY_ITER || tn->kind == JSTRY_LOOP)
-            return true;
-    }
-    return false;
 }
 
 static inline void

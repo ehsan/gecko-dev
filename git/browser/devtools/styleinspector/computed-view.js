@@ -668,13 +668,16 @@ PropertyView.prototype = {
 
   /**
    * Returns the className that should be assigned to the propertyView.
+   *
    * @return string
    */
   get propertyHeaderClassName()
   {
     if (this.visible) {
-      let isDark = this.tree._darkStripe = !this.tree._darkStripe;
-      return isDark ? "property-view theme-bg-darker" : "property-view";
+      this.tree._darkStripe = !this.tree._darkStripe;
+      let darkValue = this.tree._darkStripe ?
+                      "property-view theme-bg-darker" : "property-view";
+      return darkValue;
     }
     return "property-view-hidden";
   },
@@ -687,66 +690,49 @@ PropertyView.prototype = {
   get propertyContentClassName()
   {
     if (this.visible) {
-      let isDark = this.tree._darkStripe;
-      return isDark ? "property-content theme-bg-darker" : "property-content";
+      let darkValue = this.tree._darkStripe ?
+                      "property-content theme-bg-darker" : "property-content";
+      return darkValue;
     }
     return "property-content-hidden";
   },
 
-  /**
-   * Build the markup for on computed style
-   * @return Element
-   */
   buildMain: function PropertyView_buildMain()
   {
     let doc = this.tree.styleDocument;
-    let onToggle = this.onStyleToggle.bind(this);
-
-    // Build the container element
     this.element = doc.createElementNS(HTML_NS, "div");
     this.element.setAttribute("class", this.propertyHeaderClassName);
 
-    // Make it keyboard navigable
-    this.element.setAttribute("tabindex", "0");
-    this.element.addEventListener("keydown", function(aEvent) {
+    this.matchedExpander = doc.createElementNS(HTML_NS, "div");
+    this.matchedExpander.className = "expander theme-twisty";
+    this.matchedExpander.setAttribute("tabindex", "0");
+    this.matchedExpander.addEventListener("click",
+      this.matchedExpanderClick.bind(this), false);
+    this.matchedExpander.addEventListener("keydown", function(aEvent) {
       let keyEvent = Ci.nsIDOMKeyEvent;
       if (aEvent.keyCode == keyEvent.DOM_VK_F1) {
         this.mdnLinkClick();
       }
       if (aEvent.keyCode == keyEvent.DOM_VK_RETURN ||
         aEvent.keyCode == keyEvent.DOM_VK_SPACE) {
-        onToggle(aEvent);
+        this.matchedExpanderClick(aEvent);
       }
     }.bind(this), false);
-
-    // Build the twisty expand/collapse
-    this.matchedExpander = doc.createElementNS(HTML_NS, "div");
-    this.matchedExpander.className = "expander theme-twisty";
-    this.matchedExpander.addEventListener("click", onToggle, false);
     this.element.appendChild(this.matchedExpander);
 
-    // Build the style name element
     this.nameNode = doc.createElementNS(HTML_NS, "div");
-    this.nameNode.setAttribute("class", "property-name theme-fg-color5");
-    // Reset its tabindex attribute otherwise, if an ellipsis is applied
-    // it will be reachable via TABing
-    this.nameNode.setAttribute("tabindex", "");
-    this.nameNode.textContent = this.nameNode.title = this.name;
-    // Make it hand over the focus to the container
-    this.nameNode.addEventListener("click", () => this.element.focus(), false);
     this.element.appendChild(this.nameNode);
+    this.nameNode.setAttribute("class", "property-name theme-fg-color5");
+    this.nameNode.textContent = this.nameNode.title = this.name;
+    this.nameNode.addEventListener("click", function(aEvent) {
+      this.matchedExpander.focus();
+    }.bind(this), false);
 
-    // Build the style value element
     this.valueNode = doc.createElementNS(HTML_NS, "div");
+    this.element.appendChild(this.valueNode);
     this.valueNode.setAttribute("class", "property-value theme-fg-color1");
-    // Reset its tabindex attribute otherwise, if an ellipsis is applied
-    // it will be reachable via TABing
-    this.valueNode.setAttribute("tabindex", "");
     this.valueNode.setAttribute("dir", "ltr");
     this.valueNode.textContent = this.valueNode.title = this.value;
-    // Make it hand over the focus to the container
-    this.valueNode.addEventListener("click", () => this.element.focus(), false);
-    this.element.appendChild(this.valueNode);
 
     return this.element;
   },
@@ -850,7 +836,7 @@ PropertyView.prototype = {
    * @param {Event} aEvent Used to determine the class name of the targets click
    * event.
    */
-  onStyleToggle: function PropertyView_onStyleToggle(aEvent)
+  matchedExpanderClick: function PropertyView_matchedExpanderClick(aEvent)
   {
     this.matchedExpanded = !this.matchedExpanded;
     this.refreshMatchedSelectors();

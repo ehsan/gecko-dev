@@ -179,7 +179,7 @@ public class BookmarksPage extends HomeFragment {
         BrowserDB.invalidateCachedState();
 
         // Create callbacks before the initial loader is started.
-        mLoaderCallbacks = new CursorLoaderCallbacks();
+        mLoaderCallbacks = new CursorLoaderCallbacks(activity, getLoaderManager());
         mThumbnailsLoaderCallbacks = new ThumbnailsLoaderCallbacks();
         loadIfVisible();
     }
@@ -453,7 +453,11 @@ public class BookmarksPage extends HomeFragment {
     /**
      * Loader callbacks for the LoaderManager of this fragment.
      */
-    private class CursorLoaderCallbacks implements LoaderCallbacks<Cursor> {
+    private class CursorLoaderCallbacks extends HomeCursorLoaderCallbacks {
+        public CursorLoaderCallbacks(Context context, LoaderManager loaderManager) {
+            super(context, loaderManager);
+        }
+
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
             switch(id) {
@@ -468,9 +472,11 @@ public class BookmarksPage extends HomeFragment {
                 case LOADER_ID_TOP_BOOKMARKS: {
                     return new TopBookmarksLoader(getActivity());
                 }
-            }
 
-            return null;
+                default: {
+                    return super.onCreateLoader(id, args);
+                }
+            }
         }
 
         @Override
@@ -479,6 +485,7 @@ public class BookmarksPage extends HomeFragment {
             switch(loaderId) {
                 case LOADER_ID_BOOKMARKS_LIST: {
                     mListAdapter.swapCursor(c);
+                    loadFavicons(c);
                     mList.setHeaderDividersEnabled(c != null && c.getCount() > 0);
                     break;
                 }
@@ -502,6 +509,11 @@ public class BookmarksPage extends HomeFragment {
                     }
                     break;
                 }
+
+                default: {
+                    super.onLoadFinished(loader, c);
+                    break;
+                }
             }
         }
 
@@ -522,7 +534,17 @@ public class BookmarksPage extends HomeFragment {
                         break;
                     }
                 }
+
+                default: {
+                    super.onLoaderReset(loader);
+                    break;
+                }
             }
+        }
+
+        @Override
+        public void onFaviconsLoaded() {
+            mListAdapter.notifyDataSetChanged();
         }
     }
 

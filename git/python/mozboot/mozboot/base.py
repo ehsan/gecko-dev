@@ -61,14 +61,7 @@ this shell. Try creating a new shell and run this bootstrapper again.
 
 If this continues to fail and you are sure you have a modern Python on your
 system, ensure it is on the $PATH and try again. If that fails, you'll need to
-install Python manually and ensure the path with the python binary is listed in
-the $PATH environment variable.
-
-We recommend the following tools for installing Python:
-
-    pyenv   -- https://github.com/yyuu/pyenv)
-    pythonz -- https://github.com/saghul/pythonz
-    official installers -- http://www.python.org/
+install Python manually. See http://www.python.org/.
 '''
 
 
@@ -264,7 +257,6 @@ class BaseBootstrapper(object):
 
         if not modern:
             print(PYTHON_UPGRADE_FAILED % (MODERN_PYTHON_VERSION, after))
-            sys.exit(1)
 
     def upgrade_python(self, current):
         """Upgrade Python.

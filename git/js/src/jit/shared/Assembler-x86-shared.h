@@ -189,9 +189,6 @@ class AssemblerX86Shared
     size_t numCodeLabels() const {
         return codeLabels_.length();
     }
-    CodeLabel codeLabel(size_t i) {
-        return codeLabels_[i];
-    }
 
     // Size of the instruction stream, in bytes.
     size_t size() const {
@@ -667,11 +664,6 @@ class AssemblerX86Shared
             } while (src != AbsoluteLabel::INVALID_OFFSET);
         }
         label->bind();
-    }
-
-    // See Bind and JSC::X86Assembler::setPointer.
-    size_t labelOffsetToPatchOffset(size_t offset) {
-        return offset - sizeof(void*);
     }
 
     void ret() {

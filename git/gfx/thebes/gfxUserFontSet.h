@@ -22,8 +22,6 @@
 class gfxMixedFontFamily;
 class nsFontFaceLoader;
 
-//#define DEBUG_USERFONT_CACHE
-
 // parsed CSS @font-face rule information
 // lifetime: from when @font-face rule processed until font is loaded
 struct gfxFontFaceSrc {
@@ -272,11 +270,6 @@ public:
         // Clear everything so that we don't leak URIs and Principals.
         static void Shutdown();
 
-#ifdef DEBUG_USERFONT_CACHE
-        // dump contents
-        static void Dump();
-#endif
-
     private:
         // Helper that we use to observe the empty-cache notification
         // from nsICacheService.
@@ -353,12 +346,7 @@ public:
             gfxFontEntry* GetFontEntry() const { return mFontEntry; }
 
             static PLDHashOperator RemoveIfPrivate(Entry* aEntry, void* aUserData);
-            static PLDHashOperator RemoveIfMatches(Entry* aEntry, void* aUserData);
             static PLDHashOperator DisconnectSVG(Entry* aEntry, void* aUserData);
-
-#ifdef DEBUG_USERFONT_CACHE
-            static PLDHashOperator DumpEntry(Entry* aEntry, void* aUserData);
-#endif
 
         private:
             static uint32_t

@@ -495,17 +495,17 @@ jsds_ErrorHookProc (JSDContext *jsdc, JSContext *cx, const char *message,
 
     if (running)
         return JSD_ERROR_REPORTER_PASS_ALONG;
-
+    
     running = true;
-
+    
     nsCOMPtr<jsdIValue> val;
     if (JS_IsExceptionPending(cx)) {
-        JS::RootedValue jv(cx);
+        jsval jv;
         JS_GetPendingException(cx, &jv);
         JSDValue *jsdv = JSD_NewValue (jsdc, jv);
         val = dont_AddRef(jsdValue::FromPtr(jsdc, jsdv));
     }
-
+    
     nsAutoCString fileName;
     uint32_t    line;
     uint32_t    pos;
@@ -1999,7 +1999,7 @@ jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
                                               line, &jv);
     if (!*_rval) {
         if (JS_IsExceptionPending(cx))
-            JS_GetPendingException (cx, &jv);
+            JS_GetPendingException (cx, jv.address());
         else
             jv = JSVAL_NULL;
     }

@@ -249,7 +249,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       aColor = GetColorFromNSColor([NSColor selectedMenuItemTextColor]);
       break;      
     case eColorID__moz_mac_disabledtoolbartext:
-      aColor = GetColorFromNSColor([NSColor disabledControlTextColor]);
+      aColor = NS_RGB(0x3F,0x3F,0x3F);
       break;
     case eColorID__moz_mac_menuselect:
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);

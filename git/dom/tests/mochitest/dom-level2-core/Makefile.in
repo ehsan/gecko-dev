@@ -3,7 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MOCHITEST_FILES	= \
+MOCHITEST_FILES_A	= \
 		DOMTestCase.js \
 		exclusions.js \
 		test_attrgetownerelement01.html \
@@ -50,6 +50,9 @@ MOCHITEST_FILES	= \
 		test_documentgetelementsbytagnameNS03.html \
 		test_documentgetelementsbytagnameNS04.html \
 		test_documentgetelementsbytagnameNS05.html \
+		$(NULL)
+
+MOCHITEST_FILES_B	= \
 		test_documentimportnode01.html \
 		test_documentimportnode02.html \
 		test_documentimportnode03.html \
@@ -84,6 +87,9 @@ MOCHITEST_FILES	= \
 		test_domimplementationfeaturecore.html \
 		test_domimplementationfeaturexmlversion2.html \
 		test_domimplementationhasfeature01.html \
+		$(NULL)
+
+MOCHITEST_FILES_C	= \
 		test_elementgetattributenodens01.html \
 		test_elementgetattributenodens02.html \
 		test_elementgetattributenodens03.html \
@@ -128,6 +134,9 @@ MOCHITEST_FILES	= \
 		test_getElementsByTagNameNS05.html \
 		test_getElementsByTagNameNS06.html \
 		test_getElementsByTagNameNS07.html \
+		$(NULL)
+
+MOCHITEST_FILES_D	= \
 		test_getElementsByTagNameNS08.html \
 		test_getElementsByTagNameNS09.html \
 		test_getElementsByTagNameNS10.html \
@@ -171,6 +180,9 @@ MOCHITEST_FILES	= \
 		test_importNode16.html \
 		test_importNode17.html \
 		test_internalSubset01.html \
+		$(NULL)
+
+MOCHITEST_FILES_E	= \
 		test_localName01.html \
 		test_localName02.html \
 		test_localName03.html \
@@ -214,6 +226,9 @@ MOCHITEST_FILES	= \
 		test_nodehasattributes02.html \
 		test_nodehasattributes03.html \
 		test_nodehasattributes04.html \
+		$(NULL)
+
+MOCHITEST_FILES_F	= \
 		test_nodenormalize01.html \
 		test_normalize01.html \
 		test_ownerDocument01.html \
@@ -250,3 +265,5 @@ MOCHITEST_FILES	= \
 		test_setNamedItemNS05.html \
 		test_systemId01.html \
 		$(NULL)
+
+MOCHITEST_FILES_PARTS := $(foreach part,A B C D E F,MOCHITEST_FILES_$(part))

@@ -146,7 +146,7 @@ class Range : public TempObject {
     int32_t upper_;
     bool upper_infinite_;
 
-    bool canHaveFractionalPart_;
+    bool decimal_;
     uint16_t max_exponent_;
 
     // Any symbolic lower or upper bound computed for this term.
@@ -159,7 +159,7 @@ class Range : public TempObject {
           lower_infinite_(true),
           upper_(JSVAL_INT_MAX),
           upper_infinite_(true),
-          canHaveFractionalPart_(true),
+          decimal_(true),
           max_exponent_(MaxDoubleExponent),
           symbolicLower_(NULL),
           symbolicUpper_(NULL)
@@ -168,10 +168,10 @@ class Range : public TempObject {
         JS_ASSERT_IF(upper_infinite_, upper_ == JSVAL_INT_MAX);
     }
 
-    Range(int64_t l, int64_t h, bool f = false, uint16_t e = MaxInt32Exponent)
+    Range(int64_t l, int64_t h, bool d = false, uint16_t e = MaxInt32Exponent)
         : lower_infinite_(true),
           upper_infinite_(true),
-          canHaveFractionalPart_(f),
+          decimal_(d),
           max_exponent_(e),
           symbolicLower_(NULL),
           symbolicUpper_(NULL)
@@ -191,7 +191,7 @@ class Range : public TempObject {
           lower_infinite_(other.lower_infinite_),
           upper_(other.upper_),
           upper_infinite_(other.upper_infinite_),
-          canHaveFractionalPart_(other.canHaveFractionalPart_),
+          decimal_(other.decimal_),
           max_exponent_(other.max_exponent_),
           symbolicLower_(NULL),
           symbolicUpper_(NULL)
@@ -266,15 +266,15 @@ class Range : public TempObject {
     }
 
     inline bool hasRoundingErrors() const {
-        return canHaveFractionalPart() || exponent() >= MaxTruncatableExponent;
+        return isDecimal() || exponent() >= MaxTruncatableExponent;
     }
 
     inline bool isInfinite() const {
         return exponent() >= MaxDoubleExponent;
     }
 
-    inline bool canHaveFractionalPart() const {
-        return canHaveFractionalPart_;
+    inline bool isDecimal() const {
+        return decimal_;
     }
 
     inline uint16_t exponent() const {
@@ -329,15 +329,15 @@ class Range : public TempObject {
     inline void setInt32() {
         lower_infinite_ = false;
         upper_infinite_ = false;
-        canHaveFractionalPart_ = false;
+        decimal_ = false;
         max_exponent_ = MaxInt32Exponent;
     }
 
-    inline void set(int64_t l, int64_t h, bool f = false, uint16_t e = MaxInt32Exponent) {
+    inline void set(int64_t l, int64_t h, bool d = false, uint16_t e = MaxInt32Exponent) {
         max_exponent_ = e;
         setLowerInit(l);
         setUpperInit(h);
-        canHaveFractionalPart_ = f;
+        decimal_ = d;
         rectifyExponent();
         JS_ASSERT_IF(lower_infinite_, lower_ == JSVAL_INT_MIN);
         JS_ASSERT_IF(upper_infinite_, upper_ == JSVAL_INT_MAX);

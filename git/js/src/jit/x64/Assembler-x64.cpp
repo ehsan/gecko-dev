@@ -94,15 +94,15 @@ Assembler::writeRelocation(JmpSrc src, Relocation::Kind reloc)
 }
 
 void
-Assembler::addPendingJump(JmpSrc src, ImmPtr target, Relocation::Kind reloc)
+Assembler::addPendingJump(JmpSrc src, void *target, Relocation::Kind reloc)
 {
-    JS_ASSERT(target.value != NULL);
+    JS_ASSERT(target);
 
     // Emit reloc before modifying the jump table, since it computes a 0-based
     // index. This jump is not patchable at runtime.
     if (reloc == Relocation::IONCODE)
         writeRelocation(src, reloc);
-    enoughMemory_ &= jumps_.append(RelativePatch(src.offset(), target.value, reloc));
+    enoughMemory_ &= jumps_.append(RelativePatch(src.offset(), target, reloc));
 }
 
 size_t

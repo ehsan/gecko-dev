@@ -3530,7 +3530,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         // Trust the JS engine (or the script security manager) to set
         // the exception in the JS engine.
 
-        if (!JS_GetPendingException(my_cx, &exn)) {
+        if (!JS_GetPendingException(my_cx, exn.address())) {
           return NS_ERROR_UNEXPECTED;
         }
 
