@@ -261,7 +261,7 @@ public:
   /**
    * Return parent accessible.
    */
-  virtual nsAccessible* GetParent();
+  nsAccessible* GetParent() const { return mParent; }
 
   /**
    * Return child accessible at the given index.
@@ -306,7 +306,6 @@ public:
   /**
    * Return cached accessible of parent-child relatives.
    */
-  nsAccessible* GetCachedParent() const { return mParent; }
   nsAccessible* GetCachedNextSibling() const
   {
     return mParent ?
