@@ -2384,7 +2384,7 @@ NS_IMETHODIMP nsPluginStreamListenerPeer::OnStopRequest(nsIRequest *request,
   // Set the content type to ensure we don't pass null to the plugin
   nsCAutoString aContentType;
   rv = channel->GetContentType(aContentType);
-  if (NS_FAILED(rv))
+  if (NS_FAILED(rv) && !mRequestFailed)
     return rv;
 
   if (!aContentType.IsEmpty())
@@ -6930,9 +6930,9 @@ nsPluginHostImpl::InstantiateDummyJavaPlugin(nsIPluginInstanceOwner *aOwner)
 
 NS_IMETHODIMP
 nsPluginHostImpl::GetPluginName(nsIPluginInstance *aPluginInstance,
-                                char** aPluginName)
+                                const char** aPluginName)
 {
-  *aPluginName = (char*)GetPluginName(aPluginInstance);
+  *aPluginName = GetPluginName(aPluginInstance);
   return NS_OK;
 }
 

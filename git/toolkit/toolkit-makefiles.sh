@@ -161,7 +161,6 @@ MAKEFILES_intl="
 
 MAKEFILES_js="
   js/src/Makefile
-  js/src/fdlibm/Makefile
 "
 
 MAKEFILES_liveconnect="
@@ -909,10 +908,6 @@ if test -n "$MOZ_CALENDAR"; then
     calendar/providers/storage/Makefile
     calendar/providers/composite/Makefile
   "
-fi
-
-if [ "$MOZ_MAIL_NEWS" ]; then
-  . "${srcdir}/mailnews/makefiles.sh"
 fi
 
 if test -n "$MOZ_IPCD"; then

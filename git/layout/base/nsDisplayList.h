@@ -117,7 +117,7 @@ class nsDisplayTableItem;
  * available from the prescontext/presshell, but we copy them into the builder
  * for faster/more convenient access.
  */
-class nsDisplayListBuilder {
+class NS_STACK_CLASS nsDisplayListBuilder {
 public:
   /**
    * @param aReferenceFrame the frame at the root of the subtree; its origin
@@ -1023,6 +1023,26 @@ public:
 private:
     /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
     PRPackedBool mIsThemed;
+};
+
+/**
+ * The standard display item to paint the CSS box-shadow of a frame.
+ */
+class nsDisplayBoxShadow : public nsDisplayItem {
+public:
+  nsDisplayBoxShadow(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
+    MOZ_COUNT_CTOR(nsDisplayBoxShadow);
+  }
+#ifdef NS_BUILD_REFCNT_LOGGING
+  virtual ~nsDisplayBoxShadow() {
+    MOZ_COUNT_DTOR(nsDisplayBoxShadow);
+  }
+#endif
+
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
+  NS_DISPLAY_DECL_NAME("BoxShadow")
 };
 
 /**
