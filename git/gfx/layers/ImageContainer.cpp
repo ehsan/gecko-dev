@@ -635,8 +635,8 @@ PlanarYCbCrImage::AllocateAndGetNewBuffer(uint32_t aSize)
 already_AddRefed<gfxASurface>
 PlanarYCbCrImage::DeprecatedGetAsSurface()
 {
-  if (mDeprecatedSurface) {
-    nsRefPtr<gfxASurface> result = mDeprecatedSurface.get();
+  if (mSurface) {
+    nsRefPtr<gfxASurface> result = mSurface.get();
     return result.forget();
   }
 
@@ -654,34 +654,9 @@ PlanarYCbCrImage::DeprecatedGetAsSurface()
 
   gfx::ConvertYCbCrToRGB(mData, format, mSize, imageSurface->Data(), imageSurface->Stride());
 
-  mDeprecatedSurface = imageSurface;
+  mSurface = imageSurface;
 
   return imageSurface.forget();
-}
-
-TemporaryRef<gfx::SourceSurface>
-PlanarYCbCrImage::GetAsSourceSurface()
-{
-  if (mSourceSurface) {
-    return mSourceSurface.get();
-  }
-
-  gfx::IntSize size(mSize);
-  gfx::SurfaceFormat format = gfx::ImageFormatToSurfaceFormat(GetOffscreenFormat());
-  gfx::GetYCbCrToRGBDestFormatAndSize(mData, format, size);
-  if (mSize.width > PlanarYCbCrImage::MAX_DIMENSION ||
-      mSize.height > PlanarYCbCrImage::MAX_DIMENSION) {
-    NS_ERROR("Illegal image dest width or height");
-    return nullptr;
-  }
-
-  RefPtr<gfx::DataSourceSurface> surface = gfx::Factory::CreateDataSourceSurface(size, format);
-
-  gfx::ConvertYCbCrToRGB(mData, format, size, surface->GetData(), surface->Stride());
-
-  mSourceSurface = surface;
-
-  return surface.forget();
 }
 
 already_AddRefed<gfxASurface>

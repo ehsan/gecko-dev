@@ -8,7 +8,6 @@
 
 #ifdef MOZ_WIDGET_GONK
 
-#include "mozilla/layers/AtomicRefCountedWithFinalize.h"
 #include "mozilla/layers/LayersSurfaces.h"
 #include "mozilla/gfx/Point.h"
 #include "ImageLayers.h"
@@ -30,9 +29,8 @@ class GrallocTextureClientOGL;
  * called. Each producer must maintain their own buffer queue and
  * implement the GraphicBufferLocked::Unlock() interface.
  */
-class GraphicBufferLocked
-  : public AtomicRefCountedWithFinalize<GraphicBufferLocked>
-{
+class GraphicBufferLocked {
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GraphicBufferLocked)
 
 public:
   GraphicBufferLocked(SurfaceDescriptor aGraphicBuffer)
@@ -41,27 +39,12 @@ public:
 
   virtual ~GraphicBufferLocked() {}
 
+  virtual void Unlock() {}
+
   SurfaceDescriptor GetSurfaceDescriptor()
   {
     return mSurfaceDescriptor;
   }
-
-protected:
-  virtual void Unlock() {}
-
-private:
-  /**
-   * Called once, just before the destructor.
-   *
-   * Here goes the shut-down code that uses virtual methods.
-   * Must only be called by Release().
-   */
-  void Finalize()
-  {
-    Unlock();
-  }
-
-  friend class AtomicRefCountedWithFinalize<GraphicBufferLocked>;
 
 protected:
   SurfaceDescriptor mSurfaceDescriptor;
@@ -140,8 +123,8 @@ public:
   virtual bool IsValid() { return GetSurfaceDescriptor().type() != SurfaceDescriptor::T__None; }
 
   SurfaceDescriptor GetSurfaceDescriptor() {
-    if (mGraphicBufferLocked.get()) {
-      return mGraphicBufferLocked->GetSurfaceDescriptor();
+    if (mGraphicBuffer.get()) {
+      return mGraphicBuffer->GetSurfaceDescriptor();
     }
     return SurfaceDescriptor();
   }
@@ -157,7 +140,7 @@ public:
 
 private:
   bool mBufferAllocated;
-  nsRefPtr<GraphicBufferLocked> mGraphicBufferLocked;
+  nsRefPtr<GraphicBufferLocked> mGraphicBuffer;
   RefPtr<GrallocTextureClientOGL> mTextureClient;
 };
 

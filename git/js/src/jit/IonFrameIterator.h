@@ -453,8 +453,10 @@ class InlineFrameIteratorMaybeGC
 
         // scopeChain
         Value v = s.read();
-        if (v.isObject())
+        if (v.isObject()) {
+            JS_ASSERT_IF(script()->hasAnalysis(), script()->analysis()->usesScopeChain());
             return &v.toObject();
+        }
 
         return callee()->environment();
     }

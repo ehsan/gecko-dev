@@ -494,9 +494,22 @@ WrapperFactory::WrapForSameCompartment(JSContext *cx, HandleObject objArg)
     obj = JS_ObjectToOuterObject(cx, obj);
     NS_ENSURE_TRUE(obj, nullptr);
 
-    // The method below is a no-op for non-DOM objects.
-    dom::GetSameCompartmentWrapperForDOMBinding(*obj.address());
-    return obj;
+    if (dom::GetSameCompartmentWrapperForDOMBinding(*obj.address())) {
+        return obj;
+    }
+
+    MOZ_ASSERT(!dom::IsDOMObject(obj));
+
+    if (!IS_WN_REFLECTOR(obj))
+        return obj;
+
+    // Extract the WN. It should exist.
+    XPCWrappedNative *wn = XPCWrappedNative::Get(obj);
+    MOZ_ASSERT(wn, "Trying to wrap a dead WN!");
+
+    // The WN knows what to do.
+    RootedObject wrapper(cx, wn->GetSameCompartmentSecurityWrapper(cx));
+    return wrapper;
 }
 
 // Call WaiveXrayAndWrap when you have a JS object that you don't want to be
