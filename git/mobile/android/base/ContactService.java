@@ -97,6 +97,7 @@ public class ContactService implements GeckoEventListener {
         mEventDispatcher = eventDispatcher;
         mActivity = activity;
         mContentResolver = mActivity.getContentResolver();
+        mGotDeviceAccount = false;
 
         EventDispatcher.getInstance().registerGeckoThreadListener(this,
             "Android:Contacts:Clear",

@@ -510,6 +510,8 @@ class TabsTray extends TwoWayView
         private boolean mEnabled;
 
         public TabSwipeGestureListener() {
+            mSwipeView = null;
+            mSwiping = false;
             mEnabled = true;
 
             ViewConfiguration vc = ViewConfiguration.get(TabsTray.this.getContext());

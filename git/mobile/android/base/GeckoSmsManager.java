@@ -74,6 +74,7 @@ class Envelope
   public Envelope(int aId, int aParts) {
     mId = aId;
     mMessageId = -1;
+    mMessageTimestamp = 0;
     mError = GeckoSmsManager.kNoError;
 
     int size = Envelope.SubParts.values().length;

@@ -155,7 +155,7 @@ public class BrowserApp extends GeckoApp
     private HomePager mHomePager;
     private TabsPanel mTabsPanel;
     private ViewGroup mHomePagerContainer;
-    protected Telemetry.Timer mAboutHomeStartupTimer;
+    protected Telemetry.Timer mAboutHomeStartupTimer = null;
     private ActionModeCompat mActionMode;
     private boolean mShowActionModeEndAnimation;
 

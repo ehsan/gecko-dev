@@ -7,9 +7,9 @@ package org.mozilla.search;
 import android.content.AsyncQueryHandler;
 import android.content.ContentValues;
 import android.graphics.Rect;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
-import android.text.TextUtils;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.Interpolator;
@@ -22,39 +22,26 @@ import com.nineoldandroids.animation.ObjectAnimator;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.SearchHistory;
-import org.mozilla.search.autocomplete.ClearableEditText;
-import org.mozilla.search.autocomplete.SuggestionsFragment;
+import org.mozilla.search.autocomplete.SearchFragment;
 
 /**
  * The main entrance for the Android search intent.
  * <p/>
  * State management is delegated to child fragments. Fragments communicate
- * with each other by passing messages through this activity.
+ * with each other by passing messages through this activity. The only message passing right
+ * now, the only message passing occurs when a user wants to submit a search query. That
+ * passes through the onSearch method here.
  */
 public class MainActivity extends FragmentActivity implements AcceptsSearchQuery {
 
-    static enum SearchState {
+    enum State {
+        START,
         PRESEARCH,
         POSTSEARCH
     }
 
-    static enum EditState {
-        WAITING,
-        EDITING
-    }
-
-    private SearchState searchState;
-    private EditState editState;
-
+    private State state = State.START;
     private AsyncQueryHandler queryHandler;
-
-    // Main views in layout.
-    private ClearableEditText editText;
-    private View preSearch;
-    private View postSearch;
-
-    private View suggestionsContainer;
-    private SuggestionsFragment suggestionsFragment;
 
     private static final int SUGGESTION_TRANSITION_DURATION = 300;
     private static final Interpolator SUGGESTION_TRANSITION_INTERPOLATOR =
@@ -78,47 +65,6 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
 
         queryHandler = new AsyncQueryHandler(getContentResolver()) {};
 
-        editText = (ClearableEditText) findViewById(R.id.search_edit_text);
-        editText.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                setEditState(EditState.EDITING);
-            }
-        });
-
-        editText.setTextListener(new ClearableEditText.TextListener() {
-            @Override
-            public void onChange(String text) {
-                // Only load suggestions if we're in edit mode.
-                if (editState == EditState.EDITING) {
-                    suggestionsFragment.loadSuggestions(text);
-                }
-            }
-
-            @Override
-            public void onSubmit(String text) {
-                // Don't submit an empty query.
-                final String trimmedQuery = text.trim();
-                if (!TextUtils.isEmpty(trimmedQuery)) {
-                    onSearch(trimmedQuery);
-                }
-            }
-        });
-
-        preSearch = findViewById(R.id.presearch);
-        postSearch = findViewById(R.id.postsearch);
-
-        suggestionsContainer = findViewById(R.id.suggestions_container);
-        suggestionsFragment = (SuggestionsFragment) getSupportFragmentManager().findFragmentById(R.id.suggestions);
-
-        // Dismiss edit mode when the user taps outside of the suggestions.
-        findViewById(R.id.suggestions_container).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                setEditState(EditState.WAITING);
-            }
-        });
-
         animationText = (TextView) findViewById(R.id.animation_text);
         animationCard = findViewById(R.id.animation_card);
 
@@ -131,11 +77,7 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
     protected void onDestroy() {
         super.onDestroy();
         queryHandler = null;
-        editText = null;
-        preSearch = null;
-        postSearch = null;
-        suggestionsFragment = null;
-        suggestionsContainer = null;
+
         animationText = null;
         animationCard = null;
     }
@@ -155,14 +97,8 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
     @Override
     protected void onResume() {
         super.onResume();
-
         // When the app launches, make sure we're in presearch *always*
-        setSearchState(SearchState.PRESEARCH);
-    }
-
-    @Override
-    public void onSuggest(String query) {
-       editText.setText(query);
+        startPresearch();
     }
 
     @Override
@@ -182,8 +118,7 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
             animateSuggestion(query, suggestionAnimation);
         } else {
             // Otherwise immediately switch to the results view.
-            setEditState(EditState.WAITING);
-            setSearchState(SearchState.POSTSEARCH);
+            startPostsearch();
         }
     }
 
@@ -229,10 +164,15 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
 
             @Override
             public void onAnimationEnd(Animator animation) {
-                setEditState(EditState.WAITING);
-                setSearchState(SearchState.POSTSEARCH);
+                // This is crappy, but right now we need to make sure we call this before
+                // setSearchTerm so that we don't kick off a suggestion request.
+                suggestionAnimation.onAnimationEnd();
 
-                editText.setText(query);
+                // TODO: Find a way to do this without needing to access SearchFragment.
+                final SearchFragment searchFragment = ((SearchFragment) getSupportFragmentManager().findFragmentById(R.id.search_fragment));
+                searchFragment.setSearchTerm(query);
+
+                startPostsearch();
 
                 // We need to manually clear the animation for the views to be hidden on gingerbread.
                 animationText.clearAnimation();
@@ -257,32 +197,26 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
         set.start();
     }
 
-    private void setEditState(EditState editState) {
-        if (this.editState == editState) {
-            return;
+    private void startPresearch() {
+        if (state != State.PRESEARCH) {
+            state = State.PRESEARCH;
+            findViewById(R.id.postsearch).setVisibility(View.INVISIBLE);
+            findViewById(R.id.presearch).setVisibility(View.VISIBLE);
         }
-        this.editState = editState;
-
-        editText.setActive(editState == EditState.EDITING);
-        suggestionsContainer.setVisibility(editState == EditState.EDITING ? View.VISIBLE : View.INVISIBLE);
     }
 
-    private void setSearchState(SearchState searchState) {
-        if (this.searchState == searchState) {
-            return;
+    private void startPostsearch() {
+        if (state != State.POSTSEARCH) {
+            state = State.POSTSEARCH;
+            findViewById(R.id.presearch).setVisibility(View.INVISIBLE);
+            findViewById(R.id.postsearch).setVisibility(View.VISIBLE);
         }
-        this.searchState = searchState;
-
-        preSearch.setVisibility(searchState == SearchState.PRESEARCH ? View.VISIBLE : View.INVISIBLE);
-        postSearch.setVisibility(searchState == SearchState.POSTSEARCH ? View.VISIBLE : View.INVISIBLE);
     }
 
     @Override
     public void onBackPressed() {
-        if (editState == EditState.EDITING) {
-            setEditState(EditState.WAITING);
-        } else if (searchState == SearchState.POSTSEARCH) {
-            setSearchState(SearchState.PRESEARCH);
+        if (state == State.POSTSEARCH) {
+            startPresearch();
         } else {
             super.onBackPressed();
         }

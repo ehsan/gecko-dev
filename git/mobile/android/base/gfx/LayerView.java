@@ -157,7 +157,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
 
         mLayerClient.notifyGeckoReady();
         addTouchInterceptor(new TouchEventInterceptor() {
-            private PointF mInitialTouchPoint;
+            private PointF mInitialTouchPoint = null;
 
             @Override
             public boolean onInterceptTouchEvent(View view, MotionEvent event) {

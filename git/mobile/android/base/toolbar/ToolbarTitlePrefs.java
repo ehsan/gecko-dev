@@ -29,6 +29,7 @@ class ToolbarTitlePrefs {
     private Integer mPrefObserverId;
 
     ToolbarTitlePrefs() {
+        mShowUrl = false;
         mTrimUrls = true;
 
         mPrefObserverId = PrefsHelper.getPrefs(prefs, new TitlePrefsHandler());
