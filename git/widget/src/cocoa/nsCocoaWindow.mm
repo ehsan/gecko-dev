@@ -139,7 +139,6 @@ nsCocoaWindow::nsCocoaWindow()
 , mSheetNeedsShow(false)
 , mFullScreen(false)
 , mModal(false)
-, mInReportMoveEvent(false)
 , mNumModalDescendents(0)
 {
 
@@ -1365,15 +1364,6 @@ nsCocoaWindow::ReportMoveEvent()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // Prevent recursion, which can become infinite (see bug 708278).  This
-  // can happen when the call to [NSWindow setFrameTopLeftPoint:] in
-  // nsCocoaWindow::Move() triggers an immediate NSWindowDidMove notification
-  // (and a call to [WindowDelegate windowDidMove:]).
-  if (mInReportMoveEvent) {
-    return;
-  }
-  mInReportMoveEvent = true;
-
   UpdateBounds();
 
   // Dispatch the move event to Gecko
@@ -1383,8 +1373,6 @@ nsCocoaWindow::ReportMoveEvent()
   guiEvent.time = PR_IntervalNow();
   nsEventStatus status = nsEventStatus_eIgnore;
   DispatchEvent(&guiEvent, status);
-
-  mInReportMoveEvent = false;
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

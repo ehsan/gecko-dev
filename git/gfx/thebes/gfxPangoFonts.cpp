@@ -135,10 +135,10 @@ public:
     static void AddRef(T *aPtr) { g_object_ref(aPtr); }
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsAutoRefTraits<PangoFont> : public gfxGObjectRefTraits<PangoFont> { };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsAutoRefTraits<PangoCoverage>
     : public nsPointerRefTraits<PangoCoverage> {
 public:

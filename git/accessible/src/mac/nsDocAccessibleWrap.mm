@@ -37,7 +37,7 @@
 
 #include "nsDocAccessibleWrap.h"
 
-#import "mozAccessible.h"
+#import "mozAccessibleWrapper.h"
 
 nsDocAccessibleWrap::
   nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
@@ -56,10 +56,12 @@ nsDocAccessibleWrap::Init ()
   if (!nsDocAccessible::Init())
     return false;
 
-  if (!mNativeObject) {
+  NS_ASSERTION(!mNativeWrapper, "nsDocAccessibleWrap::Init() called more than once!");
+
+  if (!mNativeWrapper) {
     // Create our native object using the class type specified in GetNativeType().
-    mNativeObject = [[GetNativeType() alloc] initWithAccessible:this];
-    if (!mNativeObject)
+    mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
+    if (!mNativeWrapper)
       return false;
   }
 

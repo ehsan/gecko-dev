@@ -51,7 +51,6 @@ import android.util.Log;
 import java.nio.ByteBuffer;
 import javax.microedition.khronos.opengles.GL10;
 import org.mozilla.gecko.FloatUtils;
-import org.mozilla.gecko.GeckoAppShell;
 
 /**
  * Draws a small rect. This is scaled to become a scrollbar.
@@ -75,7 +74,6 @@ public class ScrollbarLayer extends TileLayer {
     private final Bitmap mBitmap;
     private final Canvas mCanvas;
     private float mOpacity;
-    private boolean mFinalized = false;
 
     private ScrollbarLayer(CairoImage image, boolean vertical, ByteBuffer buffer) {
         super(false, image);
@@ -86,22 +84,11 @@ public class ScrollbarLayer extends TileLayer {
         mCanvas = new Canvas(mBitmap);
     }
 
-    protected void finalize() throws Throwable {
-        try {
-            if (!mFinalized && mBuffer != null)
-                GeckoAppShell.freeDirectBuffer(mBuffer);
-            mFinalized = true;
-        } finally {
-            super.finalize();
-        }
-    }
-
-
     public static ScrollbarLayer create(boolean vertical) {
         // just create an empty image for now, it will get drawn
         // on demand anyway
         int imageSize = nextPowerOfTwo(BAR_SIZE);
-        ByteBuffer buffer = GeckoAppShell.allocateDirectBuffer(imageSize * imageSize * 4);
+        ByteBuffer buffer = ByteBuffer.allocateDirect(imageSize * imageSize * 4);
         CairoImage image = new BufferedCairoImage(buffer, imageSize, imageSize, CairoImage.FORMAT_ARGB32);
         return new ScrollbarLayer(image, vertical, buffer);
     }

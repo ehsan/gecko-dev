@@ -72,6 +72,10 @@ public:
 
   nsresult ImageUpdated(const nsIntRect &aUpdateRect);
 
+  PRInt32 GetX() const;
+  PRInt32 GetY() const;
+  PRInt32 GetWidth() const;
+  PRInt32 GetHeight() const;
   nsIntRect GetRect() const;
   gfxASurface::gfxImageFormat GetFormat() const;
   bool GetNeedsBackground() const;

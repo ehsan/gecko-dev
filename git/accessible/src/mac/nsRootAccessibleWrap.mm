@@ -45,6 +45,9 @@
 #include "nsIWidget.h"
 #include "nsIViewManager.h"
 
+#import "mozAccessibleWrapper.h"
+
+
 nsRootAccessibleWrap::
   nsRootAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
                        nsIWeakReference *aShell) :

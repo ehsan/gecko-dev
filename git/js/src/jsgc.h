@@ -63,7 +63,6 @@
 #include "gc/Statistics.h"
 #include "js/HashTable.h"
 #include "js/Vector.h"
-#include "js/TemplateLib.h"
 
 struct JSCompartment;
 
@@ -1594,68 +1593,50 @@ struct ConservativeGCThreadData {
 template<class T>
 struct MarkStack {
     T *stack;
-    T *tos;
-    T *limit;
+    uintN tos, limit;
 
     bool push(T item) {
         if (tos == limit)
             return false;
-        *tos++ = item;
+        stack[tos++] = item;
         return true;
     }
 
-    bool push(T item1, T item2) {
-        T *nextTos = tos + 2;
-        if (nextTos > limit)
-            return false;
-        tos[0] = item1;
-        tos[1] = item2;
-        tos = nextTos;
-        return true;
-    }
-
-    bool isEmpty() const {
-        return tos == stack;
-    }
+    bool isEmpty() { return tos == 0; }
 
     T pop() {
         JS_ASSERT(!isEmpty());
-        return *--tos;
+        return stack[--tos];
     }
 
-    template<size_t N>
-    MarkStack(T (&buffer)[N])
-      : stack(buffer),
-        tos(buffer),
-        limit(buffer + N) { }
+    T &peek() {
+        JS_ASSERT(!isEmpty());
+        return stack[tos-1];
+    }
+
+    MarkStack(void **buffer, size_t size)
+    {
+        tos = 0;
+        limit = size / sizeof(T) - 1;
+        stack = (T *)buffer;
+    }
 };
 
-static const size_t MARK_STACK_LENGTH = 32768;
+struct LargeMarkItem
+{
+    JSObject *obj;
+    uintN markpos;
+
+    LargeMarkItem(JSObject *obj) : obj(obj), markpos(0) {}
+};
+
+static const size_t OBJECT_MARK_STACK_SIZE = 32768 * sizeof(JSObject *);
+static const size_t ROPES_MARK_STACK_SIZE = 1024 * sizeof(JSString *);
+static const size_t XML_MARK_STACK_SIZE = 1024 * sizeof(JSXML *);
+static const size_t TYPE_MARK_STACK_SIZE = 1024 * sizeof(types::TypeObject *);
+static const size_t LARGE_MARK_STACK_SIZE = 64 * sizeof(LargeMarkItem);
 
 struct GCMarker : public JSTracer {
-    /*
-     * We use a common mark stack to mark GC things of different types and use
-     * the explicit tags to distinguish them when it cannot be deduced from
-     * the context of push or pop operation.
-     *
-     * Currently we need only 4 tags. However that can be extended to 8 if
-     * necessary. We tag either pointers to GC things or pointers to Value
-     * arrays. So the pointers are always at least 8-byte aligned. 
-     */
-    enum StackTag {
-        ValueArrayTag,
-        ObjectTag,
-        TypeTag,
-        XmlTag,
-        LastTag = XmlTag
-    };
-
-    static const uintptr_t StackTagMask = 3;
-
-    static void staticAsserts() {
-        JS_STATIC_ASSERT(StackTagMask >= uintptr_t(LastTag));
-    }
-
   private:
     /* The color is only applied to objects, functions and xml. */
     uint32 color;
@@ -1673,7 +1654,11 @@ struct GCMarker : public JSTracer {
     void dumpConservativeRoots();
 #endif
 
-    MarkStack<uintptr_t> stack;
+    MarkStack<JSObject *> objStack;
+    MarkStack<JSRope *> ropeStack;
+    MarkStack<types::TypeObject *> typeStack;
+    MarkStack<JSXML *> xmlStack;
+    MarkStack<LargeMarkItem> largeStack;
 
   public:
     explicit GCMarker(JSContext *cx);
@@ -1698,47 +1683,36 @@ struct GCMarker : public JSTracer {
 
     void delayMarkingChildren(const void *thing);
 
-    bool hasDelayedChildren() const {
-        return !!unmarkedArenaStackTop;
-    }
-
     void markDelayedChildren();
 
     bool isMarkStackEmpty() {
-        return stack.isEmpty();
+        return objStack.isEmpty() &&
+               ropeStack.isEmpty() &&
+               typeStack.isEmpty() &&
+               xmlStack.isEmpty() &&
+               largeStack.isEmpty();
     }
 
     void drainMarkStack();
 
-    inline void processMarkStackTop();
-    
     void pushObject(JSObject *obj) {
-        pushTaggedPtr(ObjectTag, obj);
+        if (!objStack.push(obj))
+            delayMarkingChildren(obj);
+    }
+
+    void pushRope(JSRope *rope) {
+        if (!ropeStack.push(rope))
+            delayMarkingChildren(rope);
     }
 
     void pushType(types::TypeObject *type) {
-        pushTaggedPtr(TypeTag, type);
+        if (!typeStack.push(type))
+            delayMarkingChildren(type);
     }
 
     void pushXML(JSXML *xml) {
-        pushTaggedPtr(XmlTag, xml);
-    }
-
-    void pushTaggedPtr(StackTag tag, void *ptr) {
-        uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-        JS_ASSERT(!(addr & StackTagMask));
-        if (!stack.push(addr | uintptr_t(tag)))
-            delayMarkingChildren(ptr);
-    }
-
-    bool pushValueArray(void *start, void *end) {
-        JS_STATIC_ASSERT(ValueArrayTag == 0);
-        JS_ASSERT(start < end);
-        uintptr_t startAddr = reinterpret_cast<uintptr_t>(start);
-        uintptr_t endAddr = reinterpret_cast<uintptr_t>(end);
-        JS_ASSERT(!(startAddr & StackTagMask));
-        JS_ASSERT(!(endAddr & StackTagMask));
-        return stack.push(endAddr, startAddr);
+        if (!xmlStack.push(xml))
+            delayMarkingChildren(xml);
     }
 };
 

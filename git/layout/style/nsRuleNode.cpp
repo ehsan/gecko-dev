@@ -4744,14 +4744,14 @@ template <class SpecifiedValueItem>
 struct InitialInheritLocationFor {
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct InitialInheritLocationFor<nsCSSValueList> {
   static nsCSSValue nsCSSValueList::* Location() {
     return &nsCSSValueList::mValue;
   }
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct InitialInheritLocationFor<nsCSSValuePairList> {
   static nsCSSValue nsCSSValuePairList::* Location() {
     return &nsCSSValuePairList::mXValue;
@@ -4762,7 +4762,7 @@ template <class SpecifiedValueItem, class ComputedValueItem>
 struct BackgroundItemComputer {
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct BackgroundItemComputer<nsCSSValueList, PRUint8>
 {
   static void ComputeValue(nsStyleContext* aStyleContext,
@@ -4775,7 +4775,7 @@ struct BackgroundItemComputer<nsCSSValueList, PRUint8>
   }
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct BackgroundItemComputer<nsCSSValueList, nsStyleImage>
 {
   static void ComputeValue(nsStyleContext* aStyleContext,
@@ -4801,7 +4801,7 @@ static const BackgroundPositionAxis gBGPosAxes[] = {
     &nsStyleBackground::Position::mYPosition }
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct BackgroundItemComputer<nsCSSValuePairList, nsStyleBackground::Position>
 {
   static void ComputeValue(nsStyleContext* aStyleContext,
@@ -4863,7 +4863,7 @@ static const BackgroundSizeAxis gBGSizeAxes[] = {
     &nsStyleBackground::Size::mHeightType }
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct BackgroundItemComputer<nsCSSValuePairList, nsStyleBackground::Size>
 {
   static void ComputeValue(nsStyleContext* aStyleContext,

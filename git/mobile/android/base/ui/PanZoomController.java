@@ -75,7 +75,6 @@ public class PanZoomController
     private LayerController mController;
 
     private static final float FRICTION = 0.85f;
-    private static final float FRICTION_FACTOR = 6.0f;
     // Animation stops if the velocity is below this value.
     private static final float STOPPED_THRESHOLD = 4.0f;
     // The percentage of the surface which can be overscrolled before it must snap back.
@@ -137,7 +136,8 @@ public class PanZoomController
                          * similar to TOUCHING but after starting a pan */
         PANNING_HOLD_LOCKED, /* like PANNING_HOLD, but axis lock still in effect */
         PINCHING,       /* nth touch-start, where n > 1. this mode allows pan and zoom */
-        ANIMATED_ZOOM   /* animated zoom to a new rect */
+        ANIMATED_ZOOM,  /* animated zoom to a new rect */
+        BOUNCING,       /* bouncing back */
     }
 
     private PanZoomState mState;
@@ -241,21 +241,16 @@ public class PanZoomController
         }
     }
 
-    public void geometryChanged(boolean abortAnimation) {
-        if (abortAnimation) {
-            // this happens when gecko changes the viewport on us or if the device is rotated.
-            // if that's the case, abort any animation in progress and re-zoom so that the page
-            // snaps to edges. for other cases (where the user's finger(s) are down) don't do
-            // anything special.
+    public void geometryChanged(boolean aAbortFling) {
+        if (aAbortFling) {
+            // this happens when gecko changes the viewport on us. if that's the case, abort
+            // any fling that's in progress and re-fling so that the page snaps to edges. for
+            // other cases (where the user's finger(s) are down) don't do anything special.
             switch (mState) {
             case FLING:
                 mX.velocity = mY.velocity = 0.0f;
                 mState = PanZoomState.NOTHING;
                 // fall through
-            case ANIMATED_ZOOM:
-                // the zoom that's in progress likely makes no sense any more (such as if
-                // the screen orientation changed) so abort it and start a new one to
-                // ensure the viewport doesn't contain out-of-bounds areas
             case NOTHING:
                 bounce();
                 break;
@@ -518,7 +513,7 @@ public class PanZoomController
             stopAnimationTimer();
         }
 
-        mAnimationTimer = new Timer("Animation Timer");
+        mAnimationTimer = new Timer();
         mAnimationTimer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() { mController.post(runnable); }
@@ -560,9 +555,7 @@ public class PanZoomController
             GeckoAppShell.sendEventToGecko(e);
             mOverrideScrollAck = false;
         } else {
-            synchronized (mController) {
-                mController.scrollBy(new PointF(mX.displacement, mY.displacement));
-            }
+            mController.scrollBy(new PointF(mX.displacement, mY.displacement));
         }
 
         mX.displacement = mY.displacement = 0;
@@ -594,22 +587,18 @@ public class PanZoomController
 
         /* Performs one frame of a bounce animation. */
         private void advanceBounce() {
-            synchronized (mController) {
-                float t = EASE_OUT_ANIMATION_FRAMES[mBounceFrame];
-                ViewportMetrics newMetrics = mBounceStartMetrics.interpolate(mBounceEndMetrics, t);
-                mController.setViewportMetrics(newMetrics);
-                mController.notifyLayerClientOfGeometryChange();
-                mBounceFrame++;
-            }
+            float t = EASE_OUT_ANIMATION_FRAMES[mBounceFrame];
+            ViewportMetrics newMetrics = mBounceStartMetrics.interpolate(mBounceEndMetrics, t);
+            mController.setViewportMetrics(newMetrics);
+            mController.notifyLayerClientOfGeometryChange();
+            mBounceFrame++;
         }
 
         /* Concludes a bounce animation and snaps the viewport into place. */
         private void finishBounce() {
-            synchronized (mController) {
-                mController.setViewportMetrics(mBounceEndMetrics);
-                mController.notifyLayerClientOfGeometryChange();
-                mBounceFrame = -1;
-            }
+            mController.setViewportMetrics(mBounceEndMetrics);
+            mController.notifyLayerClientOfGeometryChange();
+            mBounceFrame = -1;
         }
     }
 
@@ -779,11 +768,7 @@ public class PanZoomController
             // If we aren't overscrolled, just apply friction.
             float excess = getExcess();
             if (disableSnap || FloatUtils.fuzzyEquals(excess, 0.0f)) {
-                float absvelocity = (float)
-                    Math.pow(Math.pow(velocity, FRICTION_FACTOR) * FRICTION,
-                             1 / FRICTION_FACTOR);
-                velocity = Math.copySign(absvelocity, velocity);
-
+                velocity *= FRICTION;
                 if (Math.abs(velocity) < 0.1f) {
                     velocity = 0.0f;
                     setFlingState(FlingStates.STOPPED);
@@ -826,11 +811,11 @@ public class PanZoomController
         RectF viewport = viewportMetrics.getViewport();
 
         float minZoomFactor = 0.0f;
-        if (viewport.width() > pageSize.width && pageSize.width > 0) {
+        if (viewport.width() > pageSize.width) {
             float scaleFactor = viewport.width() / pageSize.width;
             minZoomFactor = (float)Math.max(minZoomFactor, zoomFactor * scaleFactor);
         }
-        if (viewport.height() > pageSize.height && pageSize.height > 0) {
+        if (viewport.height() > pageSize.height) {
             float scaleFactor = viewport.height() / pageSize.height;
             minZoomFactor = (float)Math.max(minZoomFactor, zoomFactor * scaleFactor);
         }
@@ -887,14 +872,11 @@ public class PanZoomController
         else
             spanRatio = 1.0f - (1.0f - spanRatio) * resistance;
 
-        synchronized (mController) {
-            float newZoomFactor = mController.getZoomFactor() * spanRatio;
+        float newZoomFactor = mController.getZoomFactor() * spanRatio;
 
-            mController.scrollBy(new PointF(mLastZoomFocus.x - detector.getFocusX(),
-                                            mLastZoomFocus.y - detector.getFocusY()));
-            PointF focus = new PointF(detector.getFocusX(), detector.getFocusY());
-            mController.scaleWithFocus(newZoomFactor, focus);
-        }
+        mController.scrollBy(new PointF(mLastZoomFocus.x - detector.getFocusX(),
+                                        mLastZoomFocus.y - detector.getFocusY()));
+        mController.scaleWithFocus(newZoomFactor, new PointF(detector.getFocusX(), detector.getFocusY()));
 
         mLastZoomFocus.set(detector.getFocusX(), detector.getFocusY());
 

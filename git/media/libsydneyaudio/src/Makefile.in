@@ -52,8 +52,8 @@ CSRCS		= \
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
-CPPSRCS		= \
-		sydney_audio_gonk.cpp \
+CSRCS		= \
+		sydney_audio_gonk.c \
 		$(NULL)
 else ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 CSRCS		= \

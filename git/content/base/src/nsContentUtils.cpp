@@ -756,7 +756,7 @@ struct NormalizeNewlinesCharTraits<CharT*> {
 
 #else
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct NormalizeNewlinesCharTraits<char*> {
   public:
     typedef char value_type;
@@ -771,7 +771,7 @@ struct NormalizeNewlinesCharTraits<char*> {
     char* mCharPtr;
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct NormalizeNewlinesCharTraits<PRUnichar*> {
   public:
     typedef PRUnichar value_type;

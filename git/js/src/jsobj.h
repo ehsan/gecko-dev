@@ -457,7 +457,6 @@ struct JSObject : js::gc::Cell
 {
   private:
     friend struct js::Shape;
-    friend struct js::GCMarker;
 
     /*
      * Shape of the object, encodes the layout of the object's properties and
@@ -546,6 +545,8 @@ struct JSObject : js::gc::Cell
     inline JSClass *getJSClass() const;
     inline bool hasClass(const js::Class *c) const;
     inline const js::ObjectOps *getOps() const;
+
+    inline void scanSlots(js::GCMarker *gcmarker);
 
     /*
      * An object is a delegate if it is on another object's prototype or scope

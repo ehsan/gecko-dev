@@ -130,6 +130,7 @@ public class GeckoAppShell
     public static native void onChangeNetworkLinkStatus(String status);
     public static native void reportJavaCrash(String stack);
     public static native void notifyUriVisited(String uri);
+    public static native boolean canCreateFixupURI(String text);
 
     public static native void processNextNativeEvent();
 
@@ -145,7 +146,6 @@ public class GeckoAppShell
             new SynchronousQueue<Handler>();
         
         public void run() {
-            setName("GeckoLooper Thread");
             Looper.prepare();
             try {
                 mHandlerQueue.put(new Handler());
@@ -437,11 +437,16 @@ public class GeckoAppShell
         if (url != null)
             combinedArgs += " -remote " + url;
 
-        GeckoApp.mAppContext.runOnUiThread(new Runnable() {
-                public void run() {
-                    geckoLoaded();
-                }
-            });
+        /* TODO: Is this complexity necessary? */
+        new Timer("Gecko Setup").schedule(new TimerTask() {
+            public void run() {
+                GeckoApp.mAppContext.runOnUiThread(new Runnable() {
+                    public void run() {
+                        geckoLoaded();
+                    }
+                });
+            }
+        }, 0);
 
         // and go
         GeckoAppShell.nativeRun(combinedArgs);

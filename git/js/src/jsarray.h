@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -102,7 +102,8 @@ js_InitArrayClass(JSContext *cx, JSObject *obj);
 extern bool
 js_InitContextBusyArrayTable(JSContext *cx);
 
-namespace js {
+namespace js
+{
 
 /* Create a dense array with no capacity allocated, length set to 0. */
 extern JSObject * JS_FASTCALL
@@ -135,7 +136,7 @@ NewDenseCopiedArray(JSContext *cx, uint32 length, const Value *vp, JSObject *pro
 extern JSObject *
 NewSlowEmptyArray(JSContext *cx);
 
-} /* namespace js */
+}
 
 extern JSBool
 js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
@@ -161,7 +162,10 @@ array_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSB
 extern bool
 GetElements(JSContext *cx, JSObject *aobj, jsuint length, js::Value *vp);
 
+}
+
 /* Natives exposed for optimization by the interpreter and JITs. */
+namespace js {
 
 extern JSBool
 array_sort(JSContext *cx, uintN argc, js::Value *vp);
@@ -208,5 +212,8 @@ js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, jsid id,
 /* Array constructor native. Exposed only so the JIT can know its address. */
 JSBool
 js_Array(JSContext *cx, uintN argc, js::Value *vp);
+
+extern JSBool JS_FASTCALL
+js_EnsureDenseArrayCapacity(JSContext *cx, JSObject *obj, jsint i);
 
 #endif /* jsarray_h___ */

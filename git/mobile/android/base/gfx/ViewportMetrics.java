@@ -48,7 +48,6 @@ import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.RectUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.json.JSONStringer;
 import android.util.Log;
 
 /**
@@ -56,8 +55,6 @@ import android.util.Log;
  * the page viewport for the Gecko layer client to use.
  */
 public class ViewportMetrics {
-    private static final String LOGTAG = "GeckoViewportMetrics";
-
     private FloatSize mPageSize;
     private RectF mViewportRect;
     private PointF mViewportOffset;
@@ -235,22 +232,16 @@ public class ViewportMetrics {
     }
 
     public String toJSON() {
-        try {
-            JSONStringer object = new JSONStringer().object();
-            object.key("zoom").value(mZoomFactor);
-            object.key("offsetY").value(mViewportOffset.y);
-            object.key("offsetX").value(mViewportOffset.x);
-            object.key("pageHeight").value(mPageSize.height);
-            object.key("pageWidth").value(mPageSize.width);
-            object.key("height").value(mViewportRect.height());
-            object.key("width").value(mViewportRect.width());
-            object.key("y").value(mViewportRect.top);
-            object.key("x").value(mViewportRect.left);
-            return object.endObject().toString();
-        } catch (JSONException je) {
-            Log.e(LOGTAG, "Error serializing viewportmetrics", je);
-            return "";
-        }
+        return "{ \"x\" : " + mViewportRect.left +
+               ", \"y\" : " + mViewportRect.top +
+               ", \"width\" : " + mViewportRect.width() +
+               ", \"height\" : " + mViewportRect.height() +
+               ", \"pageWidth\" : " + mPageSize.width +
+               ", \"pageHeight\" : " + mPageSize.height +
+               ", \"offsetX\" : " + mViewportOffset.x +
+               ", \"offsetY\" : " + mViewportOffset.y +
+               ", \"zoom\" : " + mZoomFactor +
+               " }";
     }
 }
 

@@ -38,7 +38,6 @@
 
 package org.mozilla.gecko;
 
-import java.lang.CharSequence;
 import java.util.ArrayList;
 
 import android.os.Build;
@@ -132,12 +131,8 @@ public class GeckoPreferences
     public boolean onPreferenceChange(Preference preference, Object newValue) {
         String prefName = preference.getKey();
         setPreference(prefName, newValue);
-        if (preference instanceof ListPreference) {
-            // We need to find the entry for the new value
-            int newIndex = ((ListPreference)preference).findIndexOfValue((String) newValue);
-            CharSequence newEntry = ((ListPreference)preference).getEntries()[newIndex];
-            ((ListPreference)preference).setSummary(newEntry);
-        }
+        if (preference instanceof ListPreference)
+            ((ListPreference)preference).setSummary((String)newValue);
         if (preference instanceof LinkPreference)
             finish();
         return true;
@@ -182,9 +177,6 @@ public class GeckoPreferences
                     GeckoAppShell.getMainHandler().post(new Runnable() {
                         public void run() {
                             ((ListPreference)pref).setValue(value);
-                            // Set the summary string to the current entry
-                            CharSequence selectedEntry = ((ListPreference)pref).getEntry();
-                            ((ListPreference)pref).setSummary(selectedEntry);
                         }
                     });
                 }
