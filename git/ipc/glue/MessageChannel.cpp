@@ -359,9 +359,6 @@ MessageChannel::Connected() const
 bool
 MessageChannel::CanSend() const
 {
-    if (!mMonitor) {
-        return false;
-    }
     MonitorAutoLock lock(*mMonitor);
     return Connected();
 }

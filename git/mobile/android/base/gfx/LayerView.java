@@ -318,6 +318,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
 
     public void setInputConnectionHandler(InputConnectionHandler inputConnectionHandler) {
         mInputConnectionHandler = inputConnectionHandler;
+        mLayerClient.forceRedraw(null);
     }
 
     @Override

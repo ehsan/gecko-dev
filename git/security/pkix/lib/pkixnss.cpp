@@ -39,7 +39,7 @@ namespace mozilla { namespace pkix {
 
 typedef ScopedPtr<SECKEYPublicKey, SECKEY_DestroyPublicKey> ScopedSECKeyPublicKey;
 
-static Result
+Result
 CheckPublicKeySize(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
                    /*out*/ ScopedSECKeyPublicKey& publicKey)
 {
@@ -59,18 +59,18 @@ CheckPublicKeySize(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
     case ecKey:
       // TODO(bug 1077790): We should check which curve.
       return Success;
+    case dsaKey: // fall through
     case rsaKey:
       if (SECKEY_PublicKeyStrengthInBits(publicKey.get()) < minimumNonECCBits) {
         return Result::ERROR_INADEQUATE_KEY_SIZE;
       }
       break;
-    case dsaKey: // fall through
-    case nullKey: // fall through
-    case fortezzaKey: // fall through
-    case dhKey: // fall through
-    case keaKey: // fall through
-    case rsaPssKey: // fall through
-    case rsaOaepKey: // fall through
+    case nullKey:
+    case fortezzaKey:
+    case dhKey:
+    case keaKey:
+    case rsaPssKey:
+    case rsaOaepKey:
     default:
       return Result::ERROR_UNSUPPORTED_KEYALG;
   }
@@ -79,16 +79,16 @@ CheckPublicKeySize(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
 }
 
 Result
-CheckPublicKeyNSS(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits)
+CheckPublicKey(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits)
 {
   ScopedSECKeyPublicKey unused;
   return CheckPublicKeySize(subjectPublicKeyInfo, minimumNonECCBits, unused);
 }
 
 Result
-VerifySignedDataNSS(const SignedDataWithSignature& sd,
-                    Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
-                    void* pkcs11PinArg)
+VerifySignedData(const SignedDataWithSignature& sd,
+                 Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
+                 void* pkcs11PinArg)
 {
   SECOidTag pubKeyAlg;
   SECOidTag digestAlg;
@@ -125,10 +125,10 @@ VerifySignedDataNSS(const SignedDataWithSignature& sd,
       pubKeyAlg = SEC_OID_PKCS1_RSA_ENCRYPTION;
       digestAlg = SEC_OID_SHA1;
       break;
-    case SignatureAlgorithm::unsupported_algorithm: // fall through
+    case SignatureAlgorithm::unsupported_algorithm:
     default:
-      return NotReached("unknown signature algorithm",
-                        Result::ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED);
+      PR_NOT_REACHED("unknown signature algorithm");
+      return Result::ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED;
   }
 
   Result rv;
@@ -159,12 +159,13 @@ VerifySignedDataNSS(const SignedDataWithSignature& sd,
 }
 
 Result
-DigestBufNSS(Input item, /*out*/ uint8_t* digestBuf, size_t digestBufLen)
+DigestBuf(Input item, /*out*/ uint8_t* digestBuf, size_t digestBufLen)
 {
   static_assert(TrustDomain::DIGEST_LENGTH == SHA1_LENGTH,
                 "TrustDomain::DIGEST_LENGTH must be 20 (SHA-1 digest length)");
   if (digestBufLen != TrustDomain::DIGEST_LENGTH) {
-    return NotReached("invalid hash length", Result::FATAL_ERROR_INVALID_ARGS);
+    PR_NOT_REACHED("invalid hash length");
+    return Result::FATAL_ERROR_INVALID_ARGS;
   }
   SECItem itemSECItem = UnsafeMapInputToSECItem(item);
   if (itemSECItem.len >

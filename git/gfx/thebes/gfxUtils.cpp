@@ -1438,19 +1438,17 @@ gfxUtils::CopyAsDataURI(DrawTarget* aDT)
   }
 }
 
+#ifdef MOZ_DUMP_PAINTING
+static bool sDumpPaintList = getenv("MOZ_DUMP_PAINT_LIST") != 0;
+
 /* static */ bool
-gfxUtils::DumpDisplayList() {
-  return gfxPrefs::LayoutDumpDisplayList();
+gfxUtils::DumpPaintList() {
+  return sDumpPaintList || gfxPrefs::LayoutDumpDisplayList();
 }
 
-FILE *gfxUtils::sDumpPaintFile = stderr;
-
-#ifdef MOZ_DUMP_PAINTING
 bool gfxUtils::sDumpPainting = getenv("MOZ_DUMP_PAINT") != 0;
 bool gfxUtils::sDumpPaintingToFile = getenv("MOZ_DUMP_PAINT_TO_FILE") != 0;
-#else
-bool gfxUtils::sDumpPainting = false;
-bool gfxUtils::sDumpPaintingToFile = false;
+FILE *gfxUtils::sDumpPaintFile = nullptr;
 #endif
 
 namespace mozilla {

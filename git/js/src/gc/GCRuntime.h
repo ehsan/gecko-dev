@@ -836,7 +836,7 @@ class GCRuntime
 
     bool poked;
 
-    mozilla::Atomic<js::HeapState> heapState;
+    volatile js::HeapState heapState;
 
     /*
      * ForkJoin workers enter and leave GC independently; this counter

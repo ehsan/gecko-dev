@@ -3266,9 +3266,7 @@ nsHttpChannel::OnCacheEntryAvailable(nsICacheEntry *entry,
     nsresult rv;
 
     LOG(("nsHttpChannel::OnCacheEntryAvailable [this=%p entry=%p "
-         "new=%d appcache=%p status=%x mAppCache=%p mAppCacheForWrite=%p]\n",
-         this, entry, aNew, aAppCache, status,
-         mApplicationCache.get(), mApplicationCacheForWrite.get()));
+         "new=%d appcache=%p status=%x]\n", this, entry, aNew, aAppCache, status));
 
     // if the channel's already fired onStopRequest, then we should ignore
     // this event.
@@ -3378,11 +3376,10 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntry *aEntry,
 
     nsresult rv;
 
-    if (NS_SUCCEEDED(aEntryStatus)) {
-        if (!mApplicationCache) {
-            mApplicationCache = aAppCache;
-        }
+    if (!mApplicationCache)
+        mApplicationCache = aAppCache;
 
+    if (NS_SUCCEEDED(aEntryStatus)) {
         // We successfully opened an offline cache session and the entry,
         // so indicate we will load from the offline cache.
         mLoadedFromApplicationCache = true;
@@ -3399,10 +3396,6 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntry *aEntry,
     }
 
     if (!mApplicationCacheForWrite && !mFallbackChannel) {
-        if (!mApplicationCache) {
-            mApplicationCache = aAppCache;
-        }
-
         // Check for namespace match.
         nsCOMPtr<nsIApplicationCacheNamespace> namespaceEntry;
         rv = mApplicationCache->GetMatchingNamespace(mSpec,
