@@ -156,7 +156,7 @@ let CommandUtils = {
       chromeWindow: chromeDocument.defaultView,
 
       document: contentDocument,
-      window: contentDocument != null ? contentDocument.defaultView : undefined
+      window: contentDocument.defaultView
     };
 
     Object.defineProperty(environment, "target", {

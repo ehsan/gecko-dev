@@ -320,9 +320,8 @@ Toolbox.prototype = {
     }
 
     let toolbarSpec = CommandUtils.getCommandbarSpec("devtools.toolbox.toolbarSpec");
-    let env = CommandUtils.createEnvironment(this.target.tab.ownerDocument,
-                                             this.target.window.document);
-    let requisition = new Requisition(env);
+    let environment = { chromeDocument: this.target.tab.ownerDocument };
+    let requisition = new Requisition(environment);
 
     let buttons = CommandUtils.createButtons(toolbarSpec, this._target, this.doc, requisition);
 

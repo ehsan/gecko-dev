@@ -3019,7 +3019,7 @@ this.DOMApplicationRegistry = {
 
   },
 
-  _notifyCategoryAndObservers: function(subject, topic, data,  msg) {
+  _notifyCategoryAndObservers: function(subject, topic, data) {
     const serviceMarker = "service,";
 
     // First create observers from the category manager.
@@ -3068,8 +3068,6 @@ this.DOMApplicationRegistry = {
         observer.observe(subject, topic, data);
       } catch(e) { }
     });
-    // Send back an answer to the child.
-    ppmm.broadcastAsyncMessage("Webapps:ClearBrowserData:Return", msg);
   },
 
   registerBrowserElementParentForApp: function(bep, appId) {
@@ -3086,18 +3084,18 @@ this.DOMApplicationRegistry = {
   receiveAppMessage: function(appId, message) {
     switch (message.name) {
       case "Webapps:ClearBrowserData":
-        this._clearPrivateData(appId, true, message.data);
+        this._clearPrivateData(appId, true);
         break;
     }
   },
 
-  _clearPrivateData: function(appId, browserOnly, msg) {
+  _clearPrivateData: function(appId, browserOnly) {
     let subject = {
       appId: appId,
       browserOnly: browserOnly,
       QueryInterface: XPCOMUtils.generateQI([Ci.mozIApplicationClearPrivateDataParams])
     };
-    this._notifyCategoryAndObservers(subject, "webapps-clear-data", null, msg);
+    this._notifyCategoryAndObservers(subject, "webapps-clear-data", null);
   }
 };
 
