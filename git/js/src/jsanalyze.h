@@ -45,9 +45,9 @@
 #include "jscntxt.h"
 #include "jsinfer.h"
 #include "jsscript.h"
+#include "jstl.h"
 
 #include "ds/LifoAlloc.h"
-#include "js/TemplateLib.h"
 
 struct JSScript;
 
@@ -524,9 +524,8 @@ struct Lifetime
 };
 
 /* Basic information for a loop. */
-class LoopAnalysis
+struct LoopAnalysis
 {
-  public:
     /* Any loop this one is nested in. */
     LoopAnalysis *parent;
 
@@ -848,12 +847,10 @@ SSAValue::phiTypes() const
     return &u.phi.node->types;
 }
 
-class SSAUseChain
+struct SSAUseChain
 {
-  public:
     bool popped : 1;
     uint32 offset : 31;
-    /* FIXME: Assert that only the proper arm of this union is accessed. */
     union {
         uint32 which;
         SSAPhiNode *phi;
@@ -863,9 +860,8 @@ class SSAUseChain
     SSAUseChain() { PodZero(this); }
 };
 
-class SlotValue
+struct SlotValue
 {
-  public:
     uint32 slot;
     SSAValue value;
     SlotValue(uint32 slot, const SSAValue &value) : slot(slot), value(value) {}
@@ -1263,29 +1259,23 @@ class ScriptAnalysis
 };
 
 /* Protect analysis structures from GC while they are being used. */
-class AutoEnterAnalysis
+struct AutoEnterAnalysis
 {
-    JSCompartment *compartment;
+    JSContext *cx;
     bool oldActiveAnalysis;
     bool left;
 
-    void construct(JSCompartment *compartment)
+    AutoEnterAnalysis(JSContext *cx)
+        : cx(cx), oldActiveAnalysis(cx->compartment->activeAnalysis), left(false)
     {
-        this->compartment = compartment;
-        oldActiveAnalysis = compartment->activeAnalysis;
-        compartment->activeAnalysis = true;
-        left = false;
+        cx->compartment->activeAnalysis = true;
     }
-
-  public:
-    AutoEnterAnalysis(JSContext *cx) { construct(cx->compartment); }
-    AutoEnterAnalysis(JSCompartment *compartment) { construct(compartment); }
 
     void leave()
     {
         if (!left) {
             left = true;
-            compartment->activeAnalysis = oldActiveAnalysis;
+            cx->compartment->activeAnalysis = oldActiveAnalysis;
         }
     }
 

@@ -924,8 +924,11 @@ JSCompartment::markTrapClosuresIteratively(JSTracer *trc)
     for (BreakpointSiteMap::Range r = breakpointSites.all(); !r.empty(); r.popFront()) {
         BreakpointSite *site = r.front().value;
 
-        // Put off marking trap state until we know the script is live.
-        if (site->trapHandler && !IsAboutToBeFinalized(cx, site->script)) {
+        // Mark jsdbgapi state if any. But if we know the scriptObject, put off
+        // marking trap state until we know the scriptObject is live.
+        if (site->trapHandler &&
+            (!site->scriptObject || !IsAboutToBeFinalized(cx, site->scriptObject)))
+        {
             if (site->trapClosure.isMarkable() &&
                 IsAboutToBeFinalized(cx, site->trapClosure.toGCThing()))
             {
@@ -942,19 +945,21 @@ JSCompartment::sweepBreakpoints(JSContext *cx)
 {
     for (BreakpointSiteMap::Enum e(breakpointSites); !e.empty(); e.popFront()) {
         BreakpointSite *site = e.front().value;
-        // clearTrap and nextbp are necessary here to avoid possibly
-        // reading *site or *bp after destroying it.
-        bool scriptGone = IsAboutToBeFinalized(cx, site->script);
-        bool clearTrap = scriptGone && site->hasTrap();
-        
-        Breakpoint *nextbp;
-        for (Breakpoint *bp = site->firstBreakpoint(); bp; bp = nextbp) {
-            nextbp = bp->nextInSite();
-            if (scriptGone || IsAboutToBeFinalized(cx, bp->debugger->toJSObject()))
-                bp->destroy(cx, &e);
+        if (site->scriptObject) {
+            // clearTrap and nextbp are necessary here to avoid possibly
+            // reading *site or *bp after destroying it.
+            bool scriptGone = IsAboutToBeFinalized(cx, site->scriptObject);
+            bool clearTrap = scriptGone && site->hasTrap();
+
+            Breakpoint *nextbp;
+            for (Breakpoint *bp = site->firstBreakpoint(); bp; bp = nextbp) {
+                nextbp = bp->nextInSite();
+                if (scriptGone || IsAboutToBeFinalized(cx, bp->debugger->toJSObject()))
+                    bp->destroy(cx, &e);
+            }
+
+            if (clearTrap)
+                site->clearTrap(cx, &e);
         }
-        
-        if (clearTrap)
-            site->clearTrap(cx, &e);
     }
 }

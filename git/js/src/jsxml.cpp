@@ -46,6 +46,7 @@
 #include <string.h>
 #include "jstypes.h"
 #include "jsstdint.h"
+#include "jsbit.h"
 #include "jsprf.h"
 #include "jsutil.h"
 #include "jsapi.h"
@@ -67,6 +68,7 @@
 #include "jsstr.h"
 #include "jsxml.h"
 #include "jsstaticcheck.h"
+#include "jsvector.h"
 
 #include "vm/GlobalObject.h"
 
@@ -1680,14 +1682,6 @@ GetXMLSettingFlags(JSContext *cx, uintN *flagsp)
     return true;
 }
 
-static JSObject *
-GetCurrentScopeChain(JSContext *cx)
-{
-    if (cx->hasfp())
-        return &cx->fp()->scopeChain();
-    return JS_ObjectToInnerObject(cx, cx->globalObject);
-}
-
 static JSXML *
 ParseXMLSource(JSContext *cx, JSString *src)
 {
@@ -1762,12 +1756,11 @@ ParseXMLSource(JSContext *cx, JSString *src)
     {
         Parser parser(cx);
         if (parser.init(chars, length, filename, lineno, cx->findVersion())) {
-            JSObject *scopeChain = GetCurrentScopeChain(cx);
+            JSObject *scopeChain = GetScopeChain(cx);
             if (!scopeChain) {
                 cx->free_(chars);
-                return false;
+                return NULL;
             }
-
             JSParseNode *pn = parser.parseXMLText(scopeChain, false);
             uintN flags;
             if (pn && GetXMLSettingFlags(cx, &flags)) {
@@ -2815,33 +2808,24 @@ ReportBadXMLName(JSContext *cx, const Value &idval)
     js_ReportValueError(cx, JSMSG_BAD_XML_NAME, JSDVG_IGNORE_STACK, idval, NULL);
 }
 
-namespace js {
-
-bool
-GetLocalNameFromFunctionQName(JSObject *qn, JSAtom **namep, JSContext *cx)
+static bool
+GetLocalNameFromFunctionQName(JSObject *qn, jsid *funidp, JSContext *cx)
 {
     JSAtom *atom = cx->runtime->atomState.functionNamespaceURIAtom;
     JSLinearString *uri = qn->getNameURI();
     if (uri && (uri == atom || EqualStrings(uri, atom))) {
-        *namep = qn->getQNameLocalName();
+        *funidp = ATOM_TO_JSID(qn->getQNameLocalName());
         return true;
     }
     return false;
 }
-
-} /* namespace js */
 
 bool
 js_GetLocalNameFromFunctionQName(JSObject *obj, jsid *funidp, JSContext *cx)
 {
     if (!obj->isQName())
         return false;
-    JSAtom *name;
-    if (GetLocalNameFromFunctionQName(obj, &name, cx)) {
-        *funidp = ATOM_TO_JSID(name);
-        return true;
-    }
-    return false;
+    return GetLocalNameFromFunctionQName(obj, funidp, cx);
 }
 
 static JSObject *
@@ -2909,10 +2893,8 @@ construct:
         return NULL;
 
 out:
-    JSAtom *localName;
-    *funidp = GetLocalNameFromFunctionQName(obj, &localName, cx)
-              ? ATOM_TO_JSID(localName)
-              : JSID_VOID;
+    if (!GetLocalNameFromFunctionQName(obj, funidp, cx))
+        *funidp = JSID_VOID;
     return obj;
 
 bad:
@@ -7474,9 +7456,7 @@ js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
     JSObject *ns, *obj, *tmp;
     jsval v;
 
-    JSObject *scopeChain = GetCurrentScopeChain(cx);
-    if (!scopeChain)
-        return false;
+    JSObject *scopeChain = GetScopeChain(cx);
 
     obj = NULL;
     for (tmp = scopeChain; tmp; tmp = tmp->getParent()) {
@@ -7638,11 +7618,8 @@ js_FindXMLProperty(JSContext *cx, const Value &nameval, JSObject **objp, jsid *i
     }
 
     qn = nameobj;
-
-    JSAtom *name;
-    funid = GetLocalNameFromFunctionQName(qn, &name, cx)
-            ? ATOM_TO_JSID(name)
-            : JSID_VOID;
+    if (!GetLocalNameFromFunctionQName(qn, &funid, cx))
+        funid = JSID_VOID;
 
     obj = cx->stack.currentScriptedScopeChain();
     do {

@@ -53,6 +53,7 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
+#include "jsvector.h"
 
 #include "vm/GlobalObject.h"
 

@@ -145,10 +145,7 @@ public:
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
   NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
-  NS_IMETHOD              Invalidate(bool aIsSynchronous, 
-                                     bool aEraseBackground = false,
-                                     bool aUpdateNCArea = false,
-                                     bool aIncludeChildren = false);
+  NS_IMETHOD              Invalidate(bool aIsSynchronous);
   NS_IMETHOD              Invalidate(const nsIntRect & aRect, bool aIsSynchronous);
   NS_IMETHOD              Update();
   virtual void*           GetNativeData(PRUint32 aDataType);
@@ -242,9 +239,7 @@ public:
    */
   static void             GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
   nsWindow*               GetTopLevelWindow(bool aStopOnDialogOrPopup);
-  static HWND             GetTopLevelHWND(HWND aWnd, 
-                                          bool aStopIfNotChild = false, 
-                                          bool aStopIfNotPopup = true);
+  static HWND             GetTopLevelHWND(HWND aWnd, bool aStopOnDialogOrPopup = false);
   HWND                    GetWindowHandle() { return mWnd; }
   WNDPROC                 GetPrevWindowProc() { return mPrevWndProc; }
   static nsWindow*        GetNSWindowPtr(HWND aWnd);

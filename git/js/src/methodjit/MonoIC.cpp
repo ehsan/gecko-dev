@@ -52,8 +52,6 @@
 #include "InlineFrameAssembler.h"
 #include "jsobj.h"
 
-#include "builtin/RegExp.h"
-
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
@@ -243,7 +241,7 @@ AttachSetGlobalNameStub(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, cons
     linker.link(guard, ic->slowPathStart);
     linker.link(isFun, ic->slowPathStart);
 
-    JSC::CodeLocationLabel cs = linker.finalize(f);
+    JSC::CodeLocationLabel cs = linker.finalize();
     JaegerSpew(JSpew_PICs, "generated setgname stub at %p\n", cs.executableAddress());
 
     Repatcher repatcher(f.jit());
@@ -501,7 +499,7 @@ class EqualityCompiler : public BaseCompiler
         buffer.link(trueJump, ic.target);
         buffer.link(falseJump, ic.fallThrough);
 
-        CodeLocationLabel cs = buffer.finalize(f);
+        CodeLocationLabel cs = buffer.finalize();
 
         /* Jump to the newly generated code instead of to the IC. */
         repatcher.relink(ic.jumpToStub, cs);
@@ -736,7 +734,7 @@ class CallCompiler : public BaseCompiler
 
         /* funPtrReg is still valid. Check if a compilation is needed. */
         Address scriptAddr(ic.funPtrReg, offsetof(JSFunction, u) +
-                           offsetof(JSFunction::U::Scripted, script_));
+                           offsetof(JSFunction::U::Scripted, script));
         masm.loadPtr(scriptAddr, t0);
 
         /*
@@ -803,7 +801,7 @@ class CallCompiler : public BaseCompiler
         }
 
         linker.link(notCompiled, ic.slowPathStart.labelAtOffset(ic.slowJoinOffset));
-        JSC::CodeLocationLabel cs = linker.finalize(f);
+        JSC::CodeLocationLabel cs = linker.finalize();
 
         JaegerSpew(JSpew_PICs, "generated CALL stub %p (%lu bytes)\n", cs.executableAddress(),
                    (unsigned long) masm.size());
@@ -889,7 +887,7 @@ class CallCompiler : public BaseCompiler
         linker.link(claspGuard, ic.slowPathStart);
         linker.link(funGuard, ic.slowPathStart);
         linker.link(done, ic.funGuard.labelAtOffset(ic.hotPathOffset));
-        JSC::CodeLocationLabel cs = linker.finalize(f);
+        JSC::CodeLocationLabel cs = linker.finalize();
 
         JaegerSpew(JSpew_PICs, "generated CALL closure stub %p (%lu bytes)\n",
                    cs.executableAddress(), (unsigned long) masm.size());
@@ -1041,8 +1039,8 @@ class CallCompiler : public BaseCompiler
          * break inferred types for the call's result and any subsequent test,
          * as RegExp.exec has a type handler with unknown result.
          */
-        if (native == regexp_exec && !CallResultEscapes(f.pc()))
-            native = regexp_test;
+        if (native == js_regexp_exec && !CallResultEscapes(f.pc()))
+            native = js_regexp_test;
 
         masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, native), false);
 
@@ -1063,7 +1061,7 @@ class CallCompiler : public BaseCompiler
         ic.fastGuardedNative = obj;
 
         linker.link(funGuard, ic.slowPathStart);
-        JSC::CodeLocationLabel start = linker.finalize(f);
+        JSC::CodeLocationLabel start = linker.finalize();
 
         JaegerSpew(JSpew_PICs, "generated native CALL stub %p (%lu bytes)\n",
                    start.executableAddress(), (unsigned long) masm.size());
@@ -1358,7 +1356,7 @@ ic::GenerateArgumentCheckStub(VMFrame &f)
         linker.link(mismatches[i], jit->argsCheckStub);
     linker.link(done, jit->argsCheckFallthrough);
 
-    JSC::CodeLocationLabel cs = linker.finalize(f);
+    JSC::CodeLocationLabel cs = linker.finalize();
 
     JaegerSpew(JSpew_PICs, "generated ARGS CHECK stub %p (%lu bytes)\n",
                cs.executableAddress(), (unsigned long)masm.size());

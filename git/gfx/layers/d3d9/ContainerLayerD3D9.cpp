@@ -247,14 +247,12 @@ ContainerRender(Container* aContainer,
          aContainer->mParent->SupportsComponentAlphaChildren());
   }
 
-  nsAutoTArray<Layer*, 12> children;
-  aContainer->SortChildrenBy3DZOrder(children);
-
   /*
    * Render this container's contents.
    */
-  for (PRUint32 i = 0; i < children.Length(); i++) {
-    LayerD3D9* layerToRender = static_cast<LayerD3D9*>(children.ElementAt(i)->ImplData());
+  for (LayerD3D9* layerToRender = aContainer->GetFirstChildD3D9();
+       layerToRender != nsnull;
+       layerToRender = GetNextSiblingD3D9(layerToRender)) {
 
     if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
       continue;

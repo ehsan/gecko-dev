@@ -56,6 +56,7 @@
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsgcmark.h"
+#include "jshashtable.h"
 #include "jsinterp.h"
 #include "jsiter.h"
 #include "jslock.h"
@@ -67,6 +68,7 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstaticcheck.h"
+#include "jsvector.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"
@@ -175,17 +177,6 @@ Enumerate(JSContext *cx, JSObject *obj, JSObject *pobj, jsid id,
           bool enumerable, uintN flags, IdSet& ht, AutoIdVector *props)
 {
     JS_ASSERT_IF(flags & JSITER_OWNONLY, obj == pobj);
-
-    /*
-     * We implement __proto__ using a property on |Object.prototype|, but
-     * because __proto__ is highly deserving of removal, we don't want it to
-     * show up in property enumeration, even if only for |Object.prototype|
-     * (think introspection by Prototype-like frameworks that add methods to
-     * the built-in prototypes).  So exclude __proto__ if the object where the
-     * property was found has no [[Prototype]] and might be |Object.prototype|.
-     */
-    if (JS_UNLIKELY(!pobj->getProto() && JSID_IS_ATOM(id, cx->runtime->atomState.protoAtom)))
-        return true;
 
     if (!(flags & JSITER_OWNONLY) || pobj->isProxy() || pobj->getOps()->enumerate) {
         /* If we've already seen this, we definitely won't add it. */
@@ -936,31 +927,18 @@ js_SuppressDeletedElement(JSContext *cx, JSObject *obj, uint32 index)
 }
 
 class IndexRangePredicate {
-    uint32 begin, end;
-
-  public:
-    IndexRangePredicate(uint32 begin, uint32 end) : begin(begin), end(end) {}
+    jsint begin, end;
+public:
+    IndexRangePredicate(jsint begin, jsint end) : begin(begin), end(end) {}
 
     bool operator()(jsid id) {
-        if (JSID_IS_INT(id)) {
-            jsint i = JSID_TO_INT(id);
-            return i > 0 && begin <= uint32(i) && uint32(i) < end;
-        }
-
-        if (JS_LIKELY(JSID_IS_ATOM(id))) {
-            JSAtom *atom = JSID_TO_ATOM(id);
-            uint32 index;
-            return atom->isIndex(&index) && begin <= index && index < end;
-        }
-
-        return false;
+        return JSID_IS_INT(id) && begin <= JSID_TO_INT(id) && JSID_TO_INT(id) < end;
     }
-
     bool matchesAtMostOne() { return false; }
 };
 
 bool
-js_SuppressDeletedElements(JSContext *cx, JSObject *obj, uint32 begin, uint32 end)
+js_SuppressDeletedIndexProperties(JSContext *cx, JSObject *obj, jsint begin, jsint end)
 {
     return SuppressDeletedPropertyHelper(cx, obj, IndexRangePredicate(begin, end));
 }

@@ -94,18 +94,6 @@ nsAccDocManager::FindAccessibleInCache(nsINode* aNode) const
   return arg.mAccessible;
 }
 
-#ifdef DEBUG
-bool
-nsAccDocManager::IsProcessingRefreshDriverNotification() const
-{
-  bool isDocRefreshing = false;
-  mDocAccessibleCache.EnumerateRead(SearchIfDocIsRefreshing,
-                                    static_cast<void*>(&isDocRefreshing));
-
-  return isDocRefreshing;
-}
-#endif
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccDocManager protected
@@ -479,22 +467,3 @@ nsAccDocManager::SearchAccessibleInDocCache(const nsIDocument* aKey,
 
   return PL_DHASH_NEXT;
 }
-
-#ifdef DEBUG
-PLDHashOperator
-nsAccDocManager::SearchIfDocIsRefreshing(const nsIDocument* aKey,
-                                         nsDocAccessible* aDocAccessible,
-                                         void* aUserArg)
-{
-  NS_ASSERTION(aDocAccessible,
-               "No doc accessible for the object in doc accessible cache!");
-
-  if (aDocAccessible && aDocAccessible->mNotificationController &&
-      aDocAccessible->mNotificationController->IsUpdating()) {
-    *(static_cast<bool*>(aUserArg)) = true;
-    return PL_DHASH_STOP;
-  }
-
-  return PL_DHASH_NEXT;
-}
-#endif

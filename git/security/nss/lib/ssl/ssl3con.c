@@ -39,7 +39,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: ssl3con.c,v 1.152 2011/10/01 03:59:54 bsmith%mozilla.com Exp $ */
+/* $Id: ssl3con.c,v 1.151 2011/07/26 02:13:37 wtc%google.com Exp $ */
 
 #include "cert.h"
 #include "ssl.h"
@@ -2037,22 +2037,24 @@ ssl3_ClientAuthTokenPresent(sslSessionID *sid) {
     return isPresent;
 }
 
-/* Caller must hold the spec read lock. */
 static SECStatus
-ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
-		              PRBool             isServer,
+ssl3_CompressMACEncryptRecord(sslSocket *        ss,
                               SSL3ContentType    type,
 		              const SSL3Opaque * pIn,
-		              PRUint32           contentLen,
-		              sslBuffer *        wrBuf)
+		              PRUint32           contentLen)
 {
+    ssl3CipherSpec *          cwSpec;
     const ssl3BulkCipherDef * cipher_def;
+    sslBuffer      *          wrBuf 	  = &ss->sec.writeBuf;
     SECStatus                 rv;
     PRUint32                  macLen      = 0;
     PRUint32                  fragLen;
     PRUint32  p1Len, p2Len, oddLen = 0;
     PRInt32   cipherBytes =  0;
 
+    ssl_GetSpecReadLock(ss);	/********************************/
+
+    cwSpec = ss->ssl3.cwSpec;
     cipher_def = cwSpec->cipher_def;
 
     if (cwSpec->compressor) {
@@ -2069,12 +2071,12 @@ ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
     /*
      * Add the MAC
      */
-    rv = ssl3_ComputeRecordMAC( cwSpec, isServer,
+    rv = ssl3_ComputeRecordMAC( cwSpec, (PRBool)(ss->sec.isServer),
 	type, cwSpec->version, cwSpec->write_seq_num, pIn, contentLen,
 	wrBuf->buf + contentLen + SSL3_RECORD_HEADER_LENGTH, &macLen);
     if (rv != SECSuccess) {
 	ssl_MapLowLevelError(SSL_ERROR_MAC_COMPUTATION_FAILURE);
-	return SECFailure;
+	goto spec_locked_loser;
     }
     p1Len   = contentLen;
     p2Len   = macLen;
@@ -2127,7 +2129,7 @@ ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
 	PORT_Assert(rv == SECSuccess && cipherBytes == p1Len);
 	if (rv != SECSuccess || cipherBytes != p1Len) {
 	    PORT_SetError(SSL_ERROR_ENCRYPTION_FAILURE);
-	    return SECFailure;
+	    goto spec_locked_loser;
 	}
     }
     if (p2Len > 0) {
@@ -2141,7 +2143,7 @@ ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
 	PORT_Assert(rv == SECSuccess && cipherBytesPart2 == p2Len);
 	if (rv != SECSuccess || cipherBytesPart2 != p2Len) {
 	    PORT_SetError(SSL_ERROR_ENCRYPTION_FAILURE);
-	    return SECFailure;
+	    goto spec_locked_loser;
 	}
 	cipherBytes += cipherBytesPart2;
     }	
@@ -2156,7 +2158,13 @@ ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
     wrBuf->buf[3] = MSB(cipherBytes);
     wrBuf->buf[4] = LSB(cipherBytes);
 
+    ssl_ReleaseSpecReadLock(ss); /************************************/
+
     return SECSuccess;
+
+spec_locked_loser:
+    ssl_ReleaseSpecReadLock(ss);
+    return SECFailure;
 }
 
 /* Process the plain text before sending it.
@@ -2217,76 +2225,28 @@ ssl3_SendRecord(   sslSocket *        ss,
 
     while (nIn > 0) {
 	PRUint32  contentLen = PR_MIN(nIn, MAX_FRAGMENT_LENGTH);
-	unsigned int spaceNeeded;
-	unsigned int numRecords;
 
-	ssl_GetSpecReadLock(ss);    /********************************/
-
-	if (nIn > 1 && ss->opt.cbcRandomIV &&
-	    ss->ssl3.cwSpec->version <= SSL_LIBRARY_VERSION_3_1_TLS &&
-	    type == content_application_data &&
-	    ss->ssl3.cwSpec->cipher_def->type == type_block /* CBC mode */) {
-	    /* We will split the first byte of the record into its own record,
-	     * as explained in the documentation for SSL_CBC_RANDOM_IV in ssl.h
-	     */
-	    numRecords = 2;
-	} else {
-	    numRecords = 1;
-	}
-
-	spaceNeeded = contentLen + (numRecords * SSL3_BUFFER_FUDGE);
-	if (spaceNeeded > wrBuf->space) {
-	    rv = sslBuffer_Grow(wrBuf, spaceNeeded);
+	if (wrBuf->space < contentLen + SSL3_BUFFER_FUDGE) {
+	    PRInt32 newSpace = PR_MAX(wrBuf->space * 2, contentLen);
+	    newSpace = PR_MIN(newSpace, MAX_FRAGMENT_LENGTH);
+	    newSpace += SSL3_BUFFER_FUDGE;
+	    rv = sslBuffer_Grow(wrBuf, newSpace);
 	    if (rv != SECSuccess) {
 		SSL_DBG(("%d: SSL3[%d]: SendRecord, tried to get %d bytes",
-			 SSL_GETPID(), ss->fd, spaceNeeded));
-		goto spec_locked_loser; /* sslBuffer_Grow set error code. */
+			 SSL_GETPID(), ss->fd, newSpace));
+		return SECFailure; /* sslBuffer_Grow set a memory error code. */
 	    }
 	}
 
-	if (numRecords == 2) {
-	    sslBuffer secondRecord;
-
-	    rv = ssl3_CompressMACEncryptRecord(ss->ssl3.cwSpec,
-	                                       ss->sec.isServer, type, pIn, 1,
-	                                       wrBuf);
-	    if (rv != SECSuccess)
-	        goto spec_locked_loser;
-
-	    PRINT_BUF(50, (ss, "send (encrypted) record data [1/2]:",
-	                   wrBuf->buf, wrBuf->len));
-
-	    secondRecord.buf = wrBuf->buf + wrBuf->len;
-	    secondRecord.len = 0;
-	    secondRecord.space = wrBuf->space - wrBuf->len;
-
-	    rv = ssl3_CompressMACEncryptRecord(ss->ssl3.cwSpec,
-	                                       ss->sec.isServer, type, pIn + 1,
-	                                       contentLen - 1, &secondRecord);
-	    if (rv == SECSuccess) {
-	        PRINT_BUF(50, (ss, "send (encrypted) record data [2/2]:",
-	                       secondRecord.buf, secondRecord.len));
-	        wrBuf->len += secondRecord.len;
-	    }
-	} else {
-	    rv = ssl3_CompressMACEncryptRecord(ss->ssl3.cwSpec,
-	                                       ss->sec.isServer, type, pIn,
-	                                       contentLen, wrBuf);
-	    if (rv == SECSuccess) {
-	        PRINT_BUF(50, (ss, "send (encrypted) record data:",
-	                       wrBuf->buf, wrBuf->len));
-	    }
-	}
-
-spec_locked_loser:
-	ssl_ReleaseSpecReadLock(ss); /************************************/
-
+	rv = ssl3_CompressMACEncryptRecord( ss, type, pIn, contentLen);
 	if (rv != SECSuccess)
 	    return SECFailure;
 
 	pIn += contentLen;
 	nIn -= contentLen;
 	PORT_Assert( nIn >= 0 );
+
+	PRINT_BUF(50, (ss, "send (encrypted) record data:", wrBuf->buf, wrBuf->len));
 
 	/* If there's still some previously saved ciphertext,
 	 * or the caller doesn't want us to send the data yet,

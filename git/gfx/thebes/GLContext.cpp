@@ -554,20 +554,6 @@ GLContext::CreateTextureImage(const nsIntSize& aSize,
     return CreateBasicTextureImage(texture, aSize, aWrapMode, aContentType, this);
 }
 
-void GLContext::ApplyFilterToBoundTexture(gfxPattern::GraphicsFilter aFilter)
-{
-    if (aFilter == gfxPattern::FILTER_NEAREST) {
-        fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_NEAREST);
-        fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_NEAREST);
-    } else {
-        if (aFilter != gfxPattern::FILTER_GOOD) {
-            NS_WARNING("Unsupported filter type!");
-        }
-        fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-       fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-    }
-}
-
 BasicTextureImage::~BasicTextureImage()
 {
     GLContext *ctx = mGLContext;
@@ -659,13 +645,6 @@ BasicTextureImage::BindTexture(GLenum aTextureUnit)
     mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
     mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
-
-void
-BasicTextureImage::ApplyFilter()
-{
-  mGLContext->ApplyFilterToBoundTexture(mFilter);
-}
-
 
 already_AddRefed<gfxASurface>
 BasicTextureImage::GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
@@ -775,6 +754,7 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
                                            aFrom + nsIntPoint(xPos, yPos));
     }
     mShaderType = mImages[0]->GetShaderProgramType();
+    mIsRGBFormat = mImages[0]->IsRGB();
     mTextureState = Valid;
     return result;
 }
@@ -887,6 +867,7 @@ TiledTextureImage::EndUpdate()
         mInUpdate = PR_FALSE;
         mTextureState = Valid;
         mShaderType = mImages[mCurrentImage]->GetShaderProgramType();
+        mIsRGBFormat = mImages[mCurrentImage]->IsRGB();
         return;
     }
 
@@ -914,6 +895,7 @@ TiledTextureImage::EndUpdate()
     mUpdateSurface = nsnull;
     mInUpdate = PR_FALSE;
     mShaderType = mImages[0]->GetShaderProgramType();
+    mIsRGBFormat = mImages[0]->IsRGB();
     mTextureState = Valid;
 }
 
@@ -944,12 +926,6 @@ void
 TiledTextureImage::BindTexture(GLenum aTextureUnit)
 {
     mImages[mCurrentImage]->BindTexture(aTextureUnit);
-}
-
-void
-TiledTextureImage::ApplyFilter()
-{
-   mGL->ApplyFilterToBoundTexture(mFilter);
 }
 
 /*

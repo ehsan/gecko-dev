@@ -313,17 +313,13 @@ ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
     return imageSurface.forget().get();
   }
 
-  if (mActiveImage->GetFormat() != Image::CAIRO_SURFACE)
-  {
-    *aSize = gfxIntSize(0, 0);
-    return nsnull;
+  if (mActiveImage->GetFormat() == Image::CAIRO_SURFACE) {
+    CairoImageOGL *cairoImage =
+      static_cast<CairoImageOGL*>(mActiveImage.get());
+    size = cairoImage->mSize;
+    gl = cairoImage->mTexture.GetGLContext();
+    tex1 = cairoImage->mTexture.GetTextureID();
   }
-
-  CairoImageOGL *cairoImage =
-    static_cast<CairoImageOGL*>(mActiveImage.get());
-  size = cairoImage->mSize;
-  gl = cairoImage->mTexture.GetGLContext();
-  tex1 = cairoImage->mTexture.GetTextureID();
 
   nsRefPtr<gfxImageSurface> s = gl->ReadTextureImage(tex1, size, LOCAL_GL_RGBA);
   *aSize = size;
@@ -432,13 +428,13 @@ ImageLayerOGL::RenderLayer(int,
 
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[0].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE1);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[1].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE2);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[2].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     
     YCbCrTextureLayerProgram *program = mOGLManager->GetYCbCrLayerProgram();
 
@@ -486,7 +482,7 @@ ImageLayerOGL::RenderLayer(int,
     ColorTextureLayerProgram *program = 
       mOGLManager->GetColorTextureLayerProgram(cairoImage->mLayerProgram);
 
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
 
     program->Activate();
     // The following uniform controls the scaling of the vertex coords.
@@ -961,23 +957,23 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     colorProgram->SetLayerOpacity(GetEffectiveOpacity());
     colorProgram->SetRenderOffset(aOffset);
 
-    mTexImage->SetFilter(mFilter);
     mTexImage->BeginTileIteration();
     do {
-      TextureImage::ScopedBindTextureAndApplyFilter texBind(mTexImage, LOCAL_GL_TEXTURE0);
+      TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
+      ApplyFilter(mFilter);
       colorProgram->SetLayerQuadRect(mTexImage->GetTileRect());
       mOGLManager->BindAndDrawQuad(colorProgram);
     } while (mTexImage->NextTile());
   } else {
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mYUVTexture[0].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE1);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mYUVTexture[1].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE2);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mYUVTexture[2].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
 
     YCbCrTextureLayerProgram *yuvProgram = mOGLManager->GetYCbCrLayerProgram();
 

@@ -147,6 +147,8 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
 
     if (passes == 2) {
       ComponentAlphaTextureLayerProgram *alphaProgram;
+      NS_ASSERTION(!mTexImage->IsRGB() && !mTexImageOnWhite->IsRGB(),
+                   "Only BGR image surported with component alpha (currently!)");
       if (pass == 1) {
         alphaProgram = aManager->GetComponentAlphaPass1LayerProgram();
         gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_ONE_MINUS_SRC_COLOR,
@@ -877,17 +879,30 @@ ShadowThebesLayerOGL::~ShadowThebesLayerOGL()
 {}
 
 void
+ShadowThebesLayerOGL::SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
+                                     const nsIntRegion& aValidRegion)
+{
+  if (mDestroyed) {
+    return;
+  }
+
+  if (!mBuffer) {
+    mBuffer = new ShadowBufferOGL(this);
+  }
+
+  NS_ASSERTION(OptionalThebesBuffer::Tnull_t == aNewFront.type(),
+               "Only one system-memory buffer expected");
+}
+
+void
 ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
                            const nsIntRegion& aUpdatedRegion,
-                           OptionalThebesBuffer* aNewBack,
+                           ThebesBuffer* aNewBack,
                            nsIntRegion* aNewBackValidRegion,
                            OptionalThebesBuffer* aReadOnlyFront,
                            nsIntRegion* aFrontUpdatedRegion)
 {
-  if (!mDestroyed) {
-    if (!mBuffer) {
-      mBuffer = new ShadowBufferOGL(this);
-    }
+  if (!mDestroyed && mBuffer) {
     nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront.buffer());
     mBuffer->Upload(surf, aUpdatedRegion, aNewFront.rect(), aNewFront.rotation());
   }

@@ -77,6 +77,7 @@
 #include "jstypedarrayinlines.h"
 #include "jsxml.h"
 #include "jsperf.h"
+#include "jshashtable.h"
 
 #include "prmjtime.h"
 
@@ -2735,7 +2736,7 @@ Clone(JSContext *cx, uintN argc, jsval *vp)
     }
     if (funobj->compartment() != cx->compartment) {
         JSFunction *fun = funobj->getFunctionPrivate();
-        if (fun->isInterpreted() && fun->script()->compileAndGo) {
+        if (fun->isInterpreted() && fun->u.i.script->compileAndGo) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
                                  "function", "compile-and-go");
             return JS_FALSE;

@@ -42,6 +42,7 @@
 
 #include "jsanalyze.h"
 #include "jscntxt.h"
+#include "jstl.h"
 #include "MethodJIT.h"
 #include "CodeGenIncludes.h"
 #include "BaseCompiler.h"
@@ -390,7 +391,6 @@ class Compiler : public BaseCompiler
      * the outermost script.
      */
 
-public:
     struct ActiveFrame {
         ActiveFrame *parent;
         jsbytecode *parentPC;
@@ -405,11 +405,6 @@ public:
 
         /* Current types for non-escaping vars in the script. */
         VarType *varTypes;
-
-        /* JIT code generation tracking state */
-        size_t mainCodeStart;
-        size_t stubCodeStart;
-        size_t inlinePCOffset;
 
         /* State for managing return from inlined frames. */
         bool needReturnValue;          /* Return value will be used. */
@@ -429,8 +424,6 @@ public:
         ActiveFrame(JSContext *cx);
         ~ActiveFrame();
     };
-
-private:
     ActiveFrame *a;
     ActiveFrame *outer;
 
@@ -730,7 +723,6 @@ private:
     bool isCacheableBaseAndIndex(FrameEntry *obj, FrameEntry *id);
     void jsop_stricteq(JSOp op);
     bool jsop_equality(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
-    CompileStatus jsop_equality_obj_obj(JSOp op, jsbytecode *target, JSOp fused);
     bool jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
     void jsop_pos();
 
@@ -747,10 +739,8 @@ private:
             return ifeq ? Assembler::GreaterThanOrEqual : Assembler::LessThan;
           case JSOP_LE:
             return ifeq ? Assembler::GreaterThan : Assembler::LessThanOrEqual;
-          case JSOP_STRICTEQ:
           case JSOP_EQ:
             return ifeq ? Assembler::NotEqual : Assembler::Equal;
-          case JSOP_STRICTNE:
           case JSOP_NE:
             return ifeq ? Assembler::Equal : Assembler::NotEqual;
           default:

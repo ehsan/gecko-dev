@@ -45,6 +45,7 @@
 #include <string.h>
 #include "jstypes.h"
 #include "jsstdint.h"
+#include "jsbit.h"
 #include "jsutil.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -617,8 +618,8 @@ StackTraceToString(JSContext *cx, JSExnPrivate *priv)
                 length_ >= STACK_LENGTH_LIMIT - stacklen) {                   \
                 goto done;                                                    \
             }                                                                 \
-            stackmax = RoundUpPow2(stacklen + length_);                       \
-            ptr_ = cx->realloc_(stackbuf, (stackmax+1) * sizeof(jschar));     \
+            stackmax = JS_BIT(JS_CeilingLog2(stacklen + length_));            \
+            ptr_ = cx->realloc_(stackbuf, (stackmax+1) * sizeof(jschar));      \
             if (!ptr_)                                                        \
                 goto bad;                                                     \
             stackbuf = (jschar *) ptr_;                                       \

@@ -20,7 +20,6 @@ function test()
 
 function tabLoaded()
 {
-  browser.removeEventListener("load", tabLoaded, true);
   ok(window.StyleInspector, "StyleInspector exists");
   ok(StyleInspector.isEnabled, "style inspector preference is enabled");
   stylePanel = StyleInspector.createPanel();

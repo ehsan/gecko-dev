@@ -50,7 +50,7 @@
 #include "nsIObserverService.h"
 #include "nsISupportsPrimitives.h"
 #include "nsPromiseFlatString.h"
-#include "nsThreadUtils.h"
+#include "nsProxiedService.h"
 #include "nsStringBuffer.h"
 #include "nsAutoPtr.h"
 #include "nspr.h"
@@ -131,11 +131,6 @@ nsCertOverrideService::~nsCertOverrideService()
 nsresult
 nsCertOverrideService::Init()
 {
-  if (!NS_IsMainThread()) {
-    NS_NOTREACHED("nsCertOverrideService initialized off main thread");
-    return NS_ERROR_NOT_SAME_THREAD;
-  }
-
   if (!mSettingsTable.Init())
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -152,24 +147,30 @@ nsCertOverrideService::Init()
   mDottedOidForStoringNewHashes = dotted_oid;
   PR_smprintf_free(dotted_oid);
 
-  nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
+  // cache mSettingsFile
+  NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(mSettingsFile));
+  if (mSettingsFile) {
+    mSettingsFile->AppendNative(NS_LITERAL_CSTRING(kCertOverrideFileName));
+  }
 
-  // If we cannot add ourselves as a profile change observer, then we will not
-  // attempt to read/write any settings file. Otherwise, we would end up
-  // reading/writing the wrong settings file after a profile change.
-  if (observerService) {
-    observerService->AddObserver(this, "profile-before-change", true);
-    observerService->AddObserver(this, "profile-do-change", true);
-    // simulate a profile change so we read the current profile's settings file
-    Observe(nsnull, "profile-do-change", nsnull);
+  Read();
+
+  nsresult rv;
+  NS_WITH_ALWAYS_PROXIED_SERVICE(nsIObserverService, mObserverService,
+                                 "@mozilla.org/observer-service;1",
+                                 NS_PROXY_TO_MAIN_THREAD, &rv);
+
+  if (mObserverService) {
+    mObserverService->AddObserver(this, "profile-before-change", PR_TRUE);
+    mObserverService->AddObserver(this, "profile-do-change", PR_TRUE);
+    mObserverService->AddObserver(this, "shutdown-cleanse", PR_TRUE);
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsCertOverrideService::Observe(nsISupports     *,
+nsCertOverrideService::Observe(nsISupports     *aSubject,
                                const char      *aTopic,
                                const PRUnichar *aData)
 {
@@ -200,8 +201,6 @@ nsCertOverrideService::Observe(nsISupports     *,
     nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(mSettingsFile));
     if (NS_SUCCEEDED(rv)) {
       mSettingsFile->AppendNative(NS_LITERAL_CSTRING(kCertOverrideFileName));
-    } else {
-      mSettingsFile = nsnull;
     }
     Read();
 
@@ -243,10 +242,6 @@ nsresult
 nsCertOverrideService::Read()
 {
   ReentrantMonitorAutoEnter lock(monitor);
-
-  // If we don't have a profile, then we won't try to read any settings file.
-  if (!mSettingsFile)
-    return NS_OK;
 
   nsresult rv;
   nsCOMPtr<nsIInputStream> fileInputStream;
@@ -367,9 +362,8 @@ nsCertOverrideService::Write()
 {
   ReentrantMonitorAutoEnter lock(monitor);
 
-  // If we don't have any profile, then we won't try to write any file
   if (!mSettingsFile) {
-    return NS_OK;
+    return NS_ERROR_NULL_POINTER;
   }
 
   nsresult rv;

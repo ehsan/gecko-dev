@@ -47,8 +47,6 @@
 #include "jsobj.h"
 #include "jsgcmark.h"
 
-#include "js/HashTable.h"
-
 namespace js {
 
 // A subclass template of js::HashMap whose keys and values may be garbage-collected. When
@@ -139,7 +137,6 @@ template <class Key, class Value> class DefaultMarkPolicy;
 class WeakMapBase {
   public:
     WeakMapBase() : next(NULL) { }
-    virtual ~WeakMapBase() { }
 
     void trace(JSTracer *tracer) {
         if (IS_GC_MARKING_TRACER(tracer)) {
@@ -293,14 +290,14 @@ class DefaultMarkPolicy<JSObject *, Value> {
 };
 
 template <>
-class DefaultMarkPolicy<gc::Cell *, JSObject *> {
+class DefaultMarkPolicy<JSObject *, JSObject *> {
   protected:
     JSTracer *tracer;
   public:
     DefaultMarkPolicy(JSTracer *t) : tracer(t) { }
-    bool keyMarked(gc::Cell *k)   { return !IsAboutToBeFinalized(tracer->context, k); }
+    bool keyMarked(JSObject *k)   { return !IsAboutToBeFinalized(tracer->context, k); }
     bool valueMarked(JSObject *v) { return !IsAboutToBeFinalized(tracer->context, v); }
-    bool markEntryIfLive(gc::Cell *k, JSObject *v) {
+    bool markEntryIfLive(JSObject *k, JSObject *v) {
         if (keyMarked(k) && !valueMarked(v)) {
             js::gc::MarkObject(tracer, *v, "WeakMap entry value");
             return true;
@@ -319,7 +316,7 @@ class DefaultMarkPolicy<gc::Cell *, JSObject *> {
 // default mark policy. We give it a distinct name anyway, in case this ever
 // changes.
 //
-typedef DefaultMarkPolicy<gc::Cell *, JSObject *> CrossCompartmentMarkPolicy;
+typedef DefaultMarkPolicy<JSObject *, JSObject *> CrossCompartmentMarkPolicy;
 
 }
 

@@ -71,6 +71,7 @@
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
 #include "jsgcinlines.h"
+#include "jsprobes.h"
 #include "jsscopeinlines.h"
 
 inline bool
@@ -1780,29 +1781,6 @@ ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx)
       case ESClass_Boolean: return obj.isBoolean();
     }
     JS_NOT_REACHED("bad classValue");
-    return false;
-}
-
-static JS_ALWAYS_INLINE bool
-ValueIsSpecial(JSObject *obj, Value *propval, SpecialId *sidp, JSContext *cx)
-{
-    if (!propval->isObject())
-        return false;
-
-#if JS_HAS_XML_SUPPORT
-    if (obj->isXML()) {
-        *sidp = SpecialId(propval->toObject());
-        return true;
-    }
-
-    JSObject &propobj = propval->toObject();
-    JSAtom *name;
-    if (propobj.isQName() && GetLocalNameFromFunctionQName(&propobj, &name, cx)) {
-        propval->setString(name);
-        return false;
-    }
-#endif
-
     return false;
 }
 

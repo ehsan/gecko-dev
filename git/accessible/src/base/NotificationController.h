@@ -203,11 +203,6 @@ public:
       ScheduleProcessing();
   }
 
-#ifdef DEBUG
-  bool IsUpdating() const
-    { return mObservingState == eRefreshProcessingForUpdate; }
-#endif
-
 protected:
   nsAutoRefCnt mRefCnt;
   NS_DECL_OWNINGTHREAD

@@ -66,7 +66,6 @@
 
 #include "pldhash.h"
 #include "prprf.h"
-#include "nsWrapperCacheInlines.h"
 
 using namespace mozilla;
 

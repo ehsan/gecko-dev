@@ -42,6 +42,7 @@
 #define jsjaeger_baseassembler_h__
 
 #include "jscntxt.h"
+#include "jstl.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/assembler/MacroAssembler.h"
 #include "assembler/assembler/LinkBuffer.h"

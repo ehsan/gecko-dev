@@ -96,7 +96,6 @@ STATIC_LIBS += \
   ipcshell_s \
   gfx2d \
   gfxipc_s \
-  hal_s \
   $(NULL)
 
 ifdef MOZ_IPDL_TESTS

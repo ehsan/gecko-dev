@@ -420,8 +420,6 @@ mjit::Compiler::pushActiveFrame(JSScript *script, uint32 argc)
     if (a)
         newa->parentPC = PC;
     newa->script = script;
-    newa->mainCodeStart = masm.size();
-    newa->stubCodeStart = stubcc.size();
 
     if (outer) {
         newa->inlineIndex = uint32(inlineFrames.length());
@@ -431,8 +429,6 @@ mjit::Compiler::pushActiveFrame(JSScript *script, uint32 argc)
         outer = newa;
     }
     JS_ASSERT(ssa.getFrame(newa->inlineIndex).script == script);
-
-    newa->inlinePCOffset = ssa.frameLength(newa->inlineIndex);
 
     ScriptAnalysis *newAnalysis = script->analysis();
 
@@ -864,7 +860,7 @@ mjit::Compiler::generatePrologue()
 
     recompileCheckHelper();
 
-    if (outerScript->pcCounters || Probes::wantNativeAddressInfo(cx)) {
+    if (outerScript->pcCounters) {
         size_t length = ssa.frameLength(ssa.numFrames() - 1);
         pcLengths = (PCLengthEntry *) cx->calloc_(sizeof(pcLengths[0]) * length);
         if (!pcLengths)
@@ -1430,89 +1426,35 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     JSC::ExecutableAllocator::makeExecutable(result, masm.size() + stubcc.size());
     JSC::ExecutableAllocator::cacheFlush(result, masm.size() + stubcc.size());
 
-    Probes::registerMJITCode(cx, jit, script, script->hasFunction ? script->function() : NULL,
-                             (mjit::Compiler_ActiveFrame**) inlineFrames.begin(),
-                             result, masm.size(),
-                             result + masm.size(), stubcc.size());
-
     *jitp = jit;
 
     return Compile_Okay;
 }
 
 class SrcNoteLineScanner {
-    /* offset of the current JSOp in the bytecode */
     ptrdiff_t offset;
-
-    /* next src note to process */
     jssrcnote *sn;
 
-    /* line number of the current JSOp */
-    uint32 lineno;
-
-    /*
-     * Is the current op the first one after a line change directive? Note that
-     * multiple ops may be "first" if a line directive is used to return to a
-     * previous line (eg, with a for loop increment expression.)
-     */
-    bool lineHeader;
-
 public:
-    SrcNoteLineScanner(jssrcnote *sn, uint32 lineno)
-        : offset(0), sn(sn), lineno(lineno)
-    {
-    }
+    SrcNoteLineScanner(jssrcnote *sn) : offset(SN_DELTA(sn)), sn(sn) {}
 
-    /*
-     * This is called repeatedly with always-advancing relpc values. The src
-     * notes are tuples of <PC offset from prev src note, type, args>. Scan
-     * through, updating the lineno, until the next src note is for a later
-     * bytecode.
-     *
-     * When looking at the desired PC offset ('relpc'), the op is first in that
-     * line iff there is a SRC_SETLINE or SRC_NEWLINE src note for that exact
-     * bytecode.
-     *
-     * Note that a single bytecode may have multiple line-modifying notes (even
-     * though only one should ever be needed.)
-     */
-    void advanceTo(ptrdiff_t relpc) {
-        // Must always advance! If the same or an earlier PC is erroneously
-        // passed in, we will already be past the relevant src notes
-        JS_ASSERT_IF(offset > 0, relpc > offset);
+    bool firstOpInLine(ptrdiff_t relpc) {
+        while ((offset < relpc) && !SN_IS_TERMINATOR(sn)) {
+            sn = SN_NEXT(sn);
+            offset += SN_DELTA(sn);
+        }
 
-        // Next src note should be for after the current offset
-        JS_ASSERT_IF(offset > 0, SN_IS_TERMINATOR(sn) || SN_DELTA(sn) > 0);
-
-        // The first PC requested is always considered to be a line header
-        lineHeader = (offset == 0);
-
-        if (SN_IS_TERMINATOR(sn))
-            return;
-
-        ptrdiff_t nextOffset;
-        while ((nextOffset = offset + SN_DELTA(sn)) <= relpc && !SN_IS_TERMINATOR(sn)) {
-            offset = nextOffset;
+        while ((offset == relpc) && !SN_IS_TERMINATOR(sn)) {
             JSSrcNoteType type = (JSSrcNoteType) SN_TYPE(sn);
-            if (type == SRC_SETLINE || type == SRC_NEWLINE) {
-                if (type == SRC_SETLINE)
-                    lineno = js_GetSrcNoteOffset(sn, 0);
-                else
-                    lineno++;
-
-                if (offset == relpc)
-                    lineHeader = true;
-            }
+            if (type == SRC_SETLINE || type == SRC_NEWLINE)
+                return true;
 
             sn = SN_NEXT(sn);
+            offset += SN_DELTA(sn);
         }
-    }
 
-    bool isLineHeader() const {
-        return lineHeader;
+        return false;
     }
-
-    uint32 getLine() const { return lineno; }
 };
 
 #ifdef DEBUG
@@ -1550,7 +1492,7 @@ CompileStatus
 mjit::Compiler::generateMethod()
 {
     mjit::AutoScriptRetrapper trapper(cx, script);
-    SrcNoteLineScanner scanner(script->notes(), script->lineno);
+    SrcNoteLineScanner scanner(script->notes());
 
     /* For join points, whether there was fallthrough from the previous opcode. */
     bool fallthrough = true;
@@ -1567,6 +1509,8 @@ mjit::Compiler::generateMethod()
             op = JSOp(*PC);
             trap |= stubs::JSTRAP_TRAP;
         }
+        if (script->stepModeEnabled() && scanner.firstOpInLine(PC - script->code))
+            trap |= stubs::JSTRAP_SINGLESTEP;
 
         Bytecode *opinfo = analysis->maybeCode(PC);
 
@@ -1578,13 +1522,6 @@ mjit::Compiler::generateMethod()
             else
                 PC += js_GetVariableBytecodeLength(PC);
             continue;
-        }
-
-        scanner.advanceTo(PC - script->code);
-        if (script->stepModeEnabled() &&
-            (scanner.isLineHeader() || opinfo->jumpTarget))
-        {
-            trap |= stubs::JSTRAP_SINGLESTEP;
         }
 
         frame.setPC(PC);
@@ -1631,7 +1568,7 @@ mjit::Compiler::generateMethod()
                     Label start = masm.label();
                     if (!frame.syncForBranch(PC, Uses(0)))
                         return Compile_Error;
-                    if (pcLengths) {
+                    if (script->pcCounters) {
                         /* Track this sync code for the previous op. */
                         size_t length = masm.size() - masm.distanceOf(start);
                         uint32 offset = ssa.frameLength(a->inlineIndex) + lastPC - script->code;
@@ -1650,8 +1587,6 @@ mjit::Compiler::generateMethod()
                 /* All join points have synced state if we aren't doing cross-branch regalloc. */
                 opinfo->safePoint = true;
             }
-        } else if (opinfo->safePoint && !cx->typeInferenceEnabled()) {
-            frame.syncAndForgetEverything();
         }
         frame.assertValidRegisterState();
         a->jumpMap[uint32(PC - script->code)] = masm.label();
@@ -2863,17 +2798,15 @@ mjit::Compiler::generateMethod()
             }
         }
 
-        if (script->pcCounters || pcLengths) {
+        if (script->pcCounters) {
             size_t length = masm.size() - masm.distanceOf(codeStart);
             if (countersUpdated || length != 0) {
-                if (!countersUpdated && script->pcCounters)
+                if (!countersUpdated)
                     updatePCCounters(lastPC, &codeStart, &countersUpdated);
 
-                if (pcLengths) {
-                    /* Fill in the amount of inline code generated for the op. */
-                    uint32 offset = ssa.frameLength(a->inlineIndex) + lastPC - script->code;
-                    pcLengths[offset].codeLength += length;
-                }
+                /* Fill in the amount of inline code generated for the op. */
+                uint32 offset = ssa.frameLength(a->inlineIndex) + lastPC - script->code;
+                pcLengths[offset].codeLength += length;
             }
         }
 
@@ -4382,8 +4315,8 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, JSValueType knownType,
             }
             RegisterID reg = frame.copyDataIntoReg(top);
             frame.pop();
-            masm.loadPayload(Address(reg, TypedArray::lengthOffset()), reg);
-            frame.pushTypedPayload(JSVAL_TYPE_INT32, reg);
+            frame.pushWord(Address(reg, TypedArray::lengthOffset()), JSVAL_TYPE_INT32);
+            frame.freeReg(reg);
             if (!isObject)
                 stubcc.rejoin(Changes(1));
             return true;
@@ -6786,7 +6719,7 @@ mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow, bool *tramp
                     return false;
                 if (trampoline)
                     *trampoline = true;
-                if (pcLengths) {
+                if (script->pcCounters) {
                     /*
                      * This is OOL code but will usually be executed, so track
                      * it in the CODE_LENGTH for the opcode.

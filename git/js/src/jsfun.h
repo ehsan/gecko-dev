@@ -115,10 +115,9 @@ struct JSFunction : public JSObject_Slots2
             JSNativeTraceInfo *trcinfo;
         } n;
         struct Scripted {
-            JSScript    *script_; /* interpreted bytecode descriptor or null;
-                                     use the setter! */
+            JSScript    *script;  /* interpreted bytecode descriptor or null */
             uint16       skipmin; /* net skip amount up (toward zero) from
-                                     script_->staticLevel to nearest upvar,
+                                     script->staticLevel to nearest upvar,
                                      including upvars in nested functions */
             js::Shape   *names;   /* argument and variable names */
         } i;
@@ -197,13 +196,7 @@ struct JSFunction : public JSObject_Slots2
 
     JSScript *script() const {
         JS_ASSERT(isInterpreted());
-        return u.i.script_;
-    }
-
-    void setScript(JSScript *script) {
-        JS_ASSERT(isInterpreted());
-        u.i.script_ = script;
-        script->setOwnerObject(this);
+        return u.i.script;
     }
 
     JSScript * maybeScript() const {
@@ -220,7 +213,7 @@ struct JSFunction : public JSObject_Slots2
     }
 
     static uintN offsetOfNativeOrScript() {
-        JS_STATIC_ASSERT(offsetof(U, n.native) == offsetof(U, i.script_));
+        JS_STATIC_ASSERT(offsetof(U, n.native) == offsetof(U, i.script));
         JS_STATIC_ASSERT(offsetof(U, n.native) == offsetof(U, nativeOrScript));
         return offsetof(JSFunction, u.nativeOrScript);
     }

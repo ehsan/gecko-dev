@@ -70,7 +70,8 @@ nsSVGEnum::GetMapping(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGEnum::SetBaseValueString(const nsAString& aValue,
-                              nsSVGElement *aSVGElement)
+                              nsSVGElement *aSVGElement,
+                              bool aDoSetAttr)
 {
   nsCOMPtr<nsIAtom> valAtom = do_GetAtom(aValue);
 
@@ -120,7 +121,8 @@ nsSVGEnum::GetBaseValueString(nsAString& aValue, nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGEnum::SetBaseValue(PRUint16 aValue,
-                        nsSVGElement *aSVGElement)
+                        nsSVGElement *aSVGElement,
+                        bool aDoSetAttr)
 {
   nsSVGEnumMapping *mapping = GetMapping(aSVGElement);
 
@@ -137,7 +139,7 @@ nsSVGEnum::SetBaseValue(PRUint16 aValue,
           aSVGElement->AnimationNeedsResample();
         }
 #endif
-        aSVGElement->DidChangeEnum(mAttrEnum, true);
+        aSVGElement->DidChangeEnum(mAttrEnum, aDoSetAttr);
       }
       return NS_OK;
     }

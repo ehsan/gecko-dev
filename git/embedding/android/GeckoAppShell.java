@@ -1334,11 +1334,11 @@ public class GeckoAppShell
         try {
             int showPassword =
                 Settings.System.getInt(GeckoApp.mAppContext.getContentResolver(),
-                                       Settings.System.TEXT_SHOW_PASSWORD, 1);
+                                       Settings.System.TEXT_SHOW_PASSWORD);
             return (showPassword > 0);
         }
         catch (Exception e) {
-            return true;
+            return false;
         }
     }
     public static void addPluginView(final View view,
@@ -1531,7 +1531,7 @@ public class GeckoAppShell
 
     static int kPreferedFps = 25;
     static byte[] sCameraBuffer = null;
-
+ 
     static int[] initCamera(String aContentType, int aCamera, int aWidth, int aHeight) {
         Log.i("GeckoAppJava", "initCamera(" + aContentType + ", " + aWidth + "x" + aHeight + ") on thread " + Thread.currentThread().getId());
 
@@ -1585,22 +1585,13 @@ public class GeckoAppShell
                 }
             }
 
-            try {
-                sCamera.setPreviewDisplay(GeckoApp.cameraView.getHolder());
-            } catch(IOException e) {
-                Log.e("GeckoAppJava", "Error setPreviewDisplay:", e);
-            } catch(RuntimeException e) {
-                Log.e("GeckoAppJava", "Error setPreviewDisplay:", e);
-            }
-
             sCamera.setParameters(params);
             sCameraBuffer = new byte[(bufferSize * 12) / 8];
             sCamera.addCallbackBuffer(sCameraBuffer);
             sCamera.setPreviewCallbackWithBuffer(new android.hardware.Camera.PreviewCallback() {
                 public void onPreviewFrame(byte[] data, android.hardware.Camera camera) {
                     cameraCallbackBridge(data);
-                    if (sCamera != null)
-                        sCamera.addCallbackBuffer(sCameraBuffer);
+                    sCamera.addCallbackBuffer(sCameraBuffer);
                 }
             });
             sCamera.startPreview();

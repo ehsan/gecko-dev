@@ -87,7 +87,6 @@
 #include "prmem.h"
 #include "WrapperFactory.h"
 #include "nsGlobalWindow.h"
-#include "nsScriptNameSpaceManager.h"
 
 #ifdef XP_MACOSX
 // AssertMacros.h defines 'check' and conflicts with AccessCheck.h
@@ -1874,8 +1873,8 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 #ifdef NS_FUNCTION_TIMER
   {
     JSObject *obj = static_cast<JSObject *>(aHandler);
-    if (js::IsFunctionProxy(obj))
-      obj = js::UnwrapObject(obj);
+    if (obj->isFunctionProxy())
+      obj = obj->unwrap(NULL);
     JSString *id = JS_GetFunctionId(static_cast<JSFunction *>(JS_GetPrivate(mContext, obj)));
     JSAutoByteString bytes;
     const char *name = !id ? "anonymous" : bytes.encode(mContext, id) ? bytes.ptr() : "<error>";

@@ -43,8 +43,7 @@
 
 #include "jsfun.h"
 #include "jsiter.h"
-
-#include "js/Vector.h"
+#include "jsvector.h"
 
 extern JSObject *
 js_InitObjectClass(JSContext *cx, JSObject *obj);
@@ -216,9 +215,8 @@ class GlobalObject : public ::JSObject {
         return &v.toObject();
     }
 
-    RegExpStatics *getRegExpStatics() const {
-        JSObject &resObj = getSlot(REGEXP_STATICS).toObject();
-        return static_cast<RegExpStatics *>(resObj.getPrivate());
+    Value getRegExpStatics() const {
+        return getSlot(REGEXP_STATICS);
     }
 
     void clear(JSContext *cx);

@@ -42,7 +42,7 @@
 #include "nsIScriptContext.h"
 
 #include "mozilla/storage.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsEventDispatcher.h"
 #include "nsPIDOMWindow.h"
 #include "nsProxyRelease.h"

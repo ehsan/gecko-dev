@@ -74,7 +74,8 @@ GetValueFromString(const nsAString &aValueAsString,
 
 nsresult
 nsSVGBoolean::SetBaseValueString(const nsAString &aValueAsString,
-                                 nsSVGElement *aSVGElement)
+                                 nsSVGElement *aSVGElement,
+                                 bool aDoSetAttr)
 {
   bool val;
 

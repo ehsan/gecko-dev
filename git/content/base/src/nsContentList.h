@@ -84,11 +84,6 @@ class Element;
 class nsBaseContentList : public nsINodeList
 {
 public:
-  nsBaseContentList()
-  {
-    // Mark ourselves as a proxy
-    SetIsProxy();
-  }
   virtual ~nsBaseContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -97,13 +92,14 @@ public:
   NS_DECL_NSIDOMNODELIST
 
   // nsINodeList
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
   
   PRUint32 Length() const { 
     return mElements.Count();
   }
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsBaseContentList)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsBaseContentList, nsINodeList)
 
   void AppendElement(nsIContent *aContent);
   void MaybeAppendElement(nsIContent* aContent)
@@ -126,10 +122,8 @@ public:
     mElements.Clear();
   }
 
-  virtual PRInt32 IndexOf(nsIContent *aContent, bool aDoFlush);
 
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap) = 0;
+  virtual PRInt32 IndexOf(nsIContent *aContent, bool aDoFlush);
 
 protected:
   nsCOMArray<nsIContent> mElements;
@@ -152,8 +146,6 @@ public:
   {
     return mRoot;
   }
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap);
 
 private:
   // This has to be a strong reference, the root might go away before the list.
@@ -284,20 +276,22 @@ public:
                 bool aFuncMayDependOnAttr = true);
   virtual ~nsContentList();
 
-  // nsWrapperCache
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap);
-
   // nsIDOMHTMLCollection
   NS_DECL_NSIDOMHTMLCOLLECTION
 
   // nsBaseContentList overrides
   virtual PRInt32 IndexOf(nsIContent *aContent, bool aDoFlush);
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
   virtual nsINode* GetParentObject()
   {
     return mRootNode;
   }
+
+  // nsIHTMLCollection
+  // GetNodeAt already declared as part of nsINodeList
+  virtual nsISupports* GetNamedItem(const nsAString& aName,
+                                    nsWrapperCache** aCache);
 
   // nsContentList public methods
   NS_HIDDEN_(PRUint32) Length(bool aDoFlush);

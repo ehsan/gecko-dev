@@ -47,13 +47,6 @@
 using namespace js;
 using namespace JS;
 
-JS_FRIEND_API(void)
-JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
-{
-    rt->gcGrayRootsTraceOp = traceOp;
-    rt->gcGrayRootsData = data;
-}
-
 JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt)
 {
@@ -89,9 +82,9 @@ JS_GetObjectFunction(JSObject *obj)
 }
 
 JS_FRIEND_API(JSObject *)
-JS_GetGlobalForFrame(JSStackFrame *fp)
+JS_GetFrameScopeChainRaw(JSStackFrame *fp)
 {
-    return Valueify(fp)->scopeChain().getGlobal();
+    return &Valueify(fp)->scopeChain();
 }
 
 JS_FRIEND_API(JSBool)
@@ -183,14 +176,8 @@ AutoSwitchCompartment::~AutoSwitchCompartment()
 JS_FRIEND_API(void)
 js::CheckReservedSlot(const JSObject *obj, size_t slot)
 {
-    CheckSlot(obj, slot);
-    JS_ASSERT(slot < JSSLOT_FREE(obj->getClass()));
-}
-
-JS_FRIEND_API(void)
-js::CheckSlot(const JSObject *obj, size_t slot)
-{
     JS_ASSERT(slot < obj->numSlots());
+    JS_ASSERT(slot < JSSLOT_FREE(obj->getClass()));
 }
 #endif
 
@@ -221,10 +208,4 @@ JS_FRIEND_API(size_t)
 JS_GetCustomIteratorCount(JSContext *cx)
 {
     return sCustomIteratorCount;
-}
-
-JS_FRIEND_API(void)
-JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback)
-{
-    rt->telemetryCallback = callback;
 }

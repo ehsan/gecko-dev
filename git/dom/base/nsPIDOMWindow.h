@@ -97,29 +97,21 @@ public:
 
   virtual void SetActive(bool aActive)
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "active state is only maintained on outer windows");
     mIsActive = aActive;
   }
 
   bool IsActive()
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "active state is only maintained on outer windows");
     return mIsActive;
   }
 
   virtual void SetIsBackground(bool aIsBackground)
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "background state is only maintained on outer windows");
     mIsBackground = aIsBackground;
   }
 
   bool IsBackground()
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "background state is only maintained on outer windows");
     return mIsBackground;
   }
 
@@ -583,11 +575,6 @@ public:
    * Tell this window that there is an observer for orientation changes
    */
   virtual void SetHasOrientationEventListener() = 0;
-
-  /**
-   * Tell this window that we remove an orientation listener
-   */
-  virtual void RemoveOrientationEventListener() = 0;
 
   /**
    * Set a arguments for this window. This will be set on the window
