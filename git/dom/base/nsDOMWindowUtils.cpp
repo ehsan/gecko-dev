@@ -71,7 +71,6 @@
 #include "nsPrintfCString.h"
 #include "nsViewportInfo.h"
 #include "nsIFormControl.h"
-#include "nsIScriptError.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2514,13 +2513,6 @@ nsDOMWindowUtils::GetOuterWindowWithId(uint64_t aWindowID,
   if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
-
-  // XXX This method is deprecated.  See bug 865664.
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "DOM",
-                                  nsContentUtils::GetDocumentFromCaller(),
-                                  nsContentUtils::eDOM_PROPERTIES,
-                                  "GetWindowWithOuterIdWarning");
 
   *aWindow = nsGlobalWindow::GetOuterWindowWithId(aWindowID);
   NS_IF_ADDREF(*aWindow);

@@ -2126,7 +2126,7 @@ HTMLMediaElement::WakeLockBoolWrapper::UpdateWakeLock()
                              getter_AddRefs(mWakeLock));
     }
   } else if (mWakeLock) {
-    mWakeLock->Unlock();
+    // Wakelock 'unlocks' itself in its destructor.
     mWakeLock = nullptr;
   }
 }

@@ -1657,7 +1657,7 @@ MediaDecoder::IsGStreamerEnabled()
 }
 #endif
 
-#ifdef MOZ_OMX_DECODER
+#ifdef MOZ_WIDGET_GONK
 bool
 MediaDecoder::IsOmxEnabled()
 {
