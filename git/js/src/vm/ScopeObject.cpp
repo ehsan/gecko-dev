@@ -49,9 +49,10 @@ js::ScopeCoordinateName(JSRuntime *rt, JSScript *script, jsbytecode *pc)
 {
     StaticBlockObject *maybeBlock = ScopeCoordinateBlockChain(script, pc);
     ScopeCoordinate sc(pc);
+    uint32_t targetSlot = ScopeObject::CALL_BLOCK_RESERVED_SLOTS + sc.slot;
     Shape *shape = maybeBlock ? maybeBlock->lastProperty() : script->bindings.lastShape();
     Shape::Range r = shape->all();
-    while (r.front().slot() != sc.slot)
+    while (r.front().slot() != targetSlot)
         r.popFront();
     jsid id = r.front().propid();
     /* Beware nameless destructuring formal. */
@@ -60,24 +61,22 @@ js::ScopeCoordinateName(JSRuntime *rt, JSScript *script, jsbytecode *pc)
     return JSID_TO_ATOM(id)->asPropertyName();
 }
 
-FrameIndexType
-js::ScopeCoordinateToFrameIndex(JSScript *script, jsbytecode *pc, unsigned *index)
+FrameVarType
+js::ScopeCoordinateToFrameVar(JSScript *script, jsbytecode *pc, unsigned *index)
 {
     ScopeCoordinate sc(pc);
     if (StaticBlockObject *block = ScopeCoordinateBlockChain(script, pc)) {
-        *index = block->slotToLocalIndex(script->bindings, sc.slot);
-        return FrameIndex_Local;
+        *index = block->slotToFrameLocal(script, sc.slot);
+        return FrameVar_Local;
     }
 
-    unsigned i = sc.slot - CallObject::RESERVED_SLOTS;
-    if (i < script->bindings.numArgs()) {
-        *index = i;
-        return FrameIndex_Arg;
+    if (script->bindings.slotIsLocal(sc.slot)) {
+        *index = script->bindings.slotToLocal(sc.slot);
+        return FrameVar_Local;
     }
 
-    *index = i - script->bindings.numArgs();
-    JS_ASSERT(*index < script->bindings.numVars());
-    return FrameIndex_Local;
+    *index = script->bindings.slotToArg(sc.slot);
+    return FrameVar_Arg;
 }
 
 /*****************************************************************************/
@@ -411,29 +410,25 @@ with_GetSpecial(JSContext *cx, HandleObject obj, HandleObject receiver, HandleSp
 static JSBool
 with_SetGeneric(JSContext *cx, HandleObject obj, HandleId id, Value *vp, JSBool strict)
 {
-    Rooted<JSObject*> actual(cx, &obj->asWith().object());
-    return actual->setGeneric(cx, actual, id, vp, strict);
+    return obj->asWith().object().setGeneric(cx, id, vp, strict);
 }
 
 static JSBool
 with_SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, Value *vp, JSBool strict)
 {
-    Rooted<JSObject*> actual(cx, &obj->asWith().object());
-    return actual->setProperty(cx, actual, name, vp, strict);
+    return obj->asWith().object().setProperty(cx, name, vp, strict);
 }
 
 static JSBool
 with_SetElement(JSContext *cx, HandleObject obj, uint32_t index, Value *vp, JSBool strict)
 {
-    Rooted<JSObject*> actual(cx, &obj->asWith().object());
-    return actual->setElement(cx, actual, index, vp, strict);
+    return obj->asWith().object().setElement(cx, index, vp, strict);
 }
 
 static JSBool
 with_SetSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid, Value *vp, JSBool strict)
 {
-    Rooted<JSObject*> actual(cx, &obj->asWith().object());
-    return actual->setSpecial(cx, actual, sid, vp, strict);
+    return obj->asWith().object().setSpecial(cx, sid, vp, strict);
 }
 
 static JSBool
@@ -631,7 +626,7 @@ void
 ClonedBlockObject::copyUnaliasedValues(StackFrame *fp)
 {
     StaticBlockObject &block = staticBlock();
-    unsigned base = fp->script()->nfixed + block.stackDepth();
+    unsigned base = block.slotToFrameLocal(fp->script(), 0);
     for (unsigned i = 0; i < slotCount(); ++i) {
         if (!block.isAliased(i))
             setVar(i, fp->unaliasedLocal(base + i), DONT_CHECK_ALIASING);
@@ -1210,7 +1205,7 @@ class DebugScopeProxy : public BaseProxyHandler
 
             if (maybefp) {
                 JSScript *script = maybefp->script();
-                unsigned local = block.slotToLocalIndex(script->bindings, shape->slot());
+                unsigned local = block.slotToFrameLocal(script, i);
                 if (action == GET)
                     *vp = maybefp->unaliasedLocal(local);
                 else
@@ -1249,7 +1244,7 @@ class DebugScopeProxy : public BaseProxyHandler
     static bool isMissingArgumentsBinding(ScopeObject &scope)
     {
         return isFunctionScope(scope) &&
-               !scope.asCall().getCalleeFunction()->script()->argumentsHasVarBinding();
+               !scope.asCall().getCalleeFunction()->script()->argumentsHasLocalBinding();
     }
 
     /*
@@ -1346,13 +1341,13 @@ class DebugScopeProxy : public BaseProxyHandler
     bool set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id_, bool strict,
                      Value *vp) MOZ_OVERRIDE
     {
-        Rooted<ScopeObject*> scope(cx, &proxy->asDebugScope().scope());
+        ScopeObject &scope = proxy->asDebugScope().scope();
 
-        if (handleUnaliasedAccess(cx, *scope, id_, SET, vp))
+        if (handleUnaliasedAccess(cx, scope, id_, SET, vp))
             return true;
 
         Rooted<jsid> id(cx, id_);
-        return scope->setGeneric(cx, scope, id, vp, strict);
+        return scope.setGeneric(cx, id, vp, strict);
     }
 
     bool defineProperty(JSContext *cx, JSObject *proxy, jsid id, PropertyDescriptor *desc) MOZ_OVERRIDE
@@ -1442,7 +1437,7 @@ DebugScopeObject::create(JSContext *cx, ScopeObject &scope, HandleObject enclosi
 ScopeObject &
 DebugScopeObject::scope() const
 {
-    return GetProxyTargetObject(this)->asScope();
+    return Wrapper::wrappedObject(this)->asScope();
 }
 
 JSObject &

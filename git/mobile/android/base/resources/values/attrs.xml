@@ -27,11 +27,5 @@
          <attr name="spacing" format="dimension"/>
     </declare-styleable>
 
-    <declare-styleable name="MultiChoicePreference">
-         <attr name="entries" format="string"/>
-         <attr name="entryKeys" format="string"/>
-         <attr name="initialValues" format="string"/>
-    </declare-styleable>
-
 </resources>
 

@@ -238,9 +238,20 @@ ARIAGridAccessible::SelectedRowCount()
   return count;
 }
 
-void
-ARIAGridAccessible::SelectedCells(nsTArray<Accessible*>* aCells)
+NS_IMETHODIMP
+ARIAGridAccessible::GetSelectedCells(nsIArray** aCells)
 {
+  NS_ENSURE_ARG_POINTER(aCells);
+  *aCells = nsnull;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIMutableArray> selCells =
+    do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   AccIterator rowIter(this, filters::GetRow);
 
   Accessible* row = nsnull;
@@ -250,16 +261,19 @@ ARIAGridAccessible::SelectedCells(nsTArray<Accessible*>* aCells)
 
     if (nsAccUtils::IsARIASelected(row)) {
       while ((cell = cellIter.Next()))
-        aCells->AppendElement(cell);
+        selCells->AppendElement(static_cast<nsIAccessible *>(cell), false);
 
       continue;
     }
 
     while ((cell = cellIter.Next())) {
       if (nsAccUtils::IsARIASelected(cell))
-        aCells->AppendElement(cell);
+        selCells->AppendElement(static_cast<nsIAccessible *>(cell), false);
     }
   }
+
+  NS_ADDREF(*aCells = selCells);
+  return NS_OK;
 }
 
 void

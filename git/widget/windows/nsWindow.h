@@ -41,8 +41,6 @@
 
 #include "nsIDOMMouseEvent.h"
 
-#include "nsIIdleServiceInternal.h"
-
 /**
  * Forward class definitions
  */
@@ -516,7 +514,7 @@ protected:
   // Height of the caption plus border
   PRInt32               mCaptionHeight;
 
-  nsCOMPtr<nsIIdleServiceInternal> mIdleService;
+  nsCOMPtr<nsIdleService> mIdleService;
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook

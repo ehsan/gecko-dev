@@ -25,28 +25,16 @@ typedef struct {
 class nsIdleServiceGTK : public nsIdleService
 {
 public:
-    NS_DECL_ISUPPORTS_INHERITED
+    NS_DECL_ISUPPORTS
+    nsIdleServiceGTK();
 
     bool PollIdleTime(PRUint32* aIdleTime);
-
-    static already_AddRefed<nsIdleServiceGTK> GetInstance()
-    {
-        nsIdleServiceGTK* idleService =
-            static_cast<nsIdleServiceGTK*>(nsIdleService::GetInstance().get());
-        if (!idleService) {
-            idleService = new nsIdleServiceGTK();
-            NS_ADDREF(idleService);
-        }
-
-        return idleService;
-    }
 
 private:
     ~nsIdleServiceGTK();
     XScreenSaverInfo* mXssInfo;
 
 protected:
-    nsIdleServiceGTK();
     bool UsePollMode();
 };
 

@@ -53,17 +53,13 @@ public final class GeckoProfile {
     }
 
     public static GeckoProfile get(Context context, String profileName) {
-        return get(context, profileName, null);
-    }
-
-    public static GeckoProfile get(Context context, String profileName, String profilePath) {
         if (context == null) {
             throw new IllegalArgumentException("context must be non-null");
         }
 
         // if no profile was passed in, look for the default profile listed in profiles.ini
         // if that doesn't exist, look for a profile called 'default'
-        if (TextUtils.isEmpty(profileName) && TextUtils.isEmpty(profilePath)) {
+        if (TextUtils.isEmpty(profileName)) {
             profileName = "default";
 
             INIParser parser = getProfilesINI(context);
@@ -86,10 +82,8 @@ public final class GeckoProfile {
         synchronized (sProfileCache) {
             GeckoProfile profile = sProfileCache.get(profileName);
             if (profile == null) {
-                profile = new GeckoProfile(context, profileName, profilePath);
+                profile = new GeckoProfile(context, profileName);
                 sProfileCache.put(profileName, profile);
-            } else {
-                profile.setDir(profilePath);
             }
             return profile;
         }
@@ -115,26 +109,6 @@ public final class GeckoProfile {
     private GeckoProfile(Context context, String profileName) {
         mContext = context;
         mName = profileName;
-    }
-
-    private GeckoProfile(Context context, String profileName, String profilePath) {
-        mContext = context;
-        mName = profileName;
-        setDir(profilePath);
-    }
-
-    private void setDir(String profilePath) {
-        if (!TextUtils.isEmpty(profilePath)) {
-            File dir = new File(profilePath);
-            if (dir.exists() && dir.isDirectory()) {
-                if (mDir != null) {
-                    Log.i(LOGTAG, "profile dir changed from "+mDir+" to "+dir);
-                }
-                mDir = dir;
-            } else {
-                Log.w(LOGTAG, "requested profile directory missing: "+profilePath);
-            }
-        }
     }
 
     public String getName() {
@@ -167,14 +141,6 @@ public final class GeckoProfile {
             Log.e(LOGTAG, "Error getting profile dir", ioe);
         }
         return mDir;
-    }
-
-    public File getFile(String aFile) {
-        File f = getDir();
-        if (f == null)
-            return null;
-
-        return new File(f, aFile);
     }
 
     public File getFilesDir() {

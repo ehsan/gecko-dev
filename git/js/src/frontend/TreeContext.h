@@ -23,6 +23,8 @@ typedef struct BindData BindData;
 
 namespace js {
 
+struct StmtInfo;
+
 class ContextFlags {
 
     // This class's data is all private and so only visible to these friends.
@@ -128,6 +130,14 @@ class ContextFlags {
 struct SharedContext {
     JSContext       *context;
 
+    uint32_t        bodyid;         /* block number of program/function body */
+    uint32_t        blockidGen;     /* preincremented block number generator */
+
+    StmtInfo        *topStmt;       /* top of statement info stack */
+    StmtInfo        *topScopeStmt;  /* top lexical scope statement */
+    Rooted<StaticBlockObject *> blockChain;
+                                    /* compile time block scope chain */
+
   private:
     const RootedFunction fun_;      /* function to store argument and variable
                                        names when it's a function's context */
@@ -175,11 +185,24 @@ struct SharedContext {
 
 #undef INFUNC
 
+    unsigned argumentsLocal() const;
+
     bool inFunction() const { return !!fun_; }
 
     JSFunction *fun()      const { JS_ASSERT(inFunction());  return fun_; }
     FunctionBox *funbox()  const { JS_ASSERT(inFunction());  return funbox_; }
     JSObject *scopeChain() const { JS_ASSERT(!inFunction()); return scopeChain_; }
+
+    unsigned blockid();
+
+    // True if we are at the topmost level of a entire script or function body.
+    // For example, while parsing this code we would encounter f1 and f2 at
+    // body level, but we would not encounter f3 or f4 at body level:
+    //
+    //   function f1() { function f2() { } }
+    //   if (cond) { function f3() { if (cond) { function f4() { } } } }
+    //
+    bool atBodyLevel();
 
     // Return true if we need to check for conditions that elicit
     // JSOPTION_STRICT warnings or strict mode errors.
@@ -188,21 +211,9 @@ struct SharedContext {
 
 typedef HashSet<JSAtom *> FuncStmtSet;
 struct Parser;
-struct StmtInfoTC;
 
 struct TreeContext {                /* tree context for semantic checks */
-
-    typedef StmtInfoTC StmtInfo;
-
     SharedContext   *sc;            /* context shared between parsing and bytecode generation */
-
-    uint32_t        bodyid;         /* block number of program/function body */
-    uint32_t        blockidGen;     /* preincremented block number generator */
-
-    StmtInfoTC      *topStmt;       /* top of statement info stack */
-    StmtInfoTC      *topScopeStmt;  /* top lexical scope statement */
-    Rooted<StaticBlockObject *> blockChain;
-                                    /* compile time block scope chain */
 
     const unsigned  staticLevel;    /* static compilation unit nesting level */
 
@@ -256,21 +267,10 @@ struct TreeContext {                /* tree context for semantic checks */
 
     void trace(JSTracer *trc);
 
-    inline TreeContext(Parser *prs, SharedContext *sc, unsigned staticLevel, uint32_t bodyid);
+    inline TreeContext(Parser *prs, SharedContext *sc, unsigned staticLevel);
     inline ~TreeContext();
 
     inline bool init();
-
-    unsigned blockid();
-
-    // True if we are at the topmost level of a entire script or function body.
-    // For example, while parsing this code we would encounter f1 and f2 at
-    // body level, but we would not encounter f3 or f4 at body level:
-    //
-    //   function f1() { function f2() { } }
-    //   if (cond) { function f3() { if (cond) { function f4() { } } } }
-    //
-    bool atBodyLevel();
 };
 
 /*
@@ -316,11 +316,11 @@ STMT_TYPE_IN_RANGE(uint16_t type, StmtType begin, StmtType end)
  * pending the "reformed with" in ES4/JS2).  It includes all try-catch-finally
  * types, which are high-numbered maybe-scope types.
  *
- * STMT_TYPE_LINKS_SCOPE tells whether a js::StmtInfo{TC,BCE} of the given type
- * eagerly links to other scoping statement info records.  It excludes the two
- * early "maybe" types, block and switch, as well as the try and both finally
- * types, since try and the other trailing maybe-scope types don't need block
- * scope unless they contain let declarations.
+ * STMT_TYPE_LINKS_SCOPE tells whether a js::StmtInfo of the given type eagerly
+ * links to other scoping statement info records.  It excludes the two early
+ * "maybe" types, block and switch, as well as the try and both finally types,
+ * since try and the other trailing maybe-scope types don't need block scope
+ * unless they contain let declarations.
  *
  * We treat WITH as a static scope because it prevents lexical binding from
  * continuing further up the static scope chain. With the lost "reformed with"
@@ -344,64 +344,53 @@ STMT_TYPE_IN_RANGE(uint16_t type, StmtType begin, StmtType end)
 #define STMT_IS_TRYING(stmt)    STMT_TYPE_IS_TRYING((stmt)->type)
 #define STMT_IS_LOOP(stmt)      STMT_TYPE_IS_LOOP((stmt)->type)
 
-// StmtInfoTC is used by the Parser.  StmtInfoBCE is used by the
-// BytecodeEmitter.  The two types have some overlap, encapsulated by
-// StmtInfoBase.  Several functions below (e.g. PushStatement) are templated to
-// work with both types.
-
-struct StmtInfoBase {
+struct StmtInfo {
     uint16_t        type;           /* statement type */
     uint16_t        flags;          /* flags, see below */
-    RootedAtom      label;          /* name of LABEL */
-    Rooted<StaticBlockObject *> blockObj; /* block scope object */
-
-    StmtInfoBase(JSContext *cx) : label(cx), blockObj(cx) {}
-};
-
-struct StmtInfoTC : public StmtInfoBase {
-    StmtInfoTC      *down;          /* info for enclosing statement */
-    StmtInfoTC      *downScope;     /* next enclosing lexical scope */
-
     uint32_t        blockid;        /* for simplified dominance computation */
-
-    StmtInfoTC(JSContext *cx) : StmtInfoBase(cx) {}
-};
-
-struct StmtInfoBCE : public StmtInfoBase {
-    StmtInfoBCE     *down;          /* info for enclosing statement */
-    StmtInfoBCE     *downScope;     /* next enclosing lexical scope */
-
     ptrdiff_t       update;         /* loop update offset (top if none) */
     ptrdiff_t       breaks;         /* offset of last break in loop */
     ptrdiff_t       continues;      /* offset of last continue in loop */
+    RootedAtom      label;          /* name of LABEL */
+    Rooted<StaticBlockObject *> blockObj; /* block scope object */
+    StmtInfo        *down;          /* info for enclosing statement */
+    StmtInfo        *downScope;     /* next enclosing lexical scope */
 
-    StmtInfoBCE(JSContext *cx) : StmtInfoBase(cx) {}
+    StmtInfo(JSContext *cx) : label(cx), blockObj(cx) {}
 };
 
 #define SIF_SCOPE        0x0001     /* statement has its own lexical scope */
 #define SIF_BODY_BLOCK   0x0002     /* STMT_BLOCK type is a function body */
 #define SIF_FOR_BLOCK    0x0004     /* for (let ...) induced block scope */
 
+#define SET_STATEMENT_TOP(stmt, top)                                          \
+    ((stmt)->update = (top), (stmt)->breaks = (stmt)->continues = (-1))
+
 namespace frontend {
 
 bool
-GenerateBlockId(TreeContext *tc, uint32_t &blockid);
+GenerateBlockId(SharedContext *sc, uint32_t &blockid);
 
-// Push the C-stack-allocated struct at stmt onto the StmtInfoTC stack.
-template <class ContextT>
+/*
+ * Push the C-stack-allocated struct at stmt onto the stmtInfo stack.
+ */
 void
-PushStatement(ContextT *ct, typename ContextT::StmtInfo *stmt, StmtType type);
+PushStatement(SharedContext *sc, StmtInfo *stmt, StmtType type, ptrdiff_t top);
 
-template <class ContextT>
+/*
+ * Push a block scope statement and link blockObj into sc->blockChain. To pop
+ * this statement info record, use PopStatementTC as usual, or if appropriate
+ * (if generating code), PopStatementBCE.
+ */
 void
-FinishPushBlockScope(ContextT *ct, typename ContextT::StmtInfo *stmt, StaticBlockObject &blockObj);
+PushBlockScope(SharedContext *sc, StmtInfo *stmt, StaticBlockObject &blockObj, ptrdiff_t top);
 
-// Pop tc->topStmt. If the top StmtInfoTC struct is not stack-allocated, it
-// is up to the caller to free it.  The dummy argument is just to make the
-// template matching work.
-template <class ContextT>
+/*
+ * Pop sc->topStmt. If the top StmtInfo struct is not stack-allocated, it
+ * is up to the caller to free it.
+ */
 void
-FinishPopStatement(ContextT *ct);
+PopStatementSC(SharedContext *sc);
 
 /*
  * Find a lexically scoped variable (one declared by let, catch, or an array
@@ -417,9 +406,8 @@ FinishPopStatement(ContextT *ct);
  * In any event, directly return the statement info record in which atom was
  * found. Otherwise return null.
  */
-template <class ContextT>
-typename ContextT::StmtInfo *
-LexicalLookup(ContextT *ct, JSAtom *atom, int *slotp, typename ContextT::StmtInfo *stmt);
+StmtInfo *
+LexicalLookup(SharedContext *sc, JSAtom *atom, int *slotp, StmtInfo *stmt = NULL);
 
 } // namespace frontend
 

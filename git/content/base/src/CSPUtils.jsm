@@ -10,19 +10,11 @@
  * separate file for testing purposes.
  */
 
-const Cu = Components.utils;
-
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "Services",
-                                  "resource://gre/modules/Services.jsm");
-
 // Module stuff
 var EXPORTED_SYMBOLS = ["CSPRep", "CSPSourceList", "CSPSource", "CSPHost",
                         "CSPWarning", "CSPError", "CSPdebug",
-                        "CSPViolationReportListener", "CSPLocalizer"];
+                        "CSPViolationReportListener"];
 
-var STRINGS_URI = "chrome://global/locale/security/csp.properties";
 
 // these are not exported
 var gIoService = Components.classes["@mozilla.org/network/io-service;1"]
@@ -60,27 +52,27 @@ var gPrefObserver = {
 };
 
 
-function CSPWarning(aMsg, aWindowID, aSource, aScriptSample, aLineNum) {
+function CSPWarning(aMsg, aSource, aScriptSample, aLineNum) {
   var textMessage = 'CSP WARN:  ' + aMsg + "\n";
 
   var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
                     .createInstance(Components.interfaces.nsIScriptError);
-  consoleMsg.initWithWindowID(textMessage, aSource, aScriptSample, aLineNum, 0,
+  consoleMsg.init(textMessage, aSource, aScriptSample, aLineNum, 0,
                   Components.interfaces.nsIScriptError.warningFlag,
-                  "Content Security Policy", aWindowID);
+                  "Content Security Policy");
   Components.classes["@mozilla.org/consoleservice;1"]
                     .getService(Components.interfaces.nsIConsoleService)
                     .logMessage(consoleMsg);
 }
 
-function CSPError(aMsg, aWindowID) {
+function CSPError(aMsg) {
   var textMessage = 'CSP ERROR:  ' + aMsg + "\n";
 
   var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
                     .createInstance(Components.interfaces.nsIScriptError);
-  consoleMsg.initWithWindowID(textMessage, null, null, 0, 0,
+  consoleMsg.init(textMessage, null, null, 0, 0,
                   Components.interfaces.nsIScriptError.errorFlag,
-                  "Content Security Policy", aWindowID);
+                  "Content Security Policy");
   Components.classes["@mozilla.org/consoleservice;1"]
                     .getService(Components.interfaces.nsIConsoleService)
                     .logMessage(consoleMsg);
@@ -230,7 +222,7 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
         else if (opt === "eval-script")
           aCSPR._allowEval = true;
         else
-          CSPWarning(CSPLocalizer.getFormatStr("doNotUnderstandOption", [opt]));
+          CSPWarning("don't understand option '" + opt + "'.  Ignoring it.");
       }
       continue directive;
     }
@@ -283,18 +275,18 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
           if (self) {
             if (gETLDService.getBaseDomain(uri) !==
                 gETLDService.getBaseDomain(selfUri)) {
-              CSPWarning(CSPLocalizer.getFormatStr("notETLDPlus1",
-                         [gETLDService.getBaseDomain(uri)]));
+              CSPWarning("can't use report URI from non-matching eTLD+1: "
+                         + gETLDService.getBaseDomain(uri));
               continue;
             }
             if (!uri.schemeIs(selfUri.scheme)) {
-              CSPWarning(CSPLocalizer.getFormatStr("notSameScheme",
-                         [uri.asciiSpec]));
+              CSPWarning("can't use report URI with different scheme from "
+                         + "originating document: " + uri.asciiSpec);
               continue;
             }
             if (uri.port && uri.port !== selfUri.port) {
-              CSPWarning(CSPLocalizer.getFormatStr("notSamePort",
-                         [uri.asciiSpec]));
+              CSPWarning("can't use report URI with different port from "
+                         + "originating document: " + uri.asciiSpec);
               continue;
             }
           }
@@ -303,14 +295,14 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
             case Components.results.NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS:
             case Components.results.NS_ERROR_HOST_IS_IP_ADDRESS:
               if (uri.host !== selfUri.host) {
-                CSPWarning(CSPLocalizer.getFormatStr("pageCannotSendReportsTo",
-                         [selfUri.host, uri.host]));
+                CSPWarning("page on " + selfUri.host
+                           + " cannot send reports to " + uri.host);
                 continue;
               }
               break;
 
             default:
-              CSPWarning(CSPLocalizer.getFormatStr("couldNotParseReportURI", [uriStrings[i]]));
+              CSPWarning("couldn't parse report URI: " + uriStrings[i]);
               continue;
           }
         }
@@ -325,13 +317,13 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
     if (dirname === UD.POLICY_URI) {
       // POLICY_URI can only be alone
       if (aCSPR._directives.length > 0 || dirs.length > 1) {
-        CSPError(CSPLocalizer.getStr("policyURINotAlone"));
+        CSPError("policy-uri directive can only appear alone");
         return CSPRep.fromString("default-src 'none'");
       }
       // if we were called without a reference to the parent document request
       // we won't be able to suspend it while we fetch the policy -> fail closed
       if (!docRequest || !csp) {
-        CSPError(CSPLocalizer.getStr("noParentRequest"));
+        CSPError("The policy-uri cannot be fetched without a parent request and a CSP.");
         return CSPRep.fromString("default-src 'none'");
       }
 
@@ -339,22 +331,22 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
       try {
         uri = gIoService.newURI(dirvalue, null, selfUri);
       } catch(e) {
-        CSPError(CSPLocalizer.getFormatStr("policyURIParseError", [dirvalue]));
+        CSPError("could not parse URI in policy URI: " + dirvalue);
         return CSPRep.fromString("default-src 'none'");
       }
 
       // Verify that policy URI comes from the same origin
       if (selfUri) {
         if (selfUri.host !== uri.host){
-          CSPError(CSPLocalizer.getFormatStr("nonMatchingHost", [uri.host]));
+          CSPError("can't fetch policy uri from non-matching hostname: " + uri.host);
           return CSPRep.fromString("default-src 'none'");
         }
         if (selfUri.port !== uri.port){
-          CSPError(CSPLocalizer.getFormatStr("nonMatchingPort", [uri.port.toString()]));
+          CSPError("can't fetch policy uri from non-matching port: " + uri.port);
           return CSPRep.fromString("default-src 'none'");
         }
         if (selfUri.scheme !== uri.scheme){
-          CSPError(CSPLocalizer.getFormatStr("nonMatchingScheme", [uri.scheme]));
+          CSPError("can't fetch policy uri from non-matching scheme: " + uri.scheme);
           return CSPRep.fromString("default-src 'none'");
         }
       }
@@ -371,7 +363,7 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
       catch (e) {
         // resume the document request and apply most restrictive policy
         docRequest.resume();
-        CSPError(CSPLocalizer.getFormatStr("errorFetchingPolicy", [e.toString()]));
+        CSPError("Error fetching policy-uri: " + e);
         return CSPRep.fromString("default-src 'none'");
       }
 
@@ -381,7 +373,7 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
     }
 
     // UNIDENTIFIED DIRECTIVE /////////////////////////////////////////////
-    CSPWarning(CSPLocalizer.getFormatStr("couldNotProcessUnknownDirective", [dirname]));
+    CSPWarning("Couldn't process unknown directive '" + dirname + "'");
 
   } // end directive: loop
 
@@ -524,7 +516,7 @@ CSPRep.prototype = {
     var SD = CSPRep.SRC_DIRECTIVES;
     var defaultSrcDir = this._directives[SD.DEFAULT_SRC];
     if (!defaultSrcDir) {
-      CSPWarning(CSPLocalizer.getStr("allowOrDefaultSrcRequired"));
+      CSPWarning("'allow' or 'default-src' directive required but not present.  Reverting to \"default-src 'none'\"");
       return false;
     }
 
@@ -614,7 +606,7 @@ CSPSourceList.fromString = function(aStr, self, enforceSelfChecks) {
     if (tokens[i] === "") continue;
     var src = CSPSource.create(tokens[i], self, enforceSelfChecks);
     if (!src) {
-      CSPWarning(CSPLocalizer.getFormatStr("failedToParseUnrecognizedSource", [tokens[i]]));
+      CSPWarning("Failed to parse unrecoginzied source " + tokens[i]);
       continue;
     }
     slObj._sources.push(src);
@@ -840,12 +832,12 @@ CSPSource.create = function(aData, self, enforceSelfChecks) {
  */
 CSPSource.fromURI = function(aURI, self, enforceSelfChecks) {
   if (!(aURI instanceof Components.interfaces.nsIURI)){
-    CSPError(CSPLocalizer.getStr("cspSourceNotURI"));
+    CSPError("Provided argument is not an nsIURI");
     return null;
   }
 
   if (!self && enforceSelfChecks) {
-    CSPError(CSPLocalizer.getStr("selfDataNotProvided"));
+    CSPError("Can't use 'self' if self data is not provided");
     return null;
   }
 
@@ -864,7 +856,7 @@ CSPSource.fromURI = function(aURI, self, enforceSelfChecks) {
     sObj._scheme = aURI.scheme;
   } catch(e) {
     sObj._scheme = undefined;
-    CSPError(CSPLocalizer.getFormatStr("uriWithoutScheme", [aURI.asciiSpec]));
+    CSPError("can't parse a URI without a scheme: " + aURI.asciiSpec);
     return null;
   }
 
@@ -920,12 +912,12 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
     return null;
 
   if (!(typeof aStr === 'string')) {
-    CSPError(CSPLocalizer.getStr("argumentIsNotString"));
+    CSPError("Provided argument is not a string");
     return null;
   }
 
   if (!self && enforceSelfChecks) {
-    CSPError(CSPLocalizer.getStr("selfDataNotProvided"));
+    CSPError("Can't use 'self' if self data is not provided");
     return null;
   }
 
@@ -939,7 +931,7 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
   // take care of 'self' keyword
   if (aStr === "'self'") {
     if (!self) {
-      CSPError(CSPLocalizer.getStr("selfKeywordNoSelfData"));
+      CSPError("self keyword used, but no self data specified");
       return null;
     }
     sObj._self = self.clone();
@@ -958,7 +950,7 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
   if (chunks.length == 1) {
     sObj._host = CSPHost.fromString(chunks[0]);
     if (!sObj._host) {
-      CSPError(CSPLocalizer.getFormatStr("couldntParseInvalidSource",[aStr]));
+      CSPError("Couldn't parse invalid source " + aStr);
       return null;
     }
 
@@ -966,7 +958,7 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
     if (enforceSelfChecks) {
       // note: the non _scheme accessor checks sObj._self
       if (!sObj.scheme || !sObj.port) {
-        CSPError(CSPLocalizer.getFormatStr("hostSourceWithoutData",[aStr]));
+        CSPError("Can't create host-only source " + aStr + " without 'self' data");
         return null;
       }
     }
@@ -985,7 +977,7 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
       if (chunks[0] !== "") {
         sObj._host = CSPHost.fromString(chunks[0]);
         if (!sObj._host) {
-          CSPError(CSPLocalizer.getFormatStr("couldntParseInvalidSource",[aStr]));
+          CSPError("Couldn't parse invalid source " + aStr);
           return null;
         }
       }
@@ -995,7 +987,7 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
       if (enforceSelfChecks) {
         // note: the non _scheme accessor checks sObj._self
         if (!sObj.scheme || !sObj.host || !sObj.port) {
-          CSPError(CSPLocalizer.getFormatStr("sourceWithoutData",[aStr]));
+          CSPError("Can't create source " + aStr + " without 'self' data");
           return null;
         }
       }
@@ -1017,7 +1009,7 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
         // ... and parse
         sObj._host = CSPHost.fromString(cleanHost);
         if (!sObj._host) {
-          CSPError(CSPLocalizer.getFormatStr("couldntParseInvalidHost",[cleanHost]));
+          CSPError("Couldn't parse invalid host " + cleanHost);
           return null;
         }
       }
@@ -1027,14 +1019,14 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
       if (enforceSelfChecks) {
         // note: the non _scheme accessor checks sObj._self
         if (!sObj.scheme || !sObj.host || !sObj.port) {
-          CSPError(CSPLocalizer.getFormatStr("sourceWithoutData",[aStr]));
+          CSPError("Can't create source " + aStr + " without 'self' data");
           return null;
         }
       }
     }
     else  {
       // AAAH!  Don't know what to do!  No valid scheme or port!
-      CSPError(CSPLocalizer.getFormatStr("couldntParseInvalidSource",[aStr]));
+      CSPError("Couldn't parse invalid source " + aStr);
       return null;
     }
 
@@ -1043,12 +1035,12 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
 
   // If there are three chunks, we got 'em all!
   if (!CSPSource.validSchemeName(chunks[0])) {
-    CSPError(CSPLocalizer.getFormatStr("couldntParseScheme",[aStr]));
+    CSPError("Couldn't parse scheme in " + aStr);
     return null;
   }
   sObj._scheme = chunks[0];
   if (!(chunks[2] === "*" || chunks[2].match(/^\d+$/))) {
-    CSPError(CSPLocalizer.getFormatStr("couldntParsePort",[aStr]));
+    CSPError("Couldn't parse port in " + aStr);
     return null;
   }
 
@@ -1210,7 +1202,8 @@ CSPSource.prototype = {
     else if (that._port === this._port)
       newSource._port = this._port;
     else {
-      CSPError(CSPLocalizer.getFormatStr("notIntersectPort", [this.toString(), that.toString()]));
+      CSPError("Could not intersect " + this + " with " + that
+               + " due to port problems.");
       return null;
     }
 
@@ -1226,7 +1219,8 @@ CSPSource.prototype = {
     else if (that._scheme === this._scheme)
       newSource._scheme = this._scheme;
     else {
-      CSPError(CSPLocalizer.getFormatStr("notIntersectScheme", [this.toString(), that.toString()]));
+      CSPError("Could not intersect " + this + " with " + that
+               + " due to scheme problems.");
       return null;
     }
 
@@ -1242,13 +1236,14 @@ CSPSource.prototype = {
     if (this._host && that._host) {
       newSource._host = this._host.intersectWith(that._host);
     } else if (this._host) {
-      CSPError(CSPLocalizer.getFormatStr("intersectingSourceWithUndefinedHost", [that.toString()]));
+      CSPError("intersecting source with undefined host: " + that.toString());
       newSource._host = this._host.clone();
     } else if (that._host) {
-      CSPError(CSPLocalizer.getFormatStr("intersectingSourceWithUndefinedHost", [this.toString()]));
+      CSPError("intersecting source with undefined host: " + this.toString());
       newSource._host = that._host.clone();
     } else {
-      CSPError(CSPLocalizer.getFormatStr("intersectingSourcesWithUndefinedHosts", [this.toString(), that.toString()]));
+      CSPError("intersecting two sources with undefined hosts: " +
+               this.toString() + " and " + that.toString());
       newSource._host = CSPHost.fromString("*");
     }
 
@@ -1491,55 +1486,3 @@ CSPViolationReportListener.prototype = {
 
 };
 
-//////////////////////////////////////////////////////////////////////
-
-CSPLocalizer = {
-  /**
-   * Retrieve a localized string.
-   *
-   * @param string aName
-   *        The string name you want from the CSP string bundle.
-   * @return string
-   *         The localized string.
-   */
-  getStr: function CSPLoc_getStr(aName)
-  {
-    let result;
-    try {
-      result = this.stringBundle.GetStringFromName(aName);
-    }
-    catch (ex) {
-      Cu.reportError("Failed to get string: " + aName);
-      throw ex;
-    }
-    return result;
-  },
-
-  /**
-   * Retrieve a localized string formatted with values coming from the given
-   * array.
-   *
-   * @param string aName
-   *        The string name you want from the CSP string bundle.
-   * @param array aArray
-   *        The array of values you want in the formatted string.
-   * @return string
-   *         The formatted local string.
-   */
-  getFormatStr: function CSPLoc_getFormatStr(aName, aArray)
-  {
-    let result;
-    try {
-      result = this.stringBundle.formatStringFromName(aName, aArray, aArray.length);
-    }
-    catch (ex) {
-      Cu.reportError("Failed to format string: " + aName);
-      throw ex;
-    }
-    return result;
-  },
-};
-
-XPCOMUtils.defineLazyGetter(CSPLocalizer, "stringBundle", function() {
-  return Services.strings.createBundle(STRINGS_URI);
-});

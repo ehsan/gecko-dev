@@ -9,7 +9,6 @@ upon that are in the same directory.
 from optparse import OptionParser
 import os
 import re
-import fnmatch
 import subprocess
 import sys
 
@@ -96,7 +95,7 @@ def main():
     ext = os.path.splitext(lib)[1]
     if ext == '.dll':
         func = dependentlibs_dumpbin
-    elif ext == '.so' or fnmatch.fnmatch(lib, '*.so.*'):
+    elif ext == '.so':
         func = dependentlibs_readelf
     elif ext == '.dylib':
         func = dependentlibs_otool

@@ -35,7 +35,6 @@
                      android:layout_alignParentRight="true"
                      android:gravity="center_vertical"
                      android:src="@drawable/menu"
-                     android:contentDescription="@string/menu"
                      android:background="@drawable/action_bar_button"
                      android:paddingLeft="14dip"
                      android:paddingRight="14dip"
@@ -74,7 +73,6 @@
                      android:layout_alignLeft="@id/awesome_bar"
                      android:paddingLeft="22dp"
                      android:src="@drawable/ic_menu_forward"
-                     android:contentDescription="@string/forward"
                      android:background="@drawable/address_bar_forward_button"/>
 
         <ImageButton android:id="@+id/back"
@@ -85,7 +83,6 @@
                      android:layout_marginLeft="-28dp"
                      android:layout_alignLeft="@id/awesome_bar"
                      android:src="@drawable/ic_menu_back"
-                     android:contentDescription="@string/back"
                      android:background="@drawable/address_bar_back_button"/>
 
         <ImageButton android:id="@+id/favicon"
@@ -109,7 +106,6 @@
                          android:layout_width="24dip"
                          android:layout_height="24dip"
                          android:src="@drawable/reader"
-                         android:contentDescription="@string/reader_mode"
                          android:visibility="gone"/>
 
             <ImageButton android:id="@+id/site_security"
@@ -117,7 +113,6 @@
                          android:layout_width="24dip"
                          android:layout_height="24dip"
                          android:src="@drawable/site_security_level"
-                         android:contentDescription="@string/site_security"
                          android:visibility="gone"/>
 
             <ImageButton android:id="@+id/stop"
@@ -125,7 +120,6 @@
                          android:layout_width="24dip"
                          android:layout_height="24dip"
                          android:src="@drawable/urlbar_stop"
-                         android:contentDescription="@string/stop"
                          android:visibility="gone"/>
 
         </LinearLayout>

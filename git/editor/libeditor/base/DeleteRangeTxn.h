@@ -7,10 +7,12 @@
 #define DeleteRangeTxn_h__
 
 #include "EditAggregateTxn.h"
-#include "nsRange.h"
+#include "nsIDOMNode.h"
+#include "nsIDOMRange.h"
 #include "nsEditor.h"
 #include "nsCOMPtr.h"
 
+class nsIDOMRange;
 class nsRangeUpdater;
 
 /**
@@ -23,9 +25,9 @@ public:
     * @param aEditor the object providing basic editing operations
     * @param aRange  the range to delete
     */
-  nsresult Init(nsEditor* aEditor,
-                nsRange* aRange,
-                nsRangeUpdater* aRangeUpdater);
+  NS_IMETHOD Init(nsEditor *aEditor,
+                  nsIDOMRange *aRange,
+                  nsRangeUpdater *aRangeUpdater);
 
   DeleteRangeTxn();
 
@@ -38,26 +40,41 @@ public:
 
 protected:
 
-  nsresult CreateTxnsToDeleteBetween(nsINode* aNode,
-                                     PRInt32 aStartOffset,
-                                     PRInt32 aEndOffset);
+  NS_IMETHOD CreateTxnsToDeleteBetween(nsIDOMNode *aStartParent, 
+                                             PRUint32    aStartOffset, 
+                                             PRUint32    aEndOffset);
 
-  nsresult CreateTxnsToDeleteNodesBetween();
+  NS_IMETHOD CreateTxnsToDeleteNodesBetween();
 
-  nsresult CreateTxnsToDeleteContent(nsINode* aParent,
-                                     PRInt32 aOffset,
-                                     nsIEditor::EDirection aAction);
-
+  NS_IMETHOD CreateTxnsToDeleteContent(nsIDOMNode *aParent, 
+                                             PRUint32 aOffset, 
+                                             nsIEditor::EDirection aAction);
+  
 protected:
+  
+  /** p1 in the range */
+  nsCOMPtr<nsIDOMRange> mRange;			// is this really an owning ptr?
 
   /** p1 in the range */
-  nsRefPtr<nsRange> mRange;
+  nsCOMPtr<nsIDOMNode> mStartParent;
+
+  /** p1 offset */
+  PRInt32 mStartOffset;
+
+  /** p2 in the range */
+  nsCOMPtr<nsIDOMNode> mEndParent;
+
+  /** the closest common parent of p1 and p2 */
+  nsCOMPtr<nsIDOMNode> mCommonParent;
+
+  /** p2 offset */
+  PRInt32 mEndOffset;
 
   /** the editor for this transaction */
   nsEditor* mEditor;
 
   /** range updater object */
-  nsRangeUpdater* mRangeUpdater;
+  nsRangeUpdater *mRangeUpdater;
 };
 
 #endif

@@ -264,14 +264,18 @@ bool
 BaseProxyHandler::call(JSContext *cx, JSObject *proxy, unsigned argc,
                        Value *vp)
 {
-    return ReportIsNotFunction(cx, UndefinedValue());
+    Value v = UndefinedValue();
+    js_ReportIsNotFunction(cx, &v, 0);
+    return false;
 }
 
 bool
 BaseProxyHandler::construct(JSContext *cx, JSObject *proxy, unsigned argc,
                             Value *argv, Value *rval)
 {
-    return ReportIsNotFunction(cx, UndefinedValue(), CONSTRUCT);
+    Value v = UndefinedValue();
+    js_ReportIsNotFunction(cx, &v, JSV2F_CONSTRUCT);
+    return false;
 }
 
 JSString *
@@ -569,12 +573,11 @@ DirectProxyHandler::get(JSContext *cx, JSObject *proxy, JSObject *receiver_,
 }
 
 bool
-DirectProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiverArg,
+DirectProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver,
                         jsid id_, bool strict, Value *vp)
 {
     RootedId id(cx, id_);
-    Rooted<JSObject*> receiver(cx, receiverArg);
-    return GetProxyTargetObject(proxy)->setGeneric(cx, receiver, id, vp, strict);
+    return GetProxyTargetObject(proxy)->setGeneric(cx, id, vp, strict);
 }
 
 bool
@@ -1816,12 +1819,12 @@ proxy_createFunction(JSContext *cx, unsigned argc, Value *vp)
         return false;
     parent = proto->getParent();
 
-    JSObject *call = ValueToCallable(cx, &vp[3]);
+    JSObject *call = js_ValueToCallableObject(cx, &vp[3], JSV2F_SEARCH_STACK);
     if (!call)
         return false;
     JSObject *construct = NULL;
     if (argc > 2) {
-        construct = ValueToCallable(cx, &vp[4]);
+        construct = js_ValueToCallableObject(cx, &vp[4], JSV2F_SEARCH_STACK);
         if (!construct)
             return false;
     }

@@ -1047,7 +1047,7 @@ ic::SplatApplyArgs(VMFrame &f)
     JS_ASSERT(args.length() == 2);
     JS_ASSERT(IsNativeFunction(args.calleev(), js_fun_apply));
 
-    if (IsOptimizedArguments(f.fp(), &args[1])) {
+    if (args[1].isMagic(JS_OPTIMIZED_ARGUMENTS)) {
         /* Mirror isMagic(JS_OPTIMIZED_ARGUMENTS) case in js_fun_apply. */
         /* Steps 4-6. */
         unsigned length = f.regs.fp()->numActualArgs();

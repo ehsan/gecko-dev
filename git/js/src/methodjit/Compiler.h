@@ -364,7 +364,7 @@ class Compiler : public BaseCompiler
         SlotType(uint32_t slot, VarType vt) : slot(slot), vt(vt) {}
     };
 
-    RootedScript outerScript;
+    JSScript *outerScript;
     unsigned chunkIndex;
     bool isConstructing;
     ChunkDescriptor outerChunk;
@@ -558,9 +558,9 @@ private:
     bool hasTypeBarriers(jsbytecode *pc);
     bool testSingletonProperty(HandleObject obj, HandleId id);
     bool testSingletonPropertyTypes(FrameEntry *top, HandleId id, bool *testObject);
-    CompileStatus addInlineFrame(HandleScript script, uint32_t depth, uint32_t parent, jsbytecode *parentpc);
+    CompileStatus addInlineFrame(JSScript *script, uint32_t depth, uint32_t parent, jsbytecode *parentpc);
     CompileStatus scanInlineCalls(uint32_t index, uint32_t depth);
-    CompileStatus checkAnalysis(HandleScript script);
+    CompileStatus checkAnalysis(JSScript *script);
 
     struct BarrierState {
         MaybeJump jump;

@@ -53,7 +53,6 @@ WebappsRegistry.prototype = {
                       install: 'r',
                       getSelf: 'r',
                       getInstalled: 'r',
-                      getNotInstalled: 'r',
                       mgmt: 'r'
                      },
 
@@ -101,10 +100,8 @@ WebappsRegistry.prototype = {
       case "Webapps:GetInstalled:Return:OK":
         Services.DOMRequest.fireSuccess(req, convertAppsArray(msg.apps, this._window));
         break;
-      case "Webapps:GetNotInstalled:Return:OK":
-        Services.DOMRequest.fireSuccess(req, convertAppsArray(msg.apps, this._window));
-        break;
       case "Webapps:GetSelf:Return:KO":
+      case "Webapps:GetInstalled:Return:KO":
         Services.DOMRequest.fireError(req, "ERROR");
         break;
     }
@@ -175,14 +172,6 @@ WebappsRegistry.prototype = {
     return request;
   },
 
-  getNotInstalled: function() {
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("Webapps:GetNotInstalled", { origin: this._getOrigin(this._window.location.href),
-                                                       oid: this._id,
-                                                       requestID: this.getRequestId(request) });
-    return request;
-  },
-
   get mgmt() {
     if (!this._mgmt)
       this._mgmt = new WebappsApplicationMgmt(this._window);
@@ -196,7 +185,7 @@ WebappsRegistry.prototype = {
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {
     this.initHelper(aWindow, ["Webapps:Install:Return:OK", "Webapps:Install:Return:KO",
-                              "Webapps:GetInstalled:Return:OK", "Webapps:GetNotInstalled:Return:OK",
+                              "Webapps:GetInstalled:Return:OK", "Webapps:GetInstalled:Return:KO",
                               "Webapps:GetSelf:Return:OK", "Webapps:GetSelf:Return:KO"]);
 
     let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);

@@ -2562,9 +2562,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
       [self setGLContext:glContext];
     }
 
-    [glContext setView:self];
-    [glContext update];
-
     mGeckoChild->DispatchWindowEvent(paintEvent);
 
     // Force OpenGL to refresh the very first time we draw. This works around a
@@ -4648,7 +4645,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
       NS_ERROR("no transferable");
       return nil;
     }
-    item->Init(nsnull);
 
     item->SetTransferData(kFilePromiseDirectoryMime, macLocalFile, sizeof(nsIFile*));
     
@@ -4803,7 +4799,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
   if (NS_FAILED(rv))
     return NO;
-  trans->Init(nsnull);
 
   trans->AddDataFlavor(kUnicodeMime);
   trans->AddDataFlavor(kHTMLMime);

@@ -560,15 +560,6 @@ class SetPropCompiler : public PICStubCompiler
             if (obj->numDynamicSlots() != slots)
                 return disable("insufficient slot capacity");
 
-#ifdef JSGC_INCREMENTAL_MJ
-            /*
-             * Since we're changing the object's shape, we need a write
-             * barrier. Taking the slow path is the easiest way to get one.
-             */
-            if (cx->compartment->needsBarrier())
-                return disable("ADDPROP write barrier required");
-#endif
-
             if (pic.typeMonitored && !updateMonitoredTypes())
                 return Lookup_Uncacheable;
 
@@ -1864,7 +1855,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
 
     PropertyName *name = pic->name;
     if (name == f.cx->runtime->atomState.lengthAtom) {
-        if (IsOptimizedArguments(f.fp(), &f.regs.sp[-1])) {
+        if (f.regs.sp[-1].isMagic(JS_OPTIMIZED_ARGUMENTS)) {
             f.regs.sp[-1].setInt32(f.regs.fp()->numActualArgs());
             return;
         }
@@ -1924,7 +1915,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
 
     Value v;
     if (cached) {
-        if (!GetPropertyOperation(f.cx, f.script(), f.pc(), f.regs.sp[-1], &v))
+        if (!GetPropertyOperation(f.cx, f.pc(), f.regs.sp[-1], &v))
             THROW();
     } else {
         if (!obj->getProperty(f.cx, name, &v))
@@ -2399,15 +2390,15 @@ GetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid i
                  : Int32Key::FromRegister(idRemat.dataReg());
 
     if (!masm.supportsFloatingPoint() &&
-        (TypedArray::type(obj) == TypedArray::TYPE_FLOAT32 ||
-         TypedArray::type(obj) == TypedArray::TYPE_FLOAT64 ||
-         TypedArray::type(obj) == TypedArray::TYPE_UINT32))
+        (TypedArray::getType(obj) == TypedArray::TYPE_FLOAT32 ||
+         TypedArray::getType(obj) == TypedArray::TYPE_FLOAT64 ||
+         TypedArray::getType(obj) == TypedArray::TYPE_UINT32))
     {
         return disable(f, "fpu not supported");
     }
 
     MaybeRegisterID tempReg;
-    masm.loadFromTypedArray(TypedArray::type(obj), objReg, key, typeReg, objReg, tempReg);
+    masm.loadFromTypedArray(TypedArray::getType(obj), objReg, key, typeReg, objReg, tempReg);
 
     Jump done = masm.jump();
 
@@ -2713,8 +2704,8 @@ SetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, int32_t key)
     masm.loadPtr(Address(objReg, TypedArray::dataOffset()), objReg);
 
     if (!masm.supportsFloatingPoint() &&
-        (TypedArray::type(obj) == TypedArray::TYPE_FLOAT32 ||
-         TypedArray::type(obj) == TypedArray::TYPE_FLOAT64))
+        (TypedArray::getType(obj) == TypedArray::TYPE_FLOAT32 ||
+         TypedArray::getType(obj) == TypedArray::TYPE_FLOAT64))
     {
         return disable(f, "fpu not supported");
     }

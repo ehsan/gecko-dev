@@ -355,7 +355,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         StrictModeCode,
         ContainsDynamicNameAccess,
         FunHasExtensibleScope,
-        ArgumentsHasVarBinding,
+        ArgumentsHasLocalBinding,
         NeedsArgsObj,
         OwnFilename,
         ParentFilename,
@@ -373,7 +373,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     nsrcnotes = ntrynotes = natoms = nobjects = nregexps = nconsts = nClosedArgs = nClosedVars = 0;
     jssrcnote *notes = NULL;
 
-    /* XDR arguments, var vars, and upvars. */
+    /* XDR arguments, local vars, and upvars. */
     uint16_t nargs, nvars;
 #if defined(DEBUG) || defined(__GNUC__) /* quell GCC overwarning */
     script = NULL;
@@ -511,8 +511,8 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             scriptBits |= (1 << ContainsDynamicNameAccess);
         if (script->funHasExtensibleScope)
             scriptBits |= (1 << FunHasExtensibleScope);
-        if (script->argumentsHasVarBinding())
-            scriptBits |= (1 << ArgumentsHasVarBinding);
+        if (script->argumentsHasLocalBinding())
+            scriptBits |= (1 << ArgumentsHasLocalBinding);
         if (script->analyzedArgsUsage() && script->needsArgsObj())
             scriptBits |= (1 << NeedsArgsObj);
         if (script->filename) {
@@ -593,8 +593,13 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             script->bindingsAccessedDynamically = true;
         if (scriptBits & (1 << FunHasExtensibleScope))
             script->funHasExtensibleScope = true;
-        if (scriptBits & (1 << ArgumentsHasVarBinding))
-            script->setArgumentsHasVarBinding();
+        if (scriptBits & (1 << ArgumentsHasLocalBinding)) {
+            PropertyName *arguments = cx->runtime->atomState.argumentsAtom;
+            unsigned local;
+            DebugOnly<BindingKind> kind = script->bindings.lookup(cx, arguments, &local);
+            JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
+            script->setArgumentsHasLocalBinding(local);
+        }
         if (scriptBits & (1 << NeedsArgsObj))
             script->setNeedsArgsObj(true);
         if (scriptBits & (1 << IsGenerator))
@@ -1076,9 +1081,8 @@ ScriptDataSize(uint32_t length, uint32_t nsrcnotes, uint32_t natoms,
 JSScript *
 JSScript::Create(JSContext *cx, bool savedCallerFun, JSPrincipals *principals,
                  JSPrincipals *originPrincipals, bool compileAndGo, bool noScriptRval,
-                 GlobalObject *globalObject_, JSVersion version, unsigned staticLevel)
+                 GlobalObject *globalObject, JSVersion version, unsigned staticLevel)
 {
-    Rooted<GlobalObject*> globalObject(cx, globalObject_);
     JSScript *script = js_NewGCScript(cx);
     if (!script)
         return NULL;
@@ -1322,7 +1326,7 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     if (bce->sc->inFunction()) {
         if (bce->sc->funArgumentsHasLocalBinding()) {
             // This must precede the script->bindings.transfer() call below
-            script->setArgumentsHasVarBinding();
+            script->setArgumentsHasLocalBinding(bce->sc->argumentsLocal());
             if (bce->sc->funDefinitelyNeedsArgsObj())        
                 script->setNeedsArgsObj(true);
         } else {
@@ -1337,7 +1341,7 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
 
     script->bindings.transfer(&bce->sc->bindings);
 
-    RootedFunction fun(cx, NULL);
+    JSFunction *fun = NULL;
     if (bce->sc->inFunction()) {
         JS_ASSERT(!bce->script->noScriptRval);
 
@@ -1791,8 +1795,8 @@ js::CloneScript(JSContext *cx, HandleScript src)
     dst->nfixed = src->nfixed;
     dst->nTypeSets = src->nTypeSets;
     dst->nslots = src->nslots;
-    if (src->argumentsHasVarBinding()) {
-        dst->setArgumentsHasVarBinding();
+    if (src->argumentsHasLocalBinding()) {
+        dst->setArgumentsHasLocalBinding(src->argumentsLocal());
         if (src->analyzedArgsUsage())
             dst->setNeedsArgsObj(src->needsArgsObj());
     }
@@ -2123,9 +2127,10 @@ JSScript::markChildren(JSTracer *trc)
 }
 
 void
-JSScript::setArgumentsHasVarBinding()
+JSScript::setArgumentsHasLocalBinding(uint16_t local)
 {
-    argsHasVarBinding_ = true;
+    argsHasLocalBinding_ = true;
+    argsLocal_ = local;
     needsArgsAnalysis_ = true;
 }
 
@@ -2133,18 +2138,18 @@ void
 JSScript::setNeedsArgsObj(bool needsArgsObj)
 {
     JS_ASSERT(!analyzedArgsUsage());
-    JS_ASSERT_IF(needsArgsObj, argumentsHasVarBinding());
+    JS_ASSERT_IF(needsArgsObj, argumentsHasLocalBinding());
     needsArgsAnalysis_ = false;
     needsArgsObj_ = needsArgsObj;
 }
 
 /* static */ bool
-JSScript::argumentsOptimizationFailed(JSContext *cx, JSScript *script_)
+JSScript::applySpeculationFailed(JSContext *cx, JSScript *script_)
 {
     Rooted<JSScript*> script(cx, script_);
 
     JS_ASSERT(script->analyzedArgsUsage());
-    JS_ASSERT(script->argumentsHasVarBinding());
+    JS_ASSERT(script->argumentsHasLocalBinding());
 
     /*
      * It is possible that the apply speculation has already failed, everything
@@ -2157,7 +2162,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, JSScript *script_)
 
     script->needsArgsObj_ = true;
 
-    const unsigned var = script->bindings.argumentsVarIndex(cx);
+    const unsigned local = script->argumentsLocal();
 
     /*
      * By design, the apply-arguments optimization is only made when there
@@ -2186,8 +2191,8 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, JSScript *script_)
             }
 
             /* Note: 'arguments' may have already been overwritten. */
-            if (fp->unaliasedLocal(var).isMagic(JS_OPTIMIZED_ARGUMENTS))
-                fp->unaliasedLocal(var) = ObjectValue(*argsobj);
+            if (fp->unaliasedLocal(local).isMagic(JS_OPTIMIZED_ARGUMENTS))
+                fp->unaliasedLocal(local) = ObjectValue(*argsobj);
         }
     }
 

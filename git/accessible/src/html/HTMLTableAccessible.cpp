@@ -610,37 +610,54 @@ HTMLTableAccessible::SelectedRowCount()
   return count;
 }
 
-void
-HTMLTableAccessible::SelectedCells(nsTArray<Accessible*>* aCells)
+NS_IMETHODIMP
+HTMLTableAccessible::GetSelectedCells(nsIArray** aCells)
 {
-  PRUint32 rowCount = RowCount(), colCount = ColCount();
+  NS_ENSURE_ARG_POINTER(aCells);
+  *aCells = nsnull;
+
+  PRInt32 rowCount = 0;
+  nsresult rv = GetRowCount(&rowCount);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRInt32 columnCount = 0;
+  rv = GetColumnCount(&columnCount);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsITableLayout *tableLayout = GetTableLayout();
-  if (!tableLayout) 
-    return;
+  NS_ENSURE_STATE(tableLayout);
+
+  nsCOMPtr<nsIMutableArray> selCells =
+    do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMElement> cellElement;
   PRInt32 startRowIndex = 0, startColIndex = 0,
     rowSpan, colSpan, actualRowSpan, actualColSpan;
   bool isSelected = false;
 
-  for (PRUint32 rowIdx = 0; rowIdx < rowCount; rowIdx++) {
-    for (PRUint32 colIdx = 0; colIdx < colCount; colIdx++) {
-      nsresult rv = tableLayout->GetCellDataAt(rowIdx, colIdx,
+  PRInt32 rowIndex, index;
+  for (rowIndex = 0, index = 0; rowIndex < rowCount; rowIndex++) {
+    PRInt32 columnIndex;
+    for (columnIndex = 0; columnIndex < columnCount; columnIndex++, index++) {
+      rv = tableLayout->GetCellDataAt(rowIndex, columnIndex,
                                       *getter_AddRefs(cellElement),
                                       startRowIndex, startColIndex,
                                       rowSpan, colSpan,
                                       actualRowSpan, actualColSpan,
                                       isSelected);
 
-      if (NS_SUCCEEDED(rv) && startRowIndex == rowIdx &&
-          startColIndex == colIdx && isSelected) {
+      if (NS_SUCCEEDED(rv) && startRowIndex == rowIndex &&
+          startColIndex == columnIndex && isSelected) {
         nsCOMPtr<nsIContent> cellContent(do_QueryInterface(cellElement));
         Accessible* cell = mDoc->GetAccessible(cellContent);
-        aCells->AppendElement(cell);
+        selCells->AppendElement(static_cast<nsIAccessible*>(cell), false);
       }
     }
   }
+
+  NS_ADDREF(*aCells = selCells);
+  return NS_OK;
 }
 
 void

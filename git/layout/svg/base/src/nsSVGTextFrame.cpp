@@ -13,7 +13,6 @@
 #include "nsISVGGlyphFragmentNode.h"
 #include "nsSVGGlyphFrame.h"
 #include "nsSVGGraphicElement.h"
-#include "nsSVGIntegrationUtils.h"
 #include "nsSVGPathElement.h"
 #include "nsSVGTextPathFrame.h"
 #include "nsSVGUtils.h"
@@ -257,23 +256,15 @@ nsSVGTextFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGTextFrame::GetCanvasTM(PRUint32 aFor)
+nsSVGTextFrame::GetCanvasTM()
 {
-  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-    if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
-        (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
-      return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
-    }
-  }
-
   if (!mCanvasTM) {
     NS_ASSERTION(mParent, "null parent");
 
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
     nsSVGGraphicElement *content = static_cast<nsSVGGraphicElement*>(mContent);
 
-    gfxMatrix tm =
-      content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
+    gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM());
 
     mCanvasTM = new gfxMatrix(tm);
   }

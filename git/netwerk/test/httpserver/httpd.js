@@ -1610,10 +1610,7 @@ RequestReader.prototype =
     // between fields, even though only a single SP is required (section 19.3)
     var request = line.split(/[ \t]+/);
     if (!request || request.length != 3)
-    {
-      dumpn("*** No request in line");
       throw HTTP_400;
-    }
 
     metadata._method = request[0];
 
@@ -1621,10 +1618,7 @@ RequestReader.prototype =
     var ver = request[2];
     var match = ver.match(/^HTTP\/(\d+\.\d+)$/);
     if (!match)
-    {
-      dumpn("*** No HTTP version in line");
       throw HTTP_400;
-    }
 
     // determine HTTP version
     try
@@ -1649,10 +1643,7 @@ RequestReader.prototype =
     {
       // No absolute paths in the request line in HTTP prior to 1.1
       if (!metadata._httpVersion.atLeast(nsHttpVersion.HTTP_1_1))
-      {
-        dumpn("*** Metadata version too low");
         throw HTTP_400;
-      }
 
       try
       {
@@ -1666,18 +1657,11 @@ RequestReader.prototype =
         if (port === -1)
         {
           if (scheme === "http")
-          {
             port = 80;
-          }
           else if (scheme === "https")
-          {
             port = 443;
-          }
           else
-          {
-            dumpn("*** Unknown scheme: " + scheme);
             throw HTTP_400;
-          }
         }
       }
       catch (e)
@@ -1685,15 +1669,11 @@ RequestReader.prototype =
         // If the host is not a valid host on the server, the response MUST be a
         // 400 (Bad Request) error message (section 5.2).  Alternately, the URI
         // is malformed.
-        dumpn("*** Threw when dealing with URI: " + e);
         throw HTTP_400;
       }
 
       if (!serverIdentity.has(scheme, host, port) || fullPath.charAt(0) != "/")
-      {
-        dumpn("*** serverIdentity unknown or path does not start with '/'");
         throw HTTP_400;
-      }
     }
 
     var splitter = fullPath.indexOf("?");
@@ -1737,8 +1717,6 @@ RequestReader.prototype =
     var line = {};
     while (true)
     {
-      dumpn("*** Last name: '" + lastName + "'");
-      dumpn("*** Last val: '" + lastVal + "'");
       NS_ASSERT(!((lastVal === undefined) ^ (lastName === undefined)),
                 lastName === undefined ?
                   "lastVal without lastName?  lastVal: '" + lastVal + "'" :
@@ -1753,7 +1731,6 @@ RequestReader.prototype =
       }
 
       var lineText = line.value;
-      dumpn("*** Line text: '" + lineText + "'");
       var firstChar = lineText.charAt(0);
 
       // blank line means end of headers
@@ -1768,7 +1745,7 @@ RequestReader.prototype =
           }
           catch (e)
           {
-            dumpn("*** setHeader threw on last header, e == " + e);
+            dumpn("*** e == " + e);
             throw HTTP_400;
           }
         }
@@ -1786,7 +1763,7 @@ RequestReader.prototype =
         // multi-line header if we've already seen a header line
         if (!lastName)
         {
-          dumpn("We don't have a header to continue!");
+          // we don't have a header to continue!
           throw HTTP_400;
         }
 
@@ -1805,7 +1782,7 @@ RequestReader.prototype =
           }
           catch (e)
           {
-            dumpn("*** setHeader threw on a header, e == " + e);
+            dumpn("*** e == " + e);
             throw HTTP_400;
           }
         }
@@ -1813,7 +1790,7 @@ RequestReader.prototype =
         var colon = lineText.indexOf(":"); // first colon must be splitter
         if (colon < 1)
         {
-          dumpn("*** No colon or missing header field-name");
+          // no colon or missing header field-name
           throw HTTP_400;
         }
 
@@ -1911,13 +1888,6 @@ LineData.prototype =
     if (length < 0)
     {
       this._start = data.length;
-
-      // But if our data ends in a CR, we have to back up one, because
-      // the first byte in the next packet might be an LF and if we
-      // start looking at data.length we won't find it.
-      if (data.length > 0 && data[data.length - 1] === CR)
-        --this._start;
-
       return false;
     }
 
@@ -2557,10 +2527,7 @@ ServerHandler.prototype =
     {
       var rangeMatch = metadata.getHeader("Range").match(/^bytes=(\d+)?-(\d+)?$/);
       if (!rangeMatch)
-      {
-        dumpn("*** Range header bogosity: '" + metadata.getHeader("Range") + "'");
         throw HTTP_400;
-      }
 
       if (rangeMatch[1] !== undefined)
         start = parseInt(rangeMatch[1], 10);
@@ -2569,10 +2536,7 @@ ServerHandler.prototype =
         end = parseInt(rangeMatch[2], 10);
 
       if (start === undefined && end === undefined)
-      {
-        dumpn("*** More Range header bogosity: '" + metadata.getHeader("Range") + "'");
         throw HTTP_400;
-      }
 
       // No start given, so the end is really the count of bytes from the
       // end of the file.
@@ -2987,7 +2951,6 @@ ServerHandler.prototype =
     }
     catch (e)
     {
-      dumpn("*** toInternalPath threw " + e);
       throw HTTP_400; // malformed path
     }
 
@@ -4679,10 +4642,7 @@ const headerUtils =
   normalizeFieldName: function(fieldName)
   {
     if (fieldName == "")
-    {
-      dumpn("*** Empty fieldName");
       throw Cr.NS_ERROR_INVALID_ARG;
-    }
 
     for (var i = 0, sz = fieldName.length; i < sz; i++)
     {
@@ -4733,13 +4693,9 @@ const headerUtils =
     val = val.replace(/^ +/, "").replace(/ +$/, "");
 
     // that should have taken care of all CTLs, so val should contain no CTLs
-    dumpn("*** Normalized value: '" + val + "'");
     for (var i = 0, len = val.length; i < len; i++)
       if (isCTL(val.charCodeAt(i)))
-      {
-        dump("*** Char " + i + " has charcode " + val.charCodeAt(i));
         throw Cr.NS_ERROR_INVALID_ARG;
-      }
 
     // XXX disallows quoted-pair where CHAR is a CTL -- will not invalidly
     //     normalize, however, so this can be construed as a tightening of the

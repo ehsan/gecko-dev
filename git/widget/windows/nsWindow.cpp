@@ -6131,7 +6131,7 @@ void nsWindow::UserActivity()
 
   // Check that we now have the idle service.
   if (mIdleService) {
-    mIdleService->ResetIdleTimeOut(0);
+    mIdleService->ResetIdleTimeOut();
   }
 }
 

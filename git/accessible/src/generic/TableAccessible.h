@@ -134,7 +134,7 @@ public:
   /**
    * Get the set of selected cells.
    */
-  virtual void SelectedCells(nsTArray<Accessible*>* aCells) = 0;
+  virtual void SelectedCells(nsTArray<Accessible*>* aCells) {}
 
   /**
    * Get the set of selected cell indices.

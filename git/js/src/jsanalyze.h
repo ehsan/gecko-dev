@@ -364,7 +364,7 @@ static inline uint32_t GetBytecodeSlot(JSScript *script, jsbytecode *pc)
       case JSOP_SETALIASEDVAR:
       {
         unsigned index;
-        return ScopeCoordinateToFrameIndex(script, pc, &index) == FrameIndex_Local
+        return ScopeCoordinateToFrameVar(script, pc, &index) == FrameVar_Local
                ? LocalSlot(script, index)
                : ArgSlot(index);
       }
@@ -1205,10 +1205,8 @@ class ScriptAnalysis
 
     /* Type inference helpers */
     bool analyzeTypesBytecode(JSContext *cx, unsigned offset, TypeInferenceState &state);
-
-    typedef Vector<SSAValue, 16> SeenVector;
-    bool needsArgsObj(JSContext *cx, SeenVector &seen, const SSAValue &v);
-    bool needsArgsObj(JSContext *cx, SeenVector &seen, SSAUseChain *use);
+    bool needsArgsObj(NeedsArgsObjState &state, const SSAValue &v);
+    bool needsArgsObj(NeedsArgsObjState &state, SSAUseChain *use);
     bool needsArgsObj(JSContext *cx);
 
   public:

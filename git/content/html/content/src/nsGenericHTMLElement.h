@@ -147,11 +147,6 @@ public:
   nsresult ClearDataset();
   nsresult GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu);
 
-  /**
-   * Get width and height, using given image request if attributes are unset.
-   */
-  nsSize GetWidthHeightForImage(imgIRequest *aImageRequest);
-
 protected:
   nsresult GetMarkup(bool aIncludeSelf, nsAString& aMarkup);
 

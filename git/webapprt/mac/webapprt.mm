@@ -90,9 +90,6 @@ main(int argc, char **argv)
 {
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
-  NSDictionary *args = [[NSUserDefaults standardUserDefaults]
-                         volatileDomainForName:NSArgumentDomain];
-
   NSString *firefoxPath = nil;
   NSString *alternateBinaryID = nil;
 
@@ -202,6 +199,11 @@ main(int argc, char **argv)
 
       NS_LogInit();
       { // Scope for any XPCOM stuff we create
+        nsINIParser parser;
+        if (NS_FAILED(parser.Init(appEnv))) {
+          NSLog(@"%s was not found\n", appEnv);
+          @throw MakeException(@"Error", @"Unable to parse environment files for application startup");
+        }
 
         // Get the path to the runtime directory.
         char rtDir[MAXPATHLEN];
@@ -232,24 +234,13 @@ main(int argc, char **argv)
           @throw MakeException(@"Error", @"Unable to parse base INI file.");
         }
 
-        NSString *profile = [args objectForKey:@"profile"];
-        if (profile) {
-          NSLog(@"Profile specified with -profile: %@", profile);
+        char profile[MAXPATHLEN];
+        if (NS_FAILED(parser.GetString("Webapp", "Profile", profile, MAXPATHLEN))) {
+          NSLog(@"Unable to retrieve profile from web app INI file");
+          @throw MakeException(@"Error", @"Unable to retrieve installation profile.");
         }
-        else {
-          nsINIParser parser;
-          if (NS_FAILED(parser.Init(appEnv))) {
-            NSLog(@"%s was not found\n", appEnv);
-            @throw MakeException(@"Error", @"Unable to parse environment files for application startup");
-          }
-          char profile[MAXPATHLEN];
-          if (NS_FAILED(parser.GetString("Webapp", "Profile", profile, MAXPATHLEN))) {
-            NSLog(@"Unable to retrieve profile from web app INI file");
-            @throw MakeException(@"Error", @"Unable to retrieve installation profile.");
-          }
-          NSLog(@"setting app profile: %s", profile);
-          SetAllocatedString(webShellAppData->profile, profile);
-        }
+        NSLog(@"setting app profile: %s", profile);
+        SetAllocatedString(webShellAppData->profile, profile);
 
         nsCOMPtr<nsIFile> directory;
         if (NS_FAILED(XRE_GetFileFromPath(rtDir, getter_AddRefs(directory)))) {
@@ -317,14 +308,6 @@ NSString
 {
   //default is firefox
   NSString *binaryPath = nil;
-
-  // We're run from the Firefox bundle during WebappRT chrome and content tests.
-  NSString *myBundlePath = [[NSBundle mainBundle] bundlePath];
-  NSString *fxPath = [NSString stringWithFormat:@"%@%sfirefox-bin",
-                                 myBundlePath, APP_CONTENTS_PATH];
-  if ([[NSFileManager defaultManager] fileExistsAtPath:fxPath]) {
-    return myBundlePath;
-  }
 
   //we look for these flavors of Firefox, in this order
   NSArray* launchBinarySearchList = [NSArray arrayWithObjects: @"org.mozilla.nightly",

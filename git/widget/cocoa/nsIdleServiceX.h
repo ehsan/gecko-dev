@@ -10,25 +10,14 @@
 class nsIdleServiceX : public nsIdleService
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
+
+  nsIdleServiceX() {}
+  virtual ~nsIdleServiceX() {}
 
   bool PollIdleTime(PRUint32* aIdleTime);
 
-  static already_AddRefed<nsIdleServiceX> GetInstance() 
-  {
-    nsIdleServiceX* idleService = 
-      static_cast<nsIdleServiceX*>(nsIdleService::GetInstance().get());
-    if (!idleService) {
-      idleService = new nsIdleServiceX();
-      NS_ADDREF(idleService);
-    }
-    
-    return idleService;
-  }
-  
 protected:
-    nsIdleServiceX() { }
-    virtual ~nsIdleServiceX() { }
     bool UsePollMode();
 };
 

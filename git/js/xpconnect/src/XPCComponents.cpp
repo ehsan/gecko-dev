@@ -3630,20 +3630,16 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
     return rv;
 }
 
-class ContextHolder : public nsIScriptObjectPrincipal
-                    , public nsIScriptContextPrincipal
+class ContextHolder : public nsISupports
 {
 public:
-    ContextHolder(JSContext *aOuterCx, JSObject *aSandbox, nsIPrincipal *aPrincipal);
+    ContextHolder(JSContext *aOuterCx, JSObject *aSandbox, bool isChrome);
     virtual ~ContextHolder();
 
     JSContext * GetJSContext()
     {
         return mJSContext;
     }
-
-    nsIScriptObjectPrincipal * GetObjectPrincipal() { return this; }
-    nsIPrincipal * GetPrincipal() { return mPrincipal; }
 
     NS_DECL_ISUPPORTS
 
@@ -3652,23 +3648,17 @@ private:
 
     JSContext* mJSContext;
     JSContext* mOrigCx;
-    nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
-NS_IMPL_ISUPPORTS2(ContextHolder, nsIScriptObjectPrincipal, nsIScriptContextPrincipal)
+NS_IMPL_ISUPPORTS0(ContextHolder)
 
 ContextHolder::ContextHolder(JSContext *aOuterCx,
                              JSObject *aSandbox,
-                             nsIPrincipal *aPrincipal)
+                             bool isChrome)
     : mJSContext(JS_NewContext(JS_GetRuntime(aOuterCx), 1024)),
-      mOrigCx(aOuterCx),
-      mPrincipal(aPrincipal)
+      mOrigCx(aOuterCx)
 {
     if (mJSContext) {
-        bool isChrome;
-        DebugOnly<nsresult> rv = XPCWrapper::GetSecurityManager()->
-                                   IsSystemPrincipal(mPrincipal, &isChrome);
-        MOZ_ASSERT(NS_SUCCEEDED(rv));
         bool allowXML = Preferences::GetBool(isChrome ?
                                              "javascript.options.xml.chrome" :
                                              "javascript.options.xml.content");
@@ -3826,7 +3816,10 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         }
     }
 
-    nsRefPtr<ContextHolder> sandcx = new ContextHolder(cx, sandbox, prin);
+    bool isChrome;
+    nsresult rv = XPCWrapper::GetSecurityManager()->IsSystemPrincipal(prin, &isChrome);
+    NS_ENSURE_SUCCESS(rv, rv);
+    nsRefPtr<ContextHolder> sandcx = new ContextHolder(cx, sandbox, isChrome);
     if (!sandcx || !sandcx->GetJSContext()) {
         JS_ReportError(cx, "Can't prepare context for evalInSandbox");
         return NS_ERROR_OUT_OF_MEMORY;
@@ -3842,7 +3835,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         return NS_ERROR_FAILURE;
     }
 
-    nsresult rv = NS_OK;
+    rv = NS_OK;
 
     {
         JSAutoRequest req(sandcx->GetJSContext());

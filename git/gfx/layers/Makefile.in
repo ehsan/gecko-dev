@@ -38,19 +38,11 @@ EXPORTS = \
         LayerManagerOGLProgram.h \
         ReadbackLayer.h \
         LayerSorter.h \
-        LayerTreeInvalidation.h \
         $(NULL)
 
 CPPSRCS = \
         BasicImages.cpp \
-        BasicLayerManager.cpp \
-        BasicCanvasLayer.cpp \
-        BasicColorLayer.cpp \
-        BasicContainerLayer.cpp \
-        BasicImageLayer.cpp \
-        BasicLayersImpl.cpp \
-        BasicThebesLayer.cpp \
-        BasicBuffers.cpp \
+        BasicLayers.cpp \
         BasicTiledThebesLayer.cpp \
         Layers.cpp \
         RenderTrace.cpp \
@@ -66,7 +58,6 @@ CPPSRCS = \
         ReusableTileStoreOGL.cpp \
         LayerManagerOGLProgram.cpp \
         LayerSorter.cpp \
-        LayerTreeInvalidation.cpp \
         ImageLayers.cpp \
         $(NULL)
 

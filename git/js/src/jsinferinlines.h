@@ -13,7 +13,6 @@
 #include "jsprf.h"
 
 #include "gc/Marking.h"
-#include "gc/Root.h"
 #include "vm/GlobalObject.h"
 
 #include "vm/Stack-inl.h"
@@ -306,11 +305,11 @@ TypeMonitorCall(JSContext *cx, const js::CallArgs &args, bool constructing)
     extern void TypeMonitorCallSlow(JSContext *cx, JSObject *callee,
                                     const CallArgs &args, bool constructing);
 
-    RootedObject callee(cx, &args.callee());
+    JSObject *callee = &args.callee();
     if (callee->isFunction()) {
         JSFunction *fun = callee->toFunction();
         if (fun->isInterpreted()) {
-            RootedScript script(cx, fun->script());
+            JSScript *script = fun->script();
             if (!script->ensureRanAnalysis(cx, fun->environment()))
                 return false;
             if (cx->typeInferenceEnabled())
@@ -532,7 +531,7 @@ struct AllocationSiteKey {
 /* static */ inline TypeObject *
 TypeScript::InitObject(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoKey kind)
 {
-    JS_ASSERT(!UseNewTypeForInitializer(cx, script, pc, kind));
+    JS_ASSERT(!UseNewTypeForInitializer(cx, script, pc));
 
     /* :XXX: Limit script->length so we don't need to check the offset up front? */
     uint32_t offset = pc - script->code;
@@ -557,15 +556,12 @@ TypeScript::InitObject(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoK
 
 /* Set the type to use for obj according to the site it was allocated at. */
 static inline bool
-SetInitializerObjectType(JSContext *cx, HandleScript script, jsbytecode *pc, HandleObject obj)
+SetInitializerObjectType(JSContext *cx, JSScript *script, jsbytecode *pc, JSObject *obj)
 {
     if (!cx->typeInferenceEnabled())
         return true;
 
-    JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(obj->getClass());
-    JS_ASSERT(key != JSProto_Null);
-
-    if (UseNewTypeForInitializer(cx, script, pc, key)) {
+    if (UseNewTypeForInitializer(cx, script, pc)) {
         if (!obj->setSingletonType(cx))
             return false;
 
@@ -576,6 +572,7 @@ SetInitializerObjectType(JSContext *cx, HandleScript script, jsbytecode *pc, Han
          */
         TypeScript::Monitor(cx, script, pc, ObjectValue(*obj));
     } else {
+        JSProtoKey key = obj->isDenseArray() ? JSProto_Array : JSProto_Object;
         types::TypeObject *type = TypeScript::InitObject(cx, script, pc, key);
         if (!type)
             return false;
@@ -1336,28 +1333,34 @@ TypeObject::setFlagsFromKey(JSContext *cx, JSProtoKey key)
     TypeObjectFlags flags = 0;
 
     switch (key) {
+      case JSProto_Function:
+        JS_ASSERT(isFunction());
+        /* FALLTHROUGH */
+
+      case JSProto_Object:
+        flags = OBJECT_FLAG_NON_DENSE_ARRAY
+              | OBJECT_FLAG_NON_PACKED_ARRAY
+              | OBJECT_FLAG_NON_TYPED_ARRAY;
+        break;
+
       case JSProto_Array:
         flags = OBJECT_FLAG_NON_TYPED_ARRAY;
         break;
 
-      case JSProto_Int8Array:
-      case JSProto_Uint8Array:
-      case JSProto_Int16Array:
-      case JSProto_Uint16Array:
-      case JSProto_Int32Array:
-      case JSProto_Uint32Array:
-      case JSProto_Float32Array:
-      case JSProto_Float64Array:
-      case JSProto_Uint8ClampedArray:
-      case JSProto_DataView:
+      default:
+        /* :XXX: abstract */
+        JS_ASSERT(key == JSProto_Int8Array ||
+                  key == JSProto_Uint8Array ||
+                  key == JSProto_Int16Array ||
+                  key == JSProto_Uint16Array ||
+                  key == JSProto_Int32Array ||
+                  key == JSProto_Uint32Array ||
+                  key == JSProto_Float32Array ||
+                  key == JSProto_Float64Array ||
+                  key == JSProto_Uint8ClampedArray ||
+                  key == JSProto_DataView);
         flags = OBJECT_FLAG_NON_DENSE_ARRAY
               | OBJECT_FLAG_NON_PACKED_ARRAY;
-        break;
-
-      default:
-        flags = OBJECT_FLAG_NON_DENSE_ARRAY
-              | OBJECT_FLAG_NON_PACKED_ARRAY
-              | OBJECT_FLAG_NON_TYPED_ARRAY;
         break;
     }
 
@@ -1473,14 +1476,13 @@ JSScript::ensureRanAnalysis(JSContext *cx, JSObject *scope)
 inline bool
 JSScript::ensureRanInference(JSContext *cx)
 {
-    JS::RootedScript self(cx, this);
     if (!ensureRanAnalysis(cx, NULL))
         return false;
-    if (!self->analysis()->ranInference()) {
+    if (!analysis()->ranInference()) {
         js::types::AutoEnterTypeInference enter(cx);
-        self->analysis()->analyzeTypes(cx);
+        analysis()->analyzeTypes(cx);
     }
-    return !self->analysis()->OOM() &&
+    return !analysis()->OOM() &&
         !cx->compartment->types.pendingNukeTypes;
 }
 
@@ -1515,10 +1517,8 @@ js::analyze::ScriptAnalysis::addPushedType(JSContext *cx, uint32_t offset, uint3
 inline js::types::TypeObject *
 JSCompartment::getEmptyType(JSContext *cx)
 {
-    if (!emptyTypeObject) {
-        JS::RootedObject nullproto(cx, NULL);
-        emptyTypeObject = types.newTypeObject(cx, NULL, JSProto_Object, nullproto, true);
-    }
+    if (!emptyTypeObject)
+        emptyTypeObject = types.newTypeObject(cx, NULL, JSProto_Object, NULL, true);
     return emptyTypeObject;
 }
 

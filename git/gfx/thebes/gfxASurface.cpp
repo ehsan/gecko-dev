@@ -488,13 +488,6 @@ gfxASurface::MovePixels(const nsIntRect& aSourceRect,
     nsRefPtr<gfxASurface> tmp = 
       CreateSimilarSurface(GetContentType(), 
                            gfxIntSize(aSourceRect.width, aSourceRect.height));
-    // CreateSimilarSurface can return nsnull if the current surface is
-    // in an error state. This isn't good, but its better to carry
-    // on with the error surface instead of crashing.
-    NS_ASSERTION(tmp, "Must have temporary surface to move pixels!");
-    if (!tmp) {
-        return;
-    }
     nsRefPtr<gfxContext> ctx = new gfxContext(tmp);
     ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
     ctx->SetSource(this, gfxPoint(-aSourceRect.x, -aSourceRect.y));
@@ -802,7 +795,7 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
   } else {
     nsCOMPtr<nsIClipboardHelper> clipboard(do_GetService("@mozilla.org/widget/clipboardhelper;1", &rv));
     if (clipboard) {
-      clipboard->CopyString(NS_ConvertASCIItoUTF16(string), nsnull);
+      clipboard->CopyString(NS_ConvertASCIItoUTF16(string));
     }
   }
 

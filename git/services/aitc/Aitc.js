@@ -75,18 +75,9 @@ AitcService.prototype = {
 
   start: function start() {
     Cu.import("resource://services-aitc/main.js");
-    if (this.aitc) {
-      return;
+    if (!this.aitc) {
+      this.aitc = new Aitc();
     }
-
-    // Log to stdout if enabled.
-    Cu.import("resource://services-common/log4moz.js");
-    let root = Log4Moz.repository.getLogger("Service.AITC");
-    root.level = Log4Moz.Level[Preferences.get("services.aitc.log.level")];
-    if (Preferences.get("services.aitc.log.dump")) {
-      root.addAppender(new Log4Moz.DumpAppender());
-    }
-    this.aitc = new Aitc();
   },
 
   hasUsedApps: function hasUsedApps() {
