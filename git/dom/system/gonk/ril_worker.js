@@ -13735,6 +13735,15 @@ let ICCContactHelper = {
         return;
       }
 
+      // Check if contact has additional properties (email, anr, ...etc) that
+      // need to be updated as well.
+      if ((field === USIM_PBR_EMAIL && !contact.email) ||
+          (field === USIM_PBR_ANR0 && (!Array.isArray(contact.anr) ||
+                                       !contact.anr[0]))) {
+        updateField();
+        return;
+      }
+
       ICCContactHelper.updateContactField(pbr, contact, field, updateField, onerror);
     })();
   },
@@ -13774,8 +13783,7 @@ let ICCContactHelper = {
     if (field === USIM_PBR_EMAIL) {
       ICCRecordHelper.updateEmail(pbr, contact.recordId, contact.email, null, onsuccess, onerror);
     } else if (field === USIM_PBR_ANR0) {
-      let anr = Array.isArray(contact.anr) ? contact.anr[0] : null;
-      ICCRecordHelper.updateANR(pbr, contact.recordId, anr, null, onsuccess, onerror);
+      ICCRecordHelper.updateANR(pbr, contact.recordId, contact.anr[0], null, onsuccess, onerror);
     } else {
      if (DEBUG) {
        debug("Unsupported field :" + field);
@@ -13805,16 +13813,8 @@ let ICCContactHelper = {
     let gotIapCb = function gotIapCb(iap) {
       let recordId = iap[pbr[field].indexInIAP];
       if (recordId === 0xff) {
-        // If the value in IAP[index] is 0xff, which means the contact stored on
-        // the SIM doesn't have the additional attribute (email or anr).
-        // So if the contact to be updated doesn't have the attribute either,
-        // we don't have to update it.
-        if ((field === USIM_PBR_EMAIL && contact.email) ||
-            (field === USIM_PBR_ANR0 &&
-             (Array.isArray(contact.anr) && contact.anr[0]))) {
-          // Case 1.
-          this.addContactFieldType2(pbr, contact, field, onsuccess, onerror);
-        }
+        // Case 1.
+        this.addContactFieldType2(pbr, contact, field, onsuccess, onerror);
         return;
       }
 
@@ -13822,8 +13822,7 @@ let ICCContactHelper = {
       if (field === USIM_PBR_EMAIL) {
         ICCRecordHelper.updateEmail(pbr, recordId, contact.email, contact.recordId, onsuccess, onerror);
       } else if (field === USIM_PBR_ANR0) {
-        let anr = Array.isArray(contact.anr) ? contact.anr[0] : null;
-        ICCRecordHelper.updateANR(pbr, recordId, anr, contact.recordId, onsuccess, onerror);
+        ICCRecordHelper.updateANR(pbr, recordId, contact.anr[0], contact.recordId, onsuccess, onerror);
       } else {
         if (DEBUG) {
           debug("Unsupported field :" + field);
