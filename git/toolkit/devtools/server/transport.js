@@ -7,8 +7,6 @@
 "use strict";
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
-
 /**
  * An adapter that handles data transfers between the debugger client and
  * server. It can work with both nsIPipe and nsIServerSocket transports so
@@ -68,9 +66,8 @@ DebuggerTransport.prototype = {
    * they are passed to this method.
    */
   send: function DT_send(aPacket) {
-    let data = wantLogging
-      ? JSON.stringify(aPacket, null, 2)
-      : JSON.stringify(aPacket);
+    // TODO (bug 709088): remove pretty printing when the protocol is done.
+    let data = JSON.stringify(aPacket, null, 2);
     data = this._converter.ConvertFromUnicode(data);
     data = data.length + ':' + data;
     this._outgoing += data;
