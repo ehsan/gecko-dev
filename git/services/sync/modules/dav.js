@@ -360,7 +360,6 @@ DAVCollection.prototype = {
 
     if (DAVLocks['default']) {
       this._log.debug("Lock called, but we already hold a token");
-      this._lockAllowed = true;
       self.done();
       return;
     }
@@ -396,7 +395,7 @@ DAVCollection.prototype = {
 
     this._log.trace("Lock acquired");
     this._lockAllowed = true;
-
+    
     self.done(DAVLocks['default']);
   },
 

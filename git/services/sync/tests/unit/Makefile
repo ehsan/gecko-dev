@@ -1,2 +1,1 @@
-all:
-	${MAKE} -f ../harness/Makefile
+../harness/Makefile

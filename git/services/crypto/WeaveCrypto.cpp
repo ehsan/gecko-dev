@@ -50,12 +50,6 @@
 #include "keyhi.h"
 #include "nss.h"
 
-/*
- * In a number of places we use stack buffers to hold smallish temporary data.
- * 4K is plenty big for the exptected uses, and avoids poking holes in the
- * heap for small allocations. (Yes, we still check for overflow.)
- */
-#define STACK_BUFFER_SIZE 4096
 
 NS_IMPL_ISUPPORTS1(WeaveCrypto, IWeaveCrypto)
 
@@ -279,9 +273,9 @@ WeaveCrypto::CommonCrypt(const char *input, PRUint32 inputSize,
   SECItem      *ivParam = nsnull;
   PRUint32 maxOutputSize;
 
-  char keyData[STACK_BUFFER_SIZE];
+  char keyData[aSymmetricKey.Length()];
   PRUint32 keyDataSize = sizeof(keyData);
-  char ivData[STACK_BUFFER_SIZE];
+  char ivData[aIV.Length()];
   PRUint32 ivDataSize = sizeof(ivData);
 
   rv = DecodeBase64(aSymmetricKey, keyData, &keyDataSize);
@@ -474,8 +468,8 @@ WeaveCrypto::DeriveKeyFromPassphrase(const nsACString& aPassphrase,
   PromiseFlatCString fPass(aPassphrase);
   SECItem passphrase = {siBuffer, (unsigned char *)fPass.get(), fPass.Length()}; 
 
-  char saltBytes[STACK_BUFFER_SIZE];
-  PRUint32 saltBytesLength = sizeof(saltBytes);
+  char saltBytes[aSalt.Length()];
+  PRUint32 saltBytesLength = aSalt.Length();
   rv = DecodeBase64(aSalt, saltBytes, &saltBytesLength);
   NS_ENSURE_SUCCESS(rv, rv);
   SECItem salt = {siBuffer, (unsigned char*)saltBytes, saltBytesLength}; 
@@ -537,7 +531,7 @@ WeaveCrypto::WrapPrivateKey(SECKEYPrivateKey *aPrivateKey,
   rv = DeriveKeyFromPassphrase(aPassphrase, aSalt, &pbeKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  char ivData[STACK_BUFFER_SIZE];
+  char ivData[aIV.Length()];
   PRUint32 ivDataSize = sizeof(ivData);
   rv = DecodeBase64(aIV, ivData, &ivDataSize);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -560,7 +554,7 @@ WeaveCrypto::WrapPrivateKey(SECKEYPrivateKey *aPrivateKey,
 
   // Use a stack buffer to hold the wrapped key. NSS says about 1200 bytes for
   // a 2048-bit RSA key, so our 4096 byte buffer should be plenty.
-  unsigned char stackBuffer[STACK_BUFFER_SIZE];
+  unsigned char stackBuffer[4096];
   SECItem wrappedKey = {siBuffer, stackBuffer, sizeof(stackBuffer)}; 
 
   s = PK11_WrapPrivKey(aPrivateKey->pkcs11Slot,
@@ -614,10 +608,7 @@ WeaveCrypto::GenerateRandomBytes(PRUint32 aByteCount,
                                  nsACString& aEncodedBytes)
 {
   nsresult rv;
-  char random[STACK_BUFFER_SIZE];
-
-  if (aByteCount > STACK_BUFFER_SIZE)
-    return NS_ERROR_OUT_OF_MEMORY;
+  char random[aByteCount];
 
   rv = PK11_GenerateRandom((unsigned char *)random, aByteCount);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -640,10 +631,7 @@ WeaveCrypto::GenerateRandomIV(nsACString& aEncodedBytes)
   CK_MECHANISM_TYPE mech = PK11_AlgtagToMechanism(mAlgorithm);
   PRUint32 size = PK11_GetIVLength(mech);
 
-  char random[STACK_BUFFER_SIZE];
-
-  if (size > STACK_BUFFER_SIZE)
-    return NS_ERROR_OUT_OF_MEMORY;
+  char random[size];
  
   rv = PK11_GenerateRandom((unsigned char *)random, size);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -754,19 +742,19 @@ WeaveCrypto::WrapSymmetricKey(const nsACString& aSymmetricKey,
 
   // Step 1. Get rid of the base64 encoding on the inputs.
 
-  char publicKeyBuffer[STACK_BUFFER_SIZE];
-  PRUint32 publicKeyBufferSize = sizeof(publicKeyBuffer);
+  char publicKeyBuffer[aPublicKey.Length()];
+  PRUint32 publicKeyBufferSize = aPublicKey.Length();
   rv = DecodeBase64(aPublicKey, publicKeyBuffer, &publicKeyBufferSize);
   NS_ENSURE_SUCCESS(rv, rv);
   SECItem pubKeyData = {siBuffer, (unsigned char *)publicKeyBuffer, publicKeyBufferSize};
 
-  char symKeyBuffer[STACK_BUFFER_SIZE];
-  PRUint32 symKeyBufferSize = sizeof(symKeyBuffer);
+  char symKeyBuffer[aSymmetricKey.Length()];
+  PRUint32 symKeyBufferSize = aSymmetricKey.Length();
   rv = DecodeBase64(aSymmetricKey, symKeyBuffer, &symKeyBufferSize);
   NS_ENSURE_SUCCESS(rv, rv);
   SECItem symKeyData = {siBuffer, (unsigned char *)symKeyBuffer, symKeyBufferSize};
 
-  char wrappedBuffer[STACK_BUFFER_SIZE];
+  char wrappedBuffer[4096];
   SECItem wrappedKey = {siBuffer, (unsigned char *)wrappedBuffer, sizeof(wrappedBuffer)};
 
 
@@ -881,14 +869,14 @@ WeaveCrypto::UnwrapSymmetricKey(const nsACString& aWrappedSymmetricKey,
 
   // Step 1. Get rid of the base64 encoding on the inputs.
 
-  char privateKeyBuffer[STACK_BUFFER_SIZE];
-  PRUint32 privateKeyBufferSize = sizeof(privateKeyBuffer);
+  char privateKeyBuffer[aWrappedPrivateKey.Length()];
+  PRUint32 privateKeyBufferSize = aWrappedPrivateKey.Length();
   rv = DecodeBase64(aWrappedPrivateKey, privateKeyBuffer, &privateKeyBufferSize);
   NS_ENSURE_SUCCESS(rv, rv);
   SECItem wrappedPrivKey = {siBuffer, (unsigned char *)privateKeyBuffer, privateKeyBufferSize};
 
-  char wrappedKeyBuffer[STACK_BUFFER_SIZE];
-  PRUint32 wrappedKeyBufferSize = sizeof(wrappedKeyBuffer);
+  char wrappedKeyBuffer[aWrappedSymmetricKey.Length()];
+  PRUint32 wrappedKeyBufferSize = aWrappedSymmetricKey.Length();
   rv = DecodeBase64(aWrappedSymmetricKey, wrappedKeyBuffer, &wrappedKeyBufferSize);
   NS_ENSURE_SUCCESS(rv, rv);
   SECItem wrappedSymKey = {siBuffer, (unsigned char *)wrappedKeyBuffer, wrappedKeyBufferSize};
@@ -898,7 +886,7 @@ WeaveCrypto::UnwrapSymmetricKey(const nsACString& aWrappedSymmetricKey,
   rv = DeriveKeyFromPassphrase(aPassphrase, aSalt, &pbeKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  char ivData[STACK_BUFFER_SIZE];
+  char ivData[aIV.Length()];
   PRUint32 ivDataSize = sizeof(ivData);
   rv = DecodeBase64(aIV, ivData, &ivDataSize);
   NS_ENSURE_SUCCESS(rv, rv);
