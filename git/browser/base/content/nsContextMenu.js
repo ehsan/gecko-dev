@@ -271,7 +271,6 @@ nsContextMenu.prototype = {
     this.showItem("context-bidi-page-direction-toggle",
                   !this.onTextInput && top.gBidiUI);
 
-    var hostLabel = "";
     if (this.onImage) {
       var blockImage = document.getElementById("context-blockimage");
 
@@ -281,14 +280,16 @@ nsContextMenu.prototype = {
 
       // this throws if the image URI doesn't have a host (eg, data: image URIs)
       // see bug 293758 for details
+      var hostLabel = "";
       try {
         hostLabel = uri.host;
       } catch (ex) { }
 
       if (hostLabel) {
-        if (hostLabel.length > 15)
-          hostLabel = hostLabel.substr(0,15) + this.ellipsis;
-        blockImage.label = gNavigatorBundle.getFormattedString("blockImages", [hostLabel]);
+        var shortenedUriHost = hostLabel.replace(/^www\./i,"");
+        if (shortenedUriHost.length > 15)
+          shortenedUriHost = shortenedUriHost.substr(0,15) + this.ellipsis;
+        blockImage.label = gNavigatorBundle.getFormattedString("blockImages", [shortenedUriHost]);
 
         if (this.isImageBlocked())
           blockImage.setAttribute("checked", "true");

@@ -51,8 +51,13 @@
 #include "nsIViewObserver.h"
 
 //Uncomment the following line to enable generation of viewmanager performance data.
-//#define NS_VM_PERF_METRICS 1
+#ifdef MOZ_PERF_METRICS
+//#define NS_VM_PERF_METRICS 1 
+#endif
 
+#ifdef NS_VM_PERF_METRICS
+#include "nsTimer.h"
+#endif
 
 /**
    Invalidation model:
@@ -416,6 +421,10 @@ private:
   static nsVoidArray       *gViewManagers;
 
   void PostInvalidateEvent();
+
+#ifdef NS_VM_PERF_METRICS
+  MOZ_TIMER_DECLARE(mWatch) //  Measures compositing+paint time for current document
+#endif
 };
 
 //when the refresh happens, should it be double buffered?

@@ -445,6 +445,14 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
     return;
   }
 
+#ifdef NS_VM_PERF_METRICS
+  MOZ_TIMER_DEBUGLOG(("Reset nsViewManager::Refresh(region), this=%p\n", this));
+  MOZ_TIMER_RESET(mWatch);
+
+  MOZ_TIMER_DEBUGLOG(("Start: nsViewManager::Refresh(region)\n"));
+  MOZ_TIMER_START(mWatch);
+#endif
+
   NS_ASSERTION(!IsPainting(), "recursive painting not permitted");
   if (IsPainting()) {
     RootViewManager()->mRecursiveRefreshPending = PR_TRUE;
@@ -495,6 +503,14 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
     RootViewManager()->mRecursiveRefreshPending = PR_FALSE;
     UpdateAllViews(aUpdateFlags);
   }
+
+#ifdef NS_VM_PERF_METRICS
+  MOZ_TIMER_DEBUGLOG(("Stop: nsViewManager::Refresh(region), this=%p\n", this));
+  MOZ_TIMER_STOP(mWatch);
+  MOZ_TIMER_LOG(("vm2 Paint time (this=%p): ", this));
+  MOZ_TIMER_PRINT(mWatch);
+#endif
+
 }
 
 // aRC and aRegion are in view coordinates

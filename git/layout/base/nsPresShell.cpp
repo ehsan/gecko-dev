@@ -121,6 +121,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsILayoutHistoryState.h"
 #include "nsILineIterator.h" // for ScrollContentIntoView
+#include "nsTimer.h"
 #include "nsWeakPtr.h"
 #include "pldhash.h"
 #include "nsIObserverService.h"
@@ -1196,7 +1197,10 @@ protected:
   nsCOMPtr<nsITimer> mReflowContinueTimer;
   static void sReflowContinueCallback(nsITimer* aTimer, void* aPresShell);
   PRBool PostReflowEventOffTimer();
-  
+
+  MOZ_TIMER_DECLARE(mReflowWatch)  // Used for measuring time spent in reflow
+  MOZ_TIMER_DECLARE(mFrameCreationWatch)  // Used for measuring time spent in frame creation 
+
 #ifdef MOZ_REFLOW_PERF
   ReflowCountMgr * mReflowCountMgr;
 #endif
@@ -2584,6 +2588,11 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
   nsIContent *root = mDocument->GetRootContent();
 
   if (root) {
+    MOZ_TIMER_DEBUGLOG(("Reset and start: Frame Creation: PresShell::InitialReflow(), this=%p\n",
+                        (void*)this));
+    MOZ_TIMER_RESET(mFrameCreationWatch);
+    MOZ_TIMER_START(mFrameCreationWatch);
+
     {
       nsAutoCauseReflowNotifier reflowNotifier(this);
       mFrameConstructor->BeginUpdate();
@@ -2592,6 +2601,9 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
       // content object down
       mFrameConstructor->ContentInserted(nsnull, root, 0, nsnull);
       VERIFY_STYLE_TREE;
+      MOZ_TIMER_DEBUGLOG(("Stop: Frame Creation: PresShell::InitialReflow(), this=%p\n",
+                          (void*)this));
+      MOZ_TIMER_STOP(mFrameCreationWatch);
 
       // Something in mFrameConstructor->ContentInserted may have caused
       // Destroy() to get called, bug 337586.
@@ -3257,6 +3269,10 @@ PresShell::RestoreRootScrollPosition()
 void
 PresShell::BeginLoad(nsIDocument *aDocument)
 {  
+#ifdef MOZ_PERF_METRICS
+  // Reset style resolution stopwatch maintained by style set
+  MOZ_TIMER_DEBUGLOG(("Reset: Style Resolution: PresShell::BeginLoad(), this=%p\n", (void*)this));
+#endif  
   mDocumentLoading = PR_TRUE;
 }
 
@@ -3267,6 +3283,21 @@ PresShell::EndLoad(nsIDocument *aDocument)
   
   RestoreRootScrollPosition();
   
+#ifdef MOZ_PERF_METRICS
+  // Dump reflow, style resolution and frame construction times here.
+  MOZ_TIMER_DEBUGLOG(("Stop: Reflow: PresShell::EndLoad(), this=%p\n", this));
+  MOZ_TIMER_STOP(mReflowWatch);
+  MOZ_TIMER_LOG(("Reflow time (this=%p): ", this));
+  MOZ_TIMER_PRINT(mReflowWatch);  
+
+  MOZ_TIMER_DEBUGLOG(("Stop: Frame Creation: PresShell::EndLoad(), this=%p\n", this));
+  MOZ_TIMER_STOP(mFrameCreationWatch);
+  MOZ_TIMER_LOG(("Frame construction plus style resolution time (this=%p): ", this));
+  MOZ_TIMER_PRINT(mFrameCreationWatch);
+
+  // Print style resolution stopwatch maintained by style set
+  MOZ_TIMER_DEBUGLOG(("Stop: Style Resolution: PresShell::EndLoad(), this=%p\n", this));
+#endif  
   mDocumentLoading = PR_FALSE;
 }
 
@@ -4890,6 +4921,8 @@ PresShell::ContentAppended(nsIDocument *aDocument,
   }
   
   nsAutoCauseReflowNotifier crNotifier(this);
+  MOZ_TIMER_DEBUGLOG(("Start: Frame Creation: PresShell::ContentAppended(), this=%p\n", this));
+  MOZ_TIMER_START(mFrameCreationWatch);
 
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
@@ -4898,6 +4931,9 @@ PresShell::ContentAppended(nsIDocument *aDocument,
 
   mFrameConstructor->ContentAppended(aContainer, aNewIndexInContainer);
   VERIFY_STYLE_TREE;
+
+  MOZ_TIMER_DEBUGLOG(("Stop: Frame Creation: PresShell::ContentAppended(), this=%p\n", this));
+  MOZ_TIMER_STOP(mFrameCreationWatch);
 }
 
 void
@@ -7174,6 +7210,9 @@ PresShell::DoVerifyReflow()
 PRBool
 PresShell::ProcessReflowCommands(PRBool aInterruptible)
 {
+  MOZ_TIMER_DEBUGLOG(("Start: Reflow: PresShell::ProcessReflowCommands(), this=%p\n", this));
+  MOZ_TIMER_START(mReflowWatch);  
+
   PRBool interrupted = PR_FALSE;
   if (0 != mDirtyRoots.Length()) {
 
@@ -7241,6 +7280,9 @@ PresShell::ProcessReflowCommands(PRBool aInterruptible)
         PostReflowEvent();
     }
   }
+  
+  MOZ_TIMER_DEBUGLOG(("Stop: Reflow: PresShell::ProcessReflowCommands(), this=%p\n", this));
+  MOZ_TIMER_STOP(mReflowWatch);  
 
   if (!mIsDestroying && mShouldUnsuppressPainting &&
       mDirtyRoots.Length() == 0) {

@@ -303,6 +303,12 @@ MAKEFILES_libpref="
   modules/libpref/src/Makefile
 "
 
+MAKEFILES_libutil="
+  modules/libutil/Makefile
+  modules/libutil/public/Makefile
+  modules/libutil/src/Makefile
+"
+
 MAKEFILES_libvorbis="
   media/libvorbis/Makefile
   media/libvorbis/lib/Makefile
@@ -858,6 +864,7 @@ add_makefiles "
   $MAKEFILES_libjar
   $MAKEFILES_libreg
   $MAKEFILES_libpref
+  $MAKEFILES_libutil
   $MAKEFILES_plugin
   $MAKEFILES_netwerk
   $MAKEFILES_uriloader
