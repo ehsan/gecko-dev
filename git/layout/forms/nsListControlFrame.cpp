@@ -256,7 +256,8 @@ void nsListControlFrame::PaintFocus(nsRenderingContext& aRC, nsPoint aPt)
     // get it into our coordinates
     fRect.MoveBy(childframe->GetParent()->GetOffsetTo(this));
   } else {
-    float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+    float inflation = nsLayoutUtils::FontSizeInflationFor(this,
+                        nsLayoutUtils::eNotInReflow);
     fRect.x = fRect.y = 0;
     fRect.width = GetScrollPortRect().width;
     fRect.height = CalcFallbackRowHeight(inflation);
@@ -283,7 +284,7 @@ void nsListControlFrame::PaintFocus(nsRenderingContext& aRC, nsPoint aPt)
 }
 
 void
-nsListControlFrame::InvalidateFocus()
+nsListControlFrame::InvalidateFocus(const nsHTMLReflowState *aReflowState)
 {
   if (mFocused != this)
     return;
@@ -293,7 +294,9 @@ nsListControlFrame::InvalidateFocus()
     // Invalidating from the containerFrame because that's where our focus
     // is drawn.
     // The origin of the scrollport is the origin of containerFrame.
-    float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+    float inflation = nsLayoutUtils::FontSizeInflationFor(this,
+                        aReflowState ? nsLayoutUtils::eInReflow
+                                     : nsLayoutUtils::eNotInReflow);
     nsRect invalidateArea = containerFrame->GetVisualOverflowRect();
     nsRect emptyFallbackArea(0, 0, GetScrollPortRect().width,
                              CalcFallbackRowHeight(inflation));
@@ -379,7 +382,8 @@ nsListControlFrame::CalcHeightOfARow()
   // Check to see if we have zero items (and optimize by checking
   // heightOfARow first)
   if (heightOfARow == 0 && GetNumberOfOptions() == 0) {
-    float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+    float inflation =
+      nsLayoutUtils::FontSizeInflationInner(this, nsLayoutUtils::eInReflow);
     heightOfARow = CalcFallbackRowHeight(inflation);
   }
 
@@ -1170,7 +1174,8 @@ nsListControlFrame::OnContentReset()
 }
 
 void 
-nsListControlFrame::ResetList(bool aAllowScrolling)
+nsListControlFrame::ResetList(bool aAllowScrolling,
+                              const nsHTMLReflowState *aReflowState)
 {
   // if all the frames aren't here 
   // don't bother reseting
@@ -1194,7 +1199,7 @@ nsListControlFrame::ResetList(bool aAllowScrolling)
 
   mStartSelectionIndex = kNothingSelected;
   mEndSelectionIndex = kNothingSelected;
-  InvalidateFocus();
+  InvalidateFocus(aReflowState);
   // Combobox will redisplay itself with the OnOptionSelected event
 } 
  
@@ -1747,7 +1752,7 @@ nsListControlFrame::DidReflow(nsPresContext*           aPresContext,
     // The idea is that we want scroll history restoration to trump ResetList
     // scrolling to the selected element, when the ResetList was probably only
     // caused by content loading normally.
-    ResetList(!DidHistoryRestore() || mPostChildrenLoadedReset);
+    ResetList(!DidHistoryRestore() || mPostChildrenLoadedReset, aReflowState);
   }
 
   mHasPendingInterruptAtStartOfReflow = false;

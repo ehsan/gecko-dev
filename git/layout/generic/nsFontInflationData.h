@@ -64,10 +64,6 @@ public:
     return mInflationEnabled;
   }
 
-  nscoord EffectiveWidth() const {
-    return mNCAWidth;
-  }
-
 private:
 
   nsFontInflationData(nsIFrame* aBFCFrame);
@@ -98,7 +94,6 @@ private:
   }
 
   nsIFrame *mBFCFrame;
-  nscoord mNCAWidth;
   nscoord mTextAmount, mTextThreshold;
   bool mInflationEnabled; // for this BFC
   bool mTextDirty;
