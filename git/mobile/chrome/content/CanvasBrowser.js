@@ -77,15 +77,6 @@ CanvasBrowser.prototype = {
     return this.canvasDimensions.map(this._screenToPage, this);
   },
 
-  get contentDOMWindowUtils() {
-    if (!this._contentDOMWindowUtils) {
-      this._contentDOMWindowUtils = this._browser.contentWindow
-        .QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIDOMWindowUtils);
-    }
-    return this._contentDOMWindowUtils;
-  },
-  
   setCurrentBrowser: function(browser, skipZoom) {
     let currentBrowser = this._browser;
     if (currentBrowser) {
@@ -94,7 +85,6 @@ CanvasBrowser.prototype = {
       currentBrowser.setAttribute("type", "content");
       currentBrowser.docShell.isOffScreenBrowser = false;
     }
-    this._contentDOMWindowUtils = null;
 
     browser.setAttribute("type", "content-primary");
     if (!skipZoom)
@@ -263,12 +253,9 @@ CanvasBrowser.prototype = {
     // if the page is being panned, flush the queue, so things blit correctly
     // this avoids incorrect offsets due to a change in _pageBounds.x/y
     // should probably check that (visibleBounds|pageBounds).(x|y) actually changed
-    if (boundsSizeChanged) {
+    if (boundsSizeChanged)
       this.clearRegion();
-      // since we are going to repaint the whole browser
-      // any outstanding paint events will cause redundant draws
-      this.contentDOMWindowUtils.clearMozAfterPaintEvents();
-    } else
+    else
       this.flushRegion();
     
     this._visibleBounds = visibleBounds;
@@ -437,10 +424,15 @@ CanvasBrowser.prototype = {
    */
   elementFromPoint: function(aX, aY) {
     let [x, y] = this._clientToContentCoords(aX, aY);
-    let cwu = this.contentDOMWindowUtils
-    return cwu.elementFromPoint(x, y,
-                                true,   /* ignore root scroll frame*/
-                                false); /* don't flush layout */
+    let cwu = this._browser.contentWindow
+                  .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                  .getInterface(Components.interfaces.nsIDOMWindowUtils);
+
+    let element = cwu.elementFromPoint(x, y,
+                                       true,   /* ignore root scroll frame*/
+                                       false); /* don't flush layout */
+
+    return element;
   },
 
   /**
