@@ -1035,7 +1035,7 @@ MarkJitExitFrame(JSTracer *trc, const IonFrameIterator &frame)
     MarkIonCodeRoot(trc, footer->addressOfIonCode(), "ion-exit-code");
 
     const VMFunction *f = footer->function();
-    if (f == nullptr)
+    if (f == nullptr || f->explicitArgs == 0)
         return;
 
     // Mark arguments of the VM wrapper.

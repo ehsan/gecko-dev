@@ -17,6 +17,13 @@ public:
 
     nsWyciwygProtocolHandler();
     virtual ~nsWyciwygProtocolHandler();
+
+    nsresult Init();
+
+    static void GetCacheSessionName(uint32_t aAppId,
+                                    bool aInBrowser,
+                                    bool aPrivateBrowsing,
+                                    nsACString& aSessionName);
 };
 
 #endif /* nsWyciwygProtocolHandler_h___ */

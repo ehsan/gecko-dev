@@ -105,17 +105,28 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
 }
 
 bool
-IndexToIdSlow(ExclusiveContext *cx, uint32_t index, MutableHandleId idp);
+IndexToIdSlow(ExclusiveContext *cx, uint32_t index, jsid *idp);
 
 inline bool
-IndexToId(ExclusiveContext *cx, uint32_t index, MutableHandleId idp)
+IndexToId(ExclusiveContext *cx, uint32_t index, jsid *idp)
 {
     if (index <= JSID_INT_MAX) {
-        idp.set(INT_TO_JSID(index));
+        *idp = INT_TO_JSID(index);
         return true;
     }
 
     return IndexToIdSlow(cx, index, idp);
+}
+
+inline bool
+IndexToIdPure(uint32_t index, jsid *idp)
+{
+    if (index <= JSID_INT_MAX) {
+        *idp = INT_TO_JSID(index);
+        return true;
+    }
+
+    return false;
 }
 
 static JS_ALWAYS_INLINE JSFlatString *

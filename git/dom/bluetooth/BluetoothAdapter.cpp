@@ -315,13 +315,11 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     DispatchTrustedEvent(event);
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     MOZ_ASSERT(v.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
-
     const InfallibleTArray<BluetoothNamedValue>& arr =
       v.get_ArrayOfBluetoothNamedValue();
 
-    for (uint32_t i = 0, propCount = arr.Length(); i < propCount; ++i) {
-      SetPropertyByValue(arr[i]);
-    }
+    MOZ_ASSERT(arr.Length() == 1);
+    SetPropertyByValue(arr[0]);
   } else if (aData.name().EqualsLiteral(DISCOVERY_STATE_CHANGED_ID)) {
     MOZ_ASSERT(v.type() == BluetoothValue::Tbool);
     bool isDiscovering = v.get_bool();
