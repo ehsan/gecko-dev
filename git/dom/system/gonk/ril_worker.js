@@ -36,13 +36,10 @@
  * JavaScript, and that's intended.
  */
 
-/* global BufObject */
-
 "use strict";
 
 importScripts("ril_consts.js");
 importScripts("resource://gre/modules/workers/require.js");
-importScripts("ril_worker_buf_object.js");
 
 // set to true in ril_consts.js to see debug messages
 let DEBUG = DEBUG_WORKER;
@@ -16026,6 +16023,8 @@ function Context(aClientId) {
   this.clientId = aClientId;
 
   this.Buf = new BufObject(this);
+  this.Buf.init();
+
   this.RIL = new RilObject(this);
   this.RIL.initRILState();
 }

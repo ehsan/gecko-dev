@@ -497,10 +497,10 @@
 
           React.createElement(Section, {name: "CallUrlExpiredView"}, 
             React.createElement(Example, {summary: "Firefox User"}, 
-              React.createElement(CallUrlExpiredView, {isFirefox: true})
+              React.createElement(CallUrlExpiredView, {helper: {isFirefox: returnTrue}})
             ), 
             React.createElement(Example, {summary: "Non-Firefox User"}, 
-              React.createElement(CallUrlExpiredView, {isFirefox: false})
+              React.createElement(CallUrlExpiredView, {helper: {isFirefox: returnFalse}})
             )
           ), 
 
@@ -547,7 +547,7 @@
           React.createElement(Section, {name: "UnsupportedBrowserView"}, 
             React.createElement(Example, {summary: "Standalone Unsupported Browser"}, 
               React.createElement("div", {className: "standalone"}, 
-                React.createElement(UnsupportedBrowserView, {isFirefox: false})
+                React.createElement(UnsupportedBrowserView, {helper: {isFirefox: returnFalse}})
               )
             )
           ), 
@@ -555,7 +555,7 @@
           React.createElement(Section, {name: "UnsupportedDeviceView"}, 
             React.createElement(Example, {summary: "Standalone Unsupported Device"}, 
               React.createElement("div", {className: "standalone"}, 
-                React.createElement(UnsupportedDeviceView, {platform: "ios"})
+                React.createElement(UnsupportedDeviceView, null)
               )
             )
           ), 
@@ -591,7 +591,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.READY, 
-                  isFirefox: true})
+                  helper: {isFirefox: returnTrue}})
               )
             ), 
 
@@ -601,7 +601,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.JOINED, 
-                  isFirefox: true})
+                  helper: {isFirefox: returnTrue}})
               )
             ), 
 
@@ -611,7 +611,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.HAS_PARTICIPANTS, 
-                  isFirefox: true})
+                  helper: {isFirefox: returnTrue}})
               )
             ), 
 
@@ -621,7 +621,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.FULL, 
-                  isFirefox: true})
+                  helper: {isFirefox: returnTrue}})
               )
             ), 
 
@@ -631,7 +631,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.FULL, 
-                  isFirefox: false})
+                  helper: {isFirefox: returnFalse}})
               )
             ), 
 
@@ -642,7 +642,7 @@
                   activeRoomStore: activeRoomStore, 
                   feedbackStore: feedbackStore, 
                   roomState: ROOM_STATES.ENDED, 
-                  isFirefox: false})
+                  helper: {isFirefox: returnFalse}})
               )
             ), 
 
@@ -652,7 +652,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.FAILED, 
-                  isFirefox: false})
+                  helper: {isFirefox: returnFalse}})
               )
             )
           ), 

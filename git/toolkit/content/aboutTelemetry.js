@@ -119,8 +119,7 @@ let GeneralData = {
     let table = document.createElement("table");
 
     let caption = document.createElement("caption");
-    let captionString = bundle.GetStringFromName("generalDataTitle");
-    caption.appendChild(document.createTextNode(captionString + "\n"));
+    caption.appendChild(document.createTextNode("General data\n"));
     table.appendChild(caption);
 
     let headings = document.createElement("tr");
