@@ -72,9 +72,9 @@ HTMLCanvasPrintState::~HTMLCanvasPrintState()
 }
 
 /* virtual */ JSObject*
-HTMLCanvasPrintState::WrapObject(JSContext* aCx)
+HTMLCanvasPrintState::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return MozCanvasPrintStateBinding::Wrap(aCx, this);
+  return MozCanvasPrintStateBinding::Wrap(aCx, aScope, this);
 }
 
 nsISupports*
@@ -139,9 +139,9 @@ NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
 NS_IMPL_ELEMENT_CLONE(HTMLCanvasElement)
 
 /* virtual */ JSObject*
-HTMLCanvasElement::WrapNode(JSContext* aCx)
+HTMLCanvasElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLCanvasElementBinding::Wrap(aCx, this);
+  return HTMLCanvasElementBinding::Wrap(aCx, aScope, this);
 }
 
 nsIntSize

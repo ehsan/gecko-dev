@@ -143,9 +143,9 @@ TextTrackCue::SetTrackElement(HTMLTrackElement* aTrackElement)
 }
 
 JSObject*
-TextTrackCue::WrapObject(JSContext* aCx)
+TextTrackCue::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return VTTCueBinding::Wrap(aCx, this);
+  return VTTCueBinding::Wrap(aCx, aScope, this);
 }
 
 TextTrackRegion*

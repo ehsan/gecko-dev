@@ -23,7 +23,6 @@
 #include "nsStyleSet.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIFrame.h"
-#include "nsIWritablePropertyBag2.h"
 #include "nsSubDocumentFrame.h"
 
 #include "nsILinkHandler.h"
@@ -1159,14 +1158,6 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
     nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShell);
 
     if (prompt) {
-      nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt);
-      if (promptBag) {
-        bool isTabModalPromptAllowed;
-        GetIsTabModalPromptAllowed(&isTabModalPromptAllowed);
-        promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"),
-                                     isTabModalPromptAllowed);
-      }
-
       nsXPIDLString title, message, stayLabel, leaveLabel;
       rv  = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                "OnBeforeUnloadTitle",
@@ -1209,19 +1200,7 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
                              leaveLabel, stayLabel, nullptr, nullptr,
                              &dummy, &buttonPressed);
       mInPermitUnloadPrompt = false;
-
-      // If the prompt aborted, we tell our consumer that it is not allowed
-      // to unload the page. One reason that prompts abort is that the user
-      // performed some action that caused the page to unload while our prompt
-      // was active. In those cases we don't want our consumer to also unload
-      // the page.
-      //
-      // XXX: Are there other cases where prompts can abort? Is it ok to
-      //      prevent unloading the page in those cases?
-      if (NS_FAILED(rv)) {
-        *aPermitUnload = false;
-        return NS_OK;
-      }
+      NS_ENSURE_SUCCESS(rv, rv);
 
       // Button 0 == leave, button 1 == stay
       *aPermitUnload = (buttonPressed == 0);
@@ -1265,13 +1244,6 @@ NS_IMETHODIMP
 nsDocumentViewer::GetBeforeUnloadFiring(bool* aInEvent)
 {
   *aInEvent = mInPermitUnload;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocumentViewer::GetInPermitUnload(bool* aInEvent)
-{
-  *aInEvent = mInPermitUnloadPrompt;
   return NS_OK;
 }
 
@@ -4341,7 +4313,7 @@ nsDocumentViewer::GetHistoryEntry(nsISHEntry **aHistoryEntry)
 NS_IMETHODIMP
 nsDocumentViewer::GetIsTabModalPromptAllowed(bool *aAllowed)
 {
-  *aAllowed = !mHidden;
+  *aAllowed = !(mInPermitUnload || mHidden);
   return NS_OK;
 }
 

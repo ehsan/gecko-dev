@@ -31,9 +31,9 @@ public:
   {
   }
 
-  JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return SVGRectBinding::Wrap(aCx, this);
+    return SVGRectBinding::Wrap(aCx, aScope, this);
   }
 
   virtual nsIContent* GetParentObject() const = 0;

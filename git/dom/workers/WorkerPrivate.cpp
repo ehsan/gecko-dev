@@ -368,7 +368,11 @@ struct WorkerStructuredCloneCallbacks
       nsRefPtr<ImageData> imageData = new ImageData(width, height,
                                                     dataArray.toObject());
       // Wrap it in a JS::Value.
-      return imageData->WrapObject(aCx);
+      JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+      if (!global) {
+        return nullptr;
+      }
+      return imageData->WrapObject(aCx, global);
     }
 
     Error(aCx, 0);
@@ -2150,7 +2154,8 @@ WorkerPrivateParent<Derived>::~WorkerPrivateParent()
 
 template <class Derived>
 JSObject*
-WorkerPrivateParent<Derived>::WrapObject(JSContext* aCx)
+WorkerPrivateParent<Derived>::WrapObject(JSContext* aCx,
+                                         JS::Handle<JSObject*> aScope)
 {
   MOZ_ASSERT(!IsSharedWorker(),
              "We should never wrap a WorkerPrivate for a SharedWorker");
@@ -2160,7 +2165,7 @@ WorkerPrivateParent<Derived>::WrapObject(JSContext* aCx)
   // XXXkhuey this should not need to be rooted, the analysis is dumb.
   // See bug 980181.
   JS::Rooted<JSObject*> wrapper(aCx,
-    WorkerBinding::Wrap(aCx, ParentAsWorkerPrivate()));
+    WorkerBinding::Wrap(aCx, aScope, ParentAsWorkerPrivate()));
   if (wrapper) {
     MOZ_ALWAYS_TRUE(TryPreserveWrapper(wrapper));
   }

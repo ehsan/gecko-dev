@@ -212,9 +212,9 @@ void HTMLOutputElement::ContentRemoved(nsIDocument* aDocument,
 }
 
 JSObject*
-HTMLOutputElement::WrapNode(JSContext* aCx)
+HTMLOutputElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLOutputElementBinding::Wrap(aCx, this);
+  return HTMLOutputElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

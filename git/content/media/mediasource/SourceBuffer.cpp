@@ -281,9 +281,9 @@ SourceBuffer::GetParentObject() const
 }
 
 JSObject*
-SourceBuffer::WrapObject(JSContext* aCx)
+SourceBuffer::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return SourceBufferBinding::Wrap(aCx, this);
+  return SourceBufferBinding::Wrap(aCx, aScope, this);
 }
 
 void

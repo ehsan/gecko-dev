@@ -42,7 +42,7 @@ public:
   }
 
   JSObject*
-  WrapObject(JSContext* aCx);
+  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope);
 
   // Methods for WebIDL
 

@@ -535,9 +535,9 @@ AudioBufferSourceNode::~AudioBufferSourceNode()
 }
 
 JSObject*
-AudioBufferSourceNode::WrapObject(JSContext* aCx)
+AudioBufferSourceNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return AudioBufferSourceNodeBinding::Wrap(aCx, this);
+  return AudioBufferSourceNodeBinding::Wrap(aCx, aScope, this);
 }
 
 void

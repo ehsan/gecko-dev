@@ -247,9 +247,9 @@ HTMLIFrameElement::GetSandboxFlags()
 }
 
 JSObject*
-HTMLIFrameElement::WrapNode(JSContext* aCx)
+HTMLIFrameElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLIFrameElementBinding::Wrap(aCx, this);
+  return HTMLIFrameElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

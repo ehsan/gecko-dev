@@ -22,7 +22,8 @@ public:
                          nsINode** aResult) const MOZ_OVERRIDE;
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx,
+                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 };
 
 HTMLElement::HTMLElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
@@ -58,9 +59,9 @@ HTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 }
 
 JSObject*
-HTMLElement::WrapNode(JSContext *aCx)
+HTMLElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return dom::HTMLElementBinding::Wrap(aCx, this);
+  return dom::HTMLElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

@@ -24,20 +24,17 @@ function sendMessageToJava(aMessage, aCallback) {
           return;
         }
 
-        Services.obs.removeObserver(obs, aMessage.type + ":Response", false);
+        Services.obs.removeObserver(obs, aMessage.type + ":Return", false);
+        Services.obs.removeObserver(obs, aMessage.type + ":Error", false);
 
-        if (data.status === "cancel") {
-          // No Java-side listeners handled our callback.
-          return;
-        }
-
-        aCallback(data.status === "success" ? data.response : null,
-                  data.status === "error"   ? data.response : null);
+        aCallback(aTopic == aMessage.type + ":Return" ? data.response : null,
+                  aTopic == aMessage.type + ":Error"  ? data.response : null);
       }
     }
 
     aMessage.__guid__ = id;
-    Services.obs.addObserver(obs, aMessage.type + ":Response", false);
+    Services.obs.addObserver(obs, aMessage.type + ":Return", false);
+    Services.obs.addObserver(obs, aMessage.type + ":Error", false);
   }
 
   return Services.androidBridge.handleGeckoMessage(aMessage);

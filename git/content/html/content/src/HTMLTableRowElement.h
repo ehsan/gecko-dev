@@ -91,7 +91,8 @@ public:
                                                      nsGenericHTMLElement)
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx,
+                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
   HTMLTableSectionElement* GetSection() const;
   HTMLTableElement* GetTable() const;

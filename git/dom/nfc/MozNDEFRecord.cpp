@@ -120,9 +120,9 @@ MozNDEFRecord::~MozNDEFRecord()
 }
 
 JSObject*
-MozNDEFRecord::WrapObject(JSContext* aCx)
+MozNDEFRecord::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return MozNDEFRecordBinding::Wrap(aCx, this);
+  return MozNDEFRecordBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

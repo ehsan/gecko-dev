@@ -24,8 +24,6 @@ function run_test() {
   Log.repository.getLogger("Sync.SyncScheduler").level = Log.Level.Trace;
   initTestLogging();
 
-  ensureLegacyIdentityManager();
-
   Service.engineManager.register(RotaryEngine);
 
   // None of the failures in this file should result in a UI error.
@@ -160,7 +158,7 @@ function syncAndExpectNodeReassignment(server, firstNotification, between,
   yield deferred.promise;
 }
 
-add_task(function test_momentary_401_engine() {
+add_identity_test(this, function test_momentary_401_engine() {
   _("Test a failure for engine URLs that's resolved by reassignment.");
   let server = yield prepareServer();
   let john   = server.user("johndoe");
@@ -212,7 +210,7 @@ add_task(function test_momentary_401_engine() {
 });
 
 // This test ends up being a failing fetch *after we're already logged in*.
-add_task(function test_momentary_401_info_collections() {
+add_identity_test(this, function test_momentary_401_info_collections() {
   _("Test a failure for info/collections that's resolved by reassignment.");
   let server = yield prepareServer();
 
@@ -235,32 +233,7 @@ add_task(function test_momentary_401_info_collections() {
                                       Service.infoURL);
 });
 
-add_task(function test_momentary_401_storage_loggedin() {
-  _("Test a failure for any storage URL, not just engine parts. " +
-    "Resolved by reassignment.");
-  let server = yield prepareServer();
-
-  _("Performing initial sync to ensure we are logged in.")
-  Service.sync();
-
-  // Return a 401 for all storage requests.
-  let oldHandler = server.toplevelHandlers.storage;
-  server.toplevelHandlers.storage = handleReassign;
-
-  function undo() {
-    _("Undoing test changes.");
-    server.toplevelHandlers.storage = oldHandler;
-  }
-
-  do_check_true(Service.isLoggedIn, "already logged in");
-  yield syncAndExpectNodeReassignment(server,
-                                      "weave:service:sync:error",
-                                      undo,
-                                      "weave:service:sync:finish",
-                                      Service.storageURL + "meta/global");
-});
-
-add_task(function test_momentary_401_storage_loggedout() {
+add_identity_test(this, function test_momentary_401_storage() {
   _("Test a failure for any storage URL, not just engine parts. " +
     "Resolved by reassignment.");
   let server = yield prepareServer();
@@ -274,7 +247,6 @@ add_task(function test_momentary_401_storage_loggedout() {
     server.toplevelHandlers.storage = oldHandler;
   }
 
-  do_check_false(Service.isLoggedIn, "not already logged in");
   yield syncAndExpectNodeReassignment(server,
                                       "weave:service:login:error",
                                       undo,
@@ -282,7 +254,7 @@ add_task(function test_momentary_401_storage_loggedout() {
                                       Service.storageURL + "meta/global");
 });
 
-add_task(function test_loop_avoidance_storage() {
+add_identity_test(this, function test_loop_avoidance_storage() {
   _("Test that a repeated failure doesn't result in a sync loop " +
     "if node reassignment cannot resolve the failure.");
 
@@ -382,7 +354,7 @@ add_task(function test_loop_avoidance_storage() {
   yield deferred.promise;
 });
 
-add_task(function test_loop_avoidance_engine() {
+add_identity_test(this, function test_loop_avoidance_engine() {
   _("Test that a repeated 401 in an engine doesn't result in a sync loop " +
     "if node reassignment cannot resolve the failure.");
   let server = yield prepareServer();

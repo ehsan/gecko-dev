@@ -189,9 +189,9 @@ HTMLBodyElement::~HTMLBodyElement()
 }
 
 JSObject*
-HTMLBodyElement::WrapNode(JSContext *aCx)
+HTMLBodyElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLBodyElementBinding::Wrap(aCx, this);
+  return HTMLBodyElementBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMPL_ISUPPORTS_INHERITED1(HTMLBodyElement, nsGenericHTMLElement,

@@ -43,6 +43,7 @@ inline bool
 probes::EnterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
                     InterpreterFrame *fp)
 {
+    bool ok = true;
 #ifdef INCLUDE_MOZILLA_DTRACE
     if (JAVASCRIPT_FUNCTION_ENTRY_ENABLED())
         DTraceEnterJSFun(cx, maybeFun, script);
@@ -53,18 +54,19 @@ probes::EnterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
 
     JSRuntime *rt = cx->runtime();
     if (rt->spsProfiler.enabled()) {
-        if (!rt->spsProfiler.enter(script, maybeFun))
-            return false;
+        rt->spsProfiler.enter(script, maybeFun);
         JS_ASSERT_IF(!fp->isGeneratorFrame(), !fp->hasPushedSPSFrame());
         fp->setPushedSPSFrame();
     }
 
-    return true;
+    return ok;
 }
 
-inline void
+inline bool
 probes::ExitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun, bool popSPSFrame)
 {
+    bool ok = true;
+
 #ifdef INCLUDE_MOZILLA_DTRACE
     if (JAVASCRIPT_FUNCTION_RETURN_ENABLED())
         DTraceExitJSFun(cx, maybeFun, script);
@@ -75,6 +77,8 @@ probes::ExitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun, bool p
 
     if (popSPSFrame)
         cx->runtime()->spsProfiler.exit(script, maybeFun);
+
+    return ok;
 }
 
 inline bool

@@ -68,9 +68,9 @@ ChannelMergerNode::ChannelMergerNode(AudioContext* aContext,
 }
 
 JSObject*
-ChannelMergerNode::WrapObject(JSContext* aCx)
+ChannelMergerNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return ChannelMergerNodeBinding::Wrap(aCx, this);
+  return ChannelMergerNodeBinding::Wrap(aCx, aScope, this);
 }
 
 }

@@ -27,7 +27,6 @@ MIRGenerator::MIRGenerator(CompileCompartment *compartment, const JitCompileOpti
     error_(false),
     cancelBuild_(false),
     maxAsmJSStackArgBytes_(0),
-    performsCall_(false),
     performsAsmJSCall_(false),
     asmJSHeapAccesses_(*alloc),
     asmJSGlobalAccesses_(*alloc),
@@ -1205,15 +1204,13 @@ MBasicBlock::inheritPhis(MBasicBlock *header)
     }
 }
 
-bool
+void
 MBasicBlock::specializePhis()
 {
     for (MPhiIterator iter = phisBegin(); iter != phisEnd(); iter++) {
         MPhi *phi = *iter;
-        if (!phi->specializeType())
-            return false;
+        phi->specializeType();
     }
-    return true;
 }
 
 void

@@ -38,9 +38,10 @@ SpeechRecognitionResultList::GetParentObject() const
 }
 
 JSObject*
-SpeechRecognitionResultList::WrapObject(JSContext* aCx)
+SpeechRecognitionResultList::WrapObject(JSContext* aCx,
+                                        JS::Handle<JSObject*> aScope)
 {
-  return SpeechRecognitionResultListBinding::Wrap(aCx, this);
+  return SpeechRecognitionResultListBinding::Wrap(aCx, aScope, this);
 }
 
 already_AddRefed<SpeechRecognitionResult>

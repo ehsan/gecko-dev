@@ -147,7 +147,8 @@ public:
   NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget)
   NS_DECL_NSIXMLHTTPREQUESTUPLOAD
 
-  virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
   nsISupports* GetParentObject()
   {
     return GetOwner();
@@ -181,9 +182,10 @@ public:
   nsXMLHttpRequest();
   virtual ~nsXMLHttpRequest();
 
-  virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
   {
-    return mozilla::dom::XMLHttpRequestBinding::Wrap(cx, this);
+    return mozilla::dom::XMLHttpRequestBinding::Wrap(cx, scope, this);
   }
   nsISupports* GetParentObject()
   {

@@ -1,4 +1,3 @@
-
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
@@ -23,8 +22,7 @@ let test = asyncTest(function*() {
   inspector.sidebar.select("layoutview");
   yield inspector.sidebar.once("layoutview-ready");
   yield runTests();
-  // TODO: Closing the toolbox in this test leaks - bug 994314
-  // yield gDevTools.closeToolbox(target);
+  yield gDevTools.closeToolbox(toolbox);
 });
 
 addTest("When all properties are set on the node editing one should work",

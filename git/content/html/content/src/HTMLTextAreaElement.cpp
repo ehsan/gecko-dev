@@ -1525,9 +1525,9 @@ HTMLTextAreaElement::FieldSetDisabledChanged(bool aNotify)
 }
 
 JSObject*
-HTMLTextAreaElement::WrapNode(JSContext* aCx)
+HTMLTextAreaElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLTextAreaElementBinding::Wrap(aCx, this);
+  return HTMLTextAreaElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

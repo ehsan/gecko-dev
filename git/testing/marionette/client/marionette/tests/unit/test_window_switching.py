@@ -44,5 +44,4 @@ class TestWindowSwitching(MarionetteTestCase):
         window_handles = self.marionette.window_handles
         window_handles.remove(self.current_window)
         for handle in window_handles:
-            self.marionette.switch_to_window(handle)
-            self.marionette.close()
+            self.marionette.close(handle)

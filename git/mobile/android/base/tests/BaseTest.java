@@ -75,8 +75,6 @@ abstract class BaseTest extends BaseRobocopTest {
     public Device mDevice;
     protected DatabaseHelper mDatabaseHelper;
     protected StringHelper mStringHelper;
-    protected int mScreenMidWidth;
-    protected int mScreenMidHeight;
 
     protected void blockForGeckoReady() {
         try {
@@ -366,27 +364,6 @@ abstract class BaseTest extends BaseRobocopTest {
         return rc;
     }
 
-    // waitForText usually scrolls down in a view when text is not visible.
-    // For PreferenceScreens and dialogs, Solo.waitForText scrolling does not
-    // work, so we use this hack to do the same thing.
-    protected boolean waitForPreferencesText(String txt) {
-        boolean foundText = waitForText(txt);
-        if (!foundText) {
-            if ((mScreenMidWidth == 0) || (mScreenMidHeight == 0)) {
-                mScreenMidWidth = mDriver.getGeckoWidth()/2;
-                mScreenMidHeight = mDriver.getGeckoHeight()/2;
-            }
-
-            // If we don't see the item, scroll down once in case it's off-screen.
-            // Hacky way to scroll down.  solo.scroll* does not work in dialogs.
-            MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
-            meh.dragSync(mScreenMidWidth, mScreenMidHeight+100, mScreenMidWidth, mScreenMidHeight-100);
-
-            foundText = mSolo.waitForText(txt);
-        }
-        return foundText;
-    }
-
     /**
      * Wait for <text> to be visible and also be enabled/clickable.
      */
@@ -438,7 +415,7 @@ abstract class BaseTest extends BaseRobocopTest {
         if (listLength > 1) {
             for (int i = 1; i < listLength; i++) {
                 String itemName = "^" + listItems[i] + "$";
-                if (!waitForPreferencesText(itemName)) {
+                if (!waitForEnabledText(itemName)) {
                     mSolo.scrollDown();
                 }
                 mSolo.clickOnText(itemName);

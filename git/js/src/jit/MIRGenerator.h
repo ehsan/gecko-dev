@@ -105,15 +105,8 @@ class MIRGenerator
         JS_ASSERT(compilingAsmJS());
         maxAsmJSStackArgBytes_ = n;
     }
-    void setPerformsCall() {
-        performsCall_ = true;
-    }
-    bool performsCall() const {
-        return performsCall_;
-    }
     void setPerformsAsmJSCall() {
         JS_ASSERT(compilingAsmJS());
-        setPerformsCall();
         performsAsmJSCall_ = true;
     }
     bool performsAsmJSCall() const {
@@ -157,7 +150,6 @@ class MIRGenerator
     mozilla::Atomic<bool, mozilla::Relaxed> cancelBuild_;
 
     uint32_t maxAsmJSStackArgBytes_;
-    bool performsCall_;
     bool performsAsmJSCall_;
     AsmJSHeapAccessVector asmJSHeapAccesses_;
     AsmJSGlobalAccessVector asmJSGlobalAccesses_;

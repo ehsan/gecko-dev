@@ -821,9 +821,9 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(IDBIndex)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(IDBIndex)
 
 JSObject*
-IDBIndex::WrapObject(JSContext* aCx)
+IDBIndex::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return IDBIndexBinding::Wrap(aCx, this);
+  return IDBIndexBinding::Wrap(aCx, aScope, this);
 }
 
 JS::Value

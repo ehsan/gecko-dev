@@ -6,7 +6,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSContainer;
@@ -16,6 +15,7 @@ import org.json.JSONObject;
 
 import android.util.Log;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,9 +24,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class EventDispatcher {
     private static final String LOGTAG = "GeckoEventDispatcher";
     private static final String GUID = "__guid__";
-    private static final String STATUS_CANCEL = "cancel";
-    private static final String STATUS_ERROR = "error";
-    private static final String STATUS_SUCCESS = "success";
+    private static final String SUFFIX_RETURN = "Return";
+    private static final String SUFFIX_ERROR = "Error";
 
     /**
      * The capacity of a HashMap is rounded up to the next power-of-2. Every time the size
@@ -139,7 +138,6 @@ public final class EventDispatcher {
     }
 
     public void dispatchEvent(final NativeJSContainer message) {
-        EventCallback callback = null;
         try {
             // First try native listeners.
             final String type = message.getString("type");
@@ -148,18 +146,12 @@ public final class EventDispatcher {
             synchronized (mGeckoThreadNativeListeners) {
                 listeners = mGeckoThreadNativeListeners.get(type);
             }
-
-            final String guid = message.optString(GUID, null);
-            if (guid != null) {
-                callback = new GeckoEventCallback(guid, type);
-            }
-
             if (listeners != null) {
                 if (listeners.size() == 0) {
                     Log.w(LOGTAG, "No listeners for " + type);
                 }
                 for (final NativeEventListener listener : listeners) {
-                    listener.handleMessage(type, message, callback);
+                    listener.handleMessage(type, message);
                 }
                 // If we found native listeners, we assume we don't have any JSON listeners
                 // and return early. This assumption is checked when registering listeners.
@@ -170,7 +162,7 @@ public final class EventDispatcher {
         }
         try {
             // If we didn't find native listeners, try JSON listeners.
-            dispatchEvent(new JSONObject(message.toString()), callback);
+            dispatchEvent(new JSONObject(message.toString()));
         } catch (final JSONException e) {
             Log.e(LOGTAG, "Cannot parse JSON");
         } catch (final UnsupportedOperationException e) {
@@ -178,7 +170,7 @@ public final class EventDispatcher {
         }
     }
 
-    public void dispatchEvent(final JSONObject message, final EventCallback callback) {
+    public void dispatchEvent(final JSONObject message) {
         // {
         //   "type": "value",
         //   "event_specific": "value",
@@ -192,12 +184,6 @@ public final class EventDispatcher {
             }
             if (listeners == null || listeners.size() == 0) {
                 Log.w(LOGTAG, "No listeners for " + type);
-
-                // If there are no listeners, cancel the callback to prevent Gecko-side observers
-                // from being leaked.
-                if (callback != null) {
-                    callback.sendCancel();
-                }
                 return;
             }
             for (final GeckoEventListener listener : listeners) {
@@ -208,70 +194,22 @@ public final class EventDispatcher {
         }
     }
 
-    @Deprecated
     public static void sendResponse(JSONObject message, Object response) {
-        sendResponseHelper(STATUS_SUCCESS, message, response);
+        sendResponseHelper(SUFFIX_RETURN, message, response);
     }
 
-    @Deprecated
     public static void sendError(JSONObject message, Object response) {
-        sendResponseHelper(STATUS_ERROR, message, response);
+        sendResponseHelper(SUFFIX_ERROR, message, response);
     }
 
-    @Deprecated
-    private static void sendResponseHelper(String status, JSONObject message, Object response) {
+    private static void sendResponseHelper(String suffix, JSONObject message, Object response) {
         try {
             final JSONObject wrapper = new JSONObject();
             wrapper.put(GUID, message.getString(GUID));
-            wrapper.put("status", status);
             wrapper.put("response", response);
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(
-                    message.getString("type") + ":Response", wrapper.toString()));
-        } catch (final JSONException e) {
-            Log.e(LOGTAG, "Unable to send response", e);
-        }
-    }
-
-    private static class GeckoEventCallback implements EventCallback {
-        private final String guid;
-        private final String type;
-        private boolean sent;
-
-        public GeckoEventCallback(final String guid, final String type) {
-            this.guid = guid;
-            this.type = type;
-        }
-
-        public void sendSuccess(final Object response) {
-            sendResponse(STATUS_SUCCESS, response);
-        }
-
-        public void sendError(final Object response) {
-            sendResponse(STATUS_ERROR, response);
-        }
-
-        public void sendCancel() {
-            sendResponse(STATUS_CANCEL, null);
-        }
-
-        private void sendResponse(final String status, final Object response) {
-            if (sent) {
-                throw new IllegalStateException("Callback has already been executed for type=" +
-                        type + ", guid=" + guid);
-            }
-
-            sent = true;
-
-            try {
-                final JSONObject wrapper = new JSONObject();
-                wrapper.put(GUID, guid);
-                wrapper.put("status", status);
-                wrapper.put("response", response);
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(type + ":Response",
-                        wrapper.toString()));
-            } catch (final JSONException e) {
-                Log.e(LOGTAG, "Unable to send response for: " + type, e);
-            }
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(message.getString("type") + ":" + suffix, wrapper.toString()));
+        } catch (Exception e) {
+            Log.e(LOGTAG, "Unable to send " + suffix, e);
         }
     }
 }

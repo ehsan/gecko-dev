@@ -6289,11 +6289,9 @@ function AddonWrapper(aAddon) {
 
   ["sourceURI", "releaseNotesURI"].forEach(function(aProp) {
     this.__defineGetter__(aProp, function AddonWrapper_URIPropertyGetter() {
-      let [target, fromRepo] = chooseValue(aAddon, aProp);
+      let target = chooseValue(aAddon, aProp)[0];
       if (!target)
         return null;
-      if (fromRepo)
-        return target;
       return NetUtil.newURI(target);
     });
   }, this);

@@ -25,7 +25,8 @@ protected:
     : SVGFEMergeElementBase(aNodeInfo)
   {
   }
-  virtual JSObject* WrapNode(JSContext *cx) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx,
+                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
 public:
   virtual FilterPrimitiveDescription

@@ -16,9 +16,9 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(SVGAnimatedLength, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(SVGAnimatedLength, Release)
 
 JSObject*
-SVGAnimatedLength::WrapObject(JSContext* aCx)
+SVGAnimatedLength::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGAnimatedLengthBinding::Wrap(aCx, this);
+  return SVGAnimatedLengthBinding::Wrap(aCx, aScope, this);
 }
 
 already_AddRefed<nsIDOMSVGLength>

@@ -18,9 +18,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGSwitchElement::WrapNode(JSContext *aCx)
+SVGSwitchElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGSwitchElementBinding::Wrap(aCx, this);
+  return SVGSwitchElementBinding::Wrap(aCx, aScope, this);
 }
 
 //----------------------------------------------------------------------

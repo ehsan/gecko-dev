@@ -457,9 +457,9 @@ NS_IMPL_ISUPPORTS0(PeerConnectionImpl)
 
 #ifdef MOZILLA_INTERNAL_API
 JSObject*
-PeerConnectionImpl::WrapObject(JSContext* aCx)
+PeerConnectionImpl::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return PeerConnectionImplBinding::Wrap(aCx, this);
+  return PeerConnectionImplBinding::Wrap(aCx, aScope, this);
 }
 #endif
 

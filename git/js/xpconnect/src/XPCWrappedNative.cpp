@@ -1323,7 +1323,6 @@ RescueOrphans(HandleObject obj)
                                           realParent, wn->GetIdentityObject());
     }
 
-    JSAutoCompartment ac(cx, obj);
     return ReparentWrapper(cx, obj);
 }
 

@@ -1101,22 +1101,6 @@
               this._tabAttrModified(oldTab);
               this._tabAttrModified(this.mCurrentTab);
 
-              if (oldBrowser != newBrowser &&
-                  oldBrowser.docShell &&
-                  oldBrowser.docShell.contentViewer.inPermitUnload) {
-                // Since the user is switching away from a tab that has
-                // a beforeunload prompt active, we remove the prompt.
-                // This prevents confusing user flows like the following:
-                //   1. User attempts to close Firefox
-                //   2. User switches tabs (ingoring a beforeunload prompt)
-                //   3. User returns to tab, presses "Leave page"
-                let promptBox = this.getTabModalPromptBox(oldBrowser);
-                let prompts = promptBox.listPrompts();
-                // NB: This code assumes that the beforeunload prompt
-                //     is the top-most prompt on the tab.
-                promptBox.removePrompt(prompts[prompts.length - 1]);
-              }
-
               // Adjust focus
               oldBrowser._urlbarFocused = (gURLBar && gURLBar.focused);
               do {
@@ -1895,6 +1879,7 @@
         <body>
           <![CDATA[
             if (aTab.closing ||
+                aTab._pendingPermitUnload ||
                 this._windowIsClosing)
               return false;
 
@@ -1902,10 +1887,16 @@
 
             if (!aTabWillBeMoved) {
               let ds = browser.docShell;
-              if (ds &&
-                  ds.contentViewer &&
-                  !ds.contentViewer.permitUnload()) {
-                return false;
+              if (ds && ds.contentViewer) {
+                // We need to block while calling permitUnload() because it
+                // processes the event queue and may lead to another removeTab()
+                // call before permitUnload() even returned.
+                aTab._pendingPermitUnload = true;
+                let permitUnload = ds.contentViewer.permitUnload();
+                delete aTab._pendingPermitUnload;
+
+                if (!permitUnload)
+                  return false;
               }
             }
 
@@ -3274,8 +3265,10 @@
       </method>
       <field name="_tabMarginLeft">null</field>
       <field name="_tabMarginRight">null</field>
-      <method name="_calcTabMargins">
+      <method name="_adjustElementStartAndEnd">
         <parameter name="aTab"/>
+        <parameter name="tabStart"/>
+        <parameter name="tabEnd"/>
         <body><![CDATA[
           if (this._tabMarginLeft === null || this._tabMarginRight === null) {
             let tabMiddle = document.getAnonymousElementByAttribute(aTab, "class", "tab-background-middle");
@@ -3283,14 +3276,6 @@
             this._tabMarginLeft = parseFloat(tabMiddleStyle.marginLeft);
             this._tabMarginRight = parseFloat(tabMiddleStyle.marginRight);
           }
-        ]]></body>
-      </method>
-      <method name="_adjustElementStartAndEnd">
-        <parameter name="aTab"/>
-        <parameter name="tabStart"/>
-        <parameter name="tabEnd"/>
-        <body><![CDATA[
-          this._calcTabMargins(aTab);
           if (this._tabMarginLeft < 0) {
             tabStart = tabStart + this._tabMarginLeft;
           }
@@ -3935,10 +3920,6 @@
 
           var scrollRect = this.mTabstrip.scrollClientRect;
           var tab = aTab.getBoundingClientRect();
-          this.mTabstrip._calcTabMargins(aTab);
-
-          // DOMRect left/right properties are immutable.
-          tab = {left: tab.left, right: tab.right};
 
           // Is the new tab already completely visible?
           if (scrollRect.left <= tab.left && tab.right <= scrollRect.right)
@@ -3947,15 +3928,6 @@
           if (this.mTabstrip.smoothScroll) {
             let selected = !this.selectedItem.pinned &&
                            this.selectedItem.getBoundingClientRect();
-            if (selected) {
-              selected = {left: selected.left, right: selected.right};
-              // Need to take in to account the width of the left/right margins on tabs.
-              selected.left = selected.left + this.mTabstrip._tabMarginLeft;
-              selected.right = selected.right - this.mTabstrip._tabMarginRight;
-            }
-
-            tab.left += this.mTabstrip._tabMarginLeft;
-            tab.right -= this.mTabstrip._tabMarginRight;
 
             // Can we make both the new tab and the selected tab completely visible?
             if (!selected ||

@@ -58,7 +58,8 @@ public:
 
   // nsWrapperCache
   using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx,
+                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 protected:
   virtual JSObject* GetWrapperPreserveColorInternal() MOZ_OVERRIDE
   {
@@ -148,7 +149,8 @@ public:
                    nsIContent* aRoot, const nsAString& aName);
   virtual ~PropertyNodeList();
 
-  virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
   void SetDocument(nsIDocument* aDocument);
 

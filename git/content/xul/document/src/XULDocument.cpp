@@ -2485,8 +2485,6 @@ XULDocument::PrepareToWalk()
         // Block onload until we've finished building the complete
         // document content model.
         BlockOnload();
-
-        nsContentSink::NotifyDocElementCreated(this);
     }
 
     // There'd better not be anything on the context stack at this
@@ -4784,9 +4782,9 @@ XULDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
 }
 
 JSObject*
-XULDocument::WrapNode(JSContext *aCx)
+XULDocument::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return XULDocumentBinding::Wrap(aCx, this);
+  return XULDocumentBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

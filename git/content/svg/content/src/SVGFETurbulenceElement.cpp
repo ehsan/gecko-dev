@@ -22,9 +22,9 @@ static const unsigned short SVG_STITCHTYPE_NOSTITCH = 2;
 static const int32_t MAX_OCTAVES = 10;
 
 JSObject*
-SVGFETurbulenceElement::WrapNode(JSContext* aCx)
+SVGFETurbulenceElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGFETurbulenceElementBinding::Wrap(aCx, this);
+  return SVGFETurbulenceElementBinding::Wrap(aCx, aScope, this);
 }
 
 nsSVGElement::NumberInfo SVGFETurbulenceElement::sNumberInfo[1] =

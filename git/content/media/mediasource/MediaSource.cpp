@@ -357,9 +357,9 @@ MediaSource::GetParentObject() const
 }
 
 JSObject*
-MediaSource::WrapObject(JSContext* aCx)
+MediaSource::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return MediaSourceBinding::Wrap(aCx, this);
+  return MediaSourceBinding::Wrap(aCx, aScope, this);
 }
 
 void
