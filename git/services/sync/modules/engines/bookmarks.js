@@ -250,7 +250,6 @@ BookmarksSharingManager.prototype = {
 
   _stopSharing: function BmkSharing__stopSharing( folderId, username ) {
     let self = yield;
-    dump("folderId is " + folderId + "\n");
     let folderName = this._bms.getItemTitle(folderId);
 
     if (this._annoSvc.itemHasAnnotation(folderId, SERVER_PATH_ANNO)){
@@ -676,7 +675,7 @@ BookmarksEngine.prototype = {
 
   _share: function BmkEngine__share(guid, username) {
     let self = yield;
-    this._sharing._share.async( this._sharing, self.cb, guid, username);
+    this._sharing.share.async( this._sharing, self.cb, guid, username);
     yield;
     self.done(true);
   },
