@@ -777,15 +777,6 @@ BrowserGlue.prototype = {
     // This is used to reprompt users when privacy message changes
     const TELEMETRY_PROMPT_REV = 2;
 
-    function appendTelemetryNotification(notifyBox, message, buttons, hideclose) {
-      let notification = notifyBox.appendNotification(message, "telemetry", null,
-						      notifyBox.PRIORITY_INFO_LOW,
-						      buttons);
-      notification.setAttribute("hideclose", hideclose);
-      notification.persistence = -1;  // Until user closes it
-      return notification;
-    }
-
     var telemetryPrompted = null;
     try {
       telemetryPrompted = Services.prefs.getIntPref(PREF_TELEMETRY_PROMPTED);
@@ -832,8 +823,10 @@ BrowserGlue.prototype = {
     // Set pref to indicate we've shown the notification.
     Services.prefs.setIntPref(PREF_TELEMETRY_PROMPTED, TELEMETRY_PROMPT_REV);
 
-    let notification = appendTelemetryNotification(notifyBox, telemetryPrompt,
-						   buttons, true);
+    var notification = notifyBox.appendNotification(telemetryPrompt, "telemetry", null, notifyBox.PRIORITY_INFO_LOW, buttons);
+    notification.setAttribute("hideclose", true);
+    notification.persistence = -1;  // Until user closes it
+
     let XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     let link = notification.ownerDocument.createElementNS(XULNS, "label");
     link.className = "text-link telemetry-text-link";
@@ -845,7 +838,8 @@ BrowserGlue.prototype = {
       notification.parentNode.removeNotification(notification, true);
       // Add a new notification to that tab, with no "Learn more" link
       notifyBox = browser.getNotificationBox();
-      appendTelemetryNotification(notifyBox, telemetryPrompt, buttons, true);
+      notification = notifyBox.appendNotification(telemetryPrompt, "telemetry", null, notifyBox.PRIORITY_INFO_LOW, buttons);
+      notification.persistence = -1; // Until user closes it
     }, false);
     let description = notification.ownerDocument.getAnonymousElementByAttribute(notification, "anonid", "messageText");
     description.appendChild(link);
@@ -1306,7 +1300,7 @@ BrowserGlue.prototype = {
     // be set to the version it has been added in, we will compare its value
     // to users' smartBookmarksVersion and add new smart bookmarks without
     // recreating old deleted ones.
-    const SMART_BOOKMARKS_VERSION = 3;
+    const SMART_BOOKMARKS_VERSION = 2;
     const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
     const SMART_BOOKMARKS_PREF = "browser.places.smartBookmarksVersion";
 
@@ -1352,6 +1346,7 @@ BrowserGlue.prototype = {
                                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS +
                                 "&sort=" +
                                 Ci.nsINavHistoryQueryOptions.SORT_BY_DATEADDED_DESCENDING +
+                                "&excludeItemIfParentHasAnnotation=livemark%2FfeedURI" +
                                 "&maxResults=" + MAX_RESULTS +
                                 "&excludeQueries=1"),
             parent: PlacesUtils.bookmarksMenuFolderId,

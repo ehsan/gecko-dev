@@ -76,8 +76,7 @@ function PlacesCategoriesStarter()
       Cc["@mozilla.org/categorymanager;1"]
         .getService(Ci.nsICategoryManager)
         .deleteCategoryEntry("bookmarks-observer", this, false);
-      // Directly notify PlacesUtils, to ensure it catches the notification.
-      PlacesUtils.observe(null, "bookmarks-service-ready", null);
+      Services.obs.notifyObservers(null, "bookmarks-service-ready", null);
     }
   }).bind(this);
   [ "onItemAdded", "onItemRemoved", "onItemChanged", "onBeginUpdateBatch",

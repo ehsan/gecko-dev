@@ -3296,7 +3296,9 @@ nsFrameSelection::DeleteFromDocument()
 {
   nsresult res;
 
-  // If we're already collapsed, then we do nothing (bug 719503).
+  // If we're already collapsed, then set ourselves to include the
+  // last item BEFORE the current range, rather than the range itself,
+  // before we do the delete.
   bool isCollapsed;
   PRInt8 index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
   if (!mDomSelections[index])
@@ -3305,7 +3307,17 @@ nsFrameSelection::DeleteFromDocument()
   mDomSelections[index]->GetIsCollapsed( &isCollapsed);
   if (isCollapsed)
   {
-    return NS_OK;
+    // If the offset is positive, then it's easy:
+    if (mDomSelections[index]->GetFocusOffset() > 0)
+    {
+      mDomSelections[index]->Extend(mDomSelections[index]->GetFocusNode(), mDomSelections[index]->GetFocusOffset() - 1);
+    }
+    else
+    {
+      // Otherwise it's harder, have to find the previous node
+      printf("Sorry, don't know how to delete across frame boundaries yet\n");
+      return NS_ERROR_NOT_IMPLEMENTED;
+    }
   }
 
   // Get an iterator

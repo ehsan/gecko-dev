@@ -136,7 +136,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     "combobox",
     roles::COMBOBOX,
     kUseMapRole,
-    eNoValue,
+    eHasValueMinMax,
     eOpenCloseAction,
     eNoLiveAttr,
     states::COLLAPSED | states::HASPOPUP,

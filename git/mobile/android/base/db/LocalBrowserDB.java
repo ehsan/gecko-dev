@@ -21,7 +21,6 @@
  * Contributor(s):
  *   Lucas Rocha <lucasr@mozilla.com>
  *   Richard Newman <rnewman@mozilla.com>
- *   Margaret Leibovic <margaret.leibovic@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -53,6 +52,7 @@ import android.content.ContentValues;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.database.CursorWrapper;
+import android.database.MatrixCursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
@@ -79,7 +79,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
     private final String mProfile;
     private long mMobileFolderId;
-    private long mTagsFolderId;
 
     private final Uri mBookmarksUriWithProfile;
     private final Uri mParentsUriWithProfile;
@@ -87,18 +86,9 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     private final Uri mImagesUriWithProfile;
     private final Uri mDeletedHistoryUriWithProfile;
 
-    private static final String[] DEFAULT_BOOKMARK_COLUMNS =
-            new String[] { Bookmarks._ID,
-                           Bookmarks.URL,
-                           Bookmarks.TITLE,
-                           Bookmarks.IS_FOLDER,
-                           Bookmarks.PARENT,
-                           Bookmarks.FAVICON }; 
-
     public LocalBrowserDB(String profile) {
         mProfile = profile;
         mMobileFolderId = -1;
-        mTagsFolderId = -1;
 
         mBookmarksUriWithProfile = appendProfile(Bookmarks.CONTENT_URI);
         mParentsUriWithProfile = appendProfile(Bookmarks.PARENTS_CONTENT_URI);
@@ -306,18 +296,26 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         cr.delete(mHistoryUriWithProfile, null, null);
     }
 
-    // This method filters out the root folder and the tags folder, since we
-    // don't want to see those in the UI
-    public Cursor getBookmarksInFolder(ContentResolver cr, long folderId) {
+    public Cursor getMobileBookmarks(ContentResolver cr) {
+        return getBookmarks(cr, true);
+    }
+
+    public Cursor getDesktopBookmarks(ContentResolver cr) {
+        return getBookmarks(cr, false);
+    }
+
+    private Cursor getBookmarks(ContentResolver cr, boolean mobileBookmarks) {
+        String parentSelection = mobileBookmarks ? " = ?" : " != ?";
+        long mobileFolderId = getMobileBookmarksFolderId(cr);
         Cursor c = cr.query(mBookmarksUriWithProfile,
-                            DEFAULT_BOOKMARK_COLUMNS,
-                            Bookmarks.PARENT + " = ? AND " +
-                            Bookmarks._ID + " <> ? AND " +
-                            Bookmarks._ID + " <> ?",
-                            new String[] { String.valueOf(folderId),
-                                           String.valueOf(Bookmarks.FIXED_ROOT_ID),
-                                           String.valueOf(getTagsBookmarksFolderId(cr))},
-                            null);
+                            new String[] { Bookmarks._ID,
+                                           Bookmarks.URL,
+                                           Bookmarks.TITLE,
+                                           Bookmarks.FAVICON },
+                            Bookmarks.IS_FOLDER + " = 0 AND " +
+                            Bookmarks.PARENT + parentSelection,
+                            new String[] { String.valueOf(mobileFolderId) },
+                            Bookmarks.DATE_MODIFIED + " DESC");
 
         return new LocalDBCursor(c);
     }
@@ -357,37 +355,23 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         if (mMobileFolderId >= 0)
             return mMobileFolderId;
 
-        mMobileFolderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
-        return mMobileFolderId;
-    }
-
-    private long getTagsBookmarksFolderId(ContentResolver cr) {
-        if (mTagsFolderId >= 0)
-            return mTagsFolderId;
-
-        mTagsFolderId = getFolderIdFromGuid(cr, Bookmarks.TAGS_FOLDER_GUID);
-        return mTagsFolderId;
-    }
-
-    private long getFolderIdFromGuid(ContentResolver cr, String guid) {
-        long folderId = -1;
         Cursor c = null;
 
         try {
             c = cr.query(mBookmarksUriWithProfile,
                          new String[] { Bookmarks._ID },
                          Bookmarks.GUID + " = ?",
-                         new String[] { guid },
+                         new String[] { Bookmarks.MOBILE_FOLDER_GUID },
                          null);
 
             if (c.moveToFirst())
-                folderId = c.getLong(c.getColumnIndexOrThrow(Bookmarks._ID));
+                mMobileFolderId = c.getLong(c.getColumnIndexOrThrow(Bookmarks._ID));
         } finally {
             if (c != null)
                 c.close();
         }
 
-        return folderId;
+        return mMobileFolderId;
     }
 
     /**

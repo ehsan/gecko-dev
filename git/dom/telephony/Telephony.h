@@ -58,7 +58,6 @@ class Telephony : public nsDOMEventTargetHelper,
   nsCOMPtr<nsIRILTelephonyCallback> mRILTelephonyCallback;
 
   NS_DECL_EVENT_HANDLER(incoming)
-  NS_DECL_EVENT_HANDLER(callschanged)
 
   TelephonyCall* mActiveCall;
   nsTArray<nsRefPtr<TelephonyCall> > mCalls;
@@ -100,7 +99,6 @@ public:
     NS_ASSERTION(!mCalls.Contains(aCall), "Already know about this one!");
     mCalls.AppendElement(aCall);
     mCallsArray = nsnull;
-    NotifyCallsChanged(aCall);
   }
 
   void
@@ -109,7 +107,6 @@ public:
     NS_ASSERTION(mCalls.Contains(aCall), "Didn't know about this one!");
     mCalls.RemoveElement(aCall);
     mCallsArray = nsnull;
-    NotifyCallsChanged(aCall);
   }
 
   nsIRadioInterfaceLayer*
@@ -131,17 +128,14 @@ public:
   }
 
 private:
-  Telephony();
+  Telephony()
+  : mActiveCall(nsnull), mCallsArray(nsnull), mRooted(false)
+  { }
+
   ~Telephony();
 
-  already_AddRefed<TelephonyCall>
-  CreateNewDialingCall(const nsAString& aNumber);
-
   void
-  NoteDialedCallFromOtherInstance(const nsAString& aNumber);
-
-  nsresult
-  NotifyCallsChanged(TelephonyCall* aCall);
+  SwitchActiveCall(TelephonyCall* aCall);
 
   class RILTelephonyCallback : public nsIRILTelephonyCallback
   {

@@ -154,7 +154,7 @@ public class AboutHomeContent extends ScrollView {
                     }
                 });
             }
-        }, GeckoAppShell.getHandler(), false);
+        }, GeckoAppShell.getHandler(), true);
 
         mTopSitesGrid = (GridView)findViewById(R.id.top_sites_grid);
         mTopSitesGrid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -367,6 +367,25 @@ public class AboutHomeContent extends ScrollView {
         super.onConfigurationChanged(newConfig);
     }
 
+    private String readJSONFile(Activity activity, String filename) {
+        InputStream fileStream = null;
+        File profileDir = GeckoApp.mAppContext.getProfileDir();
+
+        if (profileDir == null)
+            return null;
+
+        File recommendedAddonsFile = new File(profileDir, filename);
+        if (recommendedAddonsFile.exists()) {
+            try {
+                fileStream = new FileInputStream(recommendedAddonsFile);
+            } catch (FileNotFoundException fnfe) {}
+        }
+        if (fileStream == null)
+            return null;
+
+        return readStringFromStream(fileStream);
+    }
+
     private String readFromZipFile(Activity activity, String filename) {
         ZipFile zip = null;
         String str = null;
@@ -440,11 +459,9 @@ public class AboutHomeContent extends ScrollView {
 
     private void readRecommendedAddons(final Activity activity) {
         final String addonsFilename = "recommended-addons.json";
-        String jsonString;
-        try {
-            jsonString = GeckoApp.mAppContext.getProfile().readFile(addonsFilename);
-        } catch (IOException ioe) {
-            Log.i(LOGTAG, "filestream is null");
+        String jsonString = readJSONFile(activity, addonsFilename);
+        if (jsonString == null) {
+            Log.i("Addons", "filestream is null");
             jsonString = readFromZipFile(activity, addonsFilename);
         }
 
@@ -476,14 +493,6 @@ public class AboutHomeContent extends ScrollView {
                         String iconUrl = jsonobj.getString("iconURL");
                         String pageUrl = getPageUrlFromIconUrl(iconUrl);
 
-                        final String homepageUrl = jsonobj.getString("homepageURL");
-                        row.setOnClickListener(new View.OnClickListener() {
-                            public void onClick(View v) {
-                                if (mUriLoadCallback != null)
-                                    mUriLoadCallback.callback(homepageUrl);
-                            }
-                        });
-
                         Favicons favicons = GeckoApp.mAppContext.mFavicons;
                         favicons.loadFavicon(pageUrl, iconUrl,
                                     new Favicons.OnFaviconLoadedListener() {
@@ -507,13 +516,33 @@ public class AboutHomeContent extends ScrollView {
     }
 
     private void readLastTabs(final Activity activity) {
-        String jsonString = GeckoApp.mAppContext.getProfile().readSessionFile(GeckoApp.sIsGeckoReady);
-        if (jsonString == null) {
-            // no previous session data
-            return;
+        final String sessionFilename;
+        if (!GeckoApp.sIsGeckoReady) {
+            File profileDir = GeckoApp.mAppContext.getProfileDir();
+            if (profileDir == null)
+                return;
+
+            if (new File(profileDir, "sessionstore.js").exists()) {
+                // we crashed, so sessionstore.js has tabs from last time
+                sessionFilename = "sessionstore.js";
+            } else if (new File(profileDir, "sessionstore.bak").exists()) {
+                // we did not crash, so previous session was moved to sessionstore.bak on quit
+                sessionFilename = "sessionstore.bak";
+            } else {
+                // no previous session data
+                return;
+            }
+        } else {
+            // sessionstore init has occurred, so previous session will always
+            // be in sessionstore.bak
+            sessionFilename = "sessionstore.bak";
         }
 
         final JSONArray tabs;
+        String jsonString = readJSONFile(activity, sessionFilename);
+        if (jsonString == null)
+            return;
+
         try {
             tabs = new JSONObject(jsonString).getJSONArray("windows")
                                              .getJSONObject(0)

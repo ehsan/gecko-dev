@@ -60,10 +60,12 @@
 #include "nsCExternalHandlerService.h"
 #include "nsDirectoryServiceDefs.h"
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
 #endif
 #define _WIN32_WINNT 0x0600
+#endif
 
 // we need windows.h to read out registry information...
 #include <windows.h>
@@ -91,6 +93,7 @@ struct ICONENTRY {
   PRUint32 ieFileOffset;
 };
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 typedef HRESULT (WINAPI*SHGetStockIconInfoPtr) (SHSTOCKICONID siid, UINT uFlags, SHSTOCKICONINFO *psii);
 
 // Match stock icons with names
@@ -102,6 +105,7 @@ static SHSTOCKICONID GetStockIconIDForName(const nsACString &aStockName)
 
   return SIID_INVALID;
 }
+#endif
 
 // nsIconChannel methods
 nsIconChannel::nsIconChannel()
@@ -379,6 +383,7 @@ nsresult nsIconChannel::GetHIconFromFile(HICON *hIcon)
   return rv;
 }
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 nsresult nsIconChannel::GetStockHIcon(nsIMozIconURI *aIconURI, HICON *hIcon)
 {
   nsresult rv = NS_OK;
@@ -421,6 +426,7 @@ nsresult nsIconChannel::GetStockHIcon(nsIMozIconURI *aIconURI, HICON *hIcon)
 
   return rv;
 }
+#endif
 
 // Given a BITMAPINFOHEADER, returns the size of the color table.
 static int GetColorTableSize(BITMAPINFOHEADER* aHeader)
@@ -494,6 +500,7 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocki
   // GetDIBits does not exist on windows mobile.
   HICON hIcon = NULL;
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   nsCOMPtr<nsIMozIconURI> iconURI(do_QueryInterface(mUrl, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -502,6 +509,7 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocki
   if (!stockIcon.IsEmpty())
     rv = GetStockHIcon(iconURI, &hIcon);
   else
+#endif
     rv = GetHIconFromFile(&hIcon);
 
   NS_ENSURE_SUCCESS(rv, rv);

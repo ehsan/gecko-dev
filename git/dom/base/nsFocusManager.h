@@ -459,31 +459,16 @@ protected:
                            nsIDocShellTreeItem** aResult);
 
   /**
-   * Determine the first panel with focusable content in document tab order
-   * from the given document. aForward indicates the direction to scan. If
-   * aCurrentPopup is set to a panel, the next or previous popup after
-   * aCurrentPopup after it is used. If aCurrentPopup is null, then the first
-   * or last popup is used. If a panel has no focusable content, it is skipped.
-   * Null is returned if no panel is open or no open panel contains a focusable
-   * element.
-   */
-  nsIContent* GetNextTabbablePanel(nsIDocument* aDocument, nsIFrame* aCurrentPopup, bool aForward);
-
-  /**
-   * Get the tabbable next document from aStartContent or, if null, the
-   * currently focused frame if aForward is true, or the previously tabbable
-   * document if aForward is false. If this document is a chrome or frameset
-   * document, returns the first focusable element within this document,
-   * otherwise, returns the root node of the document.
-   *
-   *
-   * Panels with focusable content are also placed in the cycling order, just
-   * after the document containing that panel.
+   * Get the tabbable next document from the currently focused frame if
+   * aForward is true, or the previously tabbable document if aForward is
+   * false. If this document is a chrome or frameset document, returns
+   * the first focusable element within this document, otherwise, returns
+   * the root node of the document.
    *
    * This method would be used for document navigation, which is typically
    * invoked by pressing F6.
    */
-  nsIContent* GetNextTabbableDocument(nsIContent* aStartContent, bool aForward);
+  nsIContent* GetNextTabbableDocument(bool aForward);
 
   /**
    * Retreives a focusable element within the current selection of aWindow.

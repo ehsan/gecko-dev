@@ -1572,15 +1572,12 @@ struct MarkStack {
     T *ballast;
     T *ballastLimit;
 
-    size_t sizeLimit;
-
-    MarkStack(size_t sizeLimit)
+    MarkStack()
       : stack(NULL),
         tos(NULL),
         limit(NULL),
         ballast(NULL),
-        ballastLimit(NULL),
-        sizeLimit(sizeLimit) { }
+        ballastLimit(NULL) { }
 
     ~MarkStack() {
         if (stack != ballast)
@@ -1598,23 +1595,10 @@ struct MarkStack {
         if (!ballast)
             return false;
         ballastLimit = ballast + ballastcap;
-        initFromBallast();
-        return true;
-    }
-
-    void initFromBallast() {
         stack = ballast;
         limit = ballastLimit;
-        if (size_t(limit - stack) > sizeLimit)
-            limit = stack + sizeLimit;
         tos = stack;
-    }
-
-    void setSizeLimit(size_t size) {
-        JS_ASSERT(isEmpty());
-
-        sizeLimit = size;
-        reset();
+        return true;
     }
 
     bool push(T item) {
@@ -1656,22 +1640,21 @@ struct MarkStack {
     }
 
     void reset() {
-        if (stack != ballast)
+        if (stack != ballast) {
             js_free(stack);
-        initFromBallast();
-        JS_ASSERT(stack == ballast);
+            stack = ballast;
+            limit = ballastLimit;
+        }
+        tos = stack;
+        JS_ASSERT(limit == ballastLimit);
     }
 
     bool enlarge() {
         size_t tosIndex = tos - stack;
         size_t cap = limit - stack;
-        if (cap == sizeLimit)
-            return false;
         size_t newcap = cap * 2;
         if (newcap == 0)
             newcap = 32;
-        if (newcap > sizeLimit)
-            newcap = sizeLimit;
 
         T *newStack;
         if (stack == ballast) {
@@ -1758,11 +1741,8 @@ struct GCMarker : public JSTracer {
     }
 
   public:
-    explicit GCMarker(size_t sizeLimit);
+    explicit GCMarker();
     bool init(bool lazy);
-
-    void setSizeLimit(size_t size) { stack.setSizeLimit(size); }
-    size_t sizeLimit() const { return stack.sizeLimit; }
 
     void start(JSRuntime *rt, JSContext *cx);
     void stop();
@@ -1901,23 +1881,17 @@ struct GCMarker : public JSTracer {
 };
 
 struct BarrierGCMarker : public GCMarker {
-    BarrierGCMarker(size_t sizeLimit) : GCMarker(sizeLimit) {}
-
     bool init() {
         return GCMarker::init(true);
     }
 };
 
-struct FullGCMarker : public GCMarker {
-    FullGCMarker() : GCMarker(size_t(-1)) {}
 
+struct FullGCMarker : public GCMarker {
     bool init() {
         return GCMarker::init(false);
     }
 };
-
-void
-SetMarkStackLimit(JSRuntime *rt, size_t limit);
 
 void
 MarkStackRangeConservatively(JSTracer *trc, Value *begin, Value *end);

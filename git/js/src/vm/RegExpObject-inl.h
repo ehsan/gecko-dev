@@ -59,34 +59,33 @@ JSObject::asRegExp()
 
 namespace js {
 
+inline RegExpShared &
+RegExpObject::shared() const
+{
+    JS_ASSERT(JSObject::getPrivate() != NULL);
+    return *static_cast<RegExpShared *>(JSObject::getPrivate());
+}
+
 inline RegExpShared *
-RegExpObject::maybeShared() const
+RegExpObject::maybeShared()
 {
     return static_cast<RegExpShared *>(JSObject::getPrivate());
 }
 
-inline void
-RegExpObject::shared(RegExpGuard *g) const
+inline RegExpShared *
+RegExpObject::getShared(JSContext *cx)
 {
-    JS_ASSERT(maybeShared() != NULL);
-    g->init(*maybeShared());
-}
-
-inline bool
-RegExpObject::getShared(JSContext *cx, RegExpGuard *g)
-{
-    if (RegExpShared *shared = maybeShared()) {
-        g->init(*shared);
-        return true;
-    }
-    return createShared(cx, g);
+    if (RegExpShared *shared = maybeShared())
+        return shared;
+    return createShared(cx);
 }
 
 inline void
-RegExpObject::setShared(JSContext *cx, RegExpShared &shared)
+RegExpObject::setShared(JSContext *cx, RegExpShared *shared)
 {
-    shared.prepareForUse(cx);
-    JSObject::setPrivate(&shared);
+    if (shared)
+        shared->prepareForUse(cx);
+    JSObject::setPrivate(shared);
 }
 
 inline void
@@ -148,13 +147,13 @@ detail::RegExpCode::isJITRuntimeEnabled(JSContext *cx)
 #endif
 }
 
-inline bool
-RegExpToShared(JSContext *cx, JSObject &obj, RegExpGuard *g)
+inline RegExpShared *
+RegExpToShared(JSContext *cx, JSObject &obj)
 {
     JS_ASSERT(ObjectClassIs(obj, ESClass_RegExp, cx));
     if (obj.isRegExp())
-        return obj.asRegExp().getShared(cx, g);
-    return Proxy::regexp_toShared(cx, &obj, g);
+        return obj.asRegExp().getShared(cx);
+    return Proxy::regexp_toShared(cx, &obj);
 }
 
 inline void

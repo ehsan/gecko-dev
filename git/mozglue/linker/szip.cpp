@@ -67,7 +67,7 @@ int main(int argc, char* argv[])
   size_t offset = sizeof(SeekableZStreamHeader) + nChunks * sizeof(uint32_t);
 
   /* Give enough room for the header and the offset table, and map them */
-  ret = ftruncate(outFd, offset);
+  ret = posix_fallocate(outFd, 0, offset);
   MOZ_ASSERT(ret == 0);
   MappedPtr headerMap;
   headerMap.Assign(mmap(NULL, offset, PROT_READ | PROT_WRITE, MAP_SHARED,

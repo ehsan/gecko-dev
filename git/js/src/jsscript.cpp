@@ -429,7 +429,7 @@ XDRScriptConst(JSXDRState *xdr, HeapValue *vp)
     }
     return true;
 }
-
+ 
 static const char *
 SaveScriptFilename(JSContext *cx, const char *filename);
 
@@ -441,9 +441,7 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
         SavedCallerFun,
         StrictModeCode,
         UsesEval,
-        UsesArguments,
-        OwnFilename,
-        SharedFilename
+        UsesArguments
     };
 
     uint32_t length, lineno, nslots;
@@ -451,12 +449,17 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
     uint32_t prologLength, version, encodedClosedCount;
     uint16_t nClosedArgs = 0, nClosedVars = 0;
     uint32_t nTypeSets = 0;
+    uint32_t encodeable, sameOriginPrincipals;
+    JSSecurityCallbacks *callbacks;
     uint32_t scriptBits = 0;
 
     JSContext *cx = xdr->cx;
     JSScript *script;
     nsrcnotes = ntrynotes = natoms = nobjects = nregexps = nconsts = 0;
     jssrcnote *notes = NULL;
+    XDRScriptState *state = xdr->state;
+
+    JS_ASSERT(state);
 
     /* XDR arguments, local vars, and upvars. */
     uint16_t nargs, nvars, nupvars;
@@ -608,12 +611,6 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
             scriptBits |= (1 << UsesEval);
         if (script->usesArguments)
             scriptBits |= (1 << UsesArguments);
-        if (script->filename) {
-            scriptBits |= (script->filename != xdr->sharedFilename)
-                          ? (1 << OwnFilename)
-                          : (1 << SharedFilename);
-        }
-
         JS_ASSERT(!script->compileAndGo);
         JS_ASSERT(!script->hasSingletons);
     }
@@ -689,39 +686,52 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
         return false;
     }
 
-    if (scriptBits & (1 << OwnFilename)) {
-        char *filename;
-        if (xdr->mode == JSXDR_ENCODE)
-            filename = const_cast<char *>(script->filename);
-        if (!JS_XDRCString(xdr, &filename))
-            return false;
-        if (xdr->mode == JSXDR_DECODE) {
-            script->filename = SaveScriptFilename(xdr->cx, filename);
-            Foreground::free_(filename);
-            if (!script->filename)
+    if (xdr->mode == JSXDR_DECODE && state->filename) {
+        if (!state->filenameSaved) {
+            const char *filename = state->filename;
+            filename = SaveScriptFilename(xdr->cx, filename);
+            xdr->cx->free_((void *) state->filename);
+            state->filename = filename;
+            state->filenameSaved = true;
+            if (!filename)
                 return false;
-            if (!xdr->sharedFilename)
-                xdr->sharedFilename = script->filename;
         }
-    } else if (scriptBits & (1 << SharedFilename)) {
-        JS_ASSERT(xdr->sharedFilename);
-        if (xdr->mode == JSXDR_DECODE)
-            script->filename = xdr->sharedFilename;
+        script->filename = state->filename;
     }
 
-    if (xdr->mode == JSXDR_DECODE) {
-        JS_ASSERT(!script->principals);
-        JS_ASSERT(!script->originPrincipals);
+    JS_ASSERT_IF(xdr->mode == JSXDR_ENCODE, state->filename == script->filename);
 
-        /* The origin principals must be normalized at this point. */ 
-        JS_ASSERT_IF(script->principals, script->originPrincipals);
-        if (xdr->principals) {
-            script->principals = xdr->principals;
-            JSPRINCIPALS_HOLD(cx, xdr->principals);
+    callbacks = JS_GetSecurityCallbacks(cx);
+    if (xdr->mode == JSXDR_ENCODE)
+        encodeable = script->principals && callbacks && callbacks->principalsTranscoder;
+
+    if (!JS_XDRUint32(xdr, &encodeable))
+        return false;
+
+    if (encodeable) {
+        if (!callbacks || !callbacks->principalsTranscoder) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                 JSMSG_CANT_DECODE_PRINCIPALS);
+            return false;
         }
-        if (xdr->originPrincipals) {
-            script->originPrincipals = xdr->originPrincipals;
-            JSPRINCIPALS_HOLD(cx, xdr->originPrincipals);
+
+        if (!callbacks->principalsTranscoder(xdr, &script->principals))
+            return false;
+
+        if (xdr->mode == JSXDR_ENCODE)
+            sameOriginPrincipals = script->principals == script->originPrincipals;
+
+        if (!JS_XDRUint32(xdr, &sameOriginPrincipals))
+            return false;
+
+        if (sameOriginPrincipals) {
+            if (xdr->mode == JSXDR_DECODE) {
+                script->originPrincipals = script->principals;
+                JSPRINCIPALS_HOLD(cx, script->originPrincipals);
+            }
+        } else {
+            if (!callbacks->principalsTranscoder(xdr, &script->originPrincipals))
+                return false;
         }
     }
 
@@ -813,8 +823,8 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
         } while (tn != tnfirst);
     }
 
-    if (nconsts) {
-        HeapValue *vector = script->consts()->vector;
+    if (nconsts) { 
+        HeapValue *vector = script->consts()->vector; 
         for (i = 0; i != nconsts; ++i) {
             if (!XDRScriptConst(xdr, &vector[i]))
                 return false;
@@ -913,19 +923,7 @@ SaveScriptFilename(JSContext *cx, const char *filename)
         }
     }
 
-    ScriptFilenameEntry *sfe = *p;
-#ifdef JSGC_INCREMENTAL
-    /*
-     * During the IGC we need to ensure that filename is marked whenever it is
-     * accessed even if the name was already in the table. At this point old
-     * scripts or exceptions pointing to the filename may no longer be
-     * reachable.
-     */
-    if (comp->needsBarrier() && !sfe->marked)
-        sfe->marked = true;
-#endif
-
-    return sfe->filename;
+    return (*p)->filename;
 }
 
 } /* namespace js */
@@ -1065,7 +1063,7 @@ JSScript::NewScript(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t
          * We assume that calloc aligns on sizeof(Value) if the size we ask to
          * allocate divides sizeof(Value).
          */
-        JS_STATIC_ASSERT(sizeof(Value) == sizeof(double));
+        JS_STATIC_ASSERT(sizeof(Value) == sizeof(jsdouble));
         data = static_cast<uint8_t *>(cx->calloc_(JS_ROUNDUP(size, sizeof(Value))));
         if (!data)
             return NULL;
@@ -1581,6 +1579,9 @@ js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
      * Special case: function definition needs no line number note because
      * the function's script contains its starting line number.
      */
+    JSOp op = JSOp(*pc);
+    if (js_CodeSpec[op].format & JOF_INDEXBASE)
+        pc += js_CodeSpec[op].length;
     if (*pc == JSOP_DEFFUN)
         return script->getFunction(GET_UINT32_INDEX(pc))->script()->lineno;
 
@@ -1704,8 +1705,29 @@ CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, uintN *linenop
     *origin = script->originPrincipals;
 }
 
-class AutoJSXDRState {
+class DisablePrincipalsTranscoding {
+    JSSecurityCallbacks *callbacks;
+    JSPrincipalsTranscoder temp;
+
   public:
+    DisablePrincipalsTranscoding(JSContext *cx)
+      : callbacks(JS_GetRuntimeSecurityCallbacks(cx->runtime)),
+        temp(NULL)
+    {
+        if (callbacks) {
+            temp = callbacks->principalsTranscoder;
+            callbacks->principalsTranscoder = NULL;
+        }
+    }
+
+    ~DisablePrincipalsTranscoding() {
+        if (callbacks)
+            callbacks->principalsTranscoder = temp;
+    }
+};
+
+class AutoJSXDRState {
+public:
     AutoJSXDRState(JSXDRState *x
                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : xdr(x)
@@ -1722,12 +1744,7 @@ class AutoJSXDRState {
         return xdr;
     }
 
-    JSXDRState* operator->() const
-    {
-        return xdr;
-    }
-
-  private:
+private:
     JSXDRState *const xdr;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
@@ -1737,11 +1754,18 @@ CloneScript(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(cx->compartment != script->compartment());
 
-    /* Serialize script. */
+    // serialize script
     AutoJSXDRState w(JS_XDRNewMem(cx, JSXDR_ENCODE));
     if (!w)
         return NULL;
 
+    // we don't want gecko to transcribe our principals for us
+    DisablePrincipalsTranscoding disable(cx);
+
+    XDRScriptState wstate(w);
+#ifdef DEBUG
+    wstate.filename = script->filename;
+#endif
     if (!XDRScript(w, &script))
         return NULL;
 
@@ -1750,24 +1774,34 @@ CloneScript(JSContext *cx, JSScript *script)
     if (!p)
         return NULL;
 
-    /* De-serialize script. */
+    // de-serialize script
     AutoJSXDRState r(JS_XDRNewMem(cx, JSXDR_DECODE));
     if (!r)
         return NULL;
 
-    /*
-     * Hand p off from w to r.  Don't want them to share the data mem, lest
-     * they both try to free it in JS_XDRDestroy.
-     */
+    // Hand p off from w to r.  Don't want them to share the data
+    // mem, lest they both try to free it in JS_XDRDestroy
     JS_XDRMemSetData(r, p, nbytes);
     JS_XDRMemSetData(w, NULL, 0);
 
-    r->principals = cx->compartment->principals;
-    r->originPrincipals = JSScript::normalizeOriginPrincipals(cx->compartment->principals,
-                                                              script->originPrincipals);
+    XDRScriptState rstate(r);
+    rstate.filename = script->filename;
+    rstate.filenameSaved = true;
+
     JSScript *newScript = NULL;
     if (!XDRScript(r, &newScript))
         return NULL;
+
+    // set the proper principals for the script's new compartment
+    // the originPrincipals are not related to compartment, so just copy
+    newScript->principals = newScript->compartment()->principals;
+    newScript->originPrincipals = script->originPrincipals;
+    if (!newScript->originPrincipals)
+        newScript->originPrincipals = newScript->principals;
+    if (newScript->principals) {
+        JSPRINCIPALS_HOLD(cx, newScript->principals);
+        JSPRINCIPALS_HOLD(cx, newScript->originPrincipals);
+    }
 
     return newScript;
 }

@@ -154,7 +154,6 @@ CPPSRCS		= \
 		Debugger.cpp \
 		GlobalObject.cpp \
 		MethodGuard.cpp \
-		ObjectImpl.cpp \
 		Stack.cpp \
 		String.cpp \
 		BytecodeCompiler.cpp \

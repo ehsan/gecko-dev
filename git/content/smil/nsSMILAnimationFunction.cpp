@@ -94,8 +94,7 @@ nsSMILAnimationFunction::nsSMILAnimationFunction()
     mLastValue(false),
     mHasChanged(true),
     mValueNeedsReparsingEverySample(false),
-    mPrevSampleWasSingleValueAnimation(false),
-    mWasSkippedInPrevSample(false)
+    mPrevSampleWasSingleValueAnimation(false)
 {
 }
 
@@ -234,7 +233,6 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
 {
   mHasChanged = false;
   mPrevSampleWasSingleValueAnimation = false;
-  mWasSkippedInPrevSample = false;
 
   // Skip animations that are inactive or in error
   if (!IsActiveOrFrozen() || mErrorFlags != 0)

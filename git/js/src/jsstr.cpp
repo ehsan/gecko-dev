@@ -1178,7 +1178,7 @@ str_indexOf(JSContext *cx, uintN argc, Value *vp)
                 textlen -= start;
             }
         } else {
-            double d;
+            jsdouble d;
             if (!ToInteger(cx, args[1], &d))
                 return false;
             if (d <= 0) {
@@ -1339,7 +1339,7 @@ class FlatMatch
     size_t       patlen;
     int32_t      match_;
 
-    friend class StringRegExpGuard;
+    friend class RegExpGuard;
 
   public:
     FlatMatch() : patstr(NULL) {} /* Old GCC wants this initialization. */
@@ -1378,18 +1378,18 @@ HasRegExpMetaChars(const jschar *chars, size_t length)
 }
 
 /*
- * StringRegExpGuard factors logic out of String regexp operations.
+ * RegExpGuard factors logic out of String regexp operations.
  *
  * |optarg| indicates in which argument position RegExp flags will be found, if
  * present. This is a Mozilla extension and not part of any ECMA spec.
  */
-class StringRegExpGuard
+class RegExpGuard
 {
-    StringRegExpGuard(const StringRegExpGuard &) MOZ_DELETE;
-    void operator=(const StringRegExpGuard &) MOZ_DELETE;
+    RegExpGuard(const RegExpGuard &) MOZ_DELETE;
+    void operator=(const RegExpGuard &) MOZ_DELETE;
 
-    RegExpGuard re_;
-    FlatMatch   fm;
+    RegExpShared::Guard re_;
+    FlatMatch           fm;
 
     /*
      * Upper bound on the number of characters we are willing to potentially
@@ -1420,14 +1420,16 @@ class StringRegExpGuard
     }
 
   public:
-    StringRegExpGuard() {}
+    RegExpGuard() {}
 
     /* init must succeed in order to call tryFlatMatch or normalizeRegExp. */
     bool init(JSContext *cx, CallArgs args, bool convertVoid = false)
     {
         if (args.length() != 0 && IsObjectWithClass(args[0], ESClass_RegExp, cx)) {
-            if (!RegExpToShared(cx, args[0].toObject(), &re_))
+            RegExpShared *shared = RegExpToShared(cx, args[0].toObject());
+            if (!shared)
                 return false;
+            re_.init(*shared);
         } else {
             if (convertVoid && (args.length() == 0 || args[0].isUndefined())) {
                 fm.patstr = cx->runtime->emptyString;
@@ -1514,7 +1516,12 @@ class StringRegExpGuard
         }
         JS_ASSERT(patstr);
 
-        return cx->compartment->regExps.get(cx, patstr, opt, &re_);
+        RegExpShared *re = cx->compartment->regExps.get(cx, patstr, opt);
+        if (!re)
+            return false;
+
+        re_.init(*re);
+        return true;
     }
 
     RegExpShared &regExp() { return *re_; }
@@ -1633,7 +1640,7 @@ js::str_match(JSContext *cx, uintN argc, Value *vp)
     if (!str)
         return false;
 
-    StringRegExpGuard g;
+    RegExpGuard g;
     if (!g.init(cx, args, true))
         return false;
 
@@ -1669,7 +1676,7 @@ js::str_search(JSContext *cx, uintN argc, Value *vp)
     if (!str)
         return false;
 
-    StringRegExpGuard g;
+    RegExpGuard g;
     if (!g.init(cx, args, true))
         return false;
     if (const FlatMatch *fm = g.tryFlatMatch(cx, str, 1, args.length())) {
@@ -1711,7 +1718,7 @@ struct ReplaceData
     {}
 
     JSString           *str;           /* 'this' parameter object as a string */
-    StringRegExpGuard  g;              /* regexp parameter object and private data */
+    RegExpGuard        g;              /* regexp parameter object and private data */
     JSObject           *lambda;        /* replacement function object or null */
     JSObject           *elembase;      /* object for function(a){return b[a]} replace */
     JSLinearString     *repstr;        /* replacement string */
@@ -2556,7 +2563,7 @@ js::str_split(JSContext *cx, uintN argc, Value *vp)
     /* Step 5: Use the second argument as the split limit, if given. */
     uint32_t limit;
     if (args.length() > 1 && !args[1].isUndefined()) {
-        double d;
+        jsdouble d;
         if (!ToNumber(cx, args[1], &d))
             return false;
         limit = js_DoubleToECMAUint32(d);
@@ -2565,13 +2572,15 @@ js::str_split(JSContext *cx, uintN argc, Value *vp)
     }
 
     /* Step 8. */
-    RegExpGuard re;
+    RegExpShared::Guard re;
     JSLinearString *sepstr = NULL;
     bool sepUndefined = (args.length() == 0 || args[0].isUndefined());
     if (!sepUndefined) {
         if (IsObjectWithClass(args[0], ESClass_RegExp, cx)) {
-            if (!RegExpToShared(cx, args[0].toObject(), &re))
+            RegExpShared *shared = RegExpToShared(cx, args[0].toObject());
+            if (!shared)
                 return false;
+            re.init(*shared);
         } else {
             sepstr = ArgToRootedString(cx, args, 0);
             if (!sepstr)

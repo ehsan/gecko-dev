@@ -81,6 +81,9 @@ protected:
     nsresult Shutdown(void);
     nsresult SendEventToUI(const char *aEventID);
 
+    DWORD GetOperationalStatus(DWORD aAdapterIndex);
+    DWORD CheckIPAddrTable(void);
+    DWORD CheckAdaptersInfo(void);
     DWORD CheckAdaptersAddresses(void);
     bool  CheckIsGateway(PIP_ADAPTER_ADDRESSES aAdapter);
     bool  CheckICSStatus(PWCHAR aAdapterName);

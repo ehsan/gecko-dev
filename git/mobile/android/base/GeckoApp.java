@@ -125,7 +125,7 @@ abstract public class GeckoApp
     public static Menu sMenu;
     private static GeckoThread sGeckoThread = null;
     public GeckoAppHandler mMainHandler;
-    private GeckoProfile mProfile;
+    private File mProfileDir;
     public static boolean sIsGeckoReady = false;
     public static int mOrientation;
 
@@ -390,7 +390,7 @@ abstract public class GeckoApp
     {
         sMenu = menu;
         MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.gecko_menu, menu);
+        inflater.inflate(R.layout.gecko_menu, menu);
         return true;
     }
 
@@ -436,6 +436,7 @@ abstract public class GeckoApp
         MenuItem forward = aMenu.findItem(R.id.forward);
         MenuItem share = aMenu.findItem(R.id.share);
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
+        MenuItem downloads = aMenu.findItem(R.id.downloads);
         MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
 
         if (tab == null) {
@@ -468,6 +469,10 @@ abstract public class GeckoApp
         // Disable save as PDF for about:home and xul pages
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
                                tab.getContentType().equals("application/vnd.mozilla.xul+xml")));
+
+        // DownloadManager support is tied to level 12 and higher
+        if (Build.VERSION.SDK_INT < 12)
+            downloads.setVisible(false);
 
         charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
 
@@ -847,6 +852,21 @@ abstract public class GeckoApp
 
             return mStartupMode;
         }
+    }
+
+    public File getProfileDir() {
+        return getProfileDir("default");
+    }
+
+    public File getProfileDir(final String profileName) {
+        if (mProfileDir != null)
+            return mProfileDir;
+        try {
+            mProfileDir = GeckoDirProvider.getProfileDir(mAppContext, profileName);
+        } catch (IOException ex) {
+            Log.e(LOGTAG, "Error getting profile dir.", ex);
+        }
+        return mProfileDir;
     }
 
     void addTab() {
@@ -1699,7 +1719,7 @@ abstract public class GeckoApp
             Pattern p = Pattern.compile("(?:-profile\\s*)(\\w*)(\\s*)");
             Matcher m = p.matcher(args);
             if (m.find()) {
-                mProfile = GeckoProfile.get(this, m.group(1));
+                mProfileDir = new File(m.group(1));
                 mLastTitle = null;
                 mLastViewport = null;
                 mLastScreen = null;
@@ -1721,7 +1741,13 @@ abstract public class GeckoApp
 
         if (passedUri == null || passedUri.equals("about:home")) {
             // show about:home if we aren't restoring previous session
-            if (! getProfile().hasSession()) {
+            Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - start check sessionstore.js exists");
+            File profileDir = getProfileDir();
+            boolean sessionExists = false;
+            if (profileDir != null)
+                sessionExists = new File(profileDir, "sessionstore.js").exists();
+            Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - finish check sessionstore.js exists");
+            if (!sessionExists) {
                 mBrowserToolbar.updateTabCount(1);
                 showAboutHome();
             }
@@ -1869,14 +1895,6 @@ abstract public class GeckoApp
                 checkMigrateProfile();
             }
         }, 50);
-    }
-
-    public GeckoProfile getProfile() {
-        // fall back to default profile if we didn't load a specific one
-        if (mProfile == null) {
-            mProfile = GeckoProfile.get(this);
-        }
-        return mProfile;
     }
 
     /**
@@ -2118,6 +2136,10 @@ abstract public class GeckoApp
             refreshActionBar();
         }
 
+        // Just in case. Normally we start in onNewIntent
+        if (checkLaunchState(LaunchState.Launching))
+            onNewIntent(getIntent());
+
         registerReceiver(mConnectivityReceiver, mConnectivityFilter);
         GeckoNetworkManager.getInstance().start();
 
@@ -2358,7 +2380,7 @@ abstract public class GeckoApp
     }
 
     private void checkMigrateProfile() {
-        File profileDir = getProfile().getDir();
+        File profileDir = getProfileDir();
         long currentTime = SystemClock.uptimeMillis();
 
         if (profileDir != null) {
@@ -2560,9 +2582,8 @@ abstract public class GeckoApp
                 String url = data.getStringExtra(AwesomeBar.URL_KEY);
                 AwesomeBar.Type type = AwesomeBar.Type.valueOf(data.getStringExtra(AwesomeBar.TYPE_KEY));
                 String searchEngine = data.getStringExtra(AwesomeBar.SEARCH_KEY);
-                boolean userEntered = data.getBooleanExtra(AwesomeBar.USER_ENTERED_KEY, false);
                 if (url != null && url.length() > 0)
-                    loadRequest(url, type, searchEngine, userEntered);
+                    loadRequest(url, type, searchEngine);
             }
             break;
         case CAMERA_CAPTURE_REQUEST:
@@ -2588,14 +2609,13 @@ abstract public class GeckoApp
 
     // If searchEngine is provided, url will be used as the search query.
     // Otherwise, the url is loaded.
-    private void loadRequest(String url, AwesomeBar.Type type, String searchEngine, boolean userEntered) {
+    private void loadRequest(String url, AwesomeBar.Type type, String searchEngine) {
         mBrowserToolbar.setTitle(url);
         Log.d(LOGTAG, type.name());
         JSONObject args = new JSONObject();
         try {
             args.put("url", url);
             args.put("engine", searchEngine);
-            args.put("userEntered", userEntered);
         } catch (Exception e) {
             Log.e(LOGTAG, "error building JSON arguments");
         }
@@ -2608,7 +2628,7 @@ abstract public class GeckoApp
     }
 
     public void loadUrl(String url, AwesomeBar.Type type) {
-        loadRequest(url, type, null, false);
+        loadRequest(url, type, null);
     }
 
     /**

@@ -337,12 +337,6 @@ nsNullPrincipal::Subsumes(nsIPrincipal *aOther, bool *aResult)
 }
 
 NS_IMETHODIMP
-nsNullPrincipal::SubsumesIgnoringDomain(nsIPrincipal *aOther, bool *aResult)
-{
-  return Subsumes(aOther, aResult);
-}
-
-NS_IMETHODIMP
 nsNullPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport)
 {
   if (aReport) {

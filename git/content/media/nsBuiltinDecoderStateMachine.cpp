@@ -806,39 +806,53 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
 
     // Calculate the number of frames that have been pushed onto the audio
     // hardware.
-    CheckedInt64 playedFrames = UsecsToFrames(audioStartTime, rate) +
-                                              audioDuration;
+    PRInt64 playedFrames = 0;
+    if (!UsecsToFrames(audioStartTime, rate, playedFrames)) {
+      NS_WARNING("Int overflow converting playedFrames");
+      break;
+    }
+    if (!AddOverflow(playedFrames, audioDuration, playedFrames)) {
+      NS_WARNING("Int overflow adding playedFrames");
+      break;
+    }
+
     // Calculate the timestamp of the next chunk of audio in numbers of
     // samples.
-    CheckedInt64 sampleTime = UsecsToFrames(s->mTime, rate);
-    CheckedInt64 missingFrames = sampleTime - playedFrames;
-    if (!missingFrames.valid() || !sampleTime.valid()) {
-      NS_WARNING("Int overflow adding in AudioLoop()");
+    PRInt64 sampleTime = 0;
+    if (!UsecsToFrames(s->mTime, rate, sampleTime)) {
+      NS_WARNING("Int overflow converting sampleTime");
+      break;
+    }
+    PRInt64 missingFrames = 0;
+    if (!AddOverflow(sampleTime, -playedFrames, missingFrames)) {
+      NS_WARNING("Int overflow adding missingFrames");
       break;
     }
 
     PRInt64 framesWritten = 0;
-    if (missingFrames.value() > 0) {
+    if (missingFrames > 0) {
       // The next audio chunk begins some time after the end of the last chunk
       // we pushed to the audio hardware. We must push silence into the audio
       // hardware so that the next audio chunk begins playback at the correct
       // time.
-      missingFrames = NS_MIN(static_cast<PRInt64>(PR_UINT32_MAX),
-                             missingFrames.value());
-      framesWritten = PlaySilence(static_cast<PRUint32>(missingFrames.value()),
-                                  channels, playedFrames.value());
+      missingFrames = NS_MIN(static_cast<PRInt64>(PR_UINT32_MAX), missingFrames);
+      framesWritten = PlaySilence(static_cast<PRUint32>(missingFrames),
+                                  channels, playedFrames);
     } else {
-      framesWritten = PlayFromAudioQueue(sampleTime.value(), channels);
+      framesWritten = PlayFromAudioQueue(sampleTime, channels);
     }
     audioDuration += framesWritten;
     {
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      CheckedInt64 playedUsecs = FramesToUsecs(audioDuration, rate) + audioStartTime;
-      if (!playedUsecs.valid()) {
+      PRInt64 playedUsecs;
+      if (!FramesToUsecs(audioDuration, rate, playedUsecs)) {
+        NS_WARNING("Int overflow calculating playedUsecs");
+        break;
+      }
+      if (!AddOverflow(audioStartTime, playedUsecs, mAudioEndTime)) {
         NS_WARNING("Int overflow calculating audio end time");
         break;
       }
-      mAudioEndTime = playedUsecs.value();
     }
   }
   if (mReader->mAudioQueue.AtEndOfStream() &&

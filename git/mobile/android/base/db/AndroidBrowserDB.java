@@ -188,7 +188,12 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
         Browser.clearHistory(cr);
     }
 
-    public Cursor getBookmarksInFolder(ContentResolver cr, long folderId) {
+    public Cursor getMobileBookmarks(ContentResolver cr) {
+        Cursor c = cr.query(null, null, null, null, null);
+        return new AndroidDBCursor(c);
+    }
+
+    public Cursor getDesktopBookmarks(ContentResolver cr) {
         Cursor c = cr.query(null, null, null, null, null);
         return new AndroidDBCursor(c);
     }

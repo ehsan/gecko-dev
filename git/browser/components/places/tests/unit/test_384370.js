@@ -36,6 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// The following components need to be initialized to perform tests without
+// asserting in debug builds (Bug 448804).
+Cc["@mozilla.org/browser/livemark-service;2"].getService(Ci.nsILivemarkService);
+Cc["@mozilla.org/feed-processor;1"].createInstance(Ci.nsIFeedProcessor);
+
 const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
@@ -44,7 +49,6 @@ do_check_eq(typeof PlacesUtils, "object");
 
 // main
 function run_test() {
-  do_test_pending();
   /*
     HTML+FEATURES SUMMARY:
     - import legacy bookmarks
@@ -88,25 +92,21 @@ function run_test() {
   populate();
   validate();
 
-  waitForAsyncUpdates(function () {
-    // Test exporting a Places canonical json file.
-    // 1. export to bookmarks.exported.json
-    // 2. empty bookmarks db
-    // 3. import bookmarks.exported.json
-    // 4. run the test-suite
-    try {
-      PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
-    } catch(ex) { do_throw("couldn't export to file: " + ex); }
-    LOG("exported json");
-    try {
-      PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
-    } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
-    LOG("imported json");
-    validate();
-    LOG("validated import");
-
-    waitForAsyncUpdates(do_test_finished);
-  });
+  // Test exporting a Places canonical json file.
+  // 1. export to bookmarks.exported.json
+  // 2. empty bookmarks db
+  // 3. import bookmarks.exported.json
+  // 4. run the test-suite
+  try {
+    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+  } catch(ex) { do_throw("couldn't export to file: " + ex); }
+  LOG("exported json"); 
+  try {
+    PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
+  } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
+  LOG("imported json"); 
+  validate();
+  LOG("validated import"); 
 }
 
 var tagData = [
@@ -243,17 +243,14 @@ function testToolbarFolder() {
   var livemark = toolbar.getChild(1);
   // title
   do_check_eq("Latest Headlines", livemark.title);
-
-  PlacesUtils.livemarks.getLivemark(
-    { id: livemark.itemId },
-    function (aStatus, aLivemark) {
-      do_check_true(Components.isSuccessCode(aStatus));
-      do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
-                  aLivemark.siteURI.spec);
-      do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
-                  aLivemark.feedURI.spec);
-    }
-  );
+  // livemark check
+  do_check_true(PlacesUtils.livemarks.isLivemark(livemark.itemId));
+  // site url
+  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
+              PlacesUtils.livemarks.getSiteURI(livemark.itemId).spec);
+  // feed url
+  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
+              PlacesUtils.livemarks.getFeedURI(livemark.itemId).spec);
 
   // test added bookmark data
   var child = toolbar.getChild(2);

@@ -54,7 +54,7 @@
 #include "nsPlaceholderFrame.h"
 #include "nsContainerFrame.h"
 #include "nsFirstLetterFrame.h"
-#include "nsUnicodeProperties.h"
+#include "gfxUnicodeProperties.h"
 #include "nsTextFrame.h"
 
 #undef NOISY_BIDI
@@ -63,7 +63,6 @@
 using namespace mozilla;
 
 static const PRUnichar kSpace            = 0x0020;
-static const PRUnichar kZWSP             = 0x200B;
 static const PRUnichar kLineSeparator    = 0x2028;
 static const PRUnichar kObjectSubstitute = 0xFFFC;
 static const PRUnichar kLRE              = 0x202A;
@@ -100,8 +99,8 @@ struct BidiParagraphData {
         NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
       // unicode-bidi: plaintext: the Bidi algorithm will determine the
       // directionality of the paragraph according to the first strong
-      // directional character, defaulting to LTR if there is none.
-      mParaLevel = NSBIDI_DEFAULT_LTR;
+      // directional character.
+      mParaLevel = styleDirectionIsRTL ? NSBIDI_DEFAULT_RTL : NSBIDI_DEFAULT_LTR;
     } else {
       mParaLevel = styleDirectionIsRTL ? NSBIDI_RTL : NSBIDI_LTR;
     }
@@ -152,13 +151,13 @@ struct BidiParagraphData {
     mIsVisual = aBpd->mIsVisual;
     mParaLevel = aBpd->mParaLevel;
 
-    // If the containing paragraph has a level of NSBIDI_DEFAULT_LTR, set
-    // the sub-paragraph to NSBIDI_LTR (we can't use GetParaLevel to find the
-    // resolved paragraph level, because the containing paragraph hasn't yet
-    // been through bidi resolution
-    if (mParaLevel == NSBIDI_DEFAULT_LTR) {
-      mParaLevel = NSBIDI_LTR;
-    }
+    // If the containing paragraph has a level of NSBIDI_DEFAULT_LTR/RTL, set
+    // the sub-paragraph to the corresponding non-default level (We can't use
+    // GetParaLevel, because the containing paragraph hasn't yet been through
+    // bidi resolution
+    if (IS_DEFAULT_LEVEL(mParaLevel)) {
+      mParaLevel = (mParaLevel == NSBIDI_DEFAULT_RTL) ? NSBIDI_RTL : NSBIDI_LTR;
+    }                    
     mReset = false;
   }
 
@@ -211,7 +210,7 @@ struct BidiParagraphData {
   }
 
   /**
-   * mParaLevel can be NSBIDI_DEFAULT_LTR as well as NSBIDI_LTR or NSBIDI_RTL.
+   * mParaLevel can be NSBIDI_DEFAULT_LTR or NSBIDI_DEFAULT_RTL.
    * GetParaLevel() returns the actual (resolved) paragraph level which is
    * always either NSBIDI_LTR or NSBIDI_RTL
    */
@@ -1093,10 +1092,7 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
         // other frame type -- see the Unicode Bidi Algorithm:
         // "...inline objects (such as graphics) are treated as if they are ...
         // U+FFFC"
-        // <wbr>, however, is treated as U+200B ZERO WIDTH SPACE. See
-        // http://dev.w3.org/html5/spec/Overview.html#phrasing-content-1
-        aBpd->AppendUnichar(content->IsHTML(nsGkAtoms::wbr) ?
-                            kZWSP : kObjectSubstitute);
+        aBpd->AppendUnichar(kObjectSubstitute);
         if (!frame->GetStyleContext()->GetStyleDisplay()->IsInlineOutside()) {
           // if it is not inline, end the paragraph
           ResolveParagraphWithinBlock(aBlockFrame, aBpd);
@@ -2024,7 +2020,7 @@ void nsBidiPresUtils::WriteReverse(const PRUnichar* aSrc,
       UTF32Char = *src;
     }
 
-    UTF32Char = mozilla::unicode::GetMirroredChar(UTF32Char);
+    UTF32Char = gfxUnicodeProperties::GetMirroredChar(UTF32Char);
 
     if (IS_IN_BMP(UTF32Char)) {
       *(dest++) = UTF32Char;

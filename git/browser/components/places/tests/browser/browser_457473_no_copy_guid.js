@@ -41,7 +41,7 @@ function test() {
   ok(PlacesUIUtils, "checking PlacesUIUtils, running in chrome context?");
 
   /*
-  - create, a test folder, add bookmark, separator to it
+  - create, a test folder, add bookmark, separator, livemark to it
   - fetch guids for all
   - copy the folder
   - test that guids are all different
@@ -66,6 +66,10 @@ function test() {
   PlacesUtils.bookmarks.insertBookmark(folderAId, PlacesUtils._uri("http://foo"),
                                        -1, "test bookmark");
   PlacesUtils.bookmarks.insertSeparator(folderAId, -1);
+  PlacesUtils.livemarks.createLivemarkFolderOnly(folderAId, "test livemark",
+                                                 PlacesUtils._uri("http://test"),
+                                                 PlacesUtils._uri("http://test"), -1);
+
   var folderANode = testRootNode.getChild(0);
   var folderAGUIDs = getGUIDs(folderANode);
 
@@ -121,7 +125,8 @@ function getGUIDs(aNode) {
   var GUIDs = {
     folder: PlacesUtils.bookmarks.getItemGUID(aNode.itemId),
     bookmark: PlacesUtils.bookmarks.getItemGUID(aNode.getChild(0).itemId),
-    separator: PlacesUtils.bookmarks.getItemGUID(aNode.getChild(1).itemId)
+    separator: PlacesUtils.bookmarks.getItemGUID(aNode.getChild(1).itemId),
+    livemark: PlacesUtils.bookmarks.getItemGUID(aNode.getChild(2).itemId)
   };
   aNode.containerOpen = false;
   return GUIDs;
@@ -139,7 +144,8 @@ function checkGUIDs(aFolderNode, aGUIDs, aShouldMatch) {
 
   var allMatch = check(aFolderNode, aGUIDs.folder, aShouldMatch) &&
                  check(aFolderNode.getChild(0), aGUIDs.bookmark, aShouldMatch) &&
-                 check(aFolderNode.getChild(1), aGUIDs.separator, aShouldMatch)
+                 check(aFolderNode.getChild(1), aGUIDs.separator, aShouldMatch) &&
+                 check(aFolderNode.getChild(2), aGUIDs.livemark, aShouldMatch);
 
   aFolderNode.containerOpen = false;
   return allMatch;

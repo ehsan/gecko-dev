@@ -255,11 +255,11 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
          */
         RegExpFlag flags;
         {
-            RegExpGuard g;
-            if (!RegExpToShared(cx, sourceObj, &g))
+            RegExpShared *shared = RegExpToShared(cx, sourceObj);
+            if (!shared)
                 return false;
 
-            flags = g->getFlags();
+            flags = shared->getFlags();
         }
 
         /*
@@ -542,18 +542,18 @@ StartsWithGreedyStar(JSAtom *source)
 #endif
 }
 
-static inline bool
-GetSharedForGreedyStar(JSContext *cx, JSAtom *source, RegExpFlag flags, RegExpGuard *g)
+static inline RegExpShared *
+GetSharedForGreedyStar(JSContext *cx, JSAtom *source, RegExpFlag flags)
 {
-    if (cx->compartment->regExps.lookupHack(source, flags, cx, g))
-        return true;
+    if (RegExpShared *hit = cx->compartment->regExps.lookupHack(cx, source, flags))
+        return hit;
 
     JSAtom *hackedSource = js_AtomizeChars(cx, source->chars() + ArrayLength(GreedyStarChars),
                                            source->length() - ArrayLength(GreedyStarChars));
     if (!hackedSource)
-        return false;
+        return NULL;
 
-    return cx->compartment->regExps.getHack(cx, source, hackedSource, flags, g);
+    return cx->compartment->regExps.getHack(cx, source, hackedSource, flags);
 }
 
 /*
@@ -575,15 +575,16 @@ ExecuteRegExp(JSContext *cx, Native native, uintN argc, Value *vp)
 
     RegExpObject &reobj = obj->asRegExp();
 
-    RegExpGuard re;
-    if (StartsWithGreedyStar(reobj.getSource())) {
-        if (!GetSharedForGreedyStar(cx, reobj.getSource(), reobj.getFlags(), &re))
-            return false;
-    } else {
-        if (!reobj.getShared(cx, &re))
-            return false;
-    }
+    RegExpShared *shared;
+    if (StartsWithGreedyStar(reobj.getSource()))
+        shared = GetSharedForGreedyStar(cx, reobj.getSource(), reobj.getFlags());
+    else
+        shared = reobj.getShared(cx);
 
+    if (!shared)
+        return false;
+
+    RegExpShared::Guard re(*shared);
     RegExpStatics *res = cx->regExpStatics();
 
     /* Step 2. */
@@ -602,7 +603,7 @@ ExecuteRegExp(JSContext *cx, Native native, uintN argc, Value *vp)
     const Value &lastIndex = reobj.getLastIndex();
 
     /* Step 5. */
-    double i;
+    jsdouble i;
     if (!ToInteger(cx, lastIndex, &i))
         return false;
 

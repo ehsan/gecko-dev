@@ -5350,7 +5350,6 @@ PresShell::ProcessSynthMouseMoveEvent(bool aFromScroll)
   // If drag session has started, we shouldn't synthesize mousemove event.
   nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
   if (dragSession) {
-    mSynthMouseMoveEvent.Forget();
     return;
   }
 

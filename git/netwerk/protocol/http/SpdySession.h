@@ -77,13 +77,6 @@ public:
   bool CanReuse() { return !mShouldGoAway && !mClosed; }
   void DontReuse();
   bool RoomForMoreStreams();
-
-  // When the connection is active this is called every 15 seconds
-  void ReadTimeoutTick(PRIntervalTime now);
-  
-  // Idle time represents time since "goodput".. e.g. a data or header frame
-  PRIntervalTime IdleTime();
-
   PRUint32 RegisterStreamID(SpdyStream *);
 
   const static PRUint8 kFlag_Control   = 0x80;
@@ -209,10 +202,6 @@ private:
   void        ActivateStream(SpdyStream *);
   void        ProcessPending();
 
-  // a wrapper for all calls to the nshttpconnection level segment writer. Used
-  // to track network I/O for timeout purposes
-  nsresult   NetworkRead(nsAHttpSegmentWriter *, char *, PRUint32, PRUint32 *);
-  
   static PLDHashOperator ShutdownEnumerator(nsAHttpTransaction *,
                                             nsAutoPtr<SpdyStream> &,
                                             void *);
@@ -344,11 +333,6 @@ private:
   PRUint32             mOutputQueueUsed;
   PRUint32             mOutputQueueSent;
   nsAutoArrayPtr<char> mOutputQueueBuffer;
-
-  PRIntervalTime       mLastReadEpoch;     // used for ping timeouts
-  PRIntervalTime       mLastDataReadEpoch; // used for IdleTime()
-  PRIntervalTime       mPingSentEpoch;
-  PRUint32             mNextPingID;
 };
 
 }} // namespace mozilla::net

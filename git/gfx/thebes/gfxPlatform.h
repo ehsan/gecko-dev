@@ -160,8 +160,10 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
         return "skia";
       case mozilla::gfx::BACKEND_NONE:
         return "none";
+      default:
+        NS_ERROR("Invalid backend type!");
+        return "";
   }
-  MOZ_NOT_REACHED("Incomplet switch");
 }
 
 class THEBES_API gfxPlatform {

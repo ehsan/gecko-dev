@@ -123,7 +123,6 @@ namespace js {
 struct ArgumentsData;
 struct Class;
 
-class RegExpGuard;
 class RegExpObject;
 class RegExpObjectBuilder;
 class RegExpShared;

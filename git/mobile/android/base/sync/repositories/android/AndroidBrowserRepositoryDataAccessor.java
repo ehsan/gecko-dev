@@ -38,7 +38,6 @@
 
 package org.mozilla.gecko.sync.repositories.android;
 
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
@@ -46,6 +45,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.util.Log;
 
 public abstract class AndroidBrowserRepositoryDataAccessor {
 
@@ -68,7 +68,7 @@ public abstract class AndroidBrowserRepositoryDataAccessor {
   }
 
   public void wipe() {
-    Logger.info(LOG_TAG, "wiping: " + getUri());
+    Log.i(LOG_TAG, "wiping: " + getUri());
     String where = BrowserContract.SyncColumns.GUID + " NOT IN ('mobile')";
     context.getContentResolver().delete(getUri(), where, null);
   }
@@ -98,7 +98,7 @@ public abstract class AndroidBrowserRepositoryDataAccessor {
     if (deleted == 1) {
       return;
     }
-    Logger.warn(LOG_TAG, "Unexpectedly deleted " + deleted + " rows for guid " + guid);
+    Log.w(LOG_TAG, "Unexpectedly deleted " + deleted + " rows for guid " + guid);
   }
 
   public void update(String guid, Record newRecord) {
@@ -107,12 +107,13 @@ public abstract class AndroidBrowserRepositoryDataAccessor {
     ContentValues cv = getContentValues(newRecord);
     int updated = context.getContentResolver().update(getUri(), cv, where, args);
     if (updated != 1) {
-      Logger.warn(LOG_TAG, "Unexpectedly updated " + updated + " rows for guid " + guid);
+      Log.w(LOG_TAG, "Unexpectedly updated " + updated + " rows for guid " + guid);
     }
   }
 
   public Uri insert(Record record) {
     ContentValues cv = getContentValues(record);
+    Log.d(LOG_TAG, "INSERTING: " + cv.getAsString("guid"));
     return context.getContentResolver().insert(getUri(), cv);
   }
 
@@ -137,9 +138,9 @@ public abstract class AndroidBrowserRepositoryDataAccessor {
    */
   public Cursor getGUIDsSince(long timestamp) throws NullCursorException {
     return queryHelper.safeQuery(".getGUIDsSince",
-                                 GUID_COLUMNS,
-                                 dateModifiedWhere(timestamp),
-                                 null, null);
+        GUID_COLUMNS,
+        dateModifiedWhere(timestamp),
+        null, null);
   }
 
   /**
@@ -152,9 +153,9 @@ public abstract class AndroidBrowserRepositoryDataAccessor {
    */
   public Cursor fetchSince(long timestamp) throws NullCursorException {
     return queryHelper.safeQuery(".fetchSince",
-                                 getAllColumns(),
-                                 dateModifiedWhere(timestamp),
-                                 null, null);
+        getAllColumns(),
+        dateModifiedWhere(timestamp),
+        null, null);
   }
 
   /**
@@ -192,7 +193,7 @@ public abstract class AndroidBrowserRepositoryDataAccessor {
     if (deleted == 1) {
       return;
     }
-    Logger.warn(LOG_TAG, "Unexpectedly deleted " + deleted + " rows for guid " + record.guid);
+    Log.w(LOG_TAG, "Unexpectedly deleted " + deleted + " rows for guid " + record.guid);
   }
 
   public void updateByGuid(String guid, ContentValues cv) {
@@ -203,6 +204,6 @@ public abstract class AndroidBrowserRepositoryDataAccessor {
     if (updated == 1) {
       return;
     }
-    Logger.warn(LOG_TAG, "Unexpectedly updated " + updated + " rows for guid " + guid);
+    Log.w(LOG_TAG, "Unexpectedly updated " + updated + " rows for guid " + guid);
   }
 }

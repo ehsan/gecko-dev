@@ -284,5 +284,5 @@
 .styleinspector-propertyeditor {
   border: 1px solid #CCC;
   padding: 0;
-  box-shadow: 2px 2px 2px #CCC;
+  -moz-box-shadow: 2px 2px 2px #CCC;
 }

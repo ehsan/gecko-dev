@@ -143,12 +143,8 @@ public:
   nsresult IsSupported(const nsAString& aFeature,
                        const nsAString& aVersion,
                        bool* aReturn);
-  nsresult CloneNode(bool aDeep, PRUint8 aOptionalArgc, nsIDOMNode** aReturn)
+  nsresult CloneNode(bool aDeep, nsIDOMNode** aReturn)
   {
-    if (!aOptionalArgc) {
-      aDeep = true;
-    }
-    
     return nsNodeUtils::CloneNodeImpl(this, aDeep, true, aReturn);
   }
 

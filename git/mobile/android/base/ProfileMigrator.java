@@ -523,9 +523,7 @@ public class ProfileMigrator {
                 // that we can't add, we remember what these are and try again
                 // on the next iteration. The number of iterations scales
                 // according to the depth of the folders.
-                // No need to import root folders for which we have a remapping.
-                Set<Long> processedBookmarks = new HashSet<Long>(mRerootMap.keySet());
-
+                Set<Long> processedBookmarks = new HashSet<Long>();
                 int iterations = 0;
                 do {
                     // Reset the set of missing folders that block us from

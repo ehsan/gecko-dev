@@ -696,6 +696,8 @@ namespace js {
 class StaticStrings
 {
   private:
+    bool initialized;
+
     /* Bigger chars cannot be in a length-2 string. */
     static const size_t SMALL_CHAR_LIMIT    = 128U;
     static const size_t NUM_SMALL_CHARS     = 64U;
@@ -710,11 +712,7 @@ class StaticStrings
     static const size_t UNIT_STATIC_LIMIT   = 256U;
     JSAtom *unitStaticTable[UNIT_STATIC_LIMIT];
 
-    StaticStrings() {
-        PodArrayZero(unitStaticTable);
-        PodArrayZero(length2StaticTable);
-        PodArrayZero(intStaticTable);
-    }
+    StaticStrings() : initialized(false) {}
 
     bool init(JSContext *cx);
     void trace(JSTracer *trc);

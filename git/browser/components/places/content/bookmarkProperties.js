@@ -281,26 +281,13 @@ var BookmarkPropertiesPanel = {
           break;
 
         case "folder":
-          this._itemType = BOOKMARK_FOLDER;
-          PlacesUtils.livemarks.getLivemark(
-            { id: this._itemId },
-            (function (aStatus, aLivemark) {
-              if (Components.isSuccessCode(aStatus)) {
-                this._itemType = LIVEMARK_CONTAINER;
-                this._feedURI = aLivemark.feedURI;
-                this._siteURI = aLivemark.siteURI;
-                this._fillEditProperties();
-
-                let acceptButton = document.documentElement.getButton("accept");
-                acceptButton.disabled = !this._inputIsValid();
-
-                let newHeight = window.outerHeight +
-                                this._element("descriptionField").boxObject.height;
-                window.resizeTo(window.outerWidth, newHeight);
-              }
-            }).bind(this)
-          );
-
+          if (PlacesUtils.itemIsLivemark(this._itemId)) {
+            this._itemType = LIVEMARK_CONTAINER;
+            this._feedURI = PlacesUtils.livemarks.getFeedURI(this._itemId);
+            this._siteURI = PlacesUtils.livemarks.getSiteURI(this._itemId);
+          }
+          else
+            this._itemType = BOOKMARK_FOLDER;
           break;
       }
 
@@ -354,7 +341,8 @@ var BookmarkPropertiesPanel = {
         this._fillAddProperties();
         // if this is an uri related dialog disable accept button until
         // the user fills an uri value.
-        if (this._itemType == BOOKMARK_ITEM)
+        if (this._itemType == BOOKMARK_ITEM ||
+            this._itemType == LIVEMARK_CONTAINER)
           acceptButton.disabled = !this._inputIsValid();
         break;
     }
@@ -529,6 +517,16 @@ var BookmarkPropertiesPanel = {
       return false;
     if (this._isAddKeywordDialog && !this._element("keywordField").value.length)
       return false;
+
+    // Feed Location has to be a valid URI;
+    // Site Location has to be a valid URI or empty
+    if (this._itemType == LIVEMARK_CONTAINER) {
+      if (!this._containsValidURI("feedLocationField"))
+        return false;
+      if (!this._containsValidURI("siteLocationField") &&
+          (this._element("siteLocationField").value.length > 0))
+        return false;
+    }
 
     return true;
   },

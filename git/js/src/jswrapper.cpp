@@ -330,10 +330,10 @@ Wrapper::fun_toString(JSContext *cx, JSObject *wrapper, uintN indent)
     return str;
 }
 
-bool
-Wrapper::regexp_toShared(JSContext *cx, JSObject *wrapper, RegExpGuard *g)
+RegExpShared *
+Wrapper::regexp_toShared(JSContext *cx, JSObject *wrapper)
 {
-    return wrappedObject(wrapper)->asRegExp().getShared(cx, g);
+    return wrappedObject(wrapper)->asRegExp().getShared(cx);
 }
 
 bool
@@ -792,9 +792,9 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, JSObject *wrapper, Class *cla
     if (!Wrapper::nativeCall(cx, wrapper, clasp, native, dstArgs))
         return false;
 
-    srcArgs.rval() = dstArgs.rval();
     dstArgs.pop();
     call.leave();
+    srcArgs.rval() = dstArgs.rval();
     return call.origin->wrap(cx, &srcArgs.rval());
 }
 
@@ -908,10 +908,10 @@ SecurityWrapper<Base>::objectClassIs(JSObject *obj, ESClassValue classValue, JSC
 }
 
 template <class Base>
-bool
-SecurityWrapper<Base>::regexp_toShared(JSContext *cx, JSObject *obj, RegExpGuard *g)
+RegExpShared *
+SecurityWrapper<Base>::regexp_toShared(JSContext *cx, JSObject *obj)
 {
-    return Base::regexp_toShared(cx, obj, g);
+    return Base::regexp_toShared(cx, obj);
 }
 
 

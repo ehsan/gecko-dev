@@ -54,8 +54,7 @@ namespace css {
 
 // check that we can fit all the CSS properties into a PRUint8
 // for the mOrder array - if not, might need to use PRUint16!
-MOZ_STATIC_ASSERT(eCSSProperty_COUNT_no_shorthands - 1 <= PR_UINT8_MAX,
-                  "CSS longhand property numbers no longer fit in a PRUint8");
+PR_STATIC_ASSERT(eCSSProperty_COUNT_no_shorthands - 1 <= PR_UINT8_MAX);
 
 Declaration::Declaration()
   : mImmutable(false)
@@ -406,9 +405,9 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
       const nsCSSValueList *image =
         data->ValueFor(eCSSProperty_background_image)->
         GetListValue();
-      const nsCSSValuePairList *repeat =
+      const nsCSSValueList *repeat =
         data->ValueFor(eCSSProperty_background_repeat)->
-        GetPairListValue();
+        GetListValue();
       const nsCSSValueList *attachment =
         data->ValueFor(eCSSProperty_background_attachment)->
         GetListValue();
@@ -433,33 +432,30 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
         }
         image->mValue.AppendToString(eCSSProperty_background_image, aValue);
         aValue.Append(PRUnichar(' '));
-        repeat->mXValue.AppendToString(eCSSProperty_background_repeat, aValue);
-        if (repeat->mYValue.GetUnit() != eCSSUnit_Null) {
-          repeat->mYValue.AppendToString(eCSSProperty_background_repeat, aValue);
-        }
+        repeat->mValue.AppendToString(eCSSProperty_background_repeat, aValue);
         aValue.Append(PRUnichar(' '));
         attachment->mValue.AppendToString(eCSSProperty_background_attachment,
                                           aValue);
         aValue.Append(PRUnichar(' '));
         position->mValue.AppendToString(eCSSProperty_background_position,
                                         aValue);
-
+        
         NS_ABORT_IF_FALSE(clip->mValue.GetUnit() == eCSSUnit_Enumerated &&
                           origin->mValue.GetUnit() == eCSSUnit_Enumerated,
-                          "should not have inherit/initial within list");
-
+                          "should not be inherit/initial within list and "
+                          "should have returned early for real inherit/initial");
         if (clip->mValue.GetIntValue() != NS_STYLE_BG_CLIP_BORDER ||
             origin->mValue.GetIntValue() != NS_STYLE_BG_ORIGIN_PADDING) {
-          // The shorthand only has a single clip/origin value which sets
-          // both properties.  So if they're different (and non-default),
-          // we can't represent the state using the shorthand.
-          MOZ_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER ==
-                            NS_STYLE_BG_ORIGIN_BORDER &&
-                            NS_STYLE_BG_CLIP_PADDING ==
-                            NS_STYLE_BG_ORIGIN_PADDING &&
-                            NS_STYLE_BG_CLIP_CONTENT ==
-                            NS_STYLE_BG_ORIGIN_CONTENT,
-                            "bg-clip and bg-origin style constants must agree");
+          PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER ==
+                           NS_STYLE_BG_ORIGIN_BORDER);
+          PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_PADDING ==
+                           NS_STYLE_BG_ORIGIN_PADDING);
+          PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_CONTENT ==
+                           NS_STYLE_BG_ORIGIN_CONTENT);
+          // The shorthand only has a single clip/origin value which
+          // sets both properties.  So if they're different (and
+          // non-default), we can't represent the state using the
+          // shorthand.
           if (clip->mValue != origin->mValue) {
             aValue.Truncate();
             return;

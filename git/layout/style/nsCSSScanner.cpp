@@ -118,8 +118,7 @@ static const PRUint8 gLexTable[] = {
    SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI,
 };
 
-MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(gLexTable) == 256,
-                  "gLexTable expected to cover all 2^8 possible PRUint8s");
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(gLexTable) == 256);
 
 #undef W
 #undef S

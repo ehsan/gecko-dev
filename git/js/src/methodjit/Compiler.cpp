@@ -81,6 +81,14 @@ using namespace js::analyze;
             return retval;                                      \
     JS_END_MACRO
 
+#if defined(JS_METHODJIT_SPEW)
+static const char *OpcodeNames[] = {
+# define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format) #name,
+# include "jsopcode.tbl"
+# undef OPDEF
+};
+#endif
+
 /*
  * Number of times a script must be called or had a backedge before we try to
  * inline its calls.
@@ -169,14 +177,13 @@ mjit::Compiler::checkAnalysis(JSScript *script)
         return Compile_Abort;
     }
 
-    if (!script->ensureRanAnalysis(cx, NULL))
-        return Compile_Error;
-
-    if (!script->analysis()->compileable()) {
-        JaegerSpew(JSpew_Abort, "script has uncompileable opcodes\n");
+    if (JSOp(*script->code) == JSOP_GENERATOR) {
+        JaegerSpew(JSpew_Abort, "script is a generator\n");
         return Compile_Abort;
     }
 
+    if (!script->ensureRanAnalysis(cx, NULL))
+        return Compile_Error;
     if (cx->typeInferenceEnabled() && !script->ensureRanInference(cx))
         return Compile_Error;
 
@@ -768,7 +775,7 @@ MakeJITScript(JSContext *cx, JSScript *script, bool construct)
                     return NULL;
 
                 while (npairs) {
-                    pc2 += UINT32_INDEX_LEN;
+                    pc2 += INDEX_LEN;
                     unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
                     CrossChunkEdge edge;
                     edge.source = offset;
@@ -2501,7 +2508,7 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_DELNAME)
           {
-            uint32_t index = GET_UINT32_INDEX(PC);
+            uint32_t index = fullAtomIndex(PC);
             PropertyName *name = script->getName(index);
 
             prepareStubCall(Uses(0));
@@ -2513,7 +2520,7 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_DELPROP)
           {
-            uint32_t index = GET_UINT32_INDEX(PC);
+            uint32_t index = fullAtomIndex(PC);
             PropertyName *name = script->getName(index);
 
             prepareStubCall(Uses(1));
@@ -2546,7 +2553,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_GETPROP)
           BEGIN_CASE(JSOP_CALLPROP)
           BEGIN_CASE(JSOP_LENGTH)
-            if (!jsop_getprop(script->getName(GET_UINT32_INDEX(PC)), knownPushedType(0)))
+            if (!jsop_getprop(script->getName(fullAtomIndex(PC)), knownPushedType(0)))
                 return Compile_Error;
           END_CASE(JSOP_GETPROP)
 
@@ -2623,7 +2630,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_NAME)
           BEGIN_CASE(JSOP_CALLNAME)
           {
-            PropertyName *name = script->getName(GET_UINT32_INDEX(PC));
+            PropertyName *name = script->getName(fullAtomIndex(PC));
             jsop_name(name, knownPushedType(0));
             frame.extra(frame.peek(-1)).name = name;
           }
@@ -2632,7 +2639,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_IMPLICITTHIS)
           {
             prepareStubCall(Uses(0));
-            masm.move(ImmPtr(script->getName(GET_UINT32_INDEX(PC))), Registers::ArgReg1);
+            masm.move(ImmPtr(script->getName(fullAtomIndex(PC))), Registers::ArgReg1);
             INLINE_STUBCALL(stubs::ImplicitThis, REJOIN_FALLTHROUGH);
             frame.pushSynced(JSVAL_TYPE_UNKNOWN);
           }
@@ -2640,13 +2647,14 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_DOUBLE)
           {
-            double d = script->getConst(GET_UINT32_INDEX(PC)).toDouble();
+            uint32_t index = fullAtomIndex(PC);
+            double d = script->getConst(index).toDouble();
             frame.push(Value(DoubleValue(d)));
           }
           END_CASE(JSOP_DOUBLE)
 
           BEGIN_CASE(JSOP_STRING)
-            frame.push(StringValue(script->getAtom(GET_UINT32_INDEX(PC))));
+            frame.push(StringValue(script->getAtom(fullAtomIndex(PC))));
           END_CASE(JSOP_STRING)
 
           BEGIN_CASE(JSOP_ZERO)
@@ -2934,14 +2942,14 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_LOCALDEC)
 
           BEGIN_CASE(JSOP_BINDNAME)
-            jsop_bindname(script->getName(GET_UINT32_INDEX(PC)));
+            jsop_bindname(script->getName(fullAtomIndex(PC)));
           END_CASE(JSOP_BINDNAME)
 
           BEGIN_CASE(JSOP_SETPROP)
           {
             jsbytecode *next = &PC[JSOP_SETPROP_LENGTH];
             bool pop = JSOp(*next) == JSOP_POP && !analysis->jumpTarget(next);
-            if (!jsop_setprop(script->getName(GET_UINT32_INDEX(PC)), pop))
+            if (!jsop_setprop(script->getName(fullAtomIndex(PC)), pop))
                 return Compile_Error;
           }
           END_CASE(JSOP_SETPROP)
@@ -2951,7 +2959,7 @@ mjit::Compiler::generateMethod()
           {
             jsbytecode *next = &PC[JSOP_SETNAME_LENGTH];
             bool pop = JSOp(*next) == JSOP_POP && !analysis->jumpTarget(next);
-            if (!jsop_setprop(script->getName(GET_UINT32_INDEX(PC)), pop))
+            if (!jsop_setprop(script->getName(fullAtomIndex(PC)), pop))
                 return Compile_Error;
           }
           END_CASE(JSOP_SETNAME)
@@ -3029,7 +3037,8 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_DEFVAR)
           BEGIN_CASE(JSOP_DEFCONST)
           {
-            PropertyName *name = script->getName(GET_UINT32_INDEX(PC));
+            uint32_t index = fullAtomIndex(PC);
+            PropertyName *name = script->getName(index);
 
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(name), Registers::ArgReg1);
@@ -3039,7 +3048,8 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_SETCONST)
           {
-            PropertyName *name = script->getName(GET_UINT32_INDEX(PC));
+            uint32_t index = fullAtomIndex(PC);
+            PropertyName *name = script->getName(index);
 
             prepareStubCall(Uses(1));
             masm.move(ImmPtr(name), Registers::ArgReg1);
@@ -3150,7 +3160,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_GETGNAME)
           BEGIN_CASE(JSOP_CALLGNAME)
           {
-            uint32_t index = GET_UINT32_INDEX(PC);
+            uint32_t index = fullAtomIndex(PC);
             jsop_getgname(index);
             frame.extra(frame.peek(-1)).name = script->getName(index);
           }
@@ -3160,7 +3170,7 @@ mjit::Compiler::generateMethod()
           {
             jsbytecode *next = &PC[JSOP_SETGNAME_LENGTH];
             bool pop = JSOp(*next) == JSOP_POP && !analysis->jumpTarget(next);
-            jsop_setgname(script->getName(GET_UINT32_INDEX(PC)), pop);
+            jsop_setgname(script->getName(fullAtomIndex(PC)), pop);
           }
           END_CASE(JSOP_SETGNAME)
 
@@ -3190,7 +3200,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_STOP)
 
           BEGIN_CASE(JSOP_GETXPROP)
-            if (!jsop_xname(script->getName(GET_UINT32_INDEX(PC))))
+            if (!jsop_xname(script->getName(fullAtomIndex(PC))))
                 return Compile_Error;
           END_CASE(JSOP_GETXPROP)
 
@@ -3248,7 +3258,12 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_DEBUGGER)
 
           default:
-            JS_NOT_REACHED("Opcode not implemented");
+           /* Sorry, this opcode isn't implemented yet. */
+#ifdef JS_METHODJIT_SPEW
+            JaegerSpew(JSpew_Abort, "opcode %s not handled yet (%s line %d)\n", OpcodeNames[op],
+                       script->filename, js_PCToLineNumber(cx, script, PC));
+#endif
+            return Compile_Abort;
         }
 
     /**********************
@@ -3577,6 +3592,17 @@ mjit::Compiler::labelOf(jsbytecode *pc, uint32_t inlineIndex)
     uint32_t offs = uint32_t(pc - a->script->code);
     JS_ASSERT(a->jumpMap[offs].isSet());
     return a->jumpMap[offs];
+}
+
+uint32_t
+mjit::Compiler::fullAtomIndex(jsbytecode *pc)
+{
+    return GET_SLOTNO(pc);
+
+    /* If we ever enable INDEXBASE garbage, use this below. */
+#if 0
+    return GET_SLOTNO(pc) + (atoms - script->atoms);
+#endif
 }
 
 bool
@@ -6930,8 +6956,7 @@ mjit::Compiler::jsop_regexp()
      * RegExpShared. We don't do this during an incremental
      * GC, since we don't discard JIT code after every marking slice.
      */
-    RegExpGuard g;
-    if (!reobj->getShared(cx, &g))
+    if (!reobj->getShared(cx))
         return false;
 
     RegisterID result = frame.allocReg();

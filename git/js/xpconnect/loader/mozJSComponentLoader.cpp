@@ -1164,21 +1164,19 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
         if (!newEntry || !mInProgressImports.Put(key, newEntry))
             return NS_ERROR_OUT_OF_MEMORY;
 
-        JS::Anchor<jsval> exception(JSVAL_VOID);
+        jsval exception = JSVAL_VOID;
         rv = GlobalForLocation(sourceLocalFile, resURI, &newEntry->global,
-                               &newEntry->location, &exception.get());
+                               &newEntry->location, &exception);
 
         mInProgressImports.Remove(key);
 
         if (NS_FAILED(rv)) {
             *_retval = nsnull;
 
-            if (!JSVAL_IS_VOID(exception.get())) {
+            if (!JSVAL_IS_VOID(exception)) {
                 // An exception was thrown during compilation. Propagate it
                 // out to our caller so they can report it.
-                if (!JS_WrapValue(callercx, &exception.get()))
-                    return NS_ERROR_OUT_OF_MEMORY;
-                JS_SetPendingException(callercx, exception.get());
+                JS_SetPendingException(callercx, exception);
                 return NS_OK;
             }
 
