@@ -128,6 +128,7 @@
 #ifdef ACCESSIBILITY
 #ifdef XP_WIN32
 @BINPATH@/AccessibleMarshal.dll
+@BINPATH@/components/accessibility-msaa.xpt
 #endif
 @BINPATH@/components/accessibility.xpt
 #endif

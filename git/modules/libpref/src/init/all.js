@@ -355,9 +355,6 @@ pref("browser.frames.enabled", true);
 // Number of characters to consider emphasizing for rich autocomplete results
 pref("toolkit.autocomplete.richBoundaryCutoff", 200);
 
-// Variable controlling logging for osfile.
-pref("toolkit.osfile.log", false);
-
 pref("toolkit.scrollbox.smoothScroll", true);
 pref("toolkit.scrollbox.scrollIncrement", 20);
 pref("toolkit.scrollbox.verticalScrollDistance", 3);
@@ -710,7 +707,7 @@ pref("dom.min_background_timeout_value", 1000);
 pref("dom.experimental_bindings", true);
 
 // Run content XBL in a separate scope.
-pref("dom.xbl_scopes", true);
+pref("dom.xbl_scopes", false);
 
 // Don't use new input types
 pref("dom.experimental_forms", false);

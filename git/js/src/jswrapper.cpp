@@ -92,21 +92,22 @@ js::UnwrapObject(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 }
 
 JS_FRIEND_API(JSObject *)
-js::UnwrapObjectChecked(RawObject obj, bool stopAtOuter)
+js::UnwrapObjectChecked(RawObject obj)
 {
     while (true) {
         JSObject *wrapper = obj;
-        obj = UnwrapOneChecked(obj, stopAtOuter);
+        obj = UnwrapOneChecked(obj);
         if (!obj || obj == wrapper)
             return obj;
     }
 }
 
 JS_FRIEND_API(JSObject *)
-js::UnwrapOneChecked(RawObject obj, bool stopAtOuter)
+js::UnwrapOneChecked(RawObject obj)
 {
+    // Checked unwraps should never unwrap outer windows.
     if (!obj->isWrapper() ||
-        JS_UNLIKELY(!!obj->getClass()->ext.innerObject && stopAtOuter))
+        JS_UNLIKELY(!!obj->getClass()->ext.innerObject))
     {
         return obj;
     }

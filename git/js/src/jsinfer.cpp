@@ -3366,9 +3366,6 @@ TypeCompartment::fixObjectType(JSContext *cx, HandleObject obj)
             return;
         }
 
-        if (obj->isIndexed())
-            objType->setFlags(cx, OBJECT_FLAG_SPARSE_INDEXES);
-
         jsid *ids = cx->pod_calloc<jsid>(obj->slotSpan());
         if (!ids) {
             cx->compartment->types.setPendingNukeTypes(cx);
@@ -5984,30 +5981,31 @@ JSObject::splicePrototype(JSContext *cx, Class *clasp, Handle<TaggedProto> proto
     return true;
 }
 
-/* static */ TypeObject *
-JSObject::makeLazyType(JSContext *cx, HandleObject obj)
+TypeObject *
+JSObject::makeLazyType(JSContext *cx)
 {
-    JS_ASSERT(obj->hasLazyType());
-    JS_ASSERT(cx->compartment == obj->compartment());
+    JS_ASSERT(hasLazyType());
+    JS_ASSERT(cx->compartment == compartment());
 
+    RootedObject self(cx, this);
     /* De-lazification of functions can GC, so we need to do it up here. */
-    if (obj->isFunction() && obj->toFunction()->isInterpretedLazy()) {
-        RootedFunction fun(cx, obj->toFunction());
+    if (self->isFunction() && self->toFunction()->isInterpretedLazy()) {
+        RootedFunction fun(cx, self->toFunction());
         if (!fun->getOrCreateScript(cx))
             return NULL;
     }
-    Rooted<TaggedProto> proto(cx, obj->getTaggedProto());
-    TypeObject *type = cx->compartment->types.newTypeObject(cx, obj->getClass(), proto);
+    Rooted<TaggedProto> proto(cx, getTaggedProto());
+    TypeObject *type = cx->compartment->types.newTypeObject(cx, getClass(), proto);
     AutoAssertNoGC nogc;
     if (!type) {
         if (cx->typeInferenceEnabled())
             cx->compartment->types.setPendingNukeTypes(cx);
-        return obj->type_;
+        return self->type_;
     }
 
     if (!cx->typeInferenceEnabled()) {
         /* This can only happen if types were previously nuked. */
-        obj->type_ = type;
+        self->type_ = type;
         return type;
     }
 
@@ -6015,18 +6013,18 @@ JSObject::makeLazyType(JSContext *cx, HandleObject obj)
 
     /* Fill in the type according to the state of this object. */
 
-    type->singleton = obj;
+    type->singleton = self;
 
-    if (obj->isFunction() && obj->toFunction()->isInterpreted()) {
-        type->interpretedFunction = obj->toFunction();
+    if (self->isFunction() && self->toFunction()->isInterpreted()) {
+        type->interpretedFunction = self->toFunction();
         if (type->interpretedFunction->nonLazyScript()->uninlineable)
             type->flags |= OBJECT_FLAG_UNINLINEABLE;
     }
 
-    if (obj->lastProperty()->hasObjectFlag(BaseShape::ITERATED_SINGLETON))
+    if (self->lastProperty()->hasObjectFlag(BaseShape::ITERATED_SINGLETON))
         type->flags |= OBJECT_FLAG_ITERATED;
 
-    if (obj->getClass()->emulatesUndefined())
+    if (self->getClass()->emulatesUndefined())
         type->flags |= OBJECT_FLAG_EMULATES_UNDEFINED;
 
     /*
@@ -6037,13 +6035,13 @@ JSObject::makeLazyType(JSContext *cx, HandleObject obj)
     /* Don't track whether singletons are packed. */
     type->flags |= OBJECT_FLAG_NON_PACKED;
 
-    if (obj->isIndexed())
+    if (self->isIndexed())
         type->flags |= OBJECT_FLAG_SPARSE_INDEXES;
 
-    if (obj->isArray() && obj->getArrayLength() > INT32_MAX)
+    if (self->isArray() && self->getArrayLength() > INT32_MAX)
         type->flags |= OBJECT_FLAG_LENGTH_OVERFLOW;
 
-    obj->type_ = type;
+    self->type_ = type;
 
     return type;
 }

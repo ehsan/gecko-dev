@@ -56,12 +56,11 @@ static bool test_basic_array(ElementType *data,
     return false;
   // ensure sort results in ascending order
   ary.Sort();
-  uint32_t j = 0, k = ary.IndexOfFirstElementGt(extra);
-  if (k != 0 && ary[k-1] == extra)
+  uint32_t j = 0, k;
+  if (ary.GreatestIndexLtEq(extra, k))
     return false;
   for (i = 0; i < ary.Length(); ++i) {
-    k = ary.IndexOfFirstElementGt(ary[i]);
-    if (k == 0 || ary[k-1] != ary[i])
+    if (!ary.GreatestIndexLtEq(ary[i], k))
       return false;
     if (k < j)
       return false;

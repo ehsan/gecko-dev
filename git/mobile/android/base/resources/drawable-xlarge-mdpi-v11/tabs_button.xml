@@ -12,7 +12,7 @@
             <item android:state_pressed="true"
                   android:drawable="@drawable/highlight"/>
 
-            <item android:drawable="@color/background_tabs_light"/>
+            <item android:drawable="@drawable/tabs_tray_bg_repeat"/>
 
         </selector>
 
@@ -25,7 +25,7 @@
             <item android:state_pressed="true"
                   android:drawable="@drawable/highlight"/>
 
-            <item android:drawable="@color/background_tabs_dark"/>
+            <item android:drawable="@drawable/tabs_tray_dark_bg_repeat"/>
 
         </selector>
 

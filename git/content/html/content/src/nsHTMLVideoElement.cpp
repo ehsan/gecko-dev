@@ -29,7 +29,7 @@
 
 #include "nsEventDispatcher.h"
 #include "nsIDOMProgressEvent.h"
-#include "MediaError.h"
+#include "nsMediaError.h"
 #include "MediaDecoder.h"
 
 using namespace mozilla;

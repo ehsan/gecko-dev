@@ -1215,8 +1215,7 @@ TEST_F(SignalingTest, CreateOfferDontReceiveVideo)
               SHOULD_SENDRECV_AUDIO | SHOULD_SEND_VIDEO);
 }
 
-// XXX Disabled pending resolution of Bug 840728
-TEST_F(SignalingTest, DISABLED_CreateOfferRemoveAudioStream)
+TEST_F(SignalingTest, CreateOfferRemoveAudioStream)
 {
   sipcc::MediaConstraints constraints;
   constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
@@ -1225,8 +1224,7 @@ TEST_F(SignalingTest, DISABLED_CreateOfferRemoveAudioStream)
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX Disabled pending resolution of Bug 840728
-TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveAudioRemoveAudioStream)
+TEST_F(SignalingTest, CreateOfferDontReceiveAudioRemoveAudioStream)
 {
   sipcc::MediaConstraints constraints;
   constraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
@@ -1235,8 +1233,7 @@ TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveAudioRemoveAudioStream)
               SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX Disabled pending resolution of Bug 840728
-TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveVideoRemoveVideoStream)
+TEST_F(SignalingTest, CreateOfferDontReceiveVideoRemoveVideoStream)
 {
   sipcc::MediaConstraints constraints;
   constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);

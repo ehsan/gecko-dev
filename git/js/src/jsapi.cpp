@@ -946,9 +946,6 @@ JSRuntime::init(uint32_t maxbytes)
     if (!scriptFilenameTable.init())
         return false;
 
-    if (!scriptDataTable.init())
-        return false;
-
     if (!threadPool.init())
         return false;
 
@@ -975,7 +972,6 @@ JSRuntime::~JSRuntime()
      * some filenames around because of gcKeepAtoms.
      */
     FreeScriptFilenames(this);
-    FreeScriptData(this);
 
 #ifdef JS_THREADSAFE
 # ifdef JS_ION

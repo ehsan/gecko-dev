@@ -235,6 +235,9 @@ this.AppsUtils = {
       }
     }
 
+    // Ensure that non-updatable fields contains the current app value
+    AppsUtils.normalizeManifest(aManifest, app);
+
     return true;
   },
 
@@ -254,24 +257,33 @@ this.AppsUtils = {
    * Method to apply modifications to webapp manifests file saved internally.
    * For now, only ensure app can't rename itself.
    */
-  ensureSameAppName: function ensureSameAppName(aOldManifest, aNewManifest, aApp) {
+  normalizeManifest: function normalizeManifest(aManifest, aApp) {
+    // As normalizeManifest isn't only called on update but also
+    // during app install, we need to bail out on install.
+    if (aApp.installState != "installed" &&
+        aApp.installState != "updating") {
+      return;
+    }
+
+    let previousManifest = aApp.manifest;
+
     // Ensure that app name can't be updated
-    aNewManifest.name = aApp.name;
+    aManifest.name = aApp.name;
 
     // Nor through localized names
-    if ('locales' in aNewManifest) {
-      let defaultName = new ManifestHelper(aOldManifest, aApp.origin).name;
-      for (let locale in aNewManifest.locales) {
-        let entry = aNewManifest.locales[locale];
+    if ('locales' in aManifest) {
+      let defaultName = new ManifestHelper(aManifest, aApp.origin).name;
+      for (let locale in aManifest.locales) {
+        let entry = aManifest.locales[locale];
         if (!entry.name) {
           continue;
         }
         // In case previous manifest didn't had a name,
         // we use the default app name
         let localizedName = defaultName;
-        if (aOldManifest && 'locales' in aOldManifest &&
-            locale in aOldManifest.locales) {
-          localizedName = aOldManifest.locales[locale].name;
+        if (previousManifest && 'locales' in previousManifest &&
+            locale in previousManifest.locales) {
+          localizedName = previousManifest.locales[locale].name;
         }
         entry.name = localizedName;
       }

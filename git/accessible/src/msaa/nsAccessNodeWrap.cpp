@@ -45,7 +45,18 @@ nsAccessNodeWrap::~nsAccessNodeWrap()
 // nsISupports methods
 //-----------------------------------------------------
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsAccessNodeWrap, nsAccessNode)
+NS_IMPL_ISUPPORTS_INHERITED1(nsAccessNodeWrap, nsAccessNode, nsIWinAccessNode)
+
+//-----------------------------------------------------
+// nsIWinAccessNode methods
+//-----------------------------------------------------
+
+NS_IMETHODIMP
+nsAccessNodeWrap::QueryNativeInterface(REFIID aIID, void** aInstancePtr)
+{
+  // XXX Wrong for E_NOINTERFACE
+  return static_cast<nsresult>(QueryInterface(aIID, aInstancePtr));
+}
 
 STDMETHODIMP nsAccessNodeWrap::QueryInterface(REFIID iid, void** ppv)
 {
@@ -111,12 +122,12 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
   // Can get to IAccessibleApplication from any node via QS
   if (guidService == IID_IAccessibleApplication ||
       (Compatibility::IsJAWS() && iid == IID_IAccessibleApplication)) {
-    ApplicationAccessibleWrap* applicationAcc =
-      static_cast<ApplicationAccessibleWrap*>(ApplicationAcc());
+    ApplicationAccessible* applicationAcc = ApplicationAcc();
     if (!applicationAcc)
       return E_NOINTERFACE;
 
-    return applicationAcc->QueryInterface(iid, ppv);
+    nsresult rv = applicationAcc->QueryNativeInterface(iid, ppv);
+    return NS_SUCCEEDED(rv) ? S_OK : E_NOINTERFACE;
   }
 
   /**

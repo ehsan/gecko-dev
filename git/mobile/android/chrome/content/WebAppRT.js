@@ -80,14 +80,11 @@ let WebAppRT = {
           return;
         }
       }
-
-      // Finally, just attempt to open the webapp as a normal web page
-      aCallback(aUrl);
+      aCallback("");
     };
 
     request.onerror = function() {
-      // Attempt to open the webapp as a normal web page
-      aCallback(aUrl);
+      aCallback("");
     };
   },
 

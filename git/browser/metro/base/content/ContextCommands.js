@@ -147,8 +147,9 @@ var ContextCommands = {
                               this.docRef);
   },
 
-  copyImage: function cc_copyImage() {
-    this.sendCommand("copy-image-contents");
+  copyImageLocation: function cc_copyImageLocation() {
+    this.clipboard.copyString(ContextMenuUI.popupState.mediaURL,
+                              this.docRef);
   },
 
   bookmarkLink: function cc_bookmarkLink() {
@@ -168,7 +169,6 @@ var ContextCommands = {
   },
 
   sendCommand: function cc_playVideo(aCommand) {
-    // Send via message manager over to ContextMenuHandler
     let browser = ContextMenuUI.popupState.target;
     browser.messageManager.sendAsyncMessage("Browser:ContextCommand", { command: aCommand });
   },
@@ -183,11 +183,18 @@ var ContextCommands = {
     target.remove();
   },
 
+  shortcutBookmark: function cc_shortcutBookmark() {
+    let target = ContextMenuUI.popupState.target;
+    Util.createShortcut(target.getAttribute("title"), target.getAttribute("uri"), target.getAttribute("src"), "bookmark");
+  },
+
   findInPage: function cc_findInPage() {
+    dump('ContextCommand: findInPage');
     FindHelperUI.show();
   },
 
   viewOnDesktop: function cc_viewOnDesktop() {
+    dump('ContextCommand: viewOnDesktop');
     Appbar.onViewOnDesktop();
   },
 

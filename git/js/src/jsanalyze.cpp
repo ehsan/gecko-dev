@@ -457,7 +457,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           /* Additional opcodes which can be compiled but which can't be inlined. */
           case JSOP_ARGUMENTS:
           case JSOP_FUNAPPLY:
-          case JSOP_CALLEE:
             isJaegerInlineable = false;
             break;
           case JSOP_THROW:

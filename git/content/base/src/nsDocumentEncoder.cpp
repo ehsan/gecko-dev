@@ -34,11 +34,12 @@
 #include "nsICharsetConverterManager.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
+#include "nsIEnumerator.h"
 #include "nsIParserService.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
-#include "mozilla/Selection.h"
+#include "nsISelection.h"
 #include "nsISelectionPrivate.h"
 #include "nsITransferable.h" // for kUnicodeMime
 #include "nsContentUtils.h"
@@ -1347,17 +1348,19 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
   
   nsCOMPtr<nsIDOMRange> range;
   nsCOMPtr<nsIDOMNode> commonParent;
-  Selection* selection = static_cast<Selection*>(aSelection);
-  uint32_t rangeCount = selection->GetRangeCount();
+  int32_t count = 0;
+
+  nsresult rv = aSelection->GetRangeCount(&count);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // if selection is uninitialized return
-  if (!rangeCount)
+  if (!count)
     return NS_ERROR_FAILURE;
   
   // we'll just use the common parent of the first range.  Implicit assumption
   // here that multi-range selections are table cell selections, in which case
   // the common parent is somewhere in the table and we don't really care where.
-  nsresult rv = aSelection->GetRangeAt(0, getter_AddRefs(range));
+  rv = aSelection->GetRangeAt(0, getter_AddRefs(range));
   NS_ENSURE_SUCCESS(rv, rv);
   if (!range)
     return NS_ERROR_NULL_POINTER;
@@ -1409,10 +1412,25 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
   //NS_ENSURE_SUCCESS(rv, rv);
   NS_NewDomSelection(getter_AddRefs(mSelection));
   NS_ENSURE_TRUE(mSelection, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISelectionPrivate> privSelection( do_QueryInterface(aSelection) );
+  NS_ENSURE_TRUE(privSelection, NS_ERROR_FAILURE);
   
+  // get selection range enumerator
+  nsCOMPtr<nsIEnumerator> enumerator;
+  rv = privSelection->GetEnumerator(getter_AddRefs(enumerator));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
   // loop thru the ranges in the selection
-  for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-    range = selection->GetRangeAt(rangeIdx);
+  enumerator->First(); 
+  nsCOMPtr<nsISupports> currentItem;
+  while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone())
+  {
+    rv = enumerator->CurrentItem(getter_AddRefs(currentItem));
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+    
+    range = do_QueryInterface(currentItem);
     NS_ENSURE_TRUE(range, NS_ERROR_FAILURE);
     nsCOMPtr<nsIDOMRange> myRange;
     range->CloneRange(getter_AddRefs(myRange));
@@ -1424,6 +1442,8 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
     
     rv = mSelection->AddRange(myRange);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    enumerator->Next();
   }
 
   return NS_OK;

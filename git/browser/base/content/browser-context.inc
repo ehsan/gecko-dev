@@ -235,7 +235,8 @@
                 accesskey="&keywordfield.accesskey;"
                 oncommand="AddKeywordForSearchField();"/>
       <menuitem id="context-searchselect"
-                oncommand="BrowserSearch.loadSearchFromContext(getBrowserSelection());"/>
+                oncommand="BrowserSearch.loadSearch(getBrowserSelection(), true,
+                                                    'contextmenu');"/>
       <menuseparator id="frame-sep"/>
       <menu id="frame" label="&thisFrameMenu.label;" accesskey="&thisFrameMenu.accesskey;">
         <menupopup>
