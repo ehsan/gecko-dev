@@ -831,11 +831,9 @@ js::TypeOfValue(const Value &v)
  * Enter the new with scope using an object at sp[-1] and associate the depth
  * of the with block with sp + stackIndex.
  */
-bool
-js::EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val,
-                       HandleObject staticWith)
+static bool
+EnterWith(JSContext *cx, AbstractFramePtr frame, HandleValue val, uint32_t stackDepth)
 {
-    JS_ASSERT(staticWith->is<StaticWithObject>());
     RootedObject obj(cx);
     if (val.isObject()) {
         obj = &val.toObject();
@@ -846,7 +844,7 @@ js::EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val,
     }
 
     RootedObject scopeChain(cx, frame.scopeChain());
-    DynamicWithObject *withobj = DynamicWithObject::create(cx, obj, scopeChain, staticWith);
+    WithObject *withobj = WithObject::create(cx, obj, scopeChain, stackDepth);
     if (!withobj)
         return false;
 
@@ -854,25 +852,23 @@ js::EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val,
     return true;
 }
 
-// Unwind scope chain and iterator to match the static scope corresponding to
-// the given bytecode position.
+/* Unwind block and scope chains to match the given depth. */
 void
-js::UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc)
+js::UnwindScope(JSContext *cx, ScopeIter &si, uint32_t stackDepth)
 {
-    if (si.done())
-        return;
-
-    Rooted<NestedScopeObject *> staticScope(cx, si.frame().script()->getStaticScope(pc));
-
-    for (; si.staticScope() != staticScope; ++si) {
+    for (; !si.done(); ++si) {
         switch (si.type()) {
           case ScopeIter::Block:
+            if (si.staticBlock().stackDepth() < stackDepth)
+                return;
             if (cx->compartment()->debugMode())
                 DebugScopes::onPopBlock(cx, si);
             if (si.staticBlock().needsClone())
                 si.frame().popBlock(cx);
             break;
           case ScopeIter::With:
+            if (si.scope().as<WithObject>().stackDepth() < stackDepth)
+                return;
             si.frame().popWith(cx);
             break;
           case ScopeIter::Call:
@@ -885,7 +881,7 @@ js::UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc)
 static void
 ForcedReturn(JSContext *cx, ScopeIter &si, FrameRegs &regs)
 {
-    UnwindScope(cx, si, regs.fp()->script()->main());
+    UnwindScope(cx, si, 0);
     regs.setToEndOfScript();
 }
 
@@ -1010,7 +1006,7 @@ HandleError(JSContext *cx, FrameRegs &regs)
         for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
             JSTryNote *tn = *tni;
 
-            UnwindScope(cx, si, regs.fp()->script()->main() + tn->start);
+            UnwindScope(cx, si, tn->stackDepth);
 
             /*
              * Set pc to the first bytecode after the the try note to point
@@ -1731,6 +1727,13 @@ END_CASE(JSOP_POP)
 CASE(JSOP_POPN)
     JS_ASSERT(GET_UINT16(REGS.pc) <= REGS.stackDepth());
     REGS.sp -= GET_UINT16(REGS.pc);
+#ifdef DEBUG
+    if (NestedScopeObject *scope = script->getStaticScope(REGS.pc + JSOP_POPN_LENGTH)) {
+        JS_ASSERT(scope->is<StaticBlockObject>());
+        StaticBlockObject &blockObj = scope->as<StaticBlockObject>();
+        JS_ASSERT(REGS.stackDepth() >= blockObj.stackDepth() + blockObj.slotCount());
+    }
+#endif
 END_CASE(JSOP_POPN)
 
 CASE(JSOP_POPNV)
@@ -1739,6 +1742,13 @@ CASE(JSOP_POPNV)
     Value val = REGS.sp[-1];
     REGS.sp -= GET_UINT16(REGS.pc);
     REGS.sp[-1] = val;
+#ifdef DEBUG
+    if (NestedScopeObject *scope = script->getStaticScope(REGS.pc + JSOP_POPNV_LENGTH)) {
+        JS_ASSERT(scope->is<StaticBlockObject>());
+        StaticBlockObject &blockObj = scope->as<StaticBlockObject>();
+        JS_ASSERT(REGS.stackDepth() >= blockObj.stackDepth() + blockObj.slotCount());
+    }
+#endif
 }
 END_CASE(JSOP_POPNV)
 
@@ -1749,18 +1759,28 @@ END_CASE(JSOP_SETRVAL)
 CASE(JSOP_ENTERWITH)
 {
     RootedValue &val = rootValue0;
-    RootedObject &staticWith = rootObject0;
     val = REGS.sp[-1];
-    REGS.sp--;
-    staticWith = script->getObject(REGS.pc);
 
-    if (!EnterWithOperation(cx, REGS.fp(), val, staticWith))
+    if (!EnterWith(cx, REGS.fp(), val, REGS.stackDepth() - 1))
         goto error;
+
+    /*
+     * We must ensure that different "with" blocks have different stack depth
+     * associated with them. This allows the try handler search to properly
+     * recover the scope chain. Thus we must keep the stack at least at the
+     * current level.
+     *
+     * We set sp[-1] to the current "with" object to help asserting the
+     * enter/leave balance in [leavewith].
+     */
+    REGS.sp[-1].setObject(*REGS.fp()->scopeChain());
 }
 END_CASE(JSOP_ENTERWITH)
 
 CASE(JSOP_LEAVEWITH)
+    JS_ASSERT(REGS.sp[-1].toObject() == *REGS.fp()->scopeChain());
     REGS.fp()->popWith(cx);
+    REGS.sp--;
 END_CASE(JSOP_LEAVEWITH)
 
 CASE(JSOP_RETURN)

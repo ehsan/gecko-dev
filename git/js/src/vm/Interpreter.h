@@ -318,10 +318,9 @@ TypeOfValue(const Value &v);
 extern bool
 HasInstance(JSContext *cx, HandleObject obj, HandleValue v, bool *bp);
 
-// Unwind scope chain and iterator to match the static scope corresponding to
-// the given bytecode position.
+/* Unwind block and scope chains to match the given depth. */
 extern void
-UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc);
+UnwindScope(JSContext *cx, ScopeIter &si, uint32_t stackDepth);
 
 /*
  * Unwind for an uncatchable exception. This means not running finalizers, etc;
@@ -450,10 +449,6 @@ InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, Handl
 bool
 InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandlePropertyName name,
                           HandleObject val);
-
-bool
-EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val, HandleObject staticWith);
-
 
 bool
 InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandleValue idval,

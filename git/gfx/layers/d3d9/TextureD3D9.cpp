@@ -72,11 +72,9 @@ CreateTextureHostD3D9(const SurfaceDescriptor& aDesc,
     }
     case SurfaceDescriptor::TSurfaceDescriptorD3D9: {
       result = new TextureHostD3D9(aFlags, aDesc);
-      break;
     }
     case SurfaceDescriptor::TSurfaceDescriptorDIB: {
       result = new DIBTextureHostD3D9(aFlags, aDesc);
-      break;
     }
     default: {
       NS_WARNING("Unsupported SurfaceDescriptor type");
@@ -1257,7 +1255,6 @@ CairoTextureClientD3D9::CairoTextureClientD3D9(gfx::SurfaceFormat aFormat, Textu
   : TextureClient(aFlags)
   , mFormat(aFormat)
   , mIsLocked(false)
-  , mNeedsClear(false)
 {
   MOZ_COUNT_CTOR(CairoTextureClientD3D9);
 }
@@ -1273,10 +1270,6 @@ CairoTextureClientD3D9::Lock(OpenMode)
   MOZ_ASSERT(!mIsLocked);
   if (!IsValid() || !IsAllocated()) {
     return false;
-  }
-  if (mNeedsClear) {
-    mDrawTarget = GetAsDrawTarget();
-    mDrawTarget->ClearRect(Rect(0, 0, GetSize().width, GetSize().height));
   }
   mIsLocked = true;
   return true;
@@ -1360,7 +1353,13 @@ CairoTextureClientD3D9::AllocateForSurface(gfx::IntSize aSize, TextureAllocation
     return false;
   }
 
-  mNeedsClear = aFlags & ALLOC_CLEAR_BUFFER;
+  if (aFlags & ALLOC_CLEAR_BUFFER) {
+    DebugOnly<bool> locked = Lock(OPEN_WRITE_ONLY);
+    MOZ_ASSERT(locked);
+    RefPtr<DrawTarget> dt = GetAsDrawTarget();
+    dt->ClearRect(Rect(0, 0, GetSize().width, GetSize().height));
+    Unlock();
+  }
 
   MOZ_ASSERT(mTexture);
   return true;

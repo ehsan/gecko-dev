@@ -71,6 +71,7 @@ extern "C" {
     @endcode
 */
 
+
 /** @file
     The <tt>libcubeb</tt> C API. */
 

@@ -531,8 +531,7 @@ nsTextStore::nsTextStore()
   mInputScopeDetected = false;
   mInputScopeRequested = false;
   mIsRecordingActionsWithoutLock = false;
-  mPendingOnSelectionChange = false;
-  mPendingOnLayoutChange = false;
+  mNotifySelectionChange = false;
   mNativeCaretIsCreated = false;
   mIsIMM_IME = false;
   mOnActivatedCalled = false;
@@ -915,44 +914,7 @@ nsTextStore::RequestLock(DWORD dwLockFlags,
          this, GetLockFlagNameStr(mLock).get()));
       DidLockGranted();
     }
-
-    // The document is now completely unlocked.
     mLock = 0;
-
-    if (mPendingOnLayoutChange) {
-      mPendingOnLayoutChange = false;
-      if (mSink) {
-        PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-               ("TSF: 0x%p   nsTextStore::RequestLock(), "
-                "calling ITextStoreACPSink::OnLayoutChange()...", this));
-        mSink->OnLayoutChange(TS_LC_CHANGE, TEXTSTORE_DEFAULT_VIEW);
-      }
-      // The layout change caused by composition string change should cause
-      // calling ITfContextOwnerServices::OnLayoutChange() too.
-      if (mContext) {
-        nsRefPtr<ITfContextOwnerServices> service;
-        mContext->QueryInterface(IID_ITfContextOwnerServices,
-                                 getter_AddRefs(service));
-        if (service) {
-          PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-                 ("TSF: 0x%p   nsTextStore::RequestLock(), "
-                  "calling ITfContextOwnerServices::OnLayoutChange()...",
-                  this));
-          service->OnLayoutChange();
-        }
-      }
-    }
-
-    if (mPendingOnSelectionChange) {
-      mPendingOnSelectionChange = false;
-      if (mSink) {
-        PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-               ("TSF: 0x%p   nsTextStore::RequestLock(), "
-                "calling ITextStoreACPSink::OnSelectionChange()...", this));
-        mSink->OnSelectionChange();
-      }
-    }
-
     PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
       ("TSF: 0x%p   nsTextStore::RequestLock() succeeded: *phrSession=%s",
        this, GetTextStoreReturnValueName(*phrSession)));
@@ -990,12 +952,6 @@ nsTextStore::DidLockGranted()
   if (IsReadWriteLocked()) {
     FlushPendingActions();
   }
-
-  // If the widget has gone, we don't need to notify anything.
-  if (!mWidget || mWidget->Destroyed()) {
-    mPendingOnSelectionChange = false;
-    mPendingOnLayoutChange = false;
-  }
 }
 
 void
@@ -1004,11 +960,11 @@ nsTextStore::FlushPendingActions()
   if (!mWidget || mWidget->Destroyed()) {
     mPendingActions.Clear();
     mContent.Clear();
-    mPendingOnSelectionChange = false;
-    mPendingOnLayoutChange = false;
+    mNotifySelectionChange = false;
     return;
   }
 
+  bool notifyTSFOfLayoutChange = mContent.NeedToNotifyTSFOfLayoutChange();
   mContent.Clear();
 
   nsRefPtr<nsWindowBase> kungFuDeathGrip(mWidget);
@@ -1215,6 +1171,37 @@ nsTextStore::FlushPendingActions()
     break;
   }
   mPendingActions.Clear();
+
+  if (notifyTSFOfLayoutChange && mWidget && !mWidget->Destroyed()) {
+    if (mSink) {
+      PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+             ("TSF: 0x%p   nsTextStore::FlushPendingActions(), "
+              "calling ITextStoreACPSink::OnLayoutChange()...", this));
+      mSink->OnLayoutChange(TS_LC_CHANGE, TEXTSTORE_DEFAULT_VIEW);
+    }
+    // The layout change caused by composition string change should cause
+    // calling ITfContextOwnerServices::OnLayoutChange() too.
+    // Actually, MS-IME 2002 (The default Japanese IME of WinXP) needs this.
+    if (mContext) {
+      nsRefPtr<ITfContextOwnerServices> service;
+      mContext->QueryInterface(IID_ITfContextOwnerServices,
+                               getter_AddRefs(service));
+      if (service) {
+        PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+               ("TSF: 0x%p   nsTextStore::FlushPendingActions(), "
+                "calling ITfContextOwnerServices::OnLayoutChange()...", this));
+        service->OnLayoutChange();
+      }
+    }
+  }
+
+  if (mNotifySelectionChange && mSink && mWidget && !mWidget->Destroyed()) {
+    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+           ("TSF: 0x%p   nsTextStore::FlushPendingActions(), "
+            "calling ITextStoreACPSink::OnSelectionChange()...", this));
+    mSink->OnSelectionChange();
+  }
+  mNotifySelectionChange = false;
 }
 
 STDMETHODIMP
@@ -2359,7 +2346,7 @@ nsTextStore::GetACPFromPoint(TsViewCookie vcView,
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::GetACPFromPoint() FAILED due to "
             "layout not recomputed", this));
-    mPendingOnLayoutChange = true;
+    mContent.NeedsToNotifyTSFOfLayoutChange();
     return TS_E_NOLAYOUT;
   }
 
@@ -2416,7 +2403,7 @@ nsTextStore::GetTextExt(TsViewCookie vcView,
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::GetTextExt() FAILED due to "
             "layout not recomputed at %d", this, acpEnd));
-    mPendingOnLayoutChange = true;
+    mContent.NeedsToNotifyTSFOfLayoutChange();
     return TS_E_NOLAYOUT;
   }
 
@@ -3285,7 +3272,7 @@ nsTextStore::OnSelectionChangeInternal(void)
     PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
            ("TSF: 0x%p   nsTextStore::OnSelectionChangeInternal(), pending "
             "a call of mSink->OnSelectionChange()...", this));
-    mPendingOnSelectionChange = true;
+    mNotifySelectionChange = true;
   }
   return NS_OK;
 }

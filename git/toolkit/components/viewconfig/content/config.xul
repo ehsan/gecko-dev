@@ -13,7 +13,6 @@
         title="&window.title;"
         windowtype="Preferences:ConfigManager"
         role="application"
-        aria-describedby="warningTitle warningText"
         width="750"
         height="500"
         disablefastfind="true"

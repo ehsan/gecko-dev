@@ -1478,29 +1478,18 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
     bool isStarGenerator = generatorKind == StarGenerator;
     JS_ASSERT(generatorKind != LegacyGenerator);
 
-    JSScript *script = nullptr;
     const char *filename;
     unsigned lineno;
     JSPrincipals *originPrincipals;
-    uint32_t pcOffset;
-    CurrentScriptFileLineOrigin(cx, &script, &filename, &lineno, &pcOffset, &originPrincipals);
+    CurrentScriptFileLineOrigin(cx, &filename, &lineno, &originPrincipals);
     JSPrincipals *principals = PrincipalsForCompiledCode(args, cx);
-
-    const char *introducer = "Function";
-    if (generatorKind != NotGenerator)
-        introducer = "GeneratorFunction";
-
-    const char *introducerFilename = filename;
-    if (script && script->scriptSource()->introducerFilename())
-        introducerFilename = script->scriptSource()->introducerFilename();
 
     CompileOptions options(cx);
     options.setPrincipals(principals)
            .setOriginPrincipals(originPrincipals)
-           .setFileAndLine(filename, 1)
+           .setFileAndLine(filename, lineno)
            .setNoScriptRval(false)
-           .setCompileAndGo(true)
-           .setIntroductionInfo(introducerFilename, introducer, lineno, pcOffset);
+           .setCompileAndGo(true);
 
     unsigned n = args.length() ? args.length() - 1 : 0;
     if (n > 0) {

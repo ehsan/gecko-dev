@@ -4308,10 +4308,6 @@ JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions &rhs)
     werrorOption = rhs.werrorOption;
     asmJSOption = rhs.asmJSOption;
     sourcePolicy = rhs.sourcePolicy;
-    introducer = rhs.introducer;
-    introductionLineno = rhs.introductionLineno;
-    introductionOffset = rhs.introductionOffset;
-    hasIntroductionInfo = rhs.hasIntroductionInfo;
 }
 
 JSPrincipals *
@@ -4338,7 +4334,6 @@ JS::OwningCompileOptions::~OwningCompileOptions()
     // OwningCompileOptions always owns these, so these casts are okay.
     js_free(const_cast<char *>(filename_));
     js_free(const_cast<jschar *>(sourceMapURL_));
-    js_free(const_cast<char *>(introducerFilename_));
 }
 
 bool
@@ -4351,8 +4346,7 @@ JS::OwningCompileOptions::copy(JSContext *cx, const ReadOnlyCompileOptions &rhs)
     setElement(rhs.element());
 
     return (setFileAndLine(cx, rhs.filename(), rhs.lineno) &&
-            setSourceMapURL(cx, rhs.sourceMapURL()) &&
-            setIntroducerFilename(cx, rhs.introducerFilename()));
+            setSourceMapURL(cx, rhs.sourceMapURL()));
 }
 
 bool
@@ -4396,23 +4390,6 @@ JS::OwningCompileOptions::setSourceMapURL(JSContext *cx, const jschar *s)
     js_free(const_cast<jschar *>(sourceMapURL_));
 
     sourceMapURL_ = copy;
-    return true;
-}
-
-bool
-JS::OwningCompileOptions::setIntroducerFilename(JSContext *cx, const char *s)
-{
-    char *copy = nullptr;
-    if (s) {
-        copy = JS_strdup(cx, s);
-        if (!copy)
-            return false;
-    }
-
-    // OwningCompileOptions always owns introducerFilename_, so this cast is okay.
-    js_free(const_cast<char *>(introducerFilename_));
-
-    introducerFilename_ = copy;
     return true;
 }
 
