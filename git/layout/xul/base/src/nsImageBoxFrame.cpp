@@ -36,6 +36,7 @@
 #include "nsIDOMHTMLMapElement.h"
 #include "nsTransform2D.h"
 #include "nsITheme.h"
+#include "nsIImageLoadingContent.h"
 
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
