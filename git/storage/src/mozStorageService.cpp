@@ -24,7 +24,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/LateWriteChecks.h"
 #include "mozIStorageCompletionCallback.h"
-#include "mozIStoragePendingStatement.h"
 
 #include "sqlite3.h"
 
@@ -343,34 +342,6 @@ Service::getConnections(/* inout */ nsTArray<nsRefPtr<Connection> >& aConnection
 }
 
 void
-Service::minimizeMemory()
-{
-  nsTArray<nsRefPtr<Connection> > connections;
-  getConnections(connections);
-
-  for (uint32_t i = 0; i < connections.Length(); i++) {
-    nsRefPtr<Connection> conn = connections[i];
-    if (conn->ConnectionReady()) {
-      NS_NAMED_LITERAL_CSTRING(shrinkPragma, "PRAGMA shrink_memory");
-      nsCOMPtr<mozIStorageConnection> syncConn = do_QueryInterface(
-        NS_ISUPPORTS_CAST(mozIStorageAsyncConnection*, conn));
-      DebugOnly<nsresult> rv;
-
-      if (!syncConn) {
-        nsCOMPtr<mozIStoragePendingStatement> ps;
-        rv = connections[i]->ExecuteSimpleSQLAsync(shrinkPragma, nullptr,
-          getter_AddRefs(ps));
-      } else {
-        rv = connections[i]->ExecuteSimpleSQL(shrinkPragma);
-      }
-
-      MOZ_ASSERT(NS_SUCCEEDED(rv),
-        "Should have been able to purge sqlite caches");
-    }
-  }
-}
-
-void
 Service::shutdown()
 {
   NS_IF_RELEASE(sXPConnect);
@@ -493,12 +464,6 @@ const sqlite3_mem_methods memMethods = {
 
 #endif  // MOZ_STORAGE_MEMORY
 
-static const char* sObserverTopics[] = {
-  "memory-pressure",
-  "xpcom-shutdown",
-  "xpcom-shutdown-threads"
-};
-
 nsresult
 Service::initialize()
 {
@@ -532,13 +497,10 @@ Service::initialize()
   // observer service can only be used on the main thread.
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
-
-  for (size_t i = 0; i < ArrayLength(sObserverTopics); ++i) {
-    nsresult rv = os->AddObserver(this, sObserverTopics[i], false);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-  }
+  nsresult rv = os->AddObserver(this, "xpcom-shutdown", false);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = os->AddObserver(this, "xpcom-shutdown-threads", false);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // We cache XPConnect for our language helpers.  XPConnect can only be
   // used on the main thread.
@@ -899,18 +861,12 @@ Service::BackupDatabaseFile(nsIFile *aDBFile,
 NS_IMETHODIMP
 Service::Observe(nsISupports *, const char *aTopic, const char16_t *)
 {
-  if (strcmp(aTopic, "memory-pressure") == 0) {
-    minimizeMemory();
-  } else if (strcmp(aTopic, "xpcom-shutdown") == 0) {
+  if (strcmp(aTopic, "xpcom-shutdown") == 0)
     shutdown();
-  } else if (strcmp(aTopic, "xpcom-shutdown-threads") == 0) {
+  if (strcmp(aTopic, "xpcom-shutdown-threads") == 0) {
     nsCOMPtr<nsIObserverService> os =
       mozilla::services::GetObserverService();
-
-    for (size_t i = 0; i < ArrayLength(sObserverTopics); ++i) {
-      (void)os->RemoveObserver(this, sObserverTopics[i]);
-    }
-
+    os->RemoveObserver(this, "xpcom-shutdown-threads");
     bool anyOpen = false;
     do {
       nsTArray<nsRefPtr<Connection> > connections;

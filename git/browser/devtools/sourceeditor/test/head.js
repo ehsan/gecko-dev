@@ -74,10 +74,7 @@ function read(url) {
   let input = channel.open();
   scriptableStream.init(input);
 
-  let data = "";
-  while (input.available()) {
-    data = data.concat(scriptableStream.read(input.available()));
-  }
+  let data = scriptableStream.read(input.available());
   scriptableStream.close();
   input.close();
 

@@ -135,10 +135,6 @@ if (params.dumpDMDAfterTest) {
   TestRunner.dumpDMDAfterTest = true;
 }
 
-if (params.quiet) {
-  TestRunner.quiet = true;
-}
-
 // Log things to the console if appropriate.
 TestRunner.logger.addListener("dumpListener", consoleLevel + "", function(msg) {
   dump(msg.num + " " + msg.level + " " + msg.info.join(' ') + "\n");

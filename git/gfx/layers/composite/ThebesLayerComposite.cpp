@@ -91,10 +91,7 @@ ThebesLayerComposite::GetLayer()
 TiledLayerComposer*
 ThebesLayerComposite::GetTiledLayerComposer()
 {
-  if (!mBuffer) {
-    return nullptr;
-  }
-  MOZ_ASSERT(mBuffer->IsAttached());
+  MOZ_ASSERT(mBuffer && mBuffer->IsAttached());
   return mBuffer->AsTiledLayerComposer();
 }
 
