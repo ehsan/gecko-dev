@@ -238,7 +238,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Add(PRUint16 flags, nsGenericHTMLElement *aEleme
     return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
     
   mEntries[mHead].mFlags = flags;
-  mEntries[mHead].mElement = do_GetWeakReference(aElement);
+  mEntries[mHead].mElement = aElement;
   mHead = (mHead + 1) & sMaxDeferredMask;
 
   if (!mActiveLoaderCount && !mTimerArmed && mTimer) {
@@ -257,11 +257,10 @@ nsHTMLDNSPrefetch::nsDeferrals::SubmitQueue()
   if (!sDNSService) return;
 
   while (mHead != mTail) {
-    nsCOMPtr<nsIContent> content = do_QueryReferent(mEntries[mTail].mElement);
-    if (content && content->GetOwnerDoc()) {
+
+    if (mEntries[mTail].mElement->GetOwnerDoc()) {
       nsCOMPtr<nsIURI> hrefURI;
-      hrefURI =
-        nsGenericHTMLElement::FromContent(content)->GetHrefURIForAnchors();
+      hrefURI = mEntries[mTail].mElement->GetHrefURIForAnchors();
       if (hrefURI)
         hrefURI->GetAsciiHost(hostName);
       

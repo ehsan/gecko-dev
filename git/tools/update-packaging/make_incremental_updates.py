@@ -37,11 +37,7 @@ class PatchInfo:
             mozilla/tools/update-packaging/common.sh/make_add_instruction
         """
         if filename.startswith("extensions/"):
-            # Dir immediately following extensions is used for the test
-            testdir = "extensions/"+filename.split("/")[1]
-            self.manifest.append('add-if "'+testdir+'" "'+filename+'"')
-        elif filename.startswith("Contents/MacOS/extensions/"):
-            testdir = "Contents/MacOS/extensions/"+filename.split("/")[3]
+            testdir = "extensions/"+filename.split("/")[1]  # Dir immediately following extensions is used for the test
             self.manifest.append('add-if "'+testdir+'" "'+filename+'"')
         else:
             self.manifest.append('add "'+filename+'"')
@@ -61,11 +57,7 @@ class PatchInfo:
         if filename.startswith("extensions/"):
             testdir = "extensions/"+filename.split("/")[1]
             self.manifest.append('patch-if "'+testdir+'" "'+patchname+'" "'+filename+'"')
-        elif filename.startswith("Contents/MacOS/extensions/"):
-            testdir = "Contents/MacOS/extensions/"+filename.split("/")[3]
-            self.manifest.append('patch-if "'+testdir+'" "'+patchname+'" "'+filename+'"')
-        elif (filename.startswith("searchplugins/") or
-             filename.startswith("Contents/MacOS/searchplugins/")):
+        elif filename.startswith("searchplugins/"):
             self.manifest.append('patch-if "'+filename+'" "'+patchname+'" "'+filename+'"')
         else:
             self.manifest.append('patch "'+patchname+'" "'+filename+'"')
