@@ -44,11 +44,10 @@
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
 #include "mozilla/dom/FileSystemRequestParent.h"
 #include "mozilla/dom/GeolocationBinding.h"
-#include "mozilla/dom/mobileconnection/MobileConnectionParent.h"
-#include "mozilla/dom/mobilemessage/SmsParent.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/dom/telephony/TelephonyParent.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
+#include "SmsParent.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
 #include "mozilla/ipc/BackgroundChild.h"
 #include "mozilla/ipc/BackgroundParent.h"
@@ -147,7 +146,6 @@
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsIVolume.h"
-#include "nsVolumeService.h"
 #include "nsIVolumeService.h"
 #include "SpeakerManagerService.h"
 using namespace mozilla::system;
@@ -178,6 +176,10 @@ using namespace mozilla::system;
 #include "nsIIPCBackgroundChildCreateCallback.h"
 #endif
 
+#ifdef MOZ_B2G_RIL
+#include "mozilla/dom/mobileconnection/MobileConnectionParent.h"
+using namespace mozilla::dom::mobileconnection;
+#endif
 
 #if defined(MOZ_CONTENT_SANDBOX) && defined(XP_LINUX)
 #include "mozilla/Sandbox.h"
@@ -192,7 +194,6 @@ using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::devicestorage;
 using namespace mozilla::dom::indexedDB;
 using namespace mozilla::dom::power;
-using namespace mozilla::dom::mobileconnection;
 using namespace mozilla::dom::mobilemessage;
 using namespace mozilla::dom::telephony;
 using namespace mozilla::hal;
@@ -2441,14 +2442,17 @@ ContentParent::RecvDataStoreGetStores(
 }
 
 bool
-ContentParent::RecvGetVolumes(InfallibleTArray<VolumeInfo>* aResult)
+ContentParent::RecvBroadcastVolume(const nsString& aVolumeName)
 {
 #ifdef MOZ_WIDGET_GONK
-    nsRefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
-    vs->GetVolumesForIPC(aResult);
+    nsresult rv;
+    nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID, &rv);
+    if (vs) {
+        vs->BroadcastVolume(aVolumeName);
+    }
     return true;
 #else
-    NS_WARNING("ContentParent::RecvGetVolumes shouldn't be called when MOZ_WIDGET_GONK is not defined");
+    NS_WARNING("ContentParent::RecvBroadcastVolume shouldn't be called when MOZ_WIDGET_GONK is not defined");
     return false;
 #endif
 }

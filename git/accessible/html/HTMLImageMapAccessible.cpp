@@ -236,25 +236,24 @@ HTMLAreaAccessible::CacheChildren()
   // No children for aria accessible.
 }
 
-nsRect
-HTMLAreaAccessible::RelativeBounds(nsIFrame** aBoundingFrame) const
+void
+HTMLAreaAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame)
 {
   nsIFrame* frame = GetFrame();
   if (!frame)
-    return nsRect();
+    return;
 
   nsImageFrame* imageFrame = do_QueryFrame(frame);
   nsImageMap* map = imageFrame->GetImageMap();
 
-  nsRect bounds;
-  nsresult rv = map->GetBoundsForAreaContent(mContent, bounds);
+  nsresult rv = map->GetBoundsForAreaContent(mContent, aBounds);
   if (NS_FAILED(rv))
-    return nsRect();
+    return;
 
   // XXX Areas are screwy; they return their rects as a pair of points, one pair
   // stored into the width and height.
+  aBounds.width -= aBounds.x;
+  aBounds.height -= aBounds.y;
+
   *aBoundingFrame = frame;
-  bounds.width -= bounds.x;
-  bounds.height -= bounds.y;
-  return bounds;
 }

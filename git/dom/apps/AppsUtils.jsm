@@ -158,43 +158,16 @@ this.AppsUtils = {
     return Ci.nsIScriptSecurityManager.NO_APP_ID;
   },
 
-  getManifestCSPByLocalId: function getManifestCSPByLocalId(aApps, aLocalId) {
-    debug("getManifestCSPByLocalId " + aLocalId);
+  getCSPByLocalId: function getCSPByLocalId(aApps, aLocalId) {
+    debug("getCSPByLocalId " + aLocalId);
     for (let id in aApps) {
       let app = aApps[id];
       if (app.localId == aLocalId) {
-        return ( app.csp || "" );
+	  return ( app.csp || "" );
       }
     }
 
     return "";
-  },
-
-  getDefaultCSPByLocalId: function(aApps, aLocalId) {
-    debug("getDefaultCSPByLocalId " + aLocalId);
-    for (let id in aApps) {
-      let app = aApps[id];
-      if (app.localId == aLocalId) {
-        // Use the app kind and the app status to choose the right default CSP.
-        try {
-          switch (app.appStatus) {
-            case Ci.nsIPrincipal.APP_STATUS_CERTIFIED:
-              return Services.prefs.getCharPref("security.apps.certified.CSP.default");
-              break;
-            case Ci.nsIPrincipal.APP_STATUS_PRIVILEGED:
-              return Services.prefs.getCharPref("security.apps.privileged.CSP.default");
-              break;
-            case Ci.nsIPrincipal.APP_STATUS_INSTALLED:
-              return app.kind == "hosted-trusted"
-                ? Services.prefs.getCharPref("security.apps.trusted.CSP.default")
-                : "";
-              break;
-          }
-        } catch(e) {}
-      }
-    }
-
-    return "default-src 'self'; object-src 'none'";
   },
 
   getAppByLocalId: function getAppByLocalId(aApps, aLocalId) {
@@ -468,7 +441,6 @@ this.AppsUtils = {
 
     switch(type) {
     case "web":
-    case "trusted":
       return Ci.nsIPrincipal.APP_STATUS_INSTALLED;
     case "privileged":
       return Ci.nsIPrincipal.APP_STATUS_PRIVILEGED;

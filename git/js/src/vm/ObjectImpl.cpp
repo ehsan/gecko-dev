@@ -9,7 +9,6 @@
 #include "gc/Marking.h"
 #include "js/Value.h"
 #include "vm/Debugger.h"
-#include "vm/TypedArrayCommon.h"
 
 #include "jsobjinlines.h"
 #include "vm/Shape-inl.h"
@@ -79,7 +78,7 @@ bool
 ObjectImpl::canHaveNonEmptyElements()
 {
     JSObject *obj = static_cast<JSObject *>(this);
-    return isNative() && !IsAnyTypedArray(obj);
+    return isNative() && !obj->is<TypedArrayObject>();
 }
 
 #endif // DEBUG

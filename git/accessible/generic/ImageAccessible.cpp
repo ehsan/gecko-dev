@@ -109,26 +109,34 @@ ImageAccessible::ActionCount()
   return HasLongDesc() ? actionCount + 1 : actionCount;
 }
 
-void
-ImageAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+ImageAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
   aName.Truncate();
-  if (IsLongDescIndex(aIndex) && HasLongDesc())
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  if (IsLongDescIndex(aIndex) && HasLongDesc()) {
     aName.AssignLiteral("showlongdesc"); 
-  else
-    LinkableAccessible::ActionNameAt(aIndex, aName);
+    return NS_OK;
+  }
+  return LinkableAccessible::GetActionName(aIndex, aName);
 }
 
-bool
+NS_IMETHODIMP
 ImageAccessible::DoAction(uint8_t aIndex)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // Get the long description uri and open in a new window.
   if (!IsLongDescIndex(aIndex))
     return LinkableAccessible::DoAction(aIndex);
 
   nsCOMPtr<nsIURI> uri = GetLongDescURI();
   if (!uri)
-    return false;
+    return NS_ERROR_INVALID_ARG;
 
   nsAutoCString utf8spec;
   uri->GetSpec(utf8spec);
@@ -137,12 +145,11 @@ ImageAccessible::DoAction(uint8_t aIndex)
   nsIDocument* document = mContent->OwnerDoc();
   nsCOMPtr<nsPIDOMWindow> piWindow = document->GetWindow();
   nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(piWindow);
-  if (!win)
-    return false;
+  NS_ENSURE_STATE(win);
 
   nsCOMPtr<nsIDOMWindow> tmp;
-  return NS_SUCCEEDED(win->Open(spec, EmptyString(), EmptyString(),
-                                getter_AddRefs(tmp)));
+  return win->Open(spec, EmptyString(), EmptyString(),
+                   getter_AddRefs(tmp));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,28 +158,20 @@ ImageAccessible::DoAction(uint8_t aIndex)
 NS_IMETHODIMP
 ImageAccessible::GetImagePosition(uint32_t aCoordType, int32_t* aX, int32_t* aY)
 {
-  NS_ENSURE_ARG_POINTER(aX);
-  NS_ENSURE_ARG_POINTER(aY);
+  int32_t width, height;
+  nsresult rv = GetBounds(aX, aY, &width, &height);
+  if (NS_FAILED(rv))
+    return rv;
 
-  nsIntRect rect = Bounds();
-  *aX = rect.x;
-  *aY = rect.y;
   nsAccUtils::ConvertScreenCoordsTo(aX, aY, aCoordType, this);
-
   return NS_OK;
 }
 
 NS_IMETHODIMP
 ImageAccessible::GetImageSize(int32_t* aWidth, int32_t* aHeight)
 {
-  NS_ENSURE_ARG_POINTER(aWidth);
-  NS_ENSURE_ARG_POINTER(aHeight);
-
-  nsIntRect rect = Bounds();
-  *aWidth = rect.width;
-  *aHeight = rect.height;
-
-  return NS_OK;
+  int32_t x, y;
+  return GetBounds(&x, &y, aWidth, aHeight);
 }
 
 // Accessible

@@ -31,8 +31,8 @@ public:
 
   // Accessible
   virtual void Value(nsString& aValue);
-  virtual mozilla::a11y::role NativeRole() MOZ_OVERRIDE;
-  virtual uint64_t NativeState() MOZ_OVERRIDE;
+  virtual mozilla::a11y::role NativeRole();
+  virtual uint64_t NativeState();
 
   // Value
   virtual double MaxValue() const MOZ_OVERRIDE;
@@ -57,13 +57,15 @@ class RadioButtonAccessible : public LeafAccessible
 public:
   RadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
+  // nsIAccessible
+  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(uint8_t aIndex);
+
   // Accessible
   virtual mozilla::a11y::role NativeRole();
 
   // ActionAccessible
-  virtual uint8_t ActionCount() MOZ_OVERRIDE;
-  virtual void ActionNameAt(uint8_t aIndex, nsAString& aName) MOZ_OVERRIDE;
-  virtual bool DoAction(uint8_t aIndex) MOZ_OVERRIDE;
+  virtual uint8_t ActionCount();
 
   enum { eAction_Click = 0 };
 

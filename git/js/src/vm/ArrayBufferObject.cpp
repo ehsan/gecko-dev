@@ -42,6 +42,7 @@
 #include "vm/GlobalObject.h"
 #include "vm/Interpreter.h"
 #include "vm/NumericConversions.h"
+#include "vm/SharedArrayObject.h"
 #include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
@@ -144,25 +145,29 @@ const JSFunctionSpec ArrayBufferObject::jsstaticfuncs[] = {
 bool
 js::IsArrayBuffer(HandleValue v)
 {
-    return v.isObject() && v.toObject().is<ArrayBufferObject>();
+    return v.isObject() &&
+           (v.toObject().is<ArrayBufferObject>() ||
+            v.toObject().is<SharedArrayBufferObject>());
 }
 
 bool
 js::IsArrayBuffer(HandleObject obj)
 {
-    return obj->is<ArrayBufferObject>();
+    return obj->is<ArrayBufferObject>() || obj->is<SharedArrayBufferObject>();
 }
 
 bool
 js::IsArrayBuffer(JSObject *obj)
 {
-    return obj->is<ArrayBufferObject>();
+    return obj->is<ArrayBufferObject>() || obj->is<SharedArrayBufferObject>();
 }
 
 ArrayBufferObject &
 js::AsArrayBuffer(HandleObject obj)
 {
     JS_ASSERT(IsArrayBuffer(obj));
+    if (obj->is<SharedArrayBufferObject>())
+        return obj->as<SharedArrayBufferObject>();
     return obj->as<ArrayBufferObject>();
 }
 
@@ -170,6 +175,8 @@ ArrayBufferObject &
 js::AsArrayBuffer(JSObject *obj)
 {
     JS_ASSERT(IsArrayBuffer(obj));
+    if (obj->is<SharedArrayBufferObject>())
+        return obj->as<SharedArrayBufferObject>();
     return obj->as<ArrayBufferObject>();
 }
 
@@ -300,6 +307,9 @@ ArrayBufferObject::setViewList(ArrayBufferViewObject *viewsHead)
 bool
 ArrayBufferObject::canNeuter(JSContext *cx)
 {
+    if (isSharedArrayBuffer())
+        return false;
+
     if (isAsmJSArrayBuffer()) {
         if (!ArrayBufferObject::canNeuterAsmJSArrayBuffer(cx, *this))
             return false;
@@ -353,6 +363,7 @@ void
 ArrayBufferObject::setNewOwnedData(FreeOp* fop, BufferContents newContents)
 {
     JS_ASSERT(!isAsmJSArrayBuffer());
+    JS_ASSERT(!isSharedArrayBuffer());
 
     if (ownsData()) {
         JS_ASSERT(newContents.data() != dataPointer());
@@ -394,6 +405,9 @@ ArrayBufferObject::prepareForAsmJSNoSignals(JSContext *cx, Handle<ArrayBufferObj
     if (buffer->isAsmJSArrayBuffer())
         return true;
 
+    if (buffer->isSharedArrayBuffer())
+        return true;
+
     if (!ensureNonInline(cx, buffer))
         return false;
 
@@ -418,6 +432,10 @@ ArrayBufferObject::prepareForAsmJS(JSContext *cx, Handle<ArrayBufferObject*> buf
         return prepareForAsmJSNoSignals(cx, buffer);
 
     if (buffer->isAsmJSArrayBuffer())
+        return true;
+
+    // SharedArrayBuffers are already created with AsmJS support in mind.
+    if (buffer->isSharedArrayBuffer())
         return true;
 
     // Get the entire reserved region (with all pages inaccessible).
@@ -510,6 +528,7 @@ ArrayBufferObject::releaseAsmJSArray(FreeOp *fop)
 bool
 ArrayBufferObject::canNeuterAsmJSArrayBuffer(JSContext *cx, ArrayBufferObject &buffer)
 {
+    JS_ASSERT(!buffer.isSharedArrayBuffer());
     AsmJSActivation *act = cx->mainThread().asmJSActivationStack();
     for (; act; act = act->prevAsmJS()) {
         if (act->module().maybeHeapBufferObject() == &buffer)
@@ -560,6 +579,8 @@ ArrayBufferObject::addView(ArrayBufferViewObject *view)
 uint8_t *
 ArrayBufferObject::dataPointer() const
 {
+    if (isSharedArrayBuffer())
+        return (uint8_t *)this->as<SharedArrayBufferObject>().dataPointer();
     return static_cast<uint8_t *>(getSlot(DATA_SLOT).toPrivate());
 }
 
@@ -580,6 +601,7 @@ ArrayBufferObject::releaseData(FreeOp *fop)
 void
 ArrayBufferObject::setDataPointer(BufferContents contents, OwnsState ownsData)
 {
+    MOZ_ASSERT_IF(!is<SharedArrayBufferObject>(), contents.data());
     setSlot(DATA_SLOT, PrivateValue(contents.data()));
     setOwnsData(ownsData);
     setFlags((flags() & ~KIND_MASK) | contents.kind());
@@ -732,6 +754,7 @@ ArrayBufferObject::createDataViewForThis(JSContext *cx, unsigned argc, Value *vp
 ArrayBufferObject::ensureNonInline(JSContext *cx, Handle<ArrayBufferObject*> buffer)
 {
     if (!buffer->ownsData()) {
+        MOZ_ASSERT(!buffer->isSharedArrayBuffer());
         BufferContents contents = AllocateArrayBufferContents(cx, buffer->byteLength());
         if (!contents)
             return false;

@@ -8,7 +8,7 @@ function attach(i) {
     var handler = {
         hit: function (frame) {
             hits++;
-            dbg.clearAllBreakpoints();
+            dbg.clearAllBreakpoints(handler);
         }
     };
 

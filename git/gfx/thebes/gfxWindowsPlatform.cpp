@@ -43,7 +43,6 @@
 #include <dwrite.h>
 #endif
 
-#include "gfxTextRun.h"
 #include "gfxUserFontSet.h"
 #include "nsWindowsHelpers.h"
 #include "gfx2DGlue.h"

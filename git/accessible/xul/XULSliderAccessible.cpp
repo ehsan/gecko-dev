@@ -71,25 +71,27 @@ XULSliderAccessible::ActionCount()
   return 1;
 }
 
-void
-XULSliderAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+XULSliderAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
   aName.Truncate();
-  if (aIndex == 0)
-    aName.AssignLiteral("activate");
+
+  NS_ENSURE_ARG(aIndex == 0);
+
+  aName.AssignLiteral("activate");
+  return NS_OK;
 }
 
-bool
+NS_IMETHODIMP
 XULSliderAccessible::DoAction(uint8_t aIndex)
 {
-  if (aIndex != 0)
-    return false;
+  NS_ENSURE_ARG(aIndex == 0);
 
   nsIContent* sliderElm = GetSliderElement();
   if (sliderElm)
     DoCommand(sliderElm);
 
-  return true;
+  return NS_OK;
 }
 
 double

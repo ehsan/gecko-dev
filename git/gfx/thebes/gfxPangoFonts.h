@@ -8,7 +8,7 @@
 
 #include "cairo.h"
 #include "gfxTypes.h"
-#include "gfxTextRun.h"
+#include "gfxFont.h"
 
 #include "nsAutoRef.h"
 #include "nsTArray.h"

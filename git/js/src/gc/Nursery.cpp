@@ -109,8 +109,7 @@ js::Nursery::updateDecommittedRegion()
 void
 js::Nursery::enable()
 {
-    MOZ_ASSERT(isEmpty());
-    MOZ_ASSERT(!runtime()->gc.isVerifyPreBarriersEnabled());
+    JS_ASSERT(isEmpty());
     if (isEnabled())
         return;
     numActiveChunks_ = 1;

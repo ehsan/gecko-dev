@@ -969,7 +969,7 @@ MediaEngineWebRTCVideoSource::OnTakePictureComplete(uint8_t* aData, uint32_t aLe
 }
 
 uint32_t
-MediaEngineWebRTCVideoSource::ConvertPixelFormatToFOURCC(int aFormat)
+MediaEngineWebRTCVideoSource::ConvertPixexFormatToFOURCC(int aFormat)
 {
   switch (aFormat) {
   case HAL_PIXEL_FORMAT_YCrCb_420_SP:
@@ -1019,7 +1019,7 @@ MediaEngineWebRTCVideoSource::RotateImage(layers::Image* aImage, uint32_t aWidth
                         aWidth, aHeight,
                         aWidth, aHeight,
                         static_cast<libyuv::RotationMode>(mRotation),
-                        ConvertPixelFormatToFOURCC(graphicBuffer->getPixelFormat()));
+                        ConvertPixexFormatToFOURCC(graphicBuffer->getPixelFormat()));
   graphicBuffer->unlock();
 
   const uint8_t lumaBpp = 8;

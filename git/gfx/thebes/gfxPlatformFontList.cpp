@@ -9,7 +9,6 @@
 #include "prlog.h"
 
 #include "gfxPlatformFontList.h"
-#include "gfxTextRun.h"
 #include "gfxUserFontSet.h"
 
 #include "nsUnicharUtils.h"

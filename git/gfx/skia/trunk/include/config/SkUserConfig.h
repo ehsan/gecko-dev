@@ -180,13 +180,9 @@
 //#define SK_MUTEX_PLATFORM_H "SkMutex_xxx.h"
 #if defined(_MSC_VER)
 #  define SK_ATOMICS_PLATFORM_H "skia/SkAtomics_win.h"
-#else
-#  define SK_ATOMICS_PLATFORM_H "skia/SkAtomics_sync.h"
-#endif
-
-#if defined(_WIN32)
 #  define SK_MUTEX_PLATFORM_H   "skia/SkMutex_win.h"
 #else
+#  define SK_ATOMICS_PLATFORM_H "skia/SkAtomics_sync.h"
 #  define SK_MUTEX_PLATFORM_H   "skia/SkMutex_pthread.h"
 #endif
 

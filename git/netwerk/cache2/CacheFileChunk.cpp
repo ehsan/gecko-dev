@@ -541,7 +541,7 @@ CacheFileChunk::OnDataRead(CacheFileHandle *aHandle, char *aBuf,
               invalidOffset = mValidityMap[i].Offset() + mValidityMap[i].Len();
             }
             if (invalidOffset < mRWBufSize) {
-              invalidLength = mRWBufSize - invalidOffset;
+              invalidLength = invalidOffset - mRWBufSize;
               memcpy(mBuf + invalidOffset, mRWBuf + invalidOffset,
                      invalidLength);
             }

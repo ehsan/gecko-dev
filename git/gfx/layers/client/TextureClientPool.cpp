@@ -42,10 +42,11 @@ TextureClientPool::~TextureClientPool()
 TemporaryRef<TextureClient>
 TextureClientPool::GetTextureClient()
 {
+  mOutstandingClients++;
+
   // Try to fetch a client from the pool
   RefPtr<TextureClient> textureClient;
   if (mTextureClients.size()) {
-    mOutstandingClients++;
     textureClient = mTextureClients.top();
     mTextureClients.pop();
     return textureClient;
@@ -66,7 +67,6 @@ TextureClientPool::GetTextureClient()
       mFormat, mSize, gfx::BackendType::NONE, TextureFlags::IMMEDIATE_UPLOAD);
   }
 
-  mOutstandingClients++;
   return textureClient;
 }
 
@@ -76,12 +76,11 @@ TextureClientPool::ReturnTextureClient(TextureClient *aClient)
   if (!aClient) {
     return;
   }
-  // Add the client to the pool:
-  MOZ_ASSERT(mOutstandingClients > mTextureClientsDeferred.size());
+  MOZ_ASSERT(mOutstandingClients);
   mOutstandingClients--;
-  mTextureClients.push(aClient);
 
-  // Shrink down if we're beyond our maximum size
+  // Add the client to the pool and shrink down if we're beyond our maximum size
+  mTextureClients.push(aClient);
   ShrinkToMaximumSize();
 
   // Kick off the pool shrinking timer if there are still more unused texture
@@ -95,9 +94,6 @@ TextureClientPool::ReturnTextureClient(TextureClient *aClient)
 void
 TextureClientPool::ReturnTextureClientDeferred(TextureClient *aClient)
 {
-  if (!aClient) {
-    return;
-  }
   mTextureClientsDeferred.push(aClient);
   ShrinkToMaximumSize();
 }
@@ -113,7 +109,6 @@ TextureClientPool::ShrinkToMaximumSize()
   // until they get returned.
   while (totalClientsOutstanding > mMaxTextureClients) {
     if (mTextureClientsDeferred.size()) {
-      MOZ_ASSERT(mOutstandingClients > 0);
       mOutstandingClients--;
       mTextureClientsDeferred.pop();
     } else {
@@ -148,8 +143,7 @@ TextureClientPool::ReturnDeferredClients()
     MOZ_ASSERT(mOutstandingClients > 0);
     mOutstandingClients--;
   }
-  ShrinkToMaximumSize();
-
+  ShrinkToMinimumSize();
   // Kick off the pool shrinking timer if there are still more unused texture
   // clients than our desired minimum cache size.
   if (mTextureClients.size() > sMinCacheSize) {
@@ -165,7 +159,6 @@ TextureClientPool::Clear()
     mTextureClients.pop();
   }
   while (!mTextureClientsDeferred.empty()) {
-    MOZ_ASSERT(mOutstandingClients > 0);
     mOutstandingClients--;
     mTextureClientsDeferred.pop();
   }

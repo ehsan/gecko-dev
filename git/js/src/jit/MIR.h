@@ -23,7 +23,7 @@
 #include "jit/TypedObjectPrediction.h"
 #include "jit/TypePolicy.h"
 #include "vm/ScopeObject.h"
-#include "vm/TypedArrayCommon.h"
+#include "vm/TypedArrayObject.h"
 
 namespace js {
 
@@ -7950,10 +7950,10 @@ class MLoadTypedArrayElementStatic
   : public MUnaryInstruction,
     public ConvertToInt32Policy<0>
 {
-    MLoadTypedArrayElementStatic(JSObject *someTypedArray, MDefinition *ptr)
-      : MUnaryInstruction(ptr), someTypedArray_(someTypedArray), fallible_(true)
+    MLoadTypedArrayElementStatic(TypedArrayObject *typedArray, MDefinition *ptr)
+      : MUnaryInstruction(ptr), typedArray_(typedArray), fallible_(true)
     {
-        int type = viewType();
+        int type = typedArray_->type();
         if (type == Scalar::Float32)
             setResultType(MIRType_Float32);
         else if (type == Scalar::Float64)
@@ -7962,20 +7962,20 @@ class MLoadTypedArrayElementStatic
             setResultType(MIRType_Int32);
     }
 
-    AlwaysTenured<JSObject*> someTypedArray_;
+    AlwaysTenured<TypedArrayObject*> typedArray_;
     bool fallible_;
 
   public:
     INSTRUCTION_HEADER(LoadTypedArrayElementStatic);
 
-    static MLoadTypedArrayElementStatic *New(TempAllocator &alloc, JSObject *someTypedArray,
+    static MLoadTypedArrayElementStatic *New(TempAllocator &alloc, TypedArrayObject *typedArray,
                                              MDefinition *ptr)
     {
-        return new(alloc) MLoadTypedArrayElementStatic(someTypedArray, ptr);
+        return new(alloc) MLoadTypedArrayElementStatic(typedArray, ptr);
     }
 
     Scalar::Type viewType() const {
-        return AnyTypedArrayType(someTypedArray_);
+        return typedArray_->type();
     }
     void *base() const;
     size_t length() const;
@@ -7999,7 +7999,7 @@ class MLoadTypedArrayElementStatic
 
     void computeRange(TempAllocator &alloc);
     bool truncate(TruncateKind kind);
-    bool canProduceFloat32() const { return viewType() == Scalar::Float32; }
+    bool canProduceFloat32() const { return typedArray_->type() == Scalar::Float32; }
 };
 
 class MStoreTypedArrayElement
@@ -8147,19 +8147,19 @@ class MStoreTypedArrayElementStatic :
     public MBinaryInstruction
   , public StoreTypedArrayElementStaticPolicy
 {
-    MStoreTypedArrayElementStatic(JSObject *someTypedArray, MDefinition *ptr, MDefinition *v)
-      : MBinaryInstruction(ptr, v), someTypedArray_(someTypedArray)
+    MStoreTypedArrayElementStatic(TypedArrayObject *typedArray, MDefinition *ptr, MDefinition *v)
+      : MBinaryInstruction(ptr, v), typedArray_(typedArray)
     {}
 
-    AlwaysTenured<JSObject*> someTypedArray_;
+    AlwaysTenured<TypedArrayObject*> typedArray_;
 
   public:
     INSTRUCTION_HEADER(StoreTypedArrayElementStatic);
 
-    static MStoreTypedArrayElementStatic *New(TempAllocator &alloc, JSObject *someTypedArray,
+    static MStoreTypedArrayElementStatic *New(TempAllocator &alloc, TypedArrayObject *typedArray,
                                               MDefinition *ptr, MDefinition *v)
     {
-        return new(alloc) MStoreTypedArrayElementStatic(someTypedArray, ptr, v);
+        return new(alloc) MStoreTypedArrayElementStatic(typedArray, ptr, v);
     }
 
     TypePolicy *typePolicy() {
@@ -8167,7 +8167,7 @@ class MStoreTypedArrayElementStatic :
     }
 
     Scalar::Type viewType() const {
-        return AnyTypedArrayType(someTypedArray_);
+        return typedArray_->type();
     }
     bool isFloatArray() const {
         return viewType() == Scalar::Float32 ||
@@ -8185,7 +8185,7 @@ class MStoreTypedArrayElementStatic :
     TruncateKind operandTruncateKind(size_t index) const;
 
     bool canConsumeFloat32(MUse *use) const {
-        return use == getUseFor(1) && viewType() == Scalar::Float32;
+        return use == getUseFor(1) && typedArray_->type() == Scalar::Float32;
     }
 };
 
@@ -11823,8 +11823,8 @@ MControlInstruction *MDefinition::toControlInstruction() {
 // Helper functions used to decide how to build MIR.
 
 bool ElementAccessIsDenseNative(MDefinition *obj, MDefinition *id);
-bool ElementAccessIsAnyTypedArray(MDefinition *obj, MDefinition *id,
-                                  Scalar::Type *arrayType);
+bool ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id,
+                               Scalar::Type *arrayType);
 bool ElementAccessIsPacked(types::CompilerConstraintList *constraints, MDefinition *obj);
 bool ElementAccessMightBeCopyOnWrite(types::CompilerConstraintList *constraints, MDefinition *obj);
 bool ElementAccessHasExtraIndexedProperty(types::CompilerConstraintList *constraints,

@@ -34,12 +34,12 @@ extern const JSFunctionSpec Int32x4Methods[];
 }
 
 ///////////////////////////////////////////////////////////////////////////
-// SIMD
+// X4
 
 static const char *laneNames[] = {"lane 0", "lane 1", "lane 2", "lane3"};
 
 static bool
-CheckVectorObject(HandleValue v, SimdTypeDescr::Type expectedType)
+CheckVectorObject(HandleValue v, X4TypeDescr::Type expectedType)
 {
     if (!v.isObject())
         return false;
@@ -49,10 +49,10 @@ CheckVectorObject(HandleValue v, SimdTypeDescr::Type expectedType)
         return false;
 
     TypeDescr &typeRepr = obj.as<TypedObject>().typeDescr();
-    if (typeRepr.kind() != type::Simd)
+    if (typeRepr.kind() != type::X4)
         return false;
 
-    return typeRepr.as<SimdTypeDescr>().type() == expectedType;
+    return typeRepr.as<X4TypeDescr>().type() == expectedType;
 }
 
 template<class V>
@@ -92,27 +92,27 @@ TypedObjectMemory(HandleValue v)
     return reinterpret_cast<Elem>(obj.typedMem());
 }
 
-template<typename SimdType, int lane>
-static bool GetSimdLane(JSContext *cx, unsigned argc, Value *vp)
+template<typename Type32x4, int lane>
+static bool GetX4Lane(JSContext *cx, unsigned argc, Value *vp)
 {
-    typedef typename SimdType::Elem Elem;
+    typedef typename Type32x4::Elem Elem;
 
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (!IsVectorObject<SimdType>(args.thisv())) {
+    if (!IsVectorObject<Type32x4>(args.thisv())) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
-                             SimdTypeDescr::class_.name, laneNames[lane],
+                             X4TypeDescr::class_.name, laneNames[lane],
                              InformalValueTypeName(args.thisv()));
         return false;
     }
 
     Elem *data = TypedObjectMemory<Elem *>(args.thisv());
-    SimdType::setReturn(args, data[lane]);
+    Type32x4::setReturn(args, data[lane]);
     return true;
 }
 
 #define LANE_ACCESSOR(type, lane) \
 static bool type##Lane##lane(JSContext *cx, unsigned argc, Value *vp) { \
-    return GetSimdLane<type, lane>(cx, argc, vp);\
+    return GetX4Lane<type, lane>(cx, argc, vp);\
 }
 
 #define FOUR_LANES_ACCESSOR(type) \
@@ -126,24 +126,24 @@ static bool type##Lane##lane(JSContext *cx, unsigned argc, Value *vp) { \
 #undef FOUR_LANES_ACCESSOR
 #undef LANE_ACCESSOR
 
-template<typename SimdType>
+template<typename Type32x4>
 static bool SignMask(JSContext *cx, unsigned argc, Value *vp)
 {
-    typedef typename SimdType::Elem Elem;
+    typedef typename Type32x4::Elem Elem;
 
     CallArgs args = CallArgsFromVp(argc, vp);
     if (!args.thisv().isObject() || !args.thisv().toObject().is<TypedObject>()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
-                             SimdTypeDescr::class_.name, "signMask",
+                             X4TypeDescr::class_.name, "signMask",
                              InformalValueTypeName(args.thisv()));
         return false;
     }
 
     TypedObject &typedObj = args.thisv().toObject().as<TypedObject>();
     TypeDescr &descr = typedObj.typeDescr();
-    if (descr.kind() != type::Simd || descr.as<SimdTypeDescr>().type() != SimdType::type) {
+    if (descr.kind() != type::X4 || descr.as<X4TypeDescr>().type() != Type32x4::type) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
-                             SimdTypeDescr::class_.name, "signMask",
+                             X4TypeDescr::class_.name, "signMask",
                              InformalValueTypeName(args.thisv()));
         return false;
     }
@@ -167,8 +167,8 @@ static bool type##SignMask(JSContext *cx, unsigned argc, Value *vp) { \
     SIGN_MASK(Int32x4);
 #undef SIGN_MASK
 
-const Class SimdTypeDescr::class_ = {
-    "SIMD",
+const Class X4TypeDescr::class_ = {
+    "X4",
     JSCLASS_HAS_RESERVED_SLOTS(JS_DESCR_SLOTS),
     JS_PropertyStub,         /* addProperty */
     JS_DeletePropertyStub,   /* delProperty */
@@ -188,14 +188,14 @@ const Class SimdTypeDescr::class_ = {
 namespace js {
 class Int32x4Defn {
   public:
-    static const SimdTypeDescr::Type type = SimdTypeDescr::TYPE_INT32;
+    static const X4TypeDescr::Type type = X4TypeDescr::TYPE_INT32;
     static const JSFunctionSpec TypeDescriptorMethods[];
     static const JSPropertySpec TypedObjectProperties[];
     static const JSFunctionSpec TypedObjectMethods[];
 };
 class Float32x4Defn {
   public:
-    static const SimdTypeDescr::Type type = SimdTypeDescr::TYPE_FLOAT32;
+    static const X4TypeDescr::Type type = X4TypeDescr::TYPE_FLOAT32;
     static const JSFunctionSpec TypeDescriptorMethods[];
     static const JSPropertySpec TypedObjectProperties[];
     static const JSFunctionSpec TypedObjectMethods[];
@@ -219,7 +219,7 @@ const JSPropertySpec js::Float32x4Defn::TypedObjectProperties[] = {
 };
 
 const JSFunctionSpec js::Float32x4Defn::TypedObjectMethods[] = {
-    JS_SELF_HOSTED_FN("toSource", "SimdToSource", 0, 0),
+    JS_SELF_HOSTED_FN("toSource", "X4ToSource", 0, 0),
     JS_FS_END
 };
 
@@ -240,17 +240,17 @@ const JSPropertySpec js::Int32x4Defn::TypedObjectProperties[] = {
 };
 
 const JSFunctionSpec js::Int32x4Defn::TypedObjectMethods[] = {
-    JS_SELF_HOSTED_FN("toSource", "SimdToSource", 0, 0),
+    JS_SELF_HOSTED_FN("toSource", "X4ToSource", 0, 0),
     JS_FS_END
 };
 
 template<typename T>
 static JSObject *
-CreateSimdClass(JSContext *cx,
+CreateX4Class(JSContext *cx,
               Handle<GlobalObject*> global,
               HandlePropertyName stringRepr)
 {
-    const SimdTypeDescr::Type type = T::type;
+    const X4TypeDescr::Type type = T::type;
 
     RootedObject funcProto(cx, global->getOrCreateFunctionPrototype(cx));
     if (!funcProto)
@@ -258,19 +258,19 @@ CreateSimdClass(JSContext *cx,
 
     // Create type constructor itself and initialize its reserved slots.
 
-    Rooted<SimdTypeDescr*> typeDescr(cx);
-    typeDescr = NewObjectWithProto<SimdTypeDescr>(cx, funcProto, global, TenuredObject);
-    if (!typeDescr)
+    Rooted<X4TypeDescr*> x4(cx);
+    x4 = NewObjectWithProto<X4TypeDescr>(cx, funcProto, global, TenuredObject);
+    if (!x4)
         return nullptr;
 
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(type::Simd));
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(stringRepr));
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(SimdTypeDescr::alignment(type)));
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(SimdTypeDescr::size(type)));
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_OPAQUE, BooleanValue(false));
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(T::type));
+    x4->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(type::X4));
+    x4->initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(stringRepr));
+    x4->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(X4TypeDescr::alignment(type)));
+    x4->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(X4TypeDescr::size(type)));
+    x4->initReservedSlot(JS_DESCR_SLOT_OPAQUE, BooleanValue(false));
+    x4->initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(T::type));
 
-    if (!CreateUserSizeAndAlignmentProperties(cx, typeDescr))
+    if (!CreateUserSizeAndAlignmentProperties(cx, x4))
         return nullptr;
 
     // Create prototype property, which inherits from Object.prototype.
@@ -282,33 +282,33 @@ CreateSimdClass(JSContext *cx,
     proto = NewObjectWithProto<TypedProto>(cx, objProto, nullptr, TenuredObject);
     if (!proto)
         return nullptr;
-    proto->initTypeDescrSlot(*typeDescr);
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*proto));
+    proto->initTypeDescrSlot(*x4);
+    x4->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*proto));
 
     // Link constructor to prototype and install properties.
 
-    if (!JS_DefineFunctions(cx, typeDescr, T::TypeDescriptorMethods))
+    if (!JS_DefineFunctions(cx, x4, T::TypeDescriptorMethods))
         return nullptr;
 
-    if (!LinkConstructorAndPrototype(cx, typeDescr, proto) ||
+    if (!LinkConstructorAndPrototype(cx, x4, proto) ||
         !DefinePropertiesAndFunctions(cx, proto, T::TypedObjectProperties,
                                       T::TypedObjectMethods))
     {
         return nullptr;
     }
 
-    return typeDescr;
+    return x4;
 }
 
 bool
-SimdTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
+X4TypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     const unsigned LANES = 4;
 
-    Rooted<SimdTypeDescr*> descr(cx, &args.callee().as<SimdTypeDescr>());
+    Rooted<X4TypeDescr*> descr(cx, &args.callee().as<X4TypeDescr>());
     if (args.length() == 1) {
-        // SIMD type used as a coercion
+        // X4 type used as a coercion
         if (!CheckVectorObject(args[0], descr->type())) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SIMD_NOT_A_VECTOR);
             return false;
@@ -344,7 +344,7 @@ SimdTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
             mem[i] = ConvertScalar<_type>(values[i]);                         \
         break;                                                                \
       }
-      JS_FOR_EACH_SIMD_TYPE_REPR(STORE_LANES)
+      JS_FOR_EACH_X4_TYPE_REPR(STORE_LANES)
 #undef STORE_LANES
     }
     args.rval().setObject(*result);
@@ -660,8 +660,8 @@ SIMDObject::initClass(JSContext *cx, Handle<GlobalObject *> global)
 
     // float32x4
     RootedObject float32x4Object(cx);
-    float32x4Object = CreateSimdClass<Float32x4Defn>(cx, global,
-                                                     cx->names().float32x4);
+    float32x4Object = CreateX4Class<Float32x4Defn>(cx, global,
+                                                   cx->names().float32x4);
     if (!float32x4Object)
         return nullptr;
 
@@ -677,8 +677,8 @@ SIMDObject::initClass(JSContext *cx, Handle<GlobalObject *> global)
 
     // int32x4
     RootedObject int32x4Object(cx);
-    int32x4Object = CreateSimdClass<Int32x4Defn>(cx, global,
-                                                 cx->names().int32x4);
+    int32x4Object = CreateX4Class<Int32x4Defn>(cx, global,
+                                               cx->names().int32x4);
     if (!int32x4Object)
         return nullptr;
 

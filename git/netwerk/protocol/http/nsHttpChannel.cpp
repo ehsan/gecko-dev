@@ -896,13 +896,13 @@ nsHttpChannel::CallOnStartRequest()
         mResponseHead->SetContentCharset(mContentCharsetHint);
 
     if (mResponseHead && mCacheEntry) {
-        // If we have a cache entry, set its predicted size to TotalEntitySize to
+        // If we have a cache entry, set its predicted size to ContentLength to
         // avoid caching an entry that will exceed the max size limit.
         rv = mCacheEntry->SetPredictedDataSize(
-            mResponseHead->TotalEntitySize());
+            mResponseHead->ContentLength());
         if (NS_ERROR_FILE_TOO_BIG == rv) {
-          // Don't throw the entry away, we will need it later.
-          LOG(("  entry too big"));
+          mCacheEntry = nullptr;
+          LOG(("  entry too big, throwing away"));
         } else {
           NS_ENSURE_SUCCESS(rv, rv);
         }
@@ -2063,13 +2063,12 @@ nsHttpChannel::IsResumable(int64_t partialLen, int64_t contentLength,
 }
 
 nsresult
-nsHttpChannel::MaybeSetupByteRangeRequest(int64_t partialLen, int64_t contentLength,
-                                          bool ignoreMissingPartialLen)
+nsHttpChannel::MaybeSetupByteRangeRequest(int64_t partialLen, int64_t contentLength)
 {
     // Be pesimistic
     mIsPartialRequest = false;
 
-    if (!IsResumable(partialLen, contentLength, ignoreMissingPartialLen))
+    if (!IsResumable(partialLen, contentLength))
       return NS_ERROR_NOT_RESUMABLE;
 
     // looks like a partial entry we can reuse; add If-Range
@@ -2575,7 +2574,7 @@ nsHttpChannel::OpenCacheEntry(bool usingSSL)
                             | nsICacheStorage::CHECK_MULTITHREADED;
     }
 
-    if (!mPostID && mApplicationCache) {
+    if (mApplicationCache) {
         rv = cacheStorageService->AppCacheStorage(info, 
             mApplicationCache,
             getter_AddRefs(cacheStorage));
@@ -2586,7 +2585,7 @@ nsHttpChannel::OpenCacheEntry(bool usingSSL)
     }
     else {
         rv = cacheStorageService->DiskCacheStorage(info,
-            !mPostID && (mChooseApplicationCache || (mLoadFlags & LOAD_CHECK_OFFLINE_CACHE)),
+            mChooseApplicationCache || (mLoadFlags & LOAD_CHECK_OFFLINE_CACHE),
             getter_AddRefs(cacheStorage));
     }
     NS_ENSURE_SUCCESS(rv, rv);
@@ -5150,9 +5149,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
             else if (contentLength != int64_t(-1) && contentLength != size) {
                 LOG(("  concurrent cache entry write has been interrupted"));
                 mCachedResponseHead = Move(mResponseHead);
-                // Ignore zero partial length because we also want to resume when
-                // no data at all has been read from the cache.
-                rv = MaybeSetupByteRangeRequest(size, contentLength, true);
+                rv = MaybeSetupByteRangeRequest(size, contentLength);
                 if (NS_SUCCEEDED(rv) && mIsPartialRequest) {
                     // Prevent read from cache again
                     mCachedContentIsValid = 0;

@@ -129,12 +129,13 @@ DocAccessibleWrap::DoInitialUpdate()
           rootDocument->GetNativeWindow());
 
       bool isActive = true;
-      nsIntRect rect(CW_USEDEFAULT, CW_USEDEFAULT, 0, 0);
+      int32_t x = CW_USEDEFAULT, y = CW_USEDEFAULT, width = 0, height = 0;
       if (Compatibility::IsDolphin()) {
-        rect = Bounds();
-        nsIntRect rootRect = rootDocument->Bounds();
-        rect.x = rootRect.x - rect.x;
-        rect.y -= rootRect.y;
+        GetBounds(&x, &y, &width, &height);
+        int32_t rootX = 0, rootY = 0, rootWidth = 0, rootHeight = 0;
+        rootDocument->GetBounds(&rootX, &rootY, &rootWidth, &rootHeight);
+        x = rootX - x;
+        y -= rootY;
 
         nsCOMPtr<nsISupports> container = mDocumentNode->GetContainer();
         nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
@@ -143,8 +144,7 @@ DocAccessibleWrap::DoInitialUpdate()
 
       HWND parentWnd = reinterpret_cast<HWND>(nativeData);
       mHWND = nsWinUtils::CreateNativeWindow(kClassNameTabContent, parentWnd,
-                                             rect.x, rect.y,
-                                             rect.width, rect.height, isActive);
+                                             x, y, width, height, isActive);
 
       nsWinUtils::sHWNDCache->Put(mHWND, this);
 

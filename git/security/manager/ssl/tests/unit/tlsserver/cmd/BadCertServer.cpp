@@ -55,7 +55,6 @@ const BadCertHost sBadCertHosts[] =
   { "exclude-subdomains.pinning.example.com", "localhostAndExampleCom" },
   { "sub.exclude-subdomains.pinning.example.com", "otherIssuerEE" },
   { "test-mode.pinning.example.com", "otherIssuerEE" },
-  { "unknownissuer.include-subdomains.pinning.example.com", "unknownissuer" },
   { "nsCertTypeNotCritical.example.com", "nsCertTypeNotCritical" },
   { "nsCertTypeCriticalWithExtKeyUsage.example.com", "nsCertTypeCriticalWithExtKeyUsage" },
   { "nsCertTypeCritical.example.com", "nsCertTypeCritical" },

@@ -310,7 +310,7 @@ TextureClientD3D11::BorrowDrawTarget()
 {
   MOZ_ASSERT(mIsLocked, "Calling TextureClient::BorrowDrawTarget without locking :(");
 
-  if (!mIsLocked || (!mTexture && !mTexture10)) {
+  if (!mTexture && !mTexture10) {
     return nullptr;
   }
 

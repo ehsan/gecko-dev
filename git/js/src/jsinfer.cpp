@@ -614,8 +614,6 @@ TypeSet::print()
         fprintf(stderr, " float");
     if (flags & TYPE_FLAG_STRING)
         fprintf(stderr, " string");
-    if (flags & TYPE_FLAG_SYMBOL)
-        fprintf(stderr, " symbol");
     if (flags & TYPE_FLAG_LAZYARGS)
         fprintf(stderr, " lazyargs");
 
@@ -1500,7 +1498,7 @@ HeapTypeSetKey::needsBarrier(CompilerConstraintList *constraints)
         return false;
     bool result = types->unknownObject()
                || types->getObjectCount() > 0
-               || types->hasAnyFlag(TYPE_FLAG_STRING | TYPE_FLAG_SYMBOL);
+               || types->hasAnyFlag(TYPE_FLAG_STRING);
     if (!result)
         freeze(constraints);
     return result;
@@ -2037,16 +2035,6 @@ TemporaryTypeSet::getTypedArrayType()
     return Scalar::TypeMax;
 }
 
-Scalar::Type
-TemporaryTypeSet::getSharedTypedArrayType()
-{
-    const Class *clasp = getKnownClass();
-
-    if (clasp && IsSharedTypedArrayClass(clasp))
-        return (Scalar::Type) (clasp - &SharedTypedArrayObject::classes[0]);
-    return Scalar::TypeMax;
-}
-
 bool
 TemporaryTypeSet::isDOMClass()
 {
@@ -2287,12 +2275,8 @@ types::UseNewTypeForInitializer(JSScript *script, jsbytecode *pc, JSProtoKey key
     if (script->functionNonDelazifying() && !script->treatAsRunOnce())
         return GenericObject;
 
-    if (key != JSProto_Object &&
-        !(key >= JSProto_Int8Array && key <= JSProto_Uint8ClampedArray) &&
-        !(key >= JSProto_SharedInt8Array && key <= JSProto_SharedUint8ClampedArray))
-    {
+    if (key != JSProto_Object && !(key >= JSProto_Int8Array && key <= JSProto_Uint8ClampedArray))
         return GenericObject;
-    }
 
     /*
      * All loops in the script will have a JSTRY_ITER or JSTRY_LOOP try note
@@ -2333,7 +2317,7 @@ ClassCanHaveExtraProperties(const Class *clasp)
     return clasp->resolve != JS_ResolveStub
         || clasp->ops.lookupGeneric
         || clasp->ops.getGeneric
-        || IsAnyTypedArrayClass(clasp);
+        || IsTypedArrayClass(clasp);
 }
 
 static inline bool
@@ -2373,7 +2357,7 @@ types::TypeCanHaveExtraIndexedProperties(CompilerConstraintList *constraints,
     // Note: typed arrays have indexed properties not accounted for by type
     // information, though these are all in bounds and will be accounted for
     // by JIT paths.
-    if (!clasp || (ClassCanHaveExtraProperties(clasp) && !IsAnyTypedArrayClass(clasp)))
+    if (!clasp || (ClassCanHaveExtraProperties(clasp) && !IsTypedArrayClass(clasp)))
         return true;
 
     if (types->hasObjectFlags(constraints, types::OBJECT_FLAG_SPARSE_INDEXES))
