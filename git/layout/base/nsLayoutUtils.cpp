@@ -6698,8 +6698,8 @@ nsLayoutUtils::UpdateImageVisibilityForFrame(nsIFrame* aImageFrame)
 }
 
 /* static */ bool
-nsLayoutUtils::GetContentViewerSize(nsPresContext* aPresContext,
-                                    LayoutDeviceIntSize& aOutSize)
+nsLayoutUtils::GetContentViewerBounds(nsPresContext* aPresContext,
+                                      LayoutDeviceIntRect& aOutRect)
 {
   nsCOMPtr<nsIDocShell> docShell = aPresContext->GetDocShell();
   if (!docShell) {
@@ -6714,7 +6714,7 @@ nsLayoutUtils::GetContentViewerSize(nsPresContext* aPresContext,
 
   nsIntRect bounds;
   cv->GetBounds(bounds);
-  aOutSize = LayoutDeviceIntRect::FromUntyped(bounds).Size();
+  aOutRect = LayoutDeviceIntRect::FromUntyped(bounds);
   return true;
 }
 
@@ -6752,9 +6752,9 @@ nsLayoutUtils::CalculateCompositionSizeForFrame(nsIFrame* aFrame)
         }
 #endif
       } else {
-        LayoutDeviceIntSize contentSize;
-        if (nsLayoutUtils::GetContentViewerSize(presContext, contentSize)) {
-          size = LayoutDevicePixel::ToAppUnits(contentSize, auPerDevPixel);
+        LayoutDeviceIntRect contentBounds;
+        if (nsLayoutUtils::GetContentViewerBounds(presContext, contentBounds)) {
+          size = LayoutDevicePixel::ToAppUnits(contentBounds.Size(), auPerDevPixel);
         }
       }
     }
@@ -6820,14 +6820,14 @@ nsLayoutUtils::CalculateRootCompositionSize(nsIFrame* aFrame,
         }
 #endif
       } else {
-        LayoutDeviceIntSize contentSize;
-        if (nsLayoutUtils::GetContentViewerSize(rootPresContext, contentSize)) {
+        LayoutDeviceIntRect contentBounds;
+        if (nsLayoutUtils::GetContentViewerBounds(rootPresContext, contentBounds)) {
           LayoutDeviceToLayerScale scale(1.0f);
           if (rootPresContext->GetParentPresContext()) {
             gfxSize res = rootPresContext->GetParentPresContext()->PresShell()->GetCumulativeResolution();
             scale = LayoutDeviceToLayerScale(res.width, res.height);
           }
-          rootCompositionSize = contentSize * scale;
+          rootCompositionSize = contentBounds.Size() * scale;
         }
       }
     }

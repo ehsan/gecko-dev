@@ -49,7 +49,7 @@ class SiteHPKPState
 {
 public:
   SiteHPKPState();
-  explicit SiteHPKPState(nsCString& aStateString);
+  SiteHPKPState(nsCString& aStateString);
   SiteHPKPState(PRTime aExpireTime, SecurityPropertyState aState,
                 bool aIncludeSubdomains, nsTArray<nsCString>& SHA256keys);
 
@@ -81,7 +81,7 @@ public:
 class SiteHSTSState
 {
 public:
-  explicit SiteHSTSState(nsCString& aStateString);
+  SiteHSTSState(nsCString& aStateString);
   SiteHSTSState(PRTime aHSTSExpireTime, SecurityPropertyState aHSTSState,
                 bool aHSTSIncludeSubdomains);
 

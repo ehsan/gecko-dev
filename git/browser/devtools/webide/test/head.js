@@ -85,11 +85,9 @@ function closeWebIDE(win) {
 function removeAllProjects() {
   return Task.spawn(function* () {
     yield AppProjects.load();
-    // use a new array so we're not iterating over the same
-    // underlying array that's being modified by AppProjects
-    let projects = AppProjects.store.object.projects.map(p => p.location);
+    let projects = AppProjects.store.object.projects;
     for (let i = 0; i < projects.length; i++) {
-      yield AppProjects.remove(projects[i]);
+      yield AppProjects.remove(projects[i].location);
     }
   });
 }
@@ -110,7 +108,7 @@ function waitForUpdate(win, update) {
       return;
     }
     win.AppManager.off("app-manager-update", onUpdate);
-    deferred.resolve(win.UI._updatePromise);
+    deferred.resolve();
   });
   return deferred.promise;
 }

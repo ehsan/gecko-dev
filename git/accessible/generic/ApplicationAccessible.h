@@ -9,7 +9,7 @@
 #define mozilla_a11y_ApplicationAccessible_h__
 
 #include "AccessibleWrap.h"
-#include "xpcAccessibleApplication.h"
+#include "nsIAccessibleApplication.h"
 
 #include "nsIMutableArray.h"
 #include "nsIXULAppInfo.h"
@@ -28,7 +28,7 @@ namespace a11y {
  */
 
 class ApplicationAccessible : public AccessibleWrap,
-                              public xpcAccessibleApplication
+                              public nsIAccessibleApplication
 {
 public:
 
@@ -36,6 +36,9 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIAccessibleApplication
+  NS_DECL_NSIACCESSIBLEAPPLICATION
 
   // Accessible
   virtual void Shutdown();
@@ -59,33 +62,6 @@ public:
 
   // ActionAccessible
   virtual KeyBinding AccessKey() const;
-
-  // ApplicationAccessible
-  void AppName(nsAString& aName) const
-  {
-    nsAutoCString cname;
-    mAppInfo->GetName(cname);
-    AppendUTF8toUTF16(cname, aName);
-  }
-
-  void AppVersion(nsAString& aVersion) const
-  {
-    nsAutoCString cversion;
-    mAppInfo->GetVersion(cversion);
-    AppendUTF8toUTF16(cversion, aVersion);
-  }
-
-  void PlatformName(nsAString& aName) const
-  {
-    aName.AssignLiteral("Gecko");
-  }
-
-  void PlatformVersion(nsAString& aVersion) const
-  {
-    nsAutoCString cversion;
-    mAppInfo->GetPlatformVersion(cversion);
-    AppendUTF8toUTF16(cversion, aVersion);
-  }
 
 protected:
   virtual ~ApplicationAccessible() {}
