@@ -1213,7 +1213,6 @@ nsPlaintextEditor::Undo(PRUint32 aCount)
     result = mRules->DidDoAction(selection, &ruleInfo, result);
   } 
    
-  NotifyEditorObservers();
   return result;
 }
 
@@ -1243,7 +1242,6 @@ nsPlaintextEditor::Redo(PRUint32 aCount)
     result = mRules->DidDoAction(selection, &ruleInfo, result);
   } 
    
-  NotifyEditorObservers();
   return result;
 }
 

@@ -1227,7 +1227,7 @@ JS_ClearContextDebugHooks(JSContext *cx)
 static char gLastError[2000];
 
 static void
-#ifdef __GNUC__
+#ifdef _GNU_SOURCE
 __attribute__((unused,format(printf,1,2)))
 #endif
 UnsafeError(const char *format, ...)

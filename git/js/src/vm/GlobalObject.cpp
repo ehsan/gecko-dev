@@ -218,40 +218,28 @@ GlobalObject::createConstructor(JSContext *cx, Native ctor, Class *clasp, JSAtom
     return fun;
 }
 
-static JSObject *
-CreateBlankProto(JSContext *cx, Class *clasp, JSObject &proto, GlobalObject &global)
+JSObject *
+GlobalObject::createBlankPrototype(JSContext *cx, Class *clasp)
 {
     JS_ASSERT(clasp != &js_ObjectClass);
     JS_ASSERT(clasp != &js_FunctionClass);
 
-    JSObject *blankProto = NewNonFunction<WithProto::Given>(cx, clasp, &proto, &global);
-    if (!blankProto)
+    JSObject *objectProto;
+    if (!js_GetClassPrototype(cx, this, JSProto_Object, &objectProto))
+        return NULL;
+
+    JSObject *proto = NewNonFunction<WithProto::Given>(cx, clasp, objectProto, this);
+    if (!proto)
         return NULL;
 
     /*
      * Supply the created prototype object with an empty shape for the benefit
      * of callers of JSObject::initSharingEmptyShape.
      */
-    if (!blankProto->getEmptyShape(cx, clasp, gc::FINALIZE_OBJECT0))
+    if (!proto->getEmptyShape(cx, clasp, gc::FINALIZE_OBJECT0))
         return NULL;
 
-    return blankProto;
-}
-
-JSObject *
-GlobalObject::createBlankPrototype(JSContext *cx, Class *clasp)
-{
-    JSObject *objectProto;
-    if (!js_GetClassPrototype(cx, this, JSProto_Object, &objectProto))
-        return NULL;
-
-    return CreateBlankProto(cx, clasp, *objectProto, *this);
-}
-
-JSObject *
-GlobalObject::createBlankPrototypeInheriting(JSContext *cx, Class *clasp, JSObject &proto)
-{
-    return CreateBlankProto(cx, clasp, proto, *this);
+    return proto;
 }
 
 bool

@@ -3,6 +3,7 @@
  *
  * See README.Mozilla for details on how to generate this.
  */
+
 const TEST_RESULTS = {
   "S": {
     "Proposed": {
@@ -502,33 +503,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>",
-          "bodyInnerHTML": "`foö^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>",
+          "bodyInnerHTML": "`foö^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>",
-          "bodyInnerHTML": "`foö^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>",
+          "bodyInnerHTML": "`foö^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö^barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>CAN<br>ARY</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö^barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.f.c_CHAR-4_SC-1": {
@@ -572,33 +573,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>",
-          "bodyInnerHTML": "`foö̤^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>",
+          "bodyInnerHTML": "`foö̤^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>",
-          "bodyInnerHTML": "`foö̤^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>",
+          "bodyInnerHTML": "`foö̤^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤^barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>CAN<br>ARY</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤^barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.f.c_CHAR-5_SI-1": {
@@ -607,33 +608,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>",
-          "bodyInnerHTML": "`foö̤^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>",
+          "bodyInnerHTML": "`foö̤^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>",
-          "bodyInnerHTML": "`foö̤^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>",
+          "bodyInnerHTML": "`foö̤^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤^barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>CAN<br>ARY</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤^barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.f.c_CHAR-5_SI-2": {
@@ -642,33 +643,33 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤b^arbaz´",
-          "innerHTML": "`foö̤b^arbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤b^arbaz´</body>",
-          "bodyInnerHTML": "`foö̤b^arbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤b^arbaz´</body>"
+          "output": "`foö̤b^arbaz´",
+          "innerHTML": "`foö̤b^arbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤b^arbaz´</body>",
+          "bodyInnerHTML": "`foö̤b^arbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤b^arbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤b^arbaz´",
-          "innerHTML": "`foö̤b^arbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤b^arbaz´</body>",
-          "bodyInnerHTML": "`foö̤b^arbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤b^arbaz´</body>"
+          "output": "`foö̤b^arbaz´",
+          "innerHTML": "`foö̤b^arbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤b^arbaz´</body>",
+          "bodyInnerHTML": "`foö̤b^arbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤b^arbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤b^arbaz´",
-          "innerHTML": "`foö̤b^arbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤b^arbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤b^arbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤b^arbaz´</div>CAN<br>ARY</body>"
+          "output": "`foö̤b^arbaz´",
+          "innerHTML": "`foö̤b^arbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤b^arbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤b^arbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤b^arbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.f.c_CHAR-5_SL": {
@@ -677,33 +678,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>",
-          "bodyInnerHTML": "`foö̤^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>",
+          "bodyInnerHTML": "`foö̤^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤^barbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>",
-          "bodyInnerHTML": "`foö̤^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>",
+          "bodyInnerHTML": "`foö̤^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤^barbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`foö̤^barbaz´",
-          "innerHTML": "`foö̤^barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤^barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>CAN<br>ARY</body>"
+          "output": "`foö̤^barbaz´",
+          "innerHTML": "`foö̤^barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤^barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤^barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.f.c_CHAR-5_SR": {
@@ -712,33 +713,33 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤barb^az´",
-          "innerHTML": "`foö̤barb^az´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤barb^az´</body>",
-          "bodyInnerHTML": "`foö̤barb^az´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤barb^az´</body>"
+          "output": "`foö̤barb^az´",
+          "innerHTML": "`foö̤barb^az´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤barb^az´</body>",
+          "bodyInnerHTML": "`foö̤barb^az´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤barb^az´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤barb^az´",
-          "innerHTML": "`foö̤barb^az´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤barb^az´</body>",
-          "bodyInnerHTML": "`foö̤barb^az´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤barb^az´</body>"
+          "output": "`foö̤barb^az´",
+          "innerHTML": "`foö̤barb^az´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤barb^az´</body>",
+          "bodyInnerHTML": "`foö̤barb^az´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤barb^az´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤barb^az´",
-          "innerHTML": "`foö̤barb^az´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤barb^az´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤barb^az´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤barb^az´</div>CAN<br>ARY</body>"
+          "output": "`foö̤barb^az´",
+          "innerHTML": "`foö̤barb^az´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤barb^az´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤barb^az´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤barb^az´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.f.c_CHAR-6_SC-1": {
@@ -852,33 +853,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^öbarbaz´",
-          "innerHTML": "`fo^öbarbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^öbarbaz´</body>",
-          "bodyInnerHTML": "`fo^öbarbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^öbarbaz´</body>"
+          "output": "`fo^öbarbaz´",
+          "innerHTML": "`fo^öbarbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^öbarbaz´</body>",
+          "bodyInnerHTML": "`fo^öbarbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^öbarbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^öbarbaz´",
-          "innerHTML": "`fo^öbarbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^öbarbaz´</body>",
-          "bodyInnerHTML": "`fo^öbarbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^öbarbaz´</body>"
+          "output": "`fo^öbarbaz´",
+          "innerHTML": "`fo^öbarbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^öbarbaz´</body>",
+          "bodyInnerHTML": "`fo^öbarbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^öbarbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^öbarbaz´",
-          "innerHTML": "`fo^öbarbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^öbarbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^öbarbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^öbarbaz´</div>CAN<br>ARY</body>"
+          "output": "`fo^öbarbaz´",
+          "innerHTML": "`fo^öbarbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^öbarbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^öbarbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^öbarbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.b.c_CHAR-4_SC-1": {
@@ -922,33 +923,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.b.c_CHAR-5_SI-1": {
@@ -957,33 +958,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.b.c_CHAR-5_SI-2": {
@@ -992,33 +993,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.b.c_CHAR-5_SL": {
@@ -1027,33 +1028,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.b.c_CHAR-5_SR": {
@@ -1062,33 +1063,33 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤ba^rbaz´",
-          "innerHTML": "`foö̤ba^rbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤ba^rbaz´</body>",
-          "bodyInnerHTML": "`foö̤ba^rbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤ba^rbaz´</body>"
+          "output": "`foö̤ba^rbaz´",
+          "innerHTML": "`foö̤ba^rbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤ba^rbaz´</body>",
+          "bodyInnerHTML": "`foö̤ba^rbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö̤ba^rbaz´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤ba^rbaz´",
-          "innerHTML": "`foö̤ba^rbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤ba^rbaz´</body>",
-          "bodyInnerHTML": "`foö̤ba^rbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤ba^rbaz´</body>"
+          "output": "`foö̤ba^rbaz´",
+          "innerHTML": "`foö̤ba^rbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤ba^rbaz´</body>",
+          "bodyInnerHTML": "`foö̤ba^rbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö̤ba^rbaz´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 0,
           "valresult": 8,
           "selresult": 2,
-          "output": "`foö̤ba^rbaz´",
-          "innerHTML": "`foö̤ba^rbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤ba^rbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤ba^rbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤ba^rbaz´</div>CAN<br>ARY</body>"
+          "output": "`foö̤ba^rbaz´",
+          "innerHTML": "`foö̤ba^rbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö̤ba^rbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö̤ba^rbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö̤ba^rbaz´</div>CAN<br>ARY</body>"
         }
       },
       "SM:m.b.c_CHAR-6_SC-1": {
@@ -4534,11 +4535,11 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"blue\" contenteditable=\"true\">`foo[bar]baz´</body>",
+          "output": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"blue\">`foo[bar]baz´</body>",
           "innerHTML": "`foo[bar]baz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"blue\" contenteditable=\"true\">`foo[bar]baz´</body>",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"blue\">`foo[bar]baz´</body>",
           "bodyInnerHTML": "`foo[bar]baz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"blue\" contenteditable=\"true\">`foo[bar]baz´</body>"
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"blue\">`foo[bar]baz´</body>"
         },
         "div": {
           "valscore": 0,
@@ -4891,11 +4892,11 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 7,
           "selresult": 5,
-          "output": "<div xmlns=\"http://www.w3.org/1999/xhtml\" align=\"center\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>",
+          "output": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" align=\"center\" id=\"editor-div\">`foo^bar´</div>",
           "innerHTML": "`foo^bar´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" align=\"center\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\" align=\"center\">`foo^bar´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div align=\"center\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>CAN<br>ARY</body>"
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" align=\"center\" id=\"editor-div\">`foo^bar´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" align=\"center\" contenteditable=\"true\">`foo^bar´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" align=\"center\" id=\"editor-div\">`foo^bar´</div>CAN<br>ARY</body>"
         }
       },
       "JF_TEXT-1_SC": {
@@ -4926,11 +4927,11 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 7,
           "selresult": 5,
-          "output": "<div xmlns=\"http://www.w3.org/1999/xhtml\" align=\"justify\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>",
+          "output": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" align=\"justify\" id=\"editor-div\">`foo^bar´</div>",
           "innerHTML": "`foo^bar´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" align=\"justify\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\" align=\"justify\">`foo^bar´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div align=\"justify\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>CAN<br>ARY</body>"
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" align=\"justify\" id=\"editor-div\">`foo^bar´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" align=\"justify\" contenteditable=\"true\">`foo^bar´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" align=\"justify\" id=\"editor-div\">`foo^bar´</div>CAN<br>ARY</body>"
         }
       },
       "JL_TEXT-1_SC": {
@@ -4961,11 +4962,11 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 7,
           "selresult": 5,
-          "output": "<div xmlns=\"http://www.w3.org/1999/xhtml\" align=\"left\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>",
+          "output": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" align=\"left\" id=\"editor-div\">`foo^bar´</div>",
           "innerHTML": "`foo^bar´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" align=\"left\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\" align=\"left\">`foo^bar´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div align=\"left\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>CAN<br>ARY</body>"
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" align=\"left\" id=\"editor-div\">`foo^bar´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" align=\"left\" contenteditable=\"true\">`foo^bar´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" align=\"left\" id=\"editor-div\">`foo^bar´</div>CAN<br>ARY</body>"
         }
       },
       "JR_TEXT-1_SC": {
@@ -4996,11 +4997,11 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 7,
           "selresult": 5,
-          "output": "<div xmlns=\"http://www.w3.org/1999/xhtml\" align=\"right\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>",
+          "output": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" align=\"right\" id=\"editor-div\">`foo^bar´</div>",
           "innerHTML": "`foo^bar´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" align=\"right\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\" align=\"right\">`foo^bar´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div align=\"right\" contenteditable=\"true\" id=\"editor-div\">`foo^bar´</div>CAN<br>ARY</body>"
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" align=\"right\" id=\"editor-div\">`foo^bar´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" align=\"right\" contenteditable=\"true\">`foo^bar´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" align=\"right\" id=\"editor-div\">`foo^bar´</div>CAN<br>ARY</body>"
         }
       },
       "H:H1_TEXT-1_SC": {
@@ -5903,11 +5904,11 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#884422\" contenteditable=\"true\"><font style=\"background-color: #ffccaa\">`[foobarbaz]´</font></body>",
+          "output": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#884422\"><font style=\"background-color: #ffccaa\">`[foobarbaz]´</font></body>",
           "innerHTML": "<font style=\"background-color: #ffccaa\">`[foobarbaz]´</font>",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#884422\" contenteditable=\"true\"><font style=\"background-color: #ffccaa\">`[foobarbaz]´</font></body>",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#884422\"><font style=\"background-color: #ffccaa\">`[foobarbaz]´</font></body>",
           "bodyInnerHTML": "<font style=\"background-color: #ffccaa\">`[foobarbaz]´</font>",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#884422\" contenteditable=\"true\"><font style=\"background-color: #ffccaa\">`[foobarbaz]´</font></body>"
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#884422\"><font style=\"background-color: #ffccaa\">`[foobarbaz]´</font></body>"
         },
         "div": {
           "valscore": 0,
@@ -5938,11 +5939,11 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#0000ff\" contenteditable=\"true\"><span style=\"background-color: #ff0000\">`[foobarbaz]´</span></body>",
+          "output": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#0000ff\"><span style=\"background-color: #ff0000\">`[foobarbaz]´</span></body>",
           "innerHTML": "<span style=\"background-color: #ff0000\">`[foobarbaz]´</span>",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#0000ff\" contenteditable=\"true\"><span style=\"background-color: #ff0000\">`[foobarbaz]´</span></body>",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#0000ff\"><span style=\"background-color: #ff0000\">`[foobarbaz]´</span></body>",
           "bodyInnerHTML": "<span style=\"background-color: #ff0000\">`[foobarbaz]´</span>",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#0000ff\" contenteditable=\"true\"><span style=\"background-color: #ff0000\">`[foobarbaz]´</span></body>"
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#0000ff\"><span style=\"background-color: #ff0000\">`[foobarbaz]´</span></body>"
         },
         "div": {
           "valscore": 0,
@@ -5973,11 +5974,11 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#aaccee\" contenteditable=\"true\"><span style=\"background-color: rgb(255, 0, 0)\" class=\"Apple-style-span\">`[foobarbaz]´</span></body>",
+          "output": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#aaccee\"><span style=\"background-color: rgb(255, 0, 0)\" class=\"Apple-style-span\">`[foobarbaz]´</span></body>",
           "innerHTML": "<span class=\"Apple-style-span\" style=\"background-color: rgb(255, 0, 0)\">`[foobarbaz]´</span>",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#aaccee\" contenteditable=\"true\"><span style=\"background-color: rgb(255, 0, 0)\" class=\"Apple-style-span\">`[foobarbaz]´</span></body>",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#aaccee\"><span style=\"background-color: rgb(255, 0, 0)\" class=\"Apple-style-span\">`[foobarbaz]´</span></body>",
           "bodyInnerHTML": "<span class=\"Apple-style-span\" style=\"background-color: rgb(255, 0, 0)\">`[foobarbaz]´</span>",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" bgcolor=\"#aaccee\" contenteditable=\"true\"><span style=\"background-color: rgb(255, 0, 0)\" class=\"Apple-style-span\">`[foobarbaz]´</span></body>"
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" bgcolor=\"#aaccee\"><span style=\"background-color: rgb(255, 0, 0)\" class=\"Apple-style-span\">`[foobarbaz]´</span></body>"
         },
         "div": {
           "valscore": 0,
@@ -10242,33 +10243,33 @@ const TEST_RESULTS = {
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´",
-          "innerHTML": "{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">{<img width=\"200\" align=\"right\" height=\"140\" src=\"pic.jpg\">`abc]´</body>",
-          "bodyInnerHTML": "{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">{<img width=\"200\" align=\"right\" height=\"140\" src=\"pic.jpg\">`abc]´</body>"
+          "output": "{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´",
+          "innerHTML": "{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">{<img width=\"200\" height=\"140\" align=\"right\" src=\"pic.jpg\">`abc]´</body>",
+          "bodyInnerHTML": "{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">{<img width=\"200\" height=\"140\" align=\"right\" src=\"pic.jpg\">`abc]´</body>"
         },
         "body": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´",
-          "innerHTML": "{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">{<img width=\"200\" align=\"right\" height=\"140\" src=\"pic.jpg\">`abc]´</body>",
-          "bodyInnerHTML": "{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">{<img width=\"200\" align=\"right\" height=\"140\" src=\"pic.jpg\">`abc]´</body>"
+          "output": "{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´",
+          "innerHTML": "{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">{<img width=\"200\" height=\"140\" align=\"right\" src=\"pic.jpg\">`abc]´</body>",
+          "bodyInnerHTML": "{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">{<img width=\"200\" height=\"140\" align=\"right\" src=\"pic.jpg\">`abc]´</body>"
         },
         "div": {
           "valscore": 1,
           "selscore": 1,
           "valresult": 8,
           "selresult": 5,
-          "output": "{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´",
-          "innerHTML": "{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">{<img width=\"200\" align=\"right\" height=\"140\" src=\"pic.jpg\">`abc]´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">{<img src=\"pic.jpg\" height=\"140\" align=\"right\" width=\"200\">`abc]´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">{<img width=\"200\" align=\"right\" height=\"140\" src=\"pic.jpg\">`abc]´</div>CAN<br>ARY</body>"
+          "output": "{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´",
+          "innerHTML": "{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">{<img width=\"200\" height=\"140\" align=\"right\" src=\"pic.jpg\">`abc]´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">{<img src=\"pic.jpg\" align=\"right\" height=\"140\" width=\"200\">`abc]´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">{<img width=\"200\" height=\"140\" align=\"right\" src=\"pic.jpg\">`abc]´</div>CAN<br>ARY</body>"
         }
       },
       "OUTDENT_BQ-1_SW": {
@@ -12350,33 +12351,33 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>",
-          "bodyInnerHTML": "`foö^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>",
+          "bodyInnerHTML": "`foö^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>",
-          "bodyInnerHTML": "`foö^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>",
+          "bodyInnerHTML": "`foö^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö^barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>CAN<br>ARY</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö^barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "CHAR-5_SI-1": {
@@ -12420,33 +12421,33 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>",
-          "bodyInnerHTML": "`foö^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>",
+          "bodyInnerHTML": "`foö^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^barbaz´</body>"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>",
-          "bodyInnerHTML": "`foö^barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>",
+          "bodyInnerHTML": "`foö^barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^barbaz´</body>"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^barbaz´",
-          "innerHTML": "`foö^barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö^barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>CAN<br>ARY</body>"
+          "output": "`foö^barbaz´",
+          "innerHTML": "`foö^barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö^barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö^barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "CHAR-5_SR": {
@@ -12455,33 +12456,33 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^baz´",
-          "innerHTML": "`foö^baz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^baz´</body>",
-          "bodyInnerHTML": "`foö^baz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^baz´</body>"
+          "output": "`foö^baz´",
+          "innerHTML": "`foö^baz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^baz´</body>",
+          "bodyInnerHTML": "`foö^baz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`foö^baz´</body>"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^baz´",
-          "innerHTML": "`foö^baz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^baz´</body>",
-          "bodyInnerHTML": "`foö^baz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^baz´</body>"
+          "output": "`foö^baz´",
+          "innerHTML": "`foö^baz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^baz´</body>",
+          "bodyInnerHTML": "`foö^baz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`foö^baz´</body>"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`foö^baz´",
-          "innerHTML": "`foö^baz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö^baz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö^baz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö^baz´</div>CAN<br>ARY</body>"
+          "output": "`foö^baz´",
+          "innerHTML": "`foö^baz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`foö^baz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`foö^baz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`foö^baz´</div>CAN<br>ARY</body>"
         }
       },
       "CHAR-6_SC": {
@@ -14096,33 +14097,33 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`fo^öbarbaz´",
-          "innerHTML": "`fo^öbarbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^öbarbaz´</body>",
-          "bodyInnerHTML": "`fo^öbarbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^öbarbaz´</body>"
+          "output": "`fo^öbarbaz´",
+          "innerHTML": "`fo^öbarbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^öbarbaz´</body>",
+          "bodyInnerHTML": "`fo^öbarbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^öbarbaz´</body>"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`fo^öbarbaz´",
-          "innerHTML": "`fo^öbarbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^öbarbaz´</body>",
-          "bodyInnerHTML": "`fo^öbarbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^öbarbaz´</body>"
+          "output": "`fo^öbarbaz´",
+          "innerHTML": "`fo^öbarbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^öbarbaz´</body>",
+          "bodyInnerHTML": "`fo^öbarbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^öbarbaz´</body>"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`fo^öbarbaz´",
-          "innerHTML": "`fo^öbarbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^öbarbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^öbarbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^öbarbaz´</div>CAN<br>ARY</body>"
+          "output": "`fo^öbarbaz´",
+          "innerHTML": "`fo^öbarbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^öbarbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^öbarbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^öbarbaz´</div>CAN<br>ARY</body>"
         }
       },
       "CHAR-4_SC": {
@@ -14166,33 +14167,33 @@ const TEST_RESULTS = {
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" onload=\"setDesignMode()\">`fo^ö̤barbaz´</body>"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
-          "bodyInnerHTML": "`fo^ö̤barbaz´",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>",
+          "bodyInnerHTML": "`fo^ö̤barbaz´",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\">`fo^ö̤barbaz´</body>"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
           "valresult": 6,
           "selresult": 3,
-          "output": "`fo^ö̤barbaz´",
-          "innerHTML": "`fo^ö̤barbaz´",
-          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
-          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
-          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
+          "output": "`fo^ö̤barbaz´",
+          "innerHTML": "`fo^ö̤barbaz´",
+          "outerHTML": "<div xmlns=\"http://www.w3.org/1999/xhtml\" contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>",
+          "bodyInnerHTML": "CAN<br>ARY<div id=\"editor-div\" contenteditable=\"true\">`fo^ö̤barbaz´</div>CAN<br>ARY",
+          "bodyOuterHTML": "<body xmlns=\"http://www.w3.org/1999/xhtml\">CAN<br>ARY<div contenteditable=\"true\" id=\"editor-div\">`fo^ö̤barbaz´</div>CAN<br>ARY</body>"
         }
       },
       "CHAR-6_SC": {
@@ -17016,1106 +17017,1106 @@ const TEST_RESULTS = {
     "Proposed": {
       "SELECTALL_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "UNSELECT_TEXT-1": {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "UNDO_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "REDO_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "BOLD_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "BOLD_B": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "ITALIC_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "ITALIC_I": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "UNDERLINE_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "STRIKETHROUGH_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "SUBSCRIPT_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "SUPERSCRIPT_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "FORMATBLOCK_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "CREATELINK_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "UNLINK_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INSERTHTML_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INSERTHORIZONTALRULE_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INSERTIMAGE_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INSERTLINEBREAK_TEXT-1": {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INSERTPARAGRAPH_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INSERTORDEREDLIST_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INSERTUNORDEREDLIST_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INSERTTEXT_TEXT-1": {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "DELETE_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "FORWARDDELETE_TEXT-1": {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "STYLEWITHCSS_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "CONTENTREADONLY_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "BACKCOLOR_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "FORECOLOR_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "HILITECOLOR_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "FONTNAME_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "FONTSIZE_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INCREASEFONTSIZE_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "DECREASEFONTSIZE_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "HEADING_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "INDENT_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "OUTDENT_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "CREATEBOOKMARK_TEXT-1": {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "UNBOOKMARK_TEXT-1": {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "JUSTIFYCENTER_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "JUSTIFYFULL_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "JUSTIFYLEFT_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "JUSTIFYRIGHT_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "REMOVEFORMAT_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "COPY_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "CUT_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "PASTE_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": true
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       },
       "garbage-1_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandSupported]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 148\"  data: no]"
         }
       }
     }
@@ -18149,23 +18150,23 @@ const TEST_RESULTS = {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         }
       },
       "UNDO_TEXT-1": {
@@ -18494,23 +18495,23 @@ const TEST_RESULTS = {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         }
       },
       "INSERTPARAGRAPH_TEXT-1": {
@@ -18586,23 +18587,23 @@ const TEST_RESULTS = {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         }
       },
       "DELETE_TEXT-1": {
@@ -18632,23 +18633,23 @@ const TEST_RESULTS = {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         }
       },
       "STYLEWITHCSS_TEXT-1": {
@@ -18931,46 +18932,46 @@ const TEST_RESULTS = {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         }
       },
       "UNBOOKMARK_TEXT-1": {
         "dM": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "body": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "div": {
           "valscore": 0,
           "selscore": 0,
-          "valresult": 6,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         }
       },
       "JUSTIFYCENTER_TEXT-1": {
@@ -19159,25 +19160,25 @@ const TEST_RESULTS = {
       },
       "garbage-1_TEXT-1": {
         "dM": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "body": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         },
         "div": {
-          "valscore": 1,
+          "valscore": 0,
           "selscore": 0,
-          "valresult": 8,
+          "valresult": 2,
           "selresult": 3,
-          "output": false
+          "output": "EXECUTION EXCEPTION: [Exception... \"Component returned failure code: 0x80004001 (NS_ERROR_NOT_IMPLEMENTED) [nsIDOMHTMLDocument.queryCommandEnabled]\"  nsresult: \"0x80004001 (NS_ERROR_NOT_IMPLEMENTED)\"  location: \"JS frame :: http://mochi.test:8888/tests/editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/run.js :: runSingleTest :: line 150\"  data: no]"
         }
       }
     }
@@ -23817,5 +23818,4 @@ const TEST_RESULTS = {
       }
     }
   }
-}
-
+};

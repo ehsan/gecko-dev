@@ -104,10 +104,7 @@ nsBaseStateUpdatingCommand::IsCommandEnabled(const char *aCommandName,
                                              PRBool *outCmdEnabled)
 {
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  *outCmdEnabled = editor ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -430,24 +427,19 @@ nsRemoveListCommand::IsCommandEnabled(const char * aCommandName,
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
   if (editor)
   {
-    PRBool isEditable = PR_FALSE;
-    NS_SUCCEEDED(editor->GetIsSelectionEditable(&isEditable));
-    if (isEditable)
-    {
-      // It is enabled if we are in any list type
-      PRBool bMixed;
-      PRUnichar *tagStr;
-      nsresult rv = GetListState(editor, &bMixed, &tagStr);
-      NS_ENSURE_SUCCESS(rv, rv);
+    // It is enabled if we are in any list type
+    PRBool bMixed;
+    PRUnichar *tagStr;
+    nsresult rv = GetListState(editor, &bMixed, &tagStr);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      *outCmdEnabled = bMixed ? PR_TRUE : (tagStr && *tagStr);
-      
-      if (tagStr) NS_Free(tagStr);
-      return NS_OK;
-    }
+    *outCmdEnabled = bMixed ? PR_TRUE : (tagStr && *tagStr);
+    
+    if (tagStr) NS_Free(tagStr);
   }
+  else
+    *outCmdEnabled = PR_FALSE;
 
-  *outCmdEnabled = PR_FALSE;
   return NS_OK;
 }
 
@@ -489,11 +481,8 @@ NS_IMETHODIMP
 nsIndentCommand::IsCommandEnabled(const char * aCommandName,
                                   nsISupports *refCon, PRBool *outCmdEnabled)
 {
-  nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(refCon);
+  *outCmdEnabled = editor ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -538,17 +527,16 @@ nsOutdentCommand::IsCommandEnabled(const char * aCommandName,
                                    nsISupports *refCon,
                                    PRBool *outCmdEnabled)
 {
-  nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(refCon);
-  if (editor && htmlEditor)
+  if (htmlEditor)
   {
-    PRBool canIndent, isEditable = PR_FALSE;
-    NS_SUCCEEDED(editor->GetIsSelectionEditable(&isEditable));
-    if (isEditable)
-      return htmlEditor->GetIndentState(&canIndent, outCmdEnabled);
+    PRBool canIndent, canOutdent;
+    htmlEditor->GetIndentState(&canIndent, &canOutdent);
+    *outCmdEnabled = canOutdent;
   }
+  else
+    *outCmdEnabled = PR_FALSE;
 
-  *outCmdEnabled = PR_FALSE;
   return NS_OK;
 }
 
@@ -599,10 +587,7 @@ nsMultiStateCommand::IsCommandEnabled(const char * aCommandName,
 {
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
   // should be disabled sometimes, like if the current selection is an image
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  *outCmdEnabled = editor ? PR_TRUE : PR_FALSE;
   return NS_OK; 
 }
 
@@ -932,11 +917,8 @@ nsHighlightColorStateCommand::IsCommandEnabled(const char * aCommandName,
                                                nsISupports *refCon,
                                                PRBool *outCmdEnabled)
 {
-  nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(refCon);
+  *outCmdEnabled = htmlEditor ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -1044,19 +1026,14 @@ nsAbsolutePositioningCommand::nsAbsolutePositioningCommand()
 NS_IMETHODIMP
 nsAbsolutePositioningCommand::IsCommandEnabled(const char * aCommandName,
                                                nsISupports *aCommandRefCon,
-                                               PRBool *outCmdEnabled)
+                                               PRBool *_retval)
 {
-  nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
+  NS_ASSERTION(aCommandRefCon, "Need an editor here");
+  
   nsCOMPtr<nsIHTMLAbsPosEditor> htmlEditor = do_QueryInterface(aCommandRefCon);
-  if (htmlEditor)
-  {
-    PRBool isEditable = PR_FALSE;
-    NS_SUCCEEDED(editor->GetIsSelectionEditable(&isEditable));
-    if (isEditable)
-      return htmlEditor->GetAbsolutePositioningEnabled(outCmdEnabled);
-  }
+  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
 
-  *outCmdEnabled = PR_FALSE;
+  htmlEditor->GetAbsolutePositioningEnabled(_retval);
   return NS_OK;
 }
 
@@ -1227,10 +1204,7 @@ nsRemoveStylesCommand::IsCommandEnabled(const char * aCommandName,
 {
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
   // test if we have any styles?
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  *outCmdEnabled = editor ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -1275,11 +1249,8 @@ nsIncreaseFontSizeCommand::IsCommandEnabled(const char * aCommandName,
                                             PRBool *outCmdEnabled)
 {
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  // test if we are at max size?
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  // test if we have any styles?
+  *outCmdEnabled = editor ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -1324,10 +1295,7 @@ nsDecreaseFontSizeCommand::IsCommandEnabled(const char * aCommandName,
 {
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
   // test if we are at min size?
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  *outCmdEnabled = editor ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -1371,11 +1339,8 @@ nsInsertHTMLCommand::IsCommandEnabled(const char * aCommandName,
                                       PRBool *outCmdEnabled)
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
-  nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(refCon);
+  *outCmdEnabled = editor ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -1439,11 +1404,8 @@ nsInsertTagCommand::IsCommandEnabled(const char * aCommandName,
                                      PRBool *outCmdEnabled)
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
-  nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(refCon);
+  *outCmdEnabled = editor ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
