@@ -1326,7 +1326,7 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
                                 nsIFrame* aForFrame,
                                 const nsRect& aDirtyRect,
                                 const nsRect& aBorderArea,
-                                PRUint32 aFlags,
+                                PRBool aUsePrintSettings,
                                 nsRect* aBGClipRect)
 {
   NS_PRECONDITION(aForFrame,
@@ -1353,8 +1353,8 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
 
   PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
                         aDirtyRect, aBorderArea, *color,
-                        *aForFrame->GetStyleBorder(), aFlags,
-                        aBGClipRect);
+                        *aForFrame->GetStyleBorder(),
+                        aUsePrintSettings, aBGClipRect);
 }
 
 static PRBool
@@ -1504,7 +1504,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                                       const nsRect& aBorderArea,
                                       const nsStyleBackground& aColor,
                                       const nsStyleBorder& aBorder,
-                                      PRUint32 aFlags,
+                                      PRBool aUsePrintSettings,
                                       nsRect* aBGClipRect)
 {
   NS_PRECONDITION(aForFrame,
@@ -1530,8 +1530,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // background colors.
   PRBool drawBackgroundImage = PR_TRUE;
   PRBool drawBackgroundColor = PR_TRUE;
-  PRBool usePrintSettings = aForFrame->HonorPrintBackgroundSettings();
-  if (usePrintSettings) {
+
+  if (aUsePrintSettings) {
     drawBackgroundImage = aPresContext->GetBackgroundImageDraw();
     drawBackgroundColor = aPresContext->GetBackgroundColorDraw();
   }
@@ -1612,8 +1612,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     // The background-color is drawn based on the bottom
     // background-clip.
     currentBackgroundClip = aColor.BottomLayer().mClip;
-    isSolidBorder =
-      (aFlags & PAINT_WILL_PAINT_BORDER) && IsSolidBorder(aBorder);
+    isSolidBorder = IsSolidBorder(aBorder);
     if (isSolidBorder)
       currentBackgroundClip = NS_STYLE_BG_CLIP_PADDING;
     SetupBackgroundClip(ctx, currentBackgroundClip, aForFrame,
@@ -1698,7 +1697,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
       if (!dirtyRectGfx.IsEmpty()) {
         PaintBackgroundLayer(aPresContext, aRenderingContext, aForFrame,
                              dirtyRect, aBorderArea, bgClipArea, aColor,
-                             layer, aBorder, usePrintSettings);
+                             layer, aBorder, aUsePrintSettings);
       }
     }
   }
