@@ -351,7 +351,7 @@ this.DOMApplicationRegistry = {
                          results[0].manifest, app.appStatus);
   }),
 
-  updatePermissionsForApp: function(aId, aIsPreinstalled, aIsSystemUpdate) {
+  updatePermissionsForApp: function(aId, aIsPreinstalled) {
     if (!this.webapps[aId]) {
       return;
     }
@@ -366,8 +366,7 @@ this.DOMApplicationRegistry = {
           manifest: data.manifest,
           manifestURL: this.webapps[aId].manifestURL,
           origin: this.webapps[aId].origin,
-          isPreinstalled: aIsPreinstalled,
-          isSystemUpdate: aIsSystemUpdate
+          isPreinstalled: aIsPreinstalled
         }, true, function() {
           debug("Error installing permissions for " + aId);
         });
@@ -599,8 +598,7 @@ this.DOMApplicationRegistry = {
             continue;
           }
           this.updateOfflineCacheForApp(id);
-          this.updatePermissionsForApp(id, isPreinstalled,
-                                       true /* isSystemUpdate */);
+          this.updatePermissionsForApp(id, isPreinstalled);
         }
         // Need to update the persisted list of apps since
         // installPreinstalledApp() removes the ones failing to install.
