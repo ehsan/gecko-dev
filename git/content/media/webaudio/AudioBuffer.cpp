@@ -115,8 +115,7 @@ AudioBuffer::RestoreJSChannelData(JSContext* aJSContext)
       if (!array) {
         return false;
       }
-      JS::AutoCheckCannotGC nogc;
-      mozilla::PodCopy(JS_GetFloat32ArrayData(array, nogc), data, mLength);
+      memcpy(JS_GetFloat32ArrayData(array), data, sizeof(float)*mLength);
       mJSChannels[i] = array;
     }
 
@@ -147,10 +146,9 @@ AudioBuffer::CopyFromChannel(const Float32Array& aDestination, uint32_t aChannel
     return;
   }
 
-  JS::AutoCheckCannotGC nogc;
   const float* sourceData = mSharedChannels ?
     mSharedChannels->GetData(aChannelNumber) :
-    JS_GetFloat32ArrayData(mJSChannels[aChannelNumber], nogc);
+    JS_GetFloat32ArrayData(mJSChannels[aChannelNumber]);
   PodMove(aDestination.Data(), sourceData + aStartInChannel, length);
 }
 
@@ -181,8 +179,7 @@ AudioBuffer::CopyToChannel(JSContext* aJSContext, const Float32Array& aSource,
     return;
   }
 
-  JS::AutoCheckCannotGC nogc;
-  PodMove(JS_GetFloat32ArrayData(mJSChannels[aChannelNumber], nogc) + aStartInChannel,
+  PodMove(JS_GetFloat32ArrayData(mJSChannels[aChannelNumber]) + aStartInChannel,
           aSource.Data(), length);
 }
 
@@ -191,8 +188,7 @@ AudioBuffer::SetRawChannelContents(uint32_t aChannel, float* aContents)
 {
   MOZ_ASSERT(!GetWrapperPreserveColor() && !mSharedChannels,
              "The AudioBuffer object should not have been handed to JS or have C++ callers neuter its typed array");
-  JS::AutoCheckCannotGC nogc;
-  PodCopy(JS_GetFloat32ArrayData(mJSChannels[aChannel], nogc), aContents, mLength);
+  PodCopy(JS_GetFloat32ArrayData(mJSChannels[aChannel]), aContents, mLength);
 }
 
 void

@@ -626,14 +626,6 @@ IonBuilder::init()
         return false;
     }
 
-    if (inlineCallInfo_) {
-        // If we're inlining, the actual this/argument types are not necessarily
-        // a subset of the script's observed types. |argTypes| is never accessed
-        // for inlined scripts, so we just null it.
-        thisTypes = inlineCallInfo_->thisArg()->resultTypeSet();
-        argTypes = nullptr;
-    }
-
     if (!analysis().init(alloc(), gsn))
         return false;
 
@@ -815,10 +807,10 @@ bool
 IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoint,
                         CallInfo &callInfo)
 {
-    inlineCallInfo_ = &callInfo;
-
     if (!init())
         return false;
+
+    inlineCallInfo_ = &callInfo;
 
     JitSpew(JitSpew_IonScripts, "Inlining script %s:%d (%p)",
             script()->filename(), script()->lineno(), (void *)script());
@@ -5734,7 +5726,7 @@ IonBuilder::jsop_eval(uint32_t argc)
         // same. This is not guaranteed if a primitive string/number/etc.
         // is passed through to the eval invoke as the primitive may be
         // boxed into different objects if accessed via 'this'.
-        MIRType type = thisTypes ? thisTypes->getKnownMIRType() : MIRType_Value;
+        MIRType type = thisTypes->getKnownMIRType();
         if (type != MIRType_Object && type != MIRType_Null && type != MIRType_Undefined)
             return abort("Direct eval from script with maybe-primitive 'this'");
 
@@ -10408,8 +10400,8 @@ IonBuilder::jsop_this()
         return true;
     }
 
-    if (thisTypes && (thisTypes->getKnownMIRType() == MIRType_Object ||
-        (thisTypes->empty() && baselineFrame_ && baselineFrame_->thisType.isSomeObject())))
+    if (thisTypes->getKnownMIRType() == MIRType_Object ||
+        (thisTypes->empty() && baselineFrame_ && baselineFrame_->thisType.isSomeObject()))
     {
         // This is safe, because if the entry type of |this| is an object, it
         // will necessarily be an object throughout the entire function. OSR

@@ -6336,10 +6336,9 @@ nsIPresShell::GetPointerCapturingContent(uint32_t aPointerId)
   return nullptr;
 }
 
-/* static */ bool
+/* static */ void
 nsIPresShell::CheckPointerCaptureState(uint32_t aPointerId)
 {
-  bool didDispatchEvent = false;
   PointerCaptureInfo* pointerCaptureInfo = nullptr;
   if (gPointerCaptureList->Get(aPointerId, &pointerCaptureInfo) && pointerCaptureInfo) {
     // If pendingContent exist or anybody calls element.releasePointerCapture
@@ -6355,7 +6354,6 @@ nsIPresShell::CheckPointerCaptureState(uint32_t aPointerId)
           gPointerCaptureList->Remove(aPointerId);
         }
         DispatchGotOrLostPointerCaptureEvent(false, aPointerId, content);
-        didDispatchEvent = true;
       } else if (pointerCaptureInfo->mPendingContent && pointerCaptureInfo->mReleaseContent) {
         // If anybody calls element.releasePointerCapture
         // We should clear overrideContent and pendingContent
@@ -6371,10 +6369,8 @@ nsIPresShell::CheckPointerCaptureState(uint32_t aPointerId)
       pointerCaptureInfo->mPendingContent = nullptr;
       pointerCaptureInfo->mReleaseContent = false;
       DispatchGotOrLostPointerCaptureEvent(true, aPointerId, pointerCaptureInfo->mOverrideContent);
-      didDispatchEvent = true;
     }
   }
-  return didDispatchEvent;
 }
 
 /* static */ bool
@@ -7253,9 +7249,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
       if (WidgetPointerEvent* pointerEvent = aEvent->AsPointerEvent()) {
         // Before any pointer events, we should check state of pointer capture,
         // Thus got/lostpointercapture events emulate asynchronous behavior.
-        // Handlers of got/lostpointercapture events can change capturing state,
-        // That's why we should re-check pointer capture state until stable state.
-        while(CheckPointerCaptureState(pointerEvent->pointerId));
+        CheckPointerCaptureState(pointerEvent->pointerId);
       }
     }
 
@@ -10641,9 +10635,6 @@ nsIPresShell::SetScrollPositionClampingScrollPortSize(nscoord aWidth, nscoord aH
     mScrollPositionClampingScrollPortSize.width = aWidth;
     mScrollPositionClampingScrollPortSize.height = aHeight;
 
-    if (nsIScrollableFrame* rootScrollFrame = GetRootScrollFrameAsScrollable()) {
-      rootScrollFrame->MarkScrollbarsDirtyForReflow();
-    }
     MarkFixedFramesForReflow(eResize);
   }
 }

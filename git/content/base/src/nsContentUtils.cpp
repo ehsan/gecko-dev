@@ -5983,8 +5983,7 @@ nsContentUtils::CreateArrayBuffer(JSContext *aCx, const nsACString& aData,
 
   if (dataLen > 0) {
     NS_ASSERTION(JS_IsArrayBufferObject(*aResult), "What happened?");
-    JS::AutoCheckCannotGC nogc;
-    memcpy(JS_GetArrayBufferData(*aResult, nogc), aData.BeginReading(), dataLen);
+    memcpy(JS_GetArrayBufferData(*aResult), aData.BeginReading(), dataLen);
   }
 
   return NS_OK;

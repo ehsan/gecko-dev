@@ -341,10 +341,9 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         }
         else if (aFeature == nsIGfxInfo::FEATURE_WEBGL_MSAA)
         {
-          if (mIsIntel && version(mMajorVersion, mMinorVersion) < version(8,1)) {
+          if (mIsIntel && version(mMajorVersion, mMinorVersion) < version(8,1))
             *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
             aSuggestedDriverVersion.AssignLiteral("Mesa 8.1");
-          }
         }
 
       } else if (mIsNVIDIA) {
