@@ -45,7 +45,7 @@
 #include "nsIPrincipal.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #endif
-#ifdef NECKO_PROTOCOL_rtsp
+#ifdef MOZ_RTSP
 #include "RtspOmxDecoder.h"
 #include "RtspOmxReader.h"
 #endif
@@ -244,7 +244,7 @@ static char const *const gMpegAudioCodecs[2] = {
 };
 #endif
 
-#ifdef NECKO_PROTOCOL_rtsp
+#ifdef MOZ_RTSP
 static const char* const gRtspTypes[2] = {
     "RTSP",
     nullptr
@@ -260,7 +260,7 @@ IsRtspSupportedType(const nsACString& aMimeType)
 
 /* static */
 bool DecoderTraits::DecoderWaitsForOnConnected(const nsACString& aMimeType) {
-#ifdef NECKO_PROTOCOL_rtsp
+#ifdef MOZ_RTSP
   return CodecListContains(gRtspTypes, aMimeType);
 #else
   return false;
@@ -486,7 +486,7 @@ DecoderTraits::CreateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
     decoder = new MediaOmxDecoder();
   }
 #endif
-#ifdef NECKO_PROTOCOL_rtsp
+#ifdef MOZ_RTSP
   if (IsRtspSupportedType(aType)) {
     decoder = new RtspOmxDecoder();
   }

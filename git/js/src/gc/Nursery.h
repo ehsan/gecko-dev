@@ -155,17 +155,16 @@ class Nursery
     static const size_t MaxNurserySlots = 100;
 
     /* The amount of space in the mapped nursery available to allocations. */
-    static const size_t NurseryChunkUsableSize = gc::ChunkSize - sizeof(gc::ChunkTrailer);
+    static const size_t NurseryChunkUsableSize = gc::ChunkSize - sizeof(JSRuntime *);
 
     struct NurseryChunkLayout {
         char data[NurseryChunkUsableSize];
-        gc::ChunkTrailer trailer;
+        JSRuntime *runtime;
         uintptr_t start() { return uintptr_t(&data); }
-        uintptr_t end() { return uintptr_t(&trailer); }
+        uintptr_t end() { return uintptr_t(&runtime); }
     };
-    static_assert(sizeof(NurseryChunkLayout) == gc::ChunkSize,
-                  "Nursery chunk size must match gc::Chunk size.");
     NurseryChunkLayout &chunk(int index) const {
+        JS_STATIC_ASSERT(sizeof(NurseryChunkLayout) == gc::ChunkSize);
         JS_ASSERT(index < NumNurseryChunks);
         JS_ASSERT(start());
         return reinterpret_cast<NurseryChunkLayout *>(start())[index];

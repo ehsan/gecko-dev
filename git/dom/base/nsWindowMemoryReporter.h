@@ -47,8 +47,6 @@ public:
       #define ZERO_SIZE(kind, mSize)  mSize(0),
       FOR_EACH_SIZE(ZERO_SIZE)
       #undef ZERO_SIZE
-      mDOMEventTargetsCount(0),
-      mDOMEventListenersCount(0),
       mArenaStats(),
       mMallocSizeOf(aMallocSizeOf)
   {}

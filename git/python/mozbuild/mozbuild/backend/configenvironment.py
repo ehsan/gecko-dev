@@ -8,9 +8,7 @@ import posixpath
 import re
 import sys
 
-from collections import Iterable
 from os.path import relpath
-from types import StringTypes
 
 from mozbuild.preprocessor import Preprocessor
 
@@ -123,14 +121,8 @@ class ConfigEnvironment(object):
             if not name in non_global_defines]
         self.substs['ACDEFINES'] = ' '.join(['-D%s=%s' % (name,
             shell_escape(self.defines[name])) for name in global_defines])
-        def serialize(obj):
-            if isinstance(obj, StringTypes):
-                return obj
-            if isinstance(obj, Iterable):
-                return ' '.join(obj)
-            raise Exception('Unhandled type %s', type(obj))
         self.substs['ALLSUBSTS'] = '\n'.join(sorted(['%s = %s' % (name,
-            serialize(self.substs[name])) for name in self.substs if self.substs[name]]))
+            self.substs[name]) for name in self.substs if self.substs[name]]))
         self.substs['ALLEMPTYSUBSTS'] = '\n'.join(sorted(['%s =' % name
             for name in self.substs if not self.substs[name]]))
         self.substs['ALLDEFINES'] = '\n'.join(sorted(['#define %s %s' % (name,
@@ -144,20 +136,12 @@ class ConfigEnvironment(object):
         # during sandbox execution!
         # Bug 844509 tracks moving everything to Unicode.
         self.substs_unicode = {}
-
-        def decode(v):
+        for k, v in self.substs.items():
             if not isinstance(v, text_type):
                 try:
-                    return v.decode('utf-8')
+                    v = v.decode('utf-8')
                 except UnicodeDecodeError:
-                    return v.decode('utf-8', 'replace')
-
-        for k, v in self.substs.items():
-            if not isinstance(v, StringTypes):
-                if isinstance(v, Iterable):
-                    type(v)(decode(i) for i in v)
-            elif not isinstance(v, text_type):
-                v = decode(v)
+                    v = v.decode('utf-8', 'replace')
 
             self.substs_unicode[k] = v
 

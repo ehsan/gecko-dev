@@ -453,7 +453,7 @@ namespace js {
 inline bool
 ExclusiveContext::typeInferenceEnabled() const
 {
-    return compartment_->options().typeInference(this);
+    return compartment_->zone()->types.inferenceEnabled;
 }
 
 inline js::Handle<js::GlobalObject*>

@@ -103,14 +103,12 @@ function editableItem(aOptions, aCallback)
   let trigger = aOptions.trigger || "click"
   let element = aOptions.element;
   element.addEventListener(trigger, function(evt) {
-    if (evt.target.nodeName !== "a") {
-      let win = this.ownerDocument.defaultView;
-      let selection = win.getSelection();
-      if (trigger != "click" || selection.isCollapsed) {
-        aCallback(element, evt);
-      }
-      evt.stopPropagation();
+    let win = this.ownerDocument.defaultView;
+    let selection = win.getSelection();
+    if (trigger != "click" || selection.isCollapsed) {
+      aCallback(element, evt);
     }
+    evt.stopPropagation();
   }, false);
 
   // If focused by means other than a click, start editing by
@@ -127,16 +125,14 @@ function editableItem(aOptions, aCallback)
   // to an ugly flash of the focus ring before showing the editor.
   // So hide the focus ring while the mouse is down.
   element.addEventListener("mousedown", function(evt) {
-    if (evt.target.nodeName !== "a") {
-      let cleanup = function() {
-        element.style.removeProperty("outline-style");
-        element.removeEventListener("mouseup", cleanup, false);
-        element.removeEventListener("mouseout", cleanup, false);
-      };
-      element.style.setProperty("outline-style", "none");
-      element.addEventListener("mouseup", cleanup, false);
-      element.addEventListener("mouseout", cleanup, false);
-    }
+    let cleanup = function() {
+      element.style.removeProperty("outline-style");
+      element.removeEventListener("mouseup", cleanup, false);
+      element.removeEventListener("mouseout", cleanup, false);
+    };
+    element.style.setProperty("outline-style", "none");
+    element.addEventListener("mouseup", cleanup, false);
+    element.addEventListener("mouseout", cleanup, false);
   }, false);
 
   // Mark the element editable field for tab

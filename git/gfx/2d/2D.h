@@ -893,7 +893,7 @@ public:
     return mOpaqueRect;
   }
 
-  virtual void SetPermitSubpixelAA(bool aPermitSubpixelAA) {
+  void SetPermitSubpixelAA(bool aPermitSubpixelAA) {
     mPermitSubpixelAA = aPermitSubpixelAA;
   }
 

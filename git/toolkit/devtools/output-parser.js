@@ -8,8 +8,6 @@ const {Cc, Ci, Cu} = require("chrome");
 const {colorUtils} = require("devtools/css-color");
 const {Services} = Cu.import("resource://gre/modules/Services.jsm", {});
 
-const HTML_NS = "http://www.w3.org/1999/xhtml";
-
 const MAX_ITERATIONS = 100;
 const REGEX_QUOTES = /^".*?"|^".*/;
 const REGEX_URL = /^url\(["']?(.+?)(?::(\d+))?["']?\)/;
@@ -92,13 +90,13 @@ OutputParser.prototype = {
    */
   parseCssProperty: function(name, value, options={}) {
     options = this._mergeOptions(options);
+    options.cssPropertyName = name;
 
-    if (this._cssPropertySupportsValue(name, value)) {
-      return this._parse(value, options);
-    }
-    this._appendTextNode(value);
+    // Detect if "name" supports colors by checking if "papayawhip" is a valid
+    // value.
+    options.colors = this._cssPropertySupportsValue(name, "papayawhip");
 
-    return this._toDOM();
+    return this._parse(value, options);
   },
 
   /**
@@ -110,10 +108,12 @@ OutputParser.prototype = {
    *         Options object. For valid options and default values see
    *         _mergeOptions().
    * @return {DocumentFragment}
-   *         A document fragment. Colors will not be parsed.
+   *         A document fragment containing events etc. Colors will not be
+   *         parsed.
    */
   parseHTMLAttribute: function(value, options={}) {
     options = this._mergeOptions(options);
+    options.colors = false;
 
     return this._parse(value, options);
   },
@@ -127,13 +127,15 @@ OutputParser.prototype = {
    *         Options object. For valid options and default values see
    *         _mergeOptions().
    * @return {DocumentFragment}
-   *         A document fragment.
+   *         A document fragment containing events etc. Colors will not be
+   *         parsed.
    */
   _parse: function(text, options={}) {
     text = text.trim();
     this.parsed.length = 0;
     let dirty = false;
     let matched = null;
+    let nameValueSupported = false;
     let i = 0;
 
     let trimMatchFromStart = function(match) {
@@ -159,26 +161,39 @@ OutputParser.prototype = {
 
       matched = text.match(REGEX_URL);
       if (matched) {
-        let [match, url] = matched;
+        let [match, url, line] = matched;
         trimMatchFromStart(match);
-        this._appendURL(match, url, options);
+        this._appendURL(match, url, line, options);
       }
 
+      // This block checks for valid name and value combinations setting
+      // nameValueSupported to true as appropriate.
       matched = text.match(REGEX_ALL_CSS_PROPERTIES);
       if (matched) {
-        let [match] = matched;
+        let [match, propertyName] = matched;
         trimMatchFromStart(match);
         this._appendTextNode(match);
 
-        dirty = true;
+        matched = text.match(REGEX_CSS_PROPERTY_VALUE);
+        if (matched) {
+          let [, value] = matched;
+          nameValueSupported = this._cssPropertySupportsValue(propertyName, value);
+        }
       }
 
-      matched = text.match(REGEX_ALL_COLORS);
-      if (matched) {
-        let match = matched[0];
-        if (this._appendColor(match, options)) {
+      // This block should only be used for CSS properties.
+      // options.cssPropertyName is only set if the parse call comes from a CSS
+      // tool containing either a name and value or a string with valid name and
+      // value combinations.
+      if (options.cssPropertyName || (!options.cssPropertyName && nameValueSupported)) {
+        matched = text.match(REGEX_ALL_COLORS);
+        if (matched) {
+          let match = matched[0];
           trimMatchFromStart(match);
+          this._appendColor(match, options);
         }
+
+        nameValueSupported = false;
       }
 
       if (!dirty) {
@@ -189,6 +204,7 @@ OutputParser.prototype = {
           let match = matched[0];
           trimMatchFromStart(match);
           this._appendTextNode(match);
+          nameValueSupported = false;
         }
       }
 
@@ -209,23 +225,22 @@ OutputParser.prototype = {
   /**
    * Check if a CSS property supports a specific value.
    *
-   * @param  {String} name
+   * @param  {String} propertyName
    *         CSS Property name to check
-   * @param  {String} value
+   * @param  {String} propertyValue
    *         CSS Property value to check
    */
-  _cssPropertySupportsValue: function(name, value) {
-    let win = Services.appShell.hiddenDOMWindow;
-    let doc = win.document;
+  _cssPropertySupportsValue: function(propertyName, propertyValue) {
+    let autoCompleteValues = DOMUtils.getCSSValuesForProperty(propertyName);
 
-    name = name.replace(/-\w{1}/g, function(match) {
-      return match.charAt(1).toUpperCase();
-    });
+    // Detect if propertyName supports colors by checking if papayawhip is a
+    // valid value.
+    if (autoCompleteValues.indexOf("papayawhip") !== -1) {
+      return this._isColorValid(propertyValue);
+    }
 
-    let div = doc.createElement("div");
-    div.style[name] = value;
-
-    return !!div.style[name];
+    // For the rest we can trust autocomplete value matches.
+    return autoCompleteValues.indexOf(propertyValue) !== -1;
   },
 
   /**
@@ -236,14 +251,9 @@ OutputParser.prototype = {
    * @param  {Object} [options]
    *         Options object. For valid options and default values see
    *         _mergeOptions().
-   * @returns {Boolean}
-   *          true if the color passed in was valid, false otherwise. Special
-   *          values such as transparent also return false.
    */
   _appendColor: function(color, options={}) {
-    let colorObj = new colorUtils.CssColor(color);
-
-    if (colorObj.valid && !colorObj.specialValue) {
+    if (options.colors && this._isColorValid(color)) {
       if (options.colorSwatchClass) {
         this._appendNode("span", {
           class: options.colorSwatchClass,
@@ -251,46 +261,27 @@ OutputParser.prototype = {
         });
       }
       if (options.defaultColorType) {
-        color = colorObj.toString();
+        color = new colorUtils.CssColor(color).toString();
       }
-      this._appendTextNode(color);
-      return true;
     }
-    return false;
+    this._appendTextNode(color);
   },
 
-   /**
-    * Append a URL to the output.
-    *
-    * @param  {String} match
-    *         Complete match that may include "url(xxx)"
-    * @param  {String} url
-    *         Actual URL
-    * @param  {Object} [options]
-    *         Options object. For valid options and default values see
-    *         _mergeOptions().
-    */
-  _appendURL: function(match, url, options={}) {
-    if (options.urlClass) {
-      // We use single quotes as this works inside html attributes (e.g. the
-      // markup view).
-      this._appendTextNode("url('");
-
-      let href = url;
-      if (options.baseURI) {
-        href = options.baseURI.resolve(url);
-      }
-
-      this._appendNode("a",  {
-        target: "_blank",
-        class: options.urlClass,
-        href: href
-      }, url);
-
-      this._appendTextNode("')");
-    } else {
-      this._appendTextNode("url('" + url + "')");
-    }
+  /**
+   * Append a URL to the output.
+   *
+   * @param  {String} match
+   *         Complete match that may include "url(xxx)""
+   * @param  {String} url
+   *         Actual URL
+   * @param  {Number} line
+   *         Line number from URL e.g. http://blah:42
+   * @param  {Object} [options]
+   *         Options object. For valid options and default values see
+   *         _mergeOptions().
+   */
+  _appendURL: function(match, url, line, options={}) {
+    this._appendTextNode(match);
   },
 
   /**
@@ -307,7 +298,7 @@ OutputParser.prototype = {
   _appendNode: function(tagName, attributes, value="") {
     let win = Services.appShell.hiddenDOMWindow;
     let doc = win.document;
-    let node = doc.createElementNS(HTML_NS, tagName);
+    let node = doc.createElement(tagName);
     let attrs = Object.getOwnPropertyNames(attributes);
 
     for (let attr of attrs) {
@@ -315,7 +306,7 @@ OutputParser.prototype = {
     }
 
     if (value) {
-      let textNode = doc.createTextNode(value);
+      let textNode = content.document.createTextNode(value);
       node.appendChild(textNode);
     }
 
@@ -362,32 +353,39 @@ OutputParser.prototype = {
   },
 
   /**
+   * Check that a string represents a valid volor.
+   *
+   * @param  {String} color
+   *         Color to check
+   */
+  _isColorValid: function(color) {
+    return new colorUtils.CssColor(color).valid;
+  },
+
+  /**
    * Merges options objects. Default values are set here.
    *
    * @param  {Object} overrides
    *         The option values to override e.g. _mergeOptions({colors: false})
    *
    *         Valid options are:
+   *           - colors: true           // Allow processing of colors
    *           - defaultColorType: true // Convert colors to the default type
    *                                    // selected in the options panel.
    *           - colorSwatchClass: ""   // The class to use for color swatches.
-   *           - urlClass: ""           // The class to be used for url() links.
-   *           - baseURI: ""            // A string or nsIURI used to resolve
-   *                                    // relative links.
+   *           - cssPropertyName: ""    // Used by CSS tools. Passing in the
+   *                                    // property name allows appropriate
+   *                                    // processing of the property value.
    * @return {Object}
    *         Overridden options object
    */
   _mergeOptions: function(overrides) {
     let defaults = {
+      colors: true,
       defaultColorType: true,
       colorSwatchClass: "",
-      urlClass: "",
-      baseURI: ""
+      cssPropertyName: ""
     };
-
-    if (typeof overrides.baseURI === "string") {
-      overrides.baseURI = Services.io.newURI(overrides.baseURI, null, null);
-    }
 
     for (let item in overrides) {
       defaults[item] = overrides[item];
