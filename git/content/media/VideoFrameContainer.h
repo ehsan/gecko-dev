@@ -34,8 +34,6 @@ class ImageContainer;
  * confusing.
  */
 class VideoFrameContainer {
-  ~VideoFrameContainer();
-
 public:
   typedef layers::ImageContainer ImageContainer;
   typedef layers::Image Image;
@@ -44,6 +42,7 @@ public:
 
   VideoFrameContainer(dom::HTMLMediaElement* aElement,
                       already_AddRefed<ImageContainer> aContainer);
+  ~VideoFrameContainer();
 
   // Call on any thread
   void SetCurrentFrame(const gfxIntSize& aIntrinsicSize, Image* aImage,

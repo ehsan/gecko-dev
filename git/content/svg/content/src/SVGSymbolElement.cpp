@@ -27,7 +27,7 @@ NS_IMPL_ISUPPORTS_INHERITED(SVGSymbolElement, SVGSymbolElementBase,
 //----------------------------------------------------------------------
 // Implementation
 
-SVGSymbolElement::SVGSymbolElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+SVGSymbolElement::SVGSymbolElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
   : SVGSymbolElementBase(aNodeInfo)
 {
 }

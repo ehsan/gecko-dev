@@ -34,10 +34,8 @@ namespace layers {
 #  define TILING_PRLOG(_args) PR_LOG(gTilingLog, PR_LOG_DEBUG, _args)
 #  define TILING_PRLOG_OBJ(_args, obj) \
     { \
-    std::stringstream ss; \
-    AppendToString(ss, obj); \
     nsAutoCString tmpstr; \
-    tmpstr = ss.str().c_str(); \
+    AppendToString(tmpstr, obj); \
     PR_LOG(gTilingLog, PR_LOG_DEBUG, _args); \
     }
    extern PRLogModuleInfo* gTilingLog;

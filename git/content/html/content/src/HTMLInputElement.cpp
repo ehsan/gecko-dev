@@ -1095,7 +1095,7 @@ static nsresult FireEventForAccessibility(nsIDOMHTMLInputElement* aTarget,
 // construction, destruction
 //
 
-HTMLInputElement::HTMLInputElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
+HTMLInputElement::HTMLInputElement(already_AddRefed<nsINodeInfo>& aNodeInfo,
                                    FromParser aFromParser)
   : nsGenericHTMLFormElementWithState(aNodeInfo)
   , mType(kInputDefaultType->value)
@@ -1228,11 +1228,11 @@ NS_IMPL_NSICONSTRAINTVALIDATION_EXCEPT_SETCUSTOMVALIDITY(HTMLInputElement)
 // nsIDOMNode
 
 nsresult
-HTMLInputElement::Clone(mozilla::dom::NodeInfo* aNodeInfo, nsINode** aResult) const
+HTMLInputElement::Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const
 {
   *aResult = nullptr;
 
-  already_AddRefed<mozilla::dom::NodeInfo> ni = nsRefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
+  already_AddRefed<nsINodeInfo> ni = nsCOMPtr<nsINodeInfo>(aNodeInfo).forget();
   nsRefPtr<HTMLInputElement> it = new HTMLInputElement(ni, NOT_FROM_PARSER);
 
   nsresult rv = const_cast<HTMLInputElement*>(this)->CopyInnerTo(it);
@@ -1520,23 +1520,10 @@ HTMLInputElement::GetAutocomplete(nsAString& aValue)
 {
   aValue.Truncate(0);
   const nsAttrValue* attributeVal = GetParsedAttr(nsGkAtoms::autocomplete);
-  if (!attributeVal ||
-      mAutocompleteAttrState == nsContentUtils::eAutocompleteAttrState_Invalid) {
-    return NS_OK;
-  }
-  if (mAutocompleteAttrState == nsContentUtils::eAutocompleteAttrState_Valid) {
-    uint32_t atomCount = attributeVal->GetAtomCount();
-    for (uint32_t i = 0; i < atomCount; i++) {
-      if (i != 0) {
-        aValue.Append(' ');
-      }
-      aValue.Append(nsDependentAtomString(attributeVal->AtomAt(i)));
-    }
-    nsContentUtils::ASCIIToLower(aValue);
-    return NS_OK;
-  }
 
-  mAutocompleteAttrState = nsContentUtils::SerializeAutocompleteAttribute(attributeVal, aValue);
+  mAutocompleteAttrState =
+    nsContentUtils::SerializeAutocompleteAttribute(attributeVal, aValue,
+                                                   mAutocompleteAttrState);
   return NS_OK;
 }
 

@@ -1796,7 +1796,7 @@ nsXULTemplateBuilder::CompileTemplate(nsIContent* aTemplate,
          rulenode;
          rulenode = rulenode->GetNextSibling()) {
 
-        mozilla::dom::NodeInfo *ni = rulenode->NodeInfo();
+        nsINodeInfo *ni = rulenode->NodeInfo();
 
         // don't allow more queries than can be supported
         if (*aPriority == INT16_MAX)

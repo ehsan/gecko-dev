@@ -21,7 +21,7 @@ class DOMSVGPointList;
 class nsSVGPolyElement : public nsSVGPolyElementBase
 {
 protected:
-  nsSVGPolyElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  nsSVGPolyElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
 
 public:
   //interfaces

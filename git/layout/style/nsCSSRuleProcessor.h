@@ -53,8 +53,7 @@ public:
                      mozilla::dom::Element* aScopeElement);
   virtual ~nsCSSRuleProcessor();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsCSSRuleProcessor)
+  NS_DECL_ISUPPORTS
 
 public:
   nsresult ClearRuleCascades();
@@ -182,8 +181,6 @@ private:
                                        mozilla::dom::Element* aStatefulElement,
                                        nsCSSPseudoElements::Type aPseudoType,
                                        mozilla::EventStates aStateMask);
-
-  void ClearSheets();
 
   // The sheet order here is the same as in nsStyleSet::mSheets
   sheet_array_type mSheets;

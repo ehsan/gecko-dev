@@ -1236,7 +1236,7 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
     {
       // Just include our border, and let the box code augment the size.
       nsIntMargin border;
-      nsNativeThemeGTK::GetWidgetBorder(aFrame->PresContext()->DeviceContext(),
+      nsNativeThemeGTK::GetWidgetBorder(aContext->DeviceContext(),
                                         aFrame, aWidgetType, &border);
       aResult->width = border.left + border.right;
       aResult->height = border.top + border.bottom;

@@ -250,15 +250,15 @@ public:
   bool IsAttached() { return mAttached; }
 
 #ifdef MOZ_DUMP_PAINTING
-  virtual void Dump(std::stringstream& aStream,
+  virtual void Dump(FILE* aFile=nullptr,
                     const char* aPrefix="",
                     bool aDumpHtml=false) { }
-  static void DumpTextureHost(std::stringstream& aStream, TextureHost* aTexture);
+  static void DumpTextureHost(FILE* aFile, TextureHost* aTexture);
 
   virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() { return nullptr; }
 #endif
 
-  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) = 0;
+  virtual void PrintInfo(nsACString& aTo, const char* aPrefix) = 0;
 
   virtual void UseTextureHost(TextureHost* aTexture);
   virtual void UseComponentAlphaTextures(TextureHost* aTextureOnBlack,

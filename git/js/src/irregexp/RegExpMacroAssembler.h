@@ -217,9 +217,8 @@ class MOZ_STACK_CLASS RegExpMacroAssembler
     RegExpShared *shared;
 };
 
-template <typename CharT>
 int
-CaseInsensitiveCompareStrings(const CharT *substring1, const CharT *substring2, size_t byteLength);
+CaseInsensitiveCompareStrings(const jschar *substring1, const jschar *substring2, size_t byteLength);
 
 class MOZ_STACK_CLASS InterpretedRegExpMacroAssembler : public RegExpMacroAssembler
 {

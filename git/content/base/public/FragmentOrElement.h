@@ -31,6 +31,7 @@ class nsIControllers;
 class nsICSSDeclaration;
 class nsIDocument;
 class nsDOMStringMap;
+class nsINodeInfo;
 class nsIURI;
 
 namespace mozilla {
@@ -170,8 +171,8 @@ class UndoManager;
 class FragmentOrElement : public nsIContent
 {
 public:
-  FragmentOrElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
-  FragmentOrElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+  FragmentOrElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
+  FragmentOrElement(already_AddRefed<nsINodeInfo>&& aNodeInfo);
   virtual ~FragmentOrElement();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

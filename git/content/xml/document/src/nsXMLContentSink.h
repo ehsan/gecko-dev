@@ -21,14 +21,9 @@
 class nsIDocument;
 class nsIURI;
 class nsIContent;
+class nsINodeInfo;
 class nsIParser;
 class nsViewManager;
-
-namespace mozilla {
-namespace dom {
-class NodeInfo;
-}
-}
 
 typedef enum {
   eXMLContentSinkState_InProlog,
@@ -116,7 +111,7 @@ protected:
                                nsIContent *aContent);
   virtual bool NotifyForDocElement() { return true; }
   virtual nsresult CreateElement(const char16_t** aAtts, uint32_t aAttsCount,
-                                 mozilla::dom::NodeInfo* aNodeInfo, uint32_t aLineNumber,
+                                 nsINodeInfo* aNodeInfo, uint32_t aLineNumber,
                                  nsIContent** aResult, bool* aAppendContent,
                                  mozilla::dom::FromParser aFromParser);
 
@@ -159,7 +154,7 @@ protected:
 
   nsresult MaybePrettyPrint();
   
-  bool IsMonolithicContainer(mozilla::dom::NodeInfo* aNodeInfo);
+  bool IsMonolithicContainer(nsINodeInfo* aNodeInfo);
 
   nsresult HandleStartElement(const char16_t *aName, const char16_t **aAtts, 
                               uint32_t aAttsCount, uint32_t aLineNumber,

@@ -267,12 +267,12 @@ public:
   const nsIFrame* GetAnimatedGeometryRoot() { return mAnimatedGeometryRoot; }
 
   /**
-   * Add aHitRegion, aMaybeHitRegion, and aDispatchToContentHitRegion to the
-   * hit regions for this ThebesLayer.
+   * Add aHitRegion and aDispatchToContentHitRegion to the hit regions for
+   * this ThebesLayer.
    */
-  void AccumulateEventRegions(const nsRegion& aHitRegion,
-                              const nsRegion& aMaybeHitRegion,
-                              const nsRegion& aDispatchToContentHitRegion)
+  void AccumulateEventRegions(const nsIntRegion& aHitRegion,
+                              const nsIntRegion& aMaybeHitRegion,
+                              const nsIntRegion& aDispatchToContentHitRegion)
   {
     mHitRegion.Or(mHitRegion, aHitRegion);
     mMaybeHitRegion.Or(mMaybeHitRegion, aMaybeHitRegion);
@@ -372,15 +372,15 @@ public:
   /**
    * The definitely-hit region for this ThebesLayer.
    */
-  nsRegion  mHitRegion;
+  nsIntRegion  mHitRegion;
   /**
    * The maybe-hit region for this ThebesLayer.
    */
-  nsRegion  mMaybeHitRegion;
+  nsIntRegion  mMaybeHitRegion;
   /**
    * The dispatch-to-content hit region for this ThebesLayer.
    */
-  nsRegion  mDispatchToContentHitRegion;
+  nsIntRegion  mDispatchToContentHitRegion;
   /**
    * The "active scrolled root" for all content in the layer. Must
    * be non-null; all content in a ThebesLayer must have the same
@@ -498,9 +498,8 @@ public:
   {
     nsPresContext* presContext = aContainerFrame->PresContext();
     mAppUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
-    mContainerReferenceFrame =
-      const_cast<nsIFrame*>(aContainerItem ? aContainerItem->ReferenceFrameForChildren() :
-                                             mBuilder->FindReferenceFrameFor(mContainerFrame));
+    mContainerReferenceFrame = aContainerItem ? aContainerItem->ReferenceFrameForChildren() :
+      mBuilder->FindReferenceFrameFor(mContainerFrame);
     mContainerAnimatedGeometryRoot = aContainerItem
       ? nsLayoutUtils::GetAnimatedGeometryRootFor(aContainerItem, aBuilder)
       : mContainerReferenceFrame;
@@ -708,7 +707,7 @@ protected:
   LayerManager*                    mManager;
   FrameLayerBuilder*               mLayerBuilder;
   nsIFrame*                        mContainerFrame;
-  nsIFrame*                        mContainerReferenceFrame;
+  const nsIFrame*                  mContainerReferenceFrame;
   const nsIFrame*                  mContainerAnimatedGeometryRoot;
   ContainerLayer*                  mContainerLayer;
   ContainerLayerParameters         mParameters;
@@ -1838,6 +1837,39 @@ ContainerState::SetFixedPositionLayerData(Layer* aLayer,
       viewportFrame, anchorRect, aFixedPosFrame, presContext, mParameters);
 }
 
+static gfx3DMatrix
+GetTransformToRoot(Layer* aLayer)
+{
+  Matrix4x4 transform = aLayer->GetTransform();
+  for (Layer* l = aLayer->GetParent(); l; l = l->GetParent()) {
+    transform = transform * l->GetTransform();
+  }
+  gfx3DMatrix result;
+  To3DMatrix(transform, result);
+  return result;
+}
+
+static void
+AddTransformedBoundsToRegion(const nsIntRegion& aRegion,
+                             const gfx3DMatrix& aTransform,
+                             nsIntRegion* aDest)
+{
+  nsIntRect bounds = aRegion.GetBounds();
+  if (bounds.IsEmpty()) {
+    return;
+  }
+  gfxRect transformed =
+    aTransform.TransformBounds(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height));
+  transformed.RoundOut();
+  nsIntRect intRect;
+  if (!gfxUtils::GfxRectToIntRect(transformed, &intRect)) {
+    // This should only fail if coordinates are too big to fit in an int32
+    *aDest = nsIntRect(-INT32_MAX/2, -INT32_MAX/2, INT32_MAX, INT32_MAX);
+    return;
+  }
+  aDest->Or(*aDest, intRect);
+}
+
 static bool
 CanOptimizeAwayThebesLayer(ThebesLayerData* aData,
                            FrameLayerBuilder* aLayerBuilder)
@@ -2012,47 +2044,28 @@ ContainerState::PopThebesLayerData()
   ThebesLayerData* containingThebesLayerData =
      mLayerBuilder->GetContainingThebesLayerData();
   if (containingThebesLayerData) {
-    nsRect rect = nsLayoutUtils::TransformFrameRectToAncestor(
-      mContainerReferenceFrame,
-      data->mDispatchToContentHitRegion.GetBounds(),
-      containingThebesLayerData->mReferenceFrame);
-    containingThebesLayerData->mDispatchToContentHitRegion.Or(
-      containingThebesLayerData->mDispatchToContentHitRegion, rect);
-
-    rect = nsLayoutUtils::TransformFrameRectToAncestor(
-      mContainerReferenceFrame,
-      data->mMaybeHitRegion.GetBounds(),
-      containingThebesLayerData->mReferenceFrame);
-    containingThebesLayerData->mMaybeHitRegion.Or(
-      containingThebesLayerData->mMaybeHitRegion, rect);
-
+    gfx3DMatrix matrix = GetTransformToRoot(layer);
+    nsIntPoint translatedDest = GetTranslationForThebesLayer(containingThebesLayerData->mLayer);
+    matrix.TranslatePost(-gfxPoint3D(translatedDest.x, translatedDest.y, 0));
+    AddTransformedBoundsToRegion(data->mDispatchToContentHitRegion, matrix,
+                                 &containingThebesLayerData->mDispatchToContentHitRegion);
+    AddTransformedBoundsToRegion(data->mMaybeHitRegion, matrix,
+                                 &containingThebesLayerData->mMaybeHitRegion);
     // Our definitely-hit region must go to the maybe-hit-region since
     // this function is an approximation.
-    gfx3DMatrix matrix = nsLayoutUtils::GetTransformToAncestor(
-      mContainerReferenceFrame, containingThebesLayerData->mReferenceFrame);
     gfxMatrix matrix2D;
     bool isPrecise = matrix.Is2D(&matrix2D) && !matrix2D.HasNonAxisAlignedTransform();
-    rect = nsLayoutUtils::TransformFrameRectToAncestor(
-      mContainerReferenceFrame,
-      data->mHitRegion.GetBounds(),
-      containingThebesLayerData->mReferenceFrame);
-    nsRegion* dest = isPrecise ? &containingThebesLayerData->mHitRegion
-                               : &containingThebesLayerData->mMaybeHitRegion;
-    dest->Or(*dest, rect);
+    AddTransformedBoundsToRegion(data->mHitRegion, matrix,
+      isPrecise ? &containingThebesLayerData->mHitRegion
+                : &containingThebesLayerData->mMaybeHitRegion);
   } else {
     EventRegions regions;
-    regions.mHitRegion = ScaleRegionToOutsidePixels(data->mHitRegion);
+    regions.mHitRegion.Swap(&data->mHitRegion);
     // Points whose hit-region status we're not sure about need to be dispatched
     // to the content thread.
-    nsIntRegion maybeHitRegion = ScaleRegionToOutsidePixels(data->mMaybeHitRegion);
-    regions.mDispatchToContentHitRegion.Sub(maybeHitRegion, regions.mHitRegion);
+    regions.mDispatchToContentHitRegion.Sub(data->mMaybeHitRegion, regions.mHitRegion);
     regions.mDispatchToContentHitRegion.Or(regions.mDispatchToContentHitRegion,
-                                           ScaleRegionToOutsidePixels(data->mDispatchToContentHitRegion));
-
-    nsIntPoint translation = -GetTranslationForThebesLayer(data->mLayer);
-    regions.mHitRegion.MoveBy(translation);
-    regions.mDispatchToContentHitRegion.MoveBy(translation);
-
+                                           data->mDispatchToContentHitRegion);
     layer->SetEventRegions(regions);
   }
 
@@ -2628,9 +2641,9 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       if (itemType == nsDisplayItem::TYPE_LAYER_EVENT_REGIONS) {
         nsDisplayLayerEventRegions* eventRegions =
             static_cast<nsDisplayLayerEventRegions*>(item);
-        data->AccumulateEventRegions(eventRegions->HitRegion(),
-                                     eventRegions->MaybeHitRegion(),
-                                     eventRegions->DispatchToContentHitRegion());
+        data->AccumulateEventRegions(ScaleRegionToOutsidePixels(eventRegions->HitRegion()),
+                                     ScaleRegionToOutsidePixels(eventRegions->MaybeHitRegion()),
+                                     ScaleRegionToOutsidePixels(eventRegions->DispatchToContentHitRegion()));
       } else {
         // check to see if the new item has rounded rect clips in common with
         // other items in the layer
@@ -3549,15 +3562,12 @@ FrameLayerBuilder::GetThebesLayerScaleForFrame(nsIFrame* aFrame)
 }
 
 #ifdef MOZ_DUMP_PAINTING
-static void DebugPaintItem(nsRenderingContext* aDest,
-                           nsPresContext* aPresContext,
-                           nsDisplayItem *aItem,
-                           nsDisplayListBuilder* aBuilder)
+static void DebugPaintItem(nsRenderingContext* aDest, nsDisplayItem *aItem, nsDisplayListBuilder* aBuilder)
 {
   bool snap;
   nsRect appUnitBounds = aItem->GetBounds(aBuilder, &snap);
   gfxRect bounds(appUnitBounds.x, appUnitBounds.y, appUnitBounds.width, appUnitBounds.height);
-  bounds.ScaleInverse(aPresContext->AppUnitsPerDevPixel());
+  bounds.ScaleInverse(aDest->AppUnitsPerDevPixel());
 
   nsRefPtr<gfxASurface> surf =
     gfxPlatform::GetPlatform()->CreateOffscreenSurface(IntSize(bounds.width, bounds.height),
@@ -3696,7 +3706,7 @@ FrameLayerBuilder::PaintItems(nsTArray<ClippedDisplayItem>& aItems,
 #ifdef MOZ_DUMP_PAINTING
 
       if (gfxUtils::sDumpPainting) {
-        DebugPaintItem(aRC, aPresContext, cdi->mItem, aBuilder);
+        DebugPaintItem(aRC, cdi->mItem, aBuilder);
       } else {
 #else
       {
@@ -3728,7 +3738,7 @@ static bool ShouldDrawRectsSeparately(gfxContext* aContext, DrawRegionClip aClip
   }
 
   DrawTarget *dt = aContext->GetDrawTarget();
-  return dt->GetBackendType() == BackendType::DIRECT2D;
+  return dt->GetType() == BackendType::DIRECT2D;
 }
 
 static void DrawForcedBackgroundColor(gfxContext* aContext, Layer* aLayer, nscolor aBackgroundColor)
@@ -3900,9 +3910,9 @@ FrameLayerBuilder::CheckDOMModified()
 
 #ifdef MOZ_DUMP_PAINTING
 /* static */ void
-FrameLayerBuilder::DumpRetainedLayerTree(LayerManager* aManager, std::stringstream& aStream, bool aDumpHtml)
+FrameLayerBuilder::DumpRetainedLayerTree(LayerManager* aManager, FILE* aFile, bool aDumpHtml)
 {
-  aManager->Dump(aStream, "", aDumpHtml);
+  aManager->Dump(aFile, "", aDumpHtml);
 }
 #endif
 

@@ -225,10 +225,7 @@ DrawTargetRecording::DrawTargetRecording(DrawEventRecorder *aRecorder, DrawTarge
   , mFinalDT(aDT)
 {
   RefPtr<SourceSurface> snapshot = aHasData ? mFinalDT->Snapshot() : nullptr;
-  mRecorder->RecordEvent(RecordedDrawTargetCreation(this,
-                                                    mFinalDT->GetBackendType(),
-                                                    mFinalDT->GetSize(),
-                                                    mFinalDT->GetFormat(),
+  mRecorder->RecordEvent(RecordedDrawTargetCreation(this, mFinalDT->GetType(), mFinalDT->GetSize(), mFinalDT->GetFormat(),
                                                     aHasData, snapshot));
   mFormat = mFinalDT->GetFormat();
 }

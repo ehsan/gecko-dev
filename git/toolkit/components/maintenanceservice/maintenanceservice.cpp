@@ -15,10 +15,6 @@
 #include "uachelper.h"
 #include "updatehelper.h"
 
-// Link w/ subsystem window so we don't get a console when executing
-// this binary through the installer.
-#pragma comment(linker, "/SUBSYSTEM:windows")
-
 SERVICE_STATUS gSvcStatus = { 0 }; 
 SERVICE_STATUS_HANDLE gSvcStatusHandle = nullptr; 
 HANDLE gWorkDoneEvent = nullptr;

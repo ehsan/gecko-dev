@@ -305,18 +305,18 @@ void TextureHost::Finalize()
 }
 
 void
-TextureHost::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+TextureHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  aStream << aPrefix;
-  aStream << nsPrintfCString("%s (0x%p)", Name(), this).get();
+  aTo += aPrefix;
+  aTo += nsPrintfCString("%s (0x%p)", Name(), this);
   // Note: the TextureHost needs to be locked before it is safe to call
   //       GetSize() and GetFormat() on it.
   if (Lock()) {
-    AppendToString(aStream, GetSize(), " [size=", "]");
-    AppendToString(aStream, GetFormat(), " [format=", "]");
+    AppendToString(aTo, GetSize(), " [size=", "]");
+    AppendToString(aTo, GetFormat(), " [format=", "]");
     Unlock();
   }
-  AppendToString(aStream, mFlags, " [flags=", "]");
+  AppendToString(aTo, mFlags, " [flags=", "]");
 }
 
 void

@@ -161,16 +161,17 @@ ImageLayerComposite::CleanupResources()
   mImageHost = nullptr;
 }
 
-void
-ImageLayerComposite::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+ImageLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  ImageLayer::PrintInfo(aStream, aPrefix);
+  ImageLayer::PrintInfo(aTo, aPrefix);
   if (mImageHost && mImageHost->IsAttached()) {
-    aStream << "\n";
+    aTo += "\n";
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
-    mImageHost->PrintInfo(aStream, pfx.get());
+    mImageHost->PrintInfo(aTo, pfx.get());
   }
+  return aTo;
 }
 
 } /* layers */

@@ -193,8 +193,6 @@ class AudioInitTask;
 // is thread-safe without external synchronization.
 class AudioStream MOZ_FINAL
 {
-  virtual ~AudioStream();
-
 public:
   // Initialize Audio Library. Some Audio backends require initializing the
   // library before using it.
@@ -216,6 +214,7 @@ public:
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(AudioStream)
   AudioStream();
+  virtual ~AudioStream();
 
   enum LatencyRequest {
     HighLatency,

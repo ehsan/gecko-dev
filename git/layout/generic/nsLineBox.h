@@ -427,10 +427,10 @@ public:
     return !IsBlock() ? mFlags.mBreakType : NS_STYLE_CLEAR_NONE;
   }
 
-  // mCarriedOutBEndMargin value
-  nsCollapsingMargin GetCarriedOutBEndMargin() const;
+  // mCarriedOutBottomMargin value
+  nsCollapsingMargin GetCarriedOutBottomMargin() const;
   // Returns true if the margin changed
-  bool SetCarriedOutBEndMargin(nsCollapsingMargin aValue);
+  bool SetCarriedOutBottomMargin(nsCollapsingMargin aValue);
 
   // mFloats
   bool HasFloats() const {
@@ -647,10 +647,10 @@ public:
   struct ExtraBlockData : public ExtraData {
     ExtraBlockData(const nsRect& aBounds)
       : ExtraData(aBounds),
-        mCarriedOutBEndMargin()
+        mCarriedOutBottomMargin()
     {
     }
-    nsCollapsingMargin mCarriedOutBEndMargin;
+    nsCollapsingMargin mCarriedOutBottomMargin;
   };
 
   struct ExtraInlineData : public ExtraData {

@@ -104,14 +104,13 @@ Load16Aligned(const uint8_t* pc)
 
 #define BYTECODE(name)  case BC_##name:
 
-template <typename CharT>
 RegExpRunStatus
-irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *chars, size_t current,
-                        size_t length, MatchPairs *matches)
+irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode,
+                        const jschar *chars, size_t current, size_t length, MatchPairs *matches)
 {
     const uint8_t* pc = byteCode;
 
-    uint32_t current_char = current ? chars[current - 1] : '\n';
+    jschar current_char = current ? chars[current - 1] : '\n';
 
     RegExpStackCursor stack(cx);
 
@@ -227,8 +226,8 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
             if (pos + 2 > length) {
                 pc = byteCode + Load32Aligned(pc + 4);
             } else {
-                CharT next = chars[pos + 1];
-                current_char = (chars[pos] | (next << (kBitsPerByte * sizeof(CharT))));
+                jschar next = chars[pos + 1];
+                current_char = (chars[pos] | (next << (kBitsPerByte * sizeof(jschar))));
                 pc += BC_LOAD_2_CURRENT_CHARS_LENGTH;
             }
             break;
@@ -422,7 +421,7 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
                 pc = byteCode + Load32Aligned(pc + 4);
                 break;
             }
-            if (CaseInsensitiveCompareStrings(chars + from, chars + current, len * sizeof(CharT))) {
+            if (CaseInsensitiveCompareStrings(chars + from, chars + current, len * 2)) {
                 current += len;
                 pc += BC_CHECK_NOT_BACK_REF_NO_CASE_LENGTH;
             } else {
@@ -457,11 +456,3 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
         }
     }
 }
-
-template RegExpRunStatus
-irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const Latin1Char *chars, size_t current,
-                        size_t length, MatchPairs *matches);
-
-template RegExpRunStatus
-irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const jschar *chars, size_t current,
-                        size_t length, MatchPairs *matches);

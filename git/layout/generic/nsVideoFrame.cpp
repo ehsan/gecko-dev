@@ -59,7 +59,7 @@ nsresult
 nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 {
   nsNodeInfoManager *nodeInfoManager = GetContent()->GetCurrentDoc()->NodeInfoManager();
-  nsRefPtr<NodeInfo> nodeInfo;
+  nsCOMPtr<nsINodeInfo> nodeInfo;
   Element *element;
 
   if (HasVideoElement()) {

@@ -20,7 +20,7 @@
 #include "jit/IonAllocPolicy.h"
 #include "jit/IonMacroAssembler.h"
 #include "jit/MOpcodes.h"
-#include "jit/TypedObjectPrediction.h"
+#include "jit/TypeDescrSet.h"
 #include "jit/TypePolicy.h"
 #include "vm/ScopeObject.h"
 #include "vm/TypedArrayObject.h"
@@ -1769,14 +1769,14 @@ class MNewDerivedTypedObject
                       IntPolicy<2> >
 {
   private:
-    TypedObjectPrediction prediction_;
+    TypeDescrSet set_;
 
-    MNewDerivedTypedObject(TypedObjectPrediction prediction,
+    MNewDerivedTypedObject(TypeDescrSet set,
                            MDefinition *type,
                            MDefinition *owner,
                            MDefinition *offset)
       : MTernaryInstruction(type, owner, offset),
-        prediction_(prediction)
+        set_(set)
     {
         setMovable();
         setResultType(MIRType_Object);
@@ -1785,14 +1785,14 @@ class MNewDerivedTypedObject
   public:
     INSTRUCTION_HEADER(NewDerivedTypedObject);
 
-    static MNewDerivedTypedObject *New(TempAllocator &alloc, TypedObjectPrediction prediction,
+    static MNewDerivedTypedObject *New(TempAllocator &alloc, TypeDescrSet set,
                                        MDefinition *type, MDefinition *owner, MDefinition *offset)
     {
-        return new(alloc) MNewDerivedTypedObject(prediction, type, owner, offset);
+        return new(alloc) MNewDerivedTypedObject(set, type, owner, offset);
     }
 
-    TypedObjectPrediction prediction() const {
-        return prediction_;
+    TypeDescrSet set() const {
+        return set_;
     }
 
     MDefinition *type() const {

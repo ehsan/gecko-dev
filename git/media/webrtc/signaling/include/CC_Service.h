@@ -23,6 +23,7 @@ namespace CSF
         NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CC_Service)
     protected:
     	CC_Service() {}
+    public:
         virtual ~CC_Service() {};
 
     public:

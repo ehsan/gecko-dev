@@ -225,7 +225,9 @@ JSRope::copyNonPureCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> 
     return true;
 }
 
-namespace js {
+template <typename CharT>
+static void
+CopyChars(CharT *dest, const JSLinearString &str);
 
 template <>
 void
@@ -245,8 +247,6 @@ CopyChars(Latin1Char *dest, const JSLinearString &str)
     AutoCheckCannotGC nogc;
     PodCopy(dest, str.latin1Chars(nogc), str.length());
 }
-
-} /* namespace js */
 
 template<JSRope::UsingBarrier b, typename CharT>
 JSFlatString *

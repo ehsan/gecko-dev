@@ -261,27 +261,30 @@ ContentHostTexture::SetCompositor(Compositor* aCompositor)
 
 #ifdef MOZ_DUMP_PAINTING
 void
-ContentHostTexture::Dump(std::stringstream& aStream,
+ContentHostTexture::Dump(FILE* aFile,
                          const char* aPrefix,
                          bool aDumpHtml)
 {
   if (!aDumpHtml) {
     return;
   }
-  aStream << "<ul>";
+  if (!aFile) {
+    aFile = stderr;
+  }
+  fprintf(aFile, "<ul>");
   if (mTextureHost) {
-    aStream << aPrefix;
-    aStream << "<li> <a href=";
-    DumpTextureHost(aStream, mTextureHost);
-    aStream << "> Front buffer </a></li> ";
+    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, "<li> <a href=");
+    DumpTextureHost(aFile, mTextureHost);
+    fprintf(aFile, "> Front buffer </a></li> ");
   }
   if (mTextureHostOnWhite) {
-    aStream <<  aPrefix;
-    aStream << "<li> <a href=";
-    DumpTextureHost(aStream, mTextureHostOnWhite);
-    aStream << "> Front buffer on white </a> </li> ";
+    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, "<li> <a href=");
+    DumpTextureHost(aFile, mTextureHostOnWhite);
+    fprintf(aFile, "> Front buffer on white </a> </li> ");
   }
-  aStream << "</ul>";
+  fprintf(aFile, "</ul>");
 }
 #endif
 
@@ -649,34 +652,34 @@ ContentHostIncremental::TextureUpdateRequest::Execute(ContentHostIncremental* aH
 }
 
 void
-ContentHostIncremental::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+ContentHostIncremental::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  aStream << aPrefix;
-  aStream << nsPrintfCString("ContentHostIncremental (0x%p)", this).get();
+  aTo += aPrefix;
+  aTo += nsPrintfCString("ContentHostIncremental (0x%p)", this);
 
   if (PaintWillResample()) {
-    aStream << " [paint-will-resample]";
+    aTo += " [paint-will-resample]";
   }
 }
 
 void
-ContentHostTexture::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+ContentHostTexture::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  aStream << aPrefix;
-  aStream << nsPrintfCString("ContentHost (0x%p)", this).get();
+  aTo += aPrefix;
+  aTo += nsPrintfCString("ContentHost (0x%p)", this);
 
-  AppendToString(aStream, mBufferRect, " [buffer-rect=", "]");
-  AppendToString(aStream, mBufferRotation, " [buffer-rotation=", "]");
+  AppendToString(aTo, mBufferRect, " [buffer-rect=", "]");
+  AppendToString(aTo, mBufferRotation, " [buffer-rotation=", "]");
   if (PaintWillResample()) {
-    aStream << " [paint-will-resample]";
+    aTo += " [paint-will-resample]";
   }
 
   if (mTextureHost) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
 
-    aStream << "\n";
-    mTextureHost->PrintInfo(aStream, pfx.get());
+    aTo += "\n";
+    mTextureHost->PrintInfo(aTo, pfx.get());
   }
 }
 

@@ -207,16 +207,6 @@ JitFrameIterator::script() const
     return script;
 }
 
-uint8_t *
-JitFrameIterator::resumeAddressToFp() const
-{
-    // If we are settled on a patched BaselineFrame due to debug mode OSR, get
-    // the real return address via the stashed DebugModeOSRInfo.
-    if (isBaselineJS() && baselineFrame()->getDebugModeOSRInfo())
-        return baselineFrame()->debugModeOSRInfo()->resumeAddr;
-    return returnAddressToFp();
-}
-
 void
 JitFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) const
 {
@@ -224,7 +214,7 @@ JitFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) 
     JSScript *script = this->script();
     if (scriptRes)
         *scriptRes = script;
-    uint8_t *retAddr = resumeAddressToFp();
+    uint8_t *retAddr = returnAddressToFp();
 
     // If we have unwound the scope due to exception handling to a different
     // pc, the frame should behave as if it were settled on that pc.
@@ -232,6 +222,11 @@ JitFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) 
         *pcRes = overridePc;
         return;
     }
+
+    // If we are in the middle of a recompile handler, get the real return
+    // address as stashed in the RecompileInfo.
+    if (BaselineDebugModeOSRInfo *info = baselineFrame()->getDebugModeOSRInfo())
+        retAddr = info->resumeAddr;
 
     if (pcRes) {
         // If the return address is into the prologue entry address or just

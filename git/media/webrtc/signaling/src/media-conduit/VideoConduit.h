@@ -12,7 +12,6 @@
 #include "MediaEngineWrapper.h"
 #include "CodecStatistics.h"
 #include "LoadManagerFactory.h"
-#include "LoadManager.h"
 
 // conflicts with #include of scoped_ptr.h
 #undef FF

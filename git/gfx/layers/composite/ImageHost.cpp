@@ -195,33 +195,36 @@ ImageHost::SetCompositor(Compositor* aCompositor)
 }
 
 void
-ImageHost::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+ImageHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  aStream << aPrefix;
-  aStream << nsPrintfCString("ImageHost (0x%p)", this).get();
+  aTo += aPrefix;
+  aTo += nsPrintfCString("ImageHost (0x%p)", this);
 
-  AppendToString(aStream, mPictureRect, " [picture-rect=", "]");
+  AppendToString(aTo, mPictureRect, " [picture-rect=", "]");
 
   if (mFrontBuffer) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
-    aStream << "\n";
-    mFrontBuffer->PrintInfo(aStream, pfx.get());
+    aTo += "\n";
+    mFrontBuffer->PrintInfo(aTo, pfx.get());
   }
 }
 
 #ifdef MOZ_DUMP_PAINTING
 void
-ImageHost::Dump(std::stringstream& aStream,
+ImageHost::Dump(FILE* aFile,
                 const char* aPrefix,
                 bool aDumpHtml)
 {
+  if (!aFile) {
+    aFile = stderr;
+  }
   if (mFrontBuffer) {
-    aStream << aPrefix;
-    aStream << (aDumpHtml ? "<ul><li>TextureHost: "
+    fprintf_stderr(aFile, "%s", aPrefix);
+    fprintf_stderr(aFile, aDumpHtml ? "<ul><li>TextureHost: "
                              : "TextureHost: ");
-    DumpTextureHost(aStream, mFrontBuffer);
-    aStream << (aDumpHtml ? " </li></ul> " : " ");
+    DumpTextureHost(aFile, mFrontBuffer);
+    fprintf_stderr(aFile, aDumpHtml ? " </li></ul> " : " ");
   }
 }
 #endif

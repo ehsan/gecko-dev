@@ -21,7 +21,7 @@ public:
 
   bool Init(const TileSet& mTiles);
 
-  virtual BackendType GetBackendType() const { return mTiles[0].mDrawTarget->GetBackendType(); }
+  virtual BackendType GetType() const { return mTiles[0].mDrawTarget->GetType(); }
   virtual TemporaryRef<SourceSurface> Snapshot();
   virtual IntSize GetSize() { return IntSize(mRect.XMost(), mRect.YMost()); }
 

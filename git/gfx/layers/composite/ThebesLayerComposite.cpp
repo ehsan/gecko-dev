@@ -133,7 +133,7 @@ ThebesLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
   AddBlendModeEffect(effectChain);
 
-  const nsIntRegion& visibleRegion = GetEffectiveVisibleRegion();
+  nsIntRegion visibleRegion = GetEffectiveVisibleRegion();
 
   TiledLayerProperties tiledLayerProps;
   if (mRequiresTiledProperties) {
@@ -193,16 +193,17 @@ ThebesLayerComposite::GetEffectiveResolution()
   return CSSToScreenScale(1.0);
 }
 
-void
-ThebesLayerComposite::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+ThebesLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  ThebesLayer::PrintInfo(aStream, aPrefix);
+  ThebesLayer::PrintInfo(aTo, aPrefix);
   if (mBuffer && mBuffer->IsAttached()) {
-    aStream << "\n";
+    aTo += "\n";
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
-    mBuffer->PrintInfo(aStream, pfx.get());
+    mBuffer->PrintInfo(aTo, pfx.get());
   }
+  return aTo;
 }
 
 } /* layers */

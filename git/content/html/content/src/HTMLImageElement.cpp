@@ -49,7 +49,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Image)
 namespace mozilla {
 namespace dom {
 
-HTMLImageElement::HTMLImageElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+HTMLImageElement::HTMLImageElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
   , mForm(nullptr)
 {
@@ -615,7 +615,7 @@ HTMLImageElement::Image(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  already_AddRefed<mozilla::dom::NodeInfo> nodeInfo =
+  already_AddRefed<nsINodeInfo> nodeInfo =
     doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nullptr,
                                         kNameSpaceID_XHTML,
                                         nsIDOMNode::ELEMENT_NODE);

@@ -36,7 +36,7 @@ public:
   mozilla::gfx::GradientStops *
   GetGradientStopsForTarget(mozilla::gfx::DrawTarget *aRT)
   {
-    if (mStops && mStops->GetBackendType() == aRT->GetBackendType()) {
+    if (mStops && mStops->GetBackendType() == aRT->GetType()) {
       return mStops;
     }
 

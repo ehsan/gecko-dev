@@ -7,7 +7,6 @@
 #include "json.h"
 
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/Range.h"
 
 #include "jsarray.h"
 #include "jsatom.h"
@@ -32,8 +31,6 @@ using namespace js::types;
 
 using mozilla::IsFinite;
 using mozilla::Maybe;
-using mozilla::Range;
-using mozilla::RangedPtr;
 
 const Class js::JSONClass = {
     js_JSON_str,
@@ -58,19 +55,20 @@ static inline bool IsQuoteSpecialCharacter(jschar c)
 }
 
 /* ES5 15.12.3 Quote. */
-template <typename CharT>
 static bool
-Quote(StringBuffer &sb, JSLinearString *str)
+Quote(JSContext *cx, StringBuffer &sb, JSString *str)
 {
+    JS::Anchor<JSString *> anchor(str);
     size_t len = str->length();
+    const jschar *buf = str->getChars(cx);
+    if (!buf)
+        return false;
 
     /* Step 1. */
     if (!sb.append('"'))
         return false;
 
     /* Step 2. */
-    JS::AutoCheckCannotGC nogc;
-    const RangedPtr<const CharT> buf(str->chars<CharT>(nogc), len);
     for (size_t i = 0; i < len; ++i) {
         /* Batch-append maximal character sequences containing no escapes. */
         size_t mark = i;
@@ -117,19 +115,6 @@ Quote(StringBuffer &sb, JSLinearString *str)
 
     /* Steps 3-4. */
     return sb.append('"');
-}
-
-static bool
-Quote(JSContext *cx, StringBuffer &sb, JSString *str)
-{
-    JS::Anchor<JSString *> anchor(str);
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-        return false;
-
-    return linear->hasLatin1Chars()
-           ? Quote<Latin1Char>(sb, linear)
-           : Quote<jschar>(sb, linear);
 }
 
 namespace {
@@ -789,8 +774,8 @@ Revive(JSContext *cx, HandleValue reviver, MutableHandleValue vp)
 
 template <typename CharT>
 bool
-js::ParseJSONWithReviver(JSContext *cx, const Range<const CharT> chars, HandleValue reviver,
-                         MutableHandleValue vp)
+js::ParseJSONWithReviver(JSContext *cx, mozilla::Range<const CharT> chars,
+                         HandleValue reviver, MutableHandleValue vp)
 {
     /* 15.12.2 steps 2-3. */
     JSONParser<CharT> parser(cx, chars);
@@ -804,12 +789,12 @@ js::ParseJSONWithReviver(JSContext *cx, const Range<const CharT> chars, HandleVa
 }
 
 template bool
-js::ParseJSONWithReviver(JSContext *cx, const Range<const Latin1Char> chars, HandleValue reviver,
-                         MutableHandleValue vp);
+js::ParseJSONWithReviver(JSContext *cx, mozilla::Range<const Latin1Char> chars,
+                         HandleValue reviver, MutableHandleValue vp);
 
 template bool
-js::ParseJSONWithReviver(JSContext *cx, const Range<const jschar> chars, HandleValue reviver,
-                         MutableHandleValue vp);
+js::ParseJSONWithReviver(JSContext *cx, mozilla::Range<const jschar> chars,
+                         HandleValue reviver, MutableHandleValue vp);
 
 #if JS_HAS_TOSOURCE
 static bool

@@ -126,6 +126,8 @@ TiledContentClient::UseTiledLayerBuffer(TiledBufferType aType)
 }
 
 SharedFrameMetricsHelper::SharedFrameMetricsHelper()
+  : mLastProgressiveUpdateWasLowPrecision(false)
+  , mProgressiveUpdateWasInDanger(false)
 {
   MOZ_COUNT_CTOR(SharedFrameMetricsHelper);
 }
@@ -173,6 +175,17 @@ SharedFrameMetricsHelper::UpdateFromCompositorFrameMetrics(
   aCompositionBounds = ParentLayerRect(compositorMetrics.mCompositionBounds);
   aZoom = compositorMetrics.GetZoomToParent();
 
+  // Reset the checkerboard risk flag when switching to low precision
+  // rendering.
+  if (aLowPrecision && !mLastProgressiveUpdateWasLowPrecision) {
+    // Skip low precision rendering until we're at risk of checkerboarding.
+    if (!mProgressiveUpdateWasInDanger) {
+      return true;
+    }
+    mProgressiveUpdateWasInDanger = false;
+  }
+  mLastProgressiveUpdateWasLowPrecision = aLowPrecision;
+
   // Always abort updates if the resolution has changed. There's no use
   // in drawing at the incorrect resolution.
   if (!FuzzyEquals(compositorMetrics.GetZoom().scale, contentMetrics.GetZoom().scale)) {
@@ -192,20 +205,13 @@ SharedFrameMetricsHelper::UpdateFromCompositorFrameMetrics(
     return false;
   }
 
-  bool scrollUpdatePending = contentMetrics.GetScrollOffsetUpdated() &&
-      contentMetrics.GetScrollGeneration() != compositorMetrics.GetScrollGeneration();
-  // If scrollUpdatePending is true, then that means the content-side
-  // metrics has a new scroll offset that is going to be forced into the
-  // compositor but it hasn't gotten there yet.
-  // Even though right now comparing the metrics might indicate we're
-  // about to checkerboard (and that's true), the checkerboarding will
-  // disappear as soon as the new scroll offset update is processed
-  // on the compositor side. To avoid leaving things in a low-precision
-  // paint, we need to detect and handle this case (bug 1026756).
-  if (!aLowPrecision && !scrollUpdatePending && AboutToCheckerboard(contentMetrics, compositorMetrics)) {
-    TILING_PRLOG_OBJ(("TILING: Checkerboard abort content %s\n", tmpstr.get()), contentMetrics);
-    TILING_PRLOG_OBJ(("TILING: Checkerboard abort compositor %s\n", tmpstr.get()), compositorMetrics);
-    return true;
+  // When not a low precision pass and the page is in danger of checker boarding
+  // abort update.
+  if (!aLowPrecision && !mProgressiveUpdateWasInDanger) {
+    if (AboutToCheckerboard(contentMetrics, compositorMetrics)) {
+      mProgressiveUpdateWasInDanger = true;
+      return true;
+    }
   }
 
   // Abort drawing stale low-precision content if there's a more recent
@@ -377,7 +383,6 @@ TileClient::TileClient()
   , mFrontBuffer(nullptr)
   , mBackLock(nullptr)
   , mFrontLock(nullptr)
-  , mCompositableClient(nullptr)
 {
 }
 
@@ -387,7 +392,6 @@ TileClient::TileClient(const TileClient& o)
   mFrontBuffer = o.mFrontBuffer;
   mBackLock = o.mBackLock;
   mFrontLock = o.mFrontLock;
-  mCompositableClient = nullptr;
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
   mLastUpdate = o.mLastUpdate;
 #endif
@@ -404,7 +408,6 @@ TileClient::operator=(const TileClient& o)
   mFrontBuffer = o.mFrontBuffer;
   mBackLock = o.mBackLock;
   mFrontLock = o.mFrontLock;
-  mCompositableClient = nullptr;
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
   mLastUpdate = o.mLastUpdate;
 #endif
@@ -418,20 +421,6 @@ TileClient::operator=(const TileClient& o)
 void
 TileClient::Flip()
 {
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-  if (mFrontBuffer && mFrontBuffer->GetIPDLActor() &&
-      mCompositableClient && mCompositableClient->GetIPDLActor()) {
-    // remove old buffer from CompositableHost
-    RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
-    // Hold TextureClient until transaction complete.
-    tracker->SetTextureClient(mFrontBuffer);
-    mFrontBuffer->SetRemoveFromCompositableTracker(tracker);
-    // RemoveTextureFromCompositableAsync() expects CompositorChild's presence.
-    mManager->AsShadowForwarder()->RemoveTextureFromCompositableAsync(tracker,
-                                                                      mCompositableClient,
-                                                                      mFrontBuffer);
-  }
-#endif
   RefPtr<TextureClient> frontBuffer = mFrontBuffer;
   mFrontBuffer = mBackBuffer;
   mBackBuffer = frontBuffer;
@@ -498,20 +487,6 @@ TileClient::DiscardFrontBuffer()
 {
   if (mFrontBuffer) {
     MOZ_ASSERT(mFrontLock);
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-    if (mFrontBuffer->GetIPDLActor() &&
-        mCompositableClient && mCompositableClient->GetIPDLActor()) {
-      // remove old buffer from CompositableHost
-      RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
-      // Hold TextureClient until transaction complete.
-      tracker->SetTextureClient(mFrontBuffer);
-      mFrontBuffer->SetRemoveFromCompositableTracker(tracker);
-      // RemoveTextureFromCompositableAsync() expects CompositorChild's presence.
-      mManager->AsShadowForwarder()->RemoveTextureFromCompositableAsync(tracker,
-                                                                        mCompositableClient,
-                                                                        mFrontBuffer);
-    }
-#endif
     mManager->GetTexturePool(mFrontBuffer->GetFormat())->ReturnTextureClientDeferred(mFrontBuffer);
     mFrontLock->ReadUnlock();
     mFrontBuffer = nullptr;
@@ -530,25 +505,7 @@ TileClient::DiscardBackBuffer()
       // this case we just want to drop it and not return it to the pool.
       mManager->GetTexturePool(mBackBuffer->GetFormat())->ReportClientLost();
     } else {
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-      if (mBackBuffer->GetIPDLActor() &&
-          mCompositableClient && mCompositableClient->GetIPDLActor()) {
-        // remove old buffer from CompositableHost
-        RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
-        // Hold TextureClient until transaction complete.
-        tracker->SetTextureClient(mBackBuffer);
-        mBackBuffer->SetRemoveFromCompositableTracker(tracker);
-        // RemoveTextureFromCompositableAsync() expects CompositorChild's presence.
-        mManager->AsShadowForwarder()->RemoveTextureFromCompositableAsync(tracker,
-                                                                          mCompositableClient,
-                                                                          mBackBuffer);
-      }
-      // TextureClient can be reused after transaction complete,
-      // when RemoveTextureFromCompositableTracker is used.
-      mManager->GetTexturePool(mBackBuffer->GetFormat())->ReturnTextureClientDeferred(mBackBuffer);
-#else
       mManager->GetTexturePool(mBackBuffer->GetFormat())->ReturnTextureClient(mBackBuffer);
-#endif
     }
     mBackLock->ReadUnlock();
     mBackBuffer = nullptr;
@@ -800,7 +757,6 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
   if (aTile.IsPlaceholderTile()) {
     aTile.SetLayerManager(mManager);
   }
-  aTile.SetCompositableClient(mCompositableClient);
 
   // Discard our front and backbuffers if our contents changed. In this case
   // the calling code will already have taken care of invalidating the entire
@@ -923,6 +879,8 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
 
   backBuffer->Unlock();
 
+  aTile.Flip();
+
   if (createdTextureClient) {
     if (!mCompositableClient->AddTextureClient(backBuffer)) {
       NS_WARNING("Failed to add tile TextureClient.");
@@ -931,8 +889,6 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
       return aTile;
     }
   }
-
-  aTile.Flip();
 
   // Note, we don't call UpdatedTexture. The Updated function is called manually
   // by the TiledContentHost before composition.

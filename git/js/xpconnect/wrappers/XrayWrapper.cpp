@@ -71,7 +71,6 @@ IsJSXraySupported(JSProtoKey key)
       case JSProto_Date:
       case JSProto_Object:
       case JSProto_Array:
-      case JSProto_Function:
         return true;
       default:
         return false;
@@ -172,8 +171,6 @@ public:
 class XrayTraits
 {
 public:
-    XrayTraits() {}
-
     static JSObject* getTargetObject(JSObject *wrapper) {
         return js::UncheckedUnwrap(wrapper, /* stopAtOuter = */ false);
     }
@@ -227,9 +224,6 @@ private:
     JSObject* attachExpandoObject(JSContext *cx, HandleObject target,
                                   nsIPrincipal *origin,
                                   HandleObject exclusiveGlobal);
-
-    XrayTraits(XrayTraits &) MOZ_DELETE;
-    const XrayTraits& operator=(XrayTraits &) MOZ_DELETE;
 };
 
 class XPCWrappedNativeXrayTraits : public XrayTraits
@@ -355,11 +349,7 @@ public:
     static bool call(JSContext *cx, HandleObject wrapper,
                      const JS::CallArgs &args, js::Wrapper& baseInstance)
     {
-        JSXrayTraits &self = JSXrayTraits::singleton;
-        RootedObject holder(cx, self.ensureHolder(cx, wrapper));
-        if (self.getProtoKey(holder) == JSProto_Function)
-            return baseInstance.call(cx, wrapper, args);
-
+        // We'll handle this when we start supporting Functions.
         RootedValue v(cx, ObjectValue(*wrapper));
         js_ReportIsNotFunction(cx, v);
         return false;
@@ -368,11 +358,7 @@ public:
     static bool construct(JSContext *cx, HandleObject wrapper,
                           const JS::CallArgs &args, js::Wrapper& baseInstance)
     {
-        JSXrayTraits &self = JSXrayTraits::singleton;
-        RootedObject holder(cx, self.ensureHolder(cx, wrapper));
-        if (self.getProtoKey(holder) == JSProto_Function)
-            return baseInstance.construct(cx, wrapper, args);
-
+        // We'll handle this when we start supporting Functions.
         RootedValue v(cx, ObjectValue(*wrapper));
         js_ReportIsNotFunction(cx, v);
         return false;
@@ -417,7 +403,6 @@ public:
     enum {
         SLOT_PROTOKEY = 0,
         SLOT_ISPROTOTYPE,
-        SLOT_CONSTRUCTOR_FOR,
         SLOT_COUNT
     };
     virtual JSObject* createHolder(JSContext *cx, JSObject *wrapper) MOZ_OVERRIDE;
@@ -429,11 +414,6 @@ public:
 
     static bool isPrototype(JSObject *holder) {
         return js::GetReservedSlot(holder, SLOT_ISPROTOTYPE).toBoolean();
-    }
-
-    static JSProtoKey constructorFor(JSObject *holder) {
-        int32_t key = js::GetReservedSlot(holder, SLOT_CONSTRUCTOR_FOR).toInt32();
-        return static_cast<JSProtoKey>(key);
     }
 
     static bool getOwnPropertyFromTargetIfSafe(JSContext *cx,
@@ -571,32 +551,6 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper,
                                    "in order to encourage performant code. To copy TypedArrays "
                                    "across origin boundaries, consider using Components.utils.cloneInto().");
                 return false;
-            }
-        } else if (key == JSProto_Function) {
-            if (id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_LENGTH)) {
-                FillPropertyDescriptor(desc, wrapper, JSPROP_PERMANENT | JSPROP_READONLY,
-                                       NumberValue(JS_GetFunctionArity(JS_GetObjectFunction(target))));
-                return true;
-            } else if (id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_NAME)) {
-                FillPropertyDescriptor(desc, wrapper, JSPROP_PERMANENT | JSPROP_READONLY,
-                                       StringValue(JS_GetFunctionId(JS_GetObjectFunction(target))));
-            } else if (id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_PROTOTYPE)) {
-                // Handle the 'prototype' property to make xrayedGlobal.StandardClass.prototype work.
-                JSProtoKey standardConstructor = constructorFor(holder);
-                if (standardConstructor != JSProto_Null) {
-                    RootedObject standardProto(cx);
-                    {
-                        JSAutoCompartment ac(cx, target);
-                        if (!JS_GetClassPrototype(cx, standardConstructor, &standardProto))
-                            return false;
-                        MOZ_ASSERT(standardProto);
-                    }
-                    if (!JS_WrapObject(cx, &standardProto))
-                        return false;
-                    FillPropertyDescriptor(desc, wrapper, JSPROP_PERMANENT | JSPROP_READONLY,
-                                           ObjectValue(*standardProto));
-                    return true;
-                }
             }
         }
 
@@ -851,16 +805,6 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
                 return false;
             for (int32_t i = 0; i <= int32_t(length - 1); ++i)
                 props.infallibleAppend(INT_TO_JSID(i));
-        } else if (key == JSProto_Function) {
-            if (!props.append(GetRTIdByIndex(cx, XPCJSRuntime::IDX_LENGTH)))
-                return false;
-            if (!props.append(GetRTIdByIndex(cx, XPCJSRuntime::IDX_NAME)))
-                return false;
-            // Handle the .prototype property on standard constructors.
-            if (constructorFor(holder) != JSProto_Null) {
-                if (!props.append(GetRTIdByIndex(cx, XPCJSRuntime::IDX_PROTOTYPE)))
-                    return false;
-            }
         }
 
         // The rest of this function applies only to prototypes.
@@ -924,13 +868,6 @@ JSXrayTraits::createHolder(JSContext *cx, JSObject *wrapper)
     js::SetReservedSlot(holder, SLOT_PROTOKEY, v);
     v.setBoolean(isPrototype);
     js::SetReservedSlot(holder, SLOT_ISPROTOTYPE, v);
-
-    // If this is a function, also compute whether it serves as a constructor
-    // for a standard class.
-    if (key == JSProto_Function) {
-        v.setNumber(static_cast<uint32_t>(IdentifyStandardConstructor(target)));
-        js::SetReservedSlot(holder, SLOT_CONSTRUCTOR_FOR, v);
-    }
 
     return holder;
 }

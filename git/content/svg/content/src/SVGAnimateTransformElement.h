@@ -11,7 +11,7 @@
 #include "nsSMILAnimationFunction.h"
 
 nsresult NS_NewSVGAnimateTransformElement(nsIContent **aResult,
-                                          already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+                                          already_AddRefed<nsINodeInfo>&& aNodeInfo);
 
 namespace mozilla {
 namespace dom {
@@ -19,18 +19,18 @@ namespace dom {
 class SVGAnimateTransformElement MOZ_FINAL : public SVGAnimationElement
 {
 protected:
-  SVGAnimateTransformElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  SVGAnimateTransformElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
 
   nsSMILAnimationFunction mAnimationFunction;
   friend nsresult
     (::NS_NewSVGAnimateTransformElement(nsIContent **aResult,
-                                        already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
+                                        already_AddRefed<nsINodeInfo>&& aNodeInfo));
 
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
 public:
   // nsIDOMNode specializations
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // Element specializations
   bool ParseAttribute(int32_t aNamespaceID,

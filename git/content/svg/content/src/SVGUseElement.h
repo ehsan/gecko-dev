@@ -15,14 +15,15 @@
 #include "nsTArray.h"
 
 class nsIContent;
+class nsINodeInfo;
 class nsSVGUseFrame;
 
 nsresult
 NS_NewSVGSVGElement(nsIContent **aResult,
-                    already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
+                    already_AddRefed<nsINodeInfo>&& aNodeInfo,
                     mozilla::dom::FromParser aFromParser);
 nsresult NS_NewSVGUseElement(nsIContent **aResult,
-                             already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+                             already_AddRefed<nsINodeInfo>&& aNodeInfo);
 
 namespace mozilla {
 namespace dom {
@@ -35,8 +36,8 @@ class SVGUseElement MOZ_FINAL : public SVGUseElementBase,
   friend class ::nsSVGUseFrame;
 protected:
   friend nsresult (::NS_NewSVGUseElement(nsIContent **aResult,
-                                         already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
-  SVGUseElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+                                         already_AddRefed<nsINodeInfo>&& aNodeInfo));
+  SVGUseElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
   virtual ~SVGUseElement();
   virtual JSObject* WrapNode(JSContext *cx) MOZ_OVERRIDE;
 
@@ -64,7 +65,7 @@ public:
   virtual bool HasValidDimensions() const MOZ_OVERRIDE;
 
   // nsIContent interface
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
 
   // WebIDL

@@ -18,7 +18,7 @@ class ProcessingInstruction : public nsGenericDOMDataNode,
                               public nsIDOMProcessingInstruction
 {
 public:
-  ProcessingInstruction(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
+  ProcessingInstruction(already_AddRefed<nsINodeInfo>&& aNodeInfo,
                         const nsAString& aData);
   virtual ~ProcessingInstruction();
 
@@ -38,7 +38,7 @@ public:
   // nsINode
   virtual bool IsNodeOfType(uint32_t aFlags) const;
 
-  virtual nsGenericDOMDataNode* CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo,
+  virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
                                               bool aCloneText) const MOZ_OVERRIDE;
 
 #ifdef DEBUG

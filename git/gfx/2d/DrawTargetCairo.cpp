@@ -1330,8 +1330,7 @@ DrawTargetCairo::GetUserSpaceClip()
 cairo_t*
 BorrowedCairoContext::BorrowCairoContextFromDrawTarget(DrawTarget* aDT)
 {
-  if (aDT->GetBackendType() != BackendType::CAIRO ||
-      aDT->IsDualDrawTarget()) {
+  if (aDT->GetType() != BackendType::CAIRO || aDT->IsDualDrawTarget()) {
     return nullptr;
   }
   DrawTargetCairo* cairoDT = static_cast<DrawTargetCairo*>(aDT);
@@ -1352,8 +1351,7 @@ void
 BorrowedCairoContext::ReturnCairoContextToDrawTarget(DrawTarget* aDT,
                                                      cairo_t* aCairo)
 {
-  if (aDT->GetBackendType() != BackendType::CAIRO ||
-      aDT->IsDualDrawTarget()) {
+  if (aDT->GetType() != BackendType::CAIRO || aDT->IsDualDrawTarget()) {
     return;
   }
   DrawTargetCairo* cairoDT = static_cast<DrawTargetCairo*>(aDT);

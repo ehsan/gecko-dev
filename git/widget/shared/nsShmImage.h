@@ -49,7 +49,6 @@ public:
         EnsureShmImage(const gfxIntSize& aSize, Visual* aVisual, unsigned int aDepth,
                        nsRefPtr<nsShmImage>& aImage);
 
-private:
     ~nsShmImage() {
         if (mImage) {
             mozilla::FinishX(DISPLAY());
@@ -60,7 +59,6 @@ private:
         }
     }
 
-public:
     already_AddRefed<gfxASurface> AsSurface();
 
 #if (MOZ_WIDGET_GTK == 2)

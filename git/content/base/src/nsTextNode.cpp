@@ -33,7 +33,7 @@ class nsAttributeTextNode MOZ_FINAL : public nsTextNode,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   
-  nsAttributeTextNode(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
+  nsAttributeTextNode(already_AddRefed<nsINodeInfo>& aNodeInfo,
                       int32_t aNameSpaceID,
                       nsIAtom* aAttrName) :
     nsTextNode(aNodeInfo),
@@ -58,11 +58,11 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
   NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
 
-  virtual nsGenericDOMDataNode *CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo,
+  virtual nsGenericDOMDataNode *CloneDataNode(nsINodeInfo *aNodeInfo,
                                               bool aCloneText) const
   {
-    already_AddRefed<mozilla::dom::NodeInfo> ni =
-      nsRefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
+    already_AddRefed<nsINodeInfo> ni =
+      nsCOMPtr<nsINodeInfo>(aNodeInfo).forget();
     nsAttributeTextNode *it = new nsAttributeTextNode(ni,
                                                       mNameSpaceID,
                                                       mAttrName);
@@ -112,9 +112,9 @@ nsTextNode::IsNodeOfType(uint32_t aFlags) const
 }
 
 nsGenericDOMDataNode*
-nsTextNode::CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo, bool aCloneText) const
+nsTextNode::CloneDataNode(nsINodeInfo *aNodeInfo, bool aCloneText) const
 {
-  already_AddRefed<mozilla::dom::NodeInfo> ni = nsRefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
+  already_AddRefed<nsINodeInfo> ni = nsCOMPtr<nsINodeInfo>(aNodeInfo).forget();
   nsTextNode *it = new nsTextNode(ni);
   if (aCloneText) {
     it->mText = mText;
@@ -208,7 +208,7 @@ NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
   
   *aResult = nullptr;
 
-  already_AddRefed<mozilla::dom::NodeInfo> ni = aNodeInfoManager->GetTextNodeInfo();
+  already_AddRefed<nsINodeInfo> ni = aNodeInfoManager->GetTextNodeInfo();
 
   nsAttributeTextNode* textNode = new nsAttributeTextNode(ni,
                                                           aNameSpaceID,

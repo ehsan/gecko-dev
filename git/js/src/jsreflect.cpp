@@ -3254,7 +3254,13 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
                 if (!str)
                     return false;
 
-                filename = JS_EncodeString(cx, str);
+                size_t length = str->length();
+                const jschar *chars = str->getChars(cx);
+                if (!chars)
+                    return false;
+
+                TwoByteChars tbchars(chars, length);
+                filename = LossyTwoByteCharsToNewLatin1CharsZ(cx, tbchars).c_str();
                 if (!filename)
                     return false;
             }

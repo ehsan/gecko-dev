@@ -11,7 +11,7 @@ Object.defineProperty(target, 'foo', {
 Object.preventExtensions(target);
 assertThrowsInstanceOf(function () {
     Object.getOwnPropertyNames(new Proxy(target, {
-        ownKeys: function (target) {
+        getOwnPropertyNames: function (target) {
             return [];
         }
     }));

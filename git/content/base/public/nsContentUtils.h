@@ -69,6 +69,7 @@ class nsIIOService;
 class nsIJSRuntimeService;
 class nsILineBreaker;
 class nsNameSpaceManager;
+class nsINodeInfo;
 class nsIObserver;
 class nsIParser;
 class nsIParserService;
@@ -113,7 +114,6 @@ namespace dom {
 class DocumentFragment;
 class Element;
 class EventTarget;
-class NodeInfo;
 class Selection;
 } // namespace dom
 
@@ -538,7 +538,7 @@ public:
                                        const nsAString& aQualifiedName,
                                        nsNodeInfoManager* aNodeInfoManager,
                                        uint16_t aNodeType,
-                                       mozilla::dom::NodeInfo** aNodeInfo);
+                                       nsINodeInfo** aNodeInfo);
 
   static void SplitExpatName(const char16_t *aExpatName, nsIAtom **aPrefix,
                              nsIAtom **aTagName, int32_t *aNameSpaceID);
@@ -704,8 +704,8 @@ public:
    * Convenience method to create a new nodeinfo that differs only by name
    * from aNodeInfo.
    */
-  static nsresult NameChanged(mozilla::dom::NodeInfo* aNodeInfo, nsIAtom* aName,
-                              mozilla::dom::NodeInfo** aResult);
+  static nsresult NameChanged(nsINodeInfo* aNodeInfo, nsIAtom* aName,
+                              nsINodeInfo** aResult);
 
   /**
    * Returns the appropriate event argument names for the specified
@@ -2040,8 +2040,11 @@ public:
    *
    * @return whether aAttr was valid and can be cached.
    */
-  static AutocompleteAttrState SerializeAutocompleteAttribute(const nsAttrValue* aAttr,
-                                                          nsAString& aResult);
+  static AutocompleteAttrState
+  SerializeAutocompleteAttribute(const nsAttrValue* aAttr,
+                                 nsAString& aResult,
+                                 AutocompleteAttrState aCachedState =
+                                   eAutocompleteAttrState_Unknown);
 
   /**
    * This will parse aSource, to extract the value of the pseudo attribute

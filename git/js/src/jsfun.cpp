@@ -12,7 +12,6 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/Range.h"
 
 #include <string.h>
 
@@ -54,7 +53,6 @@ using namespace js::frontend;
 
 using mozilla::ArrayLength;
 using mozilla::PodCopy;
-using mozilla::Range;
 
 static bool
 fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValue vp)
@@ -1616,12 +1614,13 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
          * Concatenate the arguments into the new string, separated by commas.
          */
         for (unsigned i = 0; i < n; i++) {
-            JSLinearString *argLinear = args[i].toString()->ensureLinear(cx);
-            if (!argLinear)
+            arg = args[i].toString();
+            size_t arg_length = arg->length();
+            const jschar *arg_chars = arg->getChars(cx);
+            if (!arg_chars)
                 return false;
-
-            CopyChars(cp, *argLinear);
-            cp += argLinear->length();
+            (void) js_strncpy(cp, arg_chars, arg_length);
+            cp += arg_length;
 
             /* Add separating comma or terminating 0. */
             *cp++ = (i + 1 < n) ? ',' : 0;
@@ -1701,8 +1700,13 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
         str = ToString<CanGC>(cx, args[args.length() - 1]);
     if (!str)
         return false;
+    JSLinearString *linear = str->ensureLinear(cx);
+    if (!linear)
+        return false;
 
     JS::Anchor<JSString *> strAnchor(str);
+    const jschar *chars = linear->chars();
+    size_t length = linear->length();
 
     /*
      * NB: (new Function) is not lexically closed by its caller, it's just an
@@ -1730,20 +1734,8 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
     if (hasRest)
         fun->setHasRest();
 
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-        return false;
-
-    AutoStableStringChars stableChars(cx, linear);
-    if (!stableChars.initTwoByte(cx))
-        return false;
-
-    Range<const jschar> chars = stableChars.twoByteRange();
-    SourceBufferHolder::Ownership ownership = stableChars.maybeGiveOwnershipToCaller()
-                                              ? SourceBufferHolder::GiveOwnership
-                                              : SourceBufferHolder::NoOwnership;
     bool ok;
-    SourceBufferHolder srcBuf(chars.start().get(), chars.length(), ownership);
+    SourceBufferHolder srcBuf(chars, length, SourceBufferHolder::NoOwnership);
     if (isStarGenerator)
         ok = frontend::CompileStarGeneratorBody(cx, &fun, options, formals, srcBuf);
     else

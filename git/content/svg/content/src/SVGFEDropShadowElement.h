@@ -12,7 +12,7 @@
 #include "nsSVGString.h"
 
 nsresult NS_NewSVGFEDropShadowElement(nsIContent **aResult,
-                                      already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+                                      already_AddRefed<nsINodeInfo>&& aNodeInfo);
 
 namespace mozilla {
 namespace dom {
@@ -22,9 +22,9 @@ typedef nsSVGFE SVGFEDropShadowElementBase;
 class SVGFEDropShadowElement : public SVGFEDropShadowElementBase
 {
   friend nsresult (::NS_NewSVGFEDropShadowElement(nsIContent **aResult,
-                                                  already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
+                                                  already_AddRefed<nsINodeInfo>&& aNodeInfo));
 protected:
-  SVGFEDropShadowElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEDropShadowElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
     : SVGFEDropShadowElementBase(aNodeInfo)
   {
   }
@@ -44,7 +44,7 @@ public:
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
 
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // WebIDL
   already_AddRefed<SVGAnimatedString> In1();

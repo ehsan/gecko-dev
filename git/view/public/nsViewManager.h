@@ -23,7 +23,6 @@ class nsIPresShell;
 
 class nsViewManager MOZ_FINAL
 {
-  ~nsViewManager();
 public:
   friend class nsView;
 
@@ -32,6 +31,7 @@ public:
   NS_INLINE_DECL_REFCOUNTING(nsViewManager)
 
   nsViewManager();
+  ~nsViewManager();
 
   /**
    * Initialize the ViewManager

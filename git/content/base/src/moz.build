@@ -146,6 +146,7 @@ UNIFIED_SOURCES += [
     'nsMixedContentBlocker.cpp',
     'nsNameSpaceManager.cpp',
     'nsNoDataProtocolContentPolicy.cpp',
+    'nsNodeInfo.cpp',
     'nsNodeUtils.cpp',
     'nsPlainTextSerializer.cpp',
     'nsPropertyTable.cpp',

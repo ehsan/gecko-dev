@@ -154,8 +154,6 @@ AudioSegment::WriteTo(uint64_t aID, AudioStream* aOutput, AudioMixer* aMixer)
   uint32_t outputChannels = aOutput->GetChannels();
   nsAutoTArray<AudioDataValue,AUDIO_PROCESSING_FRAMES*GUESS_AUDIO_CHANNELS> buf;
   nsAutoTArray<const void*,GUESS_AUDIO_CHANNELS> channelData;
-  // Offset in the buffer that will end up sent to the AudioStream, in samples.
-  uint32_t offset = 0;
 
   if (!GetDuration()) {
     return;
@@ -164,6 +162,8 @@ AudioSegment::WriteTo(uint64_t aID, AudioStream* aOutput, AudioMixer* aMixer)
   uint32_t outBufferLength = GetDuration() * outputChannels;
   buf.SetLength(outBufferLength);
 
+  // Offset in the buffer that will end up sent to the AudioStream.
+  uint32_t offset = 0;
 
   for (ChunkIterator ci(*this); !ci.IsEnded(); ci.Next()) {
     AudioChunk& c = *ci;
@@ -201,8 +201,9 @@ AudioSegment::WriteTo(uint64_t aID, AudioStream* aOutput, AudioMixer* aMixer)
         // Assumes that a bit pattern of zeroes == 0.0f
         memset(buf.Elements() + offset, 0, outputChannels * frames * sizeof(AudioDataValue));
       }
-      offset += frames * outputChannels;
     }
+
+    offset += frames * outputChannels;
 
     if (!c.mTimeStamp.IsNull()) {
       TimeStamp now = TimeStamp::Now();
@@ -212,7 +213,7 @@ AudioSegment::WriteTo(uint64_t aID, AudioStream* aOutput, AudioMixer* aMixer)
     }
   }
 
-  aOutput->Write(buf.Elements(), offset / outputChannels, &(mChunks[mChunks.Length() - 1].mTimeStamp));
+  aOutput->Write(buf.Elements(), GetDuration(), &(mChunks[mChunks.Length() - 1].mTimeStamp));
 
   if (aMixer) {
     aMixer->Mix(buf.Elements(), outputChannels, GetDuration(), aOutput->GetRate());

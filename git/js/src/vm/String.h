@@ -1269,10 +1269,6 @@ class AutoNameVector : public AutoVectorRooter<PropertyName *>
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-template <typename CharT>
-void
-CopyChars(CharT *dest, const JSLinearString &str);
-
 } /* namespace js */
 
 /* Avoid requiring vm/String-inl.h just to call getChars. */

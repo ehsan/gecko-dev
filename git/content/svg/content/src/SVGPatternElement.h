@@ -17,7 +17,7 @@
 class nsSVGPatternFrame;
 
 nsresult NS_NewSVGPatternElement(nsIContent **aResult,
-                                 already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+                                 already_AddRefed<nsINodeInfo>&& aNodeInfo);
 
 namespace mozilla {
 namespace dom {
@@ -31,8 +31,8 @@ class SVGPatternElement MOZ_FINAL : public SVGPatternElementBase
 
 protected:
   friend nsresult (::NS_NewSVGPatternElement(nsIContent **aResult,
-                                             already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
-  SVGPatternElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+                                             already_AddRefed<nsINodeInfo>&& aNodeInfo));
+  SVGPatternElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
   virtual JSObject* WrapNode(JSContext *cx) MOZ_OVERRIDE;
 
 public:
@@ -41,7 +41,7 @@ public:
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const MOZ_OVERRIDE;
 
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // nsSVGSVGElement methods:
   virtual bool HasValidDimensions() const MOZ_OVERRIDE;

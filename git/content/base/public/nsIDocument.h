@@ -131,8 +131,8 @@ typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0xc9e11955, 0xaa55, 0x49a1, \
-  { 0x94, 0x29, 0x58, 0xe9, 0xbe, 0xf6, 0x79, 0x54 } }
+{ 0x0300e2e0, 0x24c9, 0x4ecf, \
+  { 0x81, 0xec, 0x64, 0x26, 0x9a, 0x4b, 0xef, 0x18 } }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -1272,18 +1272,6 @@ public:
   }
 
   /**
-   * Get the channel that failed to load and resulted in an error page, if it
-   * exists. This is only relevant to error pages.
-   */
-  virtual nsIChannel* GetFailedChannel() const = 0;
-
-  /**
-   * Set the channel that failed to load and resulted in an error page.
-   * This is only relevant to error pages.
-   */
-  virtual void SetFailedChannel(nsIChannel* aChannel) = 0;
-
-  /**
    * Returns the default namespace ID used for elements created in this
    * document.
    */
@@ -1697,17 +1685,10 @@ public:
    */
   bool IsActive() const { return mDocumentContainer && !mRemovedFromDocShell; }
 
-  /**
-   * Register/Unregister the ActivityObserver into mActivityObservers to listen
-   * the document's activity changes such as OnPageHide, visibility, activity.
-   * The ActivityObserver objects can be nsIObjectLoadingContent or
-   * nsIDocumentActivity or HTMLMEdiaElement.
-   */
-  void RegisterActivityObserver(nsISupports* aSupports);
-  bool UnregisterActivityObserver(nsISupports* aSupports);
-  // Enumerate all the observers in mActivityObservers by the aEnumerator.
-  typedef void (* ActivityObserverEnumerator)(nsISupports*, void*);
-  void EnumerateActivityObservers(ActivityObserverEnumerator aEnumerator,
+  void RegisterFreezableElement(nsIContent* aContent);
+  bool UnregisterFreezableElement(nsIContent* aContent);
+  typedef void (* FreezableElementEnumerator)(nsIContent*, void*);
+  void EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
                                   void* aData);
 
   // Indicates whether mAnimationController has been (lazily) initialized.
@@ -2392,12 +2373,11 @@ protected:
   nsRefPtr<nsHTMLStyleSheet> mAttrStyleSheet;
   nsRefPtr<nsHTMLCSSStyleSheet> mStyleAttrStyleSheet;
 
-  // The set of all object, embed, applet, video/audio elements or
-  // nsIObjectLoadingContent or nsIDocumentActivity for which this is the
-  // owner document. (They might not be in the document.)
+  // The set of all object, embed, applet, video and audio elements for
+  // which this is the owner document. (They might not be in the document.)
   // These are non-owning pointers, the elements are responsible for removing
   // themselves when they go away.
-  nsAutoPtr<nsTHashtable<nsPtrHashKey<nsISupports> > > mActivityObservers;
+  nsAutoPtr<nsTHashtable<nsPtrHashKey<nsIContent> > > mFreezableElements;
 
   // The set of all links that need their status resolved.  Links must add themselves
   // to this set by calling RegisterPendingLinkUpdate when added to a document and must
@@ -2586,10 +2566,6 @@ protected:
 
   // The document's security info
   nsCOMPtr<nsISupports> mSecurityInfo;
-
-  // The channel that failed to load and resulted in an error page.
-  // This only applies to error pages. Might be null.
-  nsCOMPtr<nsIChannel> mFailedChannel;
 
   // if this document is part of a multipart document,
   // the ID can be used to distinguish it from the other parts.

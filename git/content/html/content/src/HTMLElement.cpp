@@ -13,19 +13,19 @@ namespace dom {
 class HTMLElement MOZ_FINAL : public nsGenericHTMLElement
 {
 public:
-  HTMLElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  HTMLElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
   virtual ~HTMLElement();
 
   NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) MOZ_OVERRIDE;
 
-  virtual nsresult Clone(mozilla::dom::NodeInfo* aNodeInfo,
+  virtual nsresult Clone(nsINodeInfo* aNodeInfo,
                          nsINode** aResult) const MOZ_OVERRIDE;
 
 protected:
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 };
 
-HTMLElement::HTMLElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+HTMLElement::HTMLElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -69,7 +69,7 @@ HTMLElement::WrapNode(JSContext *aCx)
 // Here, we expand 'NS_IMPL_NS_NEW_HTML_ELEMENT()' by hand.
 // (Calling the macro directly (with no args) produces compiler warnings.)
 nsGenericHTMLElement*
-NS_NewHTMLElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
+NS_NewHTMLElement(already_AddRefed<nsINodeInfo>&& aNodeInfo,
                   mozilla::dom::FromParser aFromParser)
 {
   return new mozilla::dom::HTMLElement(aNodeInfo);

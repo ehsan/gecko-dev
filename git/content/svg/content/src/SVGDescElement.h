@@ -10,7 +10,7 @@
 #include "nsSVGElement.h"
 
 nsresult NS_NewSVGDescElement(nsIContent **aResult,
-                              already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+                              already_AddRefed<nsINodeInfo>&& aNodeInfo);
 
 typedef nsSVGElement SVGDescElementBase;
 
@@ -21,13 +21,13 @@ class SVGDescElement MOZ_FINAL : public SVGDescElementBase
 {
 protected:
   friend nsresult (::NS_NewSVGDescElement(nsIContent **aResult,
-                                          already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
-  SVGDescElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+                                          already_AddRefed<nsINodeInfo>&& aNodeInfo));
+  SVGDescElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
 
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
 
 public:
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 };
 
 } // namespace dom

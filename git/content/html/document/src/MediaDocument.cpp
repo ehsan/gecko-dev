@@ -205,7 +205,7 @@ MediaDocument::CreateSyntheticDocument()
   // Synthesize an empty html document
   nsresult rv;
 
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+  nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nullptr,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
@@ -313,7 +313,7 @@ MediaDocument::GetFileName(nsAString& aResult)
 nsresult
 MediaDocument::LinkStylesheet(const nsAString& aStylesheet)
 {
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+  nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nullptr,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);

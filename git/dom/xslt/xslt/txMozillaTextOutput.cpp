@@ -19,7 +19,6 @@
 #include "nsGkAtoms.h"
 #include "mozilla/dom/EncodingUtils.h"
 #include "nsTextNode.h"
-#include "nsNameSpaceManager.h"
 
 using namespace mozilla::dom;
 

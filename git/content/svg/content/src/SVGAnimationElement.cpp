@@ -43,7 +43,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 //----------------------------------------------------------------------
 // Implementation
 
-SVGAnimationElement::SVGAnimationElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+SVGAnimationElement::SVGAnimationElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
   : SVGAnimationElementBase(aNodeInfo),
     mHrefTarget(MOZ_THIS_IN_INITIALIZER_LIST())
 {

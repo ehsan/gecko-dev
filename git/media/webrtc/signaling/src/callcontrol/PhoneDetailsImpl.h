@@ -21,11 +21,10 @@ namespace CSF
 		virtual ServiceStateType::ServiceState getServiceState() const { return state; }
 		virtual std::string getConfig() const { return config; }
 
-	protected:
+	public:
 		PhoneDetailsImpl();
 		virtual ~PhoneDetailsImpl();
 
-        public:
 		virtual void setName(const std::string& name);
 		virtual void setDescription(const std::string& description);
 		// Note that setting model and model description are mutually exclusive.

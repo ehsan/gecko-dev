@@ -2837,8 +2837,7 @@ nsTableFrame::PlaceRepeatedFooter(nsTableReflowState& aReflowState,
   kidAvailSize.height = aFooterHeight;
   nsHTMLReflowState footerReflowState(presContext,
                                       aReflowState.reflowState,
-                                      aTfoot,
-                                      kidAvailSize,
+                                      aTfoot, kidAvailSize,
                                       -1, -1,
                                       nsHTMLReflowState::CALLER_WILL_INIT);
   InitChildReflowState(footerReflowState);

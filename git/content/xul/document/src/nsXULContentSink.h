@@ -66,12 +66,12 @@ protected:
 
     nsresult OpenRoot(const char16_t** aAttributes,
                       const uint32_t aAttrLen,
-                      mozilla::dom::NodeInfo *aNodeInfo);
+                      nsINodeInfo *aNodeInfo);
 
     nsresult OpenTag(const char16_t** aAttributes,
                      const uint32_t aAttrLen,
                      const uint32_t aLineNumber,
-                     mozilla::dom::NodeInfo *aNodeInfo);
+                     nsINodeInfo *aNodeInfo);
 
     // If OpenScript returns NS_OK and after it returns our state is eInScript,
     // that means that we created a prototype script and stuck it on
@@ -93,7 +93,7 @@ protected:
 
     nsresult NormalizeAttributeString(const char16_t *aExpatName,
                                       nsAttrName &aName);
-    nsresult CreateElement(mozilla::dom::NodeInfo *aNodeInfo,
+    nsresult CreateElement(nsINodeInfo *aNodeInfo,
                            nsXULPrototypeElement** aResult);
 
 

@@ -9,7 +9,6 @@
 
 #include "mozilla/dom/MediaRecorderBinding.h"
 #include "mozilla/DOMEventTargetHelper.h"
-#include "nsIDocumentActivity.h"
 
 // Max size for allowing queue encoded data in memory
 #define MAX_ALLOW_MEMORY_BUFFER 1024000
@@ -36,8 +35,7 @@ namespace dom {
  * Also extract the encoded data and create blobs on every timeslice passed from start function or RequestData function called by UA.
  */
 
-class MediaRecorder : public DOMEventTargetHelper,
-                      public nsIDocumentActivity
+class MediaRecorder : public DOMEventTargetHelper
 {
   class Session;
   friend class CreateAndDispatchBlobEventRunnable;
@@ -87,8 +85,6 @@ public:
   IMPL_EVENT_HANDLER(stop)
   IMPL_EVENT_HANDLER(warning)
 
-  NS_DECL_NSIDOCUMENTACTIVITY
-
 protected:
   MediaRecorder& operator = (const MediaRecorder& x) MOZ_DELETE;
   // Create dataavailable event with Blob data and it runs in main thread
@@ -109,18 +105,12 @@ protected:
   nsRefPtr<DOMMediaStream> mStream;
   // The current state of the MediaRecorder object.
   RecordingState mState;
-  // Hold the sessions pointer and clean it when the DestroyRunnable for a
-  // session is running.
+  // Hold the sessions pointer in media recorder and clean in the destructor of recorder.
   nsTArray<Session*> mSessions;
   // Thread safe for mMimeType.
   Mutex mMutex;
   // It specifies the container format as well as the audio and video capture formats.
   nsString mMimeType;
-
-private:
-  // Register MediaRecorder into Document to listen the activity changes.
-  void RegisterActivityObserver();
-  void UnRegisterActivityObserver();
 };
 
 }

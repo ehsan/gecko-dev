@@ -40,8 +40,8 @@ namespace irregexp {
 
 struct InputOutputData
 {
-    const void *inputStart;
-    const void *inputEnd;
+    const jschar *inputStart;
+    const jschar *inputEnd;
 
     // Index into inputStart (in chars) at which to begin matching.
     size_t startIndex;
@@ -52,8 +52,7 @@ struct InputOutputData
     // for global regexps.
     int32_t result;
 
-    template <typename CharT>
-    InputOutputData(const CharT *inputStart, const CharT *inputEnd,
+    InputOutputData(const jschar *inputStart, const jschar *inputEnd,
                     size_t startIndex, MatchPairs *matches)
       : inputStart(inputStart),
         inputEnd(inputEnd),
