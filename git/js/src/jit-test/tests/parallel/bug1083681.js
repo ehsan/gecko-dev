@@ -1,6 +1,3 @@
-if (!getBuildConfiguration().parallelJS)
-  quit(0);
-
 function f() {
     Function() * (function() {})()
 }

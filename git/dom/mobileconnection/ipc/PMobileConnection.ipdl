@@ -81,7 +81,7 @@ struct GetPreferredNetworkTypeRequest
 
 struct SetRoamingPreferenceRequest
 {
-  int32_t mode;
+  nsString mode;
 };
 
 struct GetRoamingPreferenceRequest

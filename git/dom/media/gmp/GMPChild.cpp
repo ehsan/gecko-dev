@@ -341,13 +341,11 @@ GMPChild::PreLoadLibraries(const std::string& aPluginPath)
   // This must be in sorted order and lowercase!
   static const char* whitelist[] =
     {
-       "bcrypt.dll", // Used for OutputProtectionManager handshake
-       "crypt32.dll", // Used for OutputProtectionManager handshake
        "d3d9.dll", // Create an `IDirect3D9` to get adapter information
        "dxva2.dll", // Get monitor information
-       "msauddecmft.dll", // AAC decoder (on Windows 8)
+       "msauddecmft.dll", // H.264 decoder
        "msmpeg2adec.dll", // AAC decoder (on Windows 7)
-       "msmpeg2vdec.dll", // H.264 decoder
+       "msmpeg2vdec.dll", // AAC decoder (on Windows 8)
     };
   static const int whitelistLen = sizeof(whitelist) / sizeof(whitelist[0]);
 

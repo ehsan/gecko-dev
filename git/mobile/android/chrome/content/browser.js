@@ -3534,7 +3534,7 @@ Tab.prototype = {
 
   setDisplayPort: function(aDisplayPort) {
     let zoom = this._zoom;
-    let resolution = this.restoredSessionZoom() || aDisplayPort.resolution;
+    let resolution = aDisplayPort.resolution;
     if (zoom <= 0 || resolution <= 0)
       return;
 

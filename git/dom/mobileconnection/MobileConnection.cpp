@@ -39,6 +39,13 @@
   }                                                                     \
 }
 
+#define CONVERT_ENUM_TO_STRING(_enumType, _enum, _string)               \
+{                                                                       \
+  uint32_t index = uint32_t(_enum);                                     \
+  _string.AssignASCII(_enumType##Values::strings[index].value,          \
+                      _enumType##Values::strings[index].length);        \
+}
+
 using mozilla::ErrorResult;
 using namespace mozilla::dom;
 using namespace mozilla::dom::mobileconnection;
@@ -516,7 +523,8 @@ MobileConnection::SetRoamingPreference(MobileRoamingMode& aMode,
     return nullptr;
   }
 
-  int32_t mode = static_cast<int32_t>(aMode);
+  nsAutoString mode;
+  CONVERT_ENUM_TO_STRING(MobileRoamingMode, aMode, mode);
 
   nsRefPtr<DOMRequest> request = new DOMRequest(GetOwner());
   nsRefPtr<MobileConnectionCallback> requestCallback =
