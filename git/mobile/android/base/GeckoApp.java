@@ -674,16 +674,8 @@ abstract public class GeckoApp
         if (oldBaseURI != null && oldBaseURI.indexOf('#') != -1)
             oldBaseURI = oldBaseURI.substring(0, oldBaseURI.indexOf('#'));
         
-        if (baseURI.equals(oldBaseURI)) {
-            mMainHandler.post(new Runnable() {
-                public void run() {
-                    if (Tabs.getInstance().isSelectedTab(tab)) {
-                        mBrowserToolbar.setTitle(uri);
-                    }
-                }
-            });
+        if (baseURI.equals(oldBaseURI))
             return;
-        }
 
         tab.updateFavicon(null);
         tab.updateFaviconURL(null);

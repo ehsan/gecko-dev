@@ -56,10 +56,7 @@ try:
     import pkg_resources
     def get_metadata_from_egg(module):
         ret = {}
-        try:
-            dist = pkg_resources.get_distribution(module)
-        except pkg_resources.DistributionNotFound:
-            return {}
+        dist = pkg_resources.get_distribution(module)
         if dist.has_metadata("PKG-INFO"):
             key = None
             for line in dist.get_metadata("PKG-INFO").splitlines():

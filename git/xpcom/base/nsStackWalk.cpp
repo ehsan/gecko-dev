@@ -58,7 +58,7 @@ static CriticalAddress gCriticalAddress;
 #include <dlfcn.h>
 #endif
 
-#if defined(XP_MACOSX) && (defined(__i386) || defined(__ppc__) || defined(HAVE__UNWIND_BACKTRACE))
+#ifdef XP_MACOSX
 #include <pthread.h>
 #include <errno.h>
 #include <CoreServices/CoreServices.h>

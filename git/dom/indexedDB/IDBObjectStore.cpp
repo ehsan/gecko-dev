@@ -1109,8 +1109,8 @@ IDBObjectStore::AddOrPut(const jsval& aValue,
     return rv;
   }
 
-  // Put requires a key, unless this is an autoIncrementing objectStore.
-  if (aOverwrite && !mAutoIncrement && key.IsUnset()) {
+  // Put requires a key.
+  if (aOverwrite && key.IsUnset()) {
     return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
   }
 
@@ -1793,7 +1793,7 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
 
   // If we are supposed to generate a key, get the new id.
-  if (autoIncrement && !mayOverwrite) {
+  if (autoIncrement && !mOverwrite) {
 #ifdef DEBUG
     PRInt64 oldKey = unsetKey ? 0 : mKey.ToInteger();
 #endif

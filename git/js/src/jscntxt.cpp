@@ -774,9 +774,6 @@ js_ReportOutOfMemory(JSContext *cx)
 {
     cx->runtime->hadOutOfMemory = true;
 
-    /* AtomizeInline can cal this indirectly when it creates the string. */
-    AutoUnlockAtomsCompartmentWhenLocked unlockAtomsCompartment(cx);
-    
     JSErrorReport report;
     JSErrorReporter onError = cx->errorReporter;
 
@@ -1435,7 +1432,6 @@ JSContext::JSContext(JSRuntime *rt)
     data(NULL),
     data2(NULL),
 #ifdef JS_THREADSAFE
-    atomsCompartmentIsLocked(false),
     outstandingRequests(0),
 #endif
     autoGCRooters(NULL),

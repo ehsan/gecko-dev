@@ -57,7 +57,7 @@
 namespace js {
 
 class Debugger {
-    friend class Breakpoint;
+    friend class js::Breakpoint;
     friend JSBool (::JS_DefineDebuggerObject)(JSContext *cx, JSObject *obj);
 
   public:
@@ -199,15 +199,15 @@ class Debugger {
     JSObject *getHook(Hook hook) const;
     bool hasAnyLiveHooks(JSContext *cx) const;
 
-    static JSTrapStatus slowPathOnEnterFrame(JSContext *cx, Value *vp);
+    static void slowPathOnEnterFrame(JSContext *cx);
     static void slowPathOnLeaveFrame(JSContext *cx);
     static void slowPathOnNewScript(JSContext *cx, JSScript *script,
                                     GlobalObject *compileAndGoGlobal);
-    static JSTrapStatus dispatchHook(JSContext *cx, Value *vp, Hook which);
+    static JSTrapStatus dispatchHook(JSContext *cx, js::Value *vp, Hook which);
 
     JSTrapStatus fireDebuggerStatement(JSContext *cx, Value *vp);
     JSTrapStatus fireExceptionUnwind(JSContext *cx, Value *vp);
-    JSTrapStatus fireEnterFrame(JSContext *cx, Value *vp);
+    void fireEnterFrame(JSContext *cx);
 
     /*
      * Allocate and initialize a Debugger.Script instance whose referent is
@@ -256,10 +256,10 @@ class Debugger {
     static void detachAllDebuggersFromGlobal(JSContext *cx, GlobalObject *global,
                                              GlobalObjectSet::Enum *compartmentEnum);
 
-    static inline JSTrapStatus onEnterFrame(JSContext *cx, Value *vp);
+    static inline void onEnterFrame(JSContext *cx);
     static inline void onLeaveFrame(JSContext *cx);
-    static inline JSTrapStatus onDebuggerStatement(JSContext *cx, Value *vp);
-    static inline JSTrapStatus onExceptionUnwind(JSContext *cx, Value *vp);
+    static inline JSTrapStatus onDebuggerStatement(JSContext *cx, js::Value *vp);
+    static inline JSTrapStatus onExceptionUnwind(JSContext *cx, js::Value *vp);
     static inline void onNewScript(JSContext *cx, JSScript *script,
                                    GlobalObject *compileAndGoGlobal);
     static JSTrapStatus onTrap(JSContext *cx, Value *vp);
@@ -343,9 +343,9 @@ class Debugger {
 };
 
 class BreakpointSite {
-    friend class Breakpoint;
+    friend class js::Breakpoint;
     friend struct ::JSCompartment;
-    friend class Debugger;
+    friend class js::Debugger;
 
   public:
     JSScript * const script;
@@ -402,7 +402,7 @@ class BreakpointSite {
  */
 class Breakpoint {
     friend struct ::JSCompartment;
-    friend class Debugger;
+    friend class js::Debugger;
 
   public:
     Debugger * const debugger;
@@ -475,12 +475,11 @@ Debugger::observesFrame(StackFrame *fp) const
     return observesGlobal(fp->scopeChain().getGlobal());
 }
 
-JSTrapStatus
-Debugger::onEnterFrame(JSContext *cx, Value *vp)
+void
+Debugger::onEnterFrame(JSContext *cx)
 {
-    if (cx->compartment->getDebuggees().empty())
-        return JSTRAP_CONTINUE;
-    return slowPathOnEnterFrame(cx, vp);
+    if (!cx->compartment->getDebuggees().empty())
+        slowPathOnEnterFrame(cx);
 }
 
 void
@@ -491,7 +490,7 @@ Debugger::onLeaveFrame(JSContext *cx)
 }
 
 JSTrapStatus
-Debugger::onDebuggerStatement(JSContext *cx, Value *vp)
+Debugger::onDebuggerStatement(JSContext *cx, js::Value *vp)
 {
     return cx->compartment->getDebuggees().empty()
            ? JSTRAP_CONTINUE
@@ -499,7 +498,7 @@ Debugger::onDebuggerStatement(JSContext *cx, Value *vp)
 }
 
 JSTrapStatus
-Debugger::onExceptionUnwind(JSContext *cx, Value *vp)
+Debugger::onExceptionUnwind(JSContext *cx, js::Value *vp)
 {
     return cx->compartment->getDebuggees().empty()
            ? JSTRAP_CONTINUE

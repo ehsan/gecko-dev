@@ -1784,31 +1784,12 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
     }
 #endif
 
-    /* State communicated between non-local jumps: */
-    JSBool interpReturnOK;
-    JSAtom *atomNotDefined;
-
     /* Don't call the script prologue if executing between Method and Trace JIT. */
     if (interpMode == JSINTERP_NORMAL) {
         StackFrame *fp = regs.fp();
         JS_ASSERT_IF(!fp->isGeneratorFrame(), regs.pc == script->code);
         if (!ScriptPrologueOrGeneratorResume(cx, fp, UseNewTypeAtEntry(cx, fp)))
             goto error;
-        if (cx->compartment->debugMode()) {
-            JSTrapStatus status = ScriptDebugPrologue(cx, fp);
-            switch (status) {
-              case JSTRAP_CONTINUE:
-                break;
-              case JSTRAP_RETURN:
-                interpReturnOK = JS_TRUE;
-                goto forced_return;
-              case JSTRAP_THROW:
-              case JSTRAP_ERROR:
-                goto error;
-              default:
-                JS_NOT_REACHED("bad ScriptDebugPrologue status");
-            }
-        }
     }
 
     /* The REJOIN mode acts like the normal mode, except the prologue is skipped. */
@@ -1820,6 +1801,10 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
     CHECK_INTERRUPT_HANDLER();
 
     RESET_USE_METHODJIT();
+
+    /* State communicated between non-local jumps: */
+    JSBool interpReturnOK;
+    JSAtom *atomNotDefined;
 
     /*
      * It is important that "op" be initialized before calling DO_OP because
@@ -2046,10 +2031,6 @@ BEGIN_CASE(JSOP_STOP)
   inline_return:
     {
         JS_ASSERT(!IsActiveWithOrBlock(cx, regs.fp()->scopeChain(), 0));
-
-        if (cx->compartment->debugMode())
-            interpReturnOK = ScriptDebugEpilogue(cx, regs.fp(), interpReturnOK);
- 
         interpReturnOK = ScriptEpilogue(cx, regs.fp(), interpReturnOK);
 
         /* The JIT inlines ScriptEpilogue. */
@@ -2456,9 +2437,9 @@ END_CASE(JSOP_BINDNAME)
 #define BITWISE_OP(OP)                                                        \
     JS_BEGIN_MACRO                                                            \
         int32_t i, j;                                                         \
-        if (!ToInt32(cx, regs.sp[-2], &i))                                    \
+        if (!ValueToECMAInt32(cx, regs.sp[-2], &i))                           \
             goto error;                                                       \
-        if (!ToInt32(cx, regs.sp[-1], &j))                                    \
+        if (!ValueToECMAInt32(cx, regs.sp[-1], &j))                           \
             goto error;                                                       \
         i = i OP j;                                                           \
         regs.sp--;                                                            \
@@ -2607,9 +2588,9 @@ END_CASE(JSOP_GE)
 #define SIGNED_SHIFT_OP(OP)                                                   \
     JS_BEGIN_MACRO                                                            \
         int32_t i, j;                                                         \
-        if (!ToInt32(cx, regs.sp[-2], &i))                                    \
+        if (!ValueToECMAInt32(cx, regs.sp[-2], &i))                           \
             goto error;                                                       \
-        if (!ToInt32(cx, regs.sp[-1], &j))                                    \
+        if (!ValueToECMAInt32(cx, regs.sp[-1], &j))                           \
             goto error;                                                       \
         i = i OP (j & 31);                                                    \
         regs.sp--;                                                            \
@@ -2629,10 +2610,10 @@ END_CASE(JSOP_RSH)
 BEGIN_CASE(JSOP_URSH)
 {
     uint32_t u;
-    if (!ToUint32(cx, regs.sp[-2], &u))
+    if (!ValueToECMAUint32(cx, regs.sp[-2], &u))
         goto error;
     int32_t j;
-    if (!ToInt32(cx, regs.sp[-1], &j))
+    if (!ValueToECMAInt32(cx, regs.sp[-1], &j))
         goto error;
 
     u >>= (j & 31);
@@ -2685,7 +2666,7 @@ BEGIN_CASE(JSOP_ADD)
             if (lIsString) {
                 lstr = lval.toString();
             } else {
-                lstr = ToString(cx, lval);
+                lstr = js_ValueToString(cx, lval);
                 if (!lstr)
                     goto error;
                 regs.sp[-2].setString(lstr);
@@ -2693,7 +2674,7 @@ BEGIN_CASE(JSOP_ADD)
             if (rIsString) {
                 rstr = rval.toString();
             } else {
-                rstr = ToString(cx, rval);
+                rstr = js_ValueToString(cx, rval);
                 if (!rstr)
                     goto error;
                 regs.sp[-1].setString(rstr);
@@ -2799,7 +2780,7 @@ END_CASE(JSOP_NOT)
 BEGIN_CASE(JSOP_BITNOT)
 {
     int32_t i;
-    if (!ToInt32(cx, regs.sp[-1], &i))
+    if (!ValueToECMAInt32(cx, regs.sp[-1], &i))
         goto error;
     i = ~i;
     regs.sp[-1].setInt32(i);
@@ -3526,21 +3507,6 @@ BEGIN_CASE(JSOP_FUNAPPLY)
     if (!ScriptPrologue(cx, regs.fp(), newType))
         goto error;
 
-    if (cx->compartment->debugMode()) {
-        switch (ScriptDebugPrologue(cx, regs.fp())) {
-          case JSTRAP_CONTINUE:
-            break;
-          case JSTRAP_RETURN:
-            interpReturnOK = JS_TRUE;
-            goto forced_return;
-          case JSTRAP_THROW:
-          case JSTRAP_ERROR:
-            goto error;
-          default:
-            JS_NOT_REACHED("bad ScriptDebugPrologue status");
-        }
-    }
-
     CHECK_INTERRUPT_HANDLER();
 
     /* Load first op and dispatch it (safe since JSOP_STOP). */
@@ -4207,19 +4173,24 @@ BEGIN_CASE(JSOP_DEFLOCALFUN)
     LOAD_FUNCTION(SLOTNO_LEN);
     JS_ASSERT(fun->isInterpreted());
     JS_ASSERT(!fun->isFlatClosure());
+    JSObject *obj = fun;
 
-    JSObject *parent;
     if (fun->isNullClosure()) {
-        parent = &regs.fp()->scopeChain();
+        obj = CloneFunctionObjectIfNotSingleton(cx, fun, &regs.fp()->scopeChain());
+        if (!obj)
+            goto error;
     } else {
-        parent = GetScopeChainFast(cx, regs.fp(), JSOP_DEFLOCALFUN,
-                                   JSOP_DEFLOCALFUN_LENGTH);
+        JSObject *parent = GetScopeChainFast(cx, regs.fp(), JSOP_DEFLOCALFUN,
+                                             JSOP_DEFLOCALFUN_LENGTH);
         if (!parent)
             goto error;
+
+        if (obj->toFunction()->environment() != parent) {
+            obj = CloneFunctionObjectIfNotSingleton(cx, fun, parent);
+            if (!obj)
+                goto error;
+        }
     }
-    JSObject *obj = CloneFunctionObjectIfNotSingleton(cx, fun, parent);
-    if (!obj)
-        goto error;
 
     JS_ASSERT_IF(script->hasGlobal(), obj->getProto() == fun->getProto());
 
@@ -5124,7 +5095,7 @@ BEGIN_CASE(JSOP_XMLTAGEXPR)
     JS_ASSERT(!script->strictModeCode);
 
     Value rval = regs.sp[-1];
-    JSString *str = ToString(cx, rval);
+    JSString *str = js_ValueToString(cx, rval);
     if (!str)
         goto error;
     regs.sp[-1].setString(str);
@@ -5140,7 +5111,7 @@ BEGIN_CASE(JSOP_XMLELTEXPR)
     if (IsXML(rval)) {
         str = js_ValueToXMLString(cx, rval);
     } else {
-        str = ToString(cx, rval);
+        str = js_ValueToString(cx, rval);
         if (str)
             str = js_EscapeElementValue(cx, str);
     }
@@ -5553,8 +5524,6 @@ END_CASE(JSOP_ARRAYPUSH)
         goto inline_return;
 
   exit:
-    if (cx->compartment->debugMode())
-        interpReturnOK = ScriptDebugEpilogue(cx, regs.fp(), interpReturnOK);
     interpReturnOK = ScriptEpilogueOrGeneratorYield(cx, regs.fp(), interpReturnOK);
     regs.fp()->setFinishedInInterpreter();
 

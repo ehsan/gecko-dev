@@ -284,7 +284,6 @@ GLContextCGL::ResizeOffscreen(const gfxIntSize& aNewSize)
         }
 
         if (!ResizeOffscreenFBO(aNewSize, false)) {
-            [pb release];
             return false;
         }
 

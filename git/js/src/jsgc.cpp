@@ -1607,10 +1607,11 @@ static void
 RunLastDitchGC(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
-
-    /* The atoms are locked when we create a string in AtomizeInline. */
-    AutoUnlockAtomsCompartmentWhenLocked unlockAtomsCompartment(cx);
-
+#ifdef JS_THREADSAFE
+    Maybe<AutoUnlockAtomsCompartment> maybeUnlockAtomsCompartment;
+    if (cx->compartment == rt->atomsCompartment && rt->atomsCompartmentIsLocked)
+        maybeUnlockAtomsCompartment.construct(cx);
+#endif
     /* The last ditch GC preserves all atoms. */
     AutoKeepAtoms keep(rt);
     js_GC(cx, rt->gcTriggerCompartment, GC_NORMAL, gcstats::LASTDITCH);

@@ -37,7 +37,7 @@
 
 
 import os
-from setuptools import setup, find_packages
+from setuptools import setup
 
 version = '0.3.3'
 
@@ -65,7 +65,8 @@ setup(name='mozinfo',
       author_email='jhammel@mozilla.com',
       url='https://wiki.mozilla.org/Auto-tools',
       license='MPL',
-      packages=find_packages(exclude=['legacy']),
+      py_modules=['mozinfo'],
+      packages=[],
       include_package_data=True,
       zip_safe=False,
       install_requires=deps,

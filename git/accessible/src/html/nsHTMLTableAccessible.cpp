@@ -406,25 +406,28 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
 
   // Assume it's columnheader if there are headers in siblings, oterwise
   // rowheader.
-  nsIContent* parentContent = mContent->GetParent();
-  if (!parentContent) {
+  nsIContent *parent = mContent->GetParent();
+  if (!parent) {
     NS_ERROR("Deattached content on alive accessible?");
     return nsIAccessibleRole::ROLE_NOTHING;
   }
 
-  for (nsIContent* siblingContent = mContent->GetPreviousSibling(); siblingContent;
-       siblingContent = siblingContent->GetPreviousSibling()) {
-    if (siblingContent->IsElement()) {
-      if (nsCoreUtils::IsHTMLTableHeader(siblingContent))
+  PRInt32 indexInParent = parent->IndexOf(mContent);
+
+  for (PRInt32 idx = indexInParent - 1; idx >= 0; idx--) {
+    nsIContent* sibling = parent->GetChildAt(idx);
+    if (sibling && sibling->IsElement()) {
+      if (nsCoreUtils::IsHTMLTableHeader(sibling))
         return nsIAccessibleRole::ROLE_COLUMNHEADER;
       return nsIAccessibleRole::ROLE_ROWHEADER;
     }
   }
 
-  for (nsIContent* siblingContent = mContent->GetNextSibling(); siblingContent;
-       siblingContent = siblingContent->GetNextSibling()) {
-    if (siblingContent->IsElement()) {
-      if (nsCoreUtils::IsHTMLTableHeader(siblingContent))
+  PRInt32 childCount = parent->GetChildCount();
+  for (PRInt32 idx = indexInParent + 1; idx < childCount; idx++) {
+    nsIContent* sibling = parent->GetChildAt(idx);
+    if (sibling && sibling->IsElement()) {
+      if (nsCoreUtils::IsHTMLTableHeader(sibling))
         return nsIAccessibleRole::ROLE_COLUMNHEADER;
       return nsIAccessibleRole::ROLE_ROWHEADER;
     }

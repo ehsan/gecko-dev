@@ -3143,7 +3143,7 @@ reflect_parse(JSContext *cx, uint32 argc, jsval *vp)
         return JS_FALSE;
     }
 
-    JSString *src = ToString(cx, JS_ARGV(cx, vp)[0]);
+    JSString *src = js_ValueToString(cx, JS_ARGV(cx, vp)[0]);
     if (!src)
         return JS_FALSE;
 
@@ -3183,7 +3183,7 @@ reflect_parse(JSContext *cx, uint32 argc, jsval *vp)
             }
 
             if (!prop.isNullOrUndefined()) {
-                JSString *str = ToString(cx, prop);
+                JSString *str = js_ValueToString(cx, prop);
                 if (!str)
                     return JS_FALSE;
 
@@ -3201,7 +3201,7 @@ reflect_parse(JSContext *cx, uint32 argc, jsval *vp)
             /* config.line */
             if (!GetPropertyDefault(cx, config, ATOM_TO_JSID(cx->runtime->atomState.lineAtom),
                                     Int32Value(1), &prop) ||
-                !ToUint32(cx, prop, &lineno)) {
+                !ValueToECMAUint32(cx, prop, &lineno)) {
                 return JS_FALSE;
             }
         }

@@ -2096,22 +2096,16 @@ nsHttpConnectionMgr::nsHalfOpenSocket::OnTransportStatus(nsITransport *trans,
 {
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
-    if (mTransaction)
-        mTransaction->OnTransportStatus(trans, status, progress);
-
-    if (trans != mSocketTransport)
-        return NS_OK;
-
     // if we are doing spdy coalescing and haven't recorded the ip address
     // for this entry before then make the hash key if our dns lookup
     // just completed
 
-    if (status == nsISocketTransport::STATUS_CONNECTED_TO &&
-        gHttpHandler->IsSpdyEnabled() &&
+    if (gHttpHandler->IsSpdyEnabled() &&
         gHttpHandler->CoalesceSpdy() &&
         mEnt && mEnt->mConnInfo && mEnt->mConnInfo->UsingSSL() &&
         !mEnt->mConnInfo->UsingHttpProxy() &&
-        mEnt->mCoalescingKey.IsEmpty()) {
+        mEnt->mCoalescingKey.IsEmpty() &&
+        status == nsISocketTransport::STATUS_CONNECTED_TO) {
 
         PRNetAddr addr;
         nsresult rv = mSocketTransport->GetPeerAddr(&addr);
@@ -2135,6 +2129,12 @@ nsHttpConnectionMgr::nsHalfOpenSocket::OnTransportStatus(nsITransport *trans,
             gHttpHandler->ConnMgr()->ProcessSpdyPendingQ(mEnt);
         }
     }
+
+    if (mTransaction)
+        mTransaction->OnTransportStatus(trans, status, progress);
+
+    if (trans != mSocketTransport)
+        return NS_OK;
 
     switch (status) {
     case nsISocketTransport::STATUS_CONNECTING_TO:

@@ -79,8 +79,8 @@ ImmutableSync::reset(Assembler *masm, Registers avail, FrameEntry *top, FrameEnt
     memset(regs, 0, sizeof(regs));
 }
 
-inline JSC::MacroAssembler::RegisterID
-ImmutableSync::doAllocReg()
+JSC::MacroAssembler::RegisterID
+ImmutableSync::allocReg()
 {
     if (!avail.empty())
         return avail.takeAnyReg().reg();
@@ -92,9 +92,6 @@ ImmutableSync::doAllocReg()
     for (uint32 i = 0; i < Registers::TotalRegisters; i++) {
         RegisterID reg = RegisterID(i);
         if (!(Registers::maskReg(reg) & Registers::AvailRegs))
-            continue;
-
-        if (frame->regstate(reg).isPinned())
             continue;
 
         lastResort = i;
@@ -144,21 +141,6 @@ ImmutableSync::doAllocReg()
     }
 
     return reg;
-}
-
-JSC::MacroAssembler::RegisterID
-ImmutableSync::allocReg()
-{
-    RegisterID reg = doAllocReg();
-    JS_ASSERT(!frame->regstate(reg).isPinned());
-    return reg;
-}
-
-void
-ImmutableSync::freeReg(JSC::MacroAssembler::RegisterID reg)
-{
-    if (!frame->regstate(reg).isPinned())
-        avail.putReg(reg);
 }
 
 inline ImmutableSync::SyncEntry &
@@ -278,21 +260,21 @@ ImmutableSync::syncNormal(FrameEntry *fe)
     }
 
     if (e.hasDataReg) {
-        freeReg(e.dataReg);
+        avail.putReg(e.dataReg);
         regs[e.dataReg] = NULL;
     } else if (!e.dataClobbered &&
                fe->data.inRegister() &&
                frame->regstate(fe->data.reg()).usedBy()) {
-        freeReg(fe->data.reg());
+        avail.putReg(fe->data.reg());
     }
 
     if (e.hasTypeReg) {
-        freeReg(e.typeReg);
+        avail.putReg(e.typeReg);
         regs[e.typeReg] = NULL;
     } else if (!e.typeClobbered &&
                fe->type.inRegister() &&
                frame->regstate(fe->type.reg()).usedBy()) {
-        freeReg(fe->type.reg());
+        avail.putReg(fe->type.reg());
     }
 }
 

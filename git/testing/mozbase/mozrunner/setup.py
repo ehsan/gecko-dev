@@ -43,7 +43,7 @@ import sys
 from setuptools import setup, find_packages
 
 PACKAGE_NAME = "mozrunner"
-PACKAGE_VERSION = "4.1"
+PACKAGE_VERSION = "4.0"
 
 desc = """Reliable start/stop/configuration of Mozilla Applications (Firefox, Thunderbird, etc.)"""
 # take description from README
@@ -53,10 +53,7 @@ try:
 except (OSError, IOError):
     description = ''
 
-deps = ['mozinfo',
-        'mozprocess',
-        'mozprofile >= 0.1',
-       ]
+deps = ['mozprocess', 'mozprofile', 'mozinfo']
 
 # we only support python 2 right now
 assert sys.version_info[0] == 2

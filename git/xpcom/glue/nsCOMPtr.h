@@ -431,6 +431,7 @@ nsCOMPtr_base
 
       template <class T>
       class
+        NS_FINAL_CLASS
         NS_STACK_CLASS
       nsDerivedSafe : public T
           /*

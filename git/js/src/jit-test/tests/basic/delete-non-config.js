@@ -3,3 +3,8 @@ for (var i = 0; i < 10; i++)
     delete a.length;
 assertEq(delete a.length, false);
 
+checkStats({
+    recorderAborted:0,
+    traceCompleted:1,
+    sideExitIntoInterpreter:1
+});

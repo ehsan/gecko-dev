@@ -41,10 +41,8 @@
 # replaces 'EXTRA_TEST_ARGS=--test-path=...'.
 ifdef TEST_PATH
 TEST_PATH_ARG := --test-path=$(TEST_PATH)
-PEPTEST_PATH_ARG := --test-path=$(TEST_PATH)
 else
 TEST_PATH_ARG :=
-PEPTEST_PATH_ARG := --test-path=_tests/peptest/tests/firefox/firefox_all.ini
 endif
 
 # include automation-build.mk to get the path to the binary
@@ -230,16 +228,6 @@ xpcshell-tests-remote:
           echo "please prepare your host with environment variables for TEST_DEVICE"; \
         fi
 
-# Runs peptest, for usage see: https://developer.mozilla.org/en/Peptest#Running_Tests
-RUN_PEPTEST = \
-	rm -f ./$@.log && \
-	$(PYTHON) _tests/peptest/runtests.py --binary=$(browser_path) $(PEPTEST_PATH_ARG) \
-	  --log-file=./$@.log $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS)
-
-peptest:
-	$(RUN_PEPTEST)
-	$(CHECK_TEST_ERROR)
-
 # Package up the tests and test harnesses
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
@@ -303,5 +291,4 @@ stage-mozbase: make-stage-dir
   reftest crashtest \
   xpcshell-tests \
   jstestbrowser \
-  peptest \
   package-tests make-stage-dir stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-android stage-jetpack stage-firebug stage-peptest stage-mozbase

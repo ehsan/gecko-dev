@@ -1083,9 +1083,6 @@ XrayProxy::~XrayProxy()
 {
 }
 
-// The 'holder' here isn't actually of [[Class]] HolderClass like those used by
-// XrayWrapper. Instead, it's a funny hybrid of the 'expando' and 'holder'
-// properties. However, we store it in the same slot. Exercise caution.
 static JSObject *
 GetHolderObject(JSContext *cx, JSObject *wrapper, bool createHolder = true)
 {
@@ -1133,18 +1130,6 @@ XrayProxy::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
         return JS_WrapPropertyDescriptor(cx, desc);
     }
 
-    // We don't want to cache own properties on our holder. So we first do this
-    // call, and return if we find it (without caching). If we don't find it,
-    // we check the cache and do a full resolve (caching any result).
-    if (!js::GetProxyHandler(obj)->getOwnPropertyDescriptor(cx, wrapper, id, set, desc))
-        return false;
-    if (desc->obj) {
-        desc->obj = wrapper;
-        return true;
-    }
-
-    // Now that we're sure this isn't an own property, look up cached non-own
-    // properties before calling all the way through.
     if (!JS_GetPropertyDescriptorById(cx, holder, id, JSRESOLVE_QUALIFIED, desc))
         return false;
     if (desc->obj) {
@@ -1152,7 +1137,13 @@ XrayProxy::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
         return true;
     }
 
-    // Nothing in the cache. Call through, and cache the result.
+    if (!js::GetProxyHandler(obj)->getOwnPropertyDescriptor(cx, wrapper, id, set, desc))
+        return false;
+    if (desc->obj) {
+        desc->obj = wrapper;
+        return true;
+    }
+
     if (!js::GetProxyHandler(obj)->getPropertyDescriptor(cx, wrapper, id, set, desc))
         return false;
 
@@ -1220,12 +1211,10 @@ XrayProxy::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
     if (!js::GetProxyHandler(obj)->getOwnPropertyDescriptor(cx, wrapper, id, set, desc))
         return false;
 
-    // The 'not found' property descriptor has obj == NULL.
-    if (desc->obj)
-      desc->obj = wrapper;
+    desc->obj = wrapper;
 
-    // Own properties don't get cached on the holder. Just return.
-    return true;
+    return JS_DefinePropertyById(cx, holder, id, desc->value, desc->getter, desc->setter,
+                                 desc->attrs);
 }
 
 bool

@@ -1342,9 +1342,9 @@ FrameState::sync(Assembler &masm, Uses uses) const
         FrameEntry *backing = fe;
 
         if (!fe->isCopy()) {
-            if (fe->data.inRegister() && !regstate(fe->data.reg()).isPinned())
+            if (fe->data.inRegister())
                 avail.putReg(fe->data.reg());
-            if (fe->type.inRegister() && !regstate(fe->type.reg()).isPinned())
+            if (fe->type.inRegister())
                 avail.putReg(fe->type.reg());
         } else {
             backing = fe->copyOf();

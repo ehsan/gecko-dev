@@ -43,7 +43,6 @@
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgcmark.h"
-#include "jsnum.h"
 #include "jsobj.h"
 #include "jswrapper.h"
 #include "jsarrayinlines.h"
@@ -165,7 +164,7 @@ BreakpointSite::recompile(JSContext *cx, bool forTrap)
             if (!ac.ref().enter())
                 return false;
         }
-        mjit::Recompiler recompiler(cx, script);
+        js::mjit::Recompiler recompiler(cx, script);
         recompiler.recompile();
     }
 #endif
@@ -418,8 +417,8 @@ Debugger::hasAnyLiveHooks(JSContext *cx) const
     return false;
 }
 
-JSTrapStatus
-Debugger::slowPathOnEnterFrame(JSContext *cx, Value *vp)
+void
+Debugger::slowPathOnEnterFrame(JSContext *cx)
 {
     /* Build the list of recipients. */
     AutoValueVector triggered(cx);
@@ -429,21 +428,16 @@ Debugger::slowPathOnEnterFrame(JSContext *cx, Value *vp)
             Debugger *dbg = *p;
             JS_ASSERT(dbg->observesFrame(cx->fp()));
             if (dbg->observesEnterFrame() && !triggered.append(ObjectValue(*dbg->toJSObject())))
-                return JSTRAP_ERROR;
+                return;
         }
     }
 
     /* Deliver the event, checking again as in dispatchHook. */
     for (Value *p = triggered.begin(); p != triggered.end(); p++) {
         Debugger *dbg = Debugger::fromJSObject(&p->toObject());
-        if (dbg->debuggees.has(global) && dbg->observesEnterFrame()) {
-            JSTrapStatus status = dbg->fireEnterFrame(cx, vp);
-            if (status != JSTRAP_CONTINUE)
-                return status;
-        }
+        if (dbg->debuggees.has(global) && dbg->observesEnterFrame())
+            dbg->fireEnterFrame(cx);
     }
-
-    return JSTRAP_CONTINUE;
 }
 
 void
@@ -715,8 +709,8 @@ Debugger::fireExceptionUnwind(JSContext *cx, Value *vp)
     return st;
 }
 
-JSTrapStatus
-Debugger::fireEnterFrame(JSContext *cx, Value *vp)
+void
+Debugger::fireEnterFrame(JSContext *cx)
 {
     JSObject *hook = getHook(OnEnterFrame);
     JS_ASSERT(hook);
@@ -725,15 +719,16 @@ Debugger::fireEnterFrame(JSContext *cx, Value *vp)
     StackFrame *fp = cx->fp();
     AutoCompartment ac(cx, object);
     if (!ac.enter())
-        return JSTRAP_ERROR;
+        return;
 
     Value argv[1];
-    if (!getScriptFrame(cx, fp, &argv[0]))
-        return handleUncaughtException(ac, vp, false);
-
+    if (!getScriptFrame(cx, fp, &argv[0])) {
+        handleUncaughtException(ac, NULL, false);
+        return;
+    }
     Value rv;
-    bool ok = Invoke(cx, ObjectValue(*object), ObjectValue(*hook), 1, argv, &rv);
-    return parseResumptionValue(ac, ok, rv, vp);
+    if (!Invoke(cx, ObjectValue(*object), ObjectValue(*hook), 1, argv, &rv))
+        handleUncaughtException(ac, NULL, true);
 }
 
 void
@@ -761,7 +756,7 @@ Debugger::fireNewScript(JSContext *cx, JSScript *script)
 }
 
 JSTrapStatus
-Debugger::dispatchHook(JSContext *cx, Value *vp, Hook which)
+Debugger::dispatchHook(JSContext *cx, js::Value *vp, Hook which)
 {
     JS_ASSERT(which == OnDebuggerStatement || which == OnExceptionUnwind);
 
@@ -1026,7 +1021,7 @@ Debugger::markKeysInCompartment(JSTracer *tracer)
     for (ObjectMap::Range r = objStorage.all(); !r.empty(); r.popFront()) {
         const HeapPtrObject &key = r.front().key;
         if (key->compartment() == comp && IsAboutToBeFinalized(tracer->context, key))
-            gc::MarkObject(tracer, key, "cross-compartment WeakMap key");
+            js::gc::MarkObject(tracer, key, "cross-compartment WeakMap key");
     }
 
     typedef HashMap<HeapPtrScript, HeapPtrObject, DefaultHasher<HeapPtrScript>, RuntimeAllocPolicy>
@@ -1035,7 +1030,7 @@ Debugger::markKeysInCompartment(JSTracer *tracer)
     for (ScriptMap::Range r = scriptStorage.all(); !r.empty(); r.popFront()) {
         const HeapPtrScript &key = r.front().key;
         if (key->compartment() == comp && IsAboutToBeFinalized(tracer->context, key))
-            gc::MarkScript(tracer, key, "cross-compartment WeakMap key");
+            js::gc::MarkScript(tracer, key, "cross-compartment WeakMap key");
     }
 }
 
@@ -1722,13 +1717,13 @@ Debugger::removeDebuggeeGlobal(JSContext *cx, GlobalObject *global,
      * FIXME Debugger::slowPathOnLeaveFrame needs to kill all Debugger.Frame
      * objects referring to a particular js::StackFrame. This is hard if
      * Debugger objects that are no longer debugging the relevant global might
-     * have live Frame objects. So we take the easy way out and kill them here.
-     * This is a bug, since it's observable and contrary to the spec. One
+     * have live Frame objects. So we take the easy way out and kill them
+     * here. This is a bug, since it's observable and contrary to the spec. One
      * possible fix would be to put such objects into a compartment-wide bag
      * which slowPathOnLeaveFrame would have to examine.
      */
     for (FrameMap::Enum e(frames); !e.empty(); e.popFront()) {
-        StackFrame *fp = e.front().key;
+        js::StackFrame *fp = e.front().key;
         if (fp->scopeChain().getGlobal() == global) {
             e.front().value->setPrivate(NULL);
             e.removeFront();
@@ -3117,7 +3112,7 @@ DebuggerObject_getOwnPropertyNames(JSContext *cx, uintN argc, Value *vp)
     for (size_t i = 0, len = keys.length(); i < len; i++) {
          jsid id = keys[i];
          if (JSID_IS_INT(id)) {
-             JSString *str = js_IntToString(cx, JSID_TO_INT(id));
+             JSString *str = js_ValueToString(cx, Int32Value(JSID_TO_INT(id)));
              if (!str)
                  return false;
              vals[i].setString(str);

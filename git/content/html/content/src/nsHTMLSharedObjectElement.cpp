@@ -297,7 +297,8 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
     // This content contains a windowed plugin for which we don't control
     // event dispatch, and we're in full-screen mode. Exit full-screen mode
     // to prevent phishing attacks.
-    nsIDocument::ExitFullScreen(true);
+    NS_DispatchToCurrentThread(
+      NS_NewRunnableMethod(aDocument, &nsIDocument::CancelFullScreen));
     nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                     "AddedWindowedPluginWhileFullScreen",
                                     nsnull, 0, nsnull,

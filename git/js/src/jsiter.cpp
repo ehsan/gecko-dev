@@ -1053,7 +1053,7 @@ js_IteratorNext(JSContext *cx, JSObject *iterobj, Value *rval)
             if (rval->isInt32() && StaticStrings::hasInt(i = rval->toInt32())) {
                 str = cx->runtime->staticStrings.getInt(i);
             } else {
-                str = ToString(cx, *rval);
+                str = js_ValueToString(cx, *rval);
                 if (!str)
                     return false;
             }
