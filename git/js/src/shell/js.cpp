@@ -1975,7 +1975,7 @@ TryNotes(JSContext *cx, JSScript *script)
 {
     JSTryNote *tn, *tnlimit;
 
-    if (!JSScript::isValidOffset(script->trynotesOffset))
+    if (script->trynotesOffset == 0)
         return JS_TRUE;
 
     tn = script->trynotes()->vector;
@@ -2053,7 +2053,7 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
     SrcNotes(cx, script);
     TryNotes(cx, script);
 
-    if (recursive && JSScript::isValidOffset(script->objectsOffset)) {
+    if (recursive && script->objectsOffset != 0) {
         JSObjectArray *objects = script->objects();
         for (uintN i = 0; i != objects->length; ++i) {
             JSObject *obj = objects->vector[i];
@@ -2138,6 +2138,11 @@ DisassFile(JSContext *cx, uintN argc, jsval *vp)
     JS_SetOptions(cx, oldopts);
     if (!script)
         return JS_FALSE;
+
+    if (script->isEmpty()) {
+        JS_SET_RVAL(cx, vp, JSVAL_VOID);
+        return JS_TRUE;
+    }
 
     JSObject *obj = JS_NewScriptObject(cx, script);
     if (!obj)
@@ -4169,7 +4174,7 @@ Serialize(JSContext *cx, uintN argc, jsval *vp)
     jsval v = argc > 0 ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
     uint64 *datap;
     size_t nbytes;
-    if (!JS_WriteStructuredClone(cx, v, &datap, &nbytes, NULL, NULL))
+    if (!JS_WriteStructuredClone(cx, v, &datap, &nbytes))
         return false;
 
     JSObject *arrayobj = js_CreateTypedArray(cx, TypedArray::TYPE_UINT8, nbytes);
@@ -4201,7 +4206,7 @@ Deserialize(JSContext *cx, uintN argc, jsval *vp)
     }
 
     if (!JS_ReadStructuredClone(cx, (uint64 *) array->data, array->byteLength,
-                                JS_STRUCTURED_CLONE_VERSION, &v, NULL, NULL)) {
+                                JS_STRUCTURED_CLONE_VERSION, &v)) {
         return false;
     }
     JS_SET_RVAL(cx, vp, v);
@@ -4288,7 +4293,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("startTraceVis",  StartTraceVisNative, 1,0),
     JS_FN("stopTraceVis",   StopTraceVisNative,  0,0),
 #endif
-#ifdef DEBUG
+#ifdef DEBUG_ARRAYS
     JS_FN("arrayInfo",      js_ArrayInfo,   1,0),
 #endif
 #ifdef JS_THREADSAFE
@@ -4415,7 +4420,7 @@ static const char *const shell_help_messages[] = {
 "startTraceVis(filename)  Start TraceVis recording (stops any current recording)",
 "stopTraceVis()           Stop TraceVis recording",
 #endif
-#ifdef DEBUG
+#ifdef DEBUG_ARRAYS
 "arrayInfo(a1, a2, ...)   Report statistics about arrays",
 #endif
 #ifdef JS_THREADSAFE

@@ -138,7 +138,6 @@ public:
   CairoImageD3D10(ID3D10Device1 *aDevice)
     : CairoImage(static_cast<ImageD3D10*>(this))
     , mDevice(aDevice)
-    , mHasAlpha(true)
   { }
   ~CairoImageD3D10();
 
@@ -150,7 +149,6 @@ public:
   nsRefPtr<ID3D10Texture2D> mTexture;
   nsRefPtr<ID3D10ShaderResourceView> mSRView;
   gfxIntSize mSize;
-  bool mHasAlpha;
 };
 
 } /* layers */

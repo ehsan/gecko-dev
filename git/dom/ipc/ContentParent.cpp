@@ -195,12 +195,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
                 CrashReporter::AnnotationTable notes;
                 notes.Init();
                 notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("content"));
-
-                char startTime[32];
-                sprintf(startTime, "%lld", static_cast<PRInt64>(mProcessStartTime));
-                notes.Put(NS_LITERAL_CSTRING("StartupTime"),
-                          nsDependentCString(startTime));
-
                 // TODO: Additional per-process annotations.
                 CrashReporter::AppendExtraData(dumpID, notes);
             }
@@ -240,7 +234,6 @@ ContentParent::ContentParent()
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
-    , mProcessStartTime(time(NULL))
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
@@ -537,11 +530,8 @@ bool
 ContentParent::RecvStartVisitedQuery(const IPC::URI& aURI)
 {
     nsCOMPtr<nsIURI> newURI(aURI);
-    nsCOMPtr<IHistory> history = services::GetHistoryService();
-    NS_ABORT_IF_FALSE(history, "History must exist at this point.");
-    if (history) {
-      history->RegisterVisitedCallback(newURI, nsnull);
-    }
+    IHistory *history = nsContentUtils::GetHistory(); 
+    history->RegisterVisitedCallback(newURI, nsnull);
     return true;
 }
 
@@ -553,11 +543,8 @@ ContentParent::RecvVisitURI(const IPC::URI& uri,
 {
     nsCOMPtr<nsIURI> ourURI(uri);
     nsCOMPtr<nsIURI> ourReferrer(referrer);
-    nsCOMPtr<IHistory> history = services::GetHistoryService();
-    NS_ABORT_IF_FALSE(history, "History must exist at this point");
-    if (history) {
-      history->VisitURI(ourURI, ourReferrer, flags);
-    }
+    IHistory *history = nsContentUtils::GetHistory(); 
+    history->VisitURI(ourURI, ourReferrer, flags);
     return true;
 }
 
@@ -567,11 +554,8 @@ ContentParent::RecvSetURITitle(const IPC::URI& uri,
                                       const nsString& title)
 {
     nsCOMPtr<nsIURI> ourURI(uri);
-    nsCOMPtr<IHistory> history = services::GetHistoryService();
-    NS_ABORT_IF_FALSE(history, "History must exist at this point");
-    if (history) {
-      history->SetURITitle(ourURI, title);
-    }
+    IHistory *history = nsContentUtils::GetHistory(); 
+    history->SetURITitle(ourURI, title);
     return true;
 }
 

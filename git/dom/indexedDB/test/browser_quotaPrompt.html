@@ -67,7 +67,7 @@
         request.onsuccess = grabEventAndContinueHandler;
         event = yield;
 
-        db.createObjectStore("foo", { autoIncrement: true });
+        db.createObjectStore("foo", "", true);
 
         setTimeout(testFinishedCallback, 0, "ready");
         yield;

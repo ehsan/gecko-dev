@@ -235,7 +235,9 @@ ifdef MOZ_PREF_EXTENSIONS
 tier_platform_dirs += extensions/pref
 endif
 
-tier_platform_dirs += services/crypto/component
+ifdef MOZ_SERVICES_SYNC
+tier_platform_dirs += services/crypto
+endif
 
 # JavaXPCOM JNI code is compiled into libXUL
 ifdef MOZ_JAVAXPCOM

@@ -148,10 +148,8 @@ public:
    * mThebesLayerDataStack, then sets the children of the container layer
    * to be all the layers in mNewChildLayers in that order and removes any
    * layers as children of the container that aren't in mNewChildLayers.
-   * @param aTextContentFlags if any child layer has CONTENT_COMPONENT_ALPHA,
-   * set *aTextContentFlags to CONTENT_COMPONENT_ALPHA
    */
-  void Finish(PRUint32 *aTextContentFlags);
+  void Finish();
 
 protected:
   /**
@@ -168,7 +166,7 @@ protected:
     ThebesLayerData() :
       mActiveScrolledRoot(nsnull), mLayer(nsnull),
       mIsSolidColorInVisibleRegion(PR_FALSE),
-      mNeedComponentAlpha(PR_FALSE),
+      mHasText(PR_FALSE), mHasTextOverTransparent(PR_FALSE),
       mForceTransparentSurface(PR_FALSE) {}
     /**
      * Record that an item has been added to the ThebesLayer, so we
@@ -239,10 +237,14 @@ protected:
      */
     PRPackedBool mIsSolidColorInVisibleRegion;
     /**
+     * True if there is any text visible in the layer.
+     */
+    PRPackedBool mHasText;
+    /**
      * True if there is any text visible in the layer that's over
      * transparent pixels in the layer.
      */
-    PRPackedBool mNeedComponentAlpha;
+    PRPackedBool mHasTextOverTransparent;
     /**
      * Set if the layer should be treated as transparent, even if its entire
      * area is covered by opaque display items. For example, this needs to
@@ -867,14 +869,10 @@ ContainerState::PopThebesLayerData()
     }
     userData->mForcedBackgroundColor = backgroundColor;
   }
-  PRUint32 flags;
-  if (isOpaque && !data->mForceTransparentSurface) {
-    flags = Layer::CONTENT_OPAQUE;
-  } else if (data->mNeedComponentAlpha) {
-    flags = Layer::CONTENT_COMPONENT_ALPHA;
-  } else {
-    flags = 0;
-  }
+  PRUint32 flags =
+    ((isOpaque && !data->mForceTransparentSurface) ? Layer::CONTENT_OPAQUE : 0) |
+    (data->mHasText ? 0 : Layer::CONTENT_NO_TEXT) |
+    (data->mHasTextOverTransparent ? 0 : Layer::CONTENT_NO_TEXT_OVER_TRANSPARENT);
   layer->SetContentFlags(flags);
 
   if (lastIndex > 0) {
@@ -936,8 +934,9 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
       mOpaqueRegion = tmp;
     }
   } else if (aItem->HasText()) {
+    mHasText = PR_TRUE;
     if (!mOpaqueRegion.Contains(aVisibleRect)) {
-      mNeedComponentAlpha = PR_TRUE;
+      mHasTextOverTransparent = PR_TRUE;
     }
   }
   mForceTransparentSurface = mForceTransparentSurface || forceTransparentSurface;
@@ -1274,13 +1273,11 @@ ContainerState::CollectOldLayers()
 }
 
 void
-ContainerState::Finish(PRUint32* aTextContentFlags)
+ContainerState::Finish()
 {
   while (!mThebesLayerDataStack.IsEmpty()) {
     PopThebesLayerData();
   }
-
-  PRUint32 textContentFlags = 0;
 
   for (PRUint32 i = 0; i <= mNewChildLayers.Length(); ++i) {
     // An invariant of this loop is that the layers in mNewChildLayers
@@ -1288,9 +1285,6 @@ ContainerState::Finish(PRUint32* aTextContentFlags)
     Layer* layer;
     if (i < mNewChildLayers.Length()) {
       layer = mNewChildLayers[i];
-      if (!layer->GetVisibleRegion().IsEmpty()) {
-        textContentFlags |= layer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA;
-      }
       if (!layer->GetParent()) {
         // This is not currently a child of the container, so just add it
         // now.
@@ -1319,8 +1313,6 @@ ContainerState::Finish(PRUint32* aTextContentFlags)
     // If non-null, 'layer' is now in the right place in the list, so we
     // can just move on to the next one.
   }
-
-  *aTextContentFlags = textContentFlags;
 }
 
 static void
@@ -1409,19 +1401,11 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
 
   Clip clip;
   state.ProcessDisplayItems(aChildren, clip);
+  state.Finish();
 
-  // Set CONTENT_COMPONENT_ALPHA if any of our children have it.
-  // This is suboptimal ... a child could have text that's over transparent
-  // pixels in its own layer, but over opaque parts of previous siblings.
-  PRUint32 flags;
-  state.Finish(&flags);
-
-  if (aChildren.IsOpaque() && !aChildren.NeedsTransparentSurface()) {
-    // Clear CONTENT_COMPONENT_ALPHA
-    flags = Layer::CONTENT_OPAQUE;
-  }
+  PRUint32 flags = aChildren.IsOpaque() && 
+                   !aChildren.NeedsTransparentSurface() ? Layer::CONTENT_OPAQUE : 0;
   containerLayer->SetContentFlags(flags);
-
   return containerLayer.forget();
 }
 

@@ -122,6 +122,7 @@ mjit::Compiler::Compiler(JSContext *cx, JSStackFrame *fp)
 CompileStatus
 mjit::Compiler::compile()
 {
+    JS_ASSERT(!script->isEmpty());
     JS_ASSERT_IF(isConstructing, !script->jitCtor);
     JS_ASSERT_IF(!isConstructing, !script->jitNormal);
 

@@ -61,7 +61,7 @@ static int gPassedTests = 0;
     if (aCondition) { \
       gPassedTests++; \
     } else { \
-      fail("%s | Expected true, got false at line %d", __FILE__, __LINE__); \
+      fail("Expected true, got false at %s:%d!", __FILE__, __LINE__); \
     } \
   PR_END_MACRO
 
@@ -71,34 +71,15 @@ static int gPassedTests = 0;
     if (!aCondition) { \
       gPassedTests++; \
     } else { \
-      fail("%s | Expected false, got true at line %d", __FILE__, __LINE__); \
+      fail("Expected false, got true at %s:%d!", __FILE__, __LINE__); \
     } \
   PR_END_MACRO
 
 #define do_check_success(aResult) \
   do_check_true(NS_SUCCEEDED(aResult))
 
-#ifdef LINUX
-// XXX Linux opt builds on tinderbox are orange due to linking with stdlib.
-// This is sad and annoying, but it's a workaround that works.
-#define do_check_eq(aExpected, aActual) \
-  do_check_true(aExpected == aActual)
-#else
-#include <sstream>
-
-#define do_check_eq(aExpected, aActual) \
-  PR_BEGIN_MACRO \
-    gTotalTests++; \
-    if (aExpected == aActual) { \
-      gPassedTests++; \
-    } else { \
-      std::ostringstream temp; \
-      temp << __FILE__ << " | Expected '" << aExpected << "', got '"; \
-      temp << aActual <<"' at line " << __LINE__; \
-      fail(temp.str().c_str()); \
-    } \
-  PR_END_MACRO
-#endif
+#define do_check_eq(aFirst, aSecond) \
+  do_check_true(aFirst == aSecond)
 
 already_AddRefed<mozIStorageService>
 getService()

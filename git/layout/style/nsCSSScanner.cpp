@@ -58,8 +58,6 @@
 #include "nsIStringBundle.h"
 #include "nsContentUtils.h"
 #include "mozilla/Services.h"
-#include "mozilla/css/Loader.h"
-#include "nsCSSStyleSheet.h"
 
 #ifdef CSS_REPORT_PARSE_ERRORS
 static PRBool gReportErrors = PR_TRUE;
@@ -268,10 +266,6 @@ nsCSSScanner::nsCSSScanner()
   , mSVGMode(PR_FALSE)
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, NS_ARRAY_LENGTH(mErrorBuf), 0)
-  , mWindowID(0)
-  , mWindowIDCached(PR_FALSE)
-  , mSheet(nsnull)
-  , mLoader(nsnull)
 #endif
 {
   MOZ_COUNT_CTOR(nsCSSScanner);
@@ -351,8 +345,7 @@ nsCSSScanner::ReleaseGlobals()
 void
 nsCSSScanner::Init(nsIUnicharInputStream* aInput, 
                    const PRUnichar * aBuffer, PRUint32 aCount, 
-                   nsIURI* aURI, PRUint32 aLineNumber,
-                   nsCSSStyleSheet* aSheet, mozilla::css::Loader* aLoader)
+                   nsIURI* aURI, PRUint32 aLineNumber)
 {
   NS_PRECONDITION(!mInputStream, "Should not have an existing input stream!");
   NS_PRECONDITION(!mReadPointer, "Should not have an existing input buffer!");
@@ -393,8 +386,6 @@ nsCSSScanner::Init(nsIUnicharInputStream* aInput,
 
 #ifdef CSS_REPORT_PARSE_ERRORS
   mColNumber = 0;
-  mSheet = aSheet;
-  mLoader = aLoader;
 #endif
 }
 
@@ -430,35 +421,19 @@ nsCSSScanner::OutputError()
   // Log it to the Error console
 
   if (InitGlobals() && gReportErrors) {
-    if (!mWindowIDCached) {
-      if (mSheet) {
-        mWindowID = mSheet->FindOwningWindowID();
-      }
-      if (mWindowID == 0 && mLoader) {
-        nsIDocument* doc = mLoader->GetDocument();
-        if (doc) {
-          mWindowID = doc->OuterWindowID();
-        }
-      }
-      mWindowIDCached = PR_TRUE;
-    }
-
     nsresult rv;
-    nsCOMPtr<nsIScriptError2> errorObject =
+    nsCOMPtr<nsIScriptError> errorObject =
       do_CreateInstance(gScriptErrorFactory, &rv);
-
     if (NS_SUCCEEDED(rv)) {
-      rv = errorObject->InitWithWindowID(mError.get(),
-                                         NS_ConvertUTF8toUTF16(mFileName).get(),
-                                         EmptyString().get(),
-                                         mErrorLineNumber,
-                                         mErrorColNumber,
-                                         nsIScriptError::warningFlag,
-                                         "CSS Parser", mWindowID);
-      if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
-        gConsoleService->LogMessage(logError);
-      }
+      rv = errorObject->Init(mError.get(),
+                             NS_ConvertUTF8toUTF16(mFileName).get(),
+                             EmptyString().get(),
+                             mErrorLineNumber,
+                             mErrorColNumber,
+                             nsIScriptError::warningFlag,
+                             "CSS Parser");
+      if (NS_SUCCEEDED(rv))
+        gConsoleService->LogMessage(errorObject);
     }
   }
   ClearError();
@@ -605,10 +580,6 @@ nsCSSScanner::Close()
   mFileName.Truncate();
   mURI = nsnull;
   mError.Truncate();
-  mWindowID = 0;
-  mWindowIDCached = PR_FALSE;
-  mSheet = nsnull;
-  mLoader = nsnull;
 #endif
   if (mPushback != mLocalPushback) {
     delete [] mPushback;

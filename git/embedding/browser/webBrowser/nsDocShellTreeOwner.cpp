@@ -1111,17 +1111,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
   if (cvElement) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(cvElement);
     nsCOMPtr<nsIAtom> titleAtom = do_GetAtom("title");
-
-    nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(content);
-    PRBool formHasNoValidate = PR_FALSE;
-    mozilla::dom::Element* form = formControl->GetFormElement();
-    if (form) {
-      nsCOMPtr<nsIAtom> noValidateAtom = do_GetAtom("novalidate");
-      formHasNoValidate = form->HasAttr(kNameSpaceID_None, noValidateAtom);
-    }
-
-    if (!content->HasAttr(kNameSpaceID_None, titleAtom) &&
-        !formHasNoValidate) {
+    if (content->HasAttr(kNameSpaceID_None, titleAtom)) {
       cvElement->GetValidationMessage(outText);
       found = !outText.IsEmpty();
     }

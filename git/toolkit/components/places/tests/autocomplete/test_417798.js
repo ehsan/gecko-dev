@@ -49,8 +49,7 @@ let kTitles = [
 ];
 
 addPageBook(0, 0); // regular url
-// javascript: uri as bookmark (no visit)
-addPageBook(1, 0, 0, undefined, undefined, undefined, true);
+addPageBook(1, 0); // javascript: uri
 
 // Provide for each test: description; search terms; array of gPages indices of
 // pages that should match; optional function to be run before the test

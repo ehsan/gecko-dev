@@ -79,8 +79,7 @@ ConvertArguments(JSContext* aCx,
 
   for (uintN i = 0; i < aKeys.Capacity(); i++) {
     jsval& arg = JS_ARGV(aCx, aVp)[i];
-    if (JSVAL_IS_VOID(arg) || JSVAL_IS_NULL(arg) ||
-        !Key::CanBeConstructedFromJSVal(arg)) {
+    if (!Key::CanBeConstructedFromJSVal(arg)) {
       JS_ReportError(aCx, "Argument is not a supported key type.");
       return JS_FALSE;
     }

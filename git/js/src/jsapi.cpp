@@ -4023,7 +4023,7 @@ JS_NewArrayObject(JSContext *cx, jsint length, jsval *vector)
     CHECK_REQUEST(cx);
     /* NB: jsuint cast does ToUint32. */
     assertSameCompartment(cx, JSValueArray(vector, vector ? (jsuint)length : 0));
-    return NewDenseCopiedArray(cx, (jsuint)length, Valueify(vector));
+    return js_NewArrayObject(cx, (jsuint)length, Valueify(vector));
 }
 
 JS_PUBLIC_API(JSBool)
@@ -4672,6 +4672,7 @@ JS_NewScriptObject(JSContext *cx, JSScript *script)
      * described in the comment for JSScript::u.object.
      */
     JS_ASSERT(script->u.object);
+    JS_ASSERT(script != JSScript::emptyScript());
     return script->u.object;
 }
 
@@ -4888,7 +4889,7 @@ JS_ExecuteScript(JSContext *cx, JSObject *obj, JSScript *script, jsval *rval)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, script);
     /* This should receive only scripts handed out via the JSAPI. */
-    JS_ASSERT(script->u.object);
+    JS_ASSERT(script == JSScript::emptyScript() || script->u.object);
     ok = Execute(cx, obj, script, NULL, 0, Valueify(rval));
     LAST_FRAME_CHECKS(cx, ok);
     return ok;
@@ -5165,6 +5166,32 @@ JS_RestoreFrameChain(JSContext *cx, JSStackFrame *fp)
 }
 
 /************************************************************************/
+
+JS_PUBLIC_API(JSString *)
+JS_NewString(JSContext *cx, char *bytes, size_t nbytes)
+{
+    size_t length = nbytes;
+    jschar *chars;
+    JSString *str;
+
+    CHECK_REQUEST(cx);
+
+    /* Make a UTF-16 vector from the 8-bit char codes in bytes. */
+    chars = js_InflateString(cx, bytes, &length);
+    if (!chars)
+        return NULL;
+
+    /* Free chars (but not bytes, which caller frees on error) if we fail. */
+    str = js_NewString(cx, chars, length);
+    if (!str) {
+        cx->free(chars);
+        return NULL;
+    }
+
+    js_free(bytes);
+    return str;
+}
+
 JS_PUBLIC_API(JSString *)
 JS_NewStringCopyN(JSContext *cx, const char *s, size_t n)
 {
@@ -5481,48 +5508,26 @@ JS_FinishJSONParse(JSContext *cx, JSONParser *jp, jsval reviver)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ReadStructuredClone(JSContext *cx, const uint64 *buf, size_t nbytes,
-                       uint32 version, jsval *vp,
-                       const JSStructuredCloneCallbacks *optionalCallbacks,
-                       void *closure)
+JS_ReadStructuredClone(JSContext *cx, const uint64 *buf, size_t nbytes, uint32 version, jsval *vp)
 {
     if (version > JS_STRUCTURED_CLONE_VERSION) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_CLONE_VERSION);
         return false;
     }
-    const JSStructuredCloneCallbacks *callbacks =
-        optionalCallbacks ?
-        optionalCallbacks :
-        cx->runtime->structuredCloneCallbacks;
-    return ReadStructuredClone(cx, buf, nbytes, Valueify(vp), callbacks, closure);
+    return ReadStructuredClone(cx, buf, nbytes, Valueify(vp));
 }
 
 JS_PUBLIC_API(JSBool)
-JS_WriteStructuredClone(JSContext *cx, jsval v, uint64 **bufp, size_t *nbytesp,
-                        const JSStructuredCloneCallbacks *optionalCallbacks,
-                        void *closure)
+JS_WriteStructuredClone(JSContext *cx, jsval v, uint64 **bufp, size_t *nbytesp)
 {
-    const JSStructuredCloneCallbacks *callbacks =
-        optionalCallbacks ?
-        optionalCallbacks :
-        cx->runtime->structuredCloneCallbacks;
-    return WriteStructuredClone(cx, Valueify(v), (uint64_t **) bufp, nbytesp,
-                                callbacks, closure);
+    return WriteStructuredClone(cx, Valueify(v), (uint64_t **) bufp, nbytesp);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_StructuredClone(JSContext *cx, jsval v, jsval *vp,
-                   ReadStructuredCloneOp optionalReadOp,
-                   const JSStructuredCloneCallbacks *optionalCallbacks,
-                   void *closure)
+JS_StructuredClone(JSContext *cx, jsval v, jsval *vp)
 {
-    const JSStructuredCloneCallbacks *callbacks =
-        optionalCallbacks ?
-        optionalCallbacks :
-        cx->runtime->structuredCloneCallbacks;
-    JSAutoStructuredCloneBuffer buf;
-    return buf.write(cx, v, callbacks, closure) &&
-           buf.read(vp, cx, callbacks, closure);
+    JSAutoStructuredCloneBuffer buf(cx);
+    return buf.write(v) && buf.read(vp);
 }
 
 JS_PUBLIC_API(void)

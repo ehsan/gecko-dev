@@ -386,10 +386,9 @@ class GeckoAppShell
         return getHandlersForIntent(intent);
     }
 
-    static String[] getHandlersForURL(String aURL, String aAction) {
-        // aURL may contain the whole URL or just the protocol
-        Uri uri = aURL.indexOf(':') >= 0 ? Uri.parse(aURL) : new Uri.Builder().scheme(aURL).build();
+    static String[] getHandlersForProtocol(String aScheme, String aAction) {
         Intent intent = getIntentForActionString(aAction);
+        Uri uri = new Uri.Builder().scheme(aScheme).build();
         intent.setData(uri);
         return getHandlersForIntent(intent);
     }
@@ -528,7 +527,7 @@ class GeckoAppShell
         Uri dataUri = Uri.fromParts("alert", aAlertName, aAlertCookie);
         notificationIntent.setData(dataUri);
 
-        PendingIntent contentIntent = PendingIntent.getBroadcast(GeckoApp.mAppContext, 0, notificationIntent, 0);
+        PendingIntent contentIntent = PendingIntent.getActivity(GeckoApp.mAppContext, 0, notificationIntent, 0);
         notification.setLatestEventInfo(GeckoApp.mAppContext, aAlertTitle, aAlertText, contentIntent);
 
         // The intent to execute when the status entry is deleted by the user with the "Clear All Notifications" button
@@ -536,7 +535,9 @@ class GeckoAppShell
         clearNotificationIntent.setClassName(GeckoApp.mAppContext,
             GeckoApp.mAppContext.getPackageName() + ".NotificationHandler");
         clearNotificationIntent.setData(dataUri);
-        notification.deleteIntent = PendingIntent.getBroadcast(GeckoApp.mAppContext, 0, clearNotificationIntent, 0);
+
+        PendingIntent pendingClearIntent = PendingIntent.getActivity(GeckoApp.mAppContext, 0, clearNotificationIntent, 0);
+        notification.deleteIntent = pendingClearIntent;
 
         mAlertNotifications.put(notificationID, notification);
 

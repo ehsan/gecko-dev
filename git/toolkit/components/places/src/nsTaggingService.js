@@ -193,7 +193,7 @@ TaggingService.prototype = {
         {
           if (tag.id == -1) {
             // Tag does not exist yet, create it.
-            this._createTag(tag.name);
+            tag.id = this._createTag(tag.name);
           }
 
           if (this._getItemIdForTaggedURI(aURI, tag.name) == -1) {

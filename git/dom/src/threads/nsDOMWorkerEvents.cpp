@@ -279,20 +279,14 @@ NS_IMPL_CI_INTERFACE_GETTER2(nsDOMWorkerMessageEvent, nsIDOMEvent,
 NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(nsDOMWorkerMessageEvent)
 
 nsresult
-nsDOMWorkerMessageEvent::SetJSData(
-                              JSContext* aCx,
-                              JSAutoStructuredCloneBuffer& aBuffer,
-                              nsTArray<nsCOMPtr<nsISupports> >& aWrappedNatives)
+nsDOMWorkerMessageEvent::SetJSData(JSContext* aCx,
+                                   JSAutoStructuredCloneBuffer& aBuffer)
 {
   NS_ASSERTION(aCx, "Null context!");
 
   if (!mDataVal.Hold(aCx)) {
     NS_WARNING("Failed to hold jsval!");
     return NS_ERROR_FAILURE;
-  }
-
-  if (!mWrappedNatives.SwapElements(aWrappedNatives)) {
-    NS_ERROR("This should never fail!");
   }
 
   aBuffer.steal(&mData, &mDataLen);
@@ -316,22 +310,12 @@ nsDOMWorkerMessageEvent::GetData(nsAString& aData)
     NS_ENSURE_SUCCESS(rv, rv);
 
     JSAutoRequest ar(cx);
-    JSAutoStructuredCloneBuffer buffer;
-    buffer.adopt(cx, mData, mDataLen);
+    JSAutoStructuredCloneBuffer buffer(cx);
+    buffer.adopt(mData, mDataLen);
     mData = nsnull;
     mDataLen = 0;
 
-    JSStructuredCloneCallbacks callbacks = {
-      nsDOMWorker::ReadStructuredClone, nsnull, nsnull
-    };
-
-    JSBool ok = buffer.read(mDataVal.ToJSValPtr(), cx, &callbacks);
-
-    // Release wrapped natives now, regardless of whether or not the deserialize
-    // succeeded.
-    mWrappedNatives.Clear();
-
-    if (!ok) {
+    if (!buffer.read(mDataVal.ToJSValPtr())) {
       NS_WARNING("Failed to deserialize!");
       return NS_ERROR_FAILURE;
     }

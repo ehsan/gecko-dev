@@ -167,7 +167,7 @@ nsSVGElement::Init()
     viewBox->Init();
   }
 
-  SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
+  nsSVGPreserveAspectRatio *preserveAspectRatio =
     GetPreserveAspectRatio();
 
   if (preserveAspectRatio) {
@@ -536,9 +536,9 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
           }
           foundMatch = PR_TRUE;
         }
-      // Check for SVGAnimatedPreserveAspectRatio attribute
+      // Check for nsSVGPreserveAspectRatio attribute
       } else if (aAttribute == nsGkAtoms::preserveAspectRatio) {
-        SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
+        nsSVGPreserveAspectRatio *preserveAspectRatio =
           GetPreserveAspectRatio();
         if (preserveAspectRatio) {
           rv = preserveAspectRatio->SetBaseValueString(aValue, this, PR_FALSE);
@@ -759,7 +759,7 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         }
       // Check if this is a preserveAspectRatio attribute going away
       } else if (aName == nsGkAtoms::preserveAspectRatio) {
-        SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
+        nsSVGPreserveAspectRatio *preserveAspectRatio =
           GetPreserveAspectRatio();
 
         if (preserveAspectRatio) {
@@ -2076,7 +2076,7 @@ nsSVGElement::DidAnimateViewBox()
   }
 }
 
-SVGAnimatedPreserveAspectRatio *
+nsSVGPreserveAspectRatio *
 nsSVGElement::GetPreserveAspectRatio()
 {
   return nsnull;
@@ -2088,8 +2088,7 @@ nsSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
   if (!aDoSetAttr)
     return;
 
-  SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
-    GetPreserveAspectRatio();
+  nsSVGPreserveAspectRatio *preserveAspectRatio = GetPreserveAspectRatio();
 
   NS_ASSERTION(preserveAspectRatio,
                "DidChangePreserveAspectRatio on element with no preserveAspectRatio attrib");
@@ -2414,10 +2413,8 @@ nsSVGElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
 
     // preserveAspectRatio:
     if (aName == nsGkAtoms::preserveAspectRatio) {
-      SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
-        GetPreserveAspectRatio();
-      return preserveAspectRatio ?
-        preserveAspectRatio->ToSMILAttr(this) : nsnull;
+      nsSVGPreserveAspectRatio *preserveAspectRatio = GetPreserveAspectRatio();
+      return preserveAspectRatio ? preserveAspectRatio->ToSMILAttr(this) : nsnull;
     }
 
     // NumberLists:

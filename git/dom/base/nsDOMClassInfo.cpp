@@ -1403,7 +1403,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CHROME_ONLY_CLASSINFO_DATA(ChromeWorker, nsDOMGenericSH,
                                        DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(WebGLRenderingContext, nsWebGLViewportHandlerSH,
+  NS_DEFINE_CLASSINFO_DATA(WebGLRenderingContext, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLBuffer, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1636,9 +1636,6 @@ jsid nsDOMClassInfo::sOnbeforescriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sOnafterscriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sWrappedJSObject_id = JSID_VOID;
 jsid nsDOMClassInfo::sURL_id             = JSID_VOID;
-jsid nsDOMClassInfo::sKeyPath_id         = JSID_VOID;
-jsid nsDOMClassInfo::sAutoIncrement_id   = JSID_VOID;
-jsid nsDOMClassInfo::sUnique_id          = JSID_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 
@@ -1684,12 +1681,12 @@ PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
   }
 
   nsCOMPtr<nsIConsoleService> consoleService
-    (do_GetService(NS_CONSOLESERVICE_CONTRACTID));
+    (do_GetService("@mozilla.org/consoleservice;1"));
   if (!consoleService) {
     return;
   }
 
-  nsCOMPtr<nsIScriptError2> scriptError =
+  nsCOMPtr<nsIScriptError> scriptError =
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
   if (!scriptError) {
     return;
@@ -1712,19 +1709,15 @@ PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
       }
     }
   }
-
-  nsresult rv = scriptError->InitWithWindowID(msg.get(),
-                                              sourcefile.get(),
-                                              EmptyString().get(),
-                                              lineno,
-                                              0, // column for error is not available
-                                              nsIScriptError::warningFlag,
-                                              "DOM:HTML",
-                                              nsJSUtils::GetCurrentlyRunningCodeWindowID(cx));
-
+  nsresult rv = scriptError->Init(msg.get(),
+                                  sourcefile.get(),
+                                  EmptyString().get(),
+                                  lineno,
+                                  0, // column for error is not available
+                                  nsIScriptError::warningFlag,
+                                  "DOM:HTML");
   if (NS_SUCCEEDED(rv)){
-    nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scriptError);
-    consoleService->LogMessage(logError);
+    consoleService->LogMessage(scriptError);
   }
 }
 
@@ -1869,9 +1862,6 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
 #endif // MOZ_MEDIA
   SET_JSID_TO_STRING(sWrappedJSObject_id, cx, "wrappedJSObject");
   SET_JSID_TO_STRING(sURL_id,             cx, "URL");
-  SET_JSID_TO_STRING(sKeyPath_id,         cx, "keyPath");
-  SET_JSID_TO_STRING(sAutoIncrement_id,   cx, "autoIncrement");
-  SET_JSID_TO_STRING(sUnique_id,          cx, "unique");
 
   return NS_OK;
 }
@@ -4933,9 +4923,6 @@ nsDOMClassInfo::ShutDown()
   sOnbeforescriptexecute_id = JSID_VOID;
   sOnafterscriptexecute_id = JSID_VOID;
   sWrappedJSObject_id = JSID_VOID;
-  sKeyPath_id         = JSID_VOID;
-  sAutoIncrement_id   = JSID_VOID;
-  sUnique_id          = JSID_VOID;
 
   NS_IF_RELEASE(sXPConnect);
   NS_IF_RELEASE(sSecMan);

@@ -5350,10 +5350,10 @@ ReportUseOfDeprecatedMethod(nsGlobalWindow* aWindow, const char* aWarning)
   nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                   aWarning,
                                   nsnull, 0,
-                                  nsnull,
+                                  doc ? doc->GetDocumentURI() : nsnull,
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,
-                                  "DOM Events", doc);
+                                  "DOM Events");
 }
 
 NS_IMETHODIMP
@@ -6048,10 +6048,11 @@ nsGlobalWindow::Close()
           nsContentUtils::eDOM_PROPERTIES,
           "WindowCloseBlockedWarning",
           nsnull, 0, // No params
-          nsnull,
+          nsnull, // No URI.  Not clear which URI we should be using
+                  // here anyway
           EmptyString(), 0, 0, // No source, or column/line number
           nsIScriptError::warningFlag,
-          "DOM Window", mDoc);  // Better name for the category?
+          "DOM Window");  // Better name for the category?
 
       return NS_OK;
     }
@@ -10276,8 +10277,8 @@ nsNavigator::SetDocShell(nsIDocShell *aDocShell)
 //    nsNavigator::nsIDOMNavigator
 //*****************************************************************************
 
-nsresult
-NS_GetNavigatorUserAgent(nsAString& aUserAgent)
+NS_IMETHODIMP
+nsNavigator::GetUserAgent(nsAString& aUserAgent)
 {
   nsresult rv;
   nsCOMPtr<nsIHttpProtocolHandler>
@@ -10291,8 +10292,92 @@ NS_GetNavigatorUserAgent(nsAString& aUserAgent)
   return rv;
 }
 
-nsresult
-NS_GetNavigatorPlatform(nsAString& aPlatform)
+NS_IMETHODIMP
+nsNavigator::GetAppCodeName(nsAString& aAppCodeName)
+{
+  nsresult rv;
+  nsCOMPtr<nsIHttpProtocolHandler>
+    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
+  if (NS_SUCCEEDED(rv)) {
+    nsCAutoString appName;
+    rv = service->GetAppName(appName);
+    CopyASCIItoUTF16(appName, aAppCodeName);
+  }
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsNavigator::GetAppVersion(nsAString& aAppVersion)
+{
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
+    const nsAdoptingCString& override = 
+      nsContentUtils::GetCharPref("general.appversion.override");
+
+    if (override) {
+      CopyUTF8toUTF16(override, aAppVersion);
+      return NS_OK;
+    }
+  }
+
+  nsresult rv;
+  nsCOMPtr<nsIHttpProtocolHandler>
+    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
+  if (NS_SUCCEEDED(rv)) {
+    nsCAutoString str;
+    rv = service->GetAppVersion(str);
+    CopyASCIItoUTF16(str, aAppVersion);
+    if (NS_FAILED(rv))
+      return rv;
+
+    aAppVersion.AppendLiteral(" (");
+
+    rv = service->GetPlatform(str);
+    if (NS_FAILED(rv))
+      return rv;
+
+    AppendASCIItoUTF16(str, aAppVersion);
+
+    aAppVersion.Append(PRUnichar(')'));
+  }
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsNavigator::GetAppName(nsAString& aAppName)
+{
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.appname.override");
+
+    if (override) {
+      CopyUTF8toUTF16(override, aAppName);
+      return NS_OK;
+    }
+  }
+
+  aAppName.AssignLiteral("Netscape");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNavigator::GetLanguage(nsAString& aLanguage)
+{
+  nsresult rv;
+  nsCOMPtr<nsIHttpProtocolHandler>
+    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
+  if (NS_SUCCEEDED(rv)) {
+    nsCAutoString lang;
+    rv = service->GetLanguage(lang);
+    CopyASCIItoUTF16(lang, aLanguage);
+  }
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsNavigator::GetPlatform(nsAString& aPlatform)
 {
   if (!nsContentUtils::IsCallerTrustedForRead()) {
     const nsAdoptingCString& override =
@@ -10334,113 +10419,6 @@ NS_GetNavigatorPlatform(nsAString& aPlatform)
   }
 
   return rv;
-}
-nsresult
-NS_GetNavigatorAppVersion(nsAString& aAppVersion)
-{
-  if (!nsContentUtils::IsCallerTrustedForRead()) {
-    const nsAdoptingCString& override = 
-      nsContentUtils::GetCharPref("general.appversion.override");
-
-    if (override) {
-      CopyUTF8toUTF16(override, aAppVersion);
-      return NS_OK;
-    }
-  }
-
-  nsresult rv;
-  nsCOMPtr<nsIHttpProtocolHandler>
-    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
-  if (NS_SUCCEEDED(rv)) {
-    nsCAutoString str;
-    rv = service->GetAppVersion(str);
-    CopyASCIItoUTF16(str, aAppVersion);
-    if (NS_FAILED(rv))
-      return rv;
-
-    aAppVersion.AppendLiteral(" (");
-
-    rv = service->GetPlatform(str);
-    if (NS_FAILED(rv))
-      return rv;
-
-    AppendASCIItoUTF16(str, aAppVersion);
-
-    aAppVersion.Append(PRUnichar(')'));
-  }
-
-  return rv;
-}
-
-nsresult
-NS_GetNavigatorAppName(nsAString& aAppName)
-{
-  if (!nsContentUtils::IsCallerTrustedForRead()) {
-    const nsAdoptingCString& override =
-      nsContentUtils::GetCharPref("general.appname.override");
-
-    if (override) {
-      CopyUTF8toUTF16(override, aAppName);
-      return NS_OK;
-    }
-  }
-
-  aAppName.AssignLiteral("Netscape");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNavigator::GetUserAgent(nsAString& aUserAgent)
-{
-  return NS_GetNavigatorUserAgent(aUserAgent);
-}
-
-NS_IMETHODIMP
-nsNavigator::GetAppCodeName(nsAString& aAppCodeName)
-{
-  nsresult rv;
-  nsCOMPtr<nsIHttpProtocolHandler>
-    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
-  if (NS_SUCCEEDED(rv)) {
-    nsCAutoString appName;
-    rv = service->GetAppName(appName);
-    CopyASCIItoUTF16(appName, aAppCodeName);
-  }
-
-  return rv;
-}
-
-NS_IMETHODIMP
-nsNavigator::GetAppVersion(nsAString& aAppVersion)
-{
-  return NS_GetNavigatorAppVersion(aAppVersion);
-}
-
-NS_IMETHODIMP
-nsNavigator::GetAppName(nsAString& aAppName)
-{
-  return NS_GetNavigatorAppName(aAppName);
-}
-
-NS_IMETHODIMP
-nsNavigator::GetLanguage(nsAString& aLanguage)
-{
-  nsresult rv;
-  nsCOMPtr<nsIHttpProtocolHandler>
-    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
-  if (NS_SUCCEEDED(rv)) {
-    nsCAutoString lang;
-    rv = service->GetLanguage(lang);
-    CopyASCIItoUTF16(lang, aLanguage);
-  }
-
-  return rv;
-}
-
-NS_IMETHODIMP
-nsNavigator::GetPlatform(nsAString& aPlatform)
-{
-  return NS_GetNavigatorPlatform(aPlatform);
 }
 
 NS_IMETHODIMP
