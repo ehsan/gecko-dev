@@ -12281,8 +12281,8 @@ BerTlvHelperObject.prototype = {
     };
     // byte 5 ~ 7 are mandatory for linear fixed and cyclic files, otherwise
     // they are not applicable.
-    if (fileStructure === UICC_EF_STRUCTURE[EF_STRUCTURE_LINEAR_FIXED] ||
-        fileStructure === UICC_EF_STRUCTURE[EF_STRUCTURE_CYCLIC]) {
+    if (fileStructure === UICC_EF_STRUCTURE[EF_TYPE_LINEAR_FIXED] ||
+        fileStructure === UICC_EF_STRUCTURE[EF_TYPE_CYCLIC]) {
       fileDescriptor.recordLength = (GsmPDUHelper.readHexOctet() << 8) +
                                      GsmPDUHelper.readHexOctet();
       fileDescriptor.numOfRecords = GsmPDUHelper.readHexOctet();
@@ -12502,7 +12502,7 @@ ICCIOHelperObject.prototype = {
       this.context.RIL.iccIO(options);
     }).bind(this);
 
-    options.structure = EF_STRUCTURE_LINEAR_FIXED;
+    options.type = EF_TYPE_LINEAR_FIXED;
     options.pathId = this.context.ICCFileHelper.getEFPath(options.fileId);
     if (options.recordSize) {
       readRecord(options);
@@ -12544,7 +12544,7 @@ ICCIOHelperObject.prototype = {
                       " or recordNumber " + options.recordNumber);
     }
 
-    options.structure = EF_STRUCTURE_LINEAR_FIXED;
+    options.type = EF_TYPE_LINEAR_FIXED;
     options.pathId = this.context.ICCFileHelper.getEFPath(options.fileId);
     let cb = options.callback;
     options.callback = function callback(options) {
@@ -12569,7 +12569,7 @@ ICCIOHelperObject.prototype = {
    *        The callback function shall be called when failure.
    */
   loadTransparentEF: function(options) {
-    options.structure = EF_STRUCTURE_TRANSPARENT;
+    options.type = EF_TYPE_TRANSPARENT;
     let cb = options.callback;
     options.callback = function callback(options) {
       options.callback = cb;
@@ -12654,15 +12654,13 @@ ICCIOHelperObject.prototype = {
     let iter = Iterator(berTlv.value);
     let tlv = BerTlvHelper.searchForNextTag(BER_FCP_FILE_DESCRIPTOR_TAG,
                                             iter);
-    if (!tlv ||
-        (tlv.value.fileStructure !== UICC_EF_STRUCTURE[options.structure])) {
-      throw new Error("Expected EF structure " +
-                      UICC_EF_STRUCTURE[options.structure] +
+    if (!tlv || (tlv.value.fileStructure !== UICC_EF_STRUCTURE[options.type])) {
+      throw new Error("Expected EF type " + UICC_EF_STRUCTURE[options.type] +
                       " but read " + tlv.value.fileStructure);
     }
 
-    if (tlv.value.fileStructure === UICC_EF_STRUCTURE[EF_STRUCTURE_LINEAR_FIXED] ||
-        tlv.value.fileStructure === UICC_EF_STRUCTURE[EF_STRUCTURE_CYCLIC]) {
+    if (tlv.value.fileStructure === UICC_EF_STRUCTURE[EF_TYPE_LINEAR_FIXED] ||
+        tlv.value.fileStructure === UICC_EF_STRUCTURE[EF_TYPE_CYCLIC]) {
       options.recordSize = tlv.value.recordLength;
       options.totalRecords = tlv.value.numOfRecords;
     }
@@ -12718,16 +12716,15 @@ ICCIOHelperObject.prototype = {
         Buf.PDU_HEX_OCTET_SIZE));
 
     // Read Structure of EF, data[13]
-    let efStructure = GsmPDUHelper.readHexOctet();
-    if (efStructure != options.structure) {
-      throw new Error("Expected EF structure " + options.structure +
-                      " but read " + efStructure);
+    let efType = GsmPDUHelper.readHexOctet();
+    if (efType != options.type) {
+      throw new Error("Expected EF type " + options.type + " but read " + efType);
     }
 
+    // TODO: Bug 952025.
     // Length of a record, data[14].
     // Only available for LINEAR_FIXED and CYCLIC.
-    if (efStructure == EF_STRUCTURE_LINEAR_FIXED ||
-        efStructure == EF_STRUCTURE_CYCLIC) {
+    if (efType == EF_TYPE_LINEAR_FIXED || efType == EF_TYPE_CYCLIC) {
       options.recordSize = GsmPDUHelper.readHexOctet();
       options.totalRecords = options.fileSize / options.recordSize;
     } else {
