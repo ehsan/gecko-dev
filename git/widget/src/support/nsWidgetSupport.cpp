@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,12 +14,12 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2005
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Darin Fisher <darin@meer.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,26 +35,64 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef READSTRINGS_H__
-#define READSTRINGS_H__
+#include "nsWidgetSupport.h"
+#include "nsRect.h"
+#include "nsIWidget.h"
 
-#define MAX_TEXT_LEN 200
+nsresult
+NS_ShowWidget(nsISupports* aWidget, PRBool aShow)
+{
+  nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
+  if (widget) {
+    widget->Show(aShow);
+  }
 
-#if defined(XP_WIN) || defined(XP_OS2)
-# include <windows.h>
-  typedef WCHAR NS_tchar;
-#else
-  typedef char NS_tchar;
-#endif
+  return NS_OK;
+}
 
-struct StringTable {
-  char title[MAX_TEXT_LEN];
-  char info[MAX_TEXT_LEN];
-};
+nsresult
+NS_MoveWidget(nsISupports* aWidget, PRUint32 aX, PRUint32 aY)
+{
+  nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
+  if (widget) {
+    widget->Move(aX, aY);
+  }
 
-/**
- * This function reads in localized strings from updater.ini
- */
-int ReadStrings(const NS_tchar *path, StringTable *results);
+  return NS_OK;
+}
 
-#endif  // READSTRINGS_H__
+nsresult
+NS_EnableWidget(nsISupports* aWidget, PRBool aEnable)
+{
+  nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
+  if (widget) {
+    widget->Enable(aEnable);
+  }
+
+  return NS_OK;
+}
+
+nsresult
+NS_SetFocusToWidget(nsISupports* aWidget)
+{
+  nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
+  if (widget) {
+    widget->SetFocus();
+  }
+
+  return NS_OK;
+}
+
+nsresult
+NS_GetWidgetNativeData(nsISupports* aWidget, void** aNativeData)
+{
+  void *result = nsnull;
+  nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
+  if (widget) {
+    result = widget->GetNativeData(NS_NATIVE_WIDGET);
+  }
+
+  *aNativeData = result;
+
+  return NS_OK;
+}

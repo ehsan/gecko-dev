@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,12 +14,12 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2005
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Darin Fisher <darin@meer.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,26 +35,39 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef READSTRINGS_H__
-#define READSTRINGS_H__
+#ifndef nsWidgetSupport_h__
+#define nsWidgetSupport_h__
 
-#define MAX_TEXT_LEN 200
+#include "nscore.h"
+#include "nsISupports.h"
+#include "nsIWidget.h"
 
-#if defined(XP_WIN) || defined(XP_OS2)
-# include <windows.h>
-  typedef WCHAR NS_tchar;
-#else
-  typedef char NS_tchar;
+
+struct nsRect;
+class nsIAppShell;
+class nsIEventListener;
+class nsILookAndFeel;
+class nsIToolkit;
+class nsIWidget;
+class nsITooltipWidget;
+
+extern nsresult 
+NS_ShowWidget(nsISupports* aWidget, PRBool aShow);
+
+extern nsresult 
+NS_MoveWidget(nsISupports* aWidget, PRUint32 aX, PRUint32 aY);
+
+extern nsresult 
+NS_EnableWidget(nsISupports* aWidget, PRBool aEnable);
+
+extern nsresult 
+NS_SetFocusToWidget(nsISupports* aWidget);
+
+extern nsresult 
+NS_GetWidgetNativeData(nsISupports* aWidget, void** aNativeData);
+
+
+
+
+
 #endif
-
-struct StringTable {
-  char title[MAX_TEXT_LEN];
-  char info[MAX_TEXT_LEN];
-};
-
-/**
- * This function reads in localized strings from updater.ini
- */
-int ReadStrings(const NS_tchar *path, StringTable *results);
-
-#endif  // READSTRINGS_H__

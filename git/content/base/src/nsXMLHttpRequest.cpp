@@ -92,11 +92,6 @@
 #include "nsIWindowWatcher.h"
 #include "nsCommaSeparatedTokenizer.h"
 
-// XXX: Needed for debugging bug 471227, these two includes should not
-// stick around
-#include <nsIApplicationCache.h>
-#include <nsIApplicationCacheChannel.h>
-
 #define LOAD_STR "load"
 #define ERROR_STR "error"
 #define ABORT_STR "abort"
@@ -1780,8 +1775,6 @@ CheckMayLoad(nsIPrincipal* aPrincipal, nsIChannel* aChannel)
 nsresult
 nsXMLHttpRequest::CheckChannelForCrossSiteRequest(nsIChannel* aChannel)
 {
-  nsresult rv;
-
   // First check if this is a same-origin request, or if cross-site requests
   // are enabled.
   if ((mState & XML_HTTP_REQUEST_XSITEENABLED) ||
@@ -1791,35 +1784,6 @@ nsXMLHttpRequest::CheckChannelForCrossSiteRequest(nsIChannel* aChannel)
 
   // This is a cross-site request
   mState |= XML_HTTP_REQUEST_USE_XSITE_AC;
-
-  // Check if we need to do a preflight request.
-  nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aChannel);
-  NS_ENSURE_TRUE(httpChannel, NS_ERROR_DOM_BAD_URI);
-    
-  nsCAutoString method;
-  httpChannel->GetRequestMethod(method);
-  if (!mACUnsafeHeaders.IsEmpty() ||
-      HasListenersFor(NS_LITERAL_STRING(UPLOADPROGRESS_STR)) ||
-      (mUpload && mUpload->HasListeners())) {
-    mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
-  }
-  else if (method.LowerCaseEqualsLiteral("post")) {
-    nsCAutoString contentTypeHeader;
-    httpChannel->GetRequestHeader(NS_LITERAL_CSTRING("Content-Type"),
-                                  contentTypeHeader);
-
-    nsCAutoString contentType, charset;
-    NS_ParseContentType(contentTypeHeader, contentType, charset);
-
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!contentType.LowerCaseEqualsLiteral("text/plain")) {
-      mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
-    }
-  }
-  else if (!method.LowerCaseEqualsLiteral("get") &&
-           !method.LowerCaseEqualsLiteral("head")) {
-    mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
-  }
 
   return NS_OK;
 }
@@ -1951,9 +1915,6 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
     // Chrome callers are always allowed to read from different origins.
     mState |= XML_HTTP_REQUEST_XSITEENABLED;
   }
-
-  mState &= ~(XML_HTTP_REQUEST_USE_XSITE_AC |
-              XML_HTTP_REQUEST_NEED_AC_PREFLIGHT);
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mChannel));
   if (httpChannel) {
@@ -2339,30 +2300,6 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
     // reasons are that the user leaves the page or hits the ESC key.
     Error(nsnull);
 
-    {
-      // XXX: Some debugging spew for bug 471227, this should not stay
-      // in the tree.
-
-      // verify whether the application cache channel was associated
-      // with a channel.
-      nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
-        do_QueryInterface(request);
-      nsCOMPtr<nsIApplicationCache> appCache;
-      if (appCacheChannel) {
-        appCacheChannel->GetApplicationCache(getter_AddRefs(appCache));
-      }
-
-      nsCAutoString spec;
-      nsCOMPtr<nsIURI> uri;
-      channel->GetURI(getter_AddRefs(uri));
-      if (uri) {
-        uri->GetSpec(spec);
-      }
-
-      printf("(Bug 471227): XHR failed for %s: status: %x, appcache: %p\n",
-             spec.get(), status, appCache.get());
-    }
-
     // By nulling out channel here we make it so that Send() can test
     // for that and throw. Also calling the various status
     // methods/members will not throw.
@@ -2692,38 +2629,68 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
 
   PRBool withCredentials = !!(mState & XML_HTTP_REQUEST_AC_WITH_CREDENTIALS);
 
-  // If so, set up the preflight
-  if (mState & XML_HTTP_REQUEST_NEED_AC_PREFLIGHT) {
-    // Check to see if this initial OPTIONS request has already been cached
-    // in our special Access Control Cache.
-    nsCOMPtr<nsIURI> uri;
-    rv = mChannel->GetURI(getter_AddRefs(uri));
-    NS_ENSURE_SUCCESS(rv, rv);
+  if (mState & XML_HTTP_REQUEST_USE_XSITE_AC) {
+    // Check if we need to do a preflight request.
+    NS_ENSURE_TRUE(httpChannel, NS_ERROR_DOM_BAD_URI);
+    
+    nsCAutoString method;
+    httpChannel->GetRequestMethod(method);
+    if (!mACUnsafeHeaders.IsEmpty() ||
+        HasListenersFor(NS_LITERAL_STRING(UPLOADPROGRESS_STR)) ||
+        (mUpload && mUpload->HasListeners())) {
+      mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
+    }
+    else if (method.LowerCaseEqualsLiteral("post")) {
+      nsCAutoString contentTypeHeader;
+      httpChannel->GetRequestHeader(NS_LITERAL_CSTRING("Content-Type"),
+                                    contentTypeHeader);
 
-    nsAccessControlLRUCache::CacheEntry* entry =
-      sAccessControlCache ?
-      sAccessControlCache->GetEntry(uri, mPrincipal, withCredentials, PR_FALSE) :
-      nsnull;
+      nsCAutoString contentType, charset;
+      NS_ParseContentType(contentTypeHeader, contentType, charset);
 
-    if (!entry || !entry->CheckRequest(method, mACUnsafeHeaders)) {
-      // Either it wasn't cached or the cached result has expired. Build a
-      // channel for the OPTIONS request.
-      nsCOMPtr<nsILoadGroup> loadGroup;
-      GetLoadGroup(getter_AddRefs(loadGroup));
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (!contentType.LowerCaseEqualsLiteral("text/plain")) {
+        mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
+      }
+    }
+    else if (!method.LowerCaseEqualsLiteral("get") &&
+             !method.LowerCaseEqualsLiteral("head")) {
+      mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
+    }
 
-      nsLoadFlags loadFlags;
-      rv = mChannel->GetLoadFlags(&loadFlags);
+    // If so, set up the preflight
+    if (mState & XML_HTTP_REQUEST_NEED_AC_PREFLIGHT) {
+      // Check to see if this initial OPTIONS request has already been cached
+      // in our special Access Control Cache.
+      nsCOMPtr<nsIURI> uri;
+      rv = mChannel->GetURI(getter_AddRefs(uri));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = NS_NewChannel(getter_AddRefs(mACGetChannel), uri, nsnull,
-                         loadGroup, nsnull, loadFlags);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsAccessControlLRUCache::CacheEntry* entry =
+        sAccessControlCache ?
+        sAccessControlCache->GetEntry(uri, mPrincipal, withCredentials, PR_FALSE) :
+        nsnull;
 
-      nsCOMPtr<nsIHttpChannel> acHttp = do_QueryInterface(mACGetChannel);
-      NS_ASSERTION(acHttp, "Failed to QI to nsIHttpChannel!");
+      if (!entry || !entry->CheckRequest(method, mACUnsafeHeaders)) {
+        // Either it wasn't cached or the cached result has expired. Build a
+        // channel for the OPTIONS request.
+        nsCOMPtr<nsILoadGroup> loadGroup;
+        GetLoadGroup(getter_AddRefs(loadGroup));
 
-      rv = acHttp->SetRequestMethod(NS_LITERAL_CSTRING("OPTIONS"));
-      NS_ENSURE_SUCCESS(rv, rv);
+        nsLoadFlags loadFlags;
+        rv = mChannel->GetLoadFlags(&loadFlags);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = NS_NewChannel(getter_AddRefs(mACGetChannel), uri, nsnull,
+                           loadGroup, nsnull, loadFlags);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsIHttpChannel> acHttp = do_QueryInterface(mACGetChannel);
+        NS_ASSERTION(acHttp, "Failed to QI to nsIHttpChannel!");
+
+        rv = acHttp->SetRequestMethod(NS_LITERAL_CSTRING("OPTIONS"));
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
     }
   }
 
