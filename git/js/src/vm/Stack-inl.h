@@ -283,7 +283,7 @@ InterpreterStack::getCallFrame(JSContext *cx, const CallArgs &args, HandleScript
 }
 
 MOZ_ALWAYS_INLINE bool
-InterpreterStack::pushInlineFrame(JSContext *cx, InterpreterRegs &regs, const CallArgs &args,
+InterpreterStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
                                   HandleScript script, InitialFrameFlags initial)
 {
     RootedFunction callee(cx, &args.callee().as<JSFunction>());
@@ -315,7 +315,7 @@ InterpreterStack::pushInlineFrame(JSContext *cx, InterpreterRegs &regs, const Ca
 }
 
 MOZ_ALWAYS_INLINE void
-InterpreterStack::popInlineFrame(InterpreterRegs &regs)
+InterpreterStack::popInlineFrame(FrameRegs &regs)
 {
     StackFrame *fp = regs.fp();
     regs.popInlineFrame();
@@ -326,13 +326,12 @@ InterpreterStack::popInlineFrame(InterpreterRegs &regs)
 
 template <class Op>
 inline void
-FrameIter::unaliasedForEachActual(JSContext *cx, Op op)
+ScriptFrameIter::unaliasedForEachActual(JSContext *cx, Op op)
 {
     switch (data_.state_) {
       case DONE:
-      case ASMJS:
         break;
-      case INTERP:
+      case SCRIPTED:
         interpFrame()->unaliasedForEachActual(op);
         return;
       case JIT:

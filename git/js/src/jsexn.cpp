@@ -212,16 +212,15 @@ js::ComputeStackString(JSContext *cx)
     {
         RootedAtom atom(cx);
         SuppressErrorsGuard seg(cx);
-        for (NonBuiltinFrameIter i(cx, FrameIter::ALL_CONTEXTS, FrameIter::GO_THROUGH_SAVED,
-                                   cx->compartment()->principals);
-             !i.done();
-             ++i)
+        for (NonBuiltinScriptFrameIter i(cx, ScriptFrameIter::ALL_CONTEXTS,
+                                         ScriptFrameIter::GO_THROUGH_SAVED,
+                                         cx->compartment()->principals);
+            !i.done(); ++i)
         {
             /* First append the function name, if any. */
-            if (i.isNonEvalFunctionFrame())
-                atom = i.functionDisplayAtom();
-            else
-                atom = nullptr;
+            atom = nullptr;
+            if (i.isNonEvalFunctionFrame() && i.callee()->displayAtom())
+                atom = i.callee()->displayAtom();
             if (atom && !sb.append(atom))
                 return nullptr;
 
@@ -230,14 +229,15 @@ js::ComputeStackString(JSContext *cx)
                 return nullptr;
 
             /* Now the filename. */
-            const char *cfilename = i.scriptFilename();
+            RootedScript script(cx, i.script());
+            const char *cfilename = script->filename();
             if (!cfilename)
                 cfilename = "";
             if (!sb.appendInflated(cfilename, strlen(cfilename)))
                 return nullptr;
 
             uint32_t column = 0;
-            uint32_t line = i.computeLine(&column);
+            uint32_t line = PCToLineNumber(script, i.pc(), &column);
             // Now the line number
             if (!sb.append(':') || !NumberValueToStringBuffer(cx, NumberValue(line), sb))
                 return nullptr;
@@ -304,16 +304,17 @@ Error(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Find the scripted caller. */
-    NonBuiltinFrameIter iter(cx);
+    NonBuiltinScriptFrameIter iter(cx);
 
     /* Set the 'fileName' property. */
+    RootedScript script(cx, iter.done() ? nullptr : iter.script());
     RootedString fileName(cx);
     if (args.length() > 1) {
         fileName = ToString<CanGC>(cx, args[1]);
     } else {
         fileName = cx->runtime()->emptyString;
         if (!iter.done()) {
-            if (const char *cfilename = iter.scriptFilename())
+            if (const char *cfilename = script->filename())
                 fileName = JS_NewStringCopyZ(cx, cfilename);
         }
     }
@@ -326,7 +327,7 @@ Error(JSContext *cx, unsigned argc, Value *vp)
         if (!ToUint32(cx, args[2], &lineNumber))
             return false;
     } else {
-        lineNumber = iter.done() ? 0 : iter.computeLine(&columnNumber);
+        lineNumber = iter.done() ? 0 : PCToLineNumber(script, iter.pc(), &columnNumber);
     }
 
     Rooted<JSString*> stack(cx, ComputeStackString(cx));

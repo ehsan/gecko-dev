@@ -405,7 +405,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     legendReflowState.construct(aPresContext, aReflowState, legend, availSize);
   }
   if (reflowLegend) {
-    nsHTMLReflowMetrics legendDesiredSize(aReflowState);
+    nsHTMLReflowMetrics legendDesiredSize(aReflowState.GetWritingMode());
 
     ReflowChild(legend, aPresContext, legendDesiredSize, legendReflowState.ref(),
                 0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
@@ -470,7 +470,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
         std::max(0, aReflowState.ComputedMaxHeight() - mLegendSpace);
     }
 
-    nsHTMLReflowMetrics kidDesiredSize(kidReflowState,
+    nsHTMLReflowMetrics kidDesiredSize(kidReflowState.GetWritingMode(),
                                        aDesiredSize.mFlags);
     // Reflow the frame
     NS_ASSERTION(kidReflowState.ComputedPhysicalMargin() == nsMargin(0,0,0,0),

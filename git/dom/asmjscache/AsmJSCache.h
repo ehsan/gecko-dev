@@ -66,14 +66,12 @@ struct WriteParams
   int64_t mFastHash;
   int64_t mNumChars;
   int64_t mFullHash;
-  bool mInstalled;
 
   WriteParams()
   : mSize(0),
     mFastHash(0),
     mNumChars(0),
-    mFullHash(0),
-    mInstalled(false)
+    mFullHash(0)
   { }
 };
 
@@ -115,7 +113,6 @@ CloseEntryForRead(JS::Handle<JSObject*> aGlobal,
                   intptr_t aHandle);
 bool
 OpenEntryForWrite(nsIPrincipal* aPrincipal,
-                  bool aInstalled,
                   const jschar* aBegin,
                   const jschar* aEnd,
                   size_t aSize,

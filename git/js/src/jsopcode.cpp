@@ -1694,7 +1694,7 @@ ExpressionDecompiler::getOutput(char **res)
 }  // anonymous namespace
 
 static bool
-FindStartPC(JSContext *cx, const FrameIter &iter, int spindex, int skipStackHits, Value v,
+FindStartPC(JSContext *cx, ScriptFrameIter &iter, int spindex, int skipStackHits, Value v,
             jsbytecode **valuepc)
 {
     jsbytecode *current = *valuepc;
@@ -1765,9 +1765,9 @@ DecompileExpressionFromStack(JSContext *cx, int spindex, int skipStackHits, Hand
     return true;
 #endif
 
-    FrameIter frameIter(cx);
+    ScriptFrameIter frameIter(cx);
 
-    if (frameIter.done() || !frameIter.hasScript())
+    if (frameIter.done())
         return true;
 
     RootedScript script(cx, frameIter.script());
@@ -1843,7 +1843,7 @@ DecompileArgumentFromStack(JSContext *cx, int formalIndex, char **res)
      * Settle on the nearest script frame, which should be the builtin that
      * called the intrinsic.
      */
-    FrameIter frameIter(cx);
+    ScriptFrameIter frameIter(cx);
     JS_ASSERT(!frameIter.done());
 
     /*
@@ -1851,7 +1851,7 @@ DecompileArgumentFromStack(JSContext *cx, int formalIndex, char **res)
      * intrinsic.
      */
     ++frameIter;
-    if (frameIter.done() || !frameIter.hasScript())
+    if (frameIter.done())
         return true;
 
     RootedScript script(cx, frameIter.script());
