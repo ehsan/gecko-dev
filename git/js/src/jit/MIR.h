@@ -979,9 +979,7 @@ class MAryInstruction : public MInstruction
     }
 };
 
-class MNullaryInstruction
-  : public MAryInstruction<0>,
-    public NoTypePolicy::Data
+class MNullaryInstruction : public MAryInstruction<0>
 { };
 
 class MUnaryInstruction : public MAryInstruction<1>
@@ -1317,9 +1315,7 @@ class MConstant : public MNullaryInstruction
 };
 
 // Generic constructor of SIMD valuesX4.
-class MSimdValueX4
-  : public MQuaternaryInstruction,
-    public NoTypePolicy::Data
+class MSimdValueX4 : public MQuaternaryInstruction
 {
   protected:
     MSimdValueX4(MIRType type, MDefinition *x, MDefinition *y, MDefinition *z, MDefinition *w)
@@ -1364,9 +1360,7 @@ class MSimdValueX4
 };
 
 // Generic constructor of SIMD valuesX4.
-class MSimdSplatX4
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MSimdSplatX4 : public MUnaryInstruction
 {
   protected:
     MSimdSplatX4(MIRType type, MDefinition *v)
@@ -1406,8 +1400,7 @@ class MSimdSplatX4
 };
 
 // A constant SIMD value.
-class MSimdConstant
-  : public MNullaryInstruction
+class MSimdConstant : public MNullaryInstruction
 {
     SimdConstant value_;
 
@@ -1442,9 +1435,7 @@ class MSimdConstant
 };
 
 // Converts all lanes of a given vector into the type of another vector
-class MSimdConvert
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MSimdConvert : public MUnaryInstruction
 {
     MSimdConvert(MDefinition *obj, MIRType fromType, MIRType toType)
       : MUnaryInstruction(obj)
@@ -1472,9 +1463,7 @@ class MSimdConvert
 };
 
 // Casts bits of a vector input to another SIMD type (doesn't generate code).
-class MSimdReinterpretCast
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MSimdReinterpretCast : public MUnaryInstruction
 {
     MSimdReinterpretCast(MDefinition *obj, MIRType fromType, MIRType toType)
       : MUnaryInstruction(obj)
@@ -1502,9 +1491,7 @@ class MSimdReinterpretCast
 };
 
 // Extracts a lane element from a given vector type, given by its lane symbol.
-class MSimdExtractElement
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MSimdExtractElement : public MUnaryInstruction
 {
   protected:
     SimdLane lane_;
@@ -1546,9 +1533,7 @@ class MSimdExtractElement
 };
 
 // Replaces the datum in the given lane by a scalar value of the same type.
-class MSimdInsertElement
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+class MSimdInsertElement : public MBinaryInstruction
 {
   private:
     SimdLane lane_;
@@ -1598,9 +1583,7 @@ class MSimdInsertElement
 };
 
 // Extracts the sign bits from a given vector, returning an MIRType_Int32.
-class MSimdSignMask
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MSimdSignMask : public MUnaryInstruction
 {
   protected:
     explicit MSimdSignMask(MDefinition *obj)
@@ -1668,10 +1651,7 @@ class MSimdShuffleBase
 // Applies a shuffle operation to the input, putting the input lanes as
 // indicated in the output register's lanes. This implements the SIMD.js
 // "shuffle" function, that takes one vector and one mask.
-class MSimdSwizzle
-  : public MUnaryInstruction,
-    public MSimdShuffleBase,
-    public NoTypePolicy::Data
+class MSimdSwizzle : public MUnaryInstruction, public MSimdShuffleBase
 {
   protected:
     MSimdSwizzle(MDefinition *obj, MIRType type,
@@ -1714,10 +1694,7 @@ class MSimdSwizzle
 // Applies a shuffle operation to the inputs, selecting the 2 first lanes of the
 // output from lanes of the first input, and the 2 last lanes of the output from
 // lanes of the second input.
-class MSimdShuffle
-  : public MBinaryInstruction,
-    public MSimdShuffleBase,
-    public NoTypePolicy::Data
+class MSimdShuffle : public MBinaryInstruction, public MSimdShuffleBase
 {
     MSimdShuffle(MDefinition *lhs, MDefinition *rhs, MIRType type,
                  uint32_t laneX, uint32_t laneY, uint32_t laneZ, uint32_t laneW)
@@ -1773,9 +1750,7 @@ class MSimdShuffle
     ALLOW_CLONE(MSimdShuffle)
 };
 
-class MSimdUnaryArith
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MSimdUnaryArith : public MUnaryInstruction
 {
   public:
     enum Operation {
@@ -1824,9 +1799,7 @@ class MSimdUnaryArith
 // Compares each value of a SIMD vector to each corresponding lane's value of
 // another SIMD vector, and returns a int32x4 vector containing the results of
 // the comparison: all bits are set to 1 if the comparison is true, 0 otherwise.
-class MSimdBinaryComp
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+class MSimdBinaryComp : public MBinaryInstruction
 {
   public:
     enum Operation {
@@ -1905,9 +1878,7 @@ class MSimdBinaryComp
     ALLOW_CLONE(MSimdBinaryComp)
 };
 
-class MSimdBinaryArith
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+class MSimdBinaryArith : public MBinaryInstruction
 {
   public:
     enum Operation {
@@ -1974,9 +1945,7 @@ class MSimdBinaryArith
     ALLOW_CLONE(MSimdBinaryArith)
 };
 
-class MSimdBinaryBitwise
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+class MSimdBinaryBitwise : public MBinaryInstruction
 {
   public:
     enum Operation {
@@ -2022,9 +1991,7 @@ class MSimdBinaryBitwise
     ALLOW_CLONE(MSimdBinaryBitwise)
 };
 
-class MSimdShift
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+class MSimdShift : public MBinaryInstruction
 {
   public:
     enum Operation {
@@ -2067,9 +2034,7 @@ class MSimdShift
     ALLOW_CLONE(MSimdShift)
 };
 
-class MSimdSelect
-  : public MTernaryInstruction,
-    public NoTypePolicy::Data
+class MSimdSelect : public MTernaryInstruction
 {
     bool isElementWise_;
 
@@ -2407,9 +2372,7 @@ class MAryControlInstruction : public MControlInstruction
 };
 
 // Jump to the start of another basic block.
-class MGoto
-  : public MAryControlInstruction<0, 1>,
-    public NoTypePolicy::Data
+class MGoto : public MAryControlInstruction<0, 1>
 {
     explicit MGoto(MBasicBlock *target) {
         setSuccessor(0, target);
@@ -2503,8 +2466,7 @@ class MTest
 // method. This allows IonBuilder to insert fake CFG edges to magically protect
 // control flow for try-catch blocks.
 class MGotoWithFake
-  : public MAryControlInstruction<0, 2>,
-    public NoTypePolicy::Data
+  : public MAryControlInstruction<0, 2>
 {
     MGotoWithFake(MBasicBlock *successor, MBasicBlock *fake)
     {
@@ -2617,9 +2579,7 @@ typedef AlwaysTenured<JSScript*> AlwaysTenuredScript;
 typedef AlwaysTenured<PropertyName*> AlwaysTenuredPropertyName;
 typedef AlwaysTenured<Shape*> AlwaysTenuredShape;
 
-class MNewArray
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MNewArray : public MUnaryInstruction
 {
   private:
     // Number of space to allocate for the array.
@@ -2774,9 +2734,7 @@ class MNewArrayDynamicLength
     }
 };
 
-class MNewObject
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MNewObject : public MUnaryInstruction
 {
     gc::InitialHeap initialHeap_;
     bool templateObjectIsClassPrototype_;
@@ -2837,9 +2795,7 @@ class MNewObject
 };
 
 // Could be allocating either a new array or a new object.
-class MNewPar
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MNewPar : public MUnaryInstruction
 {
     AlwaysTenuredNativeObject templateObject_;
 
@@ -3548,9 +3504,7 @@ class MBail : public MNullaryInstruction
     }
 };
 
-class MUnreachable
-  : public MAryControlInstruction<0, 0>,
-    public NoTypePolicy::Data
+class MUnreachable : public MAryControlInstruction<0, 0>
 {
   public:
     INSTRUCTION_HEADER(Unreachable)
@@ -3564,9 +3518,7 @@ class MUnreachable
     }
 };
 
-class MAssertFloat32
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MAssertFloat32 : public MUnaryInstruction
 {
   protected:
     bool mustBeFloat32_;
@@ -3874,9 +3826,7 @@ class MCompare
 };
 
 // Takes a typed value and returns an untyped value.
-class MBox
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MBox : public MUnaryInstruction
 {
     MBox(TempAllocator &alloc, MDefinition *ins)
       : MUnaryInstruction(ins)
@@ -4032,9 +3982,7 @@ class MUnbox MOZ_FINAL : public MUnaryInstruction, public BoxInputsPolicy::Data
     ALLOW_CLONE(MUnbox)
 };
 
-class MGuardObject
-  : public MUnaryInstruction,
-    public SingleObjectPolicy::Data
+class MGuardObject : public MUnaryInstruction, public SingleObjectPolicy::Data
 {
     explicit MGuardObject(MDefinition *ins)
       : MUnaryInstruction(ins)
@@ -4080,8 +4028,7 @@ class MGuardString
 };
 
 class MAssertRange
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     // This is the range checked by the assertion. Don't confuse this with the
     // range_ member or the range() accessor. Since MAssertRange doesn't return
@@ -4117,8 +4064,7 @@ class MAssertRange
 // Caller-side allocation of |this| for |new|:
 // Given a templateobject, construct |this| for JSOP_NEW
 class MCreateThisWithTemplate
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     gc::InitialHeap initialHeap_;
 
@@ -4529,8 +4475,7 @@ class MToFloat32
 
 // Converts a uint32 to a double (coming from asm.js).
 class MAsmJSUnsignedToDouble
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     explicit MAsmJSUnsignedToDouble(MDefinition *def)
       : MUnaryInstruction(def)
@@ -4556,8 +4501,7 @@ class MAsmJSUnsignedToDouble
 
 // Converts a uint32 to a float32 (coming from asm.js).
 class MAsmJSUnsignedToFloat32
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     explicit MAsmJSUnsignedToFloat32(MDefinition *def)
       : MUnaryInstruction(def)
@@ -6076,8 +6020,7 @@ class MConcat
 };
 
 class MConcatPar
-  : public MTernaryInstruction,
-    public NoTypePolicy::Data
+  : public MTernaryInstruction
 {
     MConcatPar(MDefinition *cx, MDefinition *left, MDefinition *right)
       : MTernaryInstruction(cx, left, right)
@@ -6289,10 +6232,7 @@ class MLoadArrowThis
     }
 };
 
-class MPhi MOZ_FINAL
-  : public MDefinition,
-    public InlineListNode<MPhi>,
-    public NoTypePolicy::Data
+class MPhi MOZ_FINAL : public MDefinition, public InlineListNode<MPhi>
 {
     js::Vector<MUse, 2, JitAllocPolicy> inputs_;
 
@@ -6475,9 +6415,7 @@ class MPhi MOZ_FINAL
 
 // The goal of a Beta node is to split a def at a conditionally taken
 // branch, so that uses dominated by it have a different name.
-class MBeta
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MBeta : public MUnaryInstruction
 {
   private:
     // This is the range induced by a comparison and branch in a preceding
@@ -6511,9 +6449,7 @@ class MBeta
 
 // MIR representation of a Value on the OSR BaselineFrame.
 // The Value is indexed off of OsrFrameReg.
-class MOsrValue
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MOsrValue : public MUnaryInstruction
 {
   private:
     ptrdiff_t frameOffset_;
@@ -6546,9 +6482,7 @@ class MOsrValue
 
 // MIR representation of a JSObject scope chain pointer on the OSR BaselineFrame.
 // The pointer is indexed off of OsrFrameReg.
-class MOsrScopeChain
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MOsrScopeChain : public MUnaryInstruction
 {
   private:
     explicit MOsrScopeChain(MOsrEntry *entry)
@@ -6570,9 +6504,7 @@ class MOsrScopeChain
 
 // MIR representation of a JSObject ArgumentsObject pointer on the OSR BaselineFrame.
 // The pointer is indexed off of OsrFrameReg.
-class MOsrArgumentsObject
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MOsrArgumentsObject : public MUnaryInstruction
 {
   private:
     explicit MOsrArgumentsObject(MOsrEntry *entry)
@@ -6594,9 +6526,7 @@ class MOsrArgumentsObject
 
 // MIR representation of the return value on the OSR BaselineFrame.
 // The Value is indexed off of OsrFrameReg.
-class MOsrReturnValue
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MOsrReturnValue : public MUnaryInstruction
 {
   private:
     explicit MOsrReturnValue(MOsrEntry *entry)
@@ -6617,8 +6547,7 @@ class MOsrReturnValue
 };
 
 // Check the current frame for over-recursion past the global stack limit.
-class MCheckOverRecursed
-  : public MNullaryInstruction
+class MCheckOverRecursed : public MNullaryInstruction
 {
   public:
     INSTRUCTION_HEADER(CheckOverRecursed)
@@ -6630,9 +6559,7 @@ class MCheckOverRecursed
 
 // Check the current frame for over-recursion past the global stack limit.
 // Uses the per-thread recursion limit.
-class MCheckOverRecursedPar
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MCheckOverRecursedPar : public MUnaryInstruction
 {
     explicit MCheckOverRecursedPar(MDefinition *cx)
       : MUnaryInstruction(cx)
@@ -6655,9 +6582,7 @@ class MCheckOverRecursedPar
 };
 
 // Check for an interrupt (or rendezvous) in parallel mode.
-class MInterruptCheckPar
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MInterruptCheckPar : public MUnaryInstruction
 {
     explicit MInterruptCheckPar(MDefinition *cx)
       : MUnaryInstruction(cx)
@@ -6702,8 +6627,7 @@ class MInterruptCheck : public MNullaryInstruction
 // Check whether we need to fire the interrupt handler at loop headers and
 // function prologues in asm.js. Generated only if we can't use implicit
 // interrupt checks with signal handlers.
-class MAsmJSInterruptCheck
-  : public MNullaryInstruction
+class MAsmJSInterruptCheck : public MNullaryInstruction
 {
     Label *interruptExit_;
     CallSiteDesc funcDesc_;
@@ -6778,9 +6702,7 @@ class MThrowUninitializedLexical : public MNullaryInstruction
 };
 
 // If not defined, set a global variable to |undefined|.
-class MDefVar
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MDefVar : public MUnaryInstruction
 {
     AlwaysTenuredPropertyName name_; // Target name to be defined.
     unsigned attrs_; // Attributes to be set.
@@ -6816,9 +6738,7 @@ class MDefVar
     }
 };
 
-class MDefFun
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MDefFun : public MUnaryInstruction
 {
     AlwaysTenuredFunction fun_;
 
@@ -7057,7 +6977,7 @@ class MStringReplace
 
 class MSubstr
   : public MTernaryInstruction,
-    public Mix3Policy<StringPolicy<0>, IntPolicy<1>, IntPolicy<2>>::Data
+    public Mix3Policy<StringPolicy<0>, IntPolicy<1>, IntPolicy<2>>
 {
   private:
 
@@ -7339,8 +7259,7 @@ class MConstantElements : public MNullaryInstruction
 
 // Passes through an object's elements, after ensuring it is entirely doubles.
 class MConvertElementsToDoubles
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     explicit MConvertElementsToDoubles(MDefinition *elements)
       : MUnaryInstruction(elements)
@@ -7454,8 +7373,7 @@ class MMaybeCopyElementsForWrite
 
 // Load the initialized length from an elements header.
 class MInitializedLength
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     explicit MInitializedLength(MDefinition *elements)
       : MUnaryInstruction(elements)
@@ -7489,8 +7407,7 @@ class MInitializedLength
 // Store to the initialized length in an elements header. Note the input is an
 // *index*, one less than the desired length.
 class MSetInitializedLength
-  : public MAryInstruction<2>,
-    public NoTypePolicy::Data
+  : public MAryInstruction<2>
 {
     MSetInitializedLength(MDefinition *elements, MDefinition *index) {
         initOperand(0, elements);
@@ -7519,8 +7436,7 @@ class MSetInitializedLength
 
 // Load the array length from an elements header.
 class MArrayLength
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     explicit MArrayLength(MDefinition *elements)
       : MUnaryInstruction(elements)
@@ -7554,8 +7470,7 @@ class MArrayLength
 // Store to the length in an elements header. Note the input is an *index*, one
 // less than the desired length.
 class MSetArrayLength
-  : public MAryInstruction<2>,
-    public NoTypePolicy::Data
+  : public MAryInstruction<2>
 {
     MSetArrayLength(MDefinition *elements, MDefinition *index) {
         initOperand(0, elements);
@@ -7691,8 +7606,7 @@ class MTypedObjectElements
 
 // Inlined version of the js::SetTypedObjectOffset() intrinsic.
 class MSetTypedObjectOffset
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+  : public MBinaryInstruction
 {
   private:
     MSetTypedObjectOffset(MDefinition *object, MDefinition *offset)
@@ -7795,8 +7709,7 @@ class MNot
 // in a bounds check must not be negative, or the wrong result may be computed
 // (unsigned comparisons may be used).
 class MBoundsCheck
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+  : public MBinaryInstruction
 {
     // Range over which to perform the bounds check, may be modified by GVN.
     int32_t minimum_;
@@ -7857,8 +7770,7 @@ class MBoundsCheck
 
 // Bailout if index < minimum.
 class MBoundsCheckLower
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     int32_t minimum_;
     bool fallible_;
@@ -8992,9 +8904,7 @@ class MStoreTypedArrayElementStatic :
 
 // Compute an "effective address", i.e., a compound computation of the form:
 //   base + index * scale + displacement
-class MEffectiveAddress
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+class MEffectiveAddress : public MBinaryInstruction
 {
     MEffectiveAddress(MDefinition *base, MDefinition *index, Scale scale, int32_t displacement)
       : MBinaryInstruction(base, index), scale_(scale), displacement_(displacement)
@@ -10034,8 +9944,7 @@ class MForkJoinContext
 // Calls the ForkJoinGetSlice stub, used for inlining the eponymous intrinsic.
 // Only applicable in ParallelExecution.
 class MForkJoinGetSlice
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     explicit MForkJoinGetSlice(MDefinition *cx)
       : MUnaryInstruction(cx)
@@ -10982,8 +10891,7 @@ class MIteratorMore
 };
 
 class MIsNoIter
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+  : public MUnaryInstruction
 {
     explicit MIsNoIter(MDefinition *def)
       : MUnaryInstruction(def)
@@ -11489,9 +11397,7 @@ class MTypeBarrier
 // Like MTypeBarrier, guard that the value is in the given type set. This is
 // used before property writes to ensure the value being written is represented
 // in the property types for the object.
-class MMonitorTypes
-  : public MUnaryInstruction,
-    public BoxInputsPolicy::Data
+class MMonitorTypes : public MUnaryInstruction, public BoxInputsPolicy::Data
 {
     const types::TemporaryTypeSet *typeSet_;
     BarrierKind barrierKind_;
@@ -11646,9 +11552,7 @@ class MNewRunOnceCallObject : public MNewCallObjectBase
     }
 };
 
-class MNewCallObjectPar
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MNewCallObjectPar : public MUnaryInstruction
 {
     AlwaysTenured<CallObject*> templateObj_;
 
@@ -11767,9 +11671,7 @@ class MEnclosingScope : public MLoadFixedSlot
 // Creates a dense array of the given length.
 //
 // Note: the template object should be an *empty* dense array!
-class MNewDenseArrayPar
-  : public MBinaryInstruction,
-    public NoTypePolicy::Data
+class MNewDenseArrayPar : public MBinaryInstruction
 {
     AlwaysTenured<ArrayObject*> templateObject_;
 
@@ -12180,7 +12082,7 @@ class MMemoryBarrier
 
 class MCompareExchangeTypedArrayElement
   : public MAryInstruction<4>,
-    public Mix4Policy<ObjectPolicy<0>, IntPolicy<1>, IntPolicy<2>, IntPolicy<3>>::Data
+    public MixPolicy< MixPolicy<ObjectPolicy<0>, IntPolicy<1> >, MixPolicy<IntPolicy<2>, IntPolicy<3> > >
 {
     Scalar::Type arrayType_;
 
@@ -12235,7 +12137,7 @@ class MCompareExchangeTypedArrayElement
 
 class MAtomicTypedArrayElementBinop
     : public MAryInstruction<3>,
-      public Mix3Policy< ObjectPolicy<0>, IntPolicy<1>, IntPolicy<2> >::Data
+      public Mix3Policy< ObjectPolicy<0>, IntPolicy<1>, IntPolicy<2> >
 {
   private:
     AtomicOp op_;
@@ -12298,9 +12200,7 @@ class MDebugger : public MNullaryInstruction
     }
 };
 
-class MAsmJSNeg
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MAsmJSNeg : public MUnaryInstruction
 {
     MAsmJSNeg(MDefinition *op, MIRType type)
       : MUnaryInstruction(op)
@@ -12331,10 +12231,7 @@ class MAsmJSHeapAccess
     void removeBoundsCheck() { needsBoundsCheck_ = false; }
 };
 
-class MAsmJSLoadHeap
-  : public MUnaryInstruction,
-    public MAsmJSHeapAccess,
-    public NoTypePolicy::Data
+class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
 {
     MemoryBarrierBits barrierBefore_;
     MemoryBarrierBits barrierAfter_;
@@ -12400,10 +12297,7 @@ class MAsmJSLoadHeap
     bool mightAlias(const MDefinition *def) const;
 };
 
-class MAsmJSStoreHeap
-  : public MBinaryInstruction,
-    public MAsmJSHeapAccess,
-    public NoTypePolicy::Data
+class MAsmJSStoreHeap : public MBinaryInstruction, public MAsmJSHeapAccess
 {
     MemoryBarrierBits barrierBefore_;
     MemoryBarrierBits barrierAfter_;
@@ -12441,10 +12335,7 @@ class MAsmJSStoreHeap
     }
 };
 
-class MAsmJSCompareExchangeHeap
-  : public MTernaryInstruction,
-    public MAsmJSHeapAccess,
-    public NoTypePolicy::Data
+class MAsmJSCompareExchangeHeap : public MTernaryInstruction, public MAsmJSHeapAccess
 {
     MAsmJSCompareExchangeHeap(Scalar::Type vt, MDefinition *ptr, MDefinition *oldv, MDefinition *newv,
                               bool needsBoundsCheck)
@@ -12474,10 +12365,7 @@ class MAsmJSCompareExchangeHeap
     }
 };
 
-class MAsmJSAtomicBinopHeap
-  : public MBinaryInstruction,
-    public MAsmJSHeapAccess,
-    public NoTypePolicy::Data
+class MAsmJSAtomicBinopHeap : public MBinaryInstruction, public MAsmJSHeapAccess
 {
     AtomicOp op_;
 
@@ -12544,9 +12432,7 @@ class MAsmJSLoadGlobalVar : public MNullaryInstruction
     bool mightAlias(const MDefinition *def) const;
 };
 
-class MAsmJSStoreGlobalVar
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MAsmJSStoreGlobalVar : public MUnaryInstruction
 {
     MAsmJSStoreGlobalVar(unsigned globalDataOffset, MDefinition *v)
       : MUnaryInstruction(v), globalDataOffset_(globalDataOffset)
@@ -12569,9 +12455,7 @@ class MAsmJSStoreGlobalVar
     }
 };
 
-class MAsmJSLoadFuncPtr
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MAsmJSLoadFuncPtr : public MUnaryInstruction
 {
     MAsmJSLoadFuncPtr(unsigned globalDataOffset, MDefinition *index)
       : MUnaryInstruction(index), globalDataOffset_(globalDataOffset)
@@ -12641,9 +12525,7 @@ class MAsmJSParameter : public MNullaryInstruction
     ABIArg abi() const { return abi_; }
 };
 
-class MAsmJSReturn
-  : public MAryControlInstruction<1, 0>,
-    public NoTypePolicy::Data
+class MAsmJSReturn : public MAryControlInstruction<1, 0>
 {
     explicit MAsmJSReturn(MDefinition *ins) {
         initOperand(0, ins);
@@ -12656,9 +12538,7 @@ class MAsmJSReturn
     }
 };
 
-class MAsmJSVoidReturn
-  : public MAryControlInstruction<0, 0>,
-    public NoTypePolicy::Data
+class MAsmJSVoidReturn : public MAryControlInstruction<0, 0>
 {
   public:
     INSTRUCTION_HEADER(AsmJSVoidReturn);
@@ -12667,9 +12547,7 @@ class MAsmJSVoidReturn
     }
 };
 
-class MAsmJSPassStackArg
-  : public MUnaryInstruction,
-    public NoTypePolicy::Data
+class MAsmJSPassStackArg : public MUnaryInstruction
 {
     MAsmJSPassStackArg(uint32_t spOffset, MDefinition *ins)
       : MUnaryInstruction(ins),
@@ -12694,9 +12572,7 @@ class MAsmJSPassStackArg
     }
 };
 
-class MAsmJSCall MOZ_FINAL
-  : public MVariadicInstruction,
-    public NoTypePolicy::Data
+class MAsmJSCall MOZ_FINAL : public MVariadicInstruction
 {
   public:
     class Callee {

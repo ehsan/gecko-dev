@@ -334,14 +334,6 @@ public:
   typedef mozilla::TimeDuration TimeDuration;
   typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
 
-  static void
-  AssertIsOnMainThread()
-#ifdef DEBUG
-  ;
-#else
-  { }
-#endif
-
   // public methods
   nsPIDOMWindow* GetPrivateParent();
 
@@ -678,8 +670,6 @@ public:
   }
 
   static nsGlobalWindow* GetOuterWindowWithId(uint64_t aWindowID) {
-    AssertIsOnMainThread();
-
     if (!sWindowsById) {
       return nullptr;
     }
@@ -689,8 +679,6 @@ public:
   }
 
   static nsGlobalWindow* GetInnerWindowWithId(uint64_t aInnerWindowID) {
-    AssertIsOnMainThread();
-
     if (!sWindowsById) {
       return nullptr;
     }
@@ -700,8 +688,6 @@ public:
   }
 
   static WindowByIdTable* GetWindowsTable() {
-    AssertIsOnMainThread();
-
     return sWindowsById;
   }
 

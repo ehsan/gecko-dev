@@ -146,22 +146,15 @@ static const double THRESHOLD_LOW_PLAYBACKRATE_AUDIO = 0.5;
 // start playing afterward, so we need to stay alive.
 // 4) If autoplay could start playback in this element (if we got enough data),
 // then we need to stay alive.
-// 5) if the element is currently loading, not suspended, and its source is
-// not a MediaSource, then script might be waiting for progress events or a
-// 'stalled' or 'suspend' event, so we need to stay alive.
-// If we're already suspended then (all other conditions being met),
-// it's OK to just disappear without firing any more events,
-// since we have the freedom to remain suspended indefinitely. Note
+// 5) if the element is currently loading and not suspended,
+// script might be waiting for progress events or a 'suspend' event,
+// so we need to stay alive. If we're already suspended then (all other
+// conditions being met) it's OK to just disappear without firing any more
+// events, since we have the freedom to remain suspended indefinitely. Note
 // that we could use this 'suspended' loophole to garbage-collect a suspended
 // element in case 4 even if it had 'autoplay' set, but we choose not to.
 // If someone throws away all references to a loading 'autoplay' element
 // sound should still eventually play.
-// 6) If the source is a MediaSource, most loading events will not fire unless
-// appendBuffer() is called on a SourceBuffer, in which case something is
-// already referencing the SourceBuffer, which keeps the associated media
-// element alive. Further, a MediaSource will never time out the resource
-// fetch, and so should not keep the media element alive if it is
-// unreferenced. A pending 'stalled' event keeps the media element alive.
 //
 // Media elements owned by inactive documents (i.e. documents not contained in any
 // document viewer) should never hold a self-reference because none of the
@@ -691,7 +684,7 @@ void HTMLMediaElement::AbortExistingLoads()
     DispatchAsyncEvent(NS_LITERAL_STRING("emptied"));
   }
 
-  // We may have changed mPaused, mAutoplaying, and other
+  // We may have changed mPaused, mAutoplaying, mNetworkState and other
   // things which can affect AddRemoveSelfReference
   AddRemoveSelfReference();
 
@@ -706,6 +699,7 @@ void HTMLMediaElement::NoSupportedMediaSourceError()
   mError = new MediaError(this, nsIDOMMediaError::MEDIA_ERR_SRC_NOT_SUPPORTED);
   ChangeNetworkState(nsIDOMHTMLMediaElement::NETWORK_NO_SOURCE);
   DispatchAsyncEvent(NS_LITERAL_STRING("error"));
+  // This clears mDelayingLoadEvent, so AddRemoveSelfReference will be called
   ChangeDelayLoadStatus(false);
 }
 
@@ -820,6 +814,7 @@ void HTMLMediaElement::SelectResource()
     // The media element has neither a src attribute nor any source
     // element children, abort the load.
     ChangeNetworkState(nsIDOMHTMLMediaElement::NETWORK_EMPTY);
+    // This clears mDelayingLoadEvent, so AddRemoveSelfReference will be called
     ChangeDelayLoadStatus(false);
     return;
   }
@@ -827,6 +822,8 @@ void HTMLMediaElement::SelectResource()
   ChangeDelayLoadStatus(true);
 
   ChangeNetworkState(nsIDOMHTMLMediaElement::NETWORK_LOADING);
+  // Load event was delayed, and still is, so no need to call
+  // AddRemoveSelfReference, since it must still be held
   DispatchAsyncEvent(NS_LITERAL_STRING("loadstart"));
 
   // Delay setting mIsRunningSeletResource until after UpdatePreloadAction
@@ -1831,7 +1828,6 @@ HTMLMediaElement::CaptureStreamInternal(bool aFinishWhenEnded)
   out->mStream = DOMMediaStream::CreateTrackUnionStream(window, hints);
   nsRefPtr<nsIPrincipal> principal = GetCurrentPrincipal();
   out->mStream->CombineWithPrincipal(principal);
-  out->mStream->SetCORSMode(mCORSMode);
   out->mFinishWhenEnded = aFinishWhenEnded;
 
   mAudioCaptured = true;
@@ -2136,6 +2132,7 @@ HTMLMediaElement::ResetConnectionState()
   FireTimeUpdate(false);
   DispatchAsyncEvent(NS_LITERAL_STRING("ended"));
   ChangeNetworkState(nsIDOMHTMLMediaElement::NETWORK_EMPTY);
+  AddRemoveSelfReference();
   ChangeDelayLoadStatus(false);
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_NOTHING);
 }
@@ -2662,15 +2659,15 @@ nsresult HTMLMediaElement::FinishDecoderSetup(MediaDecoder* aDecoder,
     mDecoder->SetMinimizePrerollUntilPlaybackStarts();
   }
 
+  // Update decoder principal before we start decoding, since it
+  // can affect how we feed data to MediaStreams
+  NotifyDecoderPrincipalChanged();
+
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
     OutputMediaStream* ms = &mOutputStreams[i];
     aDecoder->AddOutputStream(ms->mStream->GetStream()->AsProcessedStream(),
         ms->mFinishWhenEnded);
   }
-
-  // Update decoder principal before we start decoding, since it
-  // can affect how we feed data to MediaStreams
-  NotifyDecoderPrincipalChanged();
 
   nsresult rv = aDecoder->Load(aListener, aCloneDonor);
   if (NS_FAILED(rv)) {
@@ -2860,6 +2857,7 @@ void HTMLMediaElement::SetupSrcMediaStreamPlayback(DOMMediaStream* aStream)
   DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
   DispatchAsyncEvent(NS_LITERAL_STRING("loadedmetadata"));
   ChangeNetworkState(nsIDOMHTMLMediaElement::NETWORK_IDLE);
+  AddRemoveSelfReference();
   // FirstFrameLoaded() will be called when the stream has current data.
 }
 
@@ -3011,6 +3009,7 @@ void HTMLMediaElement::Error(uint16_t aErrorCode)
   } else {
     ChangeNetworkState(nsIDOMHTMLMediaElement::NETWORK_IDLE);
   }
+  AddRemoveSelfReference();
   ChangeDelayLoadStatus(false);
 }
 
@@ -3084,6 +3083,7 @@ void HTMLMediaElement::DownloadSuspended()
   }
   if (mBegun) {
     ChangeNetworkState(nsIDOMHTMLMediaElement::NETWORK_IDLE);
+    AddRemoveSelfReference();
   }
 }
 
@@ -3091,6 +3091,7 @@ void HTMLMediaElement::DownloadResumed(bool aForceNetworkLoading)
 {
   if (mBegun || aForceNetworkLoading) {
     ChangeNetworkState(nsIDOMHTMLMediaElement::NETWORK_LOADING);
+    AddRemoveSelfReference();
   }
 }
 
@@ -3143,8 +3144,6 @@ void HTMLMediaElement::CheckProgress(bool aHaveNewProgress)
     // is more progress.
     StopProgress();
   }
-
-  AddRemoveSelfReference();
 }
 
 /* static */
@@ -3358,9 +3357,6 @@ void HTMLMediaElement::ChangeNetworkState(nsMediaNetworkState aState)
     // Fire 'suspend' event when entering NETWORK_IDLE and no error presented.
     DispatchAsyncEvent(NS_LITERAL_STRING("suspend"));
   }
-
-  // Changing mNetworkState affects AddRemoveSelfReference().
-  AddRemoveSelfReference();
 }
 
 bool HTMLMediaElement::CanActivateAutoplay()
@@ -3515,12 +3511,10 @@ void HTMLMediaElement::NotifyDecoderPrincipalChanged()
   bool subsumes;
   mDecoder->UpdateSameOriginStatus(
     !principal ||
-    (NS_SUCCEEDED(NodePrincipal()->Subsumes(principal, &subsumes)) && subsumes) ||
-    mCORSMode != CORS_NONE);
+    (NS_SUCCEEDED(NodePrincipal()->Subsumes(principal, &subsumes)) && subsumes));
 
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
     OutputMediaStream* ms = &mOutputStreams[i];
-    ms->mStream->SetCORSMode(mCORSMode);
     ms->mStream->CombineWithPrincipal(principal);
   }
 #ifdef MOZ_EME
@@ -3631,8 +3625,7 @@ void HTMLMediaElement::AddRemoveSelfReference()
      (!mPaused && mSrcStream && !mSrcStream->IsFinished()) ||
      (mDecoder && mDecoder->IsSeeking()) ||
      CanActivateAutoplay() ||
-     (mMediaSource ? mProgressTimer :
-      mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING));
+     mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING);
 
   if (needSelfReference != mHasSelfReference) {
     mHasSelfReference = needSelfReference;

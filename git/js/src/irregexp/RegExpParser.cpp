@@ -518,7 +518,7 @@ RegExpParser<CharT>::ScanForCaptures()
             Advance();
             break;
           case '[': {
-            widechar c;
+            int c;
             while ((c = current()) != kEndMarker) {
                 Advance();
                 if (c == '\\') {

@@ -87,12 +87,12 @@ BuildScrollContainerLayers()
 nsHTMLScrollFrame*
 NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot)
 {
-  return new (aPresShell) nsHTMLScrollFrame(aContext, aIsRoot);
+  return new (aPresShell) nsHTMLScrollFrame(aPresShell, aContext, aIsRoot);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsHTMLScrollFrame)
 
-nsHTMLScrollFrame::nsHTMLScrollFrame(nsStyleContext* aContext, bool aIsRoot)
+nsHTMLScrollFrame::nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, bool aIsRoot)
   : nsContainerFrame(aContext),
     mHelper(ALLOW_THIS_IN_INITIALIZER_LIST(this), aIsRoot)
 {
@@ -959,15 +959,15 @@ nsXULScrollFrame*
 NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
                      bool aIsRoot, bool aClipAllDescendants)
 {
-  return new (aPresShell) nsXULScrollFrame(aContext, aIsRoot,
+  return new (aPresShell) nsXULScrollFrame(aPresShell, aContext, aIsRoot,
                                            aClipAllDescendants);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsXULScrollFrame)
 
-nsXULScrollFrame::nsXULScrollFrame(nsStyleContext* aContext,
+nsXULScrollFrame::nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext,
                                    bool aIsRoot, bool aClipAllDescendants)
-  : nsBoxFrame(aContext, aIsRoot),
+  : nsBoxFrame(aShell, aContext, aIsRoot),
     mHelper(ALLOW_THIS_IN_INITIALIZER_LIST(this), aIsRoot)
 {
   SetLayoutManager(nullptr);

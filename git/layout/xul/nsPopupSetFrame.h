@@ -18,8 +18,8 @@ class nsPopupSetFrame : public nsBoxFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsPopupSetFrame(nsStyleContext* aContext):
-    nsBoxFrame(aContext) {}
+  nsPopupSetFrame(nsIPresShell* aShell, nsStyleContext* aContext):
+    nsBoxFrame(aShell, aContext) {}
 
   ~nsPopupSetFrame() {}
   

@@ -34,7 +34,7 @@ public:
 
   NS_DECLARE_FRAME_PROPERTY(ContentScrollPos, DestroyPoint)
 
-  explicit nsTextControlFrame(nsStyleContext* aContext);
+  nsTextControlFrame(nsIPresShell* aShell, nsStyleContext* aContext);
   virtual ~nsTextControlFrame();
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;

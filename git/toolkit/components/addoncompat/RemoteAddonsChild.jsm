@@ -14,8 +14,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
                                   "resource://gre/modules/BrowserUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Prefetcher",
-                                  "resource://gre/modules/Prefetcher.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "SystemPrincipal",
                                    "@mozilla.org/systemprincipal;1", "nsIPrincipal");
@@ -167,11 +165,6 @@ let ContentPolicyChild = {
 
   shouldLoad: function(contentType, contentLocation, requestOrigin,
                        node, mimeTypeGuess, extra, requestPrincipal) {
-    let addons = NotificationTracker.findSuffixes(["content-policy"]);
-    let [prefetched, cpows] = Prefetcher.prefetch("ContentPolicy.shouldLoad",
-                                                  addons, {InitNode: node});
-    cpows.node = node;
-
     let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
                .getService(Ci.nsISyncMessageSender);
     let rval = cpmm.sendRpcMessage("Addons:ContentPolicy:Run", {
@@ -180,8 +173,9 @@ let ContentPolicyChild = {
       requestOrigin: requestOrigin ? requestOrigin.spec : null,
       mimeTypeGuess: mimeTypeGuess,
       requestPrincipal: requestPrincipal,
-      prefetched: prefetched,
-    }, cpows);
+    }, {
+      node: node, // Sent as a CPOW.
+    });
     if (rval.length != 1) {
       return Ci.nsIContentPolicy.ACCEPT;
     }
@@ -422,20 +416,11 @@ EventTargetChild.prototype = {
   },
 
   handleEvent: function(capturing, event) {
-    let addons = NotificationTracker.findSuffixes(["event", event.type, capturing]);
-    let [prefetched, cpows] = Prefetcher.prefetch("EventTarget.handleEvent",
-                                                  addons,
-                                                  {Event: event,
-                                                   Window: this._childGlobal.content});
-    cpows.event = event;
-    cpows.eventTarget = event.target;
-
     this._childGlobal.sendRpcMessage("Addons:Event:Run",
                                      {type: event.type,
                                       capturing: capturing,
-                                      isTrusted: event.isTrusted,
-                                      prefetched: prefetched},
-                                     cpows);
+                                      isTrusted: event.isTrusted},
+                                     {event: event});
   }
 };
 
@@ -496,7 +481,6 @@ let RemoteAddonsChild = {
   _ready: false,
 
   makeReady: function() {
-    Prefetcher.init();
     NotificationTracker.init();
     ContentPolicyChild.init();
     AboutProtocolChild.init();

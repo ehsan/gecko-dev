@@ -34,7 +34,7 @@
 nsIFrame*
 NS_NewDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsDeckFrame(aContext);
+  return new (aPresShell) nsDeckFrame(aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsDeckFrame)
@@ -44,11 +44,11 @@ NS_QUERYFRAME_HEAD(nsDeckFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
 
-nsDeckFrame::nsDeckFrame(nsStyleContext* aContext)
-  : nsBoxFrame(aContext), mIndex(0)
+nsDeckFrame::nsDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+  : nsBoxFrame(aPresShell, aContext), mIndex(0)
 {
   nsCOMPtr<nsBoxLayout> layout;
-  NS_NewStackLayout(PresContext()->PresShell(), layout);
+  NS_NewStackLayout(aPresShell, layout);
   SetLayoutManager(layout);
 }
 

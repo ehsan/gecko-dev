@@ -16,8 +16,9 @@ class nsTreeColFrame : public nsBoxFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsTreeColFrame(nsStyleContext* aContext):
-    nsBoxFrame(aContext) {}
+  nsTreeColFrame(nsIPresShell* aPresShell,
+                 nsStyleContext* aContext):
+    nsBoxFrame(aPresShell, aContext) {}
 
   virtual void Init(nsIContent*       aContent,
                     nsContainerFrame* aParent,

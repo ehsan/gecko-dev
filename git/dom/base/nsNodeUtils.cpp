@@ -324,7 +324,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
   // if aDeep is true, deal with aNode's children (and recurse into their
   // attributes and children).
 
-  nsAutoScriptBlocker scriptBlocker;
   AutoJSContext cx;
   nsresult rv;
 

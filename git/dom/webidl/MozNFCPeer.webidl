@@ -11,11 +11,6 @@
 [JSImplementation="@mozilla.org/nfc/peer;1", AvailableIn="PrivilegedApps"]
 interface MozNFCPeer {
   /**
-   * Indicate if this peer is already lost.
-   */
-  readonly attribute boolean isLost;
-
-  /**
    * Send NDEF data to peer device.
    */
   [Throws]
@@ -33,6 +28,8 @@ partial interface MozNFCPeer {
   [ChromeOnly]
   attribute DOMString session;
 
-  [ChromeOnly]
-  void notifyLost();
+  /**
+   * Indicate if this peer is already lost.
+   */
+  readonly attribute boolean isLost;
 };

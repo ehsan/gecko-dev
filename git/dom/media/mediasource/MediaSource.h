@@ -128,9 +128,6 @@ private:
   nsRefPtr<SourceBufferList> mActiveSourceBuffers;
 
   nsRefPtr<MediaSourceDecoder> mDecoder;
-  // Ensures the media element remains alive to dispatch progress and
-  // durationchanged events.
-  nsRefPtr<HTMLMediaElement> mMediaElement;
 
   nsRefPtr<nsIPrincipal> mPrincipal;
 

@@ -380,8 +380,11 @@ AudioManager::Observe(nsISupports* aSubject,
   // To process the volume control on each audio channel according to
   // change of settings
   else if (!strcmp(aTopic, MOZ_SETTINGS_CHANGE_ID)) {
-    RootedDictionary<dom::SettingChangeNotification> setting(nsContentUtils::RootingCxForThread());
-    if (!WrappedJSToDictionary(aSubject, setting)) {
+    AutoJSAPI jsapi;
+    jsapi.Init();
+    JSContext* cx = jsapi.cx();
+    RootedDictionary<dom::SettingChangeNotification> setting(cx);
+    if (!WrappedJSToDictionary(cx, aSubject, setting)) {
       return NS_OK;
     }
     if (!setting.mKey.EqualsASCII("audio.volume.bt_sco")) {

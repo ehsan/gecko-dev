@@ -54,7 +54,7 @@ using namespace mozilla;
 nsIFrame*
 NS_NewTextControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsTextControlFrame(aContext);
+  return new (aPresShell) nsTextControlFrame(aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsTextControlFrame)
@@ -99,7 +99,7 @@ private:
 };
 #endif
 
-nsTextControlFrame::nsTextControlFrame(nsStyleContext* aContext)
+nsTextControlFrame::nsTextControlFrame(nsIPresShell* aShell, nsStyleContext* aContext)
   : nsContainerFrame(aContext)
   , mEditorHasBeenInitialized(false)
   , mIsProcessing(false)

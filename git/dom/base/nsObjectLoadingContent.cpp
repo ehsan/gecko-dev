@@ -1200,12 +1200,6 @@ nsObjectLoadingContent::GetFrameLoader()
 }
 
 NS_IMETHODIMP
-nsObjectLoadingContent::SetIsPrerendered()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
 nsObjectLoadingContent::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherLoader)
 {
   return NS_ERROR_NOT_IMPLEMENTED;

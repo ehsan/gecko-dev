@@ -92,7 +92,7 @@ protected:
 
   void CalcDrawRect(nsRenderingContext &aRenderingContext);
 
-  explicit nsTextBoxFrame(nsStyleContext* aContext);
+  nsTextBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   nscoord CalculateTitleForWidth(nsPresContext*      aPresContext,
                                  nsRenderingContext& aRenderingContext,

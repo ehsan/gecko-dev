@@ -25,7 +25,7 @@
 nsIFrame*
 NS_NewTreeColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsTreeColFrame(aContext);
+  return new (aPresShell) nsTreeColFrame(aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsTreeColFrame)

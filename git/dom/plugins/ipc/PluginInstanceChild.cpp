@@ -2440,6 +2440,7 @@ StreamNotifyChild::ActorDestroy(ActorDestroyReason why)
 void
 StreamNotifyChild::SetAssociatedStream(BrowserStreamChild* bs)
 {
+    NS_ASSERTION(bs, "Shouldn't be null");
     NS_ASSERTION(!mBrowserStream, "Two streams for one streamnotify?");
 
     mBrowserStream = bs;

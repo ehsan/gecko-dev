@@ -761,14 +761,14 @@ void
 nsRefreshDriver::RestoreNormalRefresh()
 {
   mTestControllingRefreshes = false;
-  EnsureTimerStarted(eAllowTimeToGoBackwards);
+  EnsureTimerStarted(false);
   mCompletedTransaction = mPendingTransaction;
 }
 
 TimeStamp
 nsRefreshDriver::MostRecentRefresh() const
 {
-  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted();
+  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
 
   return mMostRecentRefresh;
 }
@@ -776,7 +776,7 @@ nsRefreshDriver::MostRecentRefresh() const
 int64_t
 nsRefreshDriver::MostRecentRefreshEpochTime() const
 {
-  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted();
+  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
 
   return mMostRecentRefreshEpochTime;
 }
@@ -787,7 +787,7 @@ nsRefreshDriver::AddRefreshObserver(nsARefreshObserver* aObserver,
 {
   ObserverArray& array = ArrayFor(aFlushType);
   bool success = array.AppendElement(aObserver) != nullptr;
-  EnsureTimerStarted();
+  EnsureTimerStarted(false);
   return success;
 }
 
@@ -828,7 +828,7 @@ nsRefreshDriver::AddImageRequest(imgIRequest* aRequest)
     start->mEntries.PutEntry(aRequest);
   }
 
-  EnsureTimerStarted();
+  EnsureTimerStarted(false);
 
   return true;
 }
@@ -849,13 +849,13 @@ nsRefreshDriver::RemoveImageRequest(imgIRequest* aRequest)
 }
 
 void
-nsRefreshDriver::EnsureTimerStarted(EnsureTimerStartedFlags aFlags)
+nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
 {
   if (mTestControllingRefreshes)
     return;
 
   // will it already fire, and no other changes needed?
-  if (mActiveTimer && !(aFlags & eAdjustingTimer))
+  if (mActiveTimer && !aAdjustingTimer)
     return;
 
   if (IsFrozen() || !mPresContext) {
@@ -891,19 +891,11 @@ nsRefreshDriver::EnsureTimerStarted(EnsureTimerStartedFlags aFlags)
   // timers, the most recent refresh of the new timer may be *before* the
   // most recent refresh of the old timer. However, the refresh driver time
   // should not go backwards so we clamp the most recent refresh time.
-  //
-  // The one exception to this is when we are restoring the refresh driver
-  // from test control in which case the time is expected to go backwards
-  // (see bug 1043078).
   mMostRecentRefresh =
-    aFlags & eAllowTimeToGoBackwards
-    ? mActiveTimer->MostRecentRefresh()
-    : std::max(mActiveTimer->MostRecentRefresh(), mMostRecentRefresh);
+    std::max(mActiveTimer->MostRecentRefresh(), mMostRecentRefresh);
   mMostRecentRefreshEpochTime =
-    aFlags & eAllowTimeToGoBackwards
-    ? mActiveTimer->MostRecentRefreshEpochTime()
-    : std::max(mActiveTimer->MostRecentRefreshEpochTime(),
-               mMostRecentRefreshEpochTime);
+    std::max(mActiveTimer->MostRecentRefreshEpochTime(),
+             mMostRecentRefreshEpochTime);
 }
 
 void
@@ -1511,7 +1503,7 @@ nsRefreshDriver::Thaw()
       // and notify our observers until we get back to the event loop.
       // Thus MostRecentRefresh() will lie between now and the DoRefresh.
       NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &nsRefreshDriver::DoRefresh));
-      EnsureTimerStarted();
+      EnsureTimerStarted(false);
     }
   }
 }
@@ -1639,7 +1631,7 @@ nsRefreshDriver::SetThrottled(bool aThrottled)
     if (mActiveTimer) {
       // We want to switch our timer type here, so just stop and
       // restart the timer.
-      EnsureTimerStarted(eAdjustingTimer);
+      EnsureTimerStarted(true);
     }
   }
 }
@@ -1669,7 +1661,7 @@ nsRefreshDriver::ScheduleViewManagerFlush()
   NS_ASSERTION(mPresContext->IsRoot(),
                "Should only schedule view manager flush on root prescontexts");
   mViewManagerFlushIsPending = true;
-  EnsureTimerStarted();
+  EnsureTimerStarted(false);
 }
 
 void
@@ -1682,7 +1674,7 @@ nsRefreshDriver::ScheduleFrameRequestCallbacks(nsIDocument* aDocument)
 
   // make sure that the timer is running
   ConfigureHighPrecision();
-  EnsureTimerStarted();
+  EnsureTimerStarted(false);
 }
 
 void
