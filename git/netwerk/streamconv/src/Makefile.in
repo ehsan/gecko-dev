@@ -54,13 +54,12 @@ CPPSRCS		= \
 		nsStreamConverterService.cpp \
 		$(NULL)
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-ifneq (x86_64,$(OS_TEST))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 CPPSRCS += \
 		nsAppleFileDecoder.cpp \
 		$(NULL)
 endif
-endif
+
 
 # we don't want the shared lib, but we want to force the creation of a
 # static lib.

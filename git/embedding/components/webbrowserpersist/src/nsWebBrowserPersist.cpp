@@ -42,6 +42,9 @@
 
 #include "nsIFileStreams.h"       // New Necko file streams
 
+#ifdef XP_MAC
+#include "nsILocalFileMac.h"
+#endif
 #ifdef XP_OS2
 #include "nsILocalFileOS2.h"
 #endif
@@ -2243,6 +2246,15 @@ nsWebBrowserPersist::CalculateAndAppendFileExt(nsIURI *aURI, nsIChannel *aChanne
             }
 
         }
+
+#ifdef  XP_MAC
+        // Set appropriate Mac file type/creator for this mime type
+        nsCOMPtr<nsILocalFileMac> macFile(do_QueryInterface(localFile));
+        if (macFile)
+        {
+            macFile->SetFileTypeAndCreatorFromMIMEType(contentType.get());
+        }
+#endif            
     }
 
     return NS_OK;

@@ -589,10 +589,8 @@ nsXHREventTarget::AddEventListener(const nsAString& aType,
                                    nsIDOMEventListener* aListener,
                                    PRBool aUseCapture)
 {
-  nsresult rv;
-  nsIScriptContext* context =
-    GetContextForEventHandlers(&rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIScriptContext> context;
+  GetContextForEventHandlers(getter_AddRefs(context));
   nsCOMPtr<nsIDocument> doc = GetDocumentFromScriptContext(context);
   PRBool wantsUntrusted = doc && !nsContentUtils::IsChromeDoc(doc);
   return AddEventListener(aType, aListener, aUseCapture, wantsUntrusted);
@@ -828,14 +826,13 @@ nsXHREventTarget::GetSystemEventGroup(nsIDOMEventGroup** aGroup)
   return rv;
 }
 
-nsIScriptContext*
-nsXHREventTarget::GetContextForEventHandlers(nsresult* aRv)
+nsresult
+nsXHREventTarget::GetContextForEventHandlers(nsIScriptContext** aContext)
 {
-  *aRv = CheckInnerWindowCorrectness();
-  if (NS_FAILED(*aRv)) {
-    return nsnull;
-  }
-  return mScriptContext;
+  nsresult rv = CheckInnerWindowCorrectness();
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_IF_ADDREF(*aContext = mScriptContext);
+  return NS_OK;
 }
 
 /////////////////////////////////////////////
@@ -3360,10 +3357,8 @@ NS_IMETHODIMP
 nsXMLHttpRequest::GetUpload(nsIXMLHttpRequestUpload** aUpload)
 {
   *aUpload = nsnull;
-
-  nsresult rv;
-  nsIScriptContext* scriptContext =
-    GetContextForEventHandlers(&rv);
+  nsCOMPtr<nsIScriptContext> scriptContext;
+  nsresult rv = GetContextForEventHandlers(getter_AddRefs(scriptContext));
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mUpload) {
     mUpload = new nsXMLHttpRequestUpload(mOwner, scriptContext);

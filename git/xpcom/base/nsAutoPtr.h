@@ -1042,17 +1042,15 @@ class nsRefPtr
           return temp;
         }
 
-      template <typename I>
       void
-      forget( I** rhs)
+      forget( T** rhs )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
-          // parameters where rhs bay be a T** or an I** where I is a base class
-          // of T.
+          // parameters.
         {
           NS_ASSERTION(rhs, "Null pointer passed to forget!");
-          *rhs = mRawPtr;
-          mRawPtr = 0;
+          *rhs = 0;
+          swap(*rhs);
         }
 
       T*

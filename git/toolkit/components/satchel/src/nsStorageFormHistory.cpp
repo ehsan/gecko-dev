@@ -72,10 +72,6 @@
 
 #define PR_HOURS ((PRInt64)60 * 60 * 1000000)
 
-// Limit the length of names and values stored in form history
-#define MAX_HISTORY_NAME_LEN    200
-#define MAX_HISTORY_VALUE_LEN   200
-
 // nsFormHistoryResult is a specialized autocomplete result class that knows
 // how to remove entries from the form history table.
 class nsFormHistoryResult : public nsIAutoCompleteSimpleResult
@@ -518,13 +514,8 @@ nsFormHistory::Notify(nsIDOMHTMLFormElement* formElt, nsIDOMWindowInternal* aWin
           inputElt->GetName(name);
           if (name.IsEmpty())
             inputElt->GetId(name);
-
-          if (name.IsEmpty())
-            continue;
-          if (name.Length() > MAX_HISTORY_NAME_LEN ||
-              value.Length() > MAX_HISTORY_VALUE_LEN)
-            continue;
-          AddEntry(name, value);
+          if (!name.IsEmpty())
+            AddEntry(name, value);
         }
       }
     }

@@ -63,10 +63,6 @@
 #include "gfxQPainterSurface.h"
 #endif
 
-#ifdef CAIRO_HAS_DDRAW_SURFACE
-#include "gfxDDrawSurface.h"
-#endif
-
 #include <stdio.h>
 #include <limits.h>
 
@@ -183,11 +179,6 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
 #ifdef CAIRO_HAS_QPAINTER_SURFACE
     else if (stype == CAIRO_SURFACE_TYPE_QPAINTER) {
         result = new gfxQPainterSurface(csurf);
-    }
-#endif
-#ifdef CAIRO_HAS_DDRAW_SURFACE
-    else if (stype == CAIRO_SURFACE_TYPE_DDRAW) {
-        result = new gfxDDrawSurface(csurf);
     }
 #endif
     else {

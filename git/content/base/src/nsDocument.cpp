@@ -1584,8 +1584,6 @@ nsDocument::~nsDocument()
     mBoxObjectTable->EnumerateRead(ClearAllBoxObjects, nsnull);
     delete mBoxObjectTable;
   }
-
-  mPendingTitleChangeEvent.Revoke();
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocument)
@@ -1986,11 +1984,8 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   if (aLoadGroup) {
     mDocumentLoadGroup = do_GetWeakReference(aLoadGroup);
     // there was an assertion here that aLoadGroup was not null.  This
-    // is no longer valid: nsDocShell::SetDocument does not create a
-    // load group, and it works just fine
-
-    // XXXbz what does "just fine" mean exactly?  And given that there
-    // is no nsDocShell::SetDocument, what is this talking about?
+    // is no longer valid nsWebShell::SetDocument does not create a
+    // load group, and it works just fine.
   }
 
   mLastModified.Truncate();
@@ -4937,8 +4932,8 @@ nsDocument::NotifyPossibleTitleChange(PRBool aBoundTitleElement)
   if (mPendingTitleChangeEvent.IsPending())
     return;
 
-  nsRefPtr<nsNonOwningRunnableMethod<nsDocument> > event =
-      new nsNonOwningRunnableMethod<nsDocument>(this,
+  nsRefPtr<nsRunnableMethod<nsDocument> > event =
+      new nsRunnableMethod<nsDocument>(this,
             &nsDocument::DoNotifyPossibleTitleChange);
   nsresult rv = NS_DispatchToCurrentThread(event);
   if (NS_SUCCEEDED(rv)) {
@@ -6262,8 +6257,8 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
   // correct size to determine the correct style.
   if (mParentDocument && IsSafeToFlush()) {
     mozFlushType parentType = aType;
-    if (aType >= Flush_Style)
-      parentType = PR_MAX(Flush_Layout, aType);
+    if (aType == Flush_Style)
+      parentType = Flush_Layout;
     mParentDocument->FlushPendingNotifications(parentType);
   }
 

@@ -54,7 +54,6 @@
 #include "nsIDOMRange.h"
 #include "nsIDOMViewCSS.h"
 #include "nsIDOMWindowInternal.h"
-#include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
 #include "nsIDocumentViewer.h"
 #include "nsIContentViewer.h"
@@ -811,18 +810,4 @@ nsCoreUtils::GetComputedStyleDeclaration(const nsAString& aPseudoElt,
     return;
 
   viewCSS->GetComputedStyle(domElement, aPseudoElt, aCssDecl);
-}
-
-already_AddRefed<nsIBoxObject>
-nsCoreUtils::GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj)
-{
-  nsCOMPtr<nsIDOMElement> tcElm;
-  aTreeBoxObj->GetTreeBody(getter_AddRefs(tcElm));
-  nsCOMPtr<nsIDOMXULElement> tcXULElm(do_QueryInterface(tcElm));
-  if (!tcXULElm)
-    return nsnull;
-
-  nsIBoxObject *boxObj = nsnull;
-  tcXULElm->GetBoxObject(&boxObj);
-  return boxObj;
 }

@@ -44,9 +44,6 @@
 #include "nsRefPtrHashtable.h"
 
 #include "gfxFontUtils.h"
-#ifdef MOZ_CORETEXT
-#include "gfxCoreTextFonts.h"
-#endif
 #include "gfxAtsuiFonts.h"
 #include "gfxPlatform.h"
 

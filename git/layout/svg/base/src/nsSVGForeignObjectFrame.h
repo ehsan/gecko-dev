@@ -44,8 +44,6 @@
 #include "nsIDOMSVGMatrix.h"
 #include "nsRegion.h"
 #include "nsIPresShell.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
 
 class nsSVGOuterSVGFrame;
 
@@ -129,7 +127,7 @@ public:
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
   virtual PRBool GetMatrixPropagation();
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_TRUE; }
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_FALSE; }
 
@@ -140,7 +138,7 @@ public:
    */
   nsPoint TransformPointFromOuter(nsPoint aPt);
 
-  gfxMatrix GetCanvasTM();
+  already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 
   // This method allows our nsSVGOuterSVGFrame to reflow us as necessary.
   void MaybeReflowFromOuterSVGFrame();

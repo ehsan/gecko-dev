@@ -13,6 +13,7 @@ function LOG(aMsg) {
     //Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(aMsg);
 }
 
+
 function getAccessTokenForURL(url)
 {
     // check to see if we have an access token:
@@ -111,20 +112,9 @@ WifiGeoPositionProvider.prototype = {
   
     provider_url:    null,
     wifi_service:    null,
+    update:          null,
     timer:           null,
     hasSeenWiFi:     false,
-
-    observe: function (aSubject, aTopic, aData) {
-        if (aTopic == "private-browsing") {
-            if (aData == "enter" || aData == "exit") {
-                let psvc = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefService);
-                try {
-                    let branch = psvc.getBranch("geo.wifi.access_token.");
-                    branch.deleteBranch("");
-                } catch (e) {}
-            }
-        }
-    },
 
     startup:         function() {
         LOG("startup called");
@@ -137,9 +127,6 @@ WifiGeoPositionProvider.prototype = {
         this.hasSeenWiFi = false;
         this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
         this.timer.initWithCallback(this, 5000, this.timer.TYPE_ONE_SHOT);
-
-        let os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
-        os.addObserver(this, "private-browsing", false);
     },
 
     isReady:         function() {
@@ -149,9 +136,12 @@ WifiGeoPositionProvider.prototype = {
   
     watch: function(c) {
         LOG("watch called");
+
         if (!this.wifi_service) {
             this.wifi_service = Cc["@mozilla.org/wifi/monitor;1"].getService(Components.interfaces.nsIWifiMonitor);
+        
             this.wifi_service.startWatching(this);
+            this.update = c;
         }
     },
 
@@ -159,26 +149,12 @@ WifiGeoPositionProvider.prototype = {
         LOG("shutdown  called");
         if(this.wifi_service)
             this.wifi_service.stopWatching(this);
-        this.wifi_service = null;
+        this.update = null;
 
         if (this.timer != null) {
             this.timer.cancel();
             this.timer = null;
         }
-
-        // Although we aren't using cookies, we should error on the side of not
-        // saving any access tokens if the user asked us not to save cookies or
-        // has changed the lifetimePolicy.  The access token in these cases is
-        // used and valid for the life of this object (eg. between startup and
-        // shutdown).e
-        let prefService = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
-        if (prefService.getIntPref("network.cookie.lifetimePolicy") != 0) {
-            let branch = prefService.getBranch("geo.wifi.access_token.");
-            branch.deleteBranch("");
-        }
-
-        let os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
-        os.removeObserver(this, "private-browsing");
     },
 
     onChange: function(accessPoints) {
@@ -189,7 +165,7 @@ WifiGeoPositionProvider.prototype = {
         var prefService = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
 
         // send our request to a wifi geolocation network provider:
-        var xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
+        const xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
 
         // This is a background load
         xhr.mozBackgroundRequest = true;
@@ -198,6 +174,9 @@ WifiGeoPositionProvider.prototype = {
         
         // set something so that we can strip cookies
         xhr.channel.loadFlags = Ci.nsIChannel.LOAD_ANONYMOUS;
+
+        // set something so that we can get back to the update object when onload is called
+        xhr.channel.QueryInterface(Ci.nsIWritablePropertyBag2).setPropertyAsInterface("moz-geolocation-service", this.update);
             
         xhr.onerror = function(req) {
             LOG("onerror: " + req);
@@ -235,7 +214,7 @@ WifiGeoPositionProvider.prototype = {
                                                         response.location.longitude,
                                                         response.location.accuracy);
 
-            var update = Cc["@mozilla.org/geolocation/service;1"].getService(Ci.nsIGeolocationUpdate);
+            var update = req.target.channel.QueryInterface(Ci.nsIPropertyBag2).getPropertyAsInterface("moz-geolocation-service", Ci.nsIGeolocationUpdate);
             update.update(newLocation);
         };
 
@@ -261,10 +240,6 @@ WifiGeoPositionProvider.prototype = {
         LOG("client sending: " + jsonString);
 
         xhr.send(jsonString);
-    },
-
-    onError: function (code) {
-        LOG("wifi error: " + code);
     },
 
     notify: function (timer) {

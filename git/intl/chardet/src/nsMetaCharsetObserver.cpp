@@ -134,7 +134,7 @@ NS_IMETHODIMP nsMetaCharsetObserver::Notify(
    return NS_OK;//Notify((nsISupports*)aDocumentID, &keys, &values);
 }
 NS_IMETHODIMP nsMetaCharsetObserver::Notify(
-                     nsISupports* aDocShell,
+                     nsISupports* aWebShell,
                      nsISupports* aChannel,
                      const PRUnichar* aTag, 
                      const nsTArray<nsString>* keys, 
@@ -148,7 +148,7 @@ NS_IMETHODIMP nsMetaCharsetObserver::Notify(
         result = NS_ERROR_ILLEGAL_VALUE;
     }
     else {
-        result = Notify(aDocShell, aChannel, keys, values);
+        result = Notify(aWebShell, aChannel, keys, values);
     }
   }
   return result;
@@ -157,7 +157,7 @@ NS_IMETHODIMP nsMetaCharsetObserver::Notify(
 #define IS_SPACE_CHARS(ch)  (ch == ' ' || ch == '\b' || ch == '\r' || ch == '\n')
 
 NS_IMETHODIMP nsMetaCharsetObserver::Notify(
-                    nsISupports* aDocShell,
+                    nsISupports* aWebShell,
                     nsISupports* aChannel,
                     const nsTArray<nsString>* keys, 
                     const nsTArray<nsString>* values)
@@ -299,7 +299,7 @@ NS_IMETHODIMP nsMetaCharsetObserver::Notify(
                             !preferred.EqualsLiteral("UTF-32LE")) {
                           // Propagate the error message so that the parser can
                           // shutdown correctly. - Ref. Bug 96440
-                          res = NotifyDocShell(aDocShell,
+                          res = NotifyWebShell(aWebShell,
                                                aChannel,
                                                preferred.get(),
                                                kCharsetFromMetaTag);
@@ -319,7 +319,7 @@ NS_IMETHODIMP nsMetaCharsetObserver::Notify(
       if (NS_SUCCEEDED(GetCharsetFromCompatibilityTag(keys, values, compatCharset)))
       {
         if (!compatCharset.IsEmpty()) {
-          res = NotifyDocShell(aDocShell,
+          res = NotifyWebShell(aWebShell,
                                aChannel,
                                NS_ConvertUTF16toUTF8(compatCharset).get(), 
                                kCharsetFromMetaTag);

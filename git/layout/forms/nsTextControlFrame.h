@@ -223,12 +223,7 @@ protected:
 
     NS_IMETHOD Run() {
       if (mWeakFrame) {
-        nsCOMPtr<nsIPresShell> shell =
-          mWeakFrame.GetFrame()->PresContext()->GetPresShell();
-        PRBool observes = shell->ObservesNativeAnonMutationsForPrint();
-        shell->ObserveNativeAnonMutationsForPrint(PR_TRUE);
         mFrame->DelayedEditorInit();
-        shell->ObserveNativeAnonMutationsForPrint(observes);
       }
       return NS_OK;
     }

@@ -52,7 +52,6 @@ _SIMPLETEST_FILES =	MozillaFileLogger.js \
 			setup.js \
 			EventUtils.js \
 			WindowSnapshot.js \
-			PluginUtils.js \
 			$(NULL)
 
 libs:: $(_SIMPLETEST_FILES)

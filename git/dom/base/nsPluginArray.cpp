@@ -321,12 +321,6 @@ nsPluginElement::GetFilename(nsAString& aFilename)
 }
 
 NS_IMETHODIMP
-nsPluginElement::GetVersion(nsAString& aVersion)
-{
-  return mPlugin->GetVersion(aVersion);
-}
-
-NS_IMETHODIMP
 nsPluginElement::GetName(nsAString& aName)
 {
   return mPlugin->GetName(aName);

@@ -164,7 +164,6 @@ struct RangeData
 
   nsCOMPtr<nsIRange> mRange;
   PRInt32 mEndIndex; // index into mRangeEndings of this item
-  nsTextRangeStyle mTextRangeStyle;
 };
 
 static RangeData sEmptyData(nsnull, 0);
@@ -214,8 +213,6 @@ public:
   nsresult      Collapse(nsINode* aParentNode, PRInt32 aOffset);
   nsresult      Extend(nsINode* aParentNode, PRInt32 aOffset);
   nsresult      AddRange(nsIRange* aRange);
-  // The nsIRange version of RemoveRange assumes the caller is holding
-  // a strong reference to aRange.
   nsresult      RemoveRange(nsIRange* aRange);
   nsIRange*     GetRangeAt(PRInt32 aIndex);
   nsresult      GetTableSelectionType(nsIRange* aRange,
@@ -358,7 +355,6 @@ private:
                                         nsINode* aEndNode, PRInt32 aEndOffset,
                                         PRBool aAllowAdjacent,
                                         nsCOMArray<nsIRange>* aRanges);
-  RangeData* FindRangeData(nsIDOMRange* aRange);
 
   nsTArray<RangeData> mRanges;
   nsTArray<PRInt32> mRangeEndings;    // references info mRanges
@@ -2715,9 +2711,7 @@ printf("HandleTableSelection: Unselecting mUnselectCellOnMouseUp; rangeCount=%d\
 #endif
         for( PRInt32 i = 0; i < rangeCount; i++)
         {
-          // Strong reference, because sometimes we want to remove
-          // this range, and then we might be the only owner.
-          nsCOMPtr<nsIRange> range = mDomSelections[index]->GetRangeAt(i);
+          nsIRange* range = mDomSelections[index]->GetRangeAt(i);
           if (!range) return NS_ERROR_NULL_POINTER;
 
           nsINode* parent = range->GetStartParent();
@@ -2805,8 +2799,7 @@ nsFrameSelection::SelectBlockOfCells(nsIContent *aStartCell, nsIContent *aEndCel
     if (!mDomSelections[index])
       return NS_ERROR_NULL_POINTER;
 
-    // Strong reference because we sometimes remove the range
-    nsCOMPtr<nsIRange> range = GetFirstCellRange();
+    nsIRange* range = GetFirstCellRange();
     nsIContent* cellNode = GetFirstSelectedContent(range);
     NS_PRECONDITION(!range || cellNode, "Must have cellNode if had a range");
 
@@ -4544,10 +4537,6 @@ nsTypedSelection::LookUpSelection(nsIContent *aContent, PRInt32 aContentOffset,
     details->mStart = start;
     details->mEnd = end;
     details->mType = aType;
-    RangeData *rd = FindRangeData(range);
-    if (rd) {
-      details->mTextRangeStyle = rd->mTextRangeStyle;
-    }
     *aReturnDetails = details;
   }
   return NS_OK;
@@ -4650,29 +4639,6 @@ nsTypedSelection::SetAncestorLimiter(nsIContent *aContent)
 {
   if (mFrameSelection)
     mFrameSelection->SetAncestorLimiter(aContent);
-  return NS_OK;
-}
-
-RangeData*
-nsTypedSelection::FindRangeData(nsIDOMRange* aRange)
-{
-  NS_ENSURE_TRUE(aRange, nsnull);
-  for (PRUint32 i = 0; i < mRanges.Length(); i++) {
-    if (mRanges[i].mRange == aRange)
-      return &mRanges[i];
-  }
-  return nsnull;
-}
-
-NS_IMETHODIMP
-nsTypedSelection::SetTextRangeStyle(nsIDOMRange *aRange,
-                                    const nsTextRangeStyle &aTextRangeStyle)
-{
-  NS_ENSURE_ARG_POINTER(aRange);
-  RangeData *rd = FindRangeData(aRange);
-  if (rd) {
-    rd->mTextRangeStyle = aTextRangeStyle;
-  }
   return NS_OK;
 }
 

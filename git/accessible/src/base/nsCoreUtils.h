@@ -43,9 +43,6 @@
 
 #include "nsIDOMNode.h"
 #include "nsIContent.h"
-#include "nsIBoxObject.h"
-#include "nsITreeBoxObject.h"
-
 #include "nsIFrame.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIArray.h"
@@ -334,11 +331,7 @@ public:
    */
   static nsIContent *GetHTMLLabelContent(nsIContent *aForNode);
 
-  /**
-   * Return box object for XUL treechildren element by tree box object.
-   */
-  static already_AddRefed<nsIBoxObject>
-    GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj);
+  
 };
 
 #endif
