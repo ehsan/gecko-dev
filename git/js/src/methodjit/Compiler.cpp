@@ -5595,25 +5595,24 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
             !propertyTypes->isOwnProperty(cx, object, true)) {
             types->addFreeze(cx);
             uint32_t slot = propertyTypes->definiteSlot();
-            MaybeRegisterID reg;
+            RegisterID reg = frame.tempRegForData(lhs);
             bool isObject = lhs->isTypeKnown();
             MaybeJump notObject;
             if (!isObject)
                 notObject = frame.testObject(Assembler::NotEqual, lhs);
 #ifdef JSGC_INCREMENTAL_MJ
+            frame.pinReg(reg);
             if (cx->compartment->needsBarrier() && propertyTypes->needsBarrier(cx)) {
                 /* Write barrier. */
-                reg = frame.tempRegForData(lhs);
-                frame.pinReg(reg.reg());
-                Jump j = masm.testGCThing(Address(reg.reg(), JSObject::getFixedSlotOffset(slot)));
+                Jump j = masm.testGCThing(Address(reg, JSObject::getFixedSlotOffset(slot)));
                 stubcc.linkExit(j, Uses(0));
                 stubcc.leave();
                 stubcc.masm.addPtr(Imm32(JSObject::getFixedSlotOffset(slot)),
-                                   reg.reg(), Registers::ArgReg1);
+                                   reg, Registers::ArgReg1);
                 OOL_STUBCALL(stubs::GCThingWriteBarrier, REJOIN_NONE);
                 stubcc.rejoin(Changes(0));
-                frame.unpinReg(reg.reg());
             }
+            frame.unpinReg(reg);
 #endif
             if (!isObject) {
                 stubcc.linkExit(notObject.get(), Uses(2));
@@ -5621,9 +5620,7 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
                 stubcc.masm.move(ImmPtr(name), Registers::ArgReg1);
                 OOL_STUBCALL(STRICT_VARIANT(stubs::SetName), REJOIN_FALLTHROUGH);
             }
-            if (!reg.isSet())
-                reg = frame.tempRegForData(lhs);
-            frame.storeTo(rhs, Address(reg.reg(), JSObject::getFixedSlotOffset(slot)), popGuaranteed);
+            frame.storeTo(rhs, Address(reg, JSObject::getFixedSlotOffset(slot)), popGuaranteed);
             frame.shimmy(1);
             if (!isObject)
                 stubcc.rejoin(Changes(1));
