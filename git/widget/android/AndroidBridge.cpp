@@ -2112,7 +2112,7 @@ AndroidBridge::IsTablet()
 }
 
 void
-AndroidBridge::SetFirstPaintViewport(const LayerIntPoint& aOffset, float aZoom, const LayerIntRect& aPageRect, const CSSRect& aCssPageRect)
+AndroidBridge::SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
@@ -2122,7 +2122,7 @@ AndroidBridge::SetFirstPaintViewport(const LayerIntPoint& aOffset, float aZoom, 
 }
 
 void
-AndroidBridge::SetPageRect(const CSSRect& aCssPageRect)
+AndroidBridge::SetPageRect(const gfx::Rect& aCssPageRect)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
@@ -2132,9 +2132,9 @@ AndroidBridge::SetPageRect(const CSSRect& aCssPageRect)
 }
 
 void
-AndroidBridge::SyncViewportInfo(const LayerIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
-                                ScreenPoint& aScrollOffset, float& aScaleX, float& aScaleY,
-                                gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
+AndroidBridge::SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
+                                nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY,
+                                gfx::Margin& aFixedLayerMargins, gfx::Point& aOffset)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
@@ -2145,9 +2145,9 @@ AndroidBridge::SyncViewportInfo(const LayerIntRect& aDisplayPort, float aDisplay
                              aOffset);
 }
 
-void AndroidBridge::SyncFrameMetrics(const gfx::Point& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
+void AndroidBridge::SyncFrameMetrics(const gfx::Point& aScrollOffset, float aZoom, const gfx::Rect& aCssPageRect,
                                      bool aLayersUpdated, const gfx::Rect& aDisplayPort, float aDisplayResolution,
-                                     bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
+                                     bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, gfx::Point& aOffset)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)

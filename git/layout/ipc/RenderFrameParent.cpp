@@ -792,9 +792,8 @@ void
 RenderFrameParent::NotifyDimensionsChanged(int width, int height)
 {
   if (mPanZoomController) {
-    // I don't know what units width/height are in, hence FromUnknownRect
     mPanZoomController->UpdateCompositionBounds(
-      LayerIntRect::FromUnknownRect(gfx::IntRect(0, 0, width, height)));
+      nsIntRect(0, 0, width, height));
   }
 }
 

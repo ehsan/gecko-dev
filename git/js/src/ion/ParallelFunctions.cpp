@@ -4,14 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsinterp.h"
 #include "ParallelFunctions.h"
 #include "IonSpewer.h"
 
-#include "vm/Interpreter.h"
-
+#include "jsinterpinlines.h"
 #include "jscompartmentinlines.h"
-
-#include "vm/Interpreter-inl.h"
 
 using namespace js;
 using namespace ion;

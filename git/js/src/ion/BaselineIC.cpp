@@ -15,7 +15,7 @@
 
 #include "builtin/Eval.h"
 
-#include "vm/Interpreter-inl.h"
+#include "jsinterpinlines.h"
 
 namespace js {
 namespace ion {

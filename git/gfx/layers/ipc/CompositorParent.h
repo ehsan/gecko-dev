@@ -73,6 +73,8 @@ public:
 
   LayerManagerComposite* GetLayerManager() { return mLayerManager; }
 
+  void SetTransformation(float aScale, nsIntPoint aScrollOffset);
+
   void AsyncRender();
 
   // Can be called from any thread

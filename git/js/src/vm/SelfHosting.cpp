@@ -6,6 +6,7 @@
 
 #include "jscntxt.h"
 #include "jscompartment.h"
+#include "jsinterp.h"
 #include "jsobj.h"
 #include "jsfriendapi.h"
 
@@ -14,7 +15,6 @@
 #include "gc/Marking.h"
 
 #include "vm/ForkJoin.h"
-#include "vm/Interpreter.h"
 #include "vm/ThreadPool.h"
 
 #include "jsfuninlines.h"
