@@ -128,9 +128,8 @@ this.ProviderManager.prototype = Object.freeze({
           promises.push(promise);
         }
       } catch (ex) {
-        this._recordProviderError(entry,
-                                  "Error registering provider from category manager",
-                                  ex);
+        this._recordError("Error registering provider from category manager : " +
+                          entry + ": ", ex);
         continue;
       }
     }
@@ -288,9 +287,7 @@ this.ProviderManager.prototype = Object.freeze({
           // and isn't worth optimizing.
           yield this.registerProvider(provider);
         } catch (ex) {
-          this._recordProviderError(providerType.prototype.name,
-                                    "Error registering pull-only provider",
-                                    ex);
+          this._recordError("Error registering pull-only provider", ex);
         }
       }
 
@@ -373,9 +370,8 @@ this.ProviderManager.prototype = Object.freeze({
         try {
           yield provider.shutdown();
         } catch (ex) {
-          this._recordProviderError(provider.name,
-                                    "Error when shutting down provider",
-                                    ex);
+          this._recordError("Error when shutting down provider: " +
+                            provider.name, ex);
         } finally {
           this.unregisterProvider(provider.name);
         }
