@@ -21,6 +21,5 @@ navigator.mozLoop = {
       callback(null, []);
     },
     on: function() {}
-  },
-  fxAEnabled: true
+  }
 };

@@ -358,6 +358,12 @@ p {
   color: rgba(51, 51, 51, .5);
 }
 
+.mac p,
+.windows p,
+.linux p {
+  line-height: 16px;
+}
+
 /* Web panel */
 
 .info-panel {

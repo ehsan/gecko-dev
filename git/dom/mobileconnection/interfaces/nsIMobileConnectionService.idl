@@ -236,7 +236,7 @@ already_AddRefed<nsIMobileConnectionService>
 NS_CreateMobileConnectionService();
 %}
 
-[scriptable, uuid(99818dc7-e770-4249-87e2-2de0a928ed08)]
+[scriptable, uuid(cfc7d15b-d2c2-4f28-ad9f-b250030c3073)]
 interface nsIMobileConnection : nsISupports
 {
   /*
@@ -304,15 +304,6 @@ interface nsIMobileConnection : nsISupports
   const long NETWORK_SELECTION_MODE_AUTOMATIC = 0;
   const long NETWORK_SELECTION_MODE_MANUAL    = 1;
 
-  /**
-   * Mobile Radio State.
-   */
-  const long MOBILE_RADIO_STATE_UNKNOWN   = -1;
-  const long MOBILE_RADIO_STATE_ENABLING  = 0;
-  const long MOBILE_RADIO_STATE_ENABLED   = 1;
-  const long MOBILE_RADIO_STATE_DISABLING = 2;
-  const long MOBILE_RADIO_STATE_DISABLED  = 3;
-
   readonly attribute unsigned long serviceId;
 
   /**
@@ -356,10 +347,10 @@ interface nsIMobileConnection : nsISupports
   readonly attribute long networkSelectionMode;
 
   /**
-   * Current radio state. One of the nsIMobileConnection.MOBILE_RADIO_STATE_*
-   * values.
+   * Current radio state. Possible values are 'enabling', 'enabled',
+   * 'disabling', 'disabled', null (unknown).
    */
-  readonly attribute long radioState;
+  readonly attribute DOMString radioState;
 
   /**
    * The network types supported by this radio.

@@ -24,13 +24,16 @@ class CanvasDelegate {
         public void defaultDraw(Canvas canvas);
     }
 
-    CanvasDelegate(DrawManager drawManager, Mode mode, Paint paint) {
+    CanvasDelegate(DrawManager drawManager, Mode mode) {
         mDrawManager = drawManager;
 
         // DST_IN masks, DST_OUT clips.
         mMode = new PorterDuffXfermode(mode);
 
-        mPaint = paint;
+        mPaint = new Paint();
+        mPaint.setAntiAlias(true);
+        mPaint.setColor(0xFFFF0000);
+        mPaint.setStrokeWidth(0.0f);
     }
 
     void draw(Canvas canvas, Path path, int width, int height) {
