@@ -863,7 +863,6 @@ function test_uploadOutgoing_failed() {
       "/1.0/foo/storage/crypto/steam": crypto_steam.handler(),
       "/1.0/foo/storage/steam": collection.handler()
   });
-  do_test_pending();
   createAndUploadKeypair();
   createAndUploadSymKey("http://localhost:8080/1.0/foo/storage/crypto/steam");
 
@@ -899,7 +898,7 @@ function test_uploadOutgoing_failed() {
     do_check_eq(engine._tracker.changedIDs['peppercorn'], PEPPERCORN_CHANGED);
 
   } finally {
-    server.stop(do_test_finished);
+    server.stop(function() {});
     Svc.Prefs.resetBranch("");
     Records.clearCache();
     CryptoMetas.clearCache();
