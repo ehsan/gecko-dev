@@ -404,17 +404,17 @@ struct CellRenderSettings {
  * This function is similar to DrawCellWithScaling, but it decides what
  * control size to use based on the destRect's size.
  * Scaling is only applied when the difference between the destRect's size
- * and the next smaller natural size is greater than snapTolerance. Otherwise
+ * and the next smaller natural size is greater than sSnapTolerance. Otherwise
  * it snaps to the next smaller control size without scaling because unscaled
  * controls look nicer.
  */
+static const float sSnapTolerance = 2.0f;
 static void DrawCellWithSnapping(NSCell *cell,
                                  CGContextRef cgContext,
                                  const HIRect& destRect,
                                  const CellRenderSettings settings,
                                  float verticalAlignFactor,
-                                 NSView* view,
-                                 float snapTolerance = 2.0f)
+                                 NSView* view)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
@@ -427,14 +427,14 @@ static void DrawCellWithSnapping(NSCell *cell,
   NSControlSize controlSizeX = NSRegularControlSize, controlSizeY = NSRegularControlSize;
   HIRect drawRect = destRect;
 
-  if (rectWidth <= miniSize.width + snapTolerance && rectWidth < smallSize.width)
+  if (rectWidth <= miniSize.width + sSnapTolerance && rectWidth < smallSize.width)
     controlSizeX = NSMiniControlSize;
-  else if(rectWidth <= smallSize.width + snapTolerance && rectWidth < regularSize.width)
+  else if(rectWidth <= smallSize.width + sSnapTolerance && rectWidth < regularSize.width)
     controlSizeX = NSSmallControlSize;
 
-  if (rectHeight <= miniSize.height + snapTolerance && rectHeight < smallSize.height)
+  if (rectHeight <= miniSize.height + sSnapTolerance && rectHeight < smallSize.height)
     controlSizeY = NSMiniControlSize;
-  else if(rectHeight <= smallSize.height + snapTolerance && rectHeight < regularSize.height)
+  else if(rectHeight <= smallSize.height + sSnapTolerance && rectHeight < regularSize.height)
     controlSizeY = NSSmallControlSize;
 
   NSControlSize controlSize = NSRegularControlSize;
@@ -449,7 +449,7 @@ static void DrawCellWithSnapping(NSCell *cell,
   float diffWidth = size.width ? rectWidth - size.width : 0.0f;
   float diffHeight = size.height ? rectHeight - size.height : 0.0f;
   if (diffWidth >= 0.0f && diffHeight >= 0.0f &&
-      diffWidth <= snapTolerance && diffHeight <= snapTolerance) {
+      diffWidth <= sSnapTolerance && diffHeight <= sSnapTolerance) {
     // Snap to the smaller control size.
     controlSize = smallerControlSize;
     sizeIndex = smallerControlSizeIndex;
@@ -524,8 +524,8 @@ static const CellRenderSettings radioSettings = {
   {
     { // Tiger
       {0, 0, 0, 0},     // mini
-      {0, 1, 1, 2},     // small
-      {0, -1, 0, 1}     // regular
+      {0, 2, 1, 1},     // small
+      {0, 1, 0, -1}     // regular
     },
     { // Leopard
       {0, 0, 0, 0},     // mini
@@ -630,31 +630,30 @@ nsNativeThemeCocoa::DrawSearchField(CGContextRef cgContext, const HIRect& inBoxR
 }
 
 
-static const CellRenderSettings pushButtonSettings = {
-  {
-    NSMakeSize(0, 16), // mini
-    NSMakeSize(0, 19), // small
-    NSMakeSize(0, 22)  // regular
+// These are the sizes that Gecko needs to request to draw if it wants
+// to get a standard-sized Aqua rounded bevel button drawn. Note that
+// the rects that draw these are actually a little bigger.
+#define NATURAL_MINI_ROUNDED_BUTTON_MIN_WIDTH 18
+#define NATURAL_MINI_ROUNDED_BUTTON_HEIGHT 16
+#define NATURAL_SMALL_ROUNDED_BUTTON_MIN_WIDTH 26
+#define NATURAL_SMALL_ROUNDED_BUTTON_HEIGHT 19
+#define NATURAL_REGULAR_ROUNDED_BUTTON_MIN_WIDTH 30
+#define NATURAL_REGULAR_ROUNDED_BUTTON_HEIGHT 22
+
+// These were calculated by testing all three sizes on the respective operating system.
+static const float pushButtonMargins[2][3][4] =
+{
+  { // Tiger
+    {1, 1, 1, 1}, // mini
+    {5, 1, 5, 1}, // small
+    {6, 0, 6, 2}  // regular
   },
-  {
-    NSMakeSize(18, 0), // mini
-    NSMakeSize(26, 0), // small
-    NSMakeSize(30, 0)  // regular
-  },
-  {
-    { // Tiger
-      {1, 1, 1, 1},    // mini
-      {5, 0, 5, 2},    // small
-      {6, 0, 6, 2}     // regular
-    },
-    { // Leopard
-      {0, 0, 0, 0},    // mini
-      {4, 0, 4, 1},    // small
-      {5, 0, 5, 2}     // regular
-    }
+  { // Leopard
+    {0, 0, 0, 0}, // mini
+    {4, 0, 4, 1}, // small
+    {5, 0, 5, 2}  // regular
   }
 };
-
 
 // The height at which we start doing square buttons instead of rounded buttons
 // Rounded buttons look bad if drawn at a height greater than 26, so at that point
@@ -667,6 +666,8 @@ nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRe
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  NSRect drawRect = NSMakeRect(inBoxRect.origin.x, inBoxRect.origin.y, inBoxRect.size.width, inBoxRect.size.height);
+
   BOOL isActive = FrameIsInActiveWindow(aFrame);
 
   [mPushButtonCell setEnabled:!inDisabled];
@@ -678,15 +679,36 @@ nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRe
 
   // If the button is tall enough, draw the square button style so that buttons with
   // non-standard content look good. Otherwise draw normal rounded aqua buttons.
-  if (inBoxRect.size.height > DO_SQUARE_BUTTON_HEIGHT) {
+  if (drawRect.size.height > DO_SQUARE_BUTTON_HEIGHT) {
     [mPushButtonCell setBezelStyle:NSShadowlessSquareBezelStyle];
     DrawCellWithScaling(mPushButtonCell, cgContext, inBoxRect, NSRegularControlSize,
                         NSZeroSize, NSMakeSize(14, 0), NULL, NativeViewForFrame(aFrame));
   } else {
     [mPushButtonCell setBezelStyle:NSRoundedBezelStyle];
 
-    DrawCellWithSnapping(mPushButtonCell, cgContext, inBoxRect, pushButtonSettings,
-                         0.5f, NativeViewForFrame(aFrame), 1.0f);
+    // Figure out what size cell control we're going to draw and grab its
+    // natural height and min width.
+    NSControlSize controlSize = NSRegularControlSize;
+    float naturalHeight = NATURAL_REGULAR_ROUNDED_BUTTON_HEIGHT;
+    float minWidth = NATURAL_REGULAR_ROUNDED_BUTTON_MIN_WIDTH;
+    if (drawRect.size.height <= NATURAL_MINI_ROUNDED_BUTTON_HEIGHT &&
+        drawRect.size.width >= NATURAL_MINI_ROUNDED_BUTTON_MIN_WIDTH) {
+      controlSize = NSMiniControlSize;
+      naturalHeight = NATURAL_MINI_ROUNDED_BUTTON_HEIGHT;
+      minWidth = NATURAL_MINI_ROUNDED_BUTTON_MIN_WIDTH;
+    }
+    else if (drawRect.size.height <= NATURAL_SMALL_ROUNDED_BUTTON_HEIGHT &&
+             drawRect.size.width >= NATURAL_SMALL_ROUNDED_BUTTON_MIN_WIDTH) {
+      controlSize = NSSmallControlSize;
+      naturalHeight = NATURAL_SMALL_ROUNDED_BUTTON_HEIGHT;
+      minWidth = NATURAL_SMALL_ROUNDED_BUTTON_MIN_WIDTH;
+    }
+    [mPushButtonCell setControlSize:controlSize];
+
+    DrawCellWithScaling(mPushButtonCell, cgContext, inBoxRect, controlSize,
+                        NSMakeSize(0.0f, naturalHeight),
+                        NSMakeSize(minWidth, 0.0f), pushButtonMargins,
+                        NativeViewForFrame(aFrame));
   }
 
 #if DRAW_IN_FRAME_DEBUG
@@ -1493,12 +1515,6 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
         version: 0,
         menuType: IsDisabled(aFrame) ? kThemeMenuTypeInactive : kThemeMenuTypePopUp
       };
-
-      PRBool isLeftOfParent = PR_FALSE;
-      if (IsSubmenu(aFrame, &isLeftOfParent) && !isLeftOfParent) {
-        mdi.menuType = kThemeMenuTypeHierarchical;
-      }
-      
       // The rounded corners draw outside the frame.
       CGRect deflatedRect = CGRectMake(macRect.origin.x, macRect.origin.y + 4,
                                        macRect.size.width, macRect.size.height - 8);
@@ -2006,8 +2022,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsIRenderingContext* aContext,
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
     {
-      aResult->SizeTo(pushButtonSettings.minimumSizes[miniControlSize].width,
-                      pushButtonSettings.naturalSizes[miniControlSize].height);
+      aResult->SizeTo(NATURAL_MINI_ROUNDED_BUTTON_MIN_WIDTH, NATURAL_MINI_ROUNDED_BUTTON_HEIGHT);
       break;
     }
 
