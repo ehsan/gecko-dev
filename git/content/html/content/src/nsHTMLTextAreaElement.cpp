@@ -121,7 +121,7 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_TEXTAREA; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
@@ -812,7 +812,7 @@ nsHTMLTextAreaElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLTextAreaElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                          nsIContent* aSubmitElement)
 {
   nsresult rv = NS_OK;
@@ -843,7 +843,7 @@ nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
   //
   // Submit
   //
-  rv = aFormSubmission->AddNameValuePair(name, value);
+  rv = aFormSubmission->AddNameValuePair(this, name, value);
 
   return rv;
 }

@@ -100,7 +100,7 @@ public:
   // overriden nsIFormControl methods
   NS_IMETHOD_(PRInt32) GetType() const { return mType; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
   NS_IMETHOD SaveState();
   PRBool RestoreState(nsPresState* aState);
@@ -503,7 +503,7 @@ nsHTMLButtonElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLButtonElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                        nsIContent* aSubmitElement)
 {
   nsresult rv = NS_OK;
@@ -528,8 +528,7 @@ nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
   // Get the name (if no name, no submit)
   //
   nsAutoString name;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
-  if (name.IsEmpty()) {
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
     return NS_OK;
   }
 
@@ -545,7 +544,7 @@ nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
   //
   // Submit
   //
-  rv = aFormSubmission->AddNameValuePair(name, value);
+  rv = aFormSubmission->AddNameValuePair(this, name, value);
 
   return rv;
 }

@@ -69,7 +69,7 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_FIELDSET; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 };
@@ -127,7 +127,7 @@ nsHTMLFieldSetElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLFieldSetElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLFieldSetElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                          nsIContent* aSubmitElement)
 {
   return NS_OK;

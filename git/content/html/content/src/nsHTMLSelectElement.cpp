@@ -47,7 +47,6 @@
 #include "nsMappedAttributes.h"
 #include "nsIForm.h"
 #include "nsIFormSubmission.h"
-#include "nsIFormProcessor.h"
 
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIOptionElement.h"
@@ -67,7 +66,6 @@
 #include "nsIFrame.h"
 
 #include "nsDOMError.h"
-#include "nsServiceManagerUtils.h"
 #include "nsRuleData.h"
 #include "nsEventDispatcher.h"
 
@@ -1584,10 +1582,8 @@ nsHTMLSelectElement::Reset()
   return NS_OK;
 }
 
-static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
-
 NS_IMETHODIMP
-nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLSelectElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                        nsIContent* aSubmitElement)
 {
   nsresult rv = NS_OK;
@@ -1605,8 +1601,7 @@ nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
   // Get the name (if no name, no submit)
   //
   nsAutoString name;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
-  if (name.IsEmpty()) {
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
     return NS_OK;
   }
 
@@ -1615,13 +1610,6 @@ nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
   //
   PRUint32 len;
   GetLength(&len);
-
-  nsAutoString mozType;
-  nsCOMPtr<nsIFormProcessor> keyGenProcessor;
-  if (GetAttr(kNameSpaceID_None, nsGkAtoms::_moz_type, mozType) &&
-      mozType.EqualsLiteral("-mozilla-keygen")) {
-    keyGenProcessor = do_GetService(kFormProcessorCID, &rv);
-  }
 
   for (PRUint32 optIndex = 0; optIndex < len; optIndex++) {
     // Don't send disabled options
@@ -1648,15 +1636,7 @@ nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
     rv = optionElement->GetValue(value);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (keyGenProcessor) {
-      nsAutoString tmp(value);
-      rv = keyGenProcessor->ProcessValue(this, name, tmp);
-      if (NS_SUCCEEDED(rv)) {
-        value = tmp;
-      }
-    }
-
-    rv = aFormSubmission->AddNameValuePair(name, value);
+    rv = aFormSubmission->AddNameValuePair(this, name, value);
   }
 
   return NS_OK;

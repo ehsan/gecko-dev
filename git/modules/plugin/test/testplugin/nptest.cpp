@@ -154,7 +154,6 @@ static bool getAuthInfo(NPObject* npobj, const NPVariant* args, uint32_t argCoun
 static bool asyncCallbackTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool checkGCRace(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -194,7 +193,6 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "asyncCallbackTest",
   "checkGCRace",
   "hang",
-  "getClipboardText",
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
@@ -235,7 +233,6 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   asyncCallbackTest,
   checkGCRace,
   hangPlugin,
-  getClipboardText,
 };
 
 struct URLNotifyData
@@ -1013,6 +1010,9 @@ NPP_Write(NPP instance, NPStream* stream, int32_t offset, int32_t len, void* buf
       NPError err = NPN_DestroyStream(instance, stream, NPRES_DONE);
       if (err != NPERR_NO_ERROR) {
         instanceData->err << "Error: NPN_DestroyStream returned " << err;
+      }
+      if (instanceData->frame.length() > 0) {
+        sendBufferToFrame(instance);
       }
     }
   }
@@ -2585,36 +2585,3 @@ hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
   // test will fail.
   return true;
 }
-
-#if defined(MOZ_WIDGET_GTK2)
-bool
-getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                 NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  string sel = pluginGetClipboardText(id);
-
-  uint32 len = sel.size();
-  char* selCopy = static_cast<char*>(NPN_MemAlloc(1 + len));
-  if (!selCopy)
-    return false;
-
-  memcpy(selCopy, sel.c_str(), len);
-  selCopy[len] = '\0';
-
-  STRINGN_TO_NPVARIANT(selCopy, len, *result);
-  // *result owns str now
-
-  return true;
-}
-
-#else
-bool
-getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                 NPVariant* result)
-{
-  /// XXX Not implemented!
-  return false;
-}
-#endif

@@ -112,7 +112,7 @@ public:
     void Close();
 
     // Asynchronously send a message to the other side of the channel
-    virtual bool Send(Message* msg);
+    bool Send(Message* msg);
 
     //
     // These methods are called on the "IO" thread
