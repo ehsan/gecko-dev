@@ -35,6 +35,15 @@ try {
 }
 DEBUG = RIL.DEBUG_RIL || debugPref;
 
+let debug;
+if (DEBUG) {
+  debug = function (s) {
+    dump("-*- RadioInterfaceLayer: " + s + "\n");
+  };
+} else {
+  debug = function (s) {};
+}
+
 const RADIOINTERFACELAYER_CID =
   Components.ID("{2d831c8d-6017-435b-a80c-e5d422810cea}");
 const RILNETWORKINTERFACE_CID =
@@ -163,9 +172,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSystemWorkerManager",
                                    "nsISystemWorkerManager");
 
 XPCOMUtils.defineLazyGetter(this, "WAP", function () {
-  let WAP = {};
-  Cu.import("resource://gre/modules/WapPushManager.js", WAP);
-  return WAP;
+  let wap = {};
+  Cu.import("resource://gre/modules/WapPushManager.js", wap);
+  return wap;
 });
 
 XPCOMUtils.defineLazyGetter(this, "PhoneNumberUtils", function () {
@@ -303,6 +312,7 @@ function RadioInterfaceLayer() {
   lock.get("ril.data.apn", this);
   lock.get("ril.data.user", this);
   lock.get("ril.data.passwd", this);
+  lock.get("ril.data.authtype", this);
   lock.get("ril.data.httpProxyHost", this);
   lock.get("ril.data.httpProxyPort", this);
   lock.get("ril.data.roaming_enabled", this);
@@ -312,6 +322,7 @@ function RadioInterfaceLayer() {
                                   "ril.data.apn",
                                   "ril.data.user",
                                   "ril.data.passwd",
+                                  "ril.data.authtype",
                                   "ril.data.httpProxyHost",
                                   "ril.data.httpProxyPort"];
 
@@ -319,6 +330,7 @@ function RadioInterfaceLayer() {
   lock.get("ril.mms.apn", this);
   lock.get("ril.mms.user", this);
   lock.get("ril.mms.passwd", this);
+  lock.get("ril.mms.authtype", this);
   lock.get("ril.mms.httpProxyHost", this);
   lock.get("ril.mms.httpProxyPort", this);
   lock.get("ril.mms.mmsc", this);
@@ -327,6 +339,7 @@ function RadioInterfaceLayer() {
   lock.get("ril.supl.apn", this);
   lock.get("ril.supl.user", this);
   lock.get("ril.supl.passwd", this);
+  lock.get("ril.supl.authtype", this);
   lock.get("ril.supl.httpProxyHost", this);
   lock.get("ril.supl.httpProxyPort", this);
 
@@ -857,7 +870,7 @@ RadioInterfaceLayer.prototype = {
       return;
     }
 
-    for each (let target in targets) {
+    for (let target of targets) {
       target.sendAsyncMessage(message, options);
     }
   },
@@ -1019,7 +1032,7 @@ RadioInterfaceLayer.prototype = {
    */
   handleDataCallError: function handleDataCallError(message) {
     // Notify data call error only for data APN
-    if (message.apn == this.dataCallSettings["apn"]) {
+    if (message.apn == this.dataCallSettings.apn) {
       this._sendMobileConnectionMessage("RIL:DataError", message);
     }
 
@@ -1183,7 +1196,7 @@ RadioInterfaceLayer.prototype = {
     // hang the system.
 
     // Dequeue and resend messages.
-    for each (let msg in this._targetMessageQueue) {
+    for (let msg of this._targetMessageQueue) {
       this._sendTargetMessage(msg.topic, msg.message, msg.options);
     }
     this._targetMessageQueue = null;
@@ -1241,7 +1254,7 @@ RadioInterfaceLayer.prototype = {
     // true and any of the remaining flags change the setting application
     // should turn this flag to false and then to true in order to reload
     // the new values and reconnect the data call.
-    if (this._oldRilDataEnabledState == this.dataCallSettings["enabled"]) {
+    if (this._oldRilDataEnabledState == this.dataCallSettings.enabled) {
       debug("No changes for ril.data.enabled flag. Nothing to do.");
       return;
     }
@@ -1269,22 +1282,22 @@ RadioInterfaceLayer.prototype = {
     }
 
     if (this.dataNetworkInterface.connected &&
-        (!this.dataCallSettings["enabled"] ||
-         (dataInfo.roaming && !this.dataCallSettings["roaming_enabled"]) ||
-         (wifi_active && this.shareDefaultAPNCounter == 0))) {
+        (!this.dataCallSettings.enabled ||
+         (dataInfo.roaming && !this.dataCallSettings.roaming_enabled) ||
+         (wifi_active && this.shareDefaultAPNCounter === 0))) {
       debug("Data call settings: disconnect data call.");
       this.dataNetworkInterface.disconnect();
       return;
     }
-    if (!this.dataCallSettings["enabled"] || this.dataNetworkInterface.connected) {
+    if (!this.dataCallSettings.enabled || this.dataNetworkInterface.connected) {
       debug("Data call settings: nothing to do.");
       return;
     }
-    if (dataInfo.roaming && !this.dataCallSettings["roaming_enabled"]) {
+    if (dataInfo.roaming && !this.dataCallSettings.roaming_enabled) {
       debug("We're roaming, but data roaming is disabled.");
       return;
     }
-    if (wifi_active && this.shareDefaultAPNCounter == 0) {
+    if (wifi_active && this.shareDefaultAPNCounter === 0) {
       debug("Don't connect data call when Wifi is connected.");
       return;
     }
@@ -1746,7 +1759,7 @@ RadioInterfaceLayer.prototype = {
     let data = this.rilContext.data;
 
     if (datacall.ifname &&
-        datacall.apn == this.dataCallSettings["apn"]) {
+        datacall.apn == this.dataCallSettings.apn) {
       data.connected = (datacall.state == RIL.GECKO_NETWORK_STATE_CONNECTED);
       this._sendMobileConnectionMessage("RIL:DataInfoChanged", data);
     }
@@ -2061,12 +2074,13 @@ RadioInterfaceLayer.prototype = {
         this.setPreferredNetworkType(aResult);
         break;
       case "ril.data.enabled":
-        this._oldRilDataEnabledState = this.dataCallSettings["enabled"];
-        // Fall through!
+        this._oldRilDataEnabledState = this.dataCallSettings.enabled;
+        // Fall through.
       case "ril.data.roaming_enabled":
       case "ril.data.apn":
       case "ril.data.user":
       case "ril.data.passwd":
+      case "ril.data.authtype":
       case "ril.data.httpProxyHost":
       case "ril.data.httpProxyPort":
         let key = aName.slice(9);
@@ -2081,6 +2095,7 @@ RadioInterfaceLayer.prototype = {
       case "ril.mms.apn":
       case "ril.mms.user":
       case "ril.mms.passwd":
+      case "ril.mms.authtype":
       case "ril.mms.httpProxyHost":
       case "ril.mms.httpProxyPort":
       case "ril.mms.mmsc":
@@ -2092,6 +2107,7 @@ RadioInterfaceLayer.prototype = {
       case "ril.supl.apn":
       case "ril.supl.user":
       case "ril.supl.passwd":
+      case "ril.supl.authtype":
       case "ril.supl.httpProxyHost":
       case "ril.supl.httpProxyPort":
         key = aName.slice(9);
@@ -2109,7 +2125,7 @@ RadioInterfaceLayer.prototype = {
         debug("'" + kCellBroadcastSearchList + "' is now " + aResult);
         this.setCellBroadcastSearchList(aResult);
         break;
-    };
+    }
   },
 
   handleError: function handleError(aErrorMessage) {
@@ -2121,7 +2137,7 @@ RadioInterfaceLayer.prototype = {
 
     // Clean data call setting.
     this.dataCallSettings = {};
-    this.dataCallSettings["enabled"] = false;
+    this.dataCallSettings.enabled = false;
   },
 
   // nsIRadioWorker
@@ -2817,26 +2833,28 @@ RadioInterfaceLayer.prototype = {
       timestamp: Date.now()
     };
 
-    let id = gMobileMessageDatabaseService.saveSendingMessage(sendingMessage,
-                                                              function notifyResult(rv, domMessage) {
-      // TODO bug 832140 handle !Components.isSuccessCode(rv)
-      Services.obs.notifyObservers(domMessage, kSmsSendingObserverTopic, null);
+    let id = gMobileMessageDatabaseService.saveSendingMessage(
+      sendingMessage,
+      function notifyResult(rv, domMessage) {
 
-      // Keep current SMS message info for sent/delivered notifications
-      options.envelopeId = this.createSmsEnvelope({
+        // TODO bug 832140 handle !Components.isSuccessCode(rv)
+        Services.obs.notifyObservers(domMessage, kSmsSendingObserverTopic, null);
+
+        // Keep current SMS message info for sent/delivered notifications
+        options.envelopeId = this.createSmsEnvelope({
           request: request,
           sms: domMessage,
           requestStatusReport: options.requestStatusReport
-      });
+        });
 
-      if (PhoneNumberUtils.isPlainPhoneNumber(options.number)) {
-        this.worker.postMessage(options);
-      } else {
-        debug('Number ' + options.number + ' is not sendable.');
-        this.handleSmsSendFailed(options);
-      }
+        if (PhoneNumberUtils.isPlainPhoneNumber(options.number)) {
+          this.worker.postMessage(options);
+        } else {
+          debug('Number ' + options.number + ' is not sendable.');
+          this.handleSmsSendFailed(options);
+        }
 
-    }.bind(this));
+      }.bind(this));
   },
 
   registerDataCallCallback: function registerDataCallCallback(callback) {
@@ -2873,7 +2891,7 @@ RadioInterfaceLayer.prototype = {
       return;
     }
     let callbacks = this._datacall_callbacks.slice();
-    for each (let callback in callbacks) {
+    for (let callback of callbacks) {
       if (this._datacall_callbacks.indexOf(callback) == -1) {
         continue;
       }
@@ -2895,10 +2913,11 @@ RadioInterfaceLayer.prototype = {
   usingDefaultAPN: function usingDefaultAPN(apntype) {
     switch (apntype) {
       case "mms":
-        return (this.dataCallSettingsMMS["apn"] == this.dataCallSettings["apn"]);
+        return (this.dataCallSettingsMMS.apn == this.dataCallSettings.apn);
       case "supl":
-        return (this.dataCallSettingsSUPL["apn"] == this.dataCallSettings["apn"]);
-      return false;
+        return (this.dataCallSettingsSUPL.apn == this.dataCallSettings.apn);
+      default:
+        return false;
     }
   },
 
@@ -3081,7 +3100,7 @@ RILNetworkInterface.prototype = {
   // nsIRILDataCallback
 
   dataCallError: function dataCallError(message) {
-    if (message.apn != this.dataCallSettings["apn"]) {
+    if (message.apn != this.dataCallSettings.apn) {
       return;
     }
     debug("Data call error on APN: " + message.apn);
@@ -3097,7 +3116,7 @@ RILNetworkInterface.prototype = {
     // If data call for this connection does not exist, it could be state
     // change for new data call.  We only update data call state change
     // if APN name matched.
-    if (!this.cid && datacall.apn != this.dataCallSettings["apn"]) {
+    if (!this.cid && datacall.apn != this.dataCallSettings.apn) {
       return;
     }
     debug("Data call ID: " + datacall.cid + ", interface name: " +
@@ -3186,22 +3205,30 @@ RILNetworkInterface.prototype = {
       this.dataCallSettings = options;
     }
 
-    if (!this.dataCallSettings["apn"]) {
+    if (!this.dataCallSettings.apn) {
       debug("APN name is empty, nothing to do.");
       return;
     }
 
-    this.httpProxyHost = this.dataCallSettings["httpProxyHost"];
-    this.httpProxyPort = this.dataCallSettings["httpProxyPort"];
+    this.httpProxyHost = this.dataCallSettings.httpProxyHost;
+    this.httpProxyPort = this.dataCallSettings.httpProxyPort;
 
-    debug("Going to set up data connection with APN " + this.dataCallSettings["apn"]);
+    debug("Going to set up data connection with APN " + this.dataCallSettings.apn);
     let radioTechType = this.mRIL.rilContext.data.type;
     let radioTechnology = RIL.GECKO_RADIO_TECH.indexOf(radioTechType);
+    let authType = RIL.RIL_DATACALL_AUTH_TO_GECKO.indexOf(this.dataCallSettings["authtype"]);
+    // Use the default authType if the value in database is invalid.
+    // For the case that user might not select the authentication type.
+    if (authType == -1) {
+      debug("Invalid authType " + this.dataCallSettings["authtype"]);
+      authType = RIL.RIL_DATACALL_AUTH_TO_GECKO.indexOf(RIL.GECKO_DATACALL_AUTH_DEFAULT);
+    }
     this.mRIL.setupDataCall(radioTechnology,
-                            this.dataCallSettings["apn"],
-                            this.dataCallSettings["user"],
-                            this.dataCallSettings["passwd"],
-                            RIL.DATACALL_AUTH_PAP_OR_CHAP, "IP");
+                            this.dataCallSettings.apn,
+                            this.dataCallSettings.user,
+                            this.dataCallSettings.passwd,
+                            authType,
+                            "IP");
     this.connecting = true;
   },
 
@@ -3255,11 +3282,3 @@ RILNetworkInterface.prototype = {
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([RadioInterfaceLayer]);
 
-let debug;
-if (DEBUG) {
-  debug = function (s) {
-    dump("-*- RadioInterfaceLayer: " + s + "\n");
-  };
-} else {
-  debug = function (s) {};
-}
