@@ -91,7 +91,6 @@ EXPORTS		= \
 CPPSRCS		= \
 		FrameLayerBuilder.cpp \
 		FramePropertyTable.cpp \
-		RestyleTracker.cpp \
 		nsCSSColorUtils.cpp \
 		nsCSSFrameConstructor.cpp \
 		nsCSSRendering.cpp \
