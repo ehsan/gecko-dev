@@ -75,17 +75,7 @@ class MatchPairs
     void forgetArray() { pairs_ = NULL; }
 
     void displace(size_t disp);
-    void checkAgainst(size_t inputLength) {
-#ifdef DEBUG
-        for (size_t i = 0; i < pairCount_; i++) {
-            const MatchPair &p = pair(i);
-            JS_ASSERT(p.check());
-            if (p.isUndefined())
-                continue;
-            JS_ASSERT(size_t(p.limit) <= inputLength);
-        }
-#endif
-    }
+    inline void checkAgainst(size_t length);
 
   public:
     /* Querying functions in the style of RegExpStatics. */

@@ -45,14 +45,12 @@ interface nsIServiceManager : nsISupports
      * isServiceInstantiated
      *
      * isServiceInstantiated will return a true if the service has already
-     * been created, or throw otherwise
+     * been created, otherwise false
      *
      * @param aClass or aContractID : aClass or aContractID of object 
      *                                instance requested
      * @param aIID : IID of interface requested
-     * @throws NS_ERROR_SERVICE_NOT_AVAILABLE if the service hasn't been 
-     *         instantiated
-     * @throws NS_NOINTERFACE if the IID given isn't supported by the object
+     * @param aIID : IID of interface requested
      */
     boolean isServiceInstantiated(in nsCIDRef aClass, in nsIIDRef aIID);
     boolean isServiceInstantiatedByContractID(in string aContractID, in nsIIDRef aIID);

@@ -30,7 +30,7 @@ typedef InlineMap<JSAtom *, DefinitionList, 24> AtomDefnListMap;
  * the list and map->vector must point to pre-allocated memory.
  */
 void
-InitAtomMap(AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
+InitAtomMap(JSContext *cx, AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
 
 /*
  * A pool that permits the reuse of the backing storage for the defn, index, or
@@ -127,8 +127,8 @@ struct AtomThingMapPtr
 
     void init() { clearMap(); }
 
-    bool ensureMap(ExclusiveContext *cx);
-    void releaseMap(ExclusiveContext *cx);
+    bool ensureMap(JSContext *cx);
+    void releaseMap(JSContext *cx);
 
     bool hasMap() const { return map_; }
     Map *getMap() { return map_; }
@@ -149,10 +149,10 @@ typedef AtomThingMapPtr<AtomIndexMap> AtomIndexMapPtr;
 template <typename AtomThingMapPtrT>
 class OwnedAtomThingMapPtr : public AtomThingMapPtrT
 {
-    ExclusiveContext *cx;
+    JSContext *cx;
 
   public:
-    explicit OwnedAtomThingMapPtr(ExclusiveContext *cx) : cx(cx) {
+    explicit OwnedAtomThingMapPtr(JSContext *cx) : cx(cx) {
         AtomThingMapPtrT::init();
     }
 
@@ -244,8 +244,8 @@ class DefinitionList
     }
 
     static Node *
-    allocNode(ExclusiveContext *cx, LifoAlloc &alloc, uintptr_t bits, Node *tail);
-
+    allocNode(JSContext *cx, uintptr_t bits, Node *tail);
+            
   public:
     class Range
     {
@@ -336,18 +336,17 @@ class DefinitionList
      * Return true on success. On OOM, report on cx and return false.
      */
     template <typename ParseHandler>
-    bool pushFront(ExclusiveContext *cx, LifoAlloc &alloc,
-                   typename ParseHandler::DefinitionNode defn) {
+    bool pushFront(JSContext *cx, typename ParseHandler::DefinitionNode defn) {
         Node *tail;
         if (isMultiple()) {
             tail = firstNode();
         } else {
-            tail = allocNode(cx, alloc, u.bits, NULL);
+            tail = allocNode(cx, u.bits, NULL);
             if (!tail)
                 return false;
         }
 
-        Node *node = allocNode(cx, alloc, ParseHandler::definitionToBits(defn), tail);
+        Node *node = allocNode(cx, ParseHandler::definitionToBits(defn), tail);
         if (!node)
             return false;
         *this = DefinitionList(node);
@@ -405,15 +404,14 @@ class AtomDecls
     /* AtomDeclsIter needs to get at the DefnListMap directly. */
     friend class AtomDeclsIter;
 
-    ExclusiveContext *cx;
-    LifoAlloc &alloc;
+    JSContext   *cx;
     AtomDefnListMap  *map;
 
     AtomDecls(const AtomDecls &other) MOZ_DELETE;
     void operator=(const AtomDecls &other) MOZ_DELETE;
 
   public:
-    explicit AtomDecls(ExclusiveContext *cx, LifoAlloc &alloc) : cx(cx), alloc(alloc), map(NULL) {}
+    explicit AtomDecls(JSContext *cx) : cx(cx), map(NULL) {}
 
     ~AtomDecls();
 

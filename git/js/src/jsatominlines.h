@@ -107,11 +107,11 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
 
 template <AllowGC allowGC>
 bool
-IndexToIdSlow(ExclusiveContext *cx, uint32_t index,
+IndexToIdSlow(JSContext *cx, uint32_t index,
               typename MaybeRooted<jsid, allowGC>::MutableHandleType idp);
 
 inline bool
-IndexToId(ExclusiveContext *cx, uint32_t index, MutableHandleId idp)
+IndexToId(JSContext *cx, uint32_t index, MutableHandleId idp)
 {
     MaybeCheckStackRoots(cx);
 
@@ -194,14 +194,14 @@ TypeName(JSType type, JSContext *cx)
 }
 
 inline Handle<PropertyName*>
-ClassName(JSProtoKey key, ExclusiveContext *cx)
+ClassName(JSProtoKey key, JSContext *cx)
 {
     JS_ASSERT(key < JSProto_LIMIT);
     JS_STATIC_ASSERT(offsetof(JSAtomState, Null) +
                      JSProto_LIMIT * sizeof(FixedHeapPtr<PropertyName>) <=
                      sizeof(JSAtomState));
     JS_STATIC_ASSERT(JSProto_Null == 0);
-    return (&cx->names().Null)[key];
+    return (&cx->runtime()->atomState.Null)[key];
 }
 
 } // namespace js

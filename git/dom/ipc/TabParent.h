@@ -10,7 +10,6 @@
 #include "base/basictypes.h"
 
 #include "jsapi.h"
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/dom/PContentDialogParent.h"
 #include "mozilla/dom/TabContext.h"
@@ -59,7 +58,7 @@ class TabParent : public PBrowserParent
     typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
 
 public:
-    TabParent(ContentParent* aManager, const TabContext& aContext);
+    TabParent(const TabContext& aContext);
     virtual ~TabParent();
     nsIDOMElement* GetOwnerElement() { return mFrameElement; }
     void SetOwnerElement(nsIDOMElement* aElement);
@@ -227,8 +226,6 @@ public:
     static TabParent* GetFrom(nsFrameLoader* aFrameLoader);
     static TabParent* GetFrom(nsIContent* aContent);
 
-    ContentParent* Manager() { return mManager; }
-
 protected:
     bool ReceiveMessage(const nsString& aMessage,
                         bool aSync,
@@ -305,7 +302,6 @@ private:
     already_AddRefed<nsFrameLoader> GetFrameLoader() const;
     already_AddRefed<nsIWidget> GetWidget() const;
     layout::RenderFrameParent* GetRenderFrame();
-    nsRefPtr<ContentParent> mManager;
     void TryCacheDPIAndScale();
 
     // When true, we create a pan/zoom controller for our frame and

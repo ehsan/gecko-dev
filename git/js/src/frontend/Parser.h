@@ -29,7 +29,7 @@ struct StmtInfoPC : public StmtInfoBase {
 
     uint32_t        blockid;        /* for simplified dominance computation */
 
-    StmtInfoPC(ExclusiveContext *cx) : StmtInfoBase(cx) {}
+    StmtInfoPC(JSContext *cx) : StmtInfoBase(cx) {}
 };
 
 typedef HashSet<JSAtom *> FuncStmtSet;
@@ -155,7 +155,7 @@ struct ParseContext : public GenericParseContext
      *    'pn' if they are in the scope of 'pn'.
      *  + Pre-existing placeholders in the scope of 'pn' have been removed.
      */
-    bool define(TokenStream &ts, PropertyName *name, Node pn, Definition::Kind);
+    bool define(JSContext *cx, HandlePropertyName name, Node pn, Definition::Kind);
 
     /*
      * Let definitions may shadow same-named definitions in enclosing scopes.
@@ -187,8 +187,7 @@ struct ParseContext : public GenericParseContext
      *  - Sometimes a script's bindings are accessed at runtime to retrieve the
      *    contents of the lexical scope (e.g., from the debugger).
      */
-    bool generateFunctionBindings(ExclusiveContext *cx, LifoAlloc &alloc,
-                                  InternalHandle<Bindings*> bindings) const;
+    bool generateFunctionBindings(JSContext *cx, InternalHandle<Bindings*> bindings) const;
 
   public:
     uint32_t         yieldOffset;   /* offset of a yield expression that might
@@ -241,7 +240,7 @@ struct ParseContext : public GenericParseContext
         parenDepth(0),
         yieldCount(0),
         blockNode(ParseHandler::null()),
-        decls_(prs->context, prs->alloc),
+        decls_(prs->context),
         args_(prs->context),
         vars_(prs->context),
         yieldOffset(0),
@@ -305,9 +304,7 @@ template <typename ParseHandler>
 class Parser : private AutoGCRooter, public StrictModeGetter
 {
   public:
-    ExclusiveContext *const context;
-    LifoAlloc &alloc;
-
+    JSContext           *const context; /* FIXME Bug 551291: use AutoGCRooter::context? */
     TokenStream         tokenStream;
     LifoAlloc::Mark     tempPoolMark;
 
@@ -326,6 +323,25 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     const bool          foldConstants:1;
 
   private:
+    /* Script can optimize name references based on scope chain. */
+    const bool          compileAndGo:1;
+
+    /*
+     * In self-hosting mode, scripts emit JSOP_CALLINTRINSIC instead of
+     * JSOP_NAME or JSOP_GNAME to access unbound variables. JSOP_CALLINTRINSIC
+     * does a name lookup in a special object that contains properties
+     * installed during global initialization and that properties from
+     * self-hosted scripts get copied into lazily upon first access in a
+     * global.
+     * As that object is inaccessible to client code, the lookups are
+     * guaranteed to return the original objects, ensuring safe implementation
+     * of self-hosted builtins.
+     * Additionally, the special syntax _CallFunction(receiver, ...args, fun)
+     * is supported, for which bytecode is emitted that invokes |fun| with
+     * |receiver| as the this-object and ...args as the arguments..
+     */
+    const bool          selfHostingMode:1;
+
     /*
      * Not all language constructs can be handled during syntax parsing. If it
      * is not known whether the parse succeeds or fails, this bit is set and
@@ -348,7 +364,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     bool reportWithOffset(ParseReportKind kind, bool strict, uint32_t offset, unsigned errorNumber,
                           ...);
 
-    Parser(ExclusiveContext *cx, LifoAlloc *alloc, const CompileOptions &options,
+    Parser(JSContext *cx, const CompileOptions &options,
            const jschar *chars, size_t length, bool foldConstants,
            Parser<SyntaxParseHandler> *syntaxParser,
            LazyScript *lazyOuterFunction);
@@ -422,10 +438,6 @@ class Parser : private AutoGCRooter, public StrictModeGetter
                                     FunctionSyntaxKind kind, bool strict, bool *becameStrict);
 
     virtual bool strictMode() { return pc->sc->strict; }
-
-    const CompileOptions &options() const {
-        return tokenStream.options();
-    }
 
   private:
     /*
@@ -551,15 +563,15 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     }
 
     static bool
-    bindDestructuringArg(BindData<ParseHandler> *data,
+    bindDestructuringArg(JSContext *cx, BindData<ParseHandler> *data,
                          HandlePropertyName name, Parser<ParseHandler> *parser);
 
     static bool
-    bindLet(BindData<ParseHandler> *data,
+    bindLet(JSContext *cx, BindData<ParseHandler> *data,
             HandlePropertyName name, Parser<ParseHandler> *parser);
 
     static bool
-    bindVarOrConst(BindData<ParseHandler> *data,
+    bindVarOrConst(JSContext *cx, BindData<ParseHandler> *data,
                    HandlePropertyName name, Parser<ParseHandler> *parser);
 
     static Node null() { return ParseHandler::null(); }

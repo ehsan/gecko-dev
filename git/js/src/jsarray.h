@@ -50,7 +50,7 @@ NewDenseEmptyArray(JSContext *cx, JSObject *proto = NULL,
 
 /* Create a dense array with length and capacity == 'length', initialized length set to 0. */
 extern ArrayObject * JS_FASTCALL
-NewDenseAllocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *proto = NULL,
+NewDenseAllocatedArray(JSContext *cx, uint32_t length, JSObject *proto = NULL,
                        NewObjectKind newKind = GenericObject);
 
 /*
@@ -58,7 +58,7 @@ NewDenseAllocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *proto = 
  * contents. This is useful, e.g., when accepting length from the user.
  */
 extern ArrayObject * JS_FASTCALL
-NewDenseUnallocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *proto = NULL,
+NewDenseUnallocatedArray(JSContext *cx, uint32_t length, JSObject *proto = NULL,
                          NewObjectKind newKind = GenericObject);
 
 /* Create a dense array with a copy of the dense array elements in src. */
@@ -76,8 +76,7 @@ NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *values, JSObjec
  * increase the length of the array.
  */
 extern bool
-WouldDefinePastNonwritableLength(ExclusiveContext *cx,
-                                 HandleObject obj, uint32_t index, bool strict,
+WouldDefinePastNonwritableLength(JSContext *cx, HandleObject obj, uint32_t index, bool strict,
                                  bool *definesPast);
 
 /*
