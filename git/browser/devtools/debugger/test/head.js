@@ -563,7 +563,6 @@ AddonDebugger.prototype = {
       DebuggerServer.init();
       DebuggerServer.addBrowserActors();
     }
-    DebuggerServer.allowChromeProcess = true;
 
     this.frame = document.createElement("iframe");
     this.frame.setAttribute("height", 400);
@@ -582,8 +581,7 @@ AddonDebugger.prototype = {
     let targetOptions = {
       form: addonActor,
       client: this.client,
-      chrome: true,
-      isTabActor: false
+      chrome: true
     };
 
     let toolboxOptions = {

@@ -7,7 +7,7 @@ function run_test() {
   setupTestCommon();
 
   // Verify write access to the custom app dir
-  debugDump("testing write access to the application directory");
+  logTestInfo("testing write access to the application directory");
   let testFile = getCurrentProcessDir();
   testFile.append("update_write_access_test");
   testFile.create(Ci.nsIFile.NORMAL_FILE_TYPE, PERMS_FILE);
@@ -19,42 +19,42 @@ function run_test() {
 
   if (IS_WIN) {
     // Create a mutex to prevent being able to check for or apply updates.
-    debugDump("attempting to create mutex");
+    logTestInfo("attempting to create mutex");
     let handle = createMutex(getPerInstallationMutexName());
 
-    debugDump("testing that the mutex was successfully created");
+    logTestInfo("testing that the mutex was successfully created");
     do_check_neq(handle, null);
 
     // Check if available updates cannot be checked for when there is a mutex
     // for this installation.
-    debugDump("testing nsIApplicationUpdateService:canCheckForUpdates is " +
-              "false when there is a mutex");
+    logTestInfo("testing nsIApplicationUpdateService:canCheckForUpdates is " +
+                "false when there is a mutex");
     do_check_false(gAUS.canCheckForUpdates);
 
     // Check if updates cannot be applied when there is a mutex for this
     // installation.
-    debugDump("testing nsIApplicationUpdateService:canApplyUpdates is " +
+    logTestInfo("testing nsIApplicationUpdateService:canApplyUpdates is " +
                 "false when there is a mutex");
     do_check_false(gAUS.canApplyUpdates);
 
-    debugDump("destroying mutex");
+    logTestInfo("destroying mutex");
     closeHandle(handle)
   }
 
   // Check if available updates can be checked for
-  debugDump("testing nsIApplicationUpdateService:canCheckForUpdates is true");
+  logTestInfo("testing nsIApplicationUpdateService:canCheckForUpdates is true");
   do_check_true(gAUS.canCheckForUpdates);
   // Check if updates can be applied
-  debugDump("testing nsIApplicationUpdateService:canApplyUpdates is true");
+  logTestInfo("testing nsIApplicationUpdateService:canApplyUpdates is true");
   do_check_true(gAUS.canApplyUpdates);
 
   if (IS_WIN) {
     // Attempt to create a mutex when application update has already created one
     // with the same name.
-    debugDump("attempting to create mutex");
+    logTestInfo("attempting to create mutex");
     let handle = createMutex(getPerInstallationMutexName());
 
-    debugDump("testing that the mutex was not successfully created");
+    logTestInfo("testing that the mutex was not successfully created");
     do_check_eq(handle, null);
   }
 

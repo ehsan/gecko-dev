@@ -5,10 +5,10 @@
 function run_test() {
   setupTestCommon();
 
-  debugDump("testing nsIUpdatePrompt notifications should not be displayed " +
-            "when showUpdateAvailable is called for an unsupported system " +
-            "update when the unsupported notification has already been " +
-            "shown (bug 843497)");
+  logTestInfo("testing nsIUpdatePrompt notifications should not be displayed " +
+              "when showUpdateAvailable is called for an unsupported system " +
+              "update when the unsupported notification has already been " +
+              "shown (bug 843497)");
 
   setUpdateURLOverride();
   // The mock XMLHttpRequest is MUCH faster
