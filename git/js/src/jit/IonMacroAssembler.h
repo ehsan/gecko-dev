@@ -28,12 +28,6 @@
 #include "vm/ProxyObject.h"
 #include "vm/Shape.h"
 
-#ifdef IS_LITTLE_ENDIAN
-#define IMM32_16ADJ(X) X << 16
-#else
-#define IMM32_16ADJ(X) X
-#endif
-
 namespace js {
 namespace jit {
 
@@ -529,8 +523,9 @@ class MacroAssembler : public MacroAssemblerSpecific
         // perform an aligned 32-bit load and adjust the bitmask accordingly.
         JS_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
         JS_ASSERT(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+        JS_STATIC_ASSERT(IS_LITTLE_ENDIAN);
         Address address(fun, JSFunction::offsetOfNargs());
-        int32_t bit = IMM32_16ADJ(JSFunction::INTERPRETED);
+        uint32_t bit = JSFunction::INTERPRETED << 16;
         branchTest32(Assembler::Zero, address, Imm32(bit), label);
     }
     void branchIfInterpreted(Register fun, Label *label) {
@@ -538,8 +533,9 @@ class MacroAssembler : public MacroAssemblerSpecific
         // perform an aligned 32-bit load and adjust the bitmask accordingly.
         JS_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
         JS_ASSERT(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+        JS_STATIC_ASSERT(IS_LITTLE_ENDIAN);
         Address address(fun, JSFunction::offsetOfNargs());
-        int32_t bit = IMM32_16ADJ(JSFunction::INTERPRETED);
+        uint32_t bit = JSFunction::INTERPRETED << 16;
         branchTest32(Assembler::NonZero, address, Imm32(bit), label);
     }
 

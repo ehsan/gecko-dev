@@ -9,18 +9,19 @@ import subprocess
 import tempfile
 from zipfile import ZipFile
 import runcppunittests as cppunittests
-import mozcrash
+import mozcrash, mozlog
 import mozfile
 import StringIO
 import posixpath
 from mozdevice import devicemanager, devicemanagerADB, devicemanagerSUT
-from mozlog import structured
 
 try:
     from mozbuild.base import MozbuildObject
     build_obj = MozbuildObject.from_environment()
 except ImportError:
     build_obj = None
+
+log = mozlog.getLogger('remotecppunittests')
 
 class RemoteCPPUnitTests(cppunittests.CPPUnitTests):
     def __init__(self, devmgr, options, progs):
@@ -109,11 +110,11 @@ class RemoteCPPUnitTests(cppunittests.CPPUnitTests):
                 elif len(envdef_parts) == 1:
                     env[envdef_parts[0]] = ""
                 else:
-                    self.log.warning("invalid --addEnv option skipped: %s" % envdef)
+                    print >> sys.stderr, "warning: invalid --addEnv option skipped: "+envdef
 
         return env
 
-    def run_one_test(self, prog, env, symbols_path=None, interactive=False):
+    def run_one_test(self, prog, env, symbols_path=None):
         """
         Run a single C++ unit test program remotely.
 
@@ -127,25 +128,21 @@ class RemoteCPPUnitTests(cppunittests.CPPUnitTests):
         """
         basename = os.path.basename(prog)
         remote_bin = posixpath.join(self.remote_bin_dir, basename)
-        self.log.test_start(basename)
+        log.info("Running test %s", basename)
         buf = StringIO.StringIO()
         returncode = self.device.shell([remote_bin], buf, env=env, cwd=self.remote_home_dir,
                                        timeout=cppunittests.CPPUnitTests.TEST_PROC_TIMEOUT)
-        self.log.process_output(basename, "\n%s" % buf.getvalue(),
-                                command=[remote_bin])
+        print >> sys.stdout, buf.getvalue()
         with mozfile.TemporaryDirectory() as tempdir:
             self.device.getDirectory(self.remote_home_dir, tempdir)
             if mozcrash.check_for_crashes(tempdir, symbols_path,
                                           test_name=basename):
-                self.log.test_end(basename, status='CRASH', expected='PASS')
+                log.testFail("%s | test crashed", basename)
                 return False
         result = returncode == 0
         if not result:
-            self.log.test_end(basename, status='FAIL', expected='PASS',
-                              message=("test failed with return code %d" %
-                                       returncode))
-        else:
-            self.log.test_end(basename, status='PASS', expected='PASS')
+            log.testFail("%s | test failed with return code %s",
+                         basename, returncode)
         return result
 
 class RemoteCPPUnittestOptions(cppunittests.CPPUnittestOptions):
@@ -207,7 +204,6 @@ class RemoteCPPUnittestOptions(cppunittests.CPPUnittestOptions):
 
 def main():
     parser = RemoteCPPUnittestOptions()
-    structured.commandline.add_logging_group(parser)
     options, args = parser.parse_args()
     if not args:
         print >>sys.stderr, """Usage: %s <test binary> [<test binary>...]""" % sys.argv[0]
@@ -247,12 +243,6 @@ def main():
         if not options.device_ip:
             print "Error: you must provide a device IP to connect to via the --deviceIP option"
             sys.exit(1)
-
-    log = structured.commandline.setup_logging("remotecppunittests",
-                                               options,
-                                               {"tbpl": sys.stdout})
-
-
     options.xre_path = os.path.abspath(options.xre_path)
     progs = cppunittests.extract_unittests_from_args(args, options.manifest_file)
     tester = RemoteCPPUnitTests(dm, options, progs)

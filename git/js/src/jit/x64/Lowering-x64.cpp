@@ -75,8 +75,6 @@ bool
 LIRGeneratorX64::visitUnbox(MUnbox *unbox)
 {
     MDefinition *box = unbox->getOperand(0);
-    JS_ASSERT(box->type() == MIRType_Value);
-
     LUnboxBase *lir;
     if (IsFloatingPointType(unbox->type()))
         lir = new(alloc()) LUnboxFloatingPoint(useRegisterAtStart(box), unbox->type());

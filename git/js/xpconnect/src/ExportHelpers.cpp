@@ -26,9 +26,6 @@ namespace xpc {
 bool
 IsReflector(JSObject *obj)
 {
-    obj = CheckedUnwrap(obj, /* stopAtOuter = */ false);
-    if (!obj)
-        return false;
     return IS_WN_REFLECTOR(obj) || dom::IsDOMObject(obj);
 }
 
@@ -120,11 +117,15 @@ bool IsBlobOrFileList(JSObject *obj)
 
 static bool
 StackScopedCloneWrite(JSContext *cx, JSStructuredCloneWriter *writer,
-                      Handle<JSObject *> obj, void *closure)
+                      Handle<JSObject *> objArg, void *closure)
 {
     MOZ_ASSERT(closure, "Null pointer!");
     StackScopedCloneData *cloneData = static_cast<StackScopedCloneData *>(closure);
 
+    // The SpiderMonkey structured clone machinery does a CheckedUnwrap, but
+    // doesn't strip off outer windows. Do that to avoid confusing the reflector
+    // detection.
+    RootedObject obj(cx, JS_ObjectToInnerObject(cx, objArg));
     if ((cloneData->mOptions->wrapReflectors && IsReflector(obj)) ||
         IsBlobOrFileList(obj))
     {

@@ -59,7 +59,7 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
     private View preSearch;
     private View postSearch;
 
-    private View suggestions;
+    private View suggestionsContainer;
     private SuggestionsFragment suggestionsFragment;
 
     private static final int SUGGESTION_TRANSITION_DURATION = 300;
@@ -109,18 +109,21 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
                     onSearch(trimmedQuery);
                 }
             }
-
-            @Override
-            public void onFocusChange(boolean hasFocus) {
-                setEditState(hasFocus ? EditState.EDITING : EditState.WAITING);
-            }
         });
 
         preSearch = findViewById(R.id.presearch);
         postSearch = findViewById(R.id.postsearch);
 
-        suggestions = findViewById(R.id.suggestions);
+        suggestionsContainer = findViewById(R.id.suggestions_container);
         suggestionsFragment = (SuggestionsFragment) getSupportFragmentManager().findFragmentById(R.id.suggestions);
+
+        // Dismiss edit mode when the user taps outside of the suggestions.
+        findViewById(R.id.suggestions_container).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setEditState(EditState.WAITING);
+            }
+        });
 
         animationText = (TextView) findViewById(R.id.animation_text);
         animationCard = findViewById(R.id.animation_card);
@@ -156,7 +159,7 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
         preSearch = null;
         postSearch = null;
         suggestionsFragment = null;
-        suggestions = null;
+        suggestionsContainer = null;
         animationText = null;
         animationCard = null;
     }
@@ -296,7 +299,7 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
         this.editState = editState;
 
         editText.setActive(editState == EditState.EDITING);
-        suggestions.setVisibility(editState == EditState.EDITING ? View.VISIBLE : View.INVISIBLE);
+        suggestionsContainer.setVisibility(editState == EditState.EDITING ? View.VISIBLE : View.INVISIBLE);
     }
 
     private void setSearchState(SearchState searchState) {
