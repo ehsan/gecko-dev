@@ -3518,8 +3518,10 @@ nsCanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op)
     if (op.EqualsLiteral(cvsop))   \
         thebes_op = gfxContext::OPERATOR_##thebesop;
 
+    // XXX "darker" isn't really correct
     CANVAS_OP_TO_THEBES_OP("clear", CLEAR)
     else CANVAS_OP_TO_THEBES_OP("copy", SOURCE)
+    else CANVAS_OP_TO_THEBES_OP("darker", SATURATE)  // XXX
     else CANVAS_OP_TO_THEBES_OP("destination-atop", DEST_ATOP)
     else CANVAS_OP_TO_THEBES_OP("destination-in", DEST_IN)
     else CANVAS_OP_TO_THEBES_OP("destination-out", DEST_OUT)
