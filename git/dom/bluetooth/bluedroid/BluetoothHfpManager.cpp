@@ -8,6 +8,7 @@
 
 #include "BluetoothHfpManager.h"
 #include "BluetoothProfileController.h"
+#include "BluetoothServiceBluedroid.h"
 #include "BluetoothUtils.h"
 
 #include "jsapi.h"
