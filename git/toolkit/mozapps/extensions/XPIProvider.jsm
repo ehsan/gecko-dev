@@ -1282,6 +1282,11 @@ var XPIProvider = {
         !(Services.appinfo instanceof Ci.nsICrashReporter))
       return;
 
+    // In safe mode no add-ons are loaded so we should not include them in the
+    // crash report
+    if (Services.appinfo.inSafeMode)
+      return;
+
     let data = this.enabledAddons;
     for (let id in this.bootstrappedAddons)
       data += (data ? "," : "") + id + ":" + this.bootstrappedAddons[id].version;
@@ -2240,6 +2245,10 @@ var XPIProvider = {
     }
     this.selectedSkin = newSkin;
 
+    // Flush the preferences to disk so they don't get out of sync with the
+    // database
+    Services.prefs.savePrefFile(null);
+
     // Mark the previous theme as disabled. This won't cause recursion since
     // only enabled calls notifyAddonChanged.
     if (previousTheme)
@@ -2300,6 +2309,11 @@ var XPIProvider = {
     if (!this.extensionsActive)
       return false;
 
+    // If the application is in safe mode then any change can be made without
+    // restarting
+    if (Services.appinfo.inSafeMode)
+      return false;
+
     // Anything that is active is already enabled
     if (aAddon.active)
       return false;
@@ -2330,6 +2344,11 @@ var XPIProvider = {
     // If the platform couldn't have activated up extensions then we can make
     // changes without any restart.
     if (!this.extensionsActive)
+      return false;
+
+    // If the application is in safe mode then any change can be made without
+    // restarting
+    if (Services.appinfo.inSafeMode)
       return false;
 
     // Anything that isn't active is already disabled
@@ -2373,6 +2392,11 @@ var XPIProvider = {
     if (!this.extensionsActive)
       return false;
 
+    // If the application is in safe mode then any change can be made without
+    // restarting
+    if (Services.appinfo.inSafeMode)
+      return false;
+
     // Add-ons that are already installed don't require a restart to install.
     // This wouldn't normally be called for an already installed add-on (except
     // for forming the operationsRequiringRestart flags) so is really here as
@@ -2413,6 +2437,11 @@ var XPIProvider = {
     // If the platform couldn't have activated up extensions then we can make
     // changes without any restart.
     if (!this.extensionsActive)
+      return false;
+
+    // If the application is in safe mode then any change can be made without
+    // restarting
+    if (Services.appinfo.inSafeMode)
       return false;
 
     // If the add-on can be disabled without a restart then it can also be
@@ -2507,6 +2536,10 @@ var XPIProvider = {
    */
   callBootstrapMethod: function XPI_callBootstrapMethod(aId, aVersion, aFile,
                                                         aMethod, aReason) {
+    // Never call any bootstrap methods in safe mode
+    if (Services.appinfo.inSafeMode)
+      return;
+
     // Load the scope if it hasn't already been loaded
     if (!(aId in this.bootstrapScopes))
       this.loadBootstrapScope(aId, aFile, aVersion);
@@ -4288,19 +4321,25 @@ AddonInstall.prototype = {
       let stagedJSON = stagedAddon.clone();
       stagedAddon.append(this.addon.id);
       stagedJSON.append(this.addon.id + ".json");
-      if (stagedAddon.exists())
+      if (stagedAddon.exists()) {
         stagedAddon.remove(true);
+      }
+      else {
+        stagedAddon.leafName += ".xpi";
+        if (stagedAddon.exists())
+          stagedAddon.remove(false);
+      }
       if (stagedJSON.exists())
         stagedJSON.remove(true);
       this.state = AddonManager.STATE_CANCELLED;
       XPIProvider.removeActiveInstall(this);
 
-      AddonManagerPrivate.callAddonListeners("onOperationCancelled", createWrapper(this.addon));
-
       if (this.existingAddon) {
         delete this.existingAddon.pendingUpgrade;
         this.existingAddon.pendingUpgrade = null;
       }
+
+      AddonManagerPrivate.callAddonListeners("onOperationCancelled", createWrapper(this.addon));
 
       AddonManagerPrivate.callInstallListeners("onInstallCancelled",
                                                this.listeners, this.wrapper);
@@ -4589,8 +4628,8 @@ AddonInstall.prototype = {
 
       this.channel = NetUtil.newChannel(this.sourceURI);
       this.channel.notificationCallbacks = this;
-      this.channel.QueryInterface(Ci.nsIHttpChannelInternal)
-                  .forceAllowThirdPartyCookie = true;
+      if (this.channel instanceof Ci.nsIHttpChannelInternal)
+        this.channel.forceAllowThirdPartyCookie = true;
       this.channel.asyncOpen(listener, null);
 
       Services.obs.addObserver(this, "network:offline-about-to-go-offline", false);
@@ -5557,7 +5596,7 @@ function AddonWrapper(aAddon) {
 
   ["optionsURL", "aboutURL"].forEach(function(aProp) {
     this.__defineGetter__(aProp, function() {
-      return aAddon.active ? aAddon[aProp] : null;
+      return this.isActive ? aAddon[aProp] : null;
     });
   }, this);
 
@@ -5578,7 +5617,7 @@ function AddonWrapper(aAddon) {
   // and icon64.png in the add-on's files.
   ["icon", "icon64"].forEach(function(aProp) {
     this.__defineGetter__(aProp + "URL", function() {
-      if (aAddon.active && aAddon[aProp + "URL"])
+      if (this.isActive && aAddon[aProp + "URL"])
         return aAddon[aProp + "URL"];
 
       if (this.hasResource(aProp + ".png"))
@@ -5768,7 +5807,12 @@ function AddonWrapper(aAddon) {
     return permissions;
   });
 
-  this.__defineGetter__("isActive", function() aAddon.active);
+  this.__defineGetter__("isActive", function() {
+    if (Services.appinfo.inSafeMode)
+      return false;
+    return aAddon.active;
+  });
+
   this.__defineSetter__("userDisabled", function(val) {
     if (val == aAddon.userDisabled)
       return val;
