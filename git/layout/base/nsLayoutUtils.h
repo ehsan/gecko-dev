@@ -1000,7 +1000,7 @@ public:
   struct RectListBuilder : public RectCallback {
     DOMRectList* mRectList;
 
-    explicit RectListBuilder(DOMRectList* aList);
+    RectListBuilder(DOMRectList* aList);
     virtual void AddRect(const nsRect& aRect);
   };
 
@@ -2346,7 +2346,7 @@ namespace mozilla {
      */
     class AutoMaybeDisableFontInflation {
     public:
-      explicit AutoMaybeDisableFontInflation(nsIFrame *aFrame);
+      AutoMaybeDisableFontInflation(nsIFrame *aFrame);
 
       ~AutoMaybeDisableFontInflation();
     private:

@@ -1511,7 +1511,7 @@ nsRuleNode::Transition(nsIStyleRule* aRule, uint8_t aLevel,
     if (curr)
       next = curr;
     else if (numKids >= kMaxChildrenInList)
-      ConvertChildrenToHash(numKids);
+      ConvertChildrenToHash();
   }
 
   if (ChildrenAreHashed()) {
@@ -1572,13 +1572,13 @@ void nsRuleNode::SetUsedDirectly()
 }
 
 void
-nsRuleNode::ConvertChildrenToHash(int32_t aNumKids)
+nsRuleNode::ConvertChildrenToHash()
 {
   NS_ASSERTION(!ChildrenAreHashed() && HaveChildren(),
                "must have a non-empty list of children");
   PLDHashTable *hash = PL_NewDHashTable(&ChildrenHashOps, nullptr,
                                         sizeof(ChildrenHashEntry),
-                                        aNumKids);
+                                        kMaxChildrenInList * 4);
   if (!hash)
     return;
   for (nsRuleNode* curr = ChildrenList(); curr; curr = curr->mNextSibling) {
@@ -7561,18 +7561,10 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
 
   // flex-basis: auto, length, percent, enum, calc, inherit, initial
   // (Note: The flags here should match those used for 'width' property above.)
-  const nsCSSValue* flexBasisValue = aRuleData->ValueForFlexBasis();
-  if (!SetCoord(*flexBasisValue,
-                pos->mFlexBasis, parentPos->mFlexBasis,
-                SETCOORD_LPAEH | SETCOORD_STORE_CALC,
-                aContext, mPresContext, canStoreInRuleTree)) {
-    if (eCSSUnit_Initial == flexBasisValue->GetUnit() ||
-        eCSSUnit_Unset == flexBasisValue->GetUnit()) {
-      // flex-basis initial value is "main-size"
-      pos->mFlexBasis.SetIntValue(NS_STYLE_FLEX_BASIS_MAIN_SIZE,
-                                  eStyleUnit_Enumerated);
-    }
-  }
+  SetCoord(*aRuleData->ValueForFlexBasis(), pos->mFlexBasis, parentPos->mFlexBasis,
+           SETCOORD_LPAEH | SETCOORD_INITIAL_AUTO | SETCOORD_STORE_CALC |
+             SETCOORD_UNSET_INITIAL,
+           aContext, mPresContext, canStoreInRuleTree);
 
   // flex-direction: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForFlexDirection(),

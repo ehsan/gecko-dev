@@ -170,14 +170,14 @@ SizeOfEntryStore(uint32_t aCapacity, uint32_t aEntrySize, uint32_t* aNbytes)
 
 PLDHashTable*
 PL_NewDHashTable(const PLDHashTableOps* aOps, void* aData, uint32_t aEntrySize,
-                 uint32_t aLength)
+                 uint32_t aCapacity)
 {
   PLDHashTable* table = (PLDHashTable*)malloc(sizeof(*table));
   if (!table) {
     return nullptr;
   }
-  if (!PL_DHashTableInit(table, aOps, aData, aEntrySize, fallible_t(),
-                         aLength)) {
+  if (!PL_DHashTableInit(table, aOps, aData, aEntrySize, aCapacity,
+                         fallible_t())) {
     free(table);
     return nullptr;
   }
@@ -191,39 +191,10 @@ PL_DHashTableDestroy(PLDHashTable* aTable)
   free(aTable);
 }
 
-/*
- * Compute max and min load numbers (entry counts).  We have a secondary max
- * that allows us to overload a table reasonably if it cannot be grown further
- * (i.e. if ChangeTable() fails).  The table slows down drastically if the
- * secondary max is too close to 1, but 0.96875 gives only a slight slowdown
- * while allowing 1.3x more elements.
- */
-static inline uint32_t
-MaxLoad(uint32_t aCapacity)
-{
-  return aCapacity - (aCapacity >> 2);  // == aCapacity * 0.75
-}
-static inline uint32_t
-MaxLoadOnGrowthFailure(uint32_t aCapacity)
-{
-  return aCapacity - (aCapacity >> 5);  // == aCapacity * 0.96875
-}
-static inline uint32_t
-MinLoad(uint32_t aCapacity)
-{
-  return aCapacity >> 2;                // == aCapacity * 0.25
-}
-
-static inline uint32_t
-MinCapacity(uint32_t aLength)
-{
-  return (aLength * 4 + (3 - 1)) / 3;   // == ceil(aLength * 4 / 3)
-}
-
 bool
 PL_DHashTableInit(PLDHashTable* aTable, const PLDHashTableOps* aOps,
-                  void* aData, uint32_t aEntrySize, const fallible_t&,
-                  uint32_t aLength)
+                  void* aData, uint32_t aEntrySize, uint32_t aCapacity,
+                  const fallible_t&)
 {
 #ifdef DEBUG
   if (aEntrySize > 16 * sizeof(void*)) {
@@ -235,30 +206,24 @@ PL_DHashTableInit(PLDHashTable* aTable, const PLDHashTableOps* aOps,
   }
 #endif
 
-  if (aLength > PL_DHASH_MAX_INITIAL_LENGTH) {
-    return false;
-  }
-
   aTable->ops = aOps;
   aTable->data = aData;
-
-  // Compute the smallest capacity allowing |aLength| elements to be inserted
-  // without rehashing.
-  uint32_t capacity = MinCapacity(aLength);
-  if (capacity < PL_DHASH_MIN_CAPACITY) {
-    capacity = PL_DHASH_MIN_CAPACITY;
+  if (aCapacity < PL_DHASH_MIN_SIZE) {
+    aCapacity = PL_DHASH_MIN_SIZE;
   }
 
-  int log2 = CeilingLog2(capacity);
+  int log2 = CeilingLog2(aCapacity);
 
-  capacity = 1u << log2;
-  MOZ_ASSERT(capacity <= PL_DHASH_MAX_CAPACITY);
+  aCapacity = 1u << log2;
+  if (aCapacity > PL_DHASH_MAX_SIZE) {
+    return false;
+  }
   aTable->hashShift = PL_DHASH_BITS - log2;
   aTable->entrySize = aEntrySize;
   aTable->entryCount = aTable->removedCount = 0;
   aTable->generation = 0;
   uint32_t nbytes;
-  if (!SizeOfEntryStore(capacity, aEntrySize, &nbytes))
+  if (!SizeOfEntryStore(aCapacity, aEntrySize, &nbytes))
     return false;   // overflowed
 
   aTable->entryStore = (char*)aOps->allocTable(aTable, nbytes);
@@ -276,20 +241,42 @@ PL_DHashTableInit(PLDHashTable* aTable, const PLDHashTableOps* aOps,
 }
 
 void
-PL_DHashTableInit(PLDHashTable* aTable, const PLDHashTableOps* aOps,
-                  void* aData, uint32_t aEntrySize, uint32_t aLength)
+PL_DHashTableInit(PLDHashTable* aTable, const PLDHashTableOps* aOps, void* aData,
+                  uint32_t aEntrySize, uint32_t aCapacity)
 {
-  if (!PL_DHashTableInit(aTable, aOps, aData, aEntrySize, fallible_t(),
-                         aLength)) {
-    if (aLength > PL_DHASH_MAX_INITIAL_LENGTH) {
-      MOZ_CRASH();          // the asked-for length was too big
+  if (!PL_DHashTableInit(aTable, aOps, aData, aEntrySize, aCapacity, fallible_t())) {
+    if (aCapacity > PL_DHASH_MAX_SIZE) {
+      MOZ_CRASH();
     }
-    uint32_t capacity = MinCapacity(aLength), nbytes;
-    if (!SizeOfEntryStore(capacity, aEntrySize, &nbytes)) {
-      MOZ_CRASH();          // the required entryStore size was too big
+    uint32_t nbytes;
+    if (!SizeOfEntryStore(aCapacity, aEntrySize, &nbytes)) {
+      MOZ_CRASH();
     }
-    NS_ABORT_OOM(nbytes);   // allocation failed
+    NS_ABORT_OOM(nbytes);
   }
+}
+
+/*
+ * Compute max and min load numbers (entry counts).  We have a secondary max
+ * that allows us to overload a table reasonably if it cannot be grown further
+ * (i.e. if ChangeTable() fails).  The table slows down drastically if the
+ * secondary max is too close to 1, but 0.96875 gives only a slight slowdown
+ * while allowing 1.3x more elements.
+ */
+static inline uint32_t
+MaxLoad(uint32_t aSize)
+{
+  return aSize - (aSize >> 2);  // == aSize * 0.75
+}
+static inline uint32_t
+MaxLoadOnGrowthFailure(uint32_t aSize)
+{
+  return aSize - (aSize >> 5);  // == aSize * 0.96875
+}
+static inline uint32_t
+MinLoad(uint32_t aSize)
+{
+  return aSize >> 2;           // == aSize * 0.25
 }
 
 /*
@@ -337,7 +324,7 @@ PL_DHashTableFinish(PLDHashTable* aTable)
   /* Clear any remaining live entries. */
   char* entryAddr = aTable->entryStore;
   uint32_t entrySize = aTable->entrySize;
-  char* entryLimit = entryAddr + PL_DHASH_TABLE_CAPACITY(aTable) * entrySize;
+  char* entryLimit = entryAddr + PL_DHASH_TABLE_SIZE(aTable) * entrySize;
   while (entryAddr < entryLimit) {
     PLDHashEntryHdr* entry = (PLDHashEntryHdr*)entryAddr;
     if (ENTRY_IS_LIVE(entry)) {
@@ -481,7 +468,7 @@ ChangeTable(PLDHashTable* aTable, int aDeltaLog2)
   int oldLog2 = PL_DHASH_BITS - aTable->hashShift;
   int newLog2 = oldLog2 + aDeltaLog2;
   uint32_t newCapacity = 1u << newLog2;
-  if (newCapacity > PL_DHASH_MAX_CAPACITY) {
+  if (newCapacity > PL_DHASH_MAX_SIZE) {
     return false;
   }
 
@@ -561,11 +548,11 @@ PL_DHashTableOperate(PLDHashTable* aTable, const void* aKey, PLDHashOperator aOp
        * in the table, we may grow once more than necessary, but only if we
        * are on the edge of being overloaded.
        */
-      uint32_t capacity = PL_DHASH_TABLE_CAPACITY(aTable);
-      if (aTable->entryCount + aTable->removedCount >= MaxLoad(capacity)) {
+      uint32_t size = PL_DHASH_TABLE_SIZE(aTable);
+      if (aTable->entryCount + aTable->removedCount >= MaxLoad(size)) {
         /* Compress if a quarter or more of all entries are removed. */
         int deltaLog2;
-        if (aTable->removedCount >= capacity >> 2) {
+        if (aTable->removedCount >= size >> 2) {
           METER(aTable->stats.compresses++);
           deltaLog2 = 0;
         } else {
@@ -580,7 +567,7 @@ PL_DHashTableOperate(PLDHashTable* aTable, const void* aKey, PLDHashOperator aOp
          */
         if (!ChangeTable(aTable, deltaLog2) &&
             aTable->entryCount + aTable->removedCount >=
-            MaxLoadOnGrowthFailure(capacity)) {
+            MaxLoadOnGrowthFailure(size)) {
           METER(aTable->stats.addFailures++);
           entry = nullptr;
           break;
@@ -624,9 +611,9 @@ PL_DHashTableOperate(PLDHashTable* aTable, const void* aKey, PLDHashOperator aOp
         PL_DHashTableRawRemove(aTable, entry);
 
         /* Shrink if alpha is <= .25 and aTable isn't too small already. */
-        uint32_t capacity = PL_DHASH_TABLE_CAPACITY(aTable);
-        if (capacity > PL_DHASH_MIN_CAPACITY &&
-            aTable->entryCount <= MinLoad(capacity)) {
+        uint32_t size = PL_DHASH_TABLE_SIZE(aTable);
+        if (size > PL_DHASH_MIN_SIZE &&
+            aTable->entryCount <= MinLoad(size)) {
           METER(aTable->stats.shrinks++);
           (void) ChangeTable(aTable, -1);
         }
@@ -675,7 +662,7 @@ PL_DHashTableEnumerate(PLDHashTable* aTable, PLDHashEnumerator aEtor, void* aArg
 
   char* entryAddr = aTable->entryStore;
   uint32_t entrySize = aTable->entrySize;
-  uint32_t capacity = PL_DHASH_TABLE_CAPACITY(aTable);
+  uint32_t capacity = PL_DHASH_TABLE_SIZE(aTable);
   uint32_t tableSize = capacity * entrySize;
   char* entryLimit = entryAddr + tableSize;
   uint32_t i = 0;
@@ -721,13 +708,13 @@ PL_DHashTableEnumerate(PLDHashTable* aTable, PLDHashEnumerator aEtor, void* aArg
    */
   if (didRemove &&
       (aTable->removedCount >= capacity >> 2 ||
-       (capacity > PL_DHASH_MIN_CAPACITY &&
+       (capacity > PL_DHASH_MIN_SIZE &&
         aTable->entryCount <= MinLoad(capacity)))) {
     METER(aTable->stats.enumShrinks++);
     capacity = aTable->entryCount;
     capacity += capacity >> 1;
-    if (capacity < PL_DHASH_MIN_CAPACITY) {
-      capacity = PL_DHASH_MIN_CAPACITY;
+    if (capacity < PL_DHASH_MIN_SIZE) {
+      capacity = PL_DHASH_MIN_SIZE;
     }
 
     uint32_t ceiling = CeilingLog2(capacity);
@@ -810,13 +797,13 @@ PL_DHashTableDumpMeter(PLDHashTable* aTable, PLDHashEnumerator aDump, FILE* aFp)
   uint32_t entrySize = aTable->entrySize;
   int hashShift = aTable->hashShift;
   int sizeLog2 = PL_DHASH_BITS - hashShift;
-  uint32_t capacity = PL_DHASH_TABLE_CAPACITY(aTable);
+  uint32_t tableSize = PL_DHASH_TABLE_SIZE(aTable);
   uint32_t sizeMask = (1u << sizeLog2) - 1;
   uint32_t chainCount = 0, maxChainLen = 0;
   hash2 = 0;
   sqsum = 0;
 
-  for (uint32_t i = 0; i < capacity; i++) {
+  for (uint32_t i = 0; i < tableSize; i++) {
     entry = (PLDHashEntryHdr*)entryAddr;
     entryAddr += entrySize;
     if (!ENTRY_IS_LIVE(entry)) {

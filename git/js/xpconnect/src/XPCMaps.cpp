@@ -116,9 +116,9 @@ JSObject2WrappedJSMap::ShutdownMarker()
 
 // static
 Native2WrappedNativeMap*
-Native2WrappedNativeMap::newMap(int length)
+Native2WrappedNativeMap::newMap(int size)
 {
-    Native2WrappedNativeMap* map = new Native2WrappedNativeMap(length);
+    Native2WrappedNativeMap* map = new Native2WrappedNativeMap(size);
     if (map && map->mTable)
         return map;
     // Allocation of the map or the creation of its hash table has
@@ -129,10 +129,10 @@ Native2WrappedNativeMap::newMap(int length)
     return nullptr;
 }
 
-Native2WrappedNativeMap::Native2WrappedNativeMap(int length)
+Native2WrappedNativeMap::Native2WrappedNativeMap(int size)
 {
     mTable = PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
-                              sizeof(Entry), length);
+                              sizeof(Entry), size);
 }
 
 Native2WrappedNativeMap::~Native2WrappedNativeMap()
@@ -173,18 +173,18 @@ const struct PLDHashTableOps IID2WrappedJSClassMap::Entry::sOps =
 
 // static
 IID2WrappedJSClassMap*
-IID2WrappedJSClassMap::newMap(int length)
+IID2WrappedJSClassMap::newMap(int size)
 {
-    IID2WrappedJSClassMap* map = new IID2WrappedJSClassMap(length);
+    IID2WrappedJSClassMap* map = new IID2WrappedJSClassMap(size);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-IID2WrappedJSClassMap::IID2WrappedJSClassMap(int length)
+IID2WrappedJSClassMap::IID2WrappedJSClassMap(int size)
 {
-    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
 }
 
 IID2WrappedJSClassMap::~IID2WrappedJSClassMap()
@@ -210,18 +210,18 @@ const struct PLDHashTableOps IID2NativeInterfaceMap::Entry::sOps =
 
 // static
 IID2NativeInterfaceMap*
-IID2NativeInterfaceMap::newMap(int length)
+IID2NativeInterfaceMap::newMap(int size)
 {
-    IID2NativeInterfaceMap* map = new IID2NativeInterfaceMap(length);
+    IID2NativeInterfaceMap* map = new IID2NativeInterfaceMap(size);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-IID2NativeInterfaceMap::IID2NativeInterfaceMap(int length)
+IID2NativeInterfaceMap::IID2NativeInterfaceMap(int size)
 {
-    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
 }
 
 IID2NativeInterfaceMap::~IID2NativeInterfaceMap()
@@ -252,19 +252,19 @@ IID2NativeInterfaceMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr,
 
 // static
 ClassInfo2NativeSetMap*
-ClassInfo2NativeSetMap::newMap(int length)
+ClassInfo2NativeSetMap::newMap(int size)
 {
-    ClassInfo2NativeSetMap* map = new ClassInfo2NativeSetMap(length);
+    ClassInfo2NativeSetMap* map = new ClassInfo2NativeSetMap(size);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-ClassInfo2NativeSetMap::ClassInfo2NativeSetMap(int length)
+ClassInfo2NativeSetMap::ClassInfo2NativeSetMap(int size)
 {
     mTable = PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
-                              sizeof(Entry), length);
+                              sizeof(Entry), size);
 }
 
 ClassInfo2NativeSetMap::~ClassInfo2NativeSetMap()
@@ -288,9 +288,9 @@ ClassInfo2NativeSetMap::ShallowSizeOfIncludingThis(mozilla::MallocSizeOf mallocS
 
 // static
 ClassInfo2WrappedNativeProtoMap*
-ClassInfo2WrappedNativeProtoMap::newMap(int length)
+ClassInfo2WrappedNativeProtoMap::newMap(int size)
 {
-    ClassInfo2WrappedNativeProtoMap* map = new ClassInfo2WrappedNativeProtoMap(length);
+    ClassInfo2WrappedNativeProtoMap* map = new ClassInfo2WrappedNativeProtoMap(size);
     if (map && map->mTable)
         return map;
     // Allocation of the map or the creation of its hash table has
@@ -301,10 +301,10 @@ ClassInfo2WrappedNativeProtoMap::newMap(int length)
     return nullptr;
 }
 
-ClassInfo2WrappedNativeProtoMap::ClassInfo2WrappedNativeProtoMap(int length)
+ClassInfo2WrappedNativeProtoMap::ClassInfo2WrappedNativeProtoMap(int size)
 {
     mTable = PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
-                              sizeof(Entry), length);
+                              sizeof(Entry), size);
 }
 
 ClassInfo2WrappedNativeProtoMap::~ClassInfo2WrappedNativeProtoMap()
@@ -417,18 +417,18 @@ const struct PLDHashTableOps NativeSetMap::Entry::sOps =
 
 // static
 NativeSetMap*
-NativeSetMap::newMap(int length)
+NativeSetMap::newMap(int size)
 {
-    NativeSetMap* map = new NativeSetMap(length);
+    NativeSetMap* map = new NativeSetMap(size);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-NativeSetMap::NativeSetMap(int length)
+NativeSetMap::NativeSetMap(int size)
 {
-    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
 }
 
 NativeSetMap::~NativeSetMap()
@@ -484,18 +484,18 @@ const struct PLDHashTableOps IID2ThisTranslatorMap::Entry::sOps =
 
 // static
 IID2ThisTranslatorMap*
-IID2ThisTranslatorMap::newMap(int length)
+IID2ThisTranslatorMap::newMap(int size)
 {
-    IID2ThisTranslatorMap* map = new IID2ThisTranslatorMap(length);
+    IID2ThisTranslatorMap* map = new IID2ThisTranslatorMap(size);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-IID2ThisTranslatorMap::IID2ThisTranslatorMap(int length)
+IID2ThisTranslatorMap::IID2ThisTranslatorMap(int size)
 {
-    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
 }
 
 IID2ThisTranslatorMap::~IID2ThisTranslatorMap()
@@ -564,19 +564,19 @@ const struct PLDHashTableOps XPCNativeScriptableSharedMap::Entry::sOps =
 
 // static
 XPCNativeScriptableSharedMap*
-XPCNativeScriptableSharedMap::newMap(int length)
+XPCNativeScriptableSharedMap::newMap(int size)
 {
     XPCNativeScriptableSharedMap* map =
-        new XPCNativeScriptableSharedMap(length);
+        new XPCNativeScriptableSharedMap(size);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-XPCNativeScriptableSharedMap::XPCNativeScriptableSharedMap(int length)
+XPCNativeScriptableSharedMap::XPCNativeScriptableSharedMap(int size)
 {
-    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
 }
 
 XPCNativeScriptableSharedMap::~XPCNativeScriptableSharedMap()
@@ -619,19 +619,19 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
 
 // static
 XPCWrappedNativeProtoMap*
-XPCWrappedNativeProtoMap::newMap(int length)
+XPCWrappedNativeProtoMap::newMap(int size)
 {
-    XPCWrappedNativeProtoMap* map = new XPCWrappedNativeProtoMap(length);
+    XPCWrappedNativeProtoMap* map = new XPCWrappedNativeProtoMap(size);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-XPCWrappedNativeProtoMap::XPCWrappedNativeProtoMap(int length)
+XPCWrappedNativeProtoMap::XPCWrappedNativeProtoMap(int size)
 {
     mTable = PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
-                              sizeof(PLDHashEntryStub), length);
+                              sizeof(PLDHashEntryStub), size);
 }
 
 XPCWrappedNativeProtoMap::~XPCWrappedNativeProtoMap()

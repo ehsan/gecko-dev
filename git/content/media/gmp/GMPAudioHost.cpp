@@ -14,8 +14,6 @@ namespace gmp {
 GMPAudioSamplesImpl::GMPAudioSamplesImpl(GMPAudioFormat aFormat)
   : mFormat(aFormat)
   , mTimeStamp(0)
-  , mChannels(0)
-  , mRate(0)
 {
 }
 
@@ -23,21 +21,15 @@ GMPAudioSamplesImpl::GMPAudioSamplesImpl(const GMPAudioEncodedSampleData& aData)
   : mFormat(kGMPAudioEncodedSamples)
   , mBuffer(aData.mData())
   , mTimeStamp(aData.mTimeStamp())
-  , mChannels(aData.mChannelCount())
-  , mRate(aData.mSamplesPerSecond())
 {
   if (aData.mDecryptionData().mKeyId().Length() > 0) {
     mCrypto = new GMPEncryptedBufferDataImpl(aData.mDecryptionData());
   }
 }
 
-GMPAudioSamplesImpl::GMPAudioSamplesImpl(mp4_demuxer::MP4Sample* aSample,
-                                         uint32_t aChannels,
-                                         uint32_t aRate)
+GMPAudioSamplesImpl::GMPAudioSamplesImpl(mp4_demuxer::MP4Sample* aSample)
  : mFormat(kGMPAudioEncodedSamples)
  , mTimeStamp(aSample->composition_timestamp)
- , mChannels(aChannels)
- , mRate(aRate)
 {
   mBuffer.AppendElements(aSample->data, aSample->size);
   if (aSample->crypto.valid) {
@@ -122,31 +114,6 @@ GMPAudioSamplesImpl::RelinquishData(GMPAudioEncodedSampleData& aData)
     mCrypto->RelinquishData(aData.mDecryptionData());
   }
 }
-
-uint32_t
-GMPAudioSamplesImpl::Channels() const
-{
-  return mChannels;
-}
-
-void
-GMPAudioSamplesImpl::SetChannels(uint32_t aChannels)
-{
-  mChannels = aChannels;
-}
-
-uint32_t
-GMPAudioSamplesImpl::Rate() const
-{
-  return mRate;
-}
-
-void
-GMPAudioSamplesImpl::SetRate(uint32_t aRate)
-{
-  mRate = aRate;
-}
-
 
 GMPErr
 GMPAudioHostImpl::CreateSamples(GMPAudioFormat aFormat,

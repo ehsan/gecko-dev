@@ -22,9 +22,7 @@ class GMPAudioSamplesImpl : public GMPAudioSamples {
 public:
   GMPAudioSamplesImpl(GMPAudioFormat aFormat);
   GMPAudioSamplesImpl(const GMPAudioEncodedSampleData& aData);
-  GMPAudioSamplesImpl(mp4_demuxer::MP4Sample* aSample,
-                      uint32_t aChannels,
-                      uint32_t aRate);
+  GMPAudioSamplesImpl(mp4_demuxer::MP4Sample* aSample);
   virtual ~GMPAudioSamplesImpl();
 
   virtual GMPAudioFormat GetFormat() MOZ_OVERRIDE;
@@ -41,18 +39,11 @@ public:
 
   void RelinquishData(GMPAudioEncodedSampleData& aData);
 
-  virtual uint32_t Channels() const MOZ_OVERRIDE;
-  virtual void SetChannels(uint32_t aChannels) MOZ_OVERRIDE;
-  virtual uint32_t Rate() const MOZ_OVERRIDE;
-  virtual void SetRate(uint32_t aRate) MOZ_OVERRIDE;
-
 private:
   GMPAudioFormat mFormat;
   nsTArray<uint8_t> mBuffer;
   int64_t mTimeStamp;
   nsAutoPtr<GMPEncryptedBufferDataImpl> mCrypto;
-  uint32_t mChannels;
-  uint32_t mRate;
 };
 
 class GMPAudioHostImpl : public GMPAudioHost

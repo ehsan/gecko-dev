@@ -52,9 +52,9 @@ nsNSSShutDownList::nsNSSShutDownList()
   mPK11LogoutCancelObjects.ops = nullptr;
   mObjects.ops = nullptr;
   PL_DHashTableInit(&mObjects, &gSetOps, nullptr,
-                    sizeof(ObjectHashEntry));
+                    sizeof(ObjectHashEntry), 16);
   PL_DHashTableInit(&mPK11LogoutCancelObjects, &gSetOps, nullptr,
-                    sizeof(ObjectHashEntry));
+                    sizeof(ObjectHashEntry), 16);
 }
 
 nsNSSShutDownList::~nsNSSShutDownList()

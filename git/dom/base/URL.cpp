@@ -341,10 +341,9 @@ URL::SetHost(const nsAString& aHost, ErrorResult& aRv)
 }
 
 void
-URL::URLSearchParamsUpdated(URLSearchParams* aSearchParams)
+URL::URLSearchParamsUpdated()
 {
   MOZ_ASSERT(mSearchParams);
-  MOZ_ASSERT(mSearchParams == aSearchParams);
 
   nsAutoString search;
   mSearchParams->Serialize(search);

@@ -144,14 +144,14 @@ enum {
 };
 static nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, uint32_t flags);
 
-#define PREF_HASHTABLE_INITIAL_LENGTH   1024
+#define PREF_HASHTABLE_INITIAL_SIZE	2048
 
 nsresult PREF_Init()
 {
     if (!gHashTable.ops) {
         if (!PL_DHashTableInit(&gHashTable, &pref_HashTableOps, nullptr,
-                               sizeof(PrefHashEntry), fallible_t(),
-                               PREF_HASHTABLE_INITIAL_LENGTH)) {
+                               sizeof(PrefHashEntry), PREF_HASHTABLE_INITIAL_SIZE,
+                               fallible_t())) {
             gHashTable.ops = nullptr;
             return NS_ERROR_OUT_OF_MEMORY;
         }

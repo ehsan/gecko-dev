@@ -832,13 +832,12 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   // Also compute and set the background color on the container.
   // This is needed for APZ overscrolling support.
   if (aScrollFrame) {
-    if (isRootScrollFrame) {
-      aRoot->SetBackgroundColor(presShell->GetCanvasBackground());
-    } else {
-      nsStyleContext* backgroundStyle;
-      if (nsCSSRendering::FindBackground(aScrollFrame, &backgroundStyle)) {
-        aRoot->SetBackgroundColor(backgroundStyle->StyleBackground()->mBackgroundColor);
-      }
+    // FindBackground() does not work for a root scroll frame, need to use the
+    // root frame instead.
+    nsIFrame* backgroundFrame = isRootScrollFrame ? presShell->GetRootFrame() : aScrollFrame;
+    nsStyleContext* backgroundStyle;
+    if (nsCSSRendering::FindBackground(backgroundFrame, &backgroundStyle)) {
+      aRoot->SetBackgroundColor(backgroundStyle->StyleBackground()->mBackgroundColor);
     }
   }
 }
@@ -3006,8 +3005,7 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
       mToReferenceFrame = i->ToReferenceFrame();
     }
   }
-  mVisibleRect = aBuilder->GetDirtyRect() +
-      aBuilder->GetCurrentFrameOffsetToReferenceFrame();
+  mVisibleRect = aBuilder->GetDirtyRect() + mToReferenceFrame;
 }
 
 nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
@@ -3036,8 +3034,7 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
       mToReferenceFrame = aItem->ToReferenceFrame();
     }
   }
-  mVisibleRect = aBuilder->GetDirtyRect() +
-      aBuilder->GetCurrentFrameOffsetToReferenceFrame();
+  mVisibleRect = aBuilder->GetDirtyRect() + mToReferenceFrame;
 }
 
 nsDisplayWrapList::~nsDisplayWrapList() {

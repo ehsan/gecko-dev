@@ -42,8 +42,8 @@ nsCommandParams::~nsCommandParams()
 nsresult
 nsCommandParams::Init()
 {
-  PL_DHashTableInit(&mValuesHash, &sHashOps, (void *)this,
-                    sizeof(HashEntry), 2);
+  PL_DHashTableInit(&mValuesHash, &sHashOps, (void *)this, sizeof(HashEntry), 4);
+
   return NS_OK;
 }
 
@@ -263,16 +263,17 @@ nsCommandParams::HashEntry*
 nsCommandParams::GetIndexedEntry(int32_t index)
 {
   HashEntry*  entry = reinterpret_cast<HashEntry*>(mValuesHash.entryStore);
-  HashEntry*  limit = entry + PL_DHASH_TABLE_CAPACITY(&mValuesHash);
+  HashEntry*  limit = entry + PL_DHASH_TABLE_SIZE(&mValuesHash);
   uint32_t    entryCount = 0;
-
-  do {
+  
+  do
+  {  
     if (!PL_DHASH_ENTRY_IS_LIVE(entry))
       continue;
 
     if ((int32_t)entryCount == index)
       return entry;
-
+    
     entryCount ++;
   } while (++entry < limit);
 
@@ -284,10 +285,11 @@ uint32_t
 nsCommandParams::GetNumEntries()
 {
   HashEntry*  entry = reinterpret_cast<HashEntry*>(mValuesHash.entryStore);
-  HashEntry*  limit = entry + PL_DHASH_TABLE_CAPACITY(&mValuesHash);
+  HashEntry*  limit = entry + PL_DHASH_TABLE_SIZE(&mValuesHash);
   uint32_t    entryCount = 0;
-
-  do {
+  
+  do
+  {  
     if (PL_DHASH_ENTRY_IS_LIVE(entry))
       entryCount ++;
   } while (++entry < limit);

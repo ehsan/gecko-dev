@@ -421,7 +421,7 @@ public:
   NS_DECLARE_FRAME_PROPERTY_FRAMELIST(ExcessOverflowContainersProperty)
 
 protected:
-  explicit nsContainerFrame(nsStyleContext* aContext) : nsSplittableFrame(aContext) {}
+  nsContainerFrame(nsStyleContext* aContext) : nsSplittableFrame(aContext) {}
   ~nsContainerFrame();
 
   /**

@@ -797,7 +797,8 @@ XULDocument::AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
 
     if (! mBroadcasterMap) {
         mBroadcasterMap =
-            PL_NewDHashTable(&gOps, nullptr, sizeof(BroadcasterMapEntry));
+            PL_NewDHashTable(&gOps, nullptr, sizeof(BroadcasterMapEntry),
+                             PL_DHASH_MIN_SIZE);
 
         if (! mBroadcasterMap) {
             aRv.Throw(NS_ERROR_OUT_OF_MEMORY);

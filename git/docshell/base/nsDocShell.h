@@ -50,7 +50,6 @@
 namespace mozilla {
 namespace dom {
 class EventTarget;
-class URLSearchParams;
 }
 }
 
@@ -763,9 +762,6 @@ protected:
     nsCOMPtr<nsIURI>           mFailedURI;
     nsCOMPtr<nsIChannel>       mFailedChannel;
     uint32_t                   mFailedLoadType;
-
-    // window.location.searchParams is updated in sync with this object.
-    nsRefPtr<mozilla::dom::URLSearchParams> mURLSearchParams;
 
     // Set in DoURILoad when either the LOAD_RELOAD_ALLOW_MIXED_CONTENT flag or
     // the LOAD_NORMAL_ALLOW_MIXED_CONTENT flag is set.

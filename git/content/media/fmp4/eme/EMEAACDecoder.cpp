@@ -127,20 +127,11 @@ EMEAACDecoder::Shutdown()
 
 void
 EMEAACDecoder::Decoded(const nsTArray<int16_t>& aPCM,
-                       uint64_t aTimeStamp,
-                       uint32_t aChannels,
-                       uint32_t aRate)
+                       uint64_t aTimeStamp)
 {
   MOZ_ASSERT(IsOnGMPThread());
 
-  if (aRate == 0 || aChannels == 0) {
-    NS_WARNING("Invalid rate or num channels returned on GMP audio samples");
-    mCallback->Error();
-    return;
-  }
-
-  size_t numFrames = aPCM.Length() / aChannels;
-  MOZ_ASSERT((aPCM.Length() % aChannels) == 0);
+  size_t numFrames = aPCM.Length() / mAudioChannels;
   nsAutoArrayPtr<AudioDataValue> audioData(new AudioDataValue[aPCM.Length()]);
 
   for (size_t i = 0; i < aPCM.Length(); ++i) {
@@ -149,7 +140,7 @@ EMEAACDecoder::Decoded(const nsTArray<int16_t>& aPCM,
 
   if (mMustRecaptureAudioPosition) {
     mAudioFrameSum = 0;
-    auto timestamp = UsecsToFrames(aTimeStamp, aRate);
+    auto timestamp = UsecsToFrames(aTimeStamp, mAudioRate);
     if (!timestamp.isValid()) {
       NS_WARNING("Invalid timestamp");
       mCallback->Error();
@@ -160,7 +151,7 @@ EMEAACDecoder::Decoded(const nsTArray<int16_t>& aPCM,
     mMustRecaptureAudioPosition = false;
   }
 
-  auto timestamp = FramesToUsecs(mAudioFrameOffset + mAudioFrameSum, aRate);
+  auto timestamp = FramesToUsecs(mAudioFrameOffset + mAudioFrameSum, mAudioRate);
   if (!timestamp.isValid()) {
     NS_WARNING("Invalid timestamp on audio samples");
     mCallback->Error();
@@ -168,7 +159,7 @@ EMEAACDecoder::Decoded(const nsTArray<int16_t>& aPCM,
   }
   mAudioFrameSum += numFrames;
 
-  auto duration = FramesToUsecs(numFrames, aRate);
+  auto duration = FramesToUsecs(numFrames, mAudioRate);
   if (!duration.isValid()) {
     NS_WARNING("Invalid duration on audio samples");
     mCallback->Error();
@@ -180,7 +171,7 @@ EMEAACDecoder::Decoded(const nsTArray<int16_t>& aPCM,
                                            duration.value(),
                                            numFrames,
                                            audioData.forget(),
-                                           aChannels));
+                                           mAudioChannels));
 
   #ifdef LOG_SAMPLE_DECODE
   LOG("Decoded audio sample! timestamp=%lld duration=%lld currentLength=%u",
@@ -220,7 +211,6 @@ void
 EMEAACDecoder::Error(GMPErr aErr)
 {
   MOZ_ASSERT(IsOnGMPThread());
-  EME_LOG("EMEAACDecoder::Error");
   mCallback->Error();
   GmpShutdown();
 }
@@ -286,7 +276,7 @@ EMEAACDecoder::GmpInput(MP4Sample* aSample)
     }
   }
 
-  gmp::GMPAudioSamplesImpl samples(sample, mAudioChannels, mAudioRate);
+  gmp::GMPAudioSamplesImpl samples(sample);
   mGMP->Decode(samples);
 
   mStreamOffset = sample->byte_offset;

@@ -98,7 +98,7 @@ NS_IMPL_ISUPPORTS(DOMStorageManager,
                   nsIDOMStorageManager)
 
 DOMStorageManager::DOMStorageManager(DOMStorage::StorageType aType)
-  : mCaches(8)
+  : mCaches(10)
   , mType(aType)
   , mLowDiskSpace(false)
 {
