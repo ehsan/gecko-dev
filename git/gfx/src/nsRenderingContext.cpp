@@ -85,14 +85,14 @@ static PRInt32 FindSafeLength(const char *aString, PRUint32 aLength,
 //// nsRenderingContext
 
 void
-nsRenderingContext::Init(nsDeviceContext* aContext,
+nsRenderingContext::Init(nsIDeviceContext* aContext,
                          gfxASurface *aThebesSurface)
 {
     Init(aContext, new gfxContext(aThebesSurface));
 }
 
 void
-nsRenderingContext::Init(nsDeviceContext* aContext,
+nsRenderingContext::Init(nsIDeviceContext* aContext,
                          gfxContext *aThebesContext)
 {
     mDeviceContext = aContext;

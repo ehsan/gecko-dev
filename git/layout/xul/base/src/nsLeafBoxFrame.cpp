@@ -45,6 +45,7 @@
 #include "nsLeafBoxFrame.h"
 #include "nsBoxFrame.h"
 #include "nsCOMPtr.h"
+#include "nsIDeviceContext.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"

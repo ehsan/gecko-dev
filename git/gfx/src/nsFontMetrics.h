@@ -45,8 +45,9 @@
 #include "gfxFont.h"
 
 class nsIAtom;
-class nsDeviceContext;
+class nsIDeviceContext;
 class nsRenderingContext;
+class nsThebesDeviceContext;
 struct nsBoundingMetrics;
 
 /**
@@ -79,10 +80,10 @@ public:
      * Initialize the font metrics. Call this after creating the font metrics.
      * Font metrics you get from the font cache do NOT need to be initialized
      *
-     * @see nsDeviceContext#GetMetricsFor()
+     * @see nsIDeviceContext#GetMetricsFor()
      */
     nsresult Init(const nsFont& aFont, nsIAtom* aLanguage,
-                  nsDeviceContext *aContext,
+                  nsIDeviceContext *aContext,
                   gfxUserFontSet *aUserFontSet = nsnull);
 
     /**
@@ -237,7 +238,7 @@ protected:
     nsFont mFont;
     nsRefPtr<gfxFontGroup> mFontGroup;
     nsCOMPtr<nsIAtom> mLanguage;
-    nsDeviceContext *mDeviceContext;
+    nsThebesDeviceContext *mDeviceContext;
     PRInt32 mP2A;
     PRPackedBool mTextRunRTL;
 };

@@ -69,6 +69,7 @@
 #include "nsTArray.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
+#include "nsIDeviceContext.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCompatibility.h"

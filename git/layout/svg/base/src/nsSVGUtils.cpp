@@ -1465,9 +1465,11 @@ nsRenderingContext*
 nsSVGRenderState::GetRenderingContext(nsIFrame *aFrame)
 {
   if (!mRenderingContext) {
-    mRenderingContext = new nsRenderingContext();
-    mRenderingContext->Init(aFrame->PresContext()->DeviceContext(),
-                            mGfxContext);
+    nsIDeviceContext* devCtx = aFrame->PresContext()->DeviceContext();
+    devCtx->CreateRenderingContextInstance(*getter_AddRefs(mRenderingContext));
+    if (!mRenderingContext)
+      return nsnull;
+    mRenderingContext->Init(devCtx, mGfxContext);
   }
   return mRenderingContext;
 }

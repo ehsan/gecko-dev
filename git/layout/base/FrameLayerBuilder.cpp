@@ -1892,7 +1892,11 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
     }
   }
 
-  nsRefPtr<nsRenderingContext> rc = new nsRenderingContext();
+  nsRefPtr<nsRenderingContext> rc;
+  nsresult rv =
+    presContext->DeviceContext()->CreateRenderingContextInstance(*getter_AddRefs(rc));
+  if (NS_FAILED(rv))
+    return;
   rc->Init(presContext->DeviceContext(), aContext);
 
   Clip currentClip;

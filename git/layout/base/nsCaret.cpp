@@ -57,6 +57,7 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsRenderingContext.h"
+#include "nsIDeviceContext.h"
 #include "nsPresContext.h"
 #include "nsILookAndFeel.h"
 #include "nsBlockFrame.h"

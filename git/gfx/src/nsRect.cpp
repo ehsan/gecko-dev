@@ -37,7 +37,7 @@
 
 #include "nsRect.h"
 #include "nsString.h"
-#include "nsDeviceContext.h"
+#include "nsIDeviceContext.h"
 #include "prlog.h"
 #include <limits.h>
 
@@ -85,16 +85,16 @@ FILE* operator<<(FILE* out, const nsRect& rect)
   // Output the coordinates in fractional pixels so they're easier to read
   tmp.AppendLiteral("{");
   tmp.AppendFloat(NSAppUnitsToFloatPixels(rect.x,
-                       nsDeviceContext::AppUnitsPerCSSPixel()));
+                       nsIDeviceContext::AppUnitsPerCSSPixel()));
   tmp.AppendLiteral(", ");
   tmp.AppendFloat(NSAppUnitsToFloatPixels(rect.y,
-                       nsDeviceContext::AppUnitsPerCSSPixel()));
+                       nsIDeviceContext::AppUnitsPerCSSPixel()));
   tmp.AppendLiteral(", ");
   tmp.AppendFloat(NSAppUnitsToFloatPixels(rect.width,
-                       nsDeviceContext::AppUnitsPerCSSPixel()));
+                       nsIDeviceContext::AppUnitsPerCSSPixel()));
   tmp.AppendLiteral(", ");
   tmp.AppendFloat(NSAppUnitsToFloatPixels(rect.height,
-                       nsDeviceContext::AppUnitsPerCSSPixel()));
+                       nsIDeviceContext::AppUnitsPerCSSPixel()));
   tmp.AppendLiteral("}");
   fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
   return out;

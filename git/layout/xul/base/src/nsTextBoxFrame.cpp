@@ -48,6 +48,7 @@
 #include "nsReadableUtils.h"
 #include "nsTextBoxFrame.h"
 #include "nsCOMPtr.h"
+#include "nsIDeviceContext.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsRenderingContext.h"
@@ -621,17 +622,20 @@ void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
     shadowColor = aForegroundColor;
 
   // Conjure an nsRenderingContext from a gfxContext for DrawText
-  nsRefPtr<nsRenderingContext> renderingContext = new nsRenderingContext();
-  renderingContext->Init(PresContext()->DeviceContext(), shadowContext);
+  nsRefPtr<nsRenderingContext> renderingContext = nsnull;
+  nsIDeviceContext* devCtx = PresContext()->DeviceContext();
+  devCtx->CreateRenderingContextInstance(*getter_AddRefs(renderingContext));
+  if (!renderingContext)
+    return;
+  renderingContext->Init(devCtx, shadowContext);
 
   aCtx->Save();
   aCtx->NewPath();
   aCtx->SetColor(gfxRGBA(shadowColor));
 
-  // Draw the text onto our alpha-only surface to capture the alpha
-  // values.  Remember that the box blur context has a device offset
-  // on it, so we don't need to translate any coordinates to fit on
-  // the surface.
+  // Draw the text onto our alpha-only surface to capture the alpha values.
+  // Remember that the box blur context has a device offset on it, so we don't need to
+  // translate any coordinates to fit on the surface.
   DrawText(*renderingContext, shadowRect, &shadowColor);
   contextBoxBlur.DoPaint();
   aCtx->Restore();

@@ -42,6 +42,7 @@
 
 #include "nsContainerFrame.h"
 #include "gfxPoint.h"
+#include "nsIDeviceContext.h"
 
 class nsString;
 class nsAbsoluteFrame;
@@ -54,11 +55,8 @@ class nsLineBox;
 
 // Some macros for container classes to do sanity checking on
 // width/height/x/y values computed during reflow.
-// NOTE: AppUnitsPerCSSPixel value hardwired here to remove the
-// dependency on nsDeviceContext.h.  It doesn't matter if it's a
-// little off.
 #ifdef DEBUG
-#define CRAZY_W (1000000*60)
+#define CRAZY_W (1000000*nsIDeviceContext::AppUnitsPerCSSPixel())
 #define CRAZY_H CRAZY_W
 
 #define CRAZY_WIDTH(_x) (((_x) < -CRAZY_W) || ((_x) > CRAZY_W))
@@ -72,6 +70,23 @@ class nsDisplayTextDecoration;
 class nsHTMLContainerFrame : public nsContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
+
+  /**
+   * Helper method to wrap views around frames. Used by containers
+   * under special circumstances (can be used by leaf frames as well)
+   */
+  static nsresult CreateViewForFrame(nsIFrame* aFrame,
+                                     PRBool aForce);
+
+  static nsresult ReparentFrameView(nsPresContext* aPresContext,
+                                    nsIFrame*       aChildFrame,
+                                    nsIFrame*       aOldParentFrame,
+                                    nsIFrame*       aNewParentFrame);
+
+  static nsresult ReparentFrameViewList(nsPresContext*     aPresContext,
+                                        const nsFrameList& aChildFrameList,
+                                        nsIFrame*          aOldParentFrame,
+                                        nsIFrame*          aNewParentFrame);
 
   /**
    * Helper method to create next-in-flows if necessary. If aFrame

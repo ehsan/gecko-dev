@@ -94,6 +94,7 @@ using namespace QtMobility;
 #endif
 
 #include "nsToolkit.h"
+#include "nsIDeviceContext.h"
 #include "nsIdleService.h"
 #include "nsRenderingContext.h"
 #include "nsIRegion.h"
@@ -155,6 +156,9 @@ nsRefPtr<nsShmImage> gShmImage;
 
 static int gBufferPixmapUsageCount = 0;
 static gfxIntSize gBufferMaxSize(0, 0);
+
+/* For PrepareNativeWidget */
+static NS_DEFINE_IID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
 
 // initialization static functions 
 static nsresult    initialize_prefs        (void);
@@ -2182,7 +2186,7 @@ nsWindow::Create(nsIWidget        *aParent,
                  nsNativeWidget    aNativeParent,
                  const nsIntRect  &aRect,
                  EVENT_CALLBACK    aHandleEventFunction,
-                 nsDeviceContext *aContext,
+                 nsIDeviceContext *aContext,
                  nsIAppShell      *aAppShell,
                  nsIToolkit       *aToolkit,
                  nsWidgetInitData *aInitData)
@@ -2240,7 +2244,7 @@ nsWindow::Create(nsIWidget        *aParent,
 already_AddRefed<nsIWidget>
 nsWindow::CreateChild(const nsIntRect&  aRect,
                       EVENT_CALLBACK    aHandleEventFunction,
-                      nsDeviceContext* aContext,
+                      nsIDeviceContext* aContext,
                       nsIAppShell*      aAppShell,
                       nsIToolkit*       aToolkit,
                       nsWidgetInitData* aInitData,

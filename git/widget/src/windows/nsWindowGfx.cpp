@@ -65,6 +65,7 @@ using mozilla::plugins::PluginInstanceParent;
 #include "nsGfxCIID.h"
 #include "gfxContext.h"
 #include "nsRenderingContext.h"
+#include "nsIDeviceContext.h"
 #include "prmem.h"
 
 #include "LayerManagerOGL.h"

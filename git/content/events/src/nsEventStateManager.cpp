@@ -86,6 +86,7 @@
 #include "nsIViewManager.h"
 #include "nsISelection.h"
 #include "nsFrameSelection.h"
+#include "nsIDeviceContext.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"

@@ -76,6 +76,7 @@
 #include "nsReadableUtils.h"
 
 #include "nsColor.h"
+#include "nsIDeviceContext.h"
 #include "nsGfxCIID.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDocShell.h"

@@ -138,6 +138,7 @@
 #include "nsILocalFile.h"
 #include "nsFontMetrics.h"
 #include "nsIFontEnumerator.h"
+#include "nsIDeviceContext.h"
 #include "nsILookAndFeel.h"
 #include "nsGUIEvent.h"
 #include "nsFont.h"
@@ -549,7 +550,7 @@ nsWindow::Create(nsIWidget *aParent,
                  nsNativeWidget aNativeParent,
                  const nsIntRect &aRect,
                  EVENT_CALLBACK aHandleEventFunction,
-                 nsDeviceContext *aContext,
+                 nsIDeviceContext *aContext,
                  nsIAppShell *aAppShell,
                  nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
