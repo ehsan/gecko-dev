@@ -312,7 +312,7 @@ var UIManager = {
 
 #ifdef XP_WIN
     // Restore the full height when showing TabView
-    gTabViewFrame.style.marginTop = "22px";
+    gTabViewFrame.style.marginTop = 0;
 #endif
     gTabViewDeck.selectedIndex = 1;
     gTabViewFrame.contentWindow.focus();
@@ -440,6 +440,14 @@ var UIManager = {
               tab.tabItem.setZoomPrep(false);
             self.showTabView();
           }
+          // ToDo: When running unit tests, everything happens so quick so
+          // new tabs might be added after a tab is closing. Therefore, this
+          // hack is used. We should look for a better solution.
+          setTimeout(function() { // Marshal event from chrome thread to DOM thread
+            if ((groupItem && groupItem._children.length > 0) ||
+              (groupItem == null && gBrowser.visibleTabs.length > 0))
+              self.hideTabView();
+          }, 1);
         }
       }
     });
