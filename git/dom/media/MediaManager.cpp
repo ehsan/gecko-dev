@@ -41,7 +41,7 @@
 #include "MediaEngineWebRTC.h"
 #endif
 
-#ifdef MOZ_B2G
+#ifdef MOZ_WIDGET_GONK
 #include "MediaPermissionGonk.h"
 #endif
 
@@ -780,7 +780,7 @@ public:
     , mListener(aListener)
     , mPrefs(aPrefs)
     , mDeviceChosen(false)
-    , mBackend(nullptr)
+    , mBackendChosen(false)
     , mManager(MediaManager::GetInstance())
   {}
 
@@ -804,11 +804,15 @@ public:
     , mListener(aListener)
     , mPrefs(aPrefs)
     , mDeviceChosen(false)
+    , mBackendChosen(true)
     , mBackend(aBackend)
     , mManager(MediaManager::GetInstance())
   {}
 
   ~GetUserMediaRunnable() {
+    if (mBackendChosen) {
+      delete mBackend;
+    }
   }
 
   /**
@@ -830,15 +834,14 @@ public:
     MOZ_ASSERT(mSuccess.mRawPtr);
     MOZ_ASSERT(mError.mRawPtr);
 
-    MediaEngine* backend = mBackend;
     // Was a backend provided?
-    if (!backend) {
-      backend = mManager->GetBackend(mWindowID);
+    if (!mBackendChosen) {
+      mBackend = mManager->GetBackend(mWindowID);
     }
 
     // Was a device provided?
     if (!mDeviceChosen) {
-      nsresult rv = SelectDevice(backend);
+      nsresult rv = SelectDevice();
       if (rv != NS_OK) {
         return rv;
       }
@@ -914,12 +917,12 @@ public:
   }
 
   nsresult
-  SelectDevice(MediaEngine* backend)
+  SelectDevice()
   {
     MOZ_ASSERT(mSuccess.mRawPtr);
     MOZ_ASSERT(mError.mRawPtr);
     if (mConstraints.mPicture || mConstraints.mVideo) {
-      ScopedDeletePtr<SourceSet> sources (GetSources(backend,
+      ScopedDeletePtr<SourceSet> sources (GetSources(mBackend,
           mConstraints.mVideom, &MediaEngine::EnumerateVideoDevices));
 
       if (!sources->Length()) {
@@ -933,7 +936,7 @@ public:
     }
 
     if (mConstraints.mAudio) {
-      ScopedDeletePtr<SourceSet> sources (GetSources(backend,
+      ScopedDeletePtr<SourceSet> sources (GetSources(mBackend,
           mConstraints.mAudiom, &MediaEngine::EnumerateAudioDevices));
 
       if (!sources->Length()) {
@@ -1033,8 +1036,9 @@ private:
   MediaEnginePrefs mPrefs;
 
   bool mDeviceChosen;
+  bool mBackendChosen;
 
-  RefPtr<MediaEngine> mBackend;
+  MediaEngine* mBackend;
   nsRefPtr<MediaManager> mManager; // get ref to this when creating the runnable
 };
 
@@ -1324,10 +1328,10 @@ MediaManager::GetUserMedia(JSContext* aCx, bool aPrivileged,
     // Force MediaManager to startup before we try to access it from other threads
     // Hack: should init singleton earlier unless it's expensive (mem or CPU)
     (void) MediaManager::Get();
-#ifdef MOZ_B2G
+#ifdef MOZ_WIDGET_GONK
     // Initialize MediaPermissionManager before send out any permission request.
     (void) MediaPermissionManager::GetInstance();
-#endif //MOZ_B2G
+#endif //MOZ_WIDGET_GONK
   }
 
   // Store the WindowID in a hash table and mark as active. The entry is removed

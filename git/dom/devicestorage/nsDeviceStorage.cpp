@@ -51,7 +51,6 @@
 #include "nsIDocument.h"
 #include <algorithm>
 #include "private/pprio.h"
-#include "nsContentPermissionHelper.h"
 
 #include "mozilla/dom/DeviceStorageBinding.h"
 
@@ -1772,14 +1771,17 @@ nsDOMDeviceStorageCursor::GetStorageType(nsAString & aType)
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::GetTypes(nsIArray** aTypes)
+nsDOMDeviceStorageCursor::GetType(nsACString & aType)
 {
-  nsCString type;
-  nsresult rv =
-    DeviceStorageTypeChecker::GetPermissionForType(mFile->mStorageType, type);
-  NS_ENSURE_SUCCESS(rv, rv);
+  return DeviceStorageTypeChecker::GetPermissionForType(mFile->mStorageType,
+                                                        aType);
+}
 
-  return CreatePermissionArray(type, NS_LITERAL_CSTRING("read"), aTypes);
+NS_IMETHODIMP
+nsDOMDeviceStorageCursor::GetAccess(nsACString & aAccess)
+{
+  aAccess = NS_LITERAL_CSTRING("read");
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2384,10 +2386,8 @@ public:
       if (NS_FAILED(rv)) {
         return rv;
       }
-      nsTArray<PermissionRequest> permArray;
-      permArray.AppendElement(PermissionRequest(type, access));
       child->SendPContentPermissionRequestConstructor(
-        this, permArray, IPC::Principal(mPrincipal));
+        this, type, access, IPC::Principal(mPrincipal));
 
       Sendprompt();
       return NS_OK;
@@ -2401,23 +2401,26 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHODIMP GetTypes(nsIArray** aTypes)
+  NS_IMETHOD GetType(nsACString & aType)
   {
     nsCString type;
-    nsresult rv =
-      DeviceStorageTypeChecker::GetPermissionForType(mFile->mStorageType, type);
+    nsresult rv
+      = DeviceStorageTypeChecker::GetPermissionForType(mFile->mStorageType,
+                                                       aType);
     if (NS_FAILED(rv)) {
       return rv;
     }
+    return NS_OK;
+  }
 
-    nsCString access;
-    rv = DeviceStorageTypeChecker::GetAccessForRequest(
-      DeviceStorageRequestType(mRequestType), access);
+  NS_IMETHOD GetAccess(nsACString & aAccess)
+  {
+    nsresult rv = DeviceStorageTypeChecker::GetAccessForRequest(
+      DeviceStorageRequestType(mRequestType), aAccess);
     if (NS_FAILED(rv)) {
       return rv;
     }
-
-    return CreatePermissionArray(type, access, aTypes);
+    return NS_OK;
   }
 
   NS_IMETHOD GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
@@ -3554,10 +3557,8 @@ nsDOMDeviceStorage::EnumerateInternal(const nsAString& aPath,
     if (aRv.Failed()) {
       return nullptr;
     }
-    nsTArray<PermissionRequest> permArray;
-    permArray.AppendElement(PermissionRequest(type, NS_LITERAL_CSTRING("read")));
-    child->SendPContentPermissionRequestConstructor(r,
-                                                    permArray,
+    child->SendPContentPermissionRequestConstructor(r, type,
+                                                    NS_LITERAL_CSTRING("read"),
                                                     IPC::Principal(mPrincipal));
 
     r->Sendprompt();

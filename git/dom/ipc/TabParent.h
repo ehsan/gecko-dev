@@ -253,7 +253,8 @@ public:
     virtual bool DeallocPDocumentRendererParent(PDocumentRendererParent* actor) MOZ_OVERRIDE;
 
     virtual PContentPermissionRequestParent*
-    AllocPContentPermissionRequestParent(const InfallibleTArray<PermissionRequest>& aRequests,
+    AllocPContentPermissionRequestParent(const nsCString& aType,
+                                         const nsCString& aAccess,
                                          const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
     virtual bool
     DeallocPContentPermissionRequestParent(PContentPermissionRequestParent* actor) MOZ_OVERRIDE;

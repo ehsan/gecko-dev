@@ -295,12 +295,14 @@ public:
 #ifdef DEBUG
     virtual PContentPermissionRequestChild*
     SendPContentPermissionRequestConstructor(PContentPermissionRequestChild* aActor,
-                                             const InfallibleTArray<PermissionRequest>& aRequests,
+                                             const nsCString& aType,
+                                             const nsCString& aAccess,
                                              const IPC::Principal& aPrincipal);
 #endif /* DEBUG */
 
     virtual PContentPermissionRequestChild*
-    AllocPContentPermissionRequestChild(const InfallibleTArray<PermissionRequest>& aRequests,
+    AllocPContentPermissionRequestChild(const nsCString& aType,
+                                        const nsCString& aAccess,
                                         const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
     virtual bool
     DeallocPContentPermissionRequestChild(PContentPermissionRequestChild* actor) MOZ_OVERRIDE;
