@@ -355,7 +355,7 @@ void nsXPITriggerInfo::SendStatus(const PRUnichar* URL, PRInt32 status)
         if ( NS_FAILED( rv ) )
         {
             // couldn't get event queue -- maybe window is gone or
-            // some similarly catastrophic occurrence
+            // some similarly catastrophic occurrance
             NS_WARNING("failed to dispatch XPITriggerEvent");
         }
     }

@@ -75,8 +75,6 @@ public:
     mWillHandleInstantiation = PR_FALSE;
   }
 
-  void StartLayout() { nsMediaDocument::StartLayout(); }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsPluginDocument, nsMediaDocument)
 protected:
   nsresult CreateSyntheticPluginDocument();
@@ -93,35 +91,22 @@ protected:
 
 class nsPluginStreamListener : public nsMediaDocumentStreamListener
 {
-public:
-  nsPluginStreamListener(nsPluginDocument* doc) :
-    nsMediaDocumentStreamListener(doc),  mPluginDoc(doc) {}
-  NS_IMETHOD OnStartRequest(nsIRequest* request, nsISupports *ctxt);
-private:
-  nsresult SetupPlugin();
-
-  nsRefPtr<nsPluginDocument> mPluginDoc;
+  public:
+    nsPluginStreamListener(nsPluginDocument* doc) :
+       nsMediaDocumentStreamListener(doc),  mPluginDoc(doc) {}
+    NS_IMETHOD OnStartRequest(nsIRequest* request, nsISupports *ctxt);
+  private:
+    nsRefPtr<nsPluginDocument> mPluginDoc;
 };
 
 
 NS_IMETHODIMP
 nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
 {
-  // Have to set up our plugin stuff before we call OnStartRequest, so
-  // that the plugin listener can get that call.
-  nsresult rv = SetupPlugin();
-
-  NS_ASSERTION(NS_FAILED(rv) || mNextStream,
-               "We should have a listener by now");
-  nsresult rv2 = nsMediaDocumentStreamListener::OnStartRequest(request, ctxt);
-  return NS_SUCCEEDED(rv) ? rv2 : rv;
-}
-
-nsresult
-nsPluginStreamListener::SetupPlugin()
-{
-  NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
-  mPluginDoc->StartLayout();
+  nsresult rv = nsMediaDocumentStreamListener::OnStartRequest(request, ctxt);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   nsCOMPtr<nsIContent> embed = mPluginDoc->GetPluginContent();
 
@@ -141,17 +126,18 @@ nsPluginStreamListener::SetupPlugin()
   nsIFrame* frame = shell->GetPrimaryFrameFor(embed);
   if (!frame) {
     mPluginDoc->AllowNormalInstantiation();
-    return NS_OK;
+    return rv;
   }
 
-  nsIObjectFrame* objFrame = do_QueryFrame(frame);
+  nsIObjectFrame* objFrame;
+  CallQueryInterface(frame, &objFrame);
   if (!objFrame) {
     mPluginDoc->AllowNormalInstantiation();
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsresult rv = objFrame->Instantiate(mPluginDoc->GetType().get(),
-                                      mDocument->nsIDocument::GetDocumentURI());
+  rv = objFrame->Instantiate(mPluginDoc->GetType().get(),
+                             mDocument->nsIDocument::GetDocumentURI());
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -160,7 +146,8 @@ nsPluginStreamListener::SetupPlugin()
   // (say if there's a reframe of this entire presentation).
   mPluginDoc->AllowNormalInstantiation();
 
-  return NS_OK;
+  NS_ASSERTION(mNextStream, "We should have a listener by now");
+  return mNextStream->OnStartRequest(request, ctxt);
 }
 
 
@@ -341,7 +328,9 @@ nsPluginDocument::Print()
   nsIFrame* frame = shell->GetPrimaryFrameFor(mPluginContent);
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
-  nsIObjectFrame* objectFrame = do_QueryFrame(frame);
+  nsIObjectFrame* objectFrame = nsnull;
+  CallQueryInterface(frame, &objectFrame);
+
   if (objectFrame) {
     nsCOMPtr<nsIPluginInstance> pi;
     objectFrame->GetPluginInstance(*getter_AddRefs(pi));

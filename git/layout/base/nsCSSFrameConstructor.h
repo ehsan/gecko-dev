@@ -164,7 +164,7 @@ public:
   PRUint32 GetHoverGeneration() const { return mHoverGeneration; }
 
   // Note: It's the caller's responsibility to make sure to wrap a
-  // ProcessRestyledFrames call in a view update batch and a script blocker.
+  // ProcessRestyledFrames call in a view update batch.
   // This function does not call ProcessAttachedQueue() on the binding manager.
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
@@ -198,7 +198,7 @@ public:
                         PRInt32 aNewIndexInContainer);
 
   // Note: It's the caller's responsibility to make sure to wrap a
-  // ProcessPendingRestyles call in a view update batch and a script blocker.
+  // ProcessPendingRestyles call in a view update batch.
   // This function does not call ProcessAttachedQueue() on the binding manager.
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
@@ -1014,25 +1014,29 @@ private:
                                  nsStyleContext*          aStyleContext,
                                  nsFrameItems&            aResult);
 
-  nsresult CreateLetterFrame(nsIFrame*                aBlockFrame,
+  nsresult CreateLetterFrame(nsFrameConstructorState& aState,
+                             nsIFrame*                aBlockFrame,
                              nsIContent*              aTextContent,
                              nsIFrame*                aParentFrame,
                              nsFrameItems&            aResult);
 
-  nsresult WrapFramesInFirstLetterFrame(nsIContent*   aBlockContent,
-                                        nsIFrame*     aBlockFrame,
-                                        nsFrameItems& aBlockFrames);
+  nsresult WrapFramesInFirstLetterFrame(nsFrameConstructorState& aState,
+                                        nsIContent*              aBlockContent,
+                                        nsIFrame*                aBlockFrame,
+                                        nsFrameItems&            aBlockFrames);
 
-  nsresult WrapFramesInFirstLetterFrame(nsIFrame*     aBlockFrame,
-                                        nsIFrame*     aParentFrame,
-                                        nsIFrame*     aParentFrameList,
-                                        nsIFrame**    aModifiedParent,
-                                        nsIFrame**    aTextFrame,
-                                        nsIFrame**    aPrevFrame,
-                                        nsFrameItems& aLetterFrame,
-                                        PRBool*       aStopLooking);
+  nsresult WrapFramesInFirstLetterFrame(nsFrameConstructorState& aState,
+                                        nsIFrame*                aBlockFrame,
+                                        nsIFrame*                aParentFrame,
+                                        nsIFrame*                aParentFrameList,
+                                        nsIFrame**               aModifiedParent,
+                                        nsIFrame**               aTextFrame,
+                                        nsIFrame**               aPrevFrame,
+                                        nsFrameItems&            aLetterFrame,
+                                        PRBool*                  aStopLooking);
 
-  nsresult RecoverLetterFrames(nsIFrame* aBlockFrame);
+  nsresult RecoverLetterFrames(nsFrameConstructorState& aState,
+                               nsIFrame*                aBlockFrame);
 
   // 
   nsresult RemoveLetterFrames(nsPresContext*  aPresContext,

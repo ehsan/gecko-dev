@@ -1826,19 +1826,13 @@ js_NewGCThing(JSContext *cx, uintN flags, size_t nbytes)
     doGC = (rt->gcMallocBytes >= rt->gcMaxMallocBytes && rt->gcPoke);
 #ifdef JS_GC_ZEAL
     doGC = doGC || rt->gcZeal >= 2 || (rt->gcZeal >= 1 && rt->gcPoke);
-# ifdef JS_TRACER
     if (rt->gcZeal >= 1 && JS_TRACE_MONITOR(cx).useReservedObjects)
         goto testReservedObjects;
-# endif
 #endif
 
     arenaList = &rt->gcArenaList[flindex];
     for (;;) {
-        if (doGC
-#ifdef JS_TRACER
-            && !JS_ON_TRACE(cx) && !JS_TRACE_MONITOR(cx).useReservedObjects
-#endif
-            ) {
+        if (doGC && !JS_ON_TRACE(cx) && !JS_TRACE_MONITOR(cx).useReservedObjects) {
             /*
              * Keep rt->gcLock across the call into js_GC so we don't starve
              * and lose to racing threads who deplete the heap just after
@@ -2248,7 +2242,7 @@ js_ReserveObjects(JSContext *cx, size_t nobjects)
 
     return JS_TRUE;
 }
-#endif
+#endif JS_TRACER
 
 JSBool
 js_AddAsGCBytes(JSContext *cx, size_t sz)
@@ -3104,7 +3098,6 @@ js_TraceRuntime(JSTracer *trc, JSBool allAtoms)
     if (rt->gcExtraRootsTraceOp)
         rt->gcExtraRootsTraceOp(trc, rt->gcExtraRootsData);
 
-#ifdef JS_TRACER
 #ifdef JS_THREADSAFE
     /* Trace the loop table(s) which can contain pointers to code objects. */
    while ((acx = js_ContextIterator(rt, JS_FALSE, &iter)) != NULL) {
@@ -3114,7 +3107,6 @@ js_TraceRuntime(JSTracer *trc, JSBool allAtoms)
    }
 #else
    js_TraceTraceMonitor(trc, &rt->traceMonitor);
-#endif
 #endif
 }
 

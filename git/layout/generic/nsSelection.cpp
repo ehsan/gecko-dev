@@ -1627,7 +1627,6 @@ nsFrameSelection::MaintainSelection(nsSelectionAmount aAmount)
   PRInt8 index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
 
   mMaintainedAmount = aAmount;
-  mMaintainRange = nsnull;
   
   nsCOMPtr<nsIDOMNode> startNode;
   nsCOMPtr<nsIDOMNode> endNode;
@@ -1643,9 +1642,7 @@ nsFrameSelection::MaintainSelection(nsSelectionAmount aAmount)
   rv = mDomSelections[index]->GetFocusOffset(&endOffset);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!startNode || !endNode)
-    return NS_OK;
-  
+  mMaintainRange = nsnull;
   NS_NewRange(getter_AddRefs(mMaintainRange));
   if (!mMaintainRange)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -2433,7 +2430,9 @@ nsFrameSelection::GetCellLayout(nsIContent *aCellContent) const
   if (!cellFrame)
     return nsnull;
 
-  nsITableCellLayout *cellLayoutObject = do_QueryFrame(cellFrame);
+  nsITableCellLayout *cellLayoutObject = nsnull;
+  CallQueryInterface(cellFrame, &cellLayoutObject);
+
   return cellLayoutObject;
 }
 
@@ -2446,7 +2445,9 @@ nsFrameSelection::GetTableLayout(nsIContent *aTableContent) const
   if (!tableFrame)
     return nsnull;
 
-  nsITableLayout *tableLayoutObject = do_QueryFrame(tableFrame);
+  nsITableLayout *tableLayoutObject = nsnull;
+  CallQueryInterface(tableFrame, &tableLayoutObject);
+
   return tableLayoutObject;
 }
 
@@ -4592,7 +4593,8 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext,
       frame->SetSelected(aPresContext, nsnull, aFlags, eSpreadDown, mType);
       if (mFrameSelection->GetTableCellSelection())
       {
-        nsITableCellLayout *tcl = do_QueryFrame(frame);
+        nsITableCellLayout *tcl = nsnull;
+        CallQueryInterface(frame, &tcl);
         if (tcl)
         {
           return NS_OK;

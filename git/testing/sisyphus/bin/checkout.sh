@@ -44,18 +44,12 @@ if [[ -z "$BUILDTREE" ]]; then
     error "source tree not specified!" $LINENO
 fi
 
-case $branch in
-    1.8.0);;
-    1.8.1);;
-    1.9.0);;
-    *)
-        if [[ -z "$TEST_MOZILLA_HG" ]]; then
-            error "environment variable TEST_MOZILLA_HG must be set to the hg repository for branch $branch"
-        fi
-        ;;
-esac
+if [[ "$branch" == "1.9.1" ]]; then
 
-if [[ -n "$TEST_MOZILLA_HG" ]]; then
+    if [[ -z "$TEST_MOZILLA_HG" ]]; then
+        error "environment variable TEST_MOZILLA_HG must be set to the hg repository for branch 1.9.1"
+    fi
+
     # maintain a local copy of the hg repository
     # clone specific trees from it.
 
@@ -73,34 +67,11 @@ if [[ -n "$TEST_MOZILLA_HG" ]]; then
 
     cd $TEST_MOZILLA_HG_LOCAL
     hg pull
-    hg update -C
+    hg update
     echo "`hg root` id `hg id`"
 fi
 
 cd $BUILDTREE
-
-if [[ -n "$TEST_MOZILLA_HG" ]]; then
-
-    if [[ ! -d mozilla/.hg ]]; then
-        if ! hg clone $TEST_MOZILLA_HG_LOCAL $BUILDTREE/mozilla; then
-            error "during hg clone of $TEST_MOZILLA_HG_LOCAL" $LINENO
-        fi
-    fi
-
-    cd mozilla
-    hg pull
-    hg update
-
-    hg update -r $TEST_MOZILLA_HG_REV
-
-    echo "`hg root` id `hg id`"
-
-    if [[ -n "$DATE_CO_FLAGS" ]]; then
-        eval hg update $DATE_CO_FLAGS
-        echo "Update to date $MOZ_CO_DATE `hg root` id `hg id`"
-    fi
-    
-fi
 
 case $product in
     firefox)
@@ -119,8 +90,27 @@ case $product in
                 fi
                 ;;
 
-            1.9.1|1.9.2)
+            1.9.1)
 
+                if [[ ! -d mozilla/.hg ]]; then
+                    if ! hg clone $TEST_MOZILLA_HG_LOCAL $BUILDTREE/mozilla; then
+                        error "during hg clone of $TEST_MOZILLA_HG_LOCAL" $LINENO
+                    fi
+                fi
+
+                cd mozilla
+                hg pull
+                hg update
+
+                hg update -r $TEST_MOZILLA_HG_REV
+
+                echo "`hg root` id `hg id`"
+
+                if [[ -n "$DATE_CO_FLAGS" ]]; then
+                    eval hg update $DATE_CO_FLAGS
+                    echo "Update to date $MOZ_CO_DATE `hg root` id `hg id`"
+                fi
+                
                 # do not use mozilla-build on windows systems as we 
                 # must use the cygwin python with the cygwin mercurial.
 
@@ -162,7 +152,26 @@ case $product in
                 fi
                 ;;
 
-            1.9.1|1.9.2)
+            1.9.1)
+                if [[ ! -d mozilla/.hg ]]; then
+                    if ! hg clone $TEST_MOZILLA_HG_LOCAL $BUILDTREE/mozilla; then
+                        error "during hg clone of $TEST_MOZILLA_HG_LOCAL" $LINENO
+                    fi
+                fi
+
+                cd mozilla
+                hg pull
+                hg update
+
+                hg update -r $TEST_MOZILLA_HG_REV
+
+                echo "`hg root` id `hg id`"
+
+                if [[ -n "$DATE_CO_FLAGS" ]]; then
+                    eval hg update $DATE_CO_FLAGS
+                    echo "Update to date $MOZ_CO_DATE `hg root` id `hg id`"
+                fi
+                
 
                 # do not use mozilla-build on windows systems as we 
                 # must use the cygwin python with the cygwin mercurial.
@@ -181,15 +190,33 @@ case $product in
     fennec)
 
         case $branch in
-            1.9.1|1.9.2)
-                
+            1.9.1)
+                if [[ ! -d mozilla/.hg ]]; then
+                    if ! hg clone $TEST_MOZILLA_HG_LOCAL $BUILDTREE/mozilla; then
+                        error "during hg clone of $TEST_MOZILLA_HG_LOCAL" $LINENO
+                    fi
+                fi
+
                 # XXX need to generalize the mobile-browser repository
-                if [[ ! -d mobile/.hg ]]; then
+                if [[ ! -d mozilla/mobile/.hg ]]; then
                     if ! hg clone http://hg.mozilla.org/mobile-browser $BUILDTREE/mozilla/mobile; then
                         error "during hg clone of http://hg.mozilla.org/mobile-browser" $LINENO
                     fi
                 fi
 
+                cd mozilla
+                hg pull
+                hg update
+
+                hg update -r $TEST_MOZILLA_HG_REV
+
+                echo "`hg root` id `hg id`"
+
+                if [[ -n "$DATE_CO_FLAGS" ]]; then
+                    eval hg update $DATE_CO_FLAGS
+                    echo "Update to date $MOZ_CO_DATE `hg root` id `hg id`"
+                fi
+                
                 cd mobile
                 hg pull
                 hg update
@@ -235,7 +262,27 @@ case $product in
                 fi
                 ;;
 
-            1.9.1|1.9.2)
+            1.9.1)
+
+                if [[ ! -d mozilla/.hg ]]; then
+                    if ! hg clone $TEST_MOZILLA_HG_LOCAL $BUILDTREE/mozilla; then
+                        error "during hg clone of $TEST_MOZILLA_HG_LOCAL" $LINENO
+                    fi
+                fi
+
+                cd mozilla
+                hg pull
+                hg update
+
+                hg update -r $TEST_MOZILLA_HG_REV
+
+                echo "`hg root` id `hg id`"
+
+                if [[ -n "$DATE_CO_FLAGS" ]]; then
+                    eval hg update $DATE_CO_FLAGS
+                    echo "Update to date $MOZ_CO_DATE `hg root` id `hg id`"
+                fi
+                
 
                 # do not use mozilla-build on windows systems as we 
                 # must use the cygwin python with the cygwin mercurial.

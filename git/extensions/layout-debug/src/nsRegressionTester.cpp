@@ -111,7 +111,8 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump, nsILocalFile *aD
 
   nsIFrame* root = presShell->GetRootFrame();
 
-  nsIFrameDebug*  fdbg = do_QueryFrame(root);
+  nsIFrameDebug*  fdbg;
+  rv = CallQueryInterface(root, &fdbg);
   if (NS_FAILED(rv)) return rv;
 
   PRBool  dumpStyle = (aFlagsMask & DUMP_FLAGS_MASK_DUMP_STYLE) != 0;

@@ -111,11 +111,7 @@ already_AddRefed<gfxASurface>
 gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                            gfxASurface::gfxImageFormat imageFormat)
 {
-#ifndef WINCE
     gfxASurface *surf = new gfxWindowsSurface(size, imageFormat);
-#else
-    gfxASurface *surf = new gfxImageSurface(size, imageFormat);
-#endif
     NS_IF_ADDREF(surf);
     return surf;
 }
@@ -882,22 +878,22 @@ gfxWindowsPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
 PRBool
 gfxWindowsPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 {
-    // check for strange format flags
-    NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
-                 "strange font format hint set");
-
-    // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
-                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
-        return PR_TRUE;
-    }
-
-    // reject all other formats, known and unknown
-    if (aFormatFlags != 0) {
+    // reject based on format flags
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_EOT | gfxUserFontSet::FLAG_FORMAT_SVG)) {
         return PR_FALSE;
     }
 
-    // no format hint set, need to look at data
+    // exclude AAT fonts on platforms other than Mac OS X, this allows
+    // fonts for complex scripts which require AAT tables to be omitted
+    // on other platforms
+    if ((aFormatFlags & gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT) 
+         && !(aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | gfxUserFontSet::FLAG_FORMAT_TRUETYPE))) {
+        return PR_FALSE;
+    }
+
+    // reject based on filetype in URI
+
+    // otherwise, return true
     return PR_TRUE;
 }
 

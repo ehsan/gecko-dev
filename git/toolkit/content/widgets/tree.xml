@@ -105,11 +105,6 @@
         true
 #endif
       </field>
-      <property name="keepCurrentInView"
-                onget="return (this.getAttribute('keepcurrentinview') == 'true');"
-                onset="if (val) this.setAttribute('keepcurrentinview', 'true');
-                       else this.removeAttribute('keepcurrentinview'); return val;"/>
-
       <property name="enableColumnDrag"
                 onget="return this.hasAttribute('enableColumnDrag');"
                 onset="if (val) this.setAttribute('enableColumnDrag', 'true');
@@ -266,13 +261,6 @@
         </getter>
       </property>
 
-      <constructor><![CDATA[
-          // Bindings that extend this one wouldn't inherit the
-          // chromedir attribute if it would only be set in <content>.
-          this.setAttribute("chromedir", "]]>&locale.dir;<![CDATA[");
-        ]]>
-      </constructor>
-
       <method name="_getNextColumn">
         <parameter name="row"/>
         <parameter name="left"/>
@@ -353,37 +341,23 @@
             var box = this.treeBoxObject;
             box.ensureCellIsVisible(row, column);
 
-            // Get the coordinates of the text inside the cell.
-            var textx = {}, texty = {}, textwidth = {}, textheight = {};
+            var outx = {}, outy = {}, outwidth = {}, outheight = {};
             var coords = box.getCoordsForCellItem(row, column, "text",
-                                                  textx, texty, textwidth, textheight);
+                                                  outx, outy, outwidth, outheight);
 
-            // Get the coordinates of the cell itself.
-            var cellx = {}, cellwidth = {};
-            coords = box.getCoordsForCellItem(row, column, "cell",
-                                              cellx, {}, cellwidth, {});
-
-            // Calculate the top offset of the textbox.
             var style = window.getComputedStyle(input, "");
             var topadj = parseInt(style.borderTopWidth) + parseInt(style.paddingTop);
-            input.top = texty.value - topadj;
+            input.top = outy.value - topadj;
 
-            // The leftside of the textbox is aligned to the left side of the text
-            // in LTR mode, and left side of the cell in RTL mode.
-            var left, widthdiff;
-            if (style.direction == "rtl") {
-              left = cellx.value;
-              widthdiff = cellx.value + cellwidth.value - textx.value - textwidth.value;
-            } else {
-              left = textx.value;
-              widthdiff = textx.value - cellx.value;
-            }
-
+            var left = outx.value;
             input.left = left;
-            input.height = textheight.value + topadj +
+            input.height = outheight.value + topadj +
                            parseInt(style.borderBottomWidth) +
                            parseInt(style.paddingBottom);
-            input.width = cellwidth.value - widthdiff;
+
+            coords = box.getCoordsForCellItem(row, column, "cell",
+                                              outx, outy, outwidth, outheight);
+            input.width = outwidth.value - (left - outx.value);
             input.hidden = false;
 
             input.value = this.view.getCellText(row, column);

@@ -59,10 +59,6 @@ ifdef MOZ_XTF
 PARALLEL_DIRS   += xtf
 endif
 
-ifdef MOZ_SMIL
-PARALLEL_DIRS	+= smil
-endif
-
 ifdef MOZ_MATHML
 PARALLEL_DIRS   += mathml
 endif

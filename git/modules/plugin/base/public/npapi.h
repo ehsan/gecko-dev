@@ -91,7 +91,7 @@
 /*----------------------------------------------------------------------*/
 
 #define NP_VERSION_MAJOR 0
-#define NP_VERSION_MINOR 21
+#define NP_VERSION_MINOR 20
 
 
 /* The OS/2 version of Netscape uses RC_DATA to define the
@@ -370,11 +370,6 @@ typedef enum {
 #endif
 } NPNVariable;
 
-typedef enum {
-  NPNURLVCookie = 501,
-  NPNURLVProxy
-} NPNURLVariable;
-
 /*
  * The type of Tookkit the widgets use
  */
@@ -576,7 +571,6 @@ enum NPEventType {
 #define NPVERS_HAS_NPOBJECT_ENUM            18
 #define NPVERS_HAS_PLUGIN_THREAD_ASYNC_CALL 19
 #define NPVERS_HAS_ALL_NETWORK_STREAMS      20
-#define NPVERS_HAS_URL_AND_AUTH_INFO        21
 
 /*----------------------------------------------------------------------*/
 /*                        Function Prototypes                           */
@@ -667,22 +661,7 @@ void        NP_LOADDS NPN_ForceRedraw(NPP instance);
 void        NP_LOADDS NPN_PushPopupsEnabledState(NPP instance, NPBool enabled);
 void        NP_LOADDS NPN_PopPopupsEnabledState(NPP instance);
 void        NP_LOADDS NPN_PluginThreadAsyncCall(NPP instance,
-                                                void (*func) (void *),
-                                                void *userData);
-NPError     NP_LOADDS NPN_GetValueForURL(NPP instance, NPNURLVariable variable,
-                                         const char *url, char **value,
-                                         uint32_t *len);
-NPError     NP_LOADDS NPN_SetValueForURL(NPP instance, NPNURLVariable variable,
-                                         const char *url, const char *value,
-                                         uint32_t len);
-NPError     NP_LOADDS NPN_GetAuthenticationInfo(NPP instance,
-                                                const char *protocol,
-                                                const char *host, int32_t port,
-                                                const char *scheme,
-                                                const char *realm,
-                                                char **username, uint32_t *ulen,
-                                                char **password,
-                                                uint32_t *plen);
+                                                void (*func) (void *), void *userData);
 
 #ifdef __cplusplus
 }  /* end extern "C" */

@@ -73,7 +73,7 @@ function process_tree(fndecl)
 function process_decl(decl)
 {
   for each (let module in modules)
-    if (module.hasOwnProperty('process_decl'))
+    if (module.hasOwnProperty('process_var'))
       module.process_decl(decl);
 }
 

@@ -69,7 +69,6 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsWidgetsCID.h"
-#include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
 #include "nsXULAppAPI.h"
 #include "nsTextFormatter.h"

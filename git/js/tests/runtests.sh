@@ -74,8 +74,7 @@ usage: runtests.sh -p products -b branches -e extra\\
 variable            description
 ===============     ============================================================
 -p products         space separated list of js, firefox, fennec
--b branches         space separated list of branches 1.8.0, 1.8.1, 1.9.0, 1.9.1,
-                    1.9.2.
+-b branches         space separated list of branches 1.8.0, 1.8.1, 1.9.0, 1.9.1
 -e extra            optional. extra qualifier to pick build tree and mozconfig.
 -T buildtypes       space separated list of build types opt debug
 -B buildcommands    optional space separated list of build commands
@@ -192,7 +191,6 @@ for testlogfile in $testlogfiles; do
     case "$testlogfile" in
         *,js,*) testtype=shell;;
         *,firefox,*) testtype=browser;;
-        *,thunderbird,*) testtype=browser;;
         *,fennec,*) testtype=browser;;
         *) error "unknown testtype in logfile $testlogfile" $LINENO;;
     esac
@@ -209,11 +207,10 @@ for testlogfile in $testlogfiles; do
         *,1.8.1*) branch=1.8.1;;
         *,1.9.0*) branch=1.9.0;;
         *,1.9.1*) branch=1.9.1;;
-        *,1.9.2*) branch=1.9.2;;
         *) error "unknown branch in logfile $testlogfile" $LINENO;;
     esac
 
-    repo=`grep -m 1 '^environment: TEST_MOZILLA_HG=' $testlogfile | sed 's|.*TEST_MOZILLA_HG=http://hg.mozilla.org.*/\([^\/]*\)|\1|'`
+    repo=`grep -m 1 '^environment: TEST_MOZILLA_HG=' $testlogfile | sed 's|.*TEST_MOZILLA_HG=http://hg.mozilla.org/\(.*\)|\1|'`
     if [[ -z "$repo" ]]; then
         repo=CVS
     fi
@@ -230,7 +227,6 @@ for testlogfile in $testlogfiles; do
         -T $buildtype \
         -R $repo \
         -t $testtype \
-        -J "$javascriptoptions" \
         -o "$OSID" \
         -K "$TEST_KERNEL" \
         -A "$TEST_PROCESSORTYPE" \

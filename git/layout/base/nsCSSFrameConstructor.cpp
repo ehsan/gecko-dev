@@ -4142,7 +4142,6 @@ nsCSSFrameConstructor::ConstructDocElementFrame(nsFrameConstructorState& aState,
 #endif
 
   if (NS_UNLIKELY(display->mDisplay == NS_STYLE_DISPLAY_NONE)) {
-    aState.mFrameManager->SetUndisplayedContent(aDocElement, styleContext);
     mInitialContainingBlock = nsnull;
     mRootElementStyleFrame = nsnull;
     return NS_OK;
@@ -4518,7 +4517,8 @@ nsCSSFrameConstructor::ConstructRootFrame(nsIContent*     aDocElement,
                                                   PR_TRUE,
                                                   newFrame);
 
-      nsIScrollableFrame* scrollable = do_QueryFrame(newFrame);
+      nsIScrollableFrame* scrollable;
+      CallQueryInterface(newFrame, &scrollable);
       NS_ENSURE_TRUE(scrollable, NS_ERROR_FAILURE);
 
       nsIScrollableView* scrollableView = scrollable->GetScrollableView();
@@ -4673,8 +4673,8 @@ nsCSSFrameConstructor::ConstructRadioControlFrame(nsIFrame**      aNewFrame,
   radioStyle = mPresShell->StyleSet()->ResolvePseudoStyleFor(aContent,
                                                              nsCSSAnonBoxes::radio,
                                                              aStyleContext);
-  nsIRadioControlFrame* radio = do_QueryFrame(*aNewFrame);
-  if (radio) {
+  nsIRadioControlFrame* radio = nsnull;
+  if (*aNewFrame && NS_SUCCEEDED(CallQueryInterface(*aNewFrame, &radio))) {
     radio->SetRadioButtonFaceStyleContext(radioStyle);
   }
   return NS_OK;
@@ -4694,8 +4694,8 @@ nsCSSFrameConstructor::ConstructCheckboxControlFrame(nsIFrame**      aNewFrame,
   checkboxStyle = mPresShell->StyleSet()->ResolvePseudoStyleFor(aContent,
                                                                 nsCSSAnonBoxes::check, 
                                                                 aStyleContext);
-  nsICheckboxControlFrame* checkbox = do_QueryFrame(*aNewFrame);
-  if (checkbox) {
+  nsICheckboxControlFrame* checkbox = nsnull;
+  if (*aNewFrame && NS_SUCCEEDED(CallQueryInterface(*aNewFrame, &checkbox))) {
     checkbox->SetCheckboxFaceStyleContext(checkboxStyle);
   }
   return NS_OK;
@@ -4772,7 +4772,8 @@ nsCSSFrameConstructor::ConstructButtonFrame(nsFrameConstructorState& aState,
 #ifdef DEBUG
   // Make sure that we're an anonymous content creator exactly when we're a
   // leaf
-  nsIAnonymousContentCreator* creator = do_QueryFrame(buttonFrame);
+  nsIAnonymousContentCreator* creator = nsnull;
+  CallQueryInterface(buttonFrame, &creator);
   NS_ASSERTION(!creator == !isLeaf,
                "Should be creator exactly when we're a leaf");
 #endif
@@ -4790,7 +4791,8 @@ nsCSSFrameConstructor::ConstructButtonFrame(nsFrameConstructorState& aState,
 
 #ifdef DEBUG
     // Make sure that anonymous child creation will have no effect in this case
-    nsIAnonymousContentCreator* creator = do_QueryFrame(blockFrame);
+    nsIAnonymousContentCreator* creator = nsnull;
+    CallQueryInterface(blockFrame, &creator);
     NS_ASSERTION(!creator, "Shouldn't be an anonymous content creator!");
 #endif
 
@@ -4876,7 +4878,8 @@ nsCSSFrameConstructor::ConstructSelectFrame(nsFrameConstructorState& aState,
       ///////////////////////////////////////////////////////////////////
       // Combobox - Old Native Implementation
       ///////////////////////////////////////////////////////////////////
-      nsIComboboxControlFrame* comboBox = do_QueryFrame(comboboxFrame);
+      nsIComboboxControlFrame* comboBox = nsnull;
+      CallQueryInterface(comboboxFrame, &comboBox);
       NS_ASSERTION(comboBox, "NS_NewComboboxControlFrame returned frame that "
                              "doesn't implement nsIComboboxControlFrame");
 
@@ -4890,8 +4893,9 @@ nsCSSFrameConstructor::ConstructSelectFrame(nsFrameConstructorState& aState,
       nsIFrame* listFrame = NS_NewListControlFrame(mPresShell, listStyle);
 
         // Notify the listbox that it is being used as a dropdown list.
-      nsIListControlFrame * listControlFrame = do_QueryFrame(listFrame);
-      if (listControlFrame) {
+      nsIListControlFrame * listControlFrame;
+      rv = CallQueryInterface(listFrame, &listControlFrame);
+      if (NS_SUCCEEDED(rv)) {
         listControlFrame->SetComboboxFrame(comboboxFrame);
       }
          // Notify combobox that it should use the listbox as it's popup
@@ -5111,12 +5115,13 @@ nsCSSFrameConstructor::ConstructFieldSetFrame(nsFrameConstructorState& aState,
   ProcessChildren(aState, aContent, aStyleContext, blockFrame, PR_TRUE,
                   childItems, PR_TRUE);
 
+  static NS_DEFINE_IID(kLegendFrameCID, NS_LEGEND_FRAME_CID);
   nsIFrame * child      = childItems.childList;
   nsIFrame * previous   = nsnull;
-  nsLegendFrame* legendFrame = nsnull;
+  nsIFrame* legendFrame = nsnull;
   while (nsnull != child) {
-    legendFrame = do_QueryFrame(child);
-    if (legendFrame) {
+    nsresult result = child->QueryInterface(kLegendFrameCID, (void**)&legendFrame);
+    if (NS_SUCCEEDED(result) && legendFrame) {
       // We want the legend to be the first frame in the fieldset child list.
       // That way the EventStateManager will do the right thing when tabbing
       // from a selection point within the legend (bug 236071), which is
@@ -5183,7 +5188,8 @@ nsCSSFrameConstructor::ConstructTextFrame(nsFrameConstructorState& aState,
   if (aParentFrame->IsFrameOfType(nsIFrame::eSVG)) {
     nsIFrame *ancestorFrame = SVG_GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
+      nsISVGTextContentMetrics* metrics;
+      CallQueryInterface(ancestorFrame, &metrics);
       if (!metrics) {
         return NS_OK;
       }
@@ -5573,7 +5579,8 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
                                              nsIFrame*                aParentFrame,
                                              nsFrameItems&            aChildItems)
 {
-  nsIAnonymousContentCreator* creator = do_QueryFrame(aParentFrame);
+  nsIAnonymousContentCreator* creator = nsnull;
+  CallQueryInterface(aParentFrame, &creator);
   if (!creator)
     return NS_OK;
 
@@ -6986,7 +6993,8 @@ nsCSSFrameConstructor::ConstructSVGFrame(nsFrameConstructorState& aState,
   else if (aTag == nsGkAtoms::text) {
     nsIFrame *ancestorFrame = SVG_GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
+      nsISVGTextContentMetrics* metrics;
+      CallQueryInterface(ancestorFrame, &metrics);
       // Text cannot be nested
       if (!metrics)
         newFrame = NS_NewSVGTextFrame(mPresShell, aContent, aStyleContext);
@@ -6995,7 +7003,8 @@ nsCSSFrameConstructor::ConstructSVGFrame(nsFrameConstructorState& aState,
   else if (aTag == nsGkAtoms::tspan) {
     nsIFrame *ancestorFrame = SVG_GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
+      nsISVGTextContentMetrics* metrics;
+      CallQueryInterface(ancestorFrame, &metrics);
       if (metrics)
         newFrame = NS_NewSVGTSpanFrame(mPresShell, aContent,
                                        ancestorFrame, aStyleContext);
@@ -8485,12 +8494,13 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
 
   // Recover first-letter frames
   if (haveFirstLetterStyle) {
-    RecoverLetterFrames(containingBlock);
+    RecoverLetterFrames(state, containingBlock);
   }
 
 #ifdef DEBUG
   if (gReallyNoisyContentUpdates) {
-    nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
+    nsIFrameDebug* fdbg = nsnull;
+    CallQueryInterface(parentFrame, &fdbg);
     if (fdbg) {
       printf("nsCSSFrameConstructor::ContentAppended: resulting frame model:\n");
       fdbg->List(stdout, 0);
@@ -8637,7 +8647,8 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
         InvalidateCanvasIfNeeded(docElementFrame);
 #ifdef DEBUG
         if (gReallyNoisyContentUpdates) {
-          nsIFrameDebug* fdbg = do_QueryFrame(docElementFrame);
+          nsIFrameDebug* fdbg = nsnull;
+          CallQueryInterface(docElementFrame, &fdbg);
           if (fdbg) {
             printf("nsCSSFrameConstructor::ContentInserted: resulting frame model:\n");
             fdbg->List(stdout, 0);
@@ -8924,12 +8935,13 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
   if (haveFirstLetterStyle) {
     // Recover the letter frames for the containing block when
     // it has first-letter style.
-    RecoverLetterFrames(state.mFloatedItems.containingBlock);
+    RecoverLetterFrames(state, state.mFloatedItems.containingBlock);
   }
 
 #ifdef DEBUG
   if (gReallyNoisyContentUpdates && parentFrame) {
-    nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
+    nsIFrameDebug* fdbg = nsnull;
+    CallQueryInterface(parentFrame, &fdbg);
     if (fdbg) {
       printf("nsCSSFrameConstructor::ContentInserted: resulting frame model:\n");
       fdbg->List(stdout, 0);
@@ -9307,7 +9319,8 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
       nsFrame::ListTag(stdout, childFrame);
       printf("\n");
 
-      nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
+      nsIFrameDebug* fdbg = nsnull;
+      CallQueryInterface(parentFrame, &fdbg);
       if (fdbg)
         fdbg->List(stdout, 0);
     }
@@ -9366,12 +9379,13 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
       nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
                                     GetAbsoluteContainingBlock(parentFrame),
                                     containingBlock);
-      RecoverLetterFrames(containingBlock);
+      RecoverLetterFrames(state, containingBlock);
     }
 
 #ifdef DEBUG
     if (gReallyNoisyContentUpdates && parentFrame) {
-      nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
+      nsIFrameDebug* fdbg = nsnull;
+      CallQueryInterface(parentFrame, &fdbg);
       if (fdbg) {
         printf("nsCSSFrameConstructor::ContentRemoved: resulting frame model:\n");
         fdbg->List(stdout, 0);
@@ -9664,7 +9678,7 @@ nsCSSFrameConstructor::CharacterDataChanged(nsIContent* aContent,
       nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
                                     GetAbsoluteContainingBlock(frame),
                                     block, nsnull);
-      RecoverLetterFrames(block);
+      RecoverLetterFrames(state, block);
     }
   }
 
@@ -9674,8 +9688,6 @@ nsCSSFrameConstructor::CharacterDataChanged(nsIContent* aContent,
 nsresult
 nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 {
-  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-               "Someone forgot a script blocker");
   PRInt32 count = aChangeList.Count();
   if (!count)
     return NS_OK;
@@ -11242,7 +11254,7 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
                "can't be both block and box");
 
   if (haveFirstLetterStyle) {
-    rv = WrapFramesInFirstLetterFrame(aContent, aFrame, aFrameItems);
+    rv = WrapFramesInFirstLetterFrame(aState, aContent, aFrame, aFrameItems);
   }
   if (haveFirstLineStyle) {
     rv = WrapFramesInFirstLineFrame(aState, aContent, aFrame, aFrameItems);
@@ -11302,13 +11314,6 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
 // Special routine to handle placing a list of frames into a block
 // frame that has first-line style. The routine ensures that the first
 // collection of inline frames end up in a first-line frame.
-// NOTE: aState may have containing block information related to a
-// different part of the frame tree than where the first line occurs.
-// In particular aState may be set up for where ContentInserted or
-// ContentAppended is inserting content, which may be some
-// non-first-in-flow continuation of the block to which the first-line
-// belongs. So this function needs to be careful about how it uses
-// aState.
 nsresult
 nsCSSFrameConstructor::WrapFramesInFirstLineFrame(
   nsFrameConstructorState& aState,
@@ -11774,7 +11779,8 @@ nsCSSFrameConstructor::CreateFloatingLetterFrame(
  * a child of aParentFrame.
  */
 nsresult
-nsCSSFrameConstructor::CreateLetterFrame(nsIFrame* aBlockFrame,
+nsCSSFrameConstructor::CreateLetterFrame(nsFrameConstructorState& aState,
+                                         nsIFrame* aBlockFrame,
                                          nsIContent* aTextContent,
                                          nsIFrame* aParentFrame,
                                          nsFrameItems& aResult)
@@ -11789,10 +11795,13 @@ nsCSSFrameConstructor::CreateLetterFrame(nsIFrame* aBlockFrame,
     nsFrame::CorrectStyleParentFrame(aParentFrame,
                                      nsCSSPseudoElements::firstLetter)->
       GetStyleContext();
-
   // Use content from containing block so that we can actually
   // find a matching style rule.
-  nsIContent* blockContent = aBlockFrame->GetContent();
+  nsIContent* blockContent =
+    aState.mFloatedItems.containingBlock->GetContent();
+
+  NS_ASSERTION(blockContent == aBlockFrame->GetContent(),
+               "Unexpected block content");
 
   // Create first-letter style rule
   nsRefPtr<nsStyleContext> sc = GetFirstLetterStyle(blockContent,
@@ -11805,17 +11814,11 @@ nsCSSFrameConstructor::CreateLetterFrame(nsIFrame* aBlockFrame,
     // pass a temporary stylecontext, the correct one will be set later
     nsIFrame* textFrame = NS_NewTextFrame(mPresShell, textSC);
 
-    NS_ASSERTION(aBlockFrame == GetFloatContainingBlock(aParentFrame),
-                 "Containing block is confused");
-    nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
-                                  GetAbsoluteContainingBlock(aParentFrame),
-                                  aBlockFrame);
-
     // Create the right type of first-letter frame
     const nsStyleDisplay* display = sc->GetStyleDisplay();
     if (display->IsFloating()) {
       // Make a floating first-letter frame
-      CreateFloatingLetterFrame(state, aBlockFrame, aTextContent, textFrame,
+      CreateFloatingLetterFrame(aState, aBlockFrame, aTextContent, textFrame,
                                 blockContent, aParentFrame,
                                 sc, aResult);
     }
@@ -11830,7 +11833,7 @@ nsCSSFrameConstructor::CreateLetterFrame(nsIFrame* aBlockFrame,
         nsIContent* letterContent = aTextContent->GetParent();
         letterFrame->Init(letterContent, aParentFrame, nsnull);
 
-        InitAndRestoreFrame(state, aTextContent, letterFrame, nsnull,
+        InitAndRestoreFrame(aState, aTextContent, letterFrame, nsnull,
                             textFrame);
 
         letterFrame->SetInitialChildList(nsnull, textFrame);
@@ -11845,6 +11848,7 @@ nsCSSFrameConstructor::CreateLetterFrame(nsIFrame* aBlockFrame,
 
 nsresult
 nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
+  nsFrameConstructorState& aState,
   nsIContent*              aBlockContent,
   nsIFrame*                aBlockFrame,
   nsFrameItems&            aBlockFrames)
@@ -11858,7 +11862,7 @@ nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
   nsIFrame* prevFrame = nsnull;
   nsFrameItems letterFrames;
   PRBool stopLooking = PR_FALSE;
-  rv = WrapFramesInFirstLetterFrame(aBlockFrame, aBlockFrame,
+  rv = WrapFramesInFirstLetterFrame(aState, aBlockFrame, aBlockFrame,
                                     aBlockFrames.childList,
                                     &parentFrame, &textFrame, &prevFrame,
                                     letterFrames, &stopLooking);
@@ -11890,7 +11894,7 @@ nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
     }
     else {
       // Take the old textFrame out of the inline parents child list
-      ::DeletingFrameSubtree(mPresShell->FrameManager(), textFrame);
+      ::DeletingFrameSubtree(aState.mFrameManager, textFrame);
       parentFrame->RemoveFrame(nsnull, textFrame);
 
       // Insert in the letter frame(s)
@@ -11903,6 +11907,7 @@ nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
 
 nsresult
 nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
+  nsFrameConstructorState& aState,
   nsIFrame*                aBlockFrame,
   nsIFrame*                aParentFrame,
   nsIFrame*                aParentFrameList,
@@ -11926,7 +11931,7 @@ nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
       nsIContent* textContent = frame->GetContent();
       if (IsFirstLetterContent(textContent)) {
         // Create letter frame to wrap up the text
-        rv = CreateLetterFrame(aBlockFrame, textContent,
+        rv = CreateLetterFrame(aState, aBlockFrame, textContent,
                                aParentFrame, aLetterFrames);
         if (NS_FAILED(rv)) {
           return rv;
@@ -11942,7 +11947,7 @@ nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
     }
     else if (IsInlineFrame(frame) && frameType != nsGkAtoms::brFrame) {
       nsIFrame* kids = frame->GetFirstChild(nsnull);
-      WrapFramesInFirstLetterFrame(aBlockFrame, frame, kids,
+      WrapFramesInFirstLetterFrame(aState, aBlockFrame, frame, kids,
                                    aModifiedParent, aTextFrame,
                                    aPrevFrame, aLetterFrames, aStopLooking);
       if (*aStopLooking) {
@@ -12172,7 +12177,8 @@ nsCSSFrameConstructor::RemoveLetterFrames(nsPresContext* aPresContext,
 
 // Fixup the letter frame situation for the given block
 nsresult
-nsCSSFrameConstructor::RecoverLetterFrames(nsIFrame* aBlockFrame)
+nsCSSFrameConstructor::RecoverLetterFrames(nsFrameConstructorState& aState,
+                                           nsIFrame* aBlockFrame)
 {
   aBlockFrame = aBlockFrame->GetFirstContinuation();
   
@@ -12185,7 +12191,7 @@ nsCSSFrameConstructor::RecoverLetterFrames(nsIFrame* aBlockFrame)
   do {
     // XXX shouldn't this bit be set already (bug 408493), assert instead?
     aBlockFrame->AddStateBits(NS_BLOCK_HAS_FIRST_LETTER_STYLE);
-    rv = WrapFramesInFirstLetterFrame(aBlockFrame, aBlockFrame,
+    rv = WrapFramesInFirstLetterFrame(aState, aBlockFrame, aBlockFrame,
                                       aBlockFrame->GetFirstChild(nsnull),
                                       &parentFrame, &textFrame, &prevFrame,
                                       letterFrames, &stopLooking);
@@ -12200,7 +12206,7 @@ nsCSSFrameConstructor::RecoverLetterFrames(nsIFrame* aBlockFrame)
 
   if (parentFrame) {
     // Take the old textFrame out of the parents child list
-    ::DeletingFrameSubtree(mPresShell->FrameManager(), textFrame);
+    ::DeletingFrameSubtree(aState.mFrameManager, textFrame);
     parentFrame->RemoveFrame(nsnull, textFrame);
 
     // Insert in the letter frame(s)
@@ -12524,15 +12530,16 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
     nsIFrameDebug*  frameDebug;
 
     printf("nsCSSFrameConstructor::ConstructInline:\n");
-    if ( (frameDebug = do_QueryFrame(aNewFrame)) ) {
+    if (NS_SUCCEEDED(CallQueryInterface(aNewFrame, &frameDebug))) {
       printf("  ==> leading inline frame:\n");
       frameDebug->List(stdout, 2);
     }
-    if ( (frameDebug = do_QueryFrame(blockFrame)) ) {
+    if (NS_SUCCEEDED(CallQueryInterface(blockFrame, &frameDebug))) {
       printf("  ==> block frame:\n");
       frameDebug->List(stdout, 2);
     }
-    if ( (frameDebug = do_QueryFrame(inlineFrame)) ) {
+    if (inlineFrame &&
+        NS_SUCCEEDED(CallQueryInterface(inlineFrame, &frameDebug))) {
       printf("  ==> trailing inline frame:\n");
       frameDebug->List(stdout, 2);
     }
@@ -13263,11 +13270,6 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
     return;
   }
 
-  nsAutoScriptBlocker scriptBlocker;
-
-  // Make sure that the viewmanager will outlive the presshell
-  nsIViewManager::UpdateViewBatch batch(mPresShell->GetViewManager());
-
   // Processing the style changes could cause a flush that propagates to
   // the parent frame and thus destroys the pres shell.
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(mPresShell);
@@ -13275,10 +13277,8 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
   // Tell the style set to get the old rule tree out of the way
   // so we can recalculate while maintaining rule tree immutability
   nsresult rv = mPresShell->StyleSet()->BeginReconstruct();
-  if (NS_FAILED(rv)) {
-    batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
+  if (NS_FAILED(rv))
     return;
-  }
 
   // Recalculate all of the style contexts for the document
   // Note that we can ignore the return value of ComputeStyleChangeFor
@@ -13299,7 +13299,6 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
   // reconstructed will still have their old style context pointers
   // until they are destroyed).
   mPresShell->StyleSet()->EndReconstruct();
-  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 }
 
 void
@@ -13460,10 +13459,8 @@ nsCSSFrameConstructor::LazyGenerateChildrenEvent::Run()
       nsFrameConstructorState state(mPresShell, nsnull, nsnull, nsnull);
       nsresult rv = fc->ProcessChildren(state, mContent, frame->GetStyleContext(),
                                         frame, PR_FALSE, childItems, PR_FALSE);
-      if (NS_FAILED(rv)) {
-        fc->EndUpdate();
+      if (NS_FAILED(rv))
         return rv;
-      }
 
       frame->SetInitialChildList(nsnull, childItems.childList);
 

@@ -65,10 +65,6 @@
 #include "nsIDocument.h"
 #include "nsIDOMNodeSelector.h"
 
-#ifdef MOZ_SMIL
-#include "nsISMILAttr.h"
-#endif // MOZ_SMIL
-
 class nsIDOMAttr;
 class nsIDOMEventListener;
 class nsIFrame;
@@ -430,13 +426,6 @@ public:
 
   virtual void DestroyContent();
   virtual void SaveSubtreeState();
-
-#ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* /*aName*/)
-  {
-    return nsnull;
-  }
-#endif // MOZ_SMIL
 
 #ifdef DEBUG
   virtual void List(FILE* out, PRInt32 aIndent) const

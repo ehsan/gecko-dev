@@ -1218,7 +1218,7 @@ nsNavHistory::InitStatements()
 
   // mDBAddNewPage (see InternalAddNewPage)
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "INSERT INTO moz_places_view "
+      "INSERT OR REPLACE INTO moz_places_view "
         "(url, title, rev_host, hidden, typed, frecency) "
       "VALUES (?1, ?2, ?3, ?4, ?5, ?6)"),
     getter_AddRefs(mDBAddNewPage));
@@ -2675,8 +2675,8 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt64 pageID = 0;
-  PRInt32 hidden;
-  PRInt32 typed;
+  PRBool hidden; // XXX fix me, this should not be a PRBool, as we later do BindInt32Parameter()
+  PRBool typed;  // XXX fix me, this should not be a PRBool, as we later do BindInt32Parameter()
   PRBool newItem = PR_FALSE; // used to send out notifications at the end
   if (alreadyVisited) {
     // Update the existing entry...
@@ -2712,11 +2712,11 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
     // (aTransitionType == TRANSITION_TYPED) so that they will appear in
     // the history UI (sidebar, history menu, url bar autocomplete, etc)
     hidden = oldHiddenState;
-    if (hidden == 1 && (!aIsRedirect || aTransitionType == TRANSITION_TYPED) &&
+    if (hidden && (!aIsRedirect || aTransitionType == TRANSITION_TYPED) &&
         aTransitionType != TRANSITION_EMBED)
-      hidden = 0; // unhide
+      hidden = PR_FALSE; // unhide
 
-    typed = (PRInt32)(oldTypedState == 1 || (aTransitionType == TRANSITION_TYPED));
+    typed = oldTypedState || (aTransitionType == TRANSITION_TYPED);
 
     // some items may have a visit count of 0 which will not count for link
     // visiting, so be sure to note this transition
@@ -2745,15 +2745,14 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
 
     // Hide only embedded links and redirects
     // See the hidden computation code above for a little more explanation.
-    hidden = (PRInt32)(aTransitionType == TRANSITION_EMBED || aIsRedirect);
+    hidden = (aTransitionType == TRANSITION_EMBED || aIsRedirect);
 
-    typed = (PRInt32)(aTransitionType == TRANSITION_TYPED);
+    typed = (aTransitionType == TRANSITION_TYPED);
 
     // set as visited once, no title
     nsString voidString;
     voidString.SetIsVoid(PR_TRUE);
-    rv = InternalAddNewPage(aURI, voidString, hidden == 1, typed == 1, 1,
-                            PR_TRUE, &pageID);
+    rv = InternalAddNewPage(aURI, voidString, hidden, typed, 1, PR_TRUE, &pageID);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -6573,12 +6572,13 @@ nsNavHistory::SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle)
 }
 
 nsresult
-nsNavHistory::AddPageWithVisits(nsIURI *aURI,
-                                const nsString &aTitle,
-                                PRInt32 aVisitCount,
-                                PRInt32 aTransitionType,
-                                PRTime aFirstVisitDate,
-                                PRTime aLastVisitDate)
+nsNavHistory::AddPageWithVisit(nsIURI *aURI,
+                               const nsString &aTitle,
+                               PRBool aHidden,
+                               PRBool aTyped,
+                               PRInt32 aVisitCount,
+                               PRInt32 aLastVisitTransition,
+                               PRTime aLastVisitDate)
 {
   PRBool canAdd = PR_FALSE;
   nsresult rv = CanAddURI(aURI, &canAdd);
@@ -6587,69 +6587,16 @@ nsNavHistory::AddPageWithVisits(nsIURI *aURI,
     return NS_OK;
   }
 
-  // see if this is an update (revisit) or a new page
-  mozStorageStatementScoper scoper(mDBGetPageVisitStats);
-  rv = BindStatementURI(mDBGetPageVisitStats, 0, aURI);
+  PRInt64 pageID;
+  // we don't want to calculate frecency here for each uri we import
+  rv = InternalAddNewPage(aURI, aTitle, aHidden, aTyped, aVisitCount, PR_FALSE, &pageID);
   NS_ENSURE_SUCCESS(rv, rv);
-  PRBool alreadyVisited = PR_FALSE;
-  rv = mDBGetPageVisitStats->ExecuteStep(&alreadyVisited);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRInt64 placeId = 0;
-  PRInt32 typed = 0;
-  PRInt32 hidden = 0;
-
-  if (alreadyVisited) {
-    // Update the existing entry
-    rv = mDBGetPageVisitStats->GetInt64(0, &placeId);
-    NS_ENSURE_SUCCESS(rv, rv);
-    // We don't mind visit_count
-    rv = mDBGetPageVisitStats->GetInt32(2, &typed);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBGetPageVisitStats->GetInt32(3, &hidden);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (typed == 0 && aTransitionType == TRANSITION_TYPED) {
-      typed = 1;
-      // Update with new stats
-      mozStorageStatementScoper updateScoper(mDBUpdatePageVisitStats);
-      rv = mDBUpdatePageVisitStats->BindInt64Parameter(0, placeId);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = mDBUpdatePageVisitStats->BindInt32Parameter(1, hidden);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = mDBUpdatePageVisitStats->BindInt32Parameter(2, typed);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = mDBUpdatePageVisitStats->Execute();
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  } else {
-    // Insert the new place entry
-    rv = InternalAddNewPage(aURI, aTitle, hidden == 1,
-                            aTransitionType == TRANSITION_TYPED, 0,
-                            PR_FALSE, &placeId);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_ASSERTION(placeId != 0, "Cannot add a visit to a not existant page");
-
-  if (aFirstVisitDate != -1) {
-    // Add the first visit
-    PRInt64 visitId;
-    rv = InternalAddVisit(placeId, 0, 0,
-                          aFirstVisitDate, aTransitionType, &visitId);
-    aVisitCount--;
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
 
   if (aLastVisitDate != -1) {
-   // Add remaining visits starting from the last one
-   for (PRInt64 i = 0; i < aVisitCount; i++) {
-      PRInt64 visitId;
-      rv = InternalAddVisit(placeId, 0, 0,
-                            aLastVisitDate - i, aTransitionType, &visitId);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    PRInt64 visitID;
+    rv = InternalAddVisit(pageID, 0, 0,
+                          aLastVisitDate, aLastVisitTransition, &visitID);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;
@@ -6705,7 +6652,7 @@ nsNavHistory::RemoveDuplicateURIs()
     getter_AddRefs(annoStatement));
   NS_ENSURE_SUCCESS(rv, rv);
   
-  // this query deletes all duplicate uris except the chosen id
+  // this query deletes all duplicate uris except the choosen id
   nsCOMPtr<mozIStorageStatement> deleteStatement;
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "DELETE FROM moz_places WHERE url = ?1 AND id <> ?2"),

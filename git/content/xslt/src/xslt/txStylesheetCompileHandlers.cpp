@@ -1317,10 +1317,6 @@ txFnStartLRE(PRInt32 aNamespaceID,
         attr = aAttributes + i;
         
         if (attr->mNamespaceID == kNameSpaceID_XSLT) {
-            if (attr->mLocalName == txXSLTAtoms::version) {
-                attr->mLocalName = nsnull;
-            }
-
             continue;
         }
 

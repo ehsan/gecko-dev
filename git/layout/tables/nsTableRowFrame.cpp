@@ -678,25 +678,35 @@ nsTableRowFrame::CalculateCellActualSize(nsIFrame* aCellFrame,
 
 // Calculates the available width for the table cell based on the known
 // column widths taking into account column spans and column spacing
-static nscoord
+static void 
 CalcAvailWidth(nsTableFrame&     aTableFrame,
                nsTableCellFrame& aCellFrame,
-               nscoord           aCellSpacingX)
+               nscoord           aCellSpacingX,
+               nscoord&          aColAvailWidth,
+               nscoord&          aCellAvailWidth)
 {
-  nscoord cellAvailWidth = 0;
+  aColAvailWidth = aCellAvailWidth = NS_UNCONSTRAINEDSIZE;
   PRInt32 colIndex;
   aCellFrame.GetColIndex(colIndex);
   PRInt32 colspan = aTableFrame.GetEffectiveColSpan(aCellFrame);
-  NS_ASSERTION(colspan > 0, "effective colspan should be positive");
+  nscoord cellSpacing = 0;
 
   for (PRInt32 spanX = 0; spanX < colspan; spanX++) {
-    cellAvailWidth += aTableFrame.GetColumnWidth(colIndex + spanX);
-    if (spanX > 0 &&
-        aTableFrame.ColumnHasCellSpacingBefore(colIndex + spanX)) {
-      cellAvailWidth += aCellSpacingX;
+    nscoord colWidth = aTableFrame.GetColumnWidth(colIndex + spanX);
+    if (NS_UNCONSTRAINEDSIZE == aColAvailWidth) {
+      aColAvailWidth = colWidth; 
+    }
+    else {
+      aColAvailWidth += colWidth;
+    }
+    if ((spanX > 0) && aTableFrame.ColumnHasCellSpacingBefore(colIndex + spanX)) {
+      cellSpacing += aCellSpacingX;
     }
   }
-  return cellAvailWidth;
+  if (NS_UNCONSTRAINEDSIZE != aColAvailWidth) {
+    aColAvailWidth += cellSpacing;
+  } 
+  aCellAvailWidth = aColAvailWidth;
 }
 
 nscoord
@@ -762,7 +772,7 @@ GetSpaceBetween(PRInt32       aPrevColIndex,
 
 // subtract the heights of aRow's prev in flows from the unpaginated height
 static
-nscoord CalcHeightFromUnpaginatedHeight(nsPresContext*   aPresContext,
+nscoord CalcHeightFromUnpaginatedHeight(nsPresContext*  aPresContext,
                                         nsTableRowFrame& aRow)
 {
   nscoord height = 0;
@@ -871,8 +881,9 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
 
     if (doReflowChild) {
       // Calculate the available width for the table cell using the known column widths
-      nscoord availCellWidth =
-        CalcAvailWidth(aTableFrame, *cellFrame, cellSpacingX);
+      nscoord availColWidth, availCellWidth;
+      CalcAvailWidth(aTableFrame, *cellFrame, cellSpacingX,
+                     availColWidth, availCellWidth);
 
       nsHTMLReflowMetrics desiredSize;
 
@@ -892,7 +903,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
           HasPctHeight()) {
         // Reflow the cell to fit the available width, height
         // XXX The old IR_ChildIsDirty code used availCellWidth here.
-        nsSize  kidAvailSize(availCellWidth, aReflowState.availableHeight);
+        nsSize  kidAvailSize(availColWidth, aReflowState.availableHeight);
 
         // Reflow the child
         nsTableCellReflowState kidReflowState(aPresContext, aReflowState, 
@@ -959,7 +970,9 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       }
 
       // Place the child
-      desiredSize.width = availCellWidth;
+      if (NS_UNCONSTRAINEDSIZE != availColWidth) {
+        desiredSize.width = PR_MAX(availCellWidth, availColWidth);
+      }
 
       FinishReflowChild(kidFrame, aPresContext, nsnull, desiredSize, x, 0, 0);
 
@@ -1366,7 +1379,7 @@ nsTableRowFrame::GetNextRow() const
 
 void 
 nsTableRowFrame::SetUnpaginatedHeight(nsPresContext* aPresContext,
-                                      nscoord        aValue)
+                                      nscoord         aValue)
 {
   NS_ASSERTION(!GetPrevInFlow(), "program error");
   // Get the property 
