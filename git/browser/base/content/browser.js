@@ -1486,6 +1486,23 @@ function nonBrowserWindowStartup()
     // also hide the window-list separator
     element = document.getElementById("sep-window-list");
     element.setAttribute("hidden", "true");
+
+    // Setup the dock menu.
+    let dockMenuElement = document.getElementById("menu_mac_dockmenu");
+    if (dockMenuElement != null) {
+      let nativeMenu = Cc["@mozilla.org/widget/standalonenativemenu;1"]
+                       .createInstance(Ci.nsIStandaloneNativeMenu);
+
+      try {
+        nativeMenu.init(dockMenuElement);
+
+        let dockSupport = Cc["@mozilla.org/widget/macdocksupport;1"]
+                          .getService(Ci.nsIMacDockSupport);
+        dockSupport.dockMenu = nativeMenu;
+      }
+      catch (e) {
+      }
+    }
   }
 
 
@@ -2656,7 +2673,12 @@ function FillInHTMLTooltip(tipElement)
   while (!titleText && !XLinkTitleText && !SVGTitleText && tipElement) {
     if (tipElement.nodeType == Node.ELEMENT_NODE) {
       titleText = tipElement.getAttribute("title");
-      XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
+      if ((tipElement instanceof HTMLAnchorElement && tipElement.href) ||
+          (tipElement instanceof HTMLAreaElement && tipElement.href) ||
+          (tipElement instanceof HTMLLinkElement && tipElement.href) ||
+          (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))) {
+        XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
+      }
       if (tipElement instanceof SVGElement) {
         let length = tipElement.childNodes.length;
         for (let i = 0; i < length; i++) {
