@@ -6,28 +6,13 @@
 #ifndef mozilla_layers_APZCTreeManager_h
 #define mozilla_layers_APZCTreeManager_h
 
-#include <stdint.h>                     // for uint64_t, uint32_t
-#include "FrameMetrics.h"               // for FrameMetrics, etc
-#include "Units.h"                      // for CSSPoint, CSSRect, etc
-#include "gfxPoint.h"                   // for gfxPoint
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "mozilla/Monitor.h"            // for Monitor
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsEvent.h"                    // for nsEventStatus
-#include "nsISupportsImpl.h"
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-
-class gfx3DMatrix;
-class nsInputEvent;
-template <class E> class nsTArray;
+#include "mozilla/layers/AsyncPanZoomController.h"
+#include "Layers.h"
+#include "CompositorParent.h"
 
 namespace mozilla {
-class InputData;
-
 namespace layers {
 
-class Layer;
 class AsyncPanZoomController;
 class CompositorParent;
 
@@ -116,7 +101,7 @@ class APZCTreeManager {
 
 public:
   APZCTreeManager();
-  virtual ~APZCTreeManager();
+  virtual ~APZCTreeManager() {}
 
   /**
    * Rebuild the APZC tree based on the layer update that just came up. Preserve
@@ -142,6 +127,7 @@ public:
    * General handler for incoming input events. Manipulates the frame metrics
    * based on what type of input it is. For example, a PinchGestureEvent will
    * cause scaling. This should only be called externally to this class.
+   * HandleInputEvent() should be used internally.
    */
   nsEventStatus ReceiveInputEvent(const InputData& aEvent);
 
@@ -250,14 +236,13 @@ public:
      used by other production code.
   */
   already_AddRefed<AsyncPanZoomController> GetTargetAPZC(const ScrollableLayerGuid& aGuid);
-  already_AddRefed<AsyncPanZoomController> GetTargetAPZC(const ScreenPoint& aPoint);
-  void GetInputTransforms(AsyncPanZoomController *aApzc, gfx3DMatrix& aTransformToApzcOut,
-                          gfx3DMatrix& aTransformToScreenOut);
+  already_AddRefed<AsyncPanZoomController> GetTargetAPZC(const ScreenPoint& aPoint, gfx3DMatrix& aTransformToApzcOut,
+                                                         gfx3DMatrix& aTransformToScreenOut);
 private:
-  /* Helpers */
+  /* Recursive helpers */
   AsyncPanZoomController* FindTargetAPZC(AsyncPanZoomController* aApzc, const ScrollableLayerGuid& aGuid);
-  AsyncPanZoomController* GetAPZCAtPoint(AsyncPanZoomController* aApzc, const gfxPoint& aHitTestPoint);
-  AsyncPanZoomController* CommonAncestor(AsyncPanZoomController* aApzc1, AsyncPanZoomController* aApzc2);
+  AsyncPanZoomController* GetAPZCAtPoint(AsyncPanZoomController* aApzc, const gfxPoint& aHitTestPoint,
+                                         gfx3DMatrix& aTransformToApzcOut, gfx3DMatrix& aTransformToScreenOut);
 
   /**
    * Recursive helper function to build the APZC tree. The tree of APZC instances has
@@ -285,12 +270,6 @@ private:
    * is considered part of the APZC tree management state. */
   mozilla::Monitor mTreeLock;
   nsRefPtr<AsyncPanZoomController> mRootApzc;
-  /* This tracks the APZC that should receive all inputs for the current input event block.
-   * This allows touch points to move outside the thing they started on, but still have the
-   * touch events delivered to the same initial APZC. This will only ever be touched on the
-   * input delivery thread, and so does not require locking.
-   */
-  nsRefPtr<AsyncPanZoomController> mApzcForInputBlock;
 };
 
 }

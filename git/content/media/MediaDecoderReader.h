@@ -11,6 +11,7 @@
 #include "mozilla/ReentrantMonitor.h"
 #include "MediaStreamGraph.h"
 #include "SharedBuffer.h"
+#include "ImageLayers.h"
 #include "AudioSampleFormat.h"
 #include "MediaResource.h"
 #include "mozilla/dom/HTMLMediaElement.h"

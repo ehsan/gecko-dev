@@ -763,7 +763,7 @@ js::IteratorConstructor(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JS_ALWAYS_INLINE bool
-IsIterator(HandleValue v)
+IsIterator(const Value &v)
 {
     return v.isObject() && v.toObject().hasClass(&PropertyIteratorObject::class_);
 }
@@ -876,7 +876,7 @@ ElementIteratorObject::create(JSContext *cx, Handle<Value> target)
 }
 
 static bool
-IsElementIterator(HandleValue v)
+IsElementIterator(const Value &v)
 {
     return v.isObject() && v.toObject().is<ElementIteratorObject>();
 }
@@ -1633,7 +1633,7 @@ CloseGenerator(JSContext *cx, HandleObject obj)
 }
 
 JS_ALWAYS_INLINE bool
-IsGenerator(HandleValue v)
+IsGenerator(const Value &v)
 {
     return v.isObject() && v.toObject().is<GeneratorObject>();
 }

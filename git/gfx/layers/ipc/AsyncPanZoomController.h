@@ -616,27 +616,13 @@ private:
    * instance.
    */
 public:
-  void SetLastChild(AsyncPanZoomController* child) {
-    mLastChild = child;
-    if (child) {
-      child->mParent = this;
-    }
-  }
-
-  void SetPrevSibling(AsyncPanZoomController* sibling) {
-    mPrevSibling = sibling;
-    if (sibling) {
-      sibling->mParent = mParent;
-    }
-  }
-
+  void SetLastChild(AsyncPanZoomController* child) { mLastChild = child; }
+  void SetPrevSibling(AsyncPanZoomController* sibling) { mPrevSibling = sibling; }
   AsyncPanZoomController* GetLastChild() const { return mLastChild; }
   AsyncPanZoomController* GetPrevSibling() const { return mPrevSibling; }
-  AsyncPanZoomController* GetParent() const { return mParent; }
 private:
   nsRefPtr<AsyncPanZoomController> mLastChild;
   nsRefPtr<AsyncPanZoomController> mPrevSibling;
-  nsRefPtr<AsyncPanZoomController> mParent;
 
   /* The functions and members in this section are used to maintain the
    * area that this APZC instance is responsible for. This is used when

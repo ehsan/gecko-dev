@@ -1386,7 +1386,7 @@ DateObject::cachedLocalTime(DateTimeInfo *dtInfo)
 }
 
 JS_ALWAYS_INLINE bool
-IsDate(HandleValue v)
+IsDate(const Value &v)
 {
     return v.isObject() && v.toObject().is<DateObject>();
 }

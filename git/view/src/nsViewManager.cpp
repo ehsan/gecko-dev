@@ -25,7 +25,7 @@
 #include "mozilla/Preferences.h"
 #include "nsContentUtils.h" // for nsAutoScriptBlocker
 #include "nsLayoutUtils.h"
-#include "Layers.h"
+#include "mozilla/layers/Compositor.h"
 
 /**
    XXX TODO XXX

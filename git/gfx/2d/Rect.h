@@ -10,7 +10,6 @@
 #include "BaseMargin.h"
 #include "Point.h"
 #include "Tools.h"
-#include "nsMathUtils.h"
 
 namespace mozilla {
 namespace gfx {

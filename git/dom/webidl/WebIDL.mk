@@ -444,7 +444,6 @@ webidl_files += \
   MozStkCommandEvent.webidl \
   Telephony.webidl \
   TelephonyCall.webidl \
-  TelephonyCallGroup.webidl \
   $(NULL)
 endif
 

@@ -866,7 +866,7 @@ class MapIteratorObject : public JSObject
     static void finalize(FreeOp *fop, JSObject *obj);
 
   private:
-    static inline bool is(HandleValue v);
+    static inline bool is(const Value &v);
     inline ValueMap::Range *range();
     inline MapObject::IteratorKind kind() const;
     static bool next_impl(JSContext *cx, CallArgs args);
@@ -956,7 +956,7 @@ MapIteratorObject::finalize(FreeOp *fop, JSObject *obj)
 }
 
 bool
-MapIteratorObject::is(HandleValue v)
+MapIteratorObject::is(const Value &v)
 {
     return v.isObject() && v.toObject().hasClass(&class_);
 }
@@ -1208,7 +1208,7 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
-MapObject::is(HandleValue v)
+MapObject::is(const Value &v)
 {
     return v.isObject() && v.toObject().hasClass(&class_) && v.toObject().getPrivate();
 }
@@ -1433,7 +1433,7 @@ class SetIteratorObject : public JSObject
     static void finalize(FreeOp *fop, JSObject *obj);
 
   private:
-    static inline bool is(HandleValue v);
+    static inline bool is(const Value &v);
     inline ValueSet::Range *range();
     inline SetObject::IteratorKind kind() const;
     static bool next_impl(JSContext *cx, CallArgs args);
@@ -1522,7 +1522,7 @@ SetIteratorObject::finalize(FreeOp *fop, JSObject *obj)
 }
 
 bool
-SetIteratorObject::is(HandleValue v)
+SetIteratorObject::is(const Value &v)
 {
     return v.isObject() && v.toObject().is<SetIteratorObject>();
 }
@@ -1683,7 +1683,7 @@ SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
-SetObject::is(HandleValue v)
+SetObject::is(const Value &v)
 {
     return v.isObject() && v.toObject().hasClass(&class_) && v.toObject().getPrivate();
 }

@@ -6,7 +6,6 @@ import collections
 import gyp
 import gyp.common
 import sys
-import platform
 import os
 import re
 import shlex
@@ -115,25 +114,15 @@ def ensure_directory_exists(path):
 
 def GetFlavor(params):
   """Returns |params.flavor| if it's set, the system's default flavor else."""
-  system = platform.system().lower()
   flavors = {
-    'microsoft': 'win',
-    'windows'  : 'win',
-    'cygwin'   : 'win',
-    'darwin'   : 'mac',
-    'sunos'    : 'solaris',
-    'dragonfly': 'dragonfly',
-    'freebsd'  : 'freebsd',
-    'netbsd'   : 'netbsd',
-    'openbsd'  : 'openbsd',
+    'win32': 'win',
+    'darwin': 'mac',
+    'sunos5': 'solaris',
+    'freebsd7': 'freebsd',
+    'freebsd8': 'freebsd',
   }
-
-  if 'flavor' in params:
-    return params['flavor']
-  if system in flavors:
-    return flavors[system]
-
-  return 'linux'
+  flavor = flavors.get(sys.platform, 'linux')
+  return params.get('flavor', flavor)
 
 
 def CalculateVariables(default_variables, params):
@@ -468,8 +457,8 @@ def GenerateOutput(target_list, target_dicts, data, params):
                  "--depth=%s" % topsrcdir_path(options.depth),
                  "--generator-output=%s" % objdir_path(options.generator_output),
                  "--toplevel-dir=$(topsrcdir)",
+                 #XXX: handle other generator_flags gracefully?
                  "-G OBJDIR=$(DEPTH)"] + \
-                 ['-G %s' % g for g in options.generator_flags if not g.startswith('OBJDIR=')] + \
                  ['-D%s' % d for d in options.defines] + \
                  [topsrcdir_path(b) for b in params['build_files']]
 
