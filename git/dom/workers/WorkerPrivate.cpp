@@ -3375,7 +3375,7 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
     mLocationInfo.mHost.Assign(mLocationInfo.mHostname);
   }
 
-  nsContentUtils::GetUTFOrigin(aBaseURI, mLocationInfo.mOrigin);
+  nsContentUtils::GetUTFNonNullOrigin(aBaseURI, mLocationInfo.mOrigin);
 }
 
 template <class Derived>
