@@ -484,7 +484,7 @@ struct MessageWindow {
             ::_snwprintf(classNameBuffer,
                          128,   // size of classNameBuffer in PRUnichars
                          L"%s%s",
-                         NS_ConvertUTF8toUTF16(gAppData->remotingName).get(),
+                         NS_ConvertUTF8toUTF16(gAppData->name).get(),
                          L"MessageWindow" );
             mClassName = classNameBuffer;
         }

@@ -139,7 +139,6 @@ private:
 
     nsRefPtr<nsToolkitProfile>  mFirst;
     nsCOMPtr<nsIToolkitProfile> mChosen;
-    nsCOMPtr<nsIToolkitProfile> mDefault;
     nsCOMPtr<nsIFile>           mAppData;
     nsCOMPtr<nsIFile>           mTempData;
     nsCOMPtr<nsIFile>           mListFile;
@@ -425,7 +424,6 @@ nsToolkitProfileService::Init()
     nsToolkitProfile* currentProfile = nullptr;
 
     unsigned int c = 0;
-    bool foundAuroraDefault = false;
     for (c = 0; true; ++c) {
         nsAutoCString profileID("Profile");
         profileID.AppendInt(c);
@@ -443,9 +441,7 @@ nsToolkitProfileService::Init()
             continue;
         }
 
-        nsAutoCString name;
-
-        rv = parser.GetString(profileID.get(), "Name", name);
+        rv = parser.GetString(profileID.get(), "Name", buffer);
         if (NS_FAILED(rv)) {
             NS_ERROR("Malformed profiles.ini: Name= not found");
             continue;
@@ -474,48 +470,15 @@ nsToolkitProfileService::Init()
             localDir = rootDir;
         }
 
-        currentProfile = new nsToolkitProfile(name,
+        currentProfile = new nsToolkitProfile(buffer,
                                               rootDir, localDir,
                                               currentProfile, false);
         NS_ENSURE_TRUE(currentProfile, NS_ERROR_OUT_OF_MEMORY);
 
         rv = parser.GetString(profileID.get(), "Default", buffer);
-        if (NS_SUCCEEDED(rv) && buffer.EqualsLiteral("1") && !foundAuroraDefault) {
+        if (NS_SUCCEEDED(rv) && buffer.EqualsLiteral("1"))
             mChosen = currentProfile;
-            this->SetDefaultProfile(currentProfile);
-        }
-#ifdef MOZ_DEV_EDITION
-        // Use the dev-edition-default profile if this is an Aurora build.
-        if (name.EqualsLiteral("dev-edition-default")) {
-            mChosen = currentProfile;
-            foundAuroraDefault = true;
-        }
-#endif
     }
-
-#ifdef MOZ_DEV_EDITION
-    // Check if we are running Firefox, as we don't want to create a profile
-    // on webapprt.
-    bool isFirefox = strcmp(gAppData->ID,
-                            "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}") == 0;
-    if (!foundAuroraDefault && isFirefox) {
-        // If a single profile exists, it may not be already marked as default.
-        // Do it now to avoid problems when we create the dev-edition-default profile.
-        if (!mChosen && mFirst && !mFirst->mNext)
-            this->SetDefaultProfile(mFirst);
-
-        // Create a default profile for aurora, if none was found.
-        nsCOMPtr<nsIToolkitProfile> profile;
-        rv = CreateProfile(nullptr,
-                           NS_LITERAL_CSTRING("dev-edition-default"),
-                           getter_AddRefs(profile));
-        if (NS_FAILED(rv)) return rv;
-        mChosen = profile;
-        rv = Flush();
-        if (NS_FAILED(rv)) return rv;
-    }
-#endif
-
     if (!mChosen && mFirst && !mFirst->mNext) // only one profile
         mChosen = mFirst;
     return NS_OK;
@@ -601,25 +564,6 @@ nsToolkitProfileService::SetSelectedProfile(nsIToolkitProfile* aProfile)
 {
     if (mChosen != aProfile) {
         mChosen = aProfile;
-        mDirty = true;
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsToolkitProfileService::GetDefaultProfile(nsIToolkitProfile* *aResult)
-{
-    if (!mDefault) return NS_ERROR_FAILURE;
-
-    NS_ADDREF(*aResult = mDefault);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsToolkitProfileService::SetDefaultProfile(nsIToolkitProfile* aProfile)
-{
-    if (mDefault != aProfile) {
-        mDefault = aProfile;
         mDirty = true;
     }
     return NS_OK;
@@ -988,9 +932,7 @@ nsToolkitProfileService::Flush()
                        pCount, cur->mName.get(),
                        isRelative ? "1" : "0", path.get());
 
-        nsCOMPtr<nsIToolkitProfile> profile;
-        rv = this->GetDefaultProfile(getter_AddRefs(profile));
-        if (NS_SUCCEEDED(rv) && profile == cur) {
+        if (mChosen == cur) {
             end += sprintf(end, "Default=1\n");
         }
 
