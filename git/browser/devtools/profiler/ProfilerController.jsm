@@ -22,21 +22,14 @@ XPCOMUtils.defineLazyGetter(this, "DebuggerServer", function () {
  * Object acting as a mediator between the ProfilerController and
  * DebuggerServer.
  */
-function ProfilerConnection(client) {
+function ProfilerConnection() {
   if (!DebuggerServer.initialized) {
     DebuggerServer.init();
     DebuggerServer.addBrowserActors();
   }
 
-  this.isRemote = true;
-
-  if (!client) {
-    let transport = DebuggerServer.connectPipe();
-    client = new DebuggerClient(transport);
-    this.isRemote = false;
-  }
-
-  this.client = client;
+  let transport = DebuggerServer.connectPipe();
+  this.client = new DebuggerClient(transport);
 }
 
 ProfilerConnection.prototype = {
@@ -51,20 +44,12 @@ ProfilerConnection.prototype = {
   connect: function PCn_connect(aCallback) {
     let client = this.client;
 
-    let listTabs = function () {
+    client.connect(function (aType, aTraits) {
       client.listTabs(function (aResponse) {
         this.actor = aResponse.profilerActor;
         aCallback();
       }.bind(this));
-    }.bind(this);
-
-    if (this.isRemote) {
-      return void listTabs();
-    }
-
-    client.connect(function (aType, aTraits) {
-      listTabs();
-    });
+    }.bind(this));
   },
 
   /**
@@ -138,14 +123,8 @@ ProfilerConnection.prototype = {
 /**
  * Object defining the profiler controller components.
  */
-function ProfilerController(target) {
-  let client;
-
-  if (target.isRemote) {
-    client = target.client;
-  }
-
-  this.profiler = new ProfilerConnection(client);
+function ProfilerController() {
+  this.profiler = new ProfilerConnection();
   this._connected = false;
 }
 

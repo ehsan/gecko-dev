@@ -55,14 +55,8 @@ function testCSSPruning(hudRef) {
     },
     successFn: function()
     {
-      is(Object.keys(hudRef.ui._cssNodes).length, LOG_LIMIT,
+      ok(!hudRef.ui._cssNodes["css log x"],
          "repeated nodes pruned from cssNodes");
-
-      let msg = hudRef.outputNode.querySelector(".webconsole-msg-cssparser " +
-                                                ".webconsole-msg-repeat");
-      is(msg.getAttribute("value"), 1,
-         "repeated nodes pruned from cssNodes (confirmed)");
-
       finishTest();
     },
     failureFn: finishTest,
@@ -72,12 +66,7 @@ function testCSSPruning(hudRef) {
     name: "repeated nodes in cssNodes",
     validatorFn: function()
     {
-      let msg = hudRef.outputNode.querySelector(".webconsole-msg-cssparser " +
-                                                ".webconsole-msg-repeat");
-      if (msg) {
-        console.debug(msg, msg.getAttribute("value"));
-      }
-      return msg && msg.getAttribute("value") == 5;
+      return hudRef.ui._cssNodes["css log x"];
     },
     successFn: function()
     {

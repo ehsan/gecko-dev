@@ -32,6 +32,7 @@ EXPORTS	= \
 	gfxFont.h \
 	gfxFontConstants.h \
 	gfxFontFeatures.h \
+	gfxFontMissingGlyphs.h \
 	gfxFontUtils.h \
 	gfxFontTest.h \
 	gfxImageSurface.h \

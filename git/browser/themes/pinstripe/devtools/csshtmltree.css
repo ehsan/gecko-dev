@@ -126,7 +126,7 @@
   background-color: -moz-dialog;
 }
 
-.includebrowserstyles {
+.onlyuserstyles {
   cursor: pointer;
   font-size: 11px;
 }

@@ -13,8 +13,6 @@ var gInstanceUID;
  *    - loaded, when page is loaded.
  *    - start, when user wants to start profiling.
  *    - stop, when user wants to stop profiling.
- *    - disabled, when the profiler was disabled
- *    - enabled, when the profiler was enabled
  */
 function notifyParent(status) {
   if (!gInstanceUID) {
@@ -47,34 +45,18 @@ function notifyParent(status) {
 function onParentMessage(event) {
   var start = document.getElementById("startWrapper");
   var stop = document.getElementById("stopWrapper");
-  var profilerMessage = document.getElementById("profilerMessage");
   var msg = JSON.parse(event.data);
 
   switch (msg.task) {
     case "onStarted":
-      if (msg.isCurrent) {
-        start.style.display = "none";
-        start.querySelector("button").removeAttribute("disabled");
-        stop.style.display = "inline";
-      } else {
-        start.querySelector("button").setAttribute("disabled", true);
-        var text = gStrings.getFormatStr("profiler.alreadyRunning", [msg.uid]);
-        profilerMessage.textContent = text;
-        profilerMessage.style.display = "block";
-        notifyParent("disabled");
-      }
+      start.style.display = "none";
+      start.querySelector("button").removeAttribute("disabled");
+      stop.style.display = "inline";
       break;
     case "onStopped":
-      if (msg.isCurrent) {
-        stop.style.display = "none";
-        stop.querySelector("button").removeAttribute("disabled");
-        start.style.display = "inline";
-      } else {
-        start.querySelector("button").removeAttribute("disabled");
-        profilerMessage.textContent = "";
-        profilerMessage.style.display = "none";
-        notifyParent("enabled");
-      }
+      stop.style.display = "none";
+      stop.querySelector("button").removeAttribute("disabled");
+      start.style.display = "inline";
       break;
     case "receiveProfileData":
       loadProfile(JSON.stringify(msg.rawProfile));
@@ -125,8 +107,7 @@ function initUI() {
   controlPane.className = "controlPane";
   controlPane.innerHTML =
     "<p id='startWrapper'>" + startProfiling + "</p>" +
-    "<p id='stopWrapper'>" + stopProfiling + "</p>" +
-    "<p id='profilerMessage'></p>";
+    "<p id='stopWrapper'>" + stopProfiling + "</p>";
 
   controlPane.querySelector("#startWrapper > span.btn").appendChild(startButton);
   controlPane.querySelector("#stopWrapper > span.btn").appendChild(stopButton);
@@ -232,35 +213,4 @@ function enterFinishedProfileUI() {
   }
 
   toggleJavascriptOnly();
-}
-
-function enterProgressUI() {
-  var pane = document.createElement("div");
-  var label = document.createElement("a");
-  var bar = document.createElement("progress");
-  var string = gStrings.getStr("profiler.loading");
-
-  pane.className = "profileProgressPane";
-  pane.appendChild(label);
-  pane.appendChild(bar);
-
-  var reporter = new ProgressReporter();
-  reporter.addListener(function (rep) {
-    var progress = rep.getProgress();
-
-    if (label.textContent !== string) {
-      label.textContent = string;
-    }
-
-    if (isNaN(progress)) {
-      bar.removeAttribute("value");
-    } else {
-      bar.value = progress;
-    }
-  });
-
-  gMainArea.appendChild(pane);
-  Parser.updateLogSetting();
-
-  return reporter;
 }
