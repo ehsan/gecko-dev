@@ -490,7 +490,7 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
   nsRect portRect = view->View()->GetBounds();
   view->ScrollTo(nsPresContext::CSSPixelsToAppUnits(aX/ratio) - portRect.width/2,
                  nsPresContext::CSSPixelsToAppUnits(aY/ratio) - portRect.height/2,
-                 0);
+                 NS_VMREFRESH_IMMEDIATE);
   return NS_OK;
 }
 
