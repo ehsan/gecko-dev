@@ -10,6 +10,6 @@
 interface SVGDocument : Document {
   [Throws]
   readonly attribute DOMString domain;
-  [Pure, Throws]
+  [Throws]
   readonly attribute SVGElement? rootElement;
 };

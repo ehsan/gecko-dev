@@ -11,7 +11,6 @@
 
 #include "MediaResource.h"
 
-#include "mozilla/fallible.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Monitor.h"
 
@@ -71,24 +70,10 @@ private:
 
   struct CacheBlock {
     CacheBlock(int64_t aOffset, size_t aCount)
-      : mOffset(aOffset), mCount(aCount), mBuffer(nullptr) {}
+      : mOffset(aOffset), mCount(aCount), mBuffer(new uint8_t[aCount]) {}
     int64_t mOffset;
     size_t mCount;
-
-    bool Init()
-    {
-      mBuffer = new ((fallible_t())) char[mCount];
-      return !!mBuffer;
-    }
-
-    char* Buffer()
-    {
-      MOZ_ASSERT(mBuffer.get());
-      return mBuffer.get();
-    }
-
-  private:
-    nsAutoArrayPtr<char> mBuffer;
+    nsAutoArrayPtr<uint8_t> mBuffer;
   };
   nsTArray<CacheBlock> mCache;
 };

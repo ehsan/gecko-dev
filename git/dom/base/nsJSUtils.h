@@ -17,7 +17,6 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "js/Conversions.h"
 #include "nsString.h"
 
 class nsIScriptContext;

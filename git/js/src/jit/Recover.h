@@ -477,14 +477,11 @@ class RAtan2 MOZ_FINAL : public RInstruction
 
 class RHypot MOZ_FINAL : public RInstruction
 {
-   private:
-     uint32_t numOperands_;
-
    public:
      RINSTRUCTION_HEADER_(Hypot)
 
      virtual uint32_t numOperands() const {
-         return numOperands_;
+         return 2;
      }
 
      bool recover(JSContext *cx, SnapshotIterator &iter) const;

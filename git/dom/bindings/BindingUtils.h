@@ -9,7 +9,6 @@
 
 #include "jsfriendapi.h"
 #include "jswrapper.h"
-#include "js/Conversions.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Alignment.h"
 #include "mozilla/Array.h"

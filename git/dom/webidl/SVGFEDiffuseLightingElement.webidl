@@ -11,15 +11,10 @@
  */
 
 interface SVGFEDiffuseLightingElement : SVGElement {
-  [Constant]
   readonly attribute SVGAnimatedString in1;
-  [Constant]
   readonly attribute SVGAnimatedNumber surfaceScale;
-  [Constant]
   readonly attribute SVGAnimatedNumber diffuseConstant;
-  [Constant]
   readonly attribute SVGAnimatedNumber kernelUnitLengthX;
-  [Constant]
   readonly attribute SVGAnimatedNumber kernelUnitLengthY;
 };
 

@@ -13,8 +13,7 @@
 enum MediaKeyMessageType {
   "license-request",
   "license-renewal",
-  "license-release",
-  "individualization-request"
+  "license-release"
 };
 
 [Pref="media.eme.enabled", Constructor(DOMString type, optional MediaKeyMessageEventInit eventInitDict)]

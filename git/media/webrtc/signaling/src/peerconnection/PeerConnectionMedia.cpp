@@ -213,7 +213,6 @@ OnProxyAvailable(nsICancelable *request,
   CSFLogInfo(logTag, "%s: Proxy Available: %d", __FUNCTION__, (int)result);
 
   if (NS_SUCCEEDED(result) && proxyinfo) {
-    CSFLogInfo(logTag, "%s: Had proxyinfo", __FUNCTION__);
     nsresult rv;
     nsCString httpsProxyHost;
     int32_t httpsProxyPort;
@@ -244,7 +243,7 @@ OnProxyAvailable(nsICancelable *request,
   if (result != NS_ERROR_ABORT) {
     // NS_ERROR_ABORT means that the PeerConnectionMedia is no longer waiting
     pcm_->mProxyResolveCompleted = true;
-    pcm_->FlushIceCtxOperationQueueIfReady();
+    pcm_->GatherIfReady();
   }
 
   return NS_OK;
@@ -262,6 +261,7 @@ PeerConnectionMedia::PeerConnectionMedia(PeerConnectionImpl *parent)
       mUuidGen(MakeUnique<PCUuidGenerator>()),
       mMainThread(mParent->GetMainThread()),
       mSTSThread(mParent->GetSTSThread()),
+      mTransportsUpdated(false),
       mProxyResolveCompleted(false) {
   nsresult rv;
 
@@ -400,6 +400,7 @@ PeerConnectionMedia::UpdateTransports(const mozilla::JsepSession& session) {
 
   // TODO(bug 1017888): Need to deal properly with renegotatiation.
   // For now just start gathering.
+  mTransportsUpdated = true;
   GatherIfReady();
 }
 
@@ -466,17 +467,16 @@ PeerConnectionMedia::StartIceChecks(const mozilla::JsepSession& session) {
     }
   }
 
-  nsRefPtr<nsIRunnable> runnable(
-      WrapRunnable(
-        RefPtr<PeerConnectionMedia>(this),
-        &PeerConnectionMedia::StartIceChecks_s,
-        session.IsIceControlling(),
-        session.RemoteIsIceLite(),
-        // Copy, just in case API changes to return a ref
-        std::vector<std::string>(session.GetIceOptions()),
-        numComponentsByLevel));
-
-  PerformOrEnqueueIceCtxOperation(runnable);
+  RUN_ON_THREAD(GetSTSThread(),
+                WrapRunnable(
+                  RefPtr<PeerConnectionMedia>(this),
+                  &PeerConnectionMedia::StartIceChecks_s,
+                  session.IsIceControlling(),
+                  session.RemoteIsIceLite(),
+                  // Copy, just in case API changes to return a ref
+                  std::vector<std::string>(session.GetIceOptions()),
+                  numComponentsByLevel),
+                NS_DISPATCH_NORMAL);
 }
 
 void
@@ -557,42 +557,16 @@ PeerConnectionMedia::AddIceCandidate_s(const std::string& aCandidate,
 }
 
 void
-PeerConnectionMedia::FlushIceCtxOperationQueueIfReady()
-{
-  ASSERT_ON_THREAD(mMainThread);
-
-  if (IsIceCtxReady()) {
-    for (auto i = mQueuedIceCtxOperations.begin();
-         i != mQueuedIceCtxOperations.end();
-         ++i) {
-      GetSTSThread()->Dispatch(*i, NS_DISPATCH_NORMAL);
-    }
-    mQueuedIceCtxOperations.clear();
-  }
-}
-
-void
-PeerConnectionMedia::PerformOrEnqueueIceCtxOperation(
-    const nsRefPtr<nsIRunnable>& runnable)
-{
-  ASSERT_ON_THREAD(mMainThread);
-
-  if (IsIceCtxReady()) {
-    GetSTSThread()->Dispatch(runnable, NS_DISPATCH_NORMAL);
-  } else {
-    mQueuedIceCtxOperations.push_back(runnable);
-  }
-}
-
-void
 PeerConnectionMedia::GatherIfReady() {
   ASSERT_ON_THREAD(mMainThread);
 
-  nsRefPtr<nsIRunnable> runnable(WrapRunnable(
-        RefPtr<PeerConnectionMedia>(this),
-        &PeerConnectionMedia::EnsureIceGathering_s));
-
-  PerformOrEnqueueIceCtxOperation(runnable);
+  if (mTransportsUpdated && mProxyResolveCompleted) {
+    RUN_ON_THREAD(GetSTSThread(),
+        WrapRunnable(
+          RefPtr<PeerConnectionMedia>(this),
+          &PeerConnectionMedia::EnsureIceGathering_s),
+        NS_DISPATCH_NORMAL);
+  }
 }
 
 void

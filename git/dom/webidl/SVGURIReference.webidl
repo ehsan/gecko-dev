@@ -12,7 +12,6 @@
 
 [NoInterfaceObject]
 interface SVGURIReference {
-  [Constant]
   readonly attribute SVGAnimatedString href;
 };
 

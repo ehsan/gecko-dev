@@ -142,7 +142,7 @@ private:
   }
 
   Result VerifySignedData(const SignedDataWithSignature& signedData,
-                          Input subjectPublicKeyInfo) override
+                          Input subjectPublicKeyInfo)
   {
     return TestVerifySignedData(signedData, subjectPublicKeyInfo);
   }
