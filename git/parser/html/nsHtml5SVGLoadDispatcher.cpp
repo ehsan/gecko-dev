@@ -44,7 +44,7 @@
 
 nsHtml5SVGLoadDispatcher::nsHtml5SVGLoadDispatcher(nsIContent* aElement)
   : mElement(aElement)
-  , mDocument(mElement->OwnerDoc())
+  , mDocument(mElement->GetOwnerDoc())
 {
   mDocument->BlockOnload();
 }
@@ -60,7 +60,7 @@ nsHtml5SVGLoadDispatcher::Run()
   // For that matter, do we really want to try getting the prescontext?
   // Does this event ever want one?
   nsRefPtr<nsPresContext> ctx;
-  nsCOMPtr<nsIPresShell> shell = mElement->OwnerDoc()->GetShell();
+  nsCOMPtr<nsIPresShell> shell = mElement->GetOwnerDoc()->GetShell();
   if (shell) {
     ctx = shell->GetPresContext();
   }

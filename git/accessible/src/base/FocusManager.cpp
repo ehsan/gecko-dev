@@ -81,7 +81,7 @@ FocusManager::IsFocused(const nsAccessible* aAccessible) const
     // peculiarity we would end up with plain implementation based on
     // FocusedAccessible() method call. Make sure this issue is fixed in
     // bug 638465.
-    if (focusedNode->OwnerDoc() == aAccessible->GetNode()->OwnerDoc()) {
+    if (focusedNode->GetOwnerDoc() == aAccessible->GetNode()->GetOwnerDoc()) {
       return aAccessible ==
         GetAccService()->GetAccessibleOrContainer(focusedNode, nsnull);
     }
@@ -145,7 +145,7 @@ FocusManager::NotifyOfDOMFocus(nsISupports* aTarget)
   nsCOMPtr<nsINode> targetNode(do_QueryInterface(aTarget));
   if (targetNode) {
     nsDocAccessible* document =
-      GetAccService()->GetDocAccessible(targetNode->OwnerDoc());
+      GetAccService()->GetDocAccessible(targetNode->GetOwnerDoc());
     if (document) {
       // Set selection listener for focused element.
       if (targetNode->IsElement()) {
@@ -171,8 +171,8 @@ FocusManager::NotifyOfDOMBlur(nsISupports* aTarget)
   // If DOM document stays focused then fire accessible focus event to process
   // the case when no element within this DOM document will be focused.
   nsCOMPtr<nsINode> targetNode(do_QueryInterface(aTarget));
-  if (targetNode && targetNode->OwnerDoc() == FocusedDOMDocument()) {
-    nsIDocument* DOMDoc = targetNode->OwnerDoc();
+  if (targetNode && targetNode->GetOwnerDoc() == FocusedDOMDocument()) {
+    nsIDocument* DOMDoc = targetNode->GetOwnerDoc();
     nsDocAccessible* document =
       GetAccService()->GetDocAccessible(DOMDoc);
     if (document) {
@@ -216,7 +216,7 @@ FocusManager::ForceFocusEvent()
   nsINode* focusedNode = FocusedDOMNode();
   if (focusedNode) {
     nsDocAccessible* document =
-      GetAccService()->GetDocAccessible(focusedNode->OwnerDoc());
+      GetAccService()->GetDocAccessible(focusedNode->GetOwnerDoc());
     if (document) {
       document->HandleNotification<FocusManager, nsINode>
         (this, &FocusManager::ProcessDOMFocus, focusedNode);
@@ -246,7 +246,7 @@ FocusManager::ProcessDOMFocus(nsINode* aTarget)
                                          "Notification target", aTarget)
 
   nsDocAccessible* document =
-    GetAccService()->GetDocAccessible(aTarget->OwnerDoc());
+    GetAccService()->GetDocAccessible(aTarget->GetOwnerDoc());
 
   nsAccessible* target = document->GetAccessibleOrContainer(aTarget);
   if (target) {

@@ -864,7 +864,7 @@ nsImageLoadingContent::GetOurDocument()
   nsCOMPtr<nsIContent> thisContent = do_QueryInterface(this);
   NS_ENSURE_TRUE(thisContent, nsnull);
 
-  return thisContent->OwnerDoc();
+  return thisContent->GetOwnerDoc();
 }
 
 nsresult

@@ -165,7 +165,7 @@ nsScriptElement::MaybeProcessScript()
 
   mAlreadyStarted = true;
 
-  nsIDocument* ownerDoc = cont->OwnerDoc();
+  nsIDocument* ownerDoc = cont->GetOwnerDoc();
   nsCOMPtr<nsIParser> parser = ((nsIScriptElement*) this)->GetCreatorParser();
   if (parser) {
     nsCOMPtr<nsIContentSink> sink = parser->GetContentSink();

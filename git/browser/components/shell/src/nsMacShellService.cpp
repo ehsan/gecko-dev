@@ -174,8 +174,12 @@ nsMacShellService::SetDesktopBackground(nsIDOMElement* aElement,
   // We need the referer URI for nsIWebBrowserPersist::saveURI
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDocument> doc;
+  doc = content->GetOwnerDoc();
+  if (!doc)
+    return NS_ERROR_FAILURE;
 
-  nsIURI *docURI = content->OwnerDoc()->GetDocumentURI();
+  nsIURI *docURI = doc->GetDocumentURI();
   if (!docURI)
     return NS_ERROR_FAILURE;
 

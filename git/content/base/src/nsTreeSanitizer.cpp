@@ -1205,7 +1205,7 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
     if (kNameSpaceID_None == attrNs) {
       if (aAllowStyle && nsGkAtoms::style == attrLocal) {
         nsCOMPtr<nsIURI> baseURI = aElement->GetBaseURI();
-        nsIDocument* document = aElement->OwnerDoc();
+        nsIDocument* document = aElement->GetOwnerDoc();
         // Pass the CSS Loader object to the parser, to allow parser error
         // reports to include the outer window ID.
         nsCSSParser parser(document->CSSLoader());
@@ -1374,7 +1374,7 @@ nsTreeSanitizer::Sanitize(nsIContent* aFragment) {
         nsCOMPtr<nsIURI> baseURI = node->GetBaseURI();
         if (SanitizeStyleSheet(styleText,
                                sanitizedStyle,
-                               aFragment->OwnerDoc(),
+                               aFragment->GetOwnerDoc(),
                                baseURI)) {
           nsContentUtils::SetNodeTextContent(node, sanitizedStyle, true);
         } else {

@@ -603,7 +603,11 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
 
-  nsIDocument* doc = thisContent->OwnerDoc();
+  nsIDocument* doc = thisContent->GetOwnerDoc();
+  if (!doc) {
+    Fallback(false);
+    return NS_BINDING_ABORTED;    
+  }
 
   PRInt16 shouldProcess = nsIContentPolicy::ACCEPT;
   rv =
@@ -941,8 +945,8 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
   nsCOMPtr<nsIContent> thisContent = 
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
-  nsIDocument* doc = thisContent->OwnerDoc();
-  if (doc->IsStaticDocument() || doc->IsBeingUsedAsImage()) {
+  nsIDocument* doc = thisContent->GetOwnerDoc();
+  if (!doc || doc->IsStaticDocument() || doc->IsBeingUsedAsImage()) {
     return NS_OK;
   }
 
@@ -1120,7 +1124,7 @@ nsObjectLoadingContent::LoadObject(const nsAString& aURI,
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
 
-  nsIDocument* doc = thisContent->OwnerDoc();
+  nsIDocument* doc = thisContent->GetOwnerDoc();
   nsCOMPtr<nsIURI> baseURI;
   GetObjectBaseURI(thisContent, getter_AddRefs(baseURI));
 
@@ -1195,8 +1199,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
 
-  nsIDocument* doc = thisContent->OwnerDoc();
-  if (doc->IsBeingUsedAsImage()) {
+  nsIDocument* doc = thisContent->GetOwnerDoc();
+  if (!doc || doc->IsBeingUsedAsImage()) {
     return NS_OK;
   }
 
@@ -1765,7 +1769,7 @@ nsObjectLoadingContent::GetObjectBaseURI(nsIContent* thisContent, nsIURI** aURI)
                        codebase);
   if (!codebase.IsEmpty()) {
     nsContentUtils::NewURIWithDocumentCharset(aURI, codebase,
-                                              thisContent->OwnerDoc(),
+                                              thisContent->GetOwnerDoc(),
                                               baseURI);
   } else {
     baseURI.swap(*aURI);

@@ -283,8 +283,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x20d16be2, 0x3c58, 0x4099, \
-  { 0xbf, 0xa6, 0xd0, 0xe7, 0x6b, 0xb1, 0x3d, 0xc5 } }
+{ 0x38f966a0, 0xd652, 0x4979, \
+  { 0xae, 0x37, 0xc8, 0x75, 0x84, 0xfc, 0xf8, 0x43 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -415,7 +415,7 @@ public:
    * nsIDocument GetOwnerDocument returns the document itself.  For nsIContent
    * implementations the two are the same.
    */
-  nsIDocument *OwnerDoc() const
+  nsIDocument *GetOwnerDoc() const
   {
     return mNodeInfo->GetDocument();
   }
@@ -438,7 +438,7 @@ public:
    */
   nsIDocument *GetCurrentDoc() const
   {
-    return IsInDoc() ? OwnerDoc() : nsnull;
+    return IsInDoc() ? GetOwnerDoc() : nsnull;
   }
 
   /**

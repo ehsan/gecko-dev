@@ -196,7 +196,9 @@ nsEventListenerManager::GetInnerWindowForTarget()
   if (node) {
     // XXX sXBL/XBL2 issue -- do we really want the owner here?  What
     // if that's the XBL document?
-    return node->OwnerDoc()->GetInnerWindow();
+    nsIDocument* document = node->GetOwnerDoc();
+    if (document)
+      return document->GetInnerWindow();
   }
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mTarget);
@@ -465,7 +467,9 @@ nsEventListenerManager::AddScriptEventListener(nsIAtom *aName,
     // Try to get context from doc
     // XXX sXBL/XBL2 issue -- do we really want the owner here?  What
     // if that's the XBL document?
-    global = node->OwnerDoc()->GetScriptGlobalObject();
+    doc = node->GetOwnerDoc();
+    if (doc)
+      global = doc->GetScriptGlobalObject();
   } else {
     nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mTarget));
     if (win) {
@@ -642,7 +646,7 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
     nsCAutoString url (NS_LITERAL_CSTRING("-moz-evil:lying-event-listener"));
     nsCOMPtr<nsIDocument> doc;
     if (content) {
-      doc = content->OwnerDoc();
+      doc = content->GetOwnerDoc();
     } else {
       nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(mTarget);
       if (win) {

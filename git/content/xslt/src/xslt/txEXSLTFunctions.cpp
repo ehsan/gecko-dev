@@ -156,10 +156,10 @@ createAndAddToResult(nsIAtom* aName, const nsSubstring& aValue,
                      txNodeSet* aResultSet, nsIContent* aResultHolder)
 {
     NS_ASSERTION(aResultHolder->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT) &&
-                 aResultHolder->OwnerDoc(),
+                 aResultHolder->GetOwnerDoc(),
                  "invalid result-holder");
 
-    nsIDocument* doc = aResultHolder->OwnerDoc();
+    nsIDocument* doc = aResultHolder->GetOwnerDoc();
     nsCOMPtr<nsIContent> elem;
     nsresult rv = doc->CreateElem(nsDependentAtomString(aName),
                                   nsnull, kNameSpaceID_None, false,

@@ -1290,7 +1290,7 @@ nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest) const
   nsresult rv = nsGenericHTMLFormElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aDest->OwnerDoc()->IsStaticDocument()) {
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
     nsAutoString value;
     const_cast<nsHTMLTextAreaElement*>(this)->GetValue(value);
     static_cast<nsHTMLTextAreaElement*>(aDest)->SetValue(value);

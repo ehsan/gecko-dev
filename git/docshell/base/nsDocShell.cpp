@@ -389,7 +389,9 @@ ForEachPing(nsIContent *content, ForEachPingCallback callback, void *closure)
   if (!ios)
     return;
 
-  nsIDocument *doc = content->OwnerDoc();
+  nsIDocument *doc = content->GetOwnerDoc();
+  if (!doc)
+    return;
 
   // value contains relative URIs split on spaces (U+0020)
   const PRUnichar *start = value.BeginReading();
@@ -548,7 +550,9 @@ SendPing(void *closure, nsIContent *content, nsIURI *uri, nsIIOService *ios)
       return;
   }
 
-  nsIDocument *doc = content->OwnerDoc();
+  nsIDocument *doc = content->GetOwnerDoc();
+  if (!doc)
+    return;
 
   nsCOMPtr<nsIChannel> chan;
   ios->NewChannelFromURI(uri, getter_AddRefs(chan));
@@ -11411,7 +11415,7 @@ nsDocShell::OnLinkClickSync(nsIContent *aContent,
   // link was in. From that document, we'll get the URI to use as the
   // referer, since the current URI in this docshell may be a
   // new document that we're in the process of loading.
-  nsCOMPtr<nsIDocument> refererDoc = aContent->OwnerDoc();
+  nsCOMPtr<nsIDocument> refererDoc = aContent->GetOwnerDoc();
   NS_ENSURE_TRUE(refererDoc, NS_ERROR_UNEXPECTED);
 
   // Now check that the refererDoc's inner window is the current inner

@@ -226,7 +226,7 @@ public:
     if (IsCancelled())
       return NS_OK;
     LOG_EVENT(PR_LOG_DEBUG, ("%p Dispatching simple event source error", mElement.get()));
-    return nsContentUtils::DispatchTrustedEvent(mElement->OwnerDoc(),
+    return nsContentUtils::DispatchTrustedEvent(mElement->GetOwnerDoc(),
                                                 mSource,
                                                 NS_LITERAL_STRING("error"),
                                                 false,
@@ -1910,7 +1910,10 @@ nsresult nsHTMLMediaElement::NewURIFromString(const nsAutoString& aURISpec, nsIU
 
   *aURI = nsnull;
 
-  nsCOMPtr<nsIDocument> doc = OwnerDoc();
+  nsCOMPtr<nsIDocument> doc = GetOwnerDoc();
+  if (!doc) {
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+  }
 
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
   nsresult rv = nsContentUtils::NewURIWithDocumentCharset(aURI,
@@ -2251,7 +2254,7 @@ ImageContainer* nsHTMLMediaElement::GetImageContainer()
     return nsnull;
 
   nsRefPtr<LayerManager> manager =
-    nsContentUtils::PersistentLayerManagerForDocument(OwnerDoc());
+    nsContentUtils::PersistentLayerManagerForDocument(GetOwnerDoc());
   if (!manager)
     return nsnull;
 
@@ -2272,7 +2275,7 @@ nsresult nsHTMLMediaElement::DispatchAudioAvailableEvent(float* aFrameBuffer,
   // which frees the memory when it's destroyed.
   nsAutoArrayPtr<float> frameBuffer(aFrameBuffer);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(GetOwnerDoc());
   nsCOMPtr<nsIDOMEventTarget> target(do_QueryObject(this));
   NS_ENSURE_TRUE(domDoc && target, NS_ERROR_INVALID_ARG);
 
@@ -2303,7 +2306,7 @@ nsresult nsHTMLMediaElement::DispatchEvent(const nsAString& aName)
     return NS_OK;
   }
 
-  return nsContentUtils::DispatchTrustedEvent(OwnerDoc(),
+  return nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(),
                                               static_cast<nsIContent*>(this),
                                               aName,
                                               false,
@@ -2370,11 +2373,11 @@ void nsHTMLMediaElement::UpdateMediaSize(nsIntSize size)
 
 void nsHTMLMediaElement::NotifyOwnerDocumentActivityChanged()
 {
-  nsIDocument* ownerDoc = OwnerDoc();
+  nsIDocument* ownerDoc = GetOwnerDoc();
   // Don't pause if we have no ownerDoc. Something native must have created
   // us and be expecting us to work without a document.
   bool pauseForInactiveDocument =
-    !ownerDoc->IsActive() || !ownerDoc->IsVisible();
+    ownerDoc && (!ownerDoc->IsActive() || !ownerDoc->IsVisible());
 
   if (pauseForInactiveDocument != mPausedForInactiveDocument) {
     mPausedForInactiveDocument = pauseForInactiveDocument;
@@ -2402,12 +2405,12 @@ void nsHTMLMediaElement::AddRemoveSelfReference()
   // potential listener for every event. We would also have to keep the
   // element alive if it was playing and producing audio output --- right now
   // that's covered by the !mPaused check.
-  nsIDocument* ownerDoc = OwnerDoc();
+  nsIDocument* ownerDoc = GetOwnerDoc();
 
   // See the comment at the top of this file for the explanation of this
   // boolean expression.
   bool needSelfReference = !mShuttingDown &&
-    ownerDoc->IsActive() &&
+    (!ownerDoc || ownerDoc->IsActive()) &&
     (mDelayingLoadEvent ||
      (!mPaused && mDecoder && !mDecoder->IsEnded()) ||
      (mDecoder && mDecoder->IsSeeking()) ||
@@ -2541,7 +2544,7 @@ void nsHTMLMediaElement::ChangeDelayLoadStatus(bool aDelay) {
   mDelayingLoadEvent = aDelay;
 
   if (aDelay) {
-    mLoadBlockedDoc = OwnerDoc();
+    mLoadBlockedDoc = GetOwnerDoc();
     mLoadBlockedDoc->BlockOnload();
     LOG(PR_LOG_DEBUG, ("%p ChangeDelayLoadStatus(%d) doc=0x%p", this, aDelay, mLoadBlockedDoc.get()));
   } else {
@@ -2562,7 +2565,8 @@ void nsHTMLMediaElement::ChangeDelayLoadStatus(bool aDelay) {
 
 already_AddRefed<nsILoadGroup> nsHTMLMediaElement::GetDocumentLoadGroup()
 {
-  return OwnerDoc()->GetDocumentLoadGroup();
+  nsIDocument* doc = GetOwnerDoc();
+  return doc ? doc->GetDocumentLoadGroup() : nsnull;
 }
 
 nsresult
@@ -2570,7 +2574,7 @@ nsHTMLMediaElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (aDest->OwnerDoc()->IsStaticDocument()) {
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
     nsHTMLMediaElement* dest = static_cast<nsHTMLMediaElement*>(aDest);
     if (mPrintSurface) {
       dest->mPrintSurface = mPrintSurface;
@@ -2623,7 +2627,10 @@ void nsHTMLMediaElement::SetRequestHeaders(nsIHttpChannel* aChannel)
                              NS_LITERAL_CSTRING(""), false);
 
   // Set the Referer header
-  aChannel->SetReferrer(OwnerDoc()->GetDocumentURI());
+  nsIDocument* doc = GetOwnerDoc();
+  if (doc) {
+    aChannel->SetReferrer(doc->GetDocumentURI());
+  }
 }
 
 void nsHTMLMediaElement::FireTimeUpdate(bool aPeriodic)

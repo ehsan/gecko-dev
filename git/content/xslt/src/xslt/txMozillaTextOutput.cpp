@@ -64,7 +64,7 @@ txMozillaTextOutput::txMozillaTextOutput(nsIDOMDocumentFragment* aDest)
 {
     MOZ_COUNT_CTOR(txMozillaTextOutput);
     mTextParent = do_QueryInterface(aDest);
-    mDocument = mTextParent->OwnerDoc();
+    mDocument = mTextParent->GetOwnerDoc();
 }
 
 txMozillaTextOutput::~txMozillaTextOutput()
