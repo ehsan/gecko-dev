@@ -490,11 +490,9 @@ var BrowserApp = {
 
         let newtabStrings = Strings.browser.GetStringFromName("newtabpopup.opened");
         let label = PluralForm.get(1, newtabStrings).replace("#1", 1);
-        let buttonLabel = Strings.browser.GetStringFromName("newtabpopup.switch");
         NativeWindow.toast.show(label, "long", {
           button: {
-            icon: "drawable://switch_button_icon",
-            label: buttonLabel,
+            icon: "drawable://select_opened_tab",
             callback: () => { BrowserApp.selectTab(tab); },
           }
         });
@@ -509,11 +507,9 @@ var BrowserApp = {
 
         let newtabStrings = Strings.browser.GetStringFromName("newprivatetabpopup.opened");
         let label = PluralForm.get(1, newtabStrings).replace("#1", 1);
-        let buttonLabel = Strings.browser.GetStringFromName("newtabpopup.switch");
         NativeWindow.toast.show(label, "long", {
           button: {
-            icon: "drawable://switch_button_icon",
-            label: buttonLabel,
+            icon: "drawable://select_opened_tab",
             callback: () => { BrowserApp.selectTab(tab); },
           }
         });
