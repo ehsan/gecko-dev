@@ -26,7 +26,7 @@
 #include "jsutil.h"
 
 #include "js/TypeDecls.h"
-#include "vm/NativeObject.h"
+#include "vm/ObjectImpl.h"
 
 namespace js {
 

@@ -67,16 +67,19 @@ public:
     {
     public:
         ImageInfo()
-            : mEffectiveInternalFormat(LOCAL_GL_NONE)
+            : mInternalFormat(LOCAL_GL_NONE)
+            , mType(LOCAL_GL_NONE)
             , mImageDataStatus(WebGLImageDataStatus::NoImageData)
         {}
 
         ImageInfo(GLsizei width,
                   GLsizei height,
-                  TexInternalFormat effectiveInternalFormat,
+                  TexInternalFormat internalFormat,
+                  TexType type,
                   WebGLImageDataStatus status)
             : WebGLRectangleObject(width, height)
-            , mEffectiveInternalFormat(effectiveInternalFormat)
+            , mInternalFormat(internalFormat)
+            , mType(type)
             , mImageDataStatus(status)
         {
             // shouldn't use this constructor to construct a null ImageInfo
@@ -87,7 +90,8 @@ public:
             return mImageDataStatus == a.mImageDataStatus &&
                    mWidth == a.mWidth &&
                    mHeight == a.mHeight &&
-                   mEffectiveInternalFormat == a.mEffectiveInternalFormat;
+                   mInternalFormat == a.mInternalFormat &&
+                   mType == a.mType;
         }
         bool operator!=(const ImageInfo& a) const {
             return !(*this == a);
@@ -106,17 +110,21 @@ public:
             return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData;
         }
         int64_t MemoryUsage() const;
+        /*! This is the format passed from JS to WebGL.
+         * It can be converted to a value to be passed to driver with
+         * DriverFormatsFromFormatAndType().
+         */
+        TexInternalFormat InternalFormat() const { return mInternalFormat; }
 
-        TexInternalFormat EffectiveInternalFormat() const { return mEffectiveInternalFormat; }
+        /*! This is the type passed from JS to WebGL.
+         * It can be converted to a value to be passed to driver with
+         * DriverTypeFromType().
+         */
+        TexType Type() const { return mType; }
 
     protected:
-        /*
-         * This is the "effective internal format" of the texture,
-         * an official OpenGL spec concept, see
-         * OpenGL ES 3.0.3 spec, section 3.8.3, page 126 and below.
-         */
-        TexInternalFormat mEffectiveInternalFormat;
-
+        TexInternalFormat mInternalFormat; //!< This is the WebGL/GLES internal format.
+        TexType mType;   //!< This is the WebGL/GLES type
         WebGLImageDataStatus mImageDataStatus;
 
         friend class WebGLTexture;
@@ -222,7 +230,8 @@ public:
 
     void SetImageInfo(TexImageTarget aTarget, GLint aLevel,
                       GLsizei aWidth, GLsizei aHeight,
-                      TexInternalFormat aFormat, WebGLImageDataStatus aStatus);
+                      TexInternalFormat aInternalFormat, TexType aType,
+                      WebGLImageDataStatus aStatus);
 
     void SetMinFilter(TexMinFilter aMinFilter) {
         mMinFilter = aMinFilter;

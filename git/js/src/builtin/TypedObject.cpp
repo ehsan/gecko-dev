@@ -11,11 +11,13 @@
 
 #include "jscompartment.h"
 #include "jsfun.h"
+#include "jsobj.h"
 #include "jsutil.h"
 
 #include "gc/Marking.h"
 #include "js/Vector.h"
 #include "vm/GlobalObject.h"
+#include "vm/ObjectImpl.h"
 #include "vm/String.h"
 #include "vm/StringBuffer.h"
 #include "vm/TypedArrayObject.h"
@@ -23,7 +25,7 @@
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/NativeObject-inl.h"
+#include "vm/ObjectImpl-inl.h"
 #include "vm/Shape-inl.h"
 
 using mozilla::AssertedCast;

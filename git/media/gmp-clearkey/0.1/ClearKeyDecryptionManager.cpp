@@ -53,7 +53,7 @@ private:
 
   struct DestroyTask : public GMPTask
   {
-    explicit DestroyTask(ClearKeyDecryptor* aTarget) : mTarget(aTarget) { }
+    DestroyTask(ClearKeyDecryptor* aTarget) : mTarget(aTarget) { }
 
     virtual void Run() MOZ_OVERRIDE {
       delete mTarget;

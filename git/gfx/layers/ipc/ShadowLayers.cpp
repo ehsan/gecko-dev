@@ -135,8 +135,6 @@ public:
   }
   bool Finished() const { return !mOpen && Empty(); }
 
-  bool Opened() const { return mOpen; }
-
   EditVector mCset;
   EditVector mPaints;
   ShadowableLayerSet mMutants;
@@ -474,19 +472,11 @@ ShadowLayerForwarder::RemoveTextureFromCompositableAsync(AsyncTransactionTracker
                                                      CompositableClient* aCompositable,
                                                      TextureClient* aTexture)
 {
-  if (mTxn->Opened()) {
-    mTxn->AddEdit(OpRemoveTextureAsync(CompositableClient::GetTrackersHolderId(aCompositable->GetIPDLActor()),
-                                       aAsyncTransactionTracker->GetId(),
-                                       nullptr, aCompositable->GetIPDLActor(),
-                                       nullptr, aTexture->GetIPDLActor()));
-  } else {
-    // If the function is called outside of transaction,
-    // OpRemoveTextureAsync message is stored as pending message.
-    mPendingAsyncMessages.push_back(OpRemoveTextureAsync(CompositableClient::GetTrackersHolderId(aCompositable->GetIPDLActor()),
-                                    aAsyncTransactionTracker->GetId(),
-                                    nullptr, aCompositable->GetIPDLActor(),
-                                    nullptr, aTexture->GetIPDLActor()));
-  }
+  mTxn->AddEdit(OpRemoveTextureAsync(CompositableClient::GetTrackersHolderId(aCompositable->GetIPDLActor()),
+                                     aAsyncTransactionTracker->GetId(),
+                                     nullptr, aCompositable->GetIPDLActor(),
+                                     nullptr, aTexture->GetIPDLActor()));
+  // Hold AsyncTransactionTracker until receving reply
   CompositableClient::HoldUntilComplete(aCompositable->GetIPDLActor(),
                                         aAsyncTransactionTracker);
 }
@@ -831,7 +821,7 @@ void ShadowLayerForwarder::StopReceiveAsyncParentMessge()
       !mShadowManager->IPCOpen()) {
     return;
   }
-  SendPendingAsyncMessges();
+  SendPendingAsyncMessge();
   mShadowManager->SetForwarder(nullptr);
 }
 
@@ -841,7 +831,7 @@ void ShadowLayerForwarder::ClearCachedResources()
       !mShadowManager->IPCOpen()) {
     return;
   }
-  SendPendingAsyncMessges();
+  SendPendingAsyncMessge();
   mShadowManager->SendClearCachedResources();
 }
 
@@ -854,31 +844,20 @@ void ShadowLayerForwarder::Composite()
   mShadowManager->SendForceComposite();
 }
 
-void ShadowLayerForwarder::SendPendingAsyncMessges()
+void ShadowLayerForwarder::SendPendingAsyncMessge()
 {
   if (!HasShadowManager() ||
-      !mShadowManager->IPCOpen()) {
-    mTransactionsToRespond.clear();
-    mPendingAsyncMessages.clear();
+      !mShadowManager->IPCOpen() ||
+      mTransactionsToRespond.empty()) {
     return;
   }
-
-  if (mTransactionsToRespond.empty() && mPendingAsyncMessages.empty()) {
-    return;
-  }
-
+  // Send OpReplyDeliverFence messages
   InfallibleTArray<AsyncChildMessageData> replies;
   replies.SetCapacity(mTransactionsToRespond.size());
-  // Prepare OpReplyDeliverFence messages.
   for (size_t i = 0; i < mTransactionsToRespond.size(); i++) {
     replies.AppendElement(OpReplyDeliverFence(mTransactionsToRespond[i]));
   }
   mTransactionsToRespond.clear();
-  // Prepare pending messages.
-  for (size_t i = 0; i < mPendingAsyncMessages.size(); i++) {
-    replies.AppendElement(mPendingAsyncMessages[i]);
-  }
-  mPendingAsyncMessages.clear();
   mShadowManager->SendChildAsyncMessages(replies);
 }
 

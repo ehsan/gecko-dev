@@ -171,10 +171,6 @@ CompositableClient::Destroy()
   if (!mCompositableChild) {
     return;
   }
-  // Send pending AsyncMessages before deleting CompositableChild.
-  // They might have dependency to the mCompositableChild.
-  mForwarder->SendPendingAsyncMessges();
-  // Delete CompositableChild.
   mCompositableChild->mCompositableClient = nullptr;
   PCompositableChild::Send__delete__(mCompositableChild);
   mCompositableChild = nullptr;

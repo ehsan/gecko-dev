@@ -1382,7 +1382,6 @@ CustomizeMode.prototype = {
         element.previousSibling.remove();
       }
     }
-    aEvent.target.removeAttribute("height");
   },
 
   _onUIChange: function() {

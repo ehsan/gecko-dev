@@ -36,7 +36,6 @@ DIRS += [
     'passwordmgr',
     'perf',
     'places',
-    'processsingleton',
     'promiseworker',
     'prompts',
     'protobuf',

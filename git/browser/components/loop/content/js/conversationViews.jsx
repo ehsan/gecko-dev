@@ -23,35 +23,15 @@ loop.conversationViews = (function(mozL10n) {
    */
   var ConversationDetailView = React.createClass({
     propTypes: {
-      contact: React.PropTypes.object
-    },
-
-    // This duplicates a similar function in contacts.jsx that isn't used in the
-    // conversation window. If we get too many of these, we might want to consider
-    // finding a logical place for them to be shared.
-    _getPreferredEmail: function(contact) {
-      // A contact may not contain email addresses, but only a phone number.
-      if (!contact.email || contact.email.length == 0) {
-        return { value: "" };
-      }
-      return contact.email.find(e => e.pref) || contact.email[0];
+      calleeId: React.PropTypes.string,
     },
 
     render: function() {
-      var contactName;
-
-      if (this.props.contact.name &&
-          this.props.contact.name[0]) {
-        contactName = this.props.contact.name[0];
-      } else {
-        contactName = this._getPreferredEmail(this.props.contact).value;
-      }
-
-      document.title = contactName;
+      document.title = this.props.calleeId;
 
       return (
         <div className="call-window">
-          <h2>{contactName}</h2>
+          <h2>{this.props.calleeId}</h2>
           <div>{this.props.children}</div>
         </div>
       );
@@ -66,7 +46,7 @@ loop.conversationViews = (function(mozL10n) {
     propTypes: {
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       callState: React.PropTypes.string,
-      contact: React.PropTypes.object,
+      calleeId: React.PropTypes.string,
       enableCancelButton: React.PropTypes.bool
     },
 
@@ -96,7 +76,7 @@ loop.conversationViews = (function(mozL10n) {
       });
 
       return (
-        <ConversationDetailView contact={this.props.contact}>
+        <ConversationDetailView calleeId={this.props.calleeId}>
 
           <p className="btn-label">{pendingStateString}</p>
 
@@ -360,8 +340,8 @@ loop.conversationViews = (function(mozL10n) {
         case CALL_STATES.ONGOING: {
           return (<OngoingConversationView
             dispatcher={this.props.dispatcher}
-            video={{enabled: !this.state.videoMuted}}
-            audio={{enabled: !this.state.audioMuted}}
+            video={{enabled: this.state.videoMuted}}
+            audio={{enabled: this.state.audioMuted}}
             />
           );
         }
@@ -372,7 +352,7 @@ loop.conversationViews = (function(mozL10n) {
           return (<PendingConversationView
             dispatcher={this.props.dispatcher}
             callState={this.state.callState}
-            contact={this.state.contact}
+            calleeId={this.state.calleeId}
             enableCancelButton={this._isCancellable()}
           />)
         }
