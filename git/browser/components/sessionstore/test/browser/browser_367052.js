@@ -1,6 +1,4 @@
-/* -*- Mode: IDL; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -13,15 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is nsIApplicationCache.idl.
+ * The Original Code is sessionstore test code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Corporation.
+ * Simon Bünzli <zeniko@gmail.com>.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Dave Camp <dcamp@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,16 +34,39 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
-
-interface nsIApplicationCache;
-
-/**
- * Interface used by objects that can be associated with an
- * application cache.
- */
-[scriptable, uuid(bbb80700-1f7f-4258-aff4-1743cc5a7d23)]
-interface nsIApplicationCacheContainer : nsISupports
-{
-    attribute nsIApplicationCache applicationCache;
-};
+function test() {
+  /** Test for Bug 367052 **/
+  
+  // test setup
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+  let tabbrowser = getBrowser();
+  waitForExplicitFinish();
+  
+  // make sure that the next closed tab will increase getClosedTabCount
+  let max_tabs_undo = gPrefService.getIntPref("browser.sessionstore.max_tabs_undo");
+  gPrefService.setIntPref("browser.sessionstore.max_tabs_undo", max_tabs_undo + 1);
+  let closedTabCount = ss.getClosedTabCount(window);
+  
+  // restore a blank tab
+  let tab = tabbrowser.addTab("about:");
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    this.removeEventListener("load", arguments.callee, true);
+    
+    let browser = tabbrowser.getBrowserForTab(tab);
+    let history = browser.webNavigation.sessionHistory;
+    ok(history.count >= 1, "the new tab does have at least one history entry");
+    
+    ss.setTabState(tab, "{ entries: [] }");
+    tab.linkedBrowser.addEventListener("load", function(aEvent) {
+      ok(history.count == 0, "the tab was restored without any history whatsoever");
+      
+      tabbrowser.removeTab(tab);
+      ok(ss.getClosedTabCount(window) == closedTabCount,
+         "The closed blank tab wasn't added to Recently Closed Tabs");
+      
+      // clean up
+      gPrefService.setIntPref("browser.sessionstore.max_tabs_undo", max_tabs_undo);
+      finish();
+    }, true);
+  }, true);
+}
