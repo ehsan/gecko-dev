@@ -160,7 +160,6 @@ static FILE *logFile = NULL;
 static PRFileDesc *logFile = 0;
 #endif
 static PRBool outputTimeStamp = PR_FALSE;
-static PRBool appendToLog = PR_FALSE;
 
 #define LINE_BUF_SIZE           512
 #define DEFAULT_BUF_SIZE        16384
@@ -248,8 +247,6 @@ void _PR_InitLog(void)
                 }
             } else if (strcasecmp(module, "timestamp") == 0) {
                 outputTimeStamp = PR_TRUE;
-            } else if (strcasecmp(module, "append") == 0) {
-                appendToLog = PR_TRUE;
             } else {
                 PRLogModuleInfo *lm = logModules;
                 PRBool skip_modcheck =
@@ -408,8 +405,7 @@ PR_IMPLEMENT(PRBool) PR_SetLogFile(const char *file)
     else
 #endif
     {
-        const char *mode = appendToLog ? "a" : "w";
-        newLogFile = fopen(file, mode);
+        newLogFile = fopen(file, "w");
         if (!newLogFile)
             return PR_FALSE;
 
@@ -431,14 +427,8 @@ PR_IMPLEMENT(PRBool) PR_SetLogFile(const char *file)
     return PR_TRUE;
 #else
     PRFileDesc *newLogFile;
-    PRIntn flags = PR_WRONLY|PR_CREATE_FILE;
-    if (appendToLog) {
-        flags |= PR_APPEND;
-    } else {
-        flags |= PR_TRUNCATE;
-    }
 
-    newLogFile = PR_Open(file, flags, 0666);
+    newLogFile = PR_Open(file, PR_WRONLY|PR_CREATE_FILE|PR_TRUNCATE, 0666);
     if (newLogFile) {
         if (logFile && logFile != _pr_stdout && logFile != _pr_stderr) {
             PR_Close(logFile);

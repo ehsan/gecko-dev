@@ -59,7 +59,6 @@
 #include "nsHashSets.h"
 #include "nsIURI.h"
 
-class nsHtml5Parser;
 class nsHtml5TreeBuilder;
 class nsHtml5Tokenizer;
 class nsHtml5StreamParser;
@@ -403,7 +402,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     void SetSpeculationBase(const nsAString& aURL);
 
   private:
-    nsHtml5Parser* GetParser();
 
     nsHtml5Tokenizer* GetTokenizer();
 

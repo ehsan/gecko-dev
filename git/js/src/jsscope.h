@@ -251,12 +251,7 @@ struct PropertyTable {
     /* Computes the size of the entries array for a given capacity. */
     static size_t sizeOfEntries(size_t cap) { return cap * sizeof(Shape *); }
 
-    size_t sizeOf(size_t(*mus)(void *)) const {
-        if (mus) {
-            size_t usable = mus((void*)this) + mus(entries);
-            if (usable)
-                return usable;
-        }
+    size_t sizeOf() const {
         return sizeOfEntries(capacity()) + sizeof(PropertyTable);
     }
 

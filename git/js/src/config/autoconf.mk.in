@@ -143,7 +143,6 @@ WARNINGS_AS_ERRORS = @WARNINGS_AS_ERRORS@
 FAIL_ON_WARNINGS = @FAIL_ON_WARNINGS@
 
 MOZ_OPTIMIZE	= @MOZ_OPTIMIZE@
-MOZ_FRAMEPTR_FLAGS = @MOZ_FRAMEPTR_FLAGS@
 MOZ_OPTIMIZE_FLAGS = @MOZ_OPTIMIZE_FLAGS@
 MOZ_PGO_OPTIMIZE_FLAGS = @MOZ_PGO_OPTIMIZE_FLAGS@
 MOZ_OPTIMIZE_LDFLAGS = @MOZ_OPTIMIZE_LDFLAGS@
@@ -178,10 +177,7 @@ _MSC_VER	= @_MSC_VER@
 
 DLL_PREFIX	= @DLL_PREFIX@
 LIB_PREFIX	= @LIB_PREFIX@
-# We do magic with OBJ_SUFFIX in config.mk, the following ensures we don't
-# manually use it before config.mk inclusion
-OBJ_SUFFIX	= $(error config/config.mk needs to be included before using OBJ_SUFFIX)
-_OBJ_SUFFIX	= @OBJ_SUFFIX@
+OBJ_SUFFIX	= @OBJ_SUFFIX@
 LIB_SUFFIX	= @LIB_SUFFIX@
 DLL_SUFFIX	= @DLL_SUFFIX@
 BIN_SUFFIX	= @BIN_SUFFIX@
@@ -265,7 +261,8 @@ EDITLINE_LIBS      = @EDITLINE_LIBS@
 # to normal behavior. Makefile's that create shared libraries out of
 # archives use these flags to force in all of the .o files in the
 # archives into the shared library.
-WRAP_LDFLAGS            = @WRAP_LDFLAGS@
+WRAP_MALLOC_LIB         = @WRAP_MALLOC_LIB@
+WRAP_MALLOC_CFLAGS      = @WRAP_MALLOC_CFLAGS@
 DSO_CFLAGS              = @DSO_CFLAGS@
 DSO_PIC_CFLAGS          = @DSO_PIC_CFLAGS@
 MKSHLIB                 = @MKSHLIB@

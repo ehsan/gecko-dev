@@ -1663,6 +1663,13 @@ public:
                                          nsIDOMNodeList** aReturn);
 
   /**
+   * Returns the widget for this document if there is one. Looks at all ancestor
+   * documents to try to find a widget, so for example this can still find a
+   * widget for documents in display:none frames that have no presentation.
+   */
+  static nsIWidget *WidgetForDocument(nsIDocument *aDoc);
+
+  /**
    * Returns a layer manager to use for the given document. Basically we
    * look up the document hierarchy for the first document which has
    * a presentation with an associated widget, and use that widget's
@@ -1699,26 +1706,6 @@ public:
    * @return true if the content node is focused, false otherwise.
    */
   static PRBool IsFocusedContent(const nsIContent *aContent);
-
-  /**
-   * Returns PR_TRUE if the DOM full-screen API is enabled.
-   */
-  static PRBool IsFullScreenApiEnabled();
-
-  /**
-   * Returns PR_TRUE if requests for full-screen are allowed in the current
-   * context. Requests are only allowed if the user initiated them (like with
-   * a mouse-click or key press), unless this check has been disabled by
-   * setting the pref "full-screen-api.allow-trusted-requests-only" to false.
-   */
-  static PRBool IsRequestFullScreenAllowed();
-
-  /**
-   * Returns PR_TRUE if key input is restricted in DOM full-screen mode
-   * to non-alpha-numeric key codes only. This mirrors the
-   * "full-screen-api.key-input-restricted" pref.
-   */
-  static PRBool IsFullScreenKeyInputRestricted();
 
   static void GetShiftText(nsAString& text);
   static void GetControlText(nsAString& text);
@@ -1884,9 +1871,6 @@ private:
 
   static PRBool sIsHandlingKeyBoardEvent;
   static PRBool sAllowXULXBL_for_file;
-  static PRBool sIsFullScreenApiEnabled;
-  static PRBool sTrustedFullScreenOnly;
-  static PRBool sFullScreenKeyInputRestricted;
 
   static nsHtml5Parser* sHTMLFragmentParser;
   static nsIParser* sXMLFragmentParser;

@@ -389,7 +389,7 @@ NameOp(VMFrame &f, JSObject *obj, bool callname)
         } else {
             shape = (Shape *)prop;
             JSObject *normalized = obj;
-            if (normalized->isWith() && !shape->hasDefaultGetter())
+            if (normalized->getClass() == &js_WithClass && !shape->hasDefaultGetter())
                 normalized = js_UnwrapWithObject(cx, normalized);
             NATIVE_GET(cx, normalized, obj2, shape, JSGET_METHOD_BARRIER, &rval, return NULL);
         }
@@ -552,7 +552,7 @@ stubs::CallElem(VMFrame &f)
     if (JS_UNLIKELY(regs.sp[-2].isPrimitive()) && thisv.isObject()) {
         regs.sp[-2] = regs.sp[-1];
         regs.sp[-1].setObject(*thisObj);
-        if (!OnUnknownMethod(cx, regs.sp - 2))
+        if (!js_OnUnknownMethod(cx, regs.sp - 2))
             THROW();
     } else
 #endif
@@ -1350,8 +1350,8 @@ stubs::NewInitObject(VMFrame &f, JSObject *baseobj)
     TypeObject *type = (TypeObject *) f.scratch;
 
     if (!baseobj) {
-        gc::AllocKind kind = GuessObjectGCKind(0, false);
-        JSObject *obj = NewBuiltinClassInstance(cx, &ObjectClass, kind);
+        gc::FinalizeKind kind = GuessObjectGCKind(0, false);
+        JSObject *obj = NewBuiltinClassInstance(cx, &js_ObjectClass, kind);
         if (!obj)
             THROW();
         if (type)
@@ -1481,23 +1481,28 @@ stubs::RegExp(VMFrame &f, JSObject *regex)
 }
 
 JSObject * JS_FASTCALL
-stubs::LambdaJoinableForInit(VMFrame &f, JSFunction *fun)
+stubs::LambdaForInit(VMFrame &f, JSFunction *fun)
 {
+    JSObject *obj = fun;
     jsbytecode *nextpc = (jsbytecode *) f.scratch;
-    JS_ASSERT(fun->joinable());
-    fun->setMethodAtom(f.fp()->script()->getAtom(GET_SLOTNO(nextpc)));
-    return fun;
+    if (fun->isNullClosure() && obj->getParent() == &f.fp()->scopeChain()) {
+        fun->setMethodAtom(f.script()->getAtom(GET_SLOTNO(nextpc)));
+        return obj;
+    }
+    return Lambda(f, fun);
 }
 
 JSObject * JS_FASTCALL
-stubs::LambdaJoinableForSet(VMFrame &f, JSFunction *fun)
+stubs::LambdaForSet(VMFrame &f, JSFunction *fun)
 {
-    JS_ASSERT(fun->joinable());
+    JSObject *obj = fun;
     jsbytecode *nextpc = (jsbytecode *) f.scratch;
-    const Value &lref = f.regs.sp[-1];
-    if (lref.isObject() && lref.toObject().canHaveMethodBarrier()) {
-        fun->setMethodAtom(f.fp()->script()->getAtom(GET_SLOTNO(nextpc)));
-        return fun;
+    if (fun->isNullClosure() && obj->getParent() == &f.fp()->scopeChain()) {
+        const Value &lref = f.regs.sp[-1];
+        if (lref.isObject() && lref.toObject().canHaveMethodBarrier()) {
+            fun->setMethodAtom(f.script()->getAtom(GET_SLOTNO(nextpc)));
+            return obj;
+        }
     }
     return Lambda(f, fun);
 }
@@ -1505,34 +1510,36 @@ stubs::LambdaJoinableForSet(VMFrame &f, JSFunction *fun)
 JSObject * JS_FASTCALL
 stubs::LambdaJoinableForCall(VMFrame &f, JSFunction *fun)
 {
-    JS_ASSERT(fun->joinable());
+    JSObject *obj = fun;
     jsbytecode *nextpc = (jsbytecode *) f.scratch;
+    if (fun->isNullClosure() && obj->getParent() == &f.fp()->scopeChain()) {
+        /*
+         * Array.prototype.sort and String.prototype.replace are
+         * optimized as if they are special form. We know that they
+         * won't leak the joined function object in obj, therefore
+         * we don't need to clone that compiler- created function
+         * object for identity/mutation reasons.
+         */
+        int iargc = GET_ARGC(nextpc);
 
-    /*
-     * Array.prototype.sort and String.prototype.replace are optimized as if
-     * they are special form. We know that they won't leak the joined function
-     * object fun, therefore we don't need to clone that compiler-created
-     * function object for identity/mutation reasons.
-     */
-    int iargc = GET_ARGC(nextpc);
+        /*
+         * Note that we have not yet pushed obj as the final argument,
+         * so regs.sp[1 - (iargc + 2)], and not regs.sp[-(iargc + 2)],
+         * is the callee for this JSOP_CALL.
+         */
+        const Value &cref = f.regs.sp[1 - (iargc + 2)];
+        JSObject *callee;
 
-    /*
-     * Note that we have not yet pushed fun as the final argument, so
-     * regs.sp[1 - (iargc + 2)], and not regs.sp[-(iargc + 2)], is the callee
-     * for this JSOP_CALL.
-     */
-    const Value &cref = f.regs.sp[1 - (iargc + 2)];
-    JSObject *callee;
+        if (IsFunctionObject(cref, &callee)) {
+            JSFunction *calleeFun = callee->getFunctionPrivate();
+            Native native = calleeFun->maybeNative();
 
-    if (IsFunctionObject(cref, &callee)) {
-        JSFunction *calleeFun = callee->getFunctionPrivate();
-        Native native = calleeFun->maybeNative();
-
-        if (native) {
-            if (iargc == 1 && native == array_sort)
-                return fun;
-            if (iargc == 2 && native == str_replace)
-                return fun;
+            if (native) {
+                if (iargc == 1 && native == array_sort)
+                    return obj;
+                if (iargc == 2 && native == str_replace)
+                    return obj;
+            }
         }
     }
     return Lambda(f, fun);
@@ -1541,13 +1548,23 @@ stubs::LambdaJoinableForCall(VMFrame &f, JSFunction *fun)
 JSObject * JS_FASTCALL
 stubs::LambdaJoinableForNull(VMFrame &f, JSFunction *fun)
 {
-    JS_ASSERT(fun->joinable());
-    return fun;
+    JSObject *obj = fun;
+    jsbytecode *nextpc = (jsbytecode *) f.scratch;
+    if (fun->isNullClosure() && obj->getParent() == &f.fp()->scopeChain()) {
+        jsbytecode *pc2 = nextpc + JSOP_NULL_LENGTH;
+        JSOp op2 = JSOp(*pc2);
+
+        if (op2 == JSOP_CALL && GET_ARGC(pc2) == 0)
+            return obj;
+    }
+    return Lambda(f, fun);
 }
 
 JSObject * JS_FASTCALL
 stubs::Lambda(VMFrame &f, JSFunction *fun)
 {
+    JSObject *obj = fun;
+
     JSObject *parent;
     if (fun->isNullClosure()) {
         parent = &f.fp()->scopeChain();
@@ -1557,7 +1574,7 @@ stubs::Lambda(VMFrame &f, JSFunction *fun)
             THROWV(NULL);
     }
 
-    JSObject *obj = CloneFunctionObject(f.cx, fun, parent, true);
+    obj = CloneFunctionObject(f.cx, fun, parent, true);
     if (!obj)
         THROWV(NULL);
 
@@ -1740,7 +1757,7 @@ stubs::CallProp(VMFrame &f, JSAtom *origAtom)
 #if JS_HAS_NO_SUCH_METHOD
     if (JS_UNLIKELY(rval.isPrimitive()) && regs.sp[-1].isObject()) {
         regs.sp[-2].setString(origAtom);
-        if (!OnUnknownMethod(cx, regs.sp - 2))
+        if (!js_OnUnknownMethod(cx, regs.sp - 2))
             THROW();
     }
 #endif
@@ -2016,9 +2033,10 @@ stubs::EnterBlock(VMFrame &f, JSObject *obj)
      * static scope.
      */
     JSObject *obj2 = &fp->scopeChain();
-    while (obj2->isWith())
+    Class *clasp;
+    while ((clasp = obj2->getClass()) == &js_WithClass)
         obj2 = obj2->getParent();
-    if (obj2->isBlock() &&
+    if (clasp == &js_BlockClass &&
         obj2->getPrivate() == js_FloatingFrameIfGenerator(cx, fp)) {
         JSObject *youngestProto = obj2->getProto();
         JS_ASSERT(youngestProto->isStaticBlock());
@@ -2048,7 +2066,7 @@ stubs::LeaveBlock(VMFrame &f, JSObject *blockChain)
      */
     JSObject *obj = &fp->scopeChain();
     if (obj->getProto() == blockChain) {
-        JS_ASSERT(obj->isBlock());
+        JS_ASSERT(obj->getClass() == &js_BlockClass);
         if (!js_PutBlockObject(cx, JS_TRUE))
             THROW();
     }

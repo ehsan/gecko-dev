@@ -941,13 +941,6 @@ public:
 
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName);
 
-  virtual void ResetFullScreenElement();
-  virtual Element* GetFullScreenElement();
-  virtual void RequestFullScreen(Element* aElement);
-  virtual void CancelFullScreen();
-  virtual void UpdateFullScreenStatus(PRBool aIsFullScreen);
-  virtual PRBool IsFullScreenDoc();
-
 protected:
   friend class nsNodeUtils;
 
@@ -1085,9 +1078,6 @@ protected:
   // Recorded time of change to 'loading' state.
   mozilla::TimeStamp mLoadingTimeStamp;
 
-  // The current full-screen element of this document.
-  nsCOMPtr<Element> mFullScreenElement;
-
   // True if the document has been detached from its content viewer.
   PRPackedBool mIsGoingAway:1;
   // True if the document is being destroyed.
@@ -1119,9 +1109,6 @@ protected:
 
   // Whether we currently require our images to animate
   PRPackedBool mAnimatingImages:1;
-
-  // Whether we are currently in full-screen mode, as per the DOM API.
-  PRPackedBool mIsFullScreen:1;
 
   PRUint8 mXMLDeclarationBits;
 

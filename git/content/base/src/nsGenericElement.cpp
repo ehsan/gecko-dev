@@ -4874,7 +4874,8 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (hasMutationListeners) {
-    nsCOMPtr<nsIDOMEventTarget> node = do_QueryObject(this);
+    nsCOMPtr<nsIDOMEventTarget> node =
+      do_QueryInterface(static_cast<nsIContent *>(this));
     nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
     mutation.mRelatedNode = attrNode;
@@ -5530,44 +5531,3 @@ nsGenericElement::SizeOf() const
 #include "nsEventNameList.h"
 #undef TOUCH_EVENT
 #undef EVENT
-
-PRBool
-nsINode::Contains(const nsINode* aOther) const
-{
-  if (!aOther ||
-      aOther == this ||
-      GetOwnerDoc() != aOther->GetOwnerDoc() ||
-      IsInDoc() != aOther->IsInDoc() ||
-      !(aOther->IsElement() ||
-        aOther->IsNodeOfType(nsINode::eCONTENT)) ||
-      !GetFirstChild()) {
-    return PR_FALSE;
-  }
-
-  const nsIContent* other = static_cast<const nsIContent*>(aOther);
-  if (this == GetOwnerDoc()) {
-    // document.contains(aOther) returns true if aOther is in the document,
-    // but is not in any anonymous subtree.
-    // IsInDoc() check is done already before this.
-    return !other->IsInAnonymousSubtree();
-  }
-
-  if (!IsElement() && !IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT)) {
-    return PR_FALSE;
-  }
-
-  const nsIContent* thisContent = static_cast<const nsIContent*>(this);
-  if (thisContent->GetBindingParent() != other->GetBindingParent()) {
-    return PR_FALSE;
-  }
-
-  return nsContentUtils::ContentIsDescendantOf(other, this);
-}
-
-nsresult
-nsINode::Contains(nsIDOMNode* aOther, PRBool* aReturn)
-{
-  nsCOMPtr<nsINode> node = do_QueryInterface(aOther);
-  *aReturn = Contains(node);
-  return NS_OK;
-}

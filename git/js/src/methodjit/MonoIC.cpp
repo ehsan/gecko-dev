@@ -224,7 +224,7 @@ AttachSetGlobalNameStub(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, cons
     Jump done = masm.jump();
 
     JITScript *jit = f.jit();
-    LinkerHelper linker(masm, JSC::METHOD_CODE);
+    LinkerHelper linker(masm);
     JSC::ExecutablePool *ep = linker.init(f.cx);
     if (!ep)
         return Lookup_Error;
@@ -340,7 +340,7 @@ class EqualityICLinker : public LinkerHelper
 
   public:
     EqualityICLinker(Assembler &masm, VMFrame &f)
-        : LinkerHelper(masm, JSC::METHOD_CODE), f(f)
+        : LinkerHelper(masm), f(f)
     { }
 
     bool init(JSContext *cx) {
@@ -701,7 +701,7 @@ class CallCompiler : public BaseCompiler
             masm.load32(FrameAddress(offsetof(VMFrame, u.call.dynamicArgc)), JSParamReg_Argc);
         masm.jump(t0);
 
-        LinkerHelper linker(masm, JSC::METHOD_CODE);
+        LinkerHelper linker(masm);
         JSC::ExecutablePool *ep = poolForSize(linker, CallICInfo::Pool_ScriptStub);
         if (!ep)
             return false;
@@ -718,7 +718,7 @@ class CallCompiler : public BaseCompiler
                    (unsigned long) masm.size());
 
         if (f.regs.inlined()) {
-            JSC::LinkBuffer code((uint8 *) cs.executableAddress(), masm.size(), JSC::METHOD_CODE);
+            JSC::LinkBuffer code((uint8 *) cs.executableAddress(), masm.size());
             code.patch(inlined, f.regs.inlined());
         }
 
@@ -775,7 +775,7 @@ class CallCompiler : public BaseCompiler
         RegisterID t0 = tempRegs.takeAnyReg().reg();
 
         /* Guard that it's actually a function object. */
-        Jump claspGuard = masm.testObjClass(Assembler::NotEqual, ic.funObjReg, &FunctionClass);
+        Jump claspGuard = masm.testObjClass(Assembler::NotEqual, ic.funObjReg, &js_FunctionClass);
 
         /* Guard that it's the same function. */
         JSFunction *fun = obj->getFunctionPrivate();
@@ -783,7 +783,7 @@ class CallCompiler : public BaseCompiler
         Jump funGuard = masm.branchPtr(Assembler::NotEqual, t0, ImmPtr(fun));
         Jump done = masm.jump();
 
-        LinkerHelper linker(masm, JSC::METHOD_CODE);
+        LinkerHelper linker(masm);
         JSC::ExecutablePool *ep = poolForSize(linker, CallICInfo::Pool_ClosureStub);
         if (!ep)
             return false;
@@ -1037,7 +1037,7 @@ class CallCompiler : public BaseCompiler
             masm.storePtr(ImmPtr(NULL), FrameAddress(offsetof(VMFrame, stubRejoin)));
         masm.throwInJIT();
 
-        LinkerHelper linker(masm, JSC::METHOD_CODE);
+        LinkerHelper linker(masm);
         JSC::ExecutablePool *ep = poolForSize(linker, CallICInfo::Pool_NativeStub);
         if (!ep)
             THROWV(true);
@@ -1336,7 +1336,7 @@ ic::GenerateArgumentCheckStub(VMFrame &f)
 
     Jump done = masm.jump();
 
-    LinkerHelper linker(masm, JSC::METHOD_CODE);
+    LinkerHelper linker(masm);
     JSC::ExecutablePool *ep = linker.init(f.cx);
     if (!ep)
         return;
@@ -1354,7 +1354,7 @@ ic::GenerateArgumentCheckStub(VMFrame &f)
     JSC::CodeLocationLabel cs = linker.finalize();
 
     JaegerSpew(JSpew_PICs, "generated ARGS CHECK stub %p (%lu bytes)\n",
-               cs.executableAddress(), (unsigned long)masm.size());
+               cs.executableAddress(), masm.size());
 
     Repatcher repatch(jit);
     repatch.relink(jit->argsCheckJump, cs);

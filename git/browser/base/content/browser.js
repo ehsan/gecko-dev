@@ -2213,12 +2213,8 @@ var gLastOpenDirectory = {
     return this._lastDir;
   },
   set path(val) {
-    try {
-      if (!val || !val.isDirectory())
-        return;
-    } catch(e) {
+    if (!val || !val.exists() || !val.isDirectory())
       return;
-    }
     this._lastDir = val.clone();
 
     // Don't save the last open directory pref inside the Private Browsing mode
@@ -2243,11 +2239,8 @@ function BrowserOpenFileWindow()
     fp.displayDirectory = gLastOpenDirectory.path;
 
     if (fp.show() == nsIFilePicker.returnOK) {
-      try {
-        if (fp.file)
-          gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
-      } catch(e) {
-      }
+      if (fp.file && fp.file.exists())
+        gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
       openTopWin(fp.fileURL.spec);
     }
   } catch (ex) {

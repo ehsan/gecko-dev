@@ -112,8 +112,7 @@ class LinkerHelper : public JSC::LinkBuffer
 #endif
 
   public:
-    LinkerHelper(Assembler &masm, JSC::CodeKind kind) : JSC::LinkBuffer(kind)
-        , masm(masm)
+    LinkerHelper(Assembler &masm) : masm(masm)
 #ifdef DEBUG
         , verifiedRange(false)
 #endif
@@ -148,7 +147,7 @@ class LinkerHelper : public JSC::LinkBuffer
         // The pool is incref'd after this call, so it's necessary to release()
         // on any failure.
         JSScript *script = cx->fp()->script();
-        JSC::ExecutableAllocator *allocator = script->compartment()->jaegerCompartment()->execAlloc();
+        JSC::ExecutableAllocator *allocator = script->compartment->jaegerCompartment()->execAlloc();
         JSC::ExecutablePool *pool;
         m_code = executableAllocAndCopy(masm, allocator, &pool);
         if (!m_code) {

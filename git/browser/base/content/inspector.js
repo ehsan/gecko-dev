@@ -1127,6 +1127,7 @@ var InspectorUI = {
       this.closeEditor();
 
     let target = aEvent.target;
+
     if (this.hasClass(target, "nodeValue")) {
       let repObj = this.getRepObject(target);
       let attrName = target.getAttribute("data-attributeName");

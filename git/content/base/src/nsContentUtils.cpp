@@ -176,7 +176,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIPluginHost.h"
 #include "nsICategoryManager.h"
 #include "nsIViewManager.h"
-#include "nsEventStateManager.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -262,9 +261,6 @@ nsString* nsContentUtils::sAltText = nsnull;
 nsString* nsContentUtils::sModifierSeparator = nsnull;
 
 PRBool nsContentUtils::sInitialized = PR_FALSE;
-PRBool nsContentUtils::sIsFullScreenApiEnabled = PR_FALSE;
-PRBool nsContentUtils::sTrustedFullScreenOnly = PR_TRUE;
-PRBool nsContentUtils::sFullScreenKeyInputRestricted = PR_TRUE;
 
 nsHtml5Parser* nsContentUtils::sHTMLFragmentParser = nsnull;
 nsIParser* nsContentUtils::sXMLFragmentParser = nsnull;
@@ -387,15 +383,6 @@ nsContentUtils::Init()
 
   Preferences::AddBoolVarCache(&sAllowXULXBL_for_file,
                                "dom.allow_XUL_XBL_for_file");
-
-  Preferences::AddBoolVarCache(&sIsFullScreenApiEnabled,
-                               "full-screen-api.enabled");
-
-  Preferences::AddBoolVarCache(&sTrustedFullScreenOnly,
-                               "full-screen-api.allow-trusted-requests-only");
-
-  Preferences::AddBoolVarCache(&sFullScreenKeyInputRestricted,
-                               "full-screen-api.key-input-restricted");
 
   sInitialized = PR_TRUE;
 
@@ -5530,9 +5517,8 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
   }
 }
 
-static already_AddRefed<LayerManager>
-LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
-                                bool* aAllowRetaining)
+nsIWidget *
+nsContentUtils::WidgetForDocument(nsIDocument *aDoc)
 {
   nsIDocument* doc = aDoc;
   nsIDocument* displayDoc = doc->GetDisplayDocument();
@@ -5567,18 +5553,26 @@ LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
       if (rootView) {
         nsIView* displayRoot = nsIViewManager::GetDisplayRootFor(rootView);
         if (displayRoot) {
-          nsIWidget* widget = displayRoot->GetNearestWidget(nsnull);
-          if (widget) {
-            nsRefPtr<LayerManager> manager =
-              widget->
-                GetLayerManager(aRequirePersistent ? nsIWidget::LAYER_MANAGER_PERSISTENT : 
-                                                     nsIWidget::LAYER_MANAGER_CURRENT,
-                                aAllowRetaining);
-            return manager.forget();
-          }
+          return displayRoot->GetNearestWidget(nsnull);
         }
       }
     }
+  }
+
+  return nsnull;
+}
+
+static already_AddRefed<LayerManager>
+LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
+                                bool* aAllowRetaining)
+{
+  nsIWidget *widget = nsContentUtils::WidgetForDocument(aDoc);
+  if (widget) {
+    nsRefPtr<LayerManager> manager =
+      widget->GetLayerManager(aRequirePersistent ? nsIWidget::LAYER_MANAGER_PERSISTENT : 
+                              nsIWidget::LAYER_MANAGER_CURRENT,
+                              aAllowRetaining);
+    return manager.forget();
   }
 
   return nsnull;
@@ -5708,21 +5702,4 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
                                   aValue.Length(), &idx, JS_TRUE, &rval);
 
   return res == JS_FALSE || rval != JSVAL_NULL;
-}
-
-PRBool
-nsContentUtils::IsFullScreenApiEnabled()
-{
-  return sIsFullScreenApiEnabled;
-}
-
-PRBool nsContentUtils::IsRequestFullScreenAllowed()
-{
-  return !sTrustedFullScreenOnly || nsEventStateManager::IsHandlingUserInput();
-}
-
-PRBool
-nsContentUtils::IsFullScreenKeyInputRestricted()
-{
-  return sFullScreenKeyInputRestricted;
 }

@@ -269,7 +269,6 @@ ContentParent::OnChannelConnected(int32 pid)
 }
 
 namespace {
-
 void
 DelayedDeleteSubprocess(GeckoChildProcessHost* aSubprocess)
 {
@@ -277,20 +276,6 @@ DelayedDeleteSubprocess(GeckoChildProcessHost* aSubprocess)
         ->PostTask(FROM_HERE,
                    new DeleteTask<GeckoChildProcessHost>(aSubprocess));
 }
-
-// This runnable only exists to delegate ownership of the
-// ContentParent to this runnable, until it's deleted by the event
-// system.
-struct DelayedDeleteContentParentTask : public nsRunnable
-{
-    DelayedDeleteContentParentTask(ContentParent* aObj) : mObj(aObj) { }
-
-    // No-op
-    NS_IMETHODIMP Run() { return NS_OK; }
-
-    nsRefPtr<ContentParent> mObj;
-};
-
 }
 
 void
@@ -381,15 +366,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         PostTask(FROM_HERE,
                  NewRunnableFunction(DelayedDeleteSubprocess, mSubprocess));
     mSubprocess = NULL;
-
-    // IPDL rules require actors to live on past ActorDestroy, but it
-    // may be that the kungFuDeathGrip above is the last reference to
-    // |this|.  If so, when we go out of scope here, we're deleted and
-    // all hell breaks loose.
-    //
-    // This runnable ensures that a reference to |this| lives on at
-    // least until after the current task finishes running.
-    NS_DispatchToCurrentThread(new DelayedDeleteContentParentTask(this));
 }
 
 TabParent*
@@ -479,10 +455,8 @@ bool
 ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions)
 {
 #ifdef MOZ_PERMISSIONS
-    nsCOMPtr<nsIPermissionManager> permissionManagerIface =
-        do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-    nsPermissionManager* permissionManager =
-        static_cast<nsPermissionManager*>(permissionManagerIface.get());
+    nsRefPtr<nsPermissionManager> permissionManager =
+        nsPermissionManager::GetSingleton();
     NS_ABORT_IF_FALSE(permissionManager,
                  "We have no permissionManager in the Chrome process !");
 

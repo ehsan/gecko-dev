@@ -202,17 +202,18 @@ struct CompartmentStats
     PRInt64 gcHeapArenaPadding;
     PRInt64 gcHeapArenaUnused;
 
-    PRInt64 gcHeapKinds[JSTRACE_LAST + 1];
+    PRInt64 gcHeapObjects;
+    PRInt64 gcHeapStrings;
+    PRInt64 gcHeapShapes;
+    PRInt64 gcHeapXml;
 
     PRInt64 objectSlots;
     PRInt64 stringChars;
     PRInt64 propertyTables;
-    PRInt64 scriptData;
 
+    PRInt64 scripts;
 #ifdef JS_METHODJIT
-    PRInt64 mjitCodeMethod;
-    PRInt64 mjitCodeRegexp;
-    PRInt64 mjitCodeUnused;
+    PRInt64 mjitCode;
     PRInt64 mjitData;
 #endif
 #ifdef JS_TRACER
@@ -227,8 +228,7 @@ struct CompartmentStats
 struct IterateData
 {
     IterateData()
-      : runtimeObjectSize(0),
-        atomsTableSize(0),
+      : atomsTableSize(0),
         stackSize(0),
         gcHeapChunkTotal(0),
         gcHeapChunkCleanUnused(0),
@@ -239,7 +239,6 @@ struct IterateData
         compartmentStatsVector(),
         currCompartmentStats(NULL) { }
 
-    PRInt64 runtimeObjectSize;
     PRInt64 atomsTableSize;
     PRInt64 stackSize;
     PRInt64 gcHeapChunkTotal;

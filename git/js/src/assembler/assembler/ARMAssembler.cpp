@@ -634,14 +634,14 @@ inline void ARMAssembler::fixUpOffsets(void * buffer)
     }
 }
 
-void* ARMAssembler::executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool **poolp, CodeKind kind)
+void* ARMAssembler::executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool **poolp)
 {
     // 64-bit alignment is required for next constant pool and JIT code as well
     m_buffer.flushWithoutBarrier(true);
     if (m_buffer.uncheckedSize() & 0x7)
         bkpt(0);
 
-    void * data = m_buffer.executableAllocAndCopy(allocator, poolp, kind);
+    void * data = m_buffer.executableAllocAndCopy(allocator, poolp);
     if (data)
         fixUpOffsets(data);
     return data;

@@ -73,7 +73,8 @@ HttpChannelParent::HttpChannelParent(PBrowserParent* iframeEmbedding)
   CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &handler);
   NS_ASSERTION(handler, "no http handler");
 
-  mTabParent = do_QueryObject(static_cast<TabParent*>(iframeEmbedding));
+  mTabParent = do_QueryInterface(static_cast<nsITabParent*>(
+      static_cast<TabParent*>(iframeEmbedding)));
 }
 
 HttpChannelParent::~HttpChannelParent()
@@ -85,8 +86,7 @@ void
 HttpChannelParent::ActorDestroy(ActorDestroyReason why)
 {
   // We may still have refcount>0 if nsHttpChannel hasn't called OnStopRequest
-  // yet, but child process has crashed.  We must not try to send any more msgs
-  // to child, or IPDL will kill chrome process, too.
+  // yet, but we must not send any more msgs to child.
   mIPCClosed = true;
 }
 
@@ -318,12 +318,20 @@ HttpChannelParent::RecvUpdateAssociatedContentSecurity(const PRInt32& high,
                                                        const PRInt32& broken,
                                                        const PRInt32& no)
 {
-  if (mAssociatedContentSecurity) {
-    mAssociatedContentSecurity->SetCountSubRequestsHighSecurity(high);
-    mAssociatedContentSecurity->SetCountSubRequestsLowSecurity(low);
-    mAssociatedContentSecurity->SetCountSubRequestsBrokenSecurity(broken);
-    mAssociatedContentSecurity->SetCountSubRequestsNoSecurity(no);
-  }
+  nsHttpChannel *chan = static_cast<nsHttpChannel *>(mChannel.get());
+
+  nsCOMPtr<nsISupports> secInfo;
+  chan->GetSecurityInfo(getter_AddRefs(secInfo));
+
+  nsCOMPtr<nsIAssociatedContentSecurity> assoc = do_QueryInterface(secInfo);
+  if (!assoc)
+    return true;
+
+  assoc->SetCountSubRequestsHighSecurity(high);
+  assoc->SetCountSubRequestsLowSecurity(low);
+  assoc->SetCountSubRequestsBrokenSecurity(broken);
+  assoc->SetCountSubRequestsNoSecurity(no);
+
   return true;
 }
 
@@ -352,9 +360,10 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
 bool
 HttpChannelParent::RecvDocumentChannelCleanup()
 {
-  // From now on only using mAssociatedContentSecurity.  Free everything else.
-  mChannel = 0;          // Reclaim some memory sooner.
-  mCacheDescriptor = 0;  // Else we'll block other channels reading same URI
+  // We must clear the cache entry here, else we'll block other channels from
+  // reading it if we've got it open for writing.  
+  mCacheDescriptor = 0;
+
   return true;
 }
 
@@ -413,7 +422,6 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
   nsCOMPtr<nsISupports> secInfoSupp;
   chan->GetSecurityInfo(getter_AddRefs(secInfoSupp));
   if (secInfoSupp) {
-    mAssociatedContentSecurity = do_QueryInterface(secInfoSupp);
     nsCOMPtr<nsISerializable> secInfoSer = do_QueryInterface(secInfoSupp);
     if (secInfoSer)
       NS_SerializeToString(secInfoSer, secInfoSerialization);

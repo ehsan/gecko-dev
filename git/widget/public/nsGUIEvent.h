@@ -66,9 +66,6 @@ namespace dom {
   class PBrowserParent;
   class PBrowserChild;
 }
-namespace plugins {
-  class PPluginInstanceChild;
-}
 }
 
 #ifdef ACCESSIBILITY
@@ -540,10 +537,6 @@ class nsHashKey;
 #define NS_DEVICE_MOTION             (NS_DEVICE_ORIENTATION_START+1)
 
 #define NS_SHOW_EVENT                5000
-
-// Fullscreen DOM API
-#define NS_FULL_SCREEN_START         5100
-#define NS_FULLSCREENCHANGE          (NS_FULL_SCREEN_START)
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -1129,7 +1122,6 @@ class nsTextEvent : public nsInputEvent
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
-  friend class mozilla::plugins::PPluginInstanceChild;
 
   nsTextEvent()
   {

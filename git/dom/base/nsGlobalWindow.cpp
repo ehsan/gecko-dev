@@ -930,6 +930,10 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     }
   }
 
+  if (!gEntropyCollector) {
+    CallGetService(NS_ENTROPYCOLLECTOR_CONTRACTID, &gEntropyCollector);
+  }
+
   mSerial = ++gSerialCounter;
 
 #ifdef DEBUG
@@ -941,39 +945,29 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 #endif
 
 #ifdef PR_LOGGING
+  if (!gDOMLeakPRLog)
+    gDOMLeakPRLog = PR_NewLogModule("DOMLeak");
+
   if (gDOMLeakPRLog)
     PR_LOG(gDOMLeakPRLog, PR_LOG_DEBUG,
            ("DOMWINDOW %p created outer=%p", this, aOuterWindow));
 #endif
 
-  NS_ASSERTION(sWindowsById, "Windows hash table must be created!");
-  NS_ASSERTION(!sWindowsById->Get(mWindowID),
-               "This window shouldn't be in the hash table yet!");
-  sWindowsById->Put(mWindowID, this);
-}
+  // TODO: could be moved to a ::Init() method, see bug 667183.
+  if (!sWindowsById) {
+    sWindowsById = new WindowByIdTable();
+    if (!sWindowsById->Init()) {
+      delete sWindowsById;
+      sWindowsById = nsnull;
+      NS_ERROR("sWindowsById initialization failed!");
+    }
+  }
 
-/* static */
-void
-nsGlobalWindow::Init()
-{
-  CallGetService(NS_ENTROPYCOLLECTOR_CONTRACTID, &gEntropyCollector);
-  NS_ASSERTION(gEntropyCollector,
-               "gEntropyCollector should have been initialized!");
-
-#ifdef PR_LOGGING
-  gDOMLeakPRLog = PR_NewLogModule("DOMLeak");
-  NS_ASSERTION(gDOMLeakPRLog, "gDOMLeakPRLog should have been initialized!");
-#endif
-
-  sWindowsById = new WindowByIdTable();
-  // There are two reasons to have Init() failing: if we were not able to
-  // alloc the memory or if the size we want to init is too high. None of them
-  // should happen.
-#ifdef DEBUG
-  NS_ASSERTION(sWindowsById->Init(), "Init() should not fail!");
-#else
-  sWindowsById->Init();
-#endif
+  if (sWindowsById) {
+    NS_ASSERTION(!sWindowsById->Get(mWindowID),
+                 "This window shouldn't be in the hash table yet!");
+    sWindowsById->Put(mWindowID, this);
+  }
 }
 
 nsGlobalWindow::~nsGlobalWindow()
@@ -985,9 +979,9 @@ nsGlobalWindow::~nsGlobalWindow()
                  "This window should be in the hash table");
     sWindowsById->Remove(mWindowID);
   }
-
-  --gRefCnt;
-
+  if (!--gRefCnt) {
+    NS_IF_RELEASE(gEntropyCollector);
+  }
 #ifdef DEBUG
   if (!PR_GetEnv("MOZ_QUIET")) {
     nsCAutoString url;
@@ -1068,8 +1062,6 @@ nsGlobalWindow::ShutDown()
   }
   gDumpFile = nsnull;
 
-  NS_IF_RELEASE(gEntropyCollector);
-
   delete sWindowsById;
   sWindowsById = nsnull;
 }
@@ -1109,7 +1101,8 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
 {
   if (IsOuterWindow() && !aIgnoreModalDialog) {
     nsGlobalWindow* inner = GetCurrentInnerWindowInternal();
-    nsCOMPtr<nsIDOMModalContentWindow> dlg(do_QueryObject(inner));
+    nsCOMPtr<nsIDOMModalContentWindow>
+      dlg(do_QueryInterface(static_cast<nsPIDOMWindow*>(inner)));
     if (dlg) {
       // The window we're trying to clean up is the outer window of a
       // modal dialog.  Defer cleanup until the window closes, and let
@@ -4408,11 +4401,9 @@ nsGlobalWindow::SetFullScreen(PRBool aFullScreen)
 
   PRBool rootWinFullScreen;
   GetFullScreen(&rootWinFullScreen);
-  // Only chrome can change our fullScreen mode, unless the DOM full-screen
-  // API is enabled.
-  if ((aFullScreen == rootWinFullScreen || 
-      !nsContentUtils::IsCallerTrustedForWrite()) &&
-      !nsContentUtils::IsFullScreenApiEnabled()) {
+  // Only chrome can change our fullScreen mode.
+  if (aFullScreen == rootWinFullScreen || 
+      !nsContentUtils::IsCallerTrustedForWrite()) {
     return NS_OK;
   }
 
@@ -4461,14 +4452,6 @@ nsGlobalWindow::SetFullScreen(PRBool aFullScreen)
   nsCOMPtr<nsIWidget> widget = GetMainWidget();
   if (widget)
     widget->MakeFullScreen(aFullScreen);
-
-  if (!mFullScreen && mDocument) {
-    // Notify the document that we've left full-screen mode. This is so that
-    // if we're in full-screen mode and the user exits full-screen mode with
-    // the browser full-screen mode toggle keyboard-shortcut, we detect that
-    // and leave DOM API full-screen mode too.
-    mDocument->MozCancelFullScreen();
-  }
 
   return NS_OK;
 }
@@ -9796,7 +9779,8 @@ nsGlobalWindow::BuildURIfromBase(const char *aURL, nsIURI **aBuiltURI,
   if (!scx || !mDocument)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDOMChromeWindow> chrome_win = do_QueryObject(this);
+  nsCOMPtr<nsIDOMChromeWindow> chrome_win =
+    do_QueryInterface(static_cast<nsIDOMWindow *>(this));
 
   if (nsContentUtils::IsCallerChrome() && !chrome_win) {
     // If open() is called from chrome on a non-chrome window, we'll

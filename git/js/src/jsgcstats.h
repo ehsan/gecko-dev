@@ -49,8 +49,7 @@ JS_BEGIN_EXTERN_C
 struct JSGCInfo
 {
     double appTime, gcTime, waitTime, markTime, sweepTime;
-    double sweepObjTime, sweepStringTime, sweepScriptTime, sweepShapeTime;
-    double destroyTime, endTime;
+    double sweepObjTime, sweepStringTime, sweepShapeTime, destroyTime, endTime;
     bool isCompartmental;
 };
 
@@ -99,6 +98,7 @@ enum ConservativeGCTest
     CGCT_NOTARENA,  /* not within arena range in a chunk */
     CGCT_NOTCHUNK,  /* not within a valid chunk */
     CGCT_FREEARENA, /* within arena containing only free things */
+    CGCT_WRONGTAG,  /* tagged pointer but wrong type */
     CGCT_NOTLIVE,   /* gcthing is not allocated */
     CGCT_END
 };
@@ -134,7 +134,6 @@ struct GCTimer
     uint64 startSweep;
     uint64 sweepObjectEnd;
     uint64 sweepStringEnd;
-    uint64 sweepScriptEnd;
     uint64 sweepShapeEnd;
     uint64 sweepDestroyEnd;
     uint64 end;
@@ -161,7 +160,7 @@ struct GCTimer
         LASTDITCH,
         TOOMUCHMALLOC,
         ALLOCTRIGGER,
-        REFILL,
+        CHUNK,
         SHAPE,
         NOREASON
     };

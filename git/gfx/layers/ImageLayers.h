@@ -452,11 +452,6 @@ public:
   PRUint8 *CopyData(Data& aDest, gfxIntSize& aDestSize,
                     PRUint32& aDestBufferSize, const Data& aData);
 
-  /**
-   * Return a buffer to store image data in.
-   * The default implementation returns memory that can
-   * be freed wit delete[]
-   */
   virtual PRUint8* AllocateBuffer(PRUint32 aSize);
 
   /**

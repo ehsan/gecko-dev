@@ -451,27 +451,16 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
     }
   }
 
-  // If we have any IB split special siblings, clear their references to us.
+  // If we have an IB split special sibling, clear its reference to us.
   // (Note: This has to happen before we call shell->NotifyDestroyingFrame,
   // because that clears our Properties() table.)
   if (mState & NS_FRAME_IS_SPECIAL) {
-    // Delete previous sibling's reference to me.
-    nsIFrame* prevSib = static_cast<nsIFrame*>
-      (Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
-    if (prevSib) {
-      NS_WARN_IF_FALSE(this ==
-         prevSib->Properties().Get(nsIFrame::IBSplitSpecialSibling()),
-         "IB sibling chain is inconsistent");
-      prevSib->Properties().Delete(nsIFrame::IBSplitSpecialSibling());
-    }
-
-    // Delete next sibling's reference to me.
     nsIFrame* nextSib = static_cast<nsIFrame*>
       (Properties().Get(nsIFrame::IBSplitSpecialSibling()));
     if (nextSib) {
       NS_WARN_IF_FALSE(this ==
          nextSib->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()),
-         "IB sibling chain is inconsistent");
+         "Next-sibling / prev-sibling chain is inconsistent");
       nextSib->Properties().Delete(nsIFrame::IBSplitSpecialPrevSibling());
     }
   }
@@ -786,17 +775,7 @@ nsIFrame::IsTransformed() const
 PRBool
 nsIFrame::Preserves3DChildren() const
 {
-  if (GetStyleDisplay()->mTransformStyle != NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D || !IsTransformed())
-      return PR_FALSE;
-
-  // If we're all scroll frame, then all descendants will be clipped, so we can't preserve 3d.
-  if (GetType() == nsGkAtoms::scrollFrame)
-      return PR_FALSE;
-
-  nsRect temp;
-  return (!ApplyOverflowClipping(nsnull, this, GetStyleDisplay(), &temp) &&
-      !ApplyAbsPosClipping(nsnull, GetStyleDisplay(), this, &temp) &&
-      !nsSVGIntegrationUtils::UsingEffectsForFrame(this));
+  return GetStyleDisplay()->mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D && IsTransformed();
 }
 
 PRBool
@@ -805,7 +784,11 @@ nsIFrame::Preserves3D() const
   if (!GetParent() || !GetParent()->Preserves3DChildren() || !IsTransformed()) {
     return PR_FALSE;
   }
-  return PR_TRUE;
+
+  nsRect temp;
+  return (!ApplyOverflowClipping(nsnull, this, GetStyleDisplay(), &temp) &&
+          !ApplyAbsPosClipping(nsnull, GetStyleDisplay(), this, &temp) &&
+          !nsSVGIntegrationUtils::UsingEffectsForFrame(this));
 }
 
 nsRect
@@ -1483,14 +1466,12 @@ WrapPreserve3DList(nsIFrame *aFrame, nsDisplayListBuilder *aBuilder, nsDisplayLi
   nsresult rv = NS_OK;
   nsDisplayList newList;
   while (nsDisplayItem *item = aList->RemoveBottom()) {
-    nsIFrame *childFrame = item->GetUnderlyingFrame();
-    NS_ASSERTION(childFrame, "All display items to be wrapped must have a frame!");
-    if (childFrame->GetParent()->Preserves3DChildren()) {
+    if (item->GetUnderlyingFrame() && item->GetUnderlyingFrame()->GetParent()->Preserves3DChildren()) {
       switch (item->GetType()) {
         case nsDisplayItem::TYPE_TRANSFORM: {
           // The child transform frame should always preserve 3d. In the cases where preserve-3d is disabled
           // such as clipping, this would be wrapped in a clip display object, and we wouldn't reach this point.
-          NS_ASSERTION(childFrame->Preserves3D(), "Child transform frame must preserve 3d!");
+          NS_ASSERTION(item->GetUnderlyingFrame()->Preserves3D(), "Child transform frame must preserve 3d!");
           break;
         }
         case nsDisplayItem::TYPE_WRAP_LIST: {
@@ -1504,12 +1485,12 @@ WrapPreserve3DList(nsIFrame *aFrame, nsDisplayListBuilder *aBuilder, nsDisplayLi
           break;
         }
         default: {
-          item = new (aBuilder) nsDisplayTransform(aBuilder, childFrame, item);
+          item = new (aBuilder) nsDisplayTransform(aBuilder, item->GetUnderlyingFrame(), item);
           break;
         }
       } 
     } else {
-      item = new (aBuilder) nsDisplayTransform(aBuilder, childFrame, item);
+      item = new (aBuilder) nsDisplayTransform(aBuilder, item->GetUnderlyingFrame(), item);
     }
  
     if (NS_FAILED(rv) || !item)

@@ -74,7 +74,7 @@ var BrowserSearch = {
     while (list.lastChild)
       list.removeChild(list.lastChild);
 
-    this.engines.forEach(function(aEngine, aIndex, aArray) {
+    this.engines.forEach(function(aEngine) {
       let button = document.createElement("button");
       button.className = "action-button";
       button.setAttribute("label", aEngine.name);
@@ -86,13 +86,7 @@ var BrowserSearch = {
 
     popup.hidden = false;
     popup.top = BrowserUI.toolbarH - popup.offset;
-    let searchButton = document.getElementById("tool-search");
-    let anchorPosition = "";
-    if (Util.isTablet())
-      anchorPosition = "after_start";
-    else if (popup.hasAttribute("left"))
-      popup.removeAttribute("left");
-    popup.anchorTo(searchButton, anchorPosition);
+    popup.anchorTo(document.getElementById("tool-search"));
 
     document.getElementById("urlbar-icons").setAttribute("open", "true");
     BrowserUI.pushPopup(this, [popup, this._button]);

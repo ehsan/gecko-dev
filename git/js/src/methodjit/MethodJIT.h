@@ -640,7 +640,7 @@ struct JITScript {
 
     void trace(JSTracer *trc);
 
-    size_t scriptDataSize(size_t(*mus)(void *));
+    size_t scriptDataSize();
 
     jsbytecode *nativeToPC(void *returnAddress, CallSite **pinline) const;
 
@@ -687,9 +687,9 @@ inline void
 ReleaseScriptCode(JSContext *cx, JSScript *script)
 {
     if (script->jitCtor)
-        mjit::ReleaseScriptCode(cx, script, true);
+        mjit::ReleaseScriptCode(cx, script, CONSTRUCT);
     if (script->jitNormal)
-        mjit::ReleaseScriptCode(cx, script, false);
+        mjit::ReleaseScriptCode(cx, script, NO_CONSTRUCT);
 }
 
 // Expand all stack frames inlined by the JIT within a compartment.

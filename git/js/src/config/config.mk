@@ -463,9 +463,6 @@ endif # MOZ_OPTIMIZE == 1
 endif # MOZ_OPTIMIZE
 endif # CROSS_COMPILE
 
-CFLAGS += $(MOZ_FRAMEPTR_FLAGS)
-CXXFLAGS += $(MOZ_FRAMEPTR_FLAGS)
-
 # Check for FAIL_ON_WARNINGS & FAIL_ON_WARNINGS_DEBUG (Shorthand for Makefiles
 # to request that we use the 'warnings as errors' compile flags)
 
@@ -792,22 +789,4 @@ EXPAND_MKSHLIB = $(EXPAND_LIBS_EXEC) --uselist -- $(MKSHLIB)
 
 ifdef STDCXX_COMPAT
 CHECK_STDCXX = objdump -p $(1) | grep -e 'GLIBCXX_3\.4\.\(9\|[1-9][0-9]\)' > /dev/null && echo "TEST-UNEXPECTED-FAIL | | We don't want these libstdc++ symbols to be used:" && objdump -T $(1) | grep -e 'GLIBCXX_3\.4\.\(9\|[1-9][0-9]\)' && exit 1 || exit 0
-endif
-
-# autoconf.mk sets OBJ_SUFFIX to an error to avoid use before including
-# this file
-OBJ_SUFFIX := $(_OBJ_SUFFIX)
-
-# PGO builds with GCC build objects with instrumentation in a first pass,
-# then objects optimized, without instrumentation, in a second pass. If
-# we overwrite the ojects from the first pass with those from the second,
-# we end up not getting instrumentation data for better optimization on
-# incremental builds. As a consequence, we use a different object suffix
-# for the first pass.
-ifndef NO_PROFILE_GUIDED_OPTIMIZE
-ifdef MOZ_PROFILE_GENERATE
-ifdef GNU_CC
-OBJ_SUFFIX := i_o
-endif
-endif
 endif

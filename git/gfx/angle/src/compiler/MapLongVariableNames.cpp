@@ -48,10 +48,37 @@ void MapLongVariableNames::visitSymbol(TIntermSymbol* symbol)
     }
 }
 
-bool MapLongVariableNames::visitLoop(Visit, TIntermLoop* node)
+void MapLongVariableNames::visitConstantUnion(TIntermConstantUnion*)
 {
-    if (node->getInit())
-        node->getInit()->traverse(this);
+}
+
+bool MapLongVariableNames::visitBinary(Visit, TIntermBinary*)
+{
+    return true;
+}
+
+bool MapLongVariableNames::visitUnary(Visit, TIntermUnary*)
+{
+    return true;
+}
+
+bool MapLongVariableNames::visitSelection(Visit, TIntermSelection*)
+{
+    return true;
+}
+
+bool MapLongVariableNames::visitAggregate(Visit, TIntermAggregate* node)
+{
+    return true;
+}
+
+bool MapLongVariableNames::visitLoop(Visit, TIntermLoop*)
+{
+    return true;
+}
+
+bool MapLongVariableNames::visitBranch(Visit, TIntermBranch*)
+{
     return true;
 }
 

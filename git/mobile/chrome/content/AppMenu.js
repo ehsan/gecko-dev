@@ -1,5 +1,4 @@
 var AppMenu = {
-  offset: 10,
   get panel() {
     delete this.panel;
     return this.panel = document.getElementById("appmenu");
@@ -18,7 +17,7 @@ var AppMenu = {
 
   show: function show() {
     let modals = document.getElementsByClassName("modal-block").length;
-    if (AwesomeScreen.activePanel || BrowserUI.isPanelVisible() || modals > 0 || BrowserUI.activeDialog)
+    if (BrowserUI.activePanel || BrowserUI.isPanelVisible() || modals > 0 || BrowserUI.activeDialog)
       return;
 
     // Figure if we should show a menu-list or a pop-up menu
@@ -28,13 +27,9 @@ var AppMenu = {
     addEventListener("keypress", this, true);
 
     if (listFormat) {
-      let listbox = document.getElementById("appmenu-popup-appcommands");
+      let listbox = document.getElementById("appmenu-popup-commands");
       while (listbox.firstChild)
         listbox.removeChild(listbox.firstChild);
-
-      let siteCommandsBox = document.getElementById("appmenu-popup-sitecommands");
-      while (siteCommandsBox.firstChild)
-        siteCommandsBox.removeChild(siteCommandsBox.firstChild);
 
       let childrenCount = this.panel.childElementCount;
       for (let i = 0; i < childrenCount; i++) {
@@ -46,20 +41,23 @@ var AppMenu = {
         child.setAttribute("show", true);
 
         let item = document.createElement("richlistitem");
-        item.setAttribute("class", child.className);
+        item.setAttribute("class", "appmenu-button");
         item.onclick = function() { child.click(); }
 
         let label = document.createElement("label");
-        label.textContent = child.label;
+        label.setAttribute("value", child.label);
         item.appendChild(label);
 
-        if (item.classList.contains("appmenu-pageaction"))
-          siteCommandsBox.appendChild(item);
-        else
-          listbox.appendChild(item);
+        listbox.appendChild(item);
       }
+
+      this.popup.top = menuButton.getBoundingClientRect().bottom;
+
+      let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(Ci.nsIXULChromeRegistry);
+      this.popup.setAttribute(chromeReg.isLocaleRTL("global") ? "left" : "right", 0);
+
       this.popup.hidden = false;
-      this.popup.anchorTo(menuButton, "after_end");
+      this.popup.anchorTo(menuButton);
 
       BrowserUI.lockToolbar();
       BrowserUI.pushPopup(this, [this.popup, menuButton]);

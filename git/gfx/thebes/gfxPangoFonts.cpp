@@ -449,14 +449,6 @@ gfxUserFcFontEntry::AdjustPatternToCSS(FcPattern *aPattern)
                             IsItalic() ? FC_SLANT_OBLIQUE : FC_SLANT_ROMAN);
     }
 
-    int fontWidth = -1;
-    FcPatternGetInteger(aPattern, FC_WIDTH, 0, &fontWidth);
-    int cssWidth = gfxFontconfigUtils::FcWidthForThebesStretch(mStretch);
-    if (cssWidth != fontWidth) {
-        FcPatternDel(aPattern, FC_WIDTH);
-        FcPatternAddInteger(aPattern, FC_WIDTH, cssWidth);
-    }
-
     // Ensure that there is a fullname property (if there is a family
     // property) so that fontconfig rules can identify the real name of the
     // font, because the family property will be replaced.
@@ -1258,9 +1250,8 @@ private:
 // and style |aStyle| properties.
 static const nsTArray< nsCountedRef<FcPattern> >*
 FindFontPatterns(gfxUserFontSet *mUserFontSet,
-                 const nsACString &aFamily, PRUint8 aStyle,
-                 PRUint16 aWeight, PRInt16 aStretch,
-                 PRBool& aFoundFamily, PRBool& aWaitForUserFont)
+                const nsACString &aFamily, PRUint8 aStyle, PRUint16 aWeight,
+                PRBool& aFoundFamily, PRBool& aWaitForUserFont)
 {
     // Convert to UTF16
     NS_ConvertUTF8toUTF16 utf16Family(aFamily);
@@ -1273,7 +1264,6 @@ FindFontPatterns(gfxUserFontSet *mUserFontSet,
     gfxFontStyle style;
     style.style = aStyle;
     style.weight = aWeight;
-    style.stretch = aStretch;
 
     gfxUserFcFontEntry *fontEntry = static_cast<gfxUserFcFontEntry*>
         (mUserFontSet->FindFontEntry(utf16Family, style, aFoundFamily,
@@ -1441,13 +1431,10 @@ gfxFcFontSet::SortPreferredFonts(PRBool &aWaitForUserFont)
                     gfxFontconfigUtils::FcSlantToThebesStyle(requestedSlant);
                 PRUint16 thebesWeight =
                     gfxFontconfigUtils::GetThebesWeight(mSortPattern);
-                PRInt16 thebesStretch =
-                    gfxFontconfigUtils::GetThebesStretch(mSortPattern);
 
                 PRBool foundFamily, waitForUserFont;
                 familyFonts = FindFontPatterns(mUserFontSet, cssFamily,
-                                               thebesStyle,
-                                               thebesWeight, thebesStretch,
+                                               thebesStyle, thebesWeight,
                                                foundFamily, waitForUserFont);
                 if (waitForUserFont) {
                     aWaitForUserFont = PR_TRUE;

@@ -1018,7 +1018,11 @@ var Browser = {
 
     let snappedX = 0;
 
-    let dirVal = Util.localeDir;
+    // determine browser dir first to know which direction to snap to
+    let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                      getService(Ci.nsIXULChromeRegistry);
+    let dirVal = chromeReg.isLocaleRTL("global") ? -1 : 1;
+
     if (leftvis != 0 && leftvis != 1) {
       if (leftvis >= 0.6666) {
         snappedX = -((1 - leftvis) * leftw) * dirVal;
@@ -1466,7 +1470,7 @@ Browser.MainDragger.prototype = {
         let [tabsSidebar, controlsSidebar] = [Elements.tabs.getBoundingClientRect(), Elements.controls.getBoundingClientRect()];
 
         // Check if the sidebars are inverted (rtl)
-        let direction = -1 * Util.localeDir;
+        let direction = (tabsSidebar.left > controlsSidebar.left) ? 1 : -1;
         x = Math.round(tabsW * tabsVis) * direction
       }
 
@@ -2227,7 +2231,7 @@ IdentityHandler.prototype = {
     Elements.contentShowing.setAttribute("disabled", "true");
 
     // dismiss any dialog which hide the identity popup
-    AwesomeScreen.activePanel = null;
+    BrowserUI.activePanel = null;
     while (BrowserUI.activeDialog)
       BrowserUI.activeDialog.close();
 

@@ -51,11 +51,11 @@
 #if defined(MOZ_WIDGET_QT)
 #include <QtGui/QApplication>
 #include <QtCore/QScopedPointer>
+#include <QtGui/QApplication>
 #include <QtGui/QInputContextFactory>
 #include <QtGui/QInputContext>
 #ifdef MOZ_ENABLE_MEEGOTOUCH
 #include <MComponentData>
-#include <MozMeegoAppService.h>
 #endif // MOZ_ENABLE_MEEGOTOUCH
 #endif // MOZ_WIDGET_QT
 
@@ -3003,7 +3003,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #ifdef MOZ_ENABLE_MEEGOTOUCH
     gArgv[gArgc] = strdup("-software");
     gArgc++;
-    QScopedPointer<MComponentData> meegotouch(new MComponentData(gArgc, gArgv,"", new  MApplicationService("")));
+    QScopedPointer<MComponentData> meegotouch(new MComponentData(gArgc, gArgv));
 #endif
 
 #if MOZ_PLATFORM_MAEMO > 5
@@ -3072,11 +3072,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
 #ifdef MOZ_ENABLE_XREMOTE
     // handle -remote now that xpcom is fired up
-    bool disableRemote = false;
-    {
-      char *e = PR_GetEnv("MOZ_NO_REMOTE");
-      disableRemote = (e && *e);
-    }
 
     const char* xremotearg;
     ar = CheckArg("remote", PR_TRUE, &xremotearg);
@@ -3090,7 +3085,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return HandleRemoteArgument(xremotearg, desktopStartupIDPtr);
     }
 
-    if (!disableRemote) {
+    if (!PR_GetEnv("MOZ_NO_REMOTE")) {
       // Try to remote the entire command line. If this fails, start up normally.
       RemoteResult rr = RemoteCommandLine(desktopStartupIDPtr);
       if (rr == REMOTE_FOUND)
@@ -3532,8 +3527,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #ifdef MOZ_ENABLE_XREMOTE
           // if we have X remote support, start listening for requests on the
           // proxy window.
-          if (!disableRemote)
-            remoteService = do_GetService("@mozilla.org/toolkit/remote-service;1");
+          remoteService = do_GetService("@mozilla.org/toolkit/remote-service;1");
           if (remoteService)
             remoteService->Startup(gAppData->name,
                                    PromiseFlatCString(profileName).get());

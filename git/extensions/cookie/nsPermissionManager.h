@@ -168,6 +168,7 @@ public:
   nsPermissionManager();
   virtual ~nsPermissionManager();
   static nsIPermissionManager* GetXPCOMSingleton();
+  static already_AddRefed<nsPermissionManager> GetSingleton();
   nsresult Init();
 
   // enums for AddInternal()

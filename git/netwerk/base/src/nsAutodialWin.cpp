@@ -377,7 +377,7 @@ PRBool nsAutodial::IsRASConnected()
     DWORD structSize = sizeof(rasConn);
 
     if (!LoadRASapi32DLL())
-        return PR_FALSE;
+        return NS_ERROR_NULL_POINTER;
 
     DWORD result = (*mpRasEnumConnections)(&rasConn, &structSize, &connections);
 
@@ -671,7 +671,7 @@ PRBool nsAutodial::IsAutodialServiceEnabled(int location)
     if (!LoadRASapi32DLL())
         return PR_FALSE;
 
-    BOOL enabled;
+    PRBool enabled;
     if ((*mpRasGetAutodialEnable)(location, &enabled) != ERROR_SUCCESS)
     {
         LOGE(("Autodial: Error calling RasGetAutodialEnable()"));
