@@ -8,6 +8,8 @@ import org.mozilla.gecko.background.BackgroundService;
 import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.background.healthreport.HealthReportConstants;
+import org.mozilla.gecko.background.healthreport.HealthReportUtils;
+import org.mozilla.gecko.sync.ExtendedJSONObject;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
@@ -39,6 +41,10 @@ public class HealthReportBroadcastService extends BackgroundService {
 
   public void setPollInterval(long interval) {
     getSharedPreferences().edit().putLong(HealthReportConstants.PREF_SUBMISSION_INTENT_INTERVAL_MSEC, interval).commit();
+  }
+
+  public long getDeletionAttemptsPerObsoleteDocumentId() {
+    return getSharedPreferences().getLong(HealthReportConstants.PREF_DELETION_ATTEMPTS_PER_OBSOLETE_DOCUMENT_ID, HealthReportConstants.DEFAULT_DELETION_ATTEMPTS_PER_OBSOLETE_DOCUMENT_ID);
   }
 
   /**
@@ -137,16 +143,22 @@ public class HealthReportBroadcastService extends BackgroundService {
     Logger.pii(LOG_TAG, "Updating health report alarm for profile " + profileName + " at " + profilePath + ".");
 
     final SharedPreferences sharedPrefs = getSharedPreferences();
-    final ObsoleteDocumentTracker tracker = new ObsoleteDocumentTracker(sharedPrefs);
-    final boolean hasObsoleteIds = tracker.hasObsoleteIds();
+
+    ExtendedJSONObject obsoleteIds = HealthReportUtils.getObsoleteIds(getSharedPreferences());
 
     if (!enabled) {
+      String lastId = sharedPrefs.getString(HealthReportConstants.PREF_LAST_UPLOAD_DOCUMENT_ID, null);
       final Editor editor = sharedPrefs.edit();
       editor.remove(HealthReportConstants.PREF_LAST_UPLOAD_DOCUMENT_ID);
 
-      if (hasObsoleteIds) {
-        Logger.debug(LOG_TAG, "Health report upload disabled; scheduling deletion of " + tracker.numberOfObsoleteIds() + " documents.");
-        tracker.limitObsoleteIds();
+      if (lastId != null) {
+        try {
+          obsoleteIds.put(lastId, getDeletionAttemptsPerObsoleteDocumentId());
+        } catch (Exception e) {
+          Logger.warn(LOG_TAG, "Got exception updating obsolete ids JSON.", e);
+        }
+        HealthReportUtils.setObsoleteIds(getSharedPreferences(), obsoleteIds);
+        Logger.debug(LOG_TAG, "New health report to obsolete; scheduling deletion of " + obsoleteIds.size() + " documents.");
       } else {
         // Primarily intended for debugging and testing.
         Logger.debug(LOG_TAG, "Health report upload disabled and no deletes to schedule: clearing prefs.");
@@ -159,7 +171,7 @@ public class HealthReportBroadcastService extends BackgroundService {
 
     // The user can toggle us off or on, or we can have obsolete documents to
     // remove.
-    final boolean serviceEnabled = hasObsoleteIds || enabled;
+    final boolean serviceEnabled = (obsoleteIds.size() > 0) || enabled;
     toggleAlarm(this, profileName, profilePath, enabled, serviceEnabled);
   }
 }
