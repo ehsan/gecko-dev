@@ -994,7 +994,6 @@ void
 TraceRecorder::closeLoop(Fragmento* fragmento)
 {
     if (!verifyTypeStability(entryFrame, cx->fp, fragmentInfo->typeMap)) {
-        JS_ASSERT(!fragment->parent);
         AUDIT(unstableLoopVariable);
         debug_only(printf("Trace rejected: unstable loop variables.\n");)
         --fragment->hits();
@@ -1474,7 +1473,6 @@ TraceRecorder::incProp(jsint incr, bool pre)
 bool
 TraceRecorder::incElem(jsint incr, bool pre)
 {
-    return false;
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
     jsval* vp;
