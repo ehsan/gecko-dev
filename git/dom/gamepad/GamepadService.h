@@ -118,7 +118,7 @@ class GamepadService : public nsIObserver
   // Gamepads connected to the system. Copies of these are handed out
   // to each window.
   nsTArray<nsRefPtr<Gamepad> > mGamepads;
-  // Inner windows that are listening for gamepad events.
+  // nsGlobalWindows that are listening for gamepad events.
   // has been sent to that window.
   nsTArray<nsRefPtr<nsGlobalWindow> > mListeners;
   nsCOMPtr<nsITimer> mTimer;

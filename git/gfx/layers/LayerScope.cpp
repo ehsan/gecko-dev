@@ -511,7 +511,6 @@ class DebugGLColorData : public DebugGLData {
 public:
     DebugGLColorData(void* layerRef, const gfxRGBA& color, int width, int height)
         : DebugGLData(DebugGLData::ColorData),
-          mLayerRef(layerRef),
           mColor(color.Packed()),
           mSize(width, height)
     { }
