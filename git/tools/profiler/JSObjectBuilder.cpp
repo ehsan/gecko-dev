@@ -139,7 +139,7 @@ JSObjectBuilder::CreateArray() {
 
 JSObject*
 JSObjectBuilder::CreateObject() {
-  JSObject *obj = JS_NewObject(mCx, nullptr, JS::NullPtr(), JS::NullPtr());
+  JSObject *obj = JS_NewObject(mCx, nullptr, nullptr, nullptr);
   if (!obj)
     mOk = false;
 

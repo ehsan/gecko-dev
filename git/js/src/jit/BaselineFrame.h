@@ -149,7 +149,7 @@ class BaselineFrame
         return (Value *)this - (slot + 1);
     }
 
-    Value &unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
+    Value &unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
         JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
         JS_ASSERT(i < script()->nfixed());
         return *valueSlot(i);
@@ -169,7 +169,7 @@ class BaselineFrame
         return argv()[i];
     }
 
-    Value &unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
+    Value &unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
 #ifdef DEBUG
         CheckLocalUnaliased(checkAliasing, script(), i);
 #endif
@@ -200,12 +200,12 @@ class BaselineFrame
     bool hasReturnValue() const {
         return flags_ & HAS_RVAL;
     }
-    MutableHandleValue returnValue() {
-        return MutableHandleValue::fromMarkedLocation(reinterpret_cast<Value *>(&loReturnValue_));
+    Value *returnValue() {
+        return reinterpret_cast<Value *>(&loReturnValue_);
     }
     void setReturnValue(const Value &v) {
         flags_ |= HAS_RVAL;
-        returnValue().set(v);
+        *returnValue() = v;
     }
     inline Value *addressOfReturnValue() {
         return reinterpret_cast<Value *>(&loReturnValue_);

@@ -612,16 +612,14 @@ js::Nursery::MinorGCCallback(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
 static void
 CheckHashTablesAfterMovingGC(JSRuntime *rt)
 {
-#ifdef JS_GC_ZEAL
-    if (rt->gcZeal() == ZealCheckHashTablesOnMinorGC) {
-        /* Check that internal hash tables no longer have any pointers into the nursery. */
-        for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
-            c->checkNewTypeObjectTableAfterMovingGC();
-            c->checkInitialShapesTableAfterMovingGC();
-            c->checkWrapperMapAfterMovingGC();
-            if (c->debugScopes)
-                c->debugScopes->checkHashTablesAfterMovingGC(rt);
-        }
+#if defined(DEBUG)
+    /* Check that internal hash tables no longer have any pointers into the nursery. */
+    for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
+        c->checkNewTypeObjectTableAfterMovingGC();
+        c->checkInitialShapesTableAfterMovingGC();
+        c->checkWrapperMapAfterMovingGC();
+        if (c->debugScopes)
+            c->debugScopes->checkHashTablesAfterMovingGC(rt);
     }
 #endif
 }

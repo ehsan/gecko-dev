@@ -76,12 +76,7 @@ private:
    * Private constructor
    */
   CustomElf(Mappable *mappable, const char *path)
-  : LibHandle(path)
-  , mappable(mappable)
-  , init(0)
-  , fini(0)
-  , initialized(false)
-  , has_text_relocs(false)
+  : LibHandle(path), mappable(mappable), init(0), fini(0), initialized(false)
   { }
 
   /**
@@ -197,8 +192,6 @@ private:
   Array<void *> init_array, fini_array;
 
   bool initialized;
-
-  bool has_text_relocs;
 
 #ifdef __ARM_EABI__
   /* ARM.exidx information used by FindExidx */

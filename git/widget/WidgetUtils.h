@@ -8,8 +8,7 @@
 #ifndef mozilla_WidgetUtils_h
 #define mozilla_WidgetUtils_h
 
-#include "nsRect.h"
-#include "mozilla/gfx/Matrix.h"
+#include "gfxMatrix.h"
 
 namespace mozilla {
 
@@ -23,8 +22,8 @@ enum ScreenRotation {
   ROTATION_COUNT
 };
 
-gfx::Matrix ComputeTransformForRotation(const nsIntRect& aBounds,
-                                        ScreenRotation aRotation);
+gfxMatrix ComputeTransformForRotation(const nsIntRect& aBounds,
+                                      ScreenRotation aRotation);
 
 } // namespace mozilla
 

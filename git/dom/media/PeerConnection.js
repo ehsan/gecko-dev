@@ -171,16 +171,13 @@ WebrtcGlobalInformation.prototype = {
     }
   },
 
-  getLogs: function(pattern, callback, errorCallback) {
+  getCandPairLogs: function(candPairId, callback, errorCallback) {
+    let pattern = 'CAND-PAIR(' + candPairId + ')';
     if (_globalPCList) {
       _globalPCList.getLoggingFromFirstPC(pattern, callback, errorCallback);
     } else {
       errorCallback("No global PeerConnection list");
     }
-  },
-
-  getCandPairLogs: function(candPairId, callback, errorCallback) {
-    this.getLogs('CAND-PAIR(' + candPairId + ')', callback, errorCallback);
   },
 };
 

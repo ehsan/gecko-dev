@@ -7426,11 +7426,11 @@ CodeGenerator::visitInstanceOfV(LInstanceOfV *ins)
     return emitInstanceOf(ins, ins->mir()->prototypeObject());
 }
 
-// Wrap IsDelegateOfObject, which takes a JSObject*, not a HandleObject
+// Wrap IsDelegate, which takes a Value for the lhs of an instanceof.
 static bool
 IsDelegateObject(JSContext *cx, HandleObject protoObj, HandleObject obj, bool *res)
 {
-    return IsDelegateOfObject(cx, protoObj, obj, res);
+    return IsDelegate(cx, protoObj, ObjectValue(*obj), res);
 }
 
 typedef bool (*IsDelegateObjectFn)(JSContext *, HandleObject, HandleObject, bool *);

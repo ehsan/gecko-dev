@@ -907,7 +907,7 @@ InitCollectors()
     sCollectors = new nsTArray<GfxInfoCollectorBase*>;
 }
 
-nsresult GfxInfoBase::GetInfo(JSContext* aCx, JS::MutableHandle<JS::Value> aResult)
+nsresult GfxInfoBase::GetInfo(JSContext* aCx, jsval* aResult)
 {
   InitCollectors();
   InfoObject obj(aCx);
@@ -925,7 +925,7 @@ nsresult GfxInfoBase::GetInfo(JSContext* aCx, JS::MutableHandle<JS::Value> aResu
     return NS_ERROR_FAILURE;
   }
 
-  aResult.setObject(*obj.mObj);
+  *aResult = OBJECT_TO_JSVAL(obj.mObj);
   return NS_OK;
 }
 

@@ -20,7 +20,6 @@ class nsISelection;
 
 namespace mozilla {
 class TextCompositionArray;
-class TextComposition;
 } // namespace mozilla
 
 /*
@@ -94,11 +93,6 @@ public:
                                        mozilla::WidgetEvent* aEvent,
                                        nsEventStatus* aStatus,
                                        nsDispatchingCallback* aCallBack);
-
-  /**
-   * Get TextComposition from widget.
-   */
-  static mozilla::TextComposition* GetTextComposition(nsIWidget* aWidget);
 
   /**
    * Send a notification to IME.  It depends on the IME or platform spec what

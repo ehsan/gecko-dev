@@ -8,16 +8,18 @@
  *   LoadContext using a reserved AppId (UINT_32_MAX - 1). Setting this
  *   custom LoadContext as a callback on the channel allows us to query the
  *   AppId and therefore separate the safebrowing cookie in its own cookie-jar.
- *   For testing safebrowsing update we do >> NOT << emulate a response
+ *   For testing safebrowsing update and rekey we do >> NOT << emulate a response
  *   in the body, rather we only set the cookies in the header of the response
  *   and confirm that cookies are separated in their own cookie-jar.
  *
  * 1) We init safebrowsing and simulate an update (cookies are set for localhost)
  *
- * 2) We open a channel that should send regular cookies, but not the
+ * 2) We simulate a rekey request (cookies should be set for localhost)
+ *
+ * 3) We open a channel that should send regular cookies, but not the
  *    safebrowsing cookie.
  *
- * 3) We open a channel with a custom callback, simulating a safebrowsing cookie
+ * 4) We open a channel with a custom callback, simulating a safebrowsing cookie
  *    that should send this simulated safebrowsing cookie as well as the
  *    real safebrowsing cookies. (Confirming that the safebrowsing cookies
  *    actually get stored in the correct jar).
@@ -36,6 +38,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "SafeBrowsing",
 var setCookiePath = "/setcookie";
 var checkCookiePath = "/checkcookie";
 var safebrowsingUpdatePath = "/safebrowsingUpdate";
+var safebrowsingRekeyPath = "/safebrowsingRekey";
 var httpserver;
 
 function inChildProcess() {
@@ -67,6 +70,14 @@ function safebrowsingUpdateHandler(metadata, response) {
   response.bodyOutputStream.write("Ok", "Ok".length);
 }
 
+function safebrowsingRekeyHandler(metadata, response) {
+  var cookieName = "sb-rekey-cookie";
+  response.setStatusLine(metadata.httpVersion, 200, "Ok");
+  response.setHeader("Set-Cookie", cookieName + "=1; Path=/", false);
+  response.setHeader("Content-Type", "text/plain");
+  response.bodyOutputStream.write("Ok", "Ok".length);
+}
+
 function setupChannel(path, loadContext) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
   var channel = ios.newChannel(URL + path, "", null);
@@ -88,6 +99,7 @@ function run_test() {
   httpserver.registerPathHandler(setCookiePath, cookieSetHandler);
   httpserver.registerPathHandler(checkCookiePath, cookieCheckHandler);
   httpserver.registerPathHandler(safebrowsingUpdatePath, safebrowsingUpdateHandler);
+  httpserver.registerPathHandler(safebrowsingRekeyPath, safebrowsingRekeyHandler);
 
   httpserver.start(-1);
   run_next_test();
@@ -115,7 +127,35 @@ add_test(function test_safebrowsing_update() {
   }
 
   streamUpdater.downloadUpdates("test-phish-simple,test-malware-simple", "",
-    onSuccess, onUpdateError, onDownloadError);
+    "", onSuccess, onUpdateError, onDownloadError);
+});
+
+// this test does not emulate a response in the body,
+// rather we only set the cookies in the header of response.
+add_test(function test_safebrowsing_rekey() {
+
+  Services.obs.addObserver(rekeyObserver, "http-on-examine-response", false);
+
+  function rekeyObserver(subject, topic, state) {
+    let channel = subject.QueryInterface(Ci.nsIHttpChannel);
+    if (channel.URI.spec != URL + safebrowsingRekeyPath) {
+      return;
+    }
+    try {
+      let cookies = channel.getResponseHeader("set-cookie");
+      do_check_eq(cookies, "sb-rekey-cookie=1; Path=/");
+    } catch (e) {
+      do_throw("ERROR: should have gotten a cookie!");
+    }
+    Services.obs.removeObserver(rekeyObserver, "http-on-examine-response");
+    run_next_test();
+  }
+
+  var jslib = Cc["@mozilla.org/url-classifier/jslib;1"]
+                .getService().wrappedJSObject;
+  var cm = new jslib.PROT_UrlCryptoKeyManager();
+  cm.setKeyUrl(URL + safebrowsingRekeyPath);
+  cm.reKey();
 });
 
 add_test(function test_non_safebrowsing_cookie() {
@@ -165,8 +205,10 @@ add_test(function test_safebrowsing_cookie() {
   function completeCheckSafeBrowsingCookie(request, data, context) {
     // Confirm that all >> THREE << cookies are sent back over the channel:
     //   a) the safebrowsing cookie set when updating
-    //   b) the regular cookie with custom loadcontext defined in this test.
+    //   b) the safebrowsing cookie set when rekeying
+    //   c) the regular cookie with custom loadcontext defined in this test.
     var expectedCookies = "sb-update-cookie=1; ";
+    expectedCookies += "sb-rekey-cookie=1; ";
     expectedCookies += cookieName + "=1";
     request.QueryInterface(Ci.nsIHttpChannel);
     var cookiesSeen = request.getResponseHeader("saw-cookies");

@@ -35,8 +35,6 @@
 #include "nsProxyRelease.h"
 #include "prtime.h"
 
-#include "AudioConduit.h"
-#include "VideoConduit.h"
 #include "runnable_utils.h"
 #include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
@@ -1957,6 +1955,7 @@ PeerConnectionImpl::IceGatheringStateChange_m(PCImplIceGatheringState aState)
 }
 
 #ifdef MOZILLA_INTERNAL_API
+
 nsresult
 PeerConnectionImpl::GetStatsImpl_s(
     bool internalStats,
@@ -1982,12 +1981,9 @@ PeerConnectionImpl::GetStatsImpl_s(
         s.mTimestamp.Construct(now);
         s.mId.Construct(NS_LITERAL_STRING("outbound_rtp_") + idstr);
         s.mType.Construct(RTCStatsType::Outboundrtp);
-        unsigned int ssrc;
-        if (mp.Conduit()->GetLocalSSRC(&ssrc)) {
-          nsString str;
-          str.AppendInt(ssrc);
-          s.mSsrc.Construct(str);
-        }
+        // TODO: Get SSRC
+        // int channel = mp.Conduit()->GetChannel();
+        s.mSsrc.Construct(NS_LITERAL_STRING("123457"));
         s.mPacketsSent.Construct(mp.rtp_packets_sent());
         s.mBytesSent.Construct(mp.rtp_bytes_sent());
         report->mOutboundRTPStreamStats.Value().AppendElement(s);
@@ -1998,16 +1994,7 @@ PeerConnectionImpl::GetStatsImpl_s(
         s.mTimestamp.Construct(now);
         s.mId.Construct(NS_LITERAL_STRING("inbound_rtp_") + idstr);
         s.mType.Construct(RTCStatsType::Inboundrtp);
-        unsigned int ssrc;
-        if (mp.Conduit()->GetRemoteSSRC(&ssrc)) {
-          nsString str;
-          str.AppendInt(ssrc);
-          s.mSsrc.Construct(str);
-        }
-        unsigned int jitterMs;
-        if (mp.Conduit()->GetReceivedJitter(&jitterMs)) {
-          s.mJitter.Construct(double(jitterMs)/1000);
-        }
+        s.mSsrc.Construct(NS_LITERAL_STRING("123457"));
         s.mPacketsReceived.Construct(mp.rtp_packets_received());
         s.mBytesReceived.Construct(mp.rtp_bytes_received());
         report->mInboundRTPStreamStats.Value().AppendElement(s);

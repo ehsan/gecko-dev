@@ -69,10 +69,12 @@ public:
   public:
     BeginUpdateRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
                         nsIUrlClassifierUpdateObserver* aUpdater,
-                        const nsACString& aTables)
+                        const nsACString& aTables,
+                        const nsACString& aClientKey)
       : mTarget(aTarget)
       , mUpdater(aUpdater)
       , mTables(aTables)
+      , mClientKey(aClientKey)
     { }
 
     NS_DECL_NSIRUNNABLE
@@ -80,23 +82,25 @@ public:
   private:
     nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
     nsCOMPtr<nsIUrlClassifierUpdateObserver> mUpdater;
-    nsCString mTables;
+    nsCString mTables, mClientKey;
   };
 
   class BeginStreamRunnable : public nsRunnable
   {
   public:
     BeginStreamRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
-                        const nsACString& aTable)
+                        const nsACString& aTable,
+                        const nsACString& aServerMAC)
       : mTarget(aTarget)
       , mTable(aTable)
+      , mServerMAC(aServerMAC)
     { }
 
     NS_DECL_NSIRUNNABLE
 
   private:
     nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
-    nsCString mTable;
+    nsCString mTable, mServerMAC;
   };
 
   class UpdateStreamRunnable : public nsRunnable
@@ -230,17 +234,32 @@ public:
   public:
     UpdateUrlRequestedRunnable(const nsMainThreadPtrHandle<nsIUrlClassifierUpdateObserver>& aTarget,
                                const nsACString& aURL,
-                               const nsACString& aTable)
+                               const nsACString& aTable,
+                               const nsACString& aServerMAC)
       : mTarget(aTarget)
       , mURL(aURL)
       , mTable(aTable)
+      , mServerMAC(aServerMAC)
     { }
 
     NS_DECL_NSIRUNNABLE
 
   private:
     nsMainThreadPtrHandle<nsIUrlClassifierUpdateObserver> mTarget;
-    nsCString mURL, mTable;
+    nsCString mURL, mTable, mServerMAC;
+  };
+
+  class RekeyRequestedRunnable : public nsRunnable
+  {
+  public:
+    RekeyRequestedRunnable(const nsMainThreadPtrHandle<nsIUrlClassifierUpdateObserver>& aTarget)
+      : mTarget(aTarget)
+    { }
+
+    NS_DECL_NSIRUNNABLE
+
+  private:
+    nsMainThreadPtrHandle<nsIUrlClassifierUpdateObserver> mTarget;
   };
 
   class StreamFinishedRunnable : public nsRunnable

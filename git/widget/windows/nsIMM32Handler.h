@@ -140,7 +140,6 @@ public:
   // the composition on uexpected window.
   static void CommitComposition(nsWindow* aWindow, bool aForce = false);
   static void CancelComposition(nsWindow* aWindow, bool aForce = false);
-  static void OnUpdateComposition(nsWindow* aWindow);
 
 protected:
   static void EnsureHandlerInstance();

@@ -113,8 +113,7 @@ BroadcastSystemMessage(const nsAString& aType,
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
       "Shouldn't get here when an exception is pending!");
 
-  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(),
-                                             JS::NullPtr()));
+  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
   if (!obj) {
     BT_WARNING("Failed to new JSObject for system message!");
     return false;
@@ -129,9 +128,9 @@ BroadcastSystemMessage(const nsAString& aType,
     do_GetService("@mozilla.org/system-message-internal;1");
   NS_ENSURE_TRUE(systemMessenger, false);
 
-  JS::Rooted<JS::Value> value(cx, JS::ObjectValue(*obj));
-  systemMessenger->BroadcastMessage(aType, value,
-                                    JS::UndefinedHandleValue);
+  systemMessenger->BroadcastMessage(aType,
+                                    OBJECT_TO_JSVAL(obj),
+                                    JS::UndefinedValue());
 
   return true;
 }

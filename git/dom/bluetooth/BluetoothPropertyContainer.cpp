@@ -12,8 +12,6 @@
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "nsServiceManagerUtils.h"
 
-#include "js/Value.h"
-
 USING_BLUETOOTH_NAMESPACE
 
 already_AddRefed<mozilla::dom::DOMRequest>
@@ -28,7 +26,7 @@ BluetoothPropertyContainer::FirePropertyAlreadySet(nsPIDOMWindow* aOwner,
   }
 
   nsRefPtr<mozilla::dom::DOMRequest> request = new DOMRequest(aOwner);
-  rs->FireSuccess(request, JS::UndefinedHandleValue);
+  rs->FireSuccess(request, JS::UndefinedValue());
 
   return request.forget();
 }
