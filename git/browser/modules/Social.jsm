@@ -178,8 +178,8 @@ this.Social = {
     return null;
   },
 
-  installProvider: function(doc, data, installCallback) {
-    SocialService.installProvider(doc, data, installCallback);
+  installProvider: function(origin ,sourceURI, data, installCallback) {
+    SocialService.installProvider(origin ,sourceURI, data, installCallback);
   },
 
   uninstallProvider: function(origin) {

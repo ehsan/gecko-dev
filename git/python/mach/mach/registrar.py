@@ -25,14 +25,13 @@ class MachRegistrar(object):
     def populate_argument_parser(self, parser):
         for command in sorted(self.command_handlers.keys()):
             handler = self.command_handlers[command]
-            handler.parser = parser.add_parser(*handler.parser_args[0],
+            p = parser.add_parser(*handler.parser_args[0],
                 **handler.parser_args[1])
 
             for arg in handler.arguments:
-                handler.parser.add_argument(*arg[0], **arg[1])
+                p.add_argument(*arg[0], **arg[1])
 
-            handler.parser.set_defaults(mach_class=handler.cls,
-                mach_method=handler.method,
+            p.set_defaults(mach_class=handler.cls, mach_method=handler.method,
                 mach_pass_context=handler.pass_context)
 
 

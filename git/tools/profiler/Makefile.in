@@ -44,13 +44,12 @@ FAIL_ON_WARNINGS = 1
 endif # !_MSC_VER
 
 CPPSRCS		= \
-  platform.cpp \
   nsProfilerFactory.cpp \
   nsProfiler.cpp \
   TableTicker.cpp \
-  BreakpadSampler.cpp \
+  TableTicker2.cpp \
   UnwinderThread2.cpp \
-  ProfileEntry.cpp \
+  ProfileEntry2.cpp \
   local_debug_info_symbolizer.cc \
   JSObjectBuilder.cpp \
   JSCustomObjectBuilder.cpp \

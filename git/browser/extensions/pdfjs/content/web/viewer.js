@@ -1290,7 +1290,6 @@ var PDFView = {
       if (PDFView.supportsPrinting) {
         pdfDocument.getJavaScript().then(function(javaScript) {
           if (javaScript.length) {
-            console.warn('Warning: JavaScript is not supported');
             PDFView.fallback();
           }
           // Hack to support auto printing.
@@ -1364,7 +1363,7 @@ var PDFView = {
         self.setTitle(pdfTitle + ' - ' + document.title);
 
       if (info.IsAcroFormPresent) {
-        console.warn('Warning: AcroForm/XFA is not supported');
+        // AcroForm/XFA was found
         PDFView.fallback();
       }
     });
@@ -1566,52 +1565,55 @@ var PDFView = {
   },
 
   getVisiblePages: function pdfViewGetVisiblePages() {
-    if (!this.isFullscreen) {
-      return this.getVisibleElements(this.container, this.pages, true);
-    } else {
-      // The algorithm in getVisibleElements is broken in fullscreen mode.
-      var visible = [], page = this.page;
-      var currentPage = this.pages[page - 1];
-      visible.push({ id: currentPage.id, view: currentPage });
-
-      return { first: currentPage, last: currentPage, views: visible};
-    }
+    return this.getVisibleElements(this.container,
+                                   this.pages, true);
   },
 
   getVisibleThumbs: function pdfViewGetVisibleThumbs() {
-    return this.getVisibleElements(this.thumbnailContainer, this.thumbnails);
+    return this.getVisibleElements(this.thumbnailContainer,
+                                   this.thumbnails);
   },
 
   // Generic helper to find out what elements are visible within a scroll pane.
   getVisibleElements: function pdfViewGetVisibleElements(
       scrollEl, views, sortByVisibility) {
-    var top = scrollEl.scrollTop, bottom = top + scrollEl.clientHeight;
-    var left = scrollEl.scrollLeft, right = left + scrollEl.clientWidth;
+    var currentHeight = 0, view;
+    var top = scrollEl.scrollTop;
 
-    var visible = [], view;
-    var currentHeight, viewHeight, hiddenHeight, percentHeight;
-    var currentWidth, viewWidth;
-    for (var i = 0, ii = views.length; i < ii; ++i) {
-      view = views[i];
+    for (var i = 1, ii = views.length; i <= ii; ++i) {
+      view = views[i - 1];
       currentHeight = view.el.offsetTop + view.el.clientTop;
-      viewHeight = view.el.clientHeight;
-      if ((currentHeight + viewHeight) < top) {
-        continue;
-      }
-      if (currentHeight > bottom) {
+      if (currentHeight + view.el.clientHeight > top)
         break;
-      }
-      currentWidth = view.el.offsetLeft + view.el.clientLeft;
-      viewWidth = view.el.clientWidth;
-      if ((currentWidth + viewWidth) < left || currentWidth > right) {
-        continue;
-      }
-      hiddenHeight = Math.max(0, top - currentHeight) +
-                     Math.max(0, currentHeight + viewHeight - bottom);
-      percentHeight = ((viewHeight - hiddenHeight) * 100 / viewHeight) | 0;
+      currentHeight += view.el.clientHeight;
+    }
 
+    var visible = [];
+
+    // Algorithm broken in fullscreen mode
+    if (this.isFullscreen) {
+      var currentPage = this.pages[this.page - 1];
+      visible.push({
+        id: currentPage.id,
+        view: currentPage
+      });
+
+      return { first: currentPage, last: currentPage, views: visible};
+    }
+
+    var bottom = top + scrollEl.clientHeight;
+    var nextHeight, hidden, percent, viewHeight;
+    for (; i <= ii && currentHeight < bottom; ++i) {
+      view = views[i - 1];
+      viewHeight = view.el.clientHeight;
+      currentHeight = view.el.offsetTop + view.el.clientTop;
+      nextHeight = currentHeight + viewHeight;
+      hidden = Math.max(0, top - currentHeight) +
+               Math.max(0, nextHeight - bottom);
+      percent = Math.floor((viewHeight - hidden) * 100.0 / viewHeight);
       visible.push({ id: view.id, y: currentHeight,
-                     view: view, percent: percentHeight });
+                     view: view, percent: percent });
+      currentHeight = nextHeight;
     }
 
     var first = visible[0];
@@ -1620,12 +1622,13 @@ var PDFView = {
     if (sortByVisibility) {
       visible.sort(function(a, b) {
         var pc = a.percent - b.percent;
-        if (Math.abs(pc) > 0.001) {
+        if (Math.abs(pc) > 0.001)
           return -pc;
-        }
+
         return a.id - b.id; // ensure stability
       });
     }
+
     return {first: first, last: last, views: visible};
   },
 
@@ -1701,10 +1704,6 @@ var PDFView = {
     this.page = this.page;
     this.clearMouseScrollState();
     this.hidePresentationControls();
-
-    // Ensure that the thumbnail of the current page is visible
-    // when exiting fullscreen mode.
-    scrollIntoView(document.getElementById('thumbnailContainer' + this.page));
   },
 
   showPresentationControls: function pdfViewShowPresentationControls() {
@@ -2087,6 +2086,7 @@ var PageView = function pageView(container, pdfPage, id, scale,
 
     var canvas = document.createElement('canvas');
     canvas.id = 'page' + this.id;
+    canvas.mozOpaque = true;
     div.appendChild(canvas);
     this.canvas = canvas;
 
@@ -2116,10 +2116,13 @@ var PageView = function pageView(container, pdfPage, id, scale,
     }
 
     var ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     // TODO(mack): use data attributes to store these
     ctx._scaleX = outputScale.sx;
     ctx._scaleY = outputScale.sy;
+    ctx.save();
+    ctx.fillStyle = 'rgb(255, 255, 255)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
     if (outputScale.scaled) {
       ctx.scale(outputScale.sx, outputScale.sy);
     }
@@ -2334,6 +2337,7 @@ var ThumbnailView = function thumbnailView(container, pdfPage, id) {
   function getPageDrawContext() {
     var canvas = document.createElement('canvas');
     canvas.id = 'thumbnail' + id;
+    canvas.mozOpaque = true;
 
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
@@ -2595,7 +2599,7 @@ var TextLayerBuilder = function textLayerBuilder(textLayerDiv, pageIdx) {
     var textDiv = document.createElement('div');
 
     // vScale and hScale already contain the scaling to pixel units
-    var fontHeight = geom.fontSize * Math.abs(geom.vScale);
+    var fontHeight = geom.fontSize * geom.vScale;
     textDiv.dataset.canvasWidth = geom.canvasWidth * geom.hScale;
     textDiv.dataset.fontName = geom.fontName;
 
@@ -3246,8 +3250,7 @@ window.addEventListener('keydown', function keydown(evt) {
 
   // First, handle the key bindings that are independent whether an input
   // control is selected or not.
-  if (cmd === 1 || cmd === 8 || cmd === 5 || cmd === 12) {
-    // either CTRL or META key with optional SHIFT.
+  if (cmd == 1 || cmd == 8) { // either CTRL or META key.
     switch (evt.keyCode) {
       case 70:
         if (!PDFView.supportsIntegratedFind) {

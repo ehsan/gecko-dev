@@ -753,16 +753,6 @@ nsHtml5TreeBuilder::documentMode(nsHtml5DocumentMode m)
   treeOp->Init(m);
 }
 
-nsIContent**
-nsHtml5TreeBuilder::getDocumentFragmentForTemplate(nsIContent** aTemplate)
-{
-  nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
-  NS_ASSERTION(treeOp, "Tree op allocation failed.");
-  nsIContent** fragHandle = AllocateContentHandle();
-  treeOp->Init(eTreeOpGetDocumentFragmentForTemplate, aTemplate, fragHandle);
-  return fragHandle;
-}
-
 // Error reporting
 
 void

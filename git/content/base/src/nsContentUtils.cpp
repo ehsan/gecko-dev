@@ -30,7 +30,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/HTMLTemplateElement.h"
 #include "mozilla/dom/TextDecoderBase.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
@@ -1850,27 +1849,6 @@ nsContentUtils::ContentIsDescendantOf(const nsINode* aPossibleDescendant,
     if (aPossibleDescendant == aPossibleAncestor)
       return true;
     aPossibleDescendant = aPossibleDescendant->GetParentNode();
-  } while (aPossibleDescendant);
-
-  return false;
-}
-
-bool
-nsContentUtils::ContentIsHostIncludingDescendantOf(
-  const nsINode* aPossibleDescendant, const nsINode* aPossibleAncestor)
-{
-  NS_PRECONDITION(aPossibleDescendant, "The possible descendant is null!");
-  NS_PRECONDITION(aPossibleAncestor, "The possible ancestor is null!");
-
-  do {
-    if (aPossibleDescendant == aPossibleAncestor)
-      return true;
-    if (aPossibleDescendant->NodeType() == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
-      aPossibleDescendant =
-        static_cast<const DocumentFragment*>(aPossibleDescendant)->GetHost();
-    } else {
-      aPossibleDescendant = aPossibleDescendant->GetParentNode();
-    }
   } while (aPossibleDescendant);
 
   return false;

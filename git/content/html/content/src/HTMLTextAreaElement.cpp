@@ -353,9 +353,6 @@ HTMLTextAreaElement::SetValueChanged(bool aValueChanged)
   bool previousValue = mValueChanged;
 
   mValueChanged = aValueChanged;
-  if (!aValueChanged && !mState.IsEmpty()) {
-    mState.EmptyValue();
-  }
 
   if (mValueChanged != previousValue) {
     UpdateState(true);
@@ -1380,12 +1377,6 @@ HTMLTextAreaElement::GetRows()
   }
 
   return DEFAULT_ROWS_TEXTAREA;
-}
-
-NS_IMETHODIMP_(void)
-HTMLTextAreaElement::GetDefaultValueFromContent(nsAString& aValue)
-{
-  GetDefaultValue(aValue);
 }
 
 NS_IMETHODIMP_(bool)

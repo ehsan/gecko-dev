@@ -71,22 +71,20 @@ var SelectionHandler = {
       case "Gesture:SingleTap": {
         if (this._activeType == this.TYPE_SELECTION) {
           let data = JSON.parse(aData);
-          if (this._pointInSelection(data.x, data.y))
-            this.copySelection();
-          else
-            this._closeSelection();
+          this.endSelection(data.x, data.y);
         }
         break;
       }
       case "Tab:Selected":
-        this._closeSelection();
-        break;
-  
+        if (this._activeType == this.TYPE_CURSOR) {
+          this.hideThumb();
+        }
+        // fall through
       case "Window:Resize": {
         if (this._activeType == this.TYPE_SELECTION) {
           // Knowing when the page is done drawing is hard, so let's just cancel
           // the selection when the window changes. We should fix this later.
-          this._closeSelection();
+          this.endSelection();
         }
         break;
       }
@@ -140,15 +138,22 @@ var SelectionHandler = {
   handleEvent: function sh_handleEvent(aEvent) {
     switch (aEvent.type) {
       case "pagehide":
-      // We only add keydown and blur listeners for TYPE_CURSOR
+        if (this._activeType == this.TYPE_SELECTION)
+          this.endSelection();
+        else
+          this.hideThumb();
+        break;
+
       case "keydown":
       case "blur":
-        this._closeSelection();
+        if (this._activeType == this.TYPE_CURSOR)
+          this.hideThumb();
         break;
 
       case "compositionend":
+        // If the handles are displayed during user input, hide them.
         if (this._activeType == this.TYPE_CURSOR) {
-          this._closeSelection();
+          this.hideThumb();
         }
         break;
     }
@@ -169,8 +174,8 @@ var SelectionHandler = {
         return;
       }
 
-      // Otherwise, we do want to close the selection.
-      this._closeSelection();
+      // Otherwise, we do want to end the selection.
+      this.endSelection();
     }
 
     this._ignoreCollapsedSelection = false;
@@ -188,7 +193,12 @@ var SelectionHandler = {
   // aX/aY are in top-level window browser coordinates
   startSelection: function sh_startSelection(aElement, aX, aY) {
     // Clear out any existing selection
-    this._closeSelection();
+    if (this._activeType == this.TYPE_SELECTION) {
+      this.endSelection();
+    } else if (this._activeType == this.TYPE_CURSOR) {
+      // Hide the cursor handles.
+      this.hideThumb();
+    }
 
     // Get the element's view
     this._view = aElement.ownerDocument.defaultView;
@@ -220,14 +230,14 @@ var SelectionHandler = {
       selectionController.wordMove(!this._isRTL, true);
     } catch(e) {
       // If we couldn't select the word at the given point, bail
-      this._closeSelection();
+      this._cleanUp();
       return;
     }
 
     // If there isn't an appropriate selection, bail
     if (!selection.rangeCount || !selection.getRangeAt(0) || !selection.toString().trim().length) {
       selection.collapseToStart();
-      this._closeSelection();
+      this._cleanUp();
       return;
     }
 
@@ -255,13 +265,6 @@ var SelectionHandler = {
       return this._target.QueryInterface(Ci.nsIDOMNSEditableElement).editor.selection;
     else
       return this._target.getSelection();
-  },
-
-  _getSelectedText: function sh_getSelectedText() {
-    let selection = this.getSelection();
-    if (selection)
-      return selection.toString().trim();
-    return "";
   },
 
   getSelectionController: function sh_getSelectionController() {
@@ -367,53 +370,57 @@ var SelectionHandler = {
     this._cwu.sendMouseEventToWindow("mouseup", aX, aY, 0, 0, useShift ? Ci.nsIDOMNSEvent.SHIFT_MASK : 0, true);
   },
 
-  copySelection: function sh_copySelection() {
-    let selectedText = this._getSelectedText();
-    if (selectedText.length) {
-      let clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].getService(Ci.nsIClipboardHelper);
-      clipboard.copyString(selectedText, this._view.document);
-      NativeWindow.toast.show(Strings.browser.GetStringFromName("selectionHelper.textCopied"), "short");
-    }
-    this._closeSelection();
-  },
+  // aX/aY are in top-level window browser coordinates
+  endSelection: function sh_endSelection(aX, aY) {
+    if (this._activeType != this.TYPE_SELECTION)
+      return "";
 
-  shareSelection: function sh_shareSelection() {
-    let selectedText = this._getSelectedText();
-    if (selectedText.length) {
-      sendMessageToJava({
-        type: "Share:Text",
-        text: selectedText
-      });
-    }
-    this._closeSelection();
-  },
+    this._activeType = this.TYPE_NONE;
+    sendMessageToJava({
+      type: "TextSelection:HideHandles",
+      handles: [this.HANDLE_TYPE_START, this.HANDLE_TYPE_END]
+    });
 
-  /*
-   * Shuts SelectionHandler down.
-   */
-  _closeSelection: function sh_closeSelection() {
-    // Bail if there's no active selection
-    if (this._activeType == this.TYPE_NONE)
-      return;
 
-    if (this._activeType == this.TYPE_SELECTION) {
+    let selectedText = "";
+    let pointInSelection = false;
+    if (this._view) {
       let selection = this.getSelection();
       if (selection) {
-        // Remove the listener before calling removeAllRanges() to avoid
-        // recursively notifying the listener.
-        selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
+        // Get the text before we clear the selection!
+        selectedText = selection.toString().trim();
+
+        // Also figure out if the point is in the selection before we clear it.
+        if (arguments.length == 2 && this._pointInSelection(aX, aY))
+          pointInSelection = true;
+
         selection.removeAllRanges();
+        selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
       }
     }
 
-    this._activeType = this.TYPE_NONE;
+    // Only try copying text if there's text to copy!
+    if (pointInSelection && selectedText.length) {
+      let element = ElementTouchHelper.anyElementFromPoint(aX, aY);
+      // Only try copying text if the tap happens in the same view
+      if (element.ownerDocument.defaultView == this._view) {
+        let clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].getService(Ci.nsIClipboardHelper);
+        clipboard.copyString(selectedText, element.ownerDocument);
+        NativeWindow.toast.show(Strings.browser.GetStringFromName("selectionHelper.textCopied"), "short");
+      }
+    }
 
-    sendMessageToJava({ type: "TextSelection:HideHandles" });
+    this._cleanUp();
 
+    return selectedText;
+  },
+
+  _cleanUp: function sh_cleanUp() {
     this._removeObservers();
     this._view.removeEventListener("pagehide", this, false);
     this._view.removeEventListener("keydown", this, false);
     this._view.removeEventListener("blur", this, true);
+    this._activeType = this.TYPE_NONE;
     this._view = null;
     this._target = null;
     this._isRTL = false;
@@ -485,6 +492,16 @@ var SelectionHandler = {
 
     sendMessageToJava({
       type: "TextSelection:ShowHandles",
+      handles: [this.HANDLE_TYPE_MIDDLE]
+    });
+  },
+
+  hideThumb: function sh_hideThumb() {
+    this._activeType = this.TYPE_NONE;
+    this._cleanUp();
+
+    sendMessageToJava({
+      type: "TextSelection:HideHandles",
       handles: [this.HANDLE_TYPE_MIDDLE]
     });
   },

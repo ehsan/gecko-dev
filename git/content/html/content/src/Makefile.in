@@ -73,7 +73,6 @@ EXPORTS_mozilla/dom = \
 		HTMLTableElement.h \
 		HTMLTableRowElement.h \
 		HTMLTableSectionElement.h \
-		HTMLTemplateElement.h \
 		HTMLTextAreaElement.h \
 		HTMLTimeElement.h \
 		HTMLTitleElement.h \
@@ -142,7 +141,6 @@ CPPSRCS		= \
 		HTMLTableColElement.cpp \
 		HTMLTableRowElement.cpp \
 		HTMLTableSectionElement.cpp \
-		HTMLTemplateElement.cpp \
 		HTMLTextAreaElement.cpp \
 		HTMLTimeElement.cpp \
 		HTMLTitleElement.cpp \

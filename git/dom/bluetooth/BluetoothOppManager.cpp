@@ -467,7 +467,6 @@ BluetoothOppManager::AfterOppDisconnected()
   mConnected = false;
   mLastCommand = 0;
   mBlob = nullptr;
-  mPacketLeftLength = 0;
 
   // We can't reset mSuccessFlag here since this function may be called
   // before we send system message of transfer complete

@@ -337,7 +337,6 @@ ChromeActions.prototype = {
       }, '*');
     };
 
-    var self = this;
     this.dataListener.oncomplete =
       function ChromeActions_dataListenerComplete(data, errorCode) {
 
@@ -347,7 +346,7 @@ ChromeActions.prototype = {
         errorCode: errorCode
       }, '*');
 
-      delete self.dataListener;
+      delete this.dataListener;
     };
 
     return true;
@@ -386,19 +385,21 @@ ChromeActions.prototype = {
     var message = getLocalizedString(strings, 'unsupported_feature');
 
     var notificationBox = null;
-    try {
-      // Based on MDN's "Working with windows in chrome code"
-      var mainWindow = domWindow
-        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-        .getInterface(Components.interfaces.nsIWebNavigation)
-        .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
-        .rootTreeItem
-        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-        .getInterface(Components.interfaces.nsIDOMWindow);
-      var browser = mainWindow.gBrowser
-                              .getBrowserForDocument(domWindow.top.document);
-      notificationBox = mainWindow.gBrowser.getNotificationBox(browser);
-    } catch (e) {
+    // Multiple browser windows can be opened, finding one for notification box
+    var windowsEnum = Services.wm
+                      .getZOrderDOMWindowEnumerator('navigator:browser', true);
+    while (windowsEnum.hasMoreElements()) {
+      var win = windowsEnum.getNext();
+      if (win.closed)
+        continue;
+      var browser = win.gBrowser.getBrowserForDocument(domWindow.top.document);
+      if (browser) {
+        // right window/browser is found, getting the notification box
+        notificationBox = win.gBrowser.getNotificationBox(browser);
+        break;
+      }
+    }
+    if (!notificationBox) {
       log('Unable to get a notification box for the fallback message');
       return;
     }

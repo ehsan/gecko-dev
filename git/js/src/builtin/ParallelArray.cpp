@@ -79,13 +79,13 @@ ParallelArrayObject::initProps(JSContext *cx, HandleObject obj)
     RootedValue undef(cx, UndefinedValue());
     RootedValue zero(cx, Int32Value(0));
 
-    if (!JSObject::defineProperty(cx, obj, cx->names().buffer, undef))
+    if (!JSObject::setProperty(cx, obj, obj, cx->names().buffer, &undef, true))
         return false;
-    if (!JSObject::defineProperty(cx, obj, cx->names().offset, zero))
+    if (!JSObject::setProperty(cx, obj, obj, cx->names().offset, &zero, true))
         return false;
-    if (!JSObject::defineProperty(cx, obj, cx->names().shape, undef))
+    if (!JSObject::setProperty(cx, obj, obj, cx->names().shape, &undef, true))
         return false;
-    if (!JSObject::defineProperty(cx, obj, cx->names().get, undef))
+    if (!JSObject::setProperty(cx, obj, obj, cx->names().get, &undef, true))
         return false;
 
     return true;

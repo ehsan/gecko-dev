@@ -10,77 +10,76 @@
 
 // JSON
 #include "JSObjectBuilder.h"
-#include "JSCustomObjectBuilder.h"
 
 // Self
-#include "ProfileEntry.h"
+#include "ProfileEntry2.h"
 
 #if _MSC_VER
  #define snprintf _snprintf
 #endif
 
 ////////////////////////////////////////////////////////////////////////
-// BEGIN ProfileEntry
+// BEGIN ProfileEntry2
 
-ProfileEntry::ProfileEntry()
+ProfileEntry2::ProfileEntry2()
   : mTagData(NULL)
   , mTagName(0)
 { }
 
 // aTagData must not need release (i.e. be a string from the text segment)
-ProfileEntry::ProfileEntry(char aTagName, const char *aTagData)
+ProfileEntry2::ProfileEntry2(char aTagName, const char *aTagData)
   : mTagData(aTagData)
   , mTagName(aTagName)
 { }
 
-ProfileEntry::ProfileEntry(char aTagName, void *aTagPtr)
+ProfileEntry2::ProfileEntry2(char aTagName, void *aTagPtr)
   : mTagPtr(aTagPtr)
   , mTagName(aTagName)
 { }
 
-ProfileEntry::ProfileEntry(char aTagName, double aTagFloat)
+ProfileEntry2::ProfileEntry2(char aTagName, double aTagFloat)
   : mTagFloat(aTagFloat)
   , mTagName(aTagName)
 { }
 
-ProfileEntry::ProfileEntry(char aTagName, uintptr_t aTagOffset)
+ProfileEntry2::ProfileEntry2(char aTagName, uintptr_t aTagOffset)
   : mTagOffset(aTagOffset)
   , mTagName(aTagName)
 { }
 
-ProfileEntry::ProfileEntry(char aTagName, Address aTagAddress)
+ProfileEntry2::ProfileEntry2(char aTagName, Address aTagAddress)
   : mTagAddress(aTagAddress)
   , mTagName(aTagName)
 { }
 
-ProfileEntry::ProfileEntry(char aTagName, int aTagLine)
+ProfileEntry2::ProfileEntry2(char aTagName, int aTagLine)
   : mTagLine(aTagLine)
   , mTagName(aTagName)
 { }
 
-ProfileEntry::ProfileEntry(char aTagName, char aTagChar)
+ProfileEntry2::ProfileEntry2(char aTagName, char aTagChar)
   : mTagChar(aTagChar)
   , mTagName(aTagName)
 { }
 
-bool ProfileEntry::is_ent_hint(char hintChar) {
+bool ProfileEntry2::is_ent_hint(char hintChar) {
   return mTagName == 'h' && mTagChar == hintChar;
 }
 
-bool ProfileEntry::is_ent_hint() {
+bool ProfileEntry2::is_ent_hint() {
   return mTagName == 'h';
 }
 
-bool ProfileEntry::is_ent(char tagChar) {
+bool ProfileEntry2::is_ent(char tagChar) {
   return mTagName == tagChar;
 }
 
-void* ProfileEntry::get_tagPtr() {
+void* ProfileEntry2::get_tagPtr() {
   // No consistency checking.  Oh well.
   return mTagPtr;
 }
 
-void ProfileEntry::log()
+void ProfileEntry2::log()
 {
   // There is no compiler enforced mapping between tag chars
   // and union variant fields, so the following was derived
@@ -106,58 +105,40 @@ void ProfileEntry::log()
   }
 }
 
-std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
-{
-  if (entry.mTagName == 'r' || entry.mTagName == 't') {
-    stream << entry.mTagName << "-" << std::fixed << entry.mTagFloat << "\n";
-  } else if (entry.mTagName == 'l' || entry.mTagName == 'L') {
-    // Bug 739800 - Force l-tag addresses to have a "0x" prefix on all platforms
-    // Additionally, stringstream seemed to be ignoring formatter flags.
-    char tagBuff[1024];
-    unsigned long long pc = (unsigned long long)(uintptr_t)entry.mTagPtr;
-    snprintf(tagBuff, 1024, "%c-%#llx\n", entry.mTagName, pc);
-    stream << tagBuff;
-  } else if (entry.mTagName == 'd') {
-    // TODO implement 'd' tag for text profile
-  } else {
-    stream << entry.mTagName << "-" << entry.mTagData << "\n";
-  }
-  return stream;
-}
-
-// END ProfileEntry
+// END ProfileEntry2
 ////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////
-// BEGIN ThreadProfile
+// BEGIN ThreadProfile2
 
+#define PROFILE_MAX_ENTRY  100000
 #define DYNAMIC_MAX_STRING 512
 
-ThreadProfile::ThreadProfile(int aEntrySize, PseudoStack *aStack)
+ThreadProfile2::ThreadProfile2(int aEntrySize, PseudoStack *aStack)
   : mWritePos(0)
   , mLastFlushPos(0)
   , mReadPos(0)
   , mEntrySize(aEntrySize)
   , mPseudoStack(aStack)
-  , mMutex("ThreadProfile::mMutex")
+  , mMutex("ThreadProfile2::mMutex")
 {
-  mEntries = new ProfileEntry[mEntrySize];
+  mEntries = new ProfileEntry2[mEntrySize];
 }
 
-ThreadProfile::~ThreadProfile()
+ThreadProfile2::~ThreadProfile2()
 {
   delete[] mEntries;
 }
 
-void ThreadProfile::addTag(ProfileEntry aTag)
+void ThreadProfile2::addTag(ProfileEntry2 aTag)
 {
   // Called from signal, call only reentrant functions
   mEntries[mWritePos] = aTag;
   mWritePos = (mWritePos + 1) % mEntrySize;
   if (mWritePos == mReadPos) {
     // Keep one slot open
-    mEntries[mReadPos] = ProfileEntry();
+    mEntries[mReadPos] = ProfileEntry2();
     mReadPos = (mReadPos + 1) % mEntrySize;
   }
   // we also need to move the flush pos to ensure we
@@ -168,7 +149,7 @@ void ThreadProfile::addTag(ProfileEntry aTag)
 }
 
 // flush the new entries
-void ThreadProfile::flush()
+void ThreadProfile2::flush()
 {
   mLastFlushPos = mWritePos;
 }
@@ -223,12 +204,12 @@ void ThreadProfile::flush()
 // |ABCDEFdefghijklmnopqrstuvwxyz| -> 'defghijkl'
 // |-----------------------------|
 
-void ThreadProfile::erase()
+void ThreadProfile2::erase()
 {
   mWritePos = mLastFlushPos;
 }
 
-char* ThreadProfile::processDynamicTag(int readPos,
+char* ThreadProfile2::processDynamicTag(int readPos,
                                        int* tagsConsumed, char* tagBuff)
 {
   int readAheadPos = (readPos + 1) % mEntrySize;
@@ -238,7 +219,7 @@ char* ThreadProfile::processDynamicTag(int readPos,
   bool seenNullByte = false;
   while (readAheadPos != mLastFlushPos && !seenNullByte) {
     (*tagsConsumed)++;
-    ProfileEntry readAheadEntry = mEntries[readAheadPos];
+    ProfileEntry2 readAheadEntry = mEntries[readAheadPos];
     for (size_t pos = 0; pos < sizeof(void*); pos++) {
       tagBuff[tagBuffPos] = readAheadEntry.mTagChars[pos];
       if (tagBuff[tagBuffPos] == '\0' || tagBuffPos == DYNAMIC_MAX_STRING-2) {
@@ -253,64 +234,22 @@ char* ThreadProfile::processDynamicTag(int readPos,
   return tagBuff;
 }
 
-void ThreadProfile::IterateTags(IterateTagsCallback aCallback)
-{
-  MOZ_ASSERT(aCallback);
-
-  int readPos = mReadPos;
-  while (readPos != mLastFlushPos) {
-    // Number of tag consumed
-    int incBy = 1;
-    const ProfileEntry& entry = mEntries[readPos];
-
-    // Read ahead to the next tag, if it's a 'd' tag process it now
-    const char* tagStringData = entry.mTagData;
-    int readAheadPos = (readPos + 1) % mEntrySize;
-    char tagBuff[DYNAMIC_MAX_STRING];
-    // Make sure the string is always null terminated if it fills up DYNAMIC_MAX_STRING-2
-    tagBuff[DYNAMIC_MAX_STRING-1] = '\0';
-
-    if (readAheadPos != mLastFlushPos && mEntries[readAheadPos].mTagName == 'd') {
-      tagStringData = processDynamicTag(readPos, &incBy, tagBuff);
-    }
-
-    aCallback(entry, tagStringData);
-
-    readPos = (readPos + incBy) % mEntrySize;
-  }
-}
-
-void ThreadProfile::ToStreamAsJSON(std::ostream& stream)
-{
-  JSCustomObjectBuilder b;
-  JSCustomObject *profile = b.CreateObject();
-  BuildJSObject(b, profile);
-  b.Serialize(profile, stream);
-  b.DeleteObject(profile);
-}
-
-JSCustomObject* ThreadProfile::ToJSObject(JSContext *aCx)
+JSCustomObject* ThreadProfile2::ToJSObject(JSContext *aCx)
 {
   JSObjectBuilder b(aCx);
+
   JSCustomObject *profile = b.CreateObject();
-  BuildJSObject(b, profile);
-
-  return profile;
-}
-
-void ThreadProfile::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile) {
   JSCustomArray *samples = b.CreateArray();
   b.DefineProperty(profile, "samples", samples);
 
-  JSCustomObject *sample = nullptr;
-  JSCustomArray *frames = nullptr;
-  JSCustomArray *marker = nullptr;
+  JSCustomObject *sample = NULL;
+  JSCustomArray *frames = NULL;
 
   int readPos = mReadPos;
   while (readPos != mLastFlushPos) {
     // Number of tag consumed
     int incBy = 1;
-    ProfileEntry entry = mEntries[readPos];
+    ProfileEntry2 entry = mEntries[readPos];
 
     // Read ahead to the next tag, if it's a 'd' tag process it now
     const char* tagStringData = entry.mTagData;
@@ -331,19 +270,6 @@ void ThreadProfile::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile) 
         frames = b.CreateArray();
         b.DefineProperty(sample, "frames", frames);
         b.ArrayPush(samples, sample);
-        // Created lazily
-        marker = nullptr;
-        break;
-      case 'm':
-        {
-          if (sample) {
-            if (!marker) {
-              marker = b.CreateArray();
-              b.DefineProperty(sample, "marker", marker);
-            }
-            b.ArrayPush(marker, tagStringData);
-          }
-        }
         break;
       case 'r':
         {
@@ -394,27 +320,19 @@ void ThreadProfile::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile) 
     }
     readPos = (readPos + incBy) % mEntrySize;
   }
+
+  return profile;
 }
 
-PseudoStack* ThreadProfile::GetPseudoStack()
+PseudoStack* ThreadProfile2::GetPseudoStack()
 {
   return mPseudoStack;
 }
 
-mozilla::Mutex* ThreadProfile::GetMutex()
+mozilla::Mutex* ThreadProfile2::GetMutex()
 {
   return &mMutex;
 }
 
-std::ostream& operator<<(std::ostream& stream, const ThreadProfile& profile)
-{
-  int readPos = profile.mReadPos;
-  while (readPos != profile.mLastFlushPos) {
-    stream << profile.mEntries[readPos];
-    readPos = (readPos + 1) % profile.mEntrySize;
-  }
-  return stream;
-}
-
-// END ThreadProfile
+// END ThreadProfile2
 ////////////////////////////////////////////////////////////////////////

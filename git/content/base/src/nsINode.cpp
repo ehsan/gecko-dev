@@ -1420,10 +1420,8 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
   // actually equal to each other.  Fast-path that case, since aParent
   // could be pretty deep in the DOM tree.
   if (aNewChild == aParent ||
-      ((aNewChild->GetFirstChild() ||
-        aNewChild->Tag() == nsGkAtoms::_template) &&
-       nsContentUtils::ContentIsHostIncludingDescendantOf(aParent,
-                                                          aNewChild))) {
+      (aNewChild->GetFirstChild() &&
+       nsContentUtils::ContentIsDescendantOf(aParent, aNewChild))) {
     return false;
   }
 

@@ -26,8 +26,6 @@
      */
     void documentMode(nsHtml5DocumentMode m);
 
-    nsIContent** getDocumentFragmentForTemplate(nsIContent** aTemplate);
-
     /**
      * Using nsIContent** instead of nsIContent* is the parser deals with DOM
      * nodes in a way that works off the main thread. Non-main-thread code

@@ -226,7 +226,7 @@ let SocialUI = {
         return;
       }
     }
-    Social.installProvider(targetDoc, data, function(manifest) {
+    Social.installProvider(targetDoc.location.href, data, function(manifest) {
       this.doActivation(manifest.origin);
     }.bind(this));
   },

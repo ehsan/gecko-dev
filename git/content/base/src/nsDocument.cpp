@@ -1708,7 +1708,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCachedEncoder)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStateObjectCached)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mUndoManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTemplateContentsOwner)
 
   // Traverse all our nsCOMArrays.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStyleSheets)
@@ -1785,7 +1784,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mOriginalDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCachedEncoder)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mUndoManager)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTemplateContentsOwner)
 
   tmp->mParentDocument = nullptr;
 
@@ -8536,37 +8534,6 @@ nsISupports*
 nsDocument::GetCurrentContentSink()
 {
   return mParser ? mParser->GetContentSink() : nullptr;
-}
-
-nsIDocument*
-nsDocument::GetTemplateContentsOwner()
-{
-  if (!mTemplateContentsOwner) {
-    bool hasHadScriptObject = true;
-    nsIScriptGlobalObject* scriptObject =
-      GetScriptHandlingObject(hasHadScriptObject);
-    NS_ENSURE_TRUE(scriptObject || !hasHadScriptObject, nullptr);
-
-    nsCOMPtr<nsIDOMDocument> domDocument;
-    nsresult rv = NS_NewDOMDocument(getter_AddRefs(domDocument),
-                                    EmptyString(), // aNamespaceURI
-                                    EmptyString(), // aQualifiedName
-                                    nullptr, // aDoctype
-                                    nsIDocument::GetDocumentURI(),
-                                    nsIDocument::GetDocBaseURI(),
-                                    NodePrincipal(),
-                                    true, // aLoadedAsData
-                                    scriptObject, // aEventObject
-                                    DocumentFlavorHTML);
-    NS_ENSURE_SUCCESS(rv, nullptr);
-
-    mTemplateContentsOwner = do_QueryInterface(domDocument);
-    NS_ENSURE_TRUE(mTemplateContentsOwner, nullptr);
-
-    mTemplateContentsOwner->SetScriptHandlingObject(scriptObject);
-  }
-
-  return mTemplateContentsOwner;
 }
 
 void

@@ -1,4 +1,4 @@
-// |jit-test| slow; error:InternalError
+// |jit-test| error:InternalError
 
 // Binary: cache/js-dbg-64-a2bbe9c999b4-linux
 // Flags: -m -n
