@@ -399,7 +399,7 @@ interface nsIXPCFunctionThisTranslator : nsISupports
     { 0xbd, 0xd6, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74 } }
 %}
 
-[uuid(c825b64b-d537-4e53-822e-547049aae9c9)]
+[uuid(fb780ace-dced-432b-bb82-8df7d4f919c8)]
 interface nsIXPConnect : nsISupports
 {
 %{ C++
