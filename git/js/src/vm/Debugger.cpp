@@ -493,11 +493,6 @@ Debugger::slowPathOnEnterFrame(JSContext *cx, AbstractFramePtr frame, MutableHan
     AutoValueVector triggered(cx);
     Handle<GlobalObject*> global = cx->global();
 
-#ifdef DEBUG
-    ScriptFrameIter iter(cx);
-    JS_ASSERT(iter.abstractFramePtr() == frame);
-#endif
-
     if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
         for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
             Debugger *dbg = *p;
@@ -531,11 +526,6 @@ DebuggerFrame_freeStackIterData(FreeOp *fop, RawObject obj);
 bool
 Debugger::slowPathOnLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool frameOk)
 {
-#ifdef DEBUG
-    ScriptFrameIter iter(cx);
-    JS_ASSERT(iter.abstractFramePtr() == frame);
-#endif
-
     Handle<GlobalObject*> global = cx->global();
 
     /* Save the frame's completion value. */
@@ -888,7 +878,7 @@ Debugger::parseResumptionValue(Maybe<AutoCompartment> &ac, bool ok, const Value 
     JSContext *cx = ac.ref().context();
     Rooted<JSObject*> obj(cx);
     RootedShape shape(cx);
-    jsid returnId = NameToId(cx->names().return_);
+    RootedId returnId(cx, NameToId(cx->names().return_));
     jsid throwId = NameToId(cx->names().throw_);
     bool okResumption = rv.isObject();
     if (okResumption) {
@@ -4445,10 +4435,12 @@ DebuggerObject_defineProperties(JSContext *cx, unsigned argc, Value *vp)
 
         Maybe<AutoCompartment> ac;
         ac.construct(cx, obj);
+        RootedId id(cx);
         for (size_t i = 0; i < n; i++) {
             if (!rewrappedIds.append(jsid()) || !rewrappedDescs.append())
                 return false;
-            if (!unwrappedDescs[i].wrapInto(cx, obj, ids[i], &rewrappedIds[i], &rewrappedDescs[i]))
+            id = ids[i];
+            if (!unwrappedDescs[i].wrapInto(cx, obj, id, &rewrappedIds[i], &rewrappedDescs[i]))
                 return false;
         }
 
@@ -4980,14 +4972,15 @@ DebuggerEnv_names(JSContext *cx, unsigned argc, Value *vp)
     RootedObject arr(cx, NewDenseEmptyArray(cx));
     if (!arr)
         return false;
+    RootedId id(cx);
     for (size_t i = 0, len = keys.length(); i < len; i++) {
-         jsid id = keys[i];
-         if (JSID_IS_ATOM(id) && IsIdentifier(JSID_TO_ATOM(id))) {
-             if (!cx->compartment->wrapId(cx, &id))
-                 return false;
-             if (!js_NewbornArrayPush(cx, arr, StringValue(JSID_TO_STRING(id))))
-                 return false;
-         }
+        id = keys[i];
+        if (JSID_IS_ATOM(id) && IsIdentifier(JSID_TO_ATOM(id))) {
+            if (!cx->compartment->wrapId(cx, id.address()))
+                return false;
+            if (!js_NewbornArrayPush(cx, arr, StringValue(JSID_TO_STRING(id))))
+                return false;
+        }
     }
     args.rval().setObject(*arr);
     return true;
