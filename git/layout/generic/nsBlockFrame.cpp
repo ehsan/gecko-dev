@@ -316,11 +316,6 @@ nsBlockFrame::DestroyFrom(nsIFrame* aDestructRoot)
   // Now clear mFrames, since we've destroyed all the frames in it.
   mFrames.Clear();
 
-  nsFrameList* pushedFloats = RemovePushedFloats();
-  if (pushedFloats) {
-    pushedFloats->DestroyFrom(aDestructRoot);
-  }
-
   // destroy overflow lines now
   nsLineList* overflowLines = RemoveOverflowLines();
   if (overflowLines) {
@@ -569,7 +564,7 @@ nsBlockFrame::GetChildList(nsIAtom* aListName) const
     const nsFrameList* list = GetOverflowOutOfFlows();
     return list ? *list : nsFrameList::EmptyList();
   }
-  else if (aListName == nsGkAtoms::pushedFloatsList) {
+  else if (aListName == nsGkAtoms::floatContinuationsList) {
     const nsFrameList* list = GetPushedFloats();
     return list ? *list : nsFrameList::EmptyList();
   }
@@ -606,7 +601,7 @@ nsBlockFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   case NS_BLOCK_FRAME_ABSOLUTE_LIST_INDEX:
     return nsGkAtoms::absoluteList;
   case NS_BLOCK_FRAME_PUSHED_FLOATS_LIST_INDEX:
-    return nsGkAtoms::pushedFloatsList;
+    return nsGkAtoms::floatContinuationsList;
   default:
     return nsnull;
   }
@@ -4003,17 +3998,9 @@ nsBlockFrame::SplitLine(nsBlockReflowState& aState,
   if (0 != pushCount) {
     NS_ABORT_IF_FALSE(aLine->GetChildCount() > pushCount, "bad push");
     NS_ABORT_IF_FALSE(nsnull != aFrame, "whoops");
-#ifdef DEBUG
-    {
-      nsIFrame *f = aFrame;
-      PRInt32 count = pushCount;
-      while (f && count > 0) {
-        f = f->GetNextSibling();
-        --count;
-      }
-      NS_ASSERTION(count == 0, "Not enough frames to push");
-    }
-#endif
+    NS_ASSERTION(nsFrameList(aFrame, nsLayoutUtils::GetLastSibling(aFrame))
+                   .GetLength() >= pushCount,
+                 "Not enough frames to push");
 
     // Put frames being split out into their own line
     nsLineBox* newLine = aState.NewLineBox(aFrame, pushCount, PR_FALSE);
@@ -6691,18 +6678,10 @@ void nsBlockFrame::CollectFloats(nsIFrame* aFrame, nsFrameList& aList,
           if (outOfFlowFrame->GetParent() == this) {
             nsFrameList* list = GetPushedFloats();
             if (!list || !list->RemoveFrameIfPresent(outOfFlowFrame)) {
-              if (aFromOverflow) {
-                nsAutoOOFFrameList oofs(this);
-                oofs.mList.RemoveFrame(outOfFlowFrame);
-              } else {
-                mFloats.RemoveFrame(outOfFlowFrame);
-              }
+              mFloats.RemoveFrame(outOfFlowFrame);
             }
             aList.AppendFrame(nsnull, outOfFlowFrame);
           }
-          // FIXME: By not pulling floats whose parent is one of our
-          // later siblings, are we risking the pushed floats getting
-          // out-of-order?
         } else {
           // Make sure that its parent is us. Otherwise we don't want
           // to mess around with it because it belongs to someone

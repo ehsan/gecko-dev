@@ -220,16 +220,15 @@ JSObject::setArgsLength(uint32 argc)
 {
     JS_ASSERT(isArguments());
     JS_ASSERT(argc <= JS_ARGS_LENGTH_MAX);
-    JS_ASSERT(UINT32_MAX > (uint64(argc) << ARGS_PACKED_BITS_COUNT));
-    fslots[JSSLOT_ARGS_LENGTH].setInt32(argc << ARGS_PACKED_BITS_COUNT);
+    fslots[JSSLOT_ARGS_LENGTH].setInt32(argc << 1);
     JS_ASSERT(!isArgsLengthOverridden());
 }
 
 inline uint32
-JSObject::getArgsInitialLength() const
+JSObject::getArgsLength() const
 {
     JS_ASSERT(isArguments());
-    uint32 argc = uint32(fslots[JSSLOT_ARGS_LENGTH].toInt32()) >> ARGS_PACKED_BITS_COUNT;
+    uint32 argc = uint32(fslots[JSSLOT_ARGS_LENGTH].toInt32()) >> 1;
     JS_ASSERT(argc <= JS_ARGS_LENGTH_MAX);
     return argc;
 }
@@ -238,7 +237,7 @@ inline void
 JSObject::setArgsLengthOverridden()
 {
     JS_ASSERT(isArguments());
-    fslots[JSSLOT_ARGS_LENGTH].getInt32Ref() |= ARGS_LENGTH_OVERRIDDEN_BIT;
+    fslots[JSSLOT_ARGS_LENGTH].getInt32Ref() |= 1;
 }
 
 inline bool
@@ -246,7 +245,7 @@ JSObject::isArgsLengthOverridden() const
 {
     JS_ASSERT(isArguments());
     const js::Value &v = fslots[JSSLOT_ARGS_LENGTH];
-    return v.toInt32() & ARGS_LENGTH_OVERRIDDEN_BIT;
+    return (v.toInt32() & 1) != 0;
 }
 
 inline const js::Value & 
@@ -288,6 +287,20 @@ JSObject::setArgsElement(uint32 i, const js::Value &v)
 }
 
 inline const js::Value &
+JSObject::getDateLocalTime() const
+{
+    JS_ASSERT(isDate());
+    return fslots[JSSLOT_DATE_LOCAL_TIME];
+}
+
+inline void 
+JSObject::setDateLocalTime(const js::Value &time)
+{
+    JS_ASSERT(isDate());
+    fslots[JSSLOT_DATE_LOCAL_TIME] = time;
+}
+
+inline const js::Value &
 JSObject::getDateUTCTime() const
 {
     JS_ASSERT(isDate());
@@ -312,13 +325,6 @@ inline void
 JSObject::setMethodObj(JSObject& obj)
 {
     fslots[JSSLOT_FUN_METHOD_OBJ].setObject(obj);
-}
-
-inline JSFunction *
-JSObject::getFunctionPrivate() const
-{
-    JS_ASSERT(isFunction());
-    return reinterpret_cast<JSFunction *>(getPrivate());
 }
 
 inline NativeIterator *
@@ -605,7 +611,7 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp)
         if (!global)
             return NULL;
     } else {
-        global = cx->fp->getScopeChain()->getGlobal();
+        global = cx->fp->scopeChain->getGlobal();
     }
     JS_ASSERT(global->getClass()->flags & JSCLASS_IS_GLOBAL);
 

@@ -103,6 +103,7 @@ typedef struct JSThread             JSThread;
 typedef struct JSThreadData         JSThreadData;
 typedef struct JSTreeContext        JSTreeContext;
 typedef struct JSTryNote            JSTryNote;
+typedef struct JSWeakRoots          JSWeakRoots;
 
 /* Friend "Advanced API" typedefs. */
 typedef struct JSAtom               JSAtom;

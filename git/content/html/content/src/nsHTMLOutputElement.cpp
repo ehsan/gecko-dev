@@ -68,7 +68,8 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_OUTPUT; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                               nsIContent* aSubmitElement);
 
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
@@ -147,7 +148,8 @@ nsHTMLOutputElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLOutputElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
+nsHTMLOutputElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                                       nsIContent* aSubmitElement)
 {
   // The output element is not submittable.
   return NS_OK;
