@@ -2771,16 +2771,9 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 #endif
 
 #ifdef jstracer_cpp___
-# define ABORT_TRACE                                                          \
-    goto abort_trace;
-# define ABORT_TRACE_IF_ERROR                                                 \
-    JS_BEGIN_MACRO                                                            \
-        if (js_GetRecorderError(cx))                                          \
-            goto abort_trace;                                                 \
-    JS_END_MACRO
+# define ABORT_TRACE goto abort_trace
 #else
-# define ABORT_TRACE ((void*)0)
-# define ABORT_TRACE_IF_ERROR ((void*)0)
+# define ABORT_TRACE
 #endif
 
 #if JS_THREADED_INTERP
@@ -2798,10 +2791,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 # undef OPDEF
     };
 
-# define DO_OP()            JS_BEGIN_MACRO                                    \
-    ABORT_TRACE_IF_ERROR;                         \
-                                JS_EXTENSION_(goto *jumpTable[op]);           \
-                            JS_END_MACRO
+# define DO_OP()            JS_EXTENSION_(goto *jumpTable[op])
 # define DO_NEXT_OP(n)      JS_BEGIN_MACRO                                    \
                                 METER_OP_PAIR(op, regs.pc[n]);                \
                                 op = (JSOp) *(regs.pc += (n));                \
@@ -2822,10 +2812,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 
 #else /* !JS_THREADED_INTERP */
 
-# define DO_OP()            JS_BEGIN_MACRO                                    \
-                                ABORT_TRACE_IF_ERROR;                         \
-                                goto do_op;                                   \
-                            JS_END_MACRO
+# define DO_OP()            goto do_op
 # define DO_NEXT_OP(n)      JS_BEGIN_MACRO                                    \
                                 JS_ASSERT((n) == len);                        \
                                 goto advance_pc;                              \
@@ -2878,12 +2865,9 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
     fp = cx->fp;
     script = fp->script;
     JS_ASSERT(script->length != 0);
-    
+
     if (state)
         RESTORE_STATE(state);
-
-    /* Make sure ok is initialized if we did not side-enter via state. */
-    ok = true;
 
     METER_OP_INIT(op);      /* to nullify first METER_OP_PAIR */
 
@@ -6988,11 +6972,13 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 
   error:
 #ifdef jstracer_cpp___
+    ok = JS_FALSE;
     SAVE_STATE(state, JS_NEXT_ERROR);
     return JS_FALSE;
 
   abort_trace:
       js_CallRecorder(cx, "stop", native_pointer_to_jsval(regs.pc));
+      ok = JS_FALSE;
       SAVE_STATE(state, JS_NEXT_CONTINUE);
       return ok;
 #else
@@ -7214,8 +7200,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 #ifndef jstracer_cpp___
   attempt_tracing:
     {
-        js_CallRecorder(cx, "start", native_pointer_to_jsval(regs.pc));
-        if (js_GetRecorderError(cx)) {
+        if (js_CallRecorder(cx, "start", native_pointer_to_jsval(regs.pc)) != JSVAL_TRUE) {
             op = (JSOp) *regs.pc;
             DO_OP();
         }

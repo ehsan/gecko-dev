@@ -47,21 +47,26 @@
 
 #define RECORD_P(s, a)                                                        \
     JS_BEGIN_MACRO                                                            \
-        js_CallRecorder(cx, s, native_pointer_to_jsval(a));                   \
+        JS_TRACE_MONITOR(cx).error =                                          \
+            js_CallRecorder(cx, s,                                            \
+                            native_pointer_to_jsval(a)) != JSVAL_TRUE;        \
     JS_END_MACRO
 
 #define RECORD_PP(s, a, b)                                                    \
     JS_BEGIN_MACRO                                                            \
-        js_CallRecorder(cx, s, native_pointer_to_jsval(a),                    \
-                               native_pointer_to_jsval(b));                   \
+        JS_TRACE_MONITOR(cx).error =                                          \
+            js_CallRecorder(cx, s,                                            \
+                            native_pointer_to_jsval(a),                       \
+                            native_pointer_to_jsval(b)) != JSVAL_TRUE;        \
     JS_END_MACRO
 
 #define RECORD_PV(s, a, b)                                                    \
     JS_BEGIN_MACRO                                                            \
-        js_CallRecorder(cx, s, native_pointer_to_jsval(a),                    \
-                               b);                                            \
+        JS_TRACE_MONITOR(cx).error =                                          \
+            js_CallRecorder(cx, s,                                            \
+                            native_pointer_to_jsval(a),                       \
+                            b) != JSVAL_TRUE;                                 \
     JS_END_MACRO
-
 
 static inline void
 prim_push_stack(JSContext* cx, JSFrameRegs& regs, jsval& v)
