@@ -115,9 +115,7 @@ protected:
     void InitWithData(unsigned char *aData, const gfxIntSize& aSize,
                       long aStride, gfxImageFormat aFormat);
     void InitFromSurface(cairo_surface_t *csurf);
-    long ComputeStride() const { return ComputeStride(mSize, mFormat); }
-
-    static long ComputeStride(const gfxIntSize&, gfxImageFormat);
+    long ComputeStride() const;
 
     gfxIntSize mSize;
     PRBool mOwnsData;

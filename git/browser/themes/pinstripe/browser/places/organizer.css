@@ -111,7 +111,7 @@
 }
 
 #placesToolbar > toolbarbutton > .toolbarbutton-icon {
-  margin: 1px 4px;
+  margin: 0 4px;
 }
 
 #placesToolbar > toolbarbutton > .toolbarbutton-text {

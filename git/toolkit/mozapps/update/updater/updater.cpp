@@ -976,8 +976,7 @@ PatchFile::LoadSourceFile(FILE* ofile)
   unsigned int crc = crc32(buf, header.slen);
 
   if (crc != header.scrc32) {
-    LOG(("LoadSourceFile: destination file crc %d does not match expected " \
-         "crc %d\n", crc, header.scrc32));
+    LOG(("CRC check failed\n"));
     return CRC_ERROR;
   }
   

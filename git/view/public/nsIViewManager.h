@@ -278,7 +278,7 @@ public:
    */
   NS_IMETHOD  GetDeviceContext(nsIDeviceContext *&aContext) = 0;
 
-  class UpdateViewBatch {
+  class NS_STACK_CLASS UpdateViewBatch {
   public:
     UpdateViewBatch() {}
   /**

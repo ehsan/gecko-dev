@@ -146,16 +146,16 @@
                     type="checkbox"
                     command="Tools:Inspect"
                     key="key_inspect"/>
+          <menuseparator/>
           <menuitem id="appmenu_pageSource"
                     label="&viewPageSourceCmd.label;"
                     command="View:PageSource"
                     key="key_viewSource"/>
           <menuseparator/>
 #define ID_PREFIX appmenu_developer_
-#define OMIT_ACCESSKEYS
 #include browser-charsetmenu.inc
 #undef ID_PREFIX
-#undef OMIT_ACCESSKEYS
+          <menuseparator/>
           <menuitem label="&goOfflineCmd.label;"
                     type="checkbox"
                     observes="workOfflineMenuitemState"
@@ -164,10 +164,8 @@
       </menu>
       <menuseparator class="appmenu-menuseparator"/>
 #define ID_PREFIX appmenu_
-#define OMIT_ACCESSKEYS
 #include browser-charsetmenu.inc
 #undef ID_PREFIX
-#undef OMIT_ACCESSKEYS
       <menuitem id="appmenu_fullScreen"
                 class="menuitem-tooltip"
                 label="&fullScreenCmd.label;"
@@ -353,6 +351,7 @@
                       onclick="checkForMiddleClick(this, event);"/>
             <menuseparator/>
             <menuitem id="appmenu_safeMode"
+                      accesskey="&appMenuSafeMode.accesskey;"
                       label="&appMenuSafeMode.label;"
                       oncommand="safeModeRestart();"/>
             <menuseparator/>

@@ -230,7 +230,7 @@ AsyncResource.prototype = {
     // Set some default values in-case there's no response header
     let headers = {};
     let status = 0;
-    let success = false;
+    let success = true;
     try {
       // Read out the response headers if available
       channel.visitResponseHeaders({
@@ -373,13 +373,7 @@ Resource.prototype = {
   //
   // Perform an asynchronous HTTP GET for this resource.
   get: function Res_get() {
-    let response = this._request("GET");
-    if (response.status == 0) {
-      // This must be an erroneously cached response. Try again.
-      this._log.debug("Status 0 in Resource.get: retrying once.");
-      response = this._request("GET");
-    }
-    return response;
+    return this._request("GET");
   },
 
   // ** {{{ Resource.put }}} **

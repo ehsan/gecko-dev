@@ -55,6 +55,10 @@ toolbarbutton:not([disabled="true"]):active:hover {
   text-shadow: none;
 }
 
+.toolbarbutton-icon {
+  padding: 1px 0;
+}
+
 .toolbarbutton-text {
   margin: 0px;
   padding: 0px;

@@ -190,43 +190,26 @@ nsHTMLScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
 {
   if (aForChild) {
     if (aForChild == mInner.mScrolledFrame) {
+      // restrict aDamageRect to the scrollable view's bounds
       nsRect damage = aDamageRect + nsPoint(aX, aY);
-      // This is the damage rect that we're going to pass up to our parent.
-      nsRect parentDamage;
-      parentDamage.IntersectRect(damage, mInner.mScrollPort);
-
-      if (IsScrollingActive()) {
-        // This is the damage rect that we're going to pass up and
-        // only request invalidation of ThebesLayers for.
-        // damage is now in our coordinate system, which means it was
-        // translated using the current scroll position. Adjust it to
-        // reflect the scroll position at last paint, since that's what
-        // the ThebesLayers are currently set up for.
-        // This should not be clipped to the scrollport since ThebesLayers
-        // can contain content outside the scrollport that may need to be
-        // invalidated.
-        nsRect thebesLayerDamage = damage + GetScrollPosition() - mInner.mScrollPosAtLastPaint;
-        if (parentDamage == thebesLayerDamage) {
-          // This single call will take care of both rects
-          nsHTMLContainerFrame::InvalidateInternal(parentDamage, 0, 0, aForChild, aFlags);
-        } else {
-          // Invalidate rects separately
-          if (!(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
-            nsHTMLContainerFrame::InvalidateInternal(thebesLayerDamage, 0, 0, aForChild,
-                                                     aFlags | INVALIDATE_ONLY_THEBES_LAYERS);
-          }
-          if (!(aFlags & INVALIDATE_ONLY_THEBES_LAYERS) && !parentDamage.IsEmpty()) {
-            nsHTMLContainerFrame::InvalidateInternal(parentDamage, 0, 0, aForChild,
-                                                     aFlags | INVALIDATE_NO_THEBES_LAYERS);
-          }
-        }
-      } else {
-        if (!parentDamage.IsEmpty()) {
-          nsHTMLContainerFrame::InvalidateInternal(parentDamage, 0, 0, aForChild, aFlags);
-        }
+      // damage is now in our coordinate system, which means it was
+      // translated using the current scroll position. Adjust it to
+      // reflect the scroll position at last paint, since that's what
+      // the layer system wants us to invalidate.
+      damage += GetScrollPosition() - mInner.mScrollPosAtLastPaint;
+      nsRect r;
+      r.IntersectRect(damage, mInner.mScrollPort);
+      PRBool seperateThebes = IsScrollingActive() &&
+        !(aFlags & INVALIDATE_NO_THEBES_LAYERS) && r != damage;
+      if (seperateThebes) {
+        nsHTMLContainerFrame::InvalidateInternal(damage, 0, 0, aForChild,
+          aFlags | INVALIDATE_ONLY_THEBES_LAYERS);
       }
-
-      if (mInner.mIsRoot && parentDamage != damage) {
+      if (!r.IsEmpty()) {
+        nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild,
+          aFlags | (seperateThebes ? INVALIDATE_NO_THEBES_LAYERS : 0));
+      }
+      if (mInner.mIsRoot && r != damage) {
         // Make sure we notify our prescontext about invalidations outside
         // viewport clipping.
         // This is important for things that are snapshotting the viewport,
@@ -1067,40 +1050,20 @@ nsXULScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
                                      PRUint32 aFlags)
 {
   if (aForChild == mInner.mScrolledFrame) {
-    nsRect damage = aDamageRect + nsPoint(aX, aY);
-    // This is the damage rect that we're going to pass up to our parent.
-    nsRect parentDamage;
-    parentDamage.IntersectRect(damage, mInner.mScrollPort);
-
-    if (IsScrollingActive()) {
-      // This is the damage rect that we're going to pass up and
-      // only request invalidation of ThebesLayers for.
-      // damage is now in our coordinate system, which means it was
-      // translated using the current scroll position. Adjust it to
-      // reflect the scroll position at last paint, since that's what
-      // the ThebesLayers are currently set up for.
-      // This should not be clipped to the scrollport since ThebesLayers
-      // can contain content outside the scrollport that may need to be
-      // invalidated.
-      nsRect thebesLayerDamage = damage + GetScrollPosition() - mInner.mScrollPosAtLastPaint;
-      if (parentDamage == thebesLayerDamage) {
-        // This single call will take care of both rects
-        nsBoxFrame::InvalidateInternal(parentDamage, 0, 0, aForChild, aFlags);
-      } else {
-        // Invalidate rects separately
-        if (!(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
-          nsBoxFrame::InvalidateInternal(thebesLayerDamage, 0, 0, aForChild,
-                                         aFlags | INVALIDATE_ONLY_THEBES_LAYERS);
-        }
-        if (!(aFlags & INVALIDATE_ONLY_THEBES_LAYERS) && !parentDamage.IsEmpty()) {
-          nsBoxFrame::InvalidateInternal(parentDamage, 0, 0, aForChild,
-                                         aFlags | INVALIDATE_NO_THEBES_LAYERS);
-        }
-      }
-    } else {
-      if (!parentDamage.IsEmpty()) {
-        nsBoxFrame::InvalidateInternal(parentDamage, 0, 0, aForChild, aFlags);
-      }
+    // restrict aDamageRect to the scrollable view's bounds
+    nsRect damage = aDamageRect + nsPoint(aX, aY) +
+      GetScrollPosition() - mInner.mScrollPosAtLastPaint;
+    nsRect r;
+    r.IntersectRect(damage, mInner.mScrollPort);
+    PRBool seperateThebes = IsScrollingActive() &&
+      !(aFlags & INVALIDATE_NO_THEBES_LAYERS) && r != damage;
+    if (seperateThebes) {
+      nsBoxFrame::InvalidateInternal(damage, 0, 0, aForChild,
+        aFlags | INVALIDATE_ONLY_THEBES_LAYERS);
+    }
+    if (!r.IsEmpty()) {
+      nsBoxFrame::InvalidateInternal(r, 0, 0, aForChild,
+        aFlags | (seperateThebes ? INVALIDATE_NO_THEBES_LAYERS : 0));
     }
     return;
   }
@@ -1312,7 +1275,8 @@ public:
 
   virtual void NotifyExpired(nsGfxScrollFrameInner *aObject) {
     RemoveObject(aObject);
-    aObject->MarkInactive();
+    aObject->mScrollingActive = PR_FALSE;
+    aObject->mOuter->InvalidateFrameSubtree();
   }
 };
 
@@ -1346,7 +1310,8 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
     mVerticalOverflow(PR_FALSE),
     mPostedReflowCallback(PR_FALSE),
     mMayHaveDirtyFixedChildren(PR_FALSE),
-    mUpdateScrollbarAttributes(PR_FALSE)
+    mUpdateScrollbarAttributes(PR_FALSE),
+    mScrollingActive(PR_FALSE)
 {
   // lookup if we're allowed to overlap the content from the look&feel object
   PRBool canOverlap;
@@ -1354,7 +1319,6 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
   presContext->LookAndFeel()->
     GetMetric(nsILookAndFeel::eMetric_ScrollbarsCanOverlapContent, canOverlap);
   mScrollbarsCanOverlapContent = canOverlap;
-  mScrollingActive = IsAlwaysActive();
 }
 
 nsGfxScrollFrameInner::~nsGfxScrollFrameInner()
@@ -1529,7 +1493,7 @@ static void AdjustViews(nsIFrame* aFrame)
 }
 
 static PRBool
-CanScrollWithBlitting(nsIFrame* aFrame)
+CanScrollWithBlitting(nsIFrame* aFrame, nsIFrame* aDisplayRoot)
 {
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
@@ -1542,10 +1506,7 @@ CanScrollWithBlitting(nsIFrame* aFrame)
       return PR_FALSE;
     }
 #endif
-    nsIScrollableFrame* sf = do_QueryFrame(f);
-    if (sf && nsLayoutUtils::HasNonZeroCorner(f->GetStyleBorder()->mBorderRadius))
-      return PR_FALSE;
-    if (nsLayoutUtils::IsPopup(f))
+    if (f == aDisplayRoot)
       break;
   }
   return PR_TRUE;
@@ -1611,13 +1572,9 @@ PRBool nsGfxScrollFrameInner::IsAlwaysActive() const
   return mIsRoot && mOuter->PresContext()->IsRootContentDocument();
 }
 
-void nsGfxScrollFrameInner::MarkInactive()
+PRBool nsGfxScrollFrameInner::IsScrollingActive() const
 {
-  if (IsAlwaysActive() || !mScrollingActive)
-    return;
-
-  mScrollingActive = PR_FALSE;
-  mOuter->InvalidateFrameSubtree();
+  return mScrollingActive || IsAlwaysActive();
 }
 
 void nsGfxScrollFrameInner::MarkActive()
@@ -1649,21 +1606,14 @@ void nsGfxScrollFrameInner::ScrollVisual()
   // We need to call this after fixing up the view positions
   // to be consistent with the frame hierarchy.
   PRUint32 flags = nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT;
-  PRBool canScrollWithBlitting = CanScrollWithBlitting(mOuter);
-  if (IsScrollingActive()) {
-    if (!canScrollWithBlitting) {
-      MarkInactive();
-    } else {
-      flags |= nsIFrame::INVALIDATE_NO_THEBES_LAYERS;
-    }
+  nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(mOuter);
+  if (IsScrollingActive() && CanScrollWithBlitting(mOuter, displayRoot)) {
+    flags |= nsIFrame::INVALIDATE_NO_THEBES_LAYERS;
   }
-  if (canScrollWithBlitting) {
-    MarkActive();
-  }
+  MarkActive();
   mOuter->InvalidateWithFlags(mScrollPort, flags);
 
   if (flags & nsIFrame::INVALIDATE_NO_THEBES_LAYERS) {
-    nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(mOuter);
     nsRect update =
       GetScrollPortRect() + mOuter->GetOffsetToCrossDoc(displayRoot);
     update = update.ConvertAppUnitsRoundOut(
@@ -1795,9 +1745,6 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   if (aBuilder->IsPaintingToWindow()) {
     mScrollPosAtLastPaint = GetScrollPosition();
-    if (IsScrollingActive() && !CanScrollWithBlitting(mOuter)) {
-      MarkInactive();
-    }
   }
 
   if (aBuilder->GetIgnoreScrollFrame() == mOuter) {

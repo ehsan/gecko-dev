@@ -21,7 +21,7 @@
       const name = window.location.pathname;
       const description = "My Test Database";
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
@@ -35,7 +35,7 @@
 
       is(event.transaction.mode, VERSION_CHANGE, "Correct mode");
 
-      let objectStore = db.createObjectStore("foo", { autoIncrement: true });
+      let objectStore = db.createObjectStore("foo", "", true);
 
       request = objectStore.add({});
       request.onerror = errorHandler;

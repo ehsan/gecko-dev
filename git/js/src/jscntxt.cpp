@@ -494,28 +494,49 @@ JSThreadData::init()
 #endif
     if (!stackSpace.init())
         return false;
+#ifdef JS_TRACER
+    if (!InitJIT(&traceMonitor)) {
+        finish();
+        return false;
+    }
+#endif
     dtoaState = js_NewDtoaState();
     if (!dtoaState) {
         finish();
         return false;
     }
     nativeStackBase = GetNativeStackBase();
-
-    /* Set the default size for the code cache to 16MB. */
-    maxCodeCacheBytes = 16 * 1024 * 1024;
-    
     return true;
+}
+
+MathCache *
+JSThreadData::allocMathCache(JSContext *cx)
+{
+    JS_ASSERT(!mathCache);
+    mathCache = new MathCache;
+    if (!mathCache)
+        js_ReportOutOfMemory(cx);
+    return mathCache;
 }
 
 void
 JSThreadData::finish()
 {
+#ifdef DEBUG
+    for (size_t i = 0; i != JS_ARRAY_LENGTH(scriptsToGC); ++i)
+        JS_ASSERT(!scriptsToGC[i]);
+#endif
+
     if (dtoaState)
         js_DestroyDtoaState(dtoaState);
 
     js_FinishGSNCache(&gsnCache);
     propertyCache.~PropertyCache();
+#if defined JS_TRACER
+    FinishJIT(&traceMonitor);
+#endif
     stackSpace.finish();
+    delete mathCache;
 }
 
 void
@@ -531,6 +552,18 @@ JSThreadData::purge(JSContext *cx)
 
     /* FIXME: bug 506341. */
     propertyCache.purge(cx);
+
+#ifdef JS_TRACER
+    /*
+     * If we are about to regenerate shapes, we have to flush the JIT cache,
+     * which will eventually abort any current recording.
+     */
+    if (cx->runtime->gcRegenShapes)
+        traceMonitor.needFlush = JS_TRUE;
+#endif
+
+    /* Destroy eval'ed scripts. */
+    js_DestroyScriptsToGC(cx, this);
 
     /* Purge cached native iterators. */
     memset(cachedNativeIterators, 0, sizeof(cachedNativeIterators));
@@ -703,6 +736,7 @@ js_PurgeThreads(JSContext *cx)
 
         if (JS_CLIST_IS_EMPTY(&thread->contextList)) {
             JS_ASSERT(cx->thread != thread);
+            js_DestroyScriptsToGC(cx, &thread->data);
 
             DestroyThread(thread);
             e.removeFront();
@@ -887,7 +921,7 @@ DumpEvalCacheMeter(JSContext *cx)
             EVAL_CACHE_METER_LIST(frob)
 #undef frob
         };
-        JSEvalCacheMeter *ecm = &cx->compartment->evalCacheMeter;
+        JSEvalCacheMeter *ecm = &JS_THREAD_DATA(cx)->evalCacheMeter;
 
         static JSAutoFile fp;
         if (!fp && !fp.open(filename, "w"))
@@ -2281,15 +2315,6 @@ JSContext::updateJITEnabled()
 }
 
 namespace js {
-
-JS_FORCES_STACK JS_FRIEND_API(void)
-LeaveTrace(JSContext *cx)
-{
-#ifdef JS_TRACER
-    if (JS_ON_TRACE(cx))
-        DeepBail(cx);
-#endif
-}
 
 void
 SetPendingException(JSContext *cx, const Value &v)

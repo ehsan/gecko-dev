@@ -137,9 +137,6 @@ public:
     // preference to the specified connection.
     nsresult ProcessPendingQ(nsHttpConnectionInfo *);
 
-    // called to reserve a nshttpconnection object with the manager
-    void GetConnection(nsHttpConnectionInfo *, PRUint8 caps,
-                       nsHttpConnection **);
 private:
     virtual ~nsHttpConnectionMgr();
 

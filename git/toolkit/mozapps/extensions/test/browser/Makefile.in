@@ -59,7 +59,6 @@ _MAIN_TEST_FILES = \
   browser_bug581076.js \
   browser_bug587970.js \
   browser_bug591465.js \
-  browser_bug591663.js \
   browser_bug596336.js \
   browser_bug608316.js \
   browser_bug610764.js \
@@ -98,7 +97,6 @@ _TEST_RESOURCES = \
   browser_install.xml \
   browser_install1_3.xpi \
   browser_eula.xml \
-  discovery.html \
   redirect.sjs \
   releaseNotes.xhtml \
   $(NULL)

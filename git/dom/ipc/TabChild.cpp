@@ -162,8 +162,9 @@ NS_IMPL_RELEASE(TabChild)
 NS_IMETHODIMP
 TabChild::SetStatus(PRUint32 aStatusType, const PRUnichar* aStatus)
 {
-  // FIXME/bug 617804: should the platform support this?
-  return NS_OK;
+  NS_NOTREACHED("TabChild::SetStatus not supported in TabChild");
+
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -298,8 +299,9 @@ TabChild::GetTitle(PRUnichar** aTitle)
 NS_IMETHODIMP
 TabChild::SetTitle(const PRUnichar* aTitle)
 {
-  // FIXME/bug 617804: should the platform support this?
-  return NS_OK;
+  NS_NOTREACHED("TabChild::SetTitle not supported in TabChild");
+
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP

@@ -4039,8 +4039,7 @@ nsTextFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 class nsDisplayText : public nsDisplayItem {
 public:
   nsDisplayText(nsDisplayListBuilder* aBuilder, nsTextFrame* aFrame) :
-    nsDisplayItem(aBuilder, aFrame),
-    mDisableSubpixelAA(PR_FALSE) {
+    nsDisplayItem(aBuilder, aFrame) {
     MOZ_COUNT_CTOR(nsDisplayText);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -4062,14 +4061,7 @@ public:
                      nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Text", TYPE_TEXT)
 
-  virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
-  {
-    return GetBounds(aBuilder);
-  }
-
-  virtual void DisableComponentAlpha() { mDisableSubpixelAA = PR_TRUE; }
-
-  PRPackedBool mDisableSubpixelAA;
+  virtual PRBool HasText() { return PR_TRUE; }
 };
 
 void
@@ -4081,11 +4073,8 @@ nsDisplayText::Paint(nsDisplayListBuilder* aBuilder,
   nsRect extraVisible = mVisibleRect;
   nscoord appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   extraVisible.Inflate(appUnitsPerDevPixel, appUnitsPerDevPixel);
-  nsTextFrame* f = static_cast<nsTextFrame*>(mFrame);
-
-  gfxContextAutoDisableSubpixelAntialiasing disable(aCtx->ThebesContext(),
-                                                    mDisableSubpixelAA);
-  f->PaintText(aCtx, ToReferenceFrame(), extraVisible);
+  static_cast<nsTextFrame*>(mFrame)->
+    PaintText(aCtx, ToReferenceFrame(), extraVisible);
 }
 
 NS_IMETHODIMP
@@ -5591,35 +5580,19 @@ private:
 };
 
 static PRBool
-IsAcceptableCaretPosition(const gfxSkipCharsIterator& aIter,
-                          PRBool aRespectClusters,
-                          gfxTextRun* aTextRun,
+IsAcceptableCaretPosition(const gfxSkipCharsIterator& aIter, gfxTextRun* aTextRun,
                           nsIFrame* aFrame)
 {
   if (aIter.IsOriginalCharSkipped())
     return PR_FALSE;
   PRUint32 index = aIter.GetSkippedOffset();
-  if (aRespectClusters && !aTextRun->IsClusterStart(index))
+  if (!aTextRun->IsClusterStart(index))
     return PR_FALSE;
-  if (index > 0) {
-    // Check whether the proposed position is in between the two halves of a
-    // surrogate pair; if so, this is not a valid character boundary.
-    // (In the case where we are respecting clusters, we won't actually get
-    // this far because the low surrogate is also marked as non-clusterStart
-    // so we'll return FALSE above.)
-    // If the textrun is 8-bit it can't have any surrogates, so we only need
-    // to check the actual characters if GetTextUnicode() returns non-null.
-    const PRUnichar *txt = aTextRun->GetTextUnicode();
-    if (txt && NS_IS_LOW_SURROGATE(txt[index]) &&
-               NS_IS_HIGH_SURROGATE(txt[index-1]))
-      return PR_FALSE;
-  }
   return PR_TRUE;
 }
 
 PRBool
-nsTextFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                 PRBool aRespectClusters)
+nsTextFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset)
 {
   PRInt32 contentLength = GetContentLength();
   NS_ASSERTION(aOffset && *aOffset <= contentLength, "aOffset out of range");
@@ -5644,7 +5617,7 @@ nsTextFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
     for (PRInt32 i = NS_MIN(trimmed.GetEnd(), startOffset) - 1;
          i >= trimmed.mStart; --i) {
       iter.SetOriginalOffset(i);
-      if (IsAcceptableCaretPosition(iter, aRespectClusters, mTextRun, this)) {
+      if (IsAcceptableCaretPosition(iter, mTextRun, this)) {
         *aOffset = i - mContentOffset;
         return PR_TRUE;
       }
@@ -5661,7 +5634,7 @@ nsTextFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
       for (PRInt32 i = startOffset + 1; i <= trimmed.GetEnd(); ++i) {
         iter.SetOriginalOffset(i);
         if (i == trimmed.GetEnd() ||
-            IsAcceptableCaretPosition(iter, aRespectClusters, mTextRun, this)) {
+            IsAcceptableCaretPosition(iter, mTextRun, this)) {
           *aOffset = i - mContentOffset;
           return PR_TRUE;
         }

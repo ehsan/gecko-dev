@@ -16,7 +16,7 @@
       const name = window.location.pathname;
       const description = "My Test Database";
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
@@ -31,7 +31,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let objectStore = db.createObjectStore("foo", { autoIncrement: true });
+      let objectStore = db.createObjectStore("foo", "", true);
 
       request = objectStore.add({});
       request.onerror = errorHandler;
@@ -89,7 +89,7 @@
         ok(true, "remove with no key threw");
       }
 
-      objectStore = db.createObjectStore("bar");
+      objectStore = db.createObjectStore("bar", "", false);
 
       try {
         objectStore.add({});
@@ -123,7 +123,7 @@
         ok(true, "remove with no key threw");
       }
 
-      objectStore = db.createObjectStore("baz", { keyPath: "id" });
+      objectStore = db.createObjectStore("baz", "id", false);
 
       try {
         objectStore.add({});
@@ -131,14 +131,6 @@
       }
       catch (e) {
         ok(true, "add with no key threw");
-      }
-
-      try {
-        objectStore.add({id:5}, 5);
-        ok(false, "add with inline key and passed key should throw!");
-      }
-      catch (e) {
-        ok(true, "add with inline key and passed key threw");
       }
 
       try {
@@ -189,17 +181,16 @@
       is(event.result, key1, "put gave back the same key");
 
       request = objectStore.add({id:10});
-      request.onerror = new ExpectError(IDBDatabaseException.CONSTRAINT_ERR);
+      request.onerror = grabEventAndContinueHandler;
       request.onsuccess = unexpectedSuccessHandler;
+      yield;
+
+      request = objectStore.add({}, null);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      try {
-        objectStore.add({}, null);
-        ok(false, "add with null key should throw!");
-      }
-      catch (e) {
-        ok(true, "add with null key threw");
-      }
+      is(typeof(event.result), "string", "Good generated key");
 
       try {
         objectStore.put({}, null);
@@ -225,8 +216,7 @@
         ok(true, "remove with null key threw");
       }
 
-      objectStore = db.createObjectStore("bazing", { keyPath: "id",
-                                                     autoIncrement: true });
+      objectStore = db.createObjectStore("bazing", "id", true);
 
       request = objectStore.add({});
       request.onerror = errorHandler;
@@ -273,14 +263,6 @@
       }
       catch (e) {
         ok(true, "remove with no key threw");
-      }
-
-      try {
-        objectStore.add({id:5}, 5);
-        ok(false, "add with inline key and passed key should throw!");
-      }
-      catch (e) {
-        ok(true, "add with inline key and passed key threw");
       }
 
       request = objectStore.delete(key2);

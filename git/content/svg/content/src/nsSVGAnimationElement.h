@@ -47,6 +47,8 @@
 #include "nsISMILAnimationElement.h"
 #include "nsSMILTimedElement.h"
 
+class nsSMILTimeContainer;
+
 typedef nsSVGElement nsSVGAnimationElementBase;
 
 class nsSVGAnimationElement : public nsSVGAnimationElementBase,
@@ -128,6 +130,7 @@ protected:
 
   TargetReference      mHrefTarget;
   nsSMILTimedElement   mTimedElement;
+  nsSMILTimeContainer* mTimedDocumentRoot;
 };
 
 #endif // NS_SVGANIMATIONELEMENT_H_

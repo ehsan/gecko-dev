@@ -261,10 +261,6 @@
                 onget="return this._docShell || (this._docShell = this.boxObject.QueryInterface(Components.interfaces.nsIContainerBoxObject).docShell);"
                 readonly="true"/>
 
-      <property name="messageManager"
-                onget="return this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.messageManager;"
-                readonly="true"/>
-
       <field name="_webNavigation">null</field>
 
       <property name="webNavigation"
@@ -504,14 +500,8 @@
             if (!tabBrowser || tabBrowser.mCurrentBrowser == this)
               this.fastFind.setDocShell(this.docShell);
 
-            
-            if (this._scrollable) {
-              var doc =
-                this._scrollable.ownerDocument || this._scrollable.document;
-              if (doc == aEvent.target) {
-                this._autoScrollPopup.hidePopup();
-              }
-            }
+            if (this._scrollable)
+              this._autoScrollPopup.hidePopup();
          ]]>
         </body>
       </method>
@@ -1166,7 +1156,7 @@
       </handler>
       <handler event="dragover" group="system">
       <![CDATA[
-        if (!this.droppedLinkHandler || event.getPreventDefault())
+        if (event.getPreventDefault())
           return;
 
         // For drags that appear to be internal text (for example, tab drags),
@@ -1187,7 +1177,7 @@
       </handler>
       <handler event="drop" group="system">
       <![CDATA[
-        if (!this.droppedLinkHandler || event.getPreventDefault())
+        if (event.getPreventDefault())
           return;
 
         let name = { };
@@ -1204,7 +1194,10 @@
           return;
 
         if (uri) {
-          this.droppedLinkHandler(event, uri, name.value);
+          if (this.droppedLinkHandler)
+            this.droppedLinkHandler(event, uri, name.value);
+          else
+            this.loadURI(uri, null, "");
         }
       ]]>
       </handler>

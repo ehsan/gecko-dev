@@ -49,7 +49,7 @@ namespace layers {
 class THEBES_API ImageContainerD3D10 : public ImageContainer
 {
 public:
-  ImageContainerD3D10(ID3D10Device1 *aDevice);
+  ImageContainerD3D10(LayerManagerD3D10 *aManager);
   virtual ~ImageContainerD3D10() {}
 
   virtual already_AddRefed<Image> CreateImage(const Image::Format* aFormats,
@@ -64,11 +64,6 @@ public:
   virtual gfxIntSize GetCurrentSize();
 
   virtual PRBool SetLayerManager(LayerManager *aManager);
-
-  virtual LayerManager::LayersBackend GetBackendType() { return LayerManager::LAYERS_D3D10; }
-
-  ID3D10Device1 *device() { return mDevice; }
-  void SetDevice(ID3D10Device1 *aDevice) { mDevice = aDevice; }
 
 private:
   typedef mozilla::Mutex Mutex;
@@ -143,7 +138,6 @@ public:
   CairoImageD3D10(ID3D10Device1 *aDevice)
     : CairoImage(static_cast<ImageD3D10*>(this))
     , mDevice(aDevice)
-    , mHasAlpha(true)
   { }
   ~CairoImageD3D10();
 
@@ -155,7 +149,6 @@ public:
   nsRefPtr<ID3D10Texture2D> mTexture;
   nsRefPtr<ID3D10ShaderResourceView> mSRView;
   gfxIntSize mSize;
-  bool mHasAlpha;
 };
 
 } /* layers */

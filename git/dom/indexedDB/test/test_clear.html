@@ -19,7 +19,7 @@
       const description = "My Test Database";
       const entryCount = 1000;
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
@@ -33,7 +33,7 @@
 
       event.transaction.oncomplete = continueToNextStep;
 
-      let objectStore = db.createObjectStore("foo", { autoIncrement: true });
+      let objectStore = db.createObjectStore("foo", "", true);
 
       let firstKey;
       for (let i = 0; i < entryCount; i++) {
@@ -80,7 +80,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      ok(event.result === undefined, "Correct event.result");
+      ok(event.result === null, "Correct event.result");
 
       request = db.transaction("foo").objectStore("foo").openCursor();
       request.onerror = errorHandler;

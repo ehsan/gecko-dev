@@ -19,7 +19,7 @@ function testSteps()
   const name = window.location.pathname;
   const description = "My Test Database";
 
-  var request = mozIndexedDB.open(name, description);
+  var request = moz_indexedDB.open(name, description);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   var event = yield;
@@ -42,13 +42,13 @@ function testSteps()
     { name: "out of line key; key generator",
       autoIncrement: true,
       storedObject: {name: "Lincoln"},
-      keyName: undefined,
+      keyName: null,
       keyValue: undefined,
     },
     { name: "out of line key; no key generator",
       autoIncrement: false,
       storedObject: {name: "Lincoln"},
-      keyName: "",
+      keyName: null,
       keyValue: 1,
     }
   ];
@@ -62,9 +62,8 @@ function testSteps()
     request.onsuccess = grabEventAndContinueHandler;
     event = yield;
 
-    let objectStore = db.createObjectStore(test.name,
-                                           { keyPath: test.keyName,
-                                             autoIncrement: test.autoIncrement });
+    let objectStore = db.createObjectStore(test.name, test.keyName,
+                                           test.autoIncrement);
 
     request = objectStore.add(test.storedObject, test.keyValue);
     request.onerror = errorHandler;
@@ -88,11 +87,9 @@ function testSteps()
 
     // Make sure it was removed.
     request = objectStore.get(id);
-    request.onerror = errorHandler;
-    request.onsuccess = grabEventAndContinueHandler;
+    request.onerror = new ExpectError(IDBDatabaseException.NOT_FOUND_ERR);
+    request.onsuccess = unexpectedSuccessHandler;
     event = yield;
-
-    ok(event.result === undefined, "Object was deleted");
   }
 
   finishTest();

@@ -19,16 +19,16 @@
       const name = window.location.pathname;
       const description = "My Test Database";
       const objectStoreInfo = [
-        { name: "a", options: { keyPath: "id", autoIncrement: true } },
-        { name: "b", options: { keyPath: "id", autoIncrement: false } },
+        { name: "a", keyPath: "id", autoIncrement: true },
+        { name: "b", keyPath: "id", autoIncrement: false },
       ];
       const indexInfo = [
-        { name: "1", keyPath: "unique_value", options: { unique: true } },
-        { name: "2", keyPath: "value", options: { unique: false } },
-        { name: "3", keyPath: "value", options: { unique: false } },
+        { name: "1", keyPath: "unique_value", unique: true },
+        { name: "2", keyPath: "value", unique: false },
+        { name: "3", keyPath: "value" },
       ];
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
@@ -41,9 +41,10 @@
 
       for (let i = 0; i < objectStoreInfo.length; i++) {
         let info = objectStoreInfo[i];
-        let objectStore = info.hasOwnProperty("options") ?
-                          db.createObjectStore(info.name, info.options) :
-                          db.createObjectStore(info.name);
+        let objectStore = info.hasOwnProperty("autoIncrement") ?
+                          db.createObjectStore(info.name, info.keyPath,
+                                               info.autoIncrement) :
+                          db.createObjectStore(info.name, info.keyPath);
 
         // Test basic failure conditions.
         try {
@@ -70,35 +71,19 @@
           ok(true, "createIndex with no keyPath should throw");
         }
 
-        try {
-          request = objectStore.createIndex("foo", "bar", 10);
-          ok(false, "createIndex with bad options should throw");
-        }
-        catch(e) {
-          ok(true, "createIndex with bad options threw");
-        }
-
-        try {
-          request = objectStore.createIndex("foo", "bar", { foo: "" });
-          ok(false, "createIndex with bad options should throw");
-        }
-        catch(e) {
-          ok(true, "createIndex with bad options threw");
-        }
-
         // Test index creation, and that it ends up in indexNames.
         let objectStoreName = info.name;
         for (let j = 0; j < indexInfo.length; j++) {
           let info = indexInfo[j];
           let count = objectStore.indexNames.length;
-          let index = info.hasOwnProperty("options") ?
+          let index = info.hasOwnProperty("unique") ?
                       objectStore.createIndex(info.name, info.keyPath,
-                                              info.options) :
+                                              info.unique) :
                       objectStore.createIndex(info.name, info.keyPath);
 
           is(index.name, info.name, "correct name");
           is(index.keyPath, info.keyPath, "correct keyPath");
-          is(index.unique, info.options.unique, "correct uniqueness");
+          is(index.unique, !!info.unique, "correct uniqueness");
 
           is(objectStore.indexNames.length, count + 1,
              "indexNames grew in size");

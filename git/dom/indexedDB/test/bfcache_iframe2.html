@@ -3,7 +3,7 @@
 <head>
   <script>
 var res = {};
-mozIndexedDB.open(parent.location).onsuccess = function(e) {
+moz_indexedDB.open(parent.location).onsuccess = function(e) {
   var db = e.result;
   res.version = db.version;
   res.storeCount = db.objectStoreNames.length;

@@ -1,3 +1,7 @@
+#feedback-menu-button {
+  -moz-appearance: button;
+}
+
 #pilot-notification-popup {
   -moz-appearance: none;
   background-color: Menu;

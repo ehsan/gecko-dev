@@ -174,7 +174,7 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
     };
   }
 
-  params.fromChrome = true;
+  params.fromContent = false;
 
   openLinkIn(url, where, params);
 }
@@ -183,7 +183,7 @@ function openLinkIn(url, where, params) {
   if (!where || !url)
     return;
 
-  var aFromChrome           = params.fromChrome;
+  var aFromContent          = params.fromContent;
   var aAllowThirdPartyFixup = params.allowThirdPartyFixup;
   var aPostData             = params.postData;
   var aCharset              = params.charset;
@@ -229,14 +229,21 @@ function openLinkIn(url, where, params) {
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
 
-    Services.ww.openWindow(w || window, getBrowserURL(),
-                           null, "chrome,dialog=no,all", sa);
+    var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+             getService(Ci.nsIWindowWatcher);
+
+    ww.openWindow(w || window,
+                  getBrowserURL(),
+                  null,
+                  "chrome,dialog=no,all",
+                  sa);
+
     return;
   }
 
-  var loadInBackground = aFromChrome ?
-                         getBoolPref("browser.tabs.loadBookmarksInBackground") :
-                         getBoolPref("browser.tabs.loadInBackground");
+  var loadInBackground = aFromContent ?
+                         getBoolPref("browser.tabs.loadInBackground") :
+                         getBoolPref("browser.tabs.loadBookmarksInBackground");
 
   if (where == "current" && w.gBrowser.selectedTab.pinned) {
     try {
@@ -528,25 +535,37 @@ function makeURLAbsolute(aBase, aUrl)
  *        There will be no security check.
  */ 
 function openNewTabWith(aURL, aDocument, aPostData, aEvent,
-                        aAllowThirdPartyFixup, aReferrer) {
+                        aAllowThirdPartyFixup, aReferrer)
+{
   if (aDocument)
     urlSecurityCheck(aURL, aDocument.nodePrincipal);
 
+  var loadInBackground = getBoolPref("browser.tabs.loadInBackground");
+
+  if (aEvent && aEvent.shiftKey)
+    loadInBackground = !loadInBackground;
+
   // As in openNewWindowWith(), we want to pass the charset of the
-  // current document over to a new tab.
-  var originCharset = aDocument && aDocument.characterSet;
-  if (!originCharset &&
-      document.documentElement.getAttribute("windowtype") == "navigator:browser")
+  // current document over to a new tab. 
+  var wintype = document.documentElement.getAttribute("windowtype");
+  var originCharset;
+  if (wintype == "navigator:browser")
     originCharset = window.content.document.characterSet;
 
-  openLinkIn(aURL, aEvent && aEvent.shiftKey ? "tabshifted" : "tab",
-             { charset: originCharset,
-               postData: aPostData,
-               allowThirdPartyFixup: aAllowThirdPartyFixup,
-               referrerURI: aDocument ? aDocument.documentURIObject : aReferrer });
+  // open link in new tab
+  var referrerURI = aDocument ? aDocument.documentURIObject : aReferrer;
+  var browser = top.document.getElementById("content");
+  return browser.loadOneTab(aURL, {
+                            referrerURI: referrerURI,
+                            charset: originCharset,
+                            postData: aPostData,
+                            inBackground: loadInBackground,
+                            allowThirdPartyFixup: aAllowThirdPartyFixup});
 }
 
-function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup, aReferrer) {
+function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup,
+                           aReferrer)
+{
   if (aDocument)
     urlSecurityCheck(aURL, aDocument.nodePrincipal);
 
@@ -554,16 +573,15 @@ function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup, aR
   // document with a character set, then extract the current charset menu
   // setting from the current document and use it to initialize the new browser
   // window...
-  var originCharset = aDocument && aDocument.characterSet;
-  if (!originCharset &&
-      document.documentElement.getAttribute("windowtype") == "navigator:browser")
-    originCharset = window.content.document.characterSet;
+  var charsetArg = null;
+  var wintype = document.documentElement.getAttribute("windowtype");
+  if (wintype == "navigator:browser")
+    charsetArg = "charset=" + window.content.document.characterSet;
 
-  openLinkIn(aURL, "window",
-             { charset: originCharset,
-               postData: aPostData,
-               allowThirdPartyFixup: aAllowThirdPartyFixup,
-               referrerURI: aDocument ? aDocument.documentURIObject : aReferrer });
+  var referrerURI = aDocument ? aDocument.documentURIObject : aReferrer;
+  return window.openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no",
+                           aURL, charsetArg, referrerURI, aPostData,
+                           aAllowThirdPartyFixup);
 }
 
 /**

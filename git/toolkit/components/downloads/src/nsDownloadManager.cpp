@@ -1183,10 +1183,12 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
 #elif defined(ANDROID)
     // Android doesn't have a $HOME directory, and by default we only have
     // write access to /data/data/org.mozilla.{$APP} and /sdcard
-    char* downloadDirPath = getenv("DOWNLOADS_DIRECTORY");
-    if (downloadDirPath) {
-      rv = NS_NewNativeLocalFile(nsDependentCString(downloadDirPath),
+    char* sdcard = getenv("EXTERNAL_STORAGE");
+    if (sdcard) {
+      rv = NS_NewNativeLocalFile(nsDependentCString(sdcard),
                                  PR_TRUE, getter_AddRefs(downloadDir));
+      NS_ENSURE_SUCCESS(rv, rv);
+      rv = downloadDir->Append(NS_LITERAL_STRING("downloads"));
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {

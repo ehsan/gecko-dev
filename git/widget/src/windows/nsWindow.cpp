@@ -159,8 +159,6 @@
 #include "mozilla/Services.h"
 #include "nsNativeThemeWin.h"
 #include "nsWindowsDllInterceptor.h"
-#include "nsIWindowMediator.h"
-#include "nsIServiceManager.h"
 
 #if defined(WINCE)
 #include "nsWindowCE.h"
@@ -298,8 +296,6 @@ PRBool          nsWindow::sDefaultTrackPointHack  = PR_FALSE;
 // Default value for general window class (used when the pref is the empty string).
 const char*     nsWindow::sDefaultMainWindowClass = kClassNameGeneral;
 
-// If we're using D3D9, this will not be allowed during initial 5 seconds.
-bool            nsWindow::sAllowD3D9              = false;
 
 #ifdef ACCESSIBILITY
 BOOL            nsWindow::sIsAccessibilityOn      = FALSE;
@@ -400,7 +396,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mCustomNonClient      = PR_FALSE;
   mHideChrome           = PR_FALSE;
   mFullscreenMode       = PR_FALSE;
-  mMousePresent         = PR_FALSE;
   mWindowType           = eWindowType_child;
   mBorderStyle          = eBorderStyle_default;
   mPopupType            = ePopupTypeAny;
@@ -625,50 +620,12 @@ nsWindow::Create(nsIWidget *aParent,
   if (mWindowType != eWindowType_plugin &&
       mWindowType != eWindowType_invisible &&
       UseTrackPointHack()) {
-    // Ugly Thinkpad Driver Hack (Bugs 507222 and 594977)
-    //
-    // We create two zero-sized windows as descendants of the top-level window,
-    // like so:
-    //
-    //   Top-level window (MozillaWindowClass)
-    //     FAKETRACKPOINTSCROLLCONTAINER (MozillaWindowClass)
-    //       FAKETRACKPOINTSCROLLABLE (MozillaWindowClass)
-    //
-    // We need to have the middle window, otherwise the Trackpoint driver
-    // will fail to deliver scroll messages.  WM_MOUSEWHEEL messages are
-    // sent to the FAKETRACKPOINTSCROLLABLE, which then propagate up the
-    // window hierarchy until they are handled by nsWindow::WindowProc.
-    // WM_HSCROLL messages are also sent to the FAKETRACKPOINTSCROLLABLE,
-    // but these do not propagate automatically, so we have the window
-    // procedure pretend that they were dispatched to the top-level window
-    // instead.
-    //
-    // The FAKETRACKPOINTSCROLLABLE needs to have the specific window styles it
-    // is given below so that it catches the Trackpoint driver's heuristics.
-    HWND scrollContainerWnd = ::CreateWindowW
-      (className.get(), L"FAKETRACKPOINTSCROLLCONTAINER",
-       WS_CHILD | WS_VISIBLE,
-       0, 0, 0, 0, mWnd, NULL, nsToolkit::mDllInstance, NULL);
-    HWND scrollableWnd = ::CreateWindowW
-      (className.get(), L"FAKETRACKPOINTSCROLLABLE",
-       WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP | 0x30,
-       0, 0, 0, 0, scrollContainerWnd, NULL, nsToolkit::mDllInstance, NULL);
-
-    // Give the FAKETRACKPOINTSCROLLABLE window a specific ID so that
-    // WindowProcInternal can distinguish it from the top-level window
-    // easily.
-    ::SetWindowLongPtrW(scrollableWnd, GWLP_ID, eFakeTrackPointScrollableID);
-
-    // Make FAKETRACKPOINTSCROLLABLE use nsWindow::WindowProc, and store the
-    // old window procedure in its "user data".
-    WNDPROC oldWndProc;
-    if (mUnicodeWidget)
-      oldWndProc = (WNDPROC)::SetWindowLongPtrW(scrollableWnd, GWLP_WNDPROC,
-                                                (LONG_PTR)nsWindow::WindowProc);
-    else
-      oldWndProc = (WNDPROC)::SetWindowLongPtrA(scrollableWnd, GWLP_WNDPROC,
-                                                (LONG_PTR)nsWindow::WindowProc);
-    ::SetWindowLongPtrW(scrollableWnd, GWLP_USERDATA, (LONG_PTR)oldWndProc);
+    // Ugly Thinkpad Driver Hack (Bug 507222)
+    // We create an invisible scrollbar to trick the 
+    // Trackpoint driver into sending us scrolling messages
+    ::CreateWindowW(L"SCROLLBAR", L"FAKETRACKPOINTSCROLLBAR", 
+                    WS_CHILD | WS_VISIBLE, 0,0,0,0, mWnd, NULL,
+                    nsToolkit::mDllInstance, NULL);
   }
 
   // call the event callback to notify about creation
@@ -1139,35 +1096,6 @@ nsWindow* nsWindow::GetParentWindow(PRBool aIncludeOwner)
   }
 
   return widget;
-}
- 
-BOOL CALLBACK
-nsWindow::EnumAllChildWindProc(HWND aWnd, LPARAM aParam)
-{
-  nsWindow *wnd = nsWindow::GetNSWindowPtr(aWnd);
-  if (wnd) {
-    ((nsWindow::WindowEnumCallback*)aParam)(wnd);
-  }
-  return TRUE;
-}
-
-BOOL CALLBACK
-nsWindow::EnumAllThreadWindowProc(HWND aWnd, LPARAM aParam)
-{
-  nsWindow *wnd = nsWindow::GetNSWindowPtr(aWnd);
-  if (wnd) {
-    ((nsWindow::WindowEnumCallback*)aParam)(wnd);
-  }
-  EnumChildWindows(aWnd, EnumAllChildWindProc, aParam);
-  return TRUE;
-}
-
-void
-nsWindow::EnumAllWindows(WindowEnumCallback aCallback)
-{
-  EnumThreadWindows(GetCurrentThreadId(),
-                    EnumAllThreadWindowProc,
-                    (LPARAM)&aCallback);
 }
 
 /**************************************************************
@@ -2542,8 +2470,6 @@ void nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
   GetTopLevelWindow(PR_TRUE)->SetWindowTranslucencyInner(aMode);
 }
 
-static const PRInt32 kGlassMarginAdjustment = 2;
-
 void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
                                                const nsIntRegion &aPossiblyTransparentRegion) {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
@@ -2574,28 +2500,8 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
     margins.cxLeftWidth = margins.cxRightWidth = 
       margins.cyTopHeight = margins.cyBottomHeight = -1;
   } else {
-    nsIntRect pluginBounds;
-    for (nsIWidget* child = GetFirstChild(); child; child = child->GetNextSibling()) {
-      nsWindowType type;
-      child->GetWindowType(type);
-      if (type == eWindowType_plugin) {
-        nsIntRect childBounds;
-        child->GetBounds(childBounds);
-        if (mTransparencyMode == eTransparencyBorderlessGlass) {
-          // We shrink the margins by kGlassMarginAdjustment in UpdateGlass.
-          // So here, try to ensure that the shrunk margin will still contain
-          // the plugin bounds. Of course there's no guarantee that we'll
-          // find an opaque rectangle including this enlarged area, for example
-          // if the plugin is already at the edge of the window.
-          childBounds.Inflate(kGlassMarginAdjustment, kGlassMarginAdjustment);
-        }
-        pluginBounds.UnionRect(pluginBounds, childBounds);
-      }
-    }
-
-    // Find the largest rectangle and use that to calculate the inset. Our top
-    // priority is to include the bounds of all plugins.
-    nsIntRect largest = opaqueRegion.GetLargestRectangle(pluginBounds);
+    // Find the largest rectangle and use that to calculate the inset
+    nsIntRect largest = opaqueRegion.GetLargestRectangle();
     margins.cxLeftWidth = largest.x;
     margins.cxRightWidth = clientBounds.width - largest.XMost();
     margins.cyBottomHeight = clientBounds.height - largest.YMost();
@@ -2632,6 +2538,7 @@ void nsWindow::UpdateGlass()
   case eTransparencyBorderlessGlass:
     // Only adjust if there is some opaque rectangle
     if (margins.cxLeftWidth >= 0) {
+      const PRInt32 kGlassMarginAdjustment = 2;
       margins.cxLeftWidth += kGlassMarginAdjustment;
       margins.cyTopHeight += kGlassMarginAdjustment;
       margins.cxRightWidth += kGlassMarginAdjustment;
@@ -3272,7 +3179,7 @@ nsWindow::HasPendingInputEvent()
  **************************************************************/
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowRetaining)
+nsWindow::GetLayerManager(bool* aAllowRetaining)
 {
   if (aAllowRetaining) {
     *aAllowRetaining = true;
@@ -3289,19 +3196,13 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       if (layerManagerD3D10->device() !=
           gfxWindowsPlatform::GetPlatform()->GetD3D10Device())
       {
-        mLayerManager->Destroy();
         mLayerManager = nsnull;
       }
     }
   }
 #endif
 
-  if (!mLayerManager ||
-      (!sAllowD3D9 && aPersistence == LAYER_MANAGER_PERSISTENT &&
-        mLayerManager->GetBackendType() == 
-        mozilla::layers::LayerManager::LAYERS_BASIC)) {
-    // If D3D9 is not currently allowed but the permanent manager is required,
-    // -and- we're currently using basic layers, run through this check.
+  if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
     PRBool accelerateByDefault = PR_TRUE;
@@ -3340,12 +3241,6 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       mUseAcceleratedRendering = PR_TRUE;
 
     if (mUseAcceleratedRendering) {
-      if (aPersistence == LAYER_MANAGER_PERSISTENT && !sAllowD3D9) {
-        // This will clear out our existing layer manager if we have one since
-        // if we hit this with a LayerManager we're always using BasicLayers.
-        nsToolkit::StartAllowingD3D9();
-      }
-
 #ifdef MOZ_ENABLE_D3D10_LAYER
       if (!preferD3D9) {
         nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
@@ -3356,7 +3251,7 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       }
 #endif
 #ifdef MOZ_ENABLE_D3D9_LAYER
-      if (!preferOpenGL && !mLayerManager && sAllowD3D9) {
+      if (!preferOpenGL && !mLayerManager) {
         nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
           new mozilla::layers::LayerManagerD3D9(this);
         if (layerManager->Initialize()) {
@@ -4481,18 +4376,6 @@ LRESULT CALLBACK nsWindow::WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam
                            MOZ_FUNCTION_NAME, __LINE__, hWnd, msg,
                            wParam, lParam);
 
-  if (::GetWindowLongPtrW(hWnd, GWLP_ID) == eFakeTrackPointScrollableID) {
-    // This message was sent to the FAKETRACKPOINTSCROLLABLE.
-    if (msg == WM_HSCROLL) {
-      // Route WM_HSCROLL messages to the main window.
-      hWnd = ::GetParent(::GetParent(hWnd));
-    } else {
-      // Handle all other messages with its original window procedure.
-      WNDPROC prevWindowProc = (WNDPROC)::GetWindowLongPtr(hWnd, GWLP_USERDATA);
-      return ::CallWindowProcW(prevWindowProc, hWnd, msg, wParam, lParam);
-    }
-  }
-
   // Get the window which caused the event and ask it to process the message
   nsWindow *someWindow = GetNSWindowPtr(hWnd);
 
@@ -4993,8 +4876,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // priority
       SetTimer(mWnd, KILL_PRIORITY_ID, 2000 /* 2seconds */, NULL);
 #endif
-      mMousePresent = PR_TRUE;
-
       // Suppress dispatch of pending events
       // when mouse moves are generated by widget
       // creation instead of user input.
@@ -5014,13 +4895,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         DispatchPendingEvents();
       }
     }
-    break;
-
-    case WM_NCMOUSEMOVE:
-      // If we receive a mouse move event on non-client chrome, make sure and
-      // send an NS_MOUSE_EXIT event as well.
-      if (mMousePresent && !mIsInMouseCapture)
-        SendMessage(mWnd, WM_MOUSELEAVE, 0, 0);
     break;
 
 #ifdef WINCE_WINDOWS_MOBILE
@@ -5058,10 +4932,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #ifndef WINCE
     case WM_MOUSELEAVE:
     {
-      if (!mMousePresent)
-        break;
-      mMousePresent = PR_FALSE;
-
       // We need to check mouse button states and put them in for
       // wParam.
       WPARAM mouseState = (GetKeyState(VK_LBUTTON) ? MK_LBUTTON : 0)
@@ -7152,27 +7022,6 @@ CreateHRGNFromArray(const nsTArray<nsIntRect>& aRects)
   return ::ExtCreateRegion(NULL, buf.Length(), data);
 }
 
-static const nsIntRegion
-RegionFromArray(const nsTArray<nsIntRect>& aRects)
-{
-  nsIntRegion region;
-  for (PRUint32 i = 0; i < aRects.Length(); ++i) {
-    region.Or(region, aRects[i]);
-  }
-  return region;
-}
-
-static const nsTArray<nsIntRect>
-ArrayFromRegion(const nsIntRegion& aRegion)
-{
-  nsTArray<nsIntRect> rects;
-  const nsIntRect* r;
-  for (nsIntRegionRectIterator iter(aRegion); (r = iter.Next());) {
-    rects.AppendElement(*r);
-  }
-  return rects;
-}
-
 nsresult
 nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                               PRBool aIntersectWithExisting)
@@ -7188,22 +7037,6 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                sizeof(nsIntRect)*mClipRectCount) == 0) {
       return NS_OK;
     }
-
-    // get current rects
-    nsTArray<nsIntRect> currentRects;
-    GetWindowClipRegion(&currentRects);
-    // create region from them
-    nsIntRegion currentRegion = RegionFromArray(currentRects);
-    // create region from new rects
-    nsIntRegion newRegion = RegionFromArray(aRects);
-    // intersect regions
-    nsIntRegion intersection;
-    intersection.And(currentRegion, newRegion);
-    // create int rect array from intersection
-    nsTArray<nsIntRect> rects = ArrayFromRegion(intersection);
-    // store
-    if (!StoreWindowClipRegion(rects))
-      return NS_OK;
   }
 
   HRGN dest = CreateHRGNFromArray(aRects);
@@ -7658,37 +7491,6 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
 PRBool nsWindow::AutoErase(HDC dc)
 {
   return PR_FALSE;
-}
-
-void
-nsWindow::AllowD3D9Callback(nsWindow *aWindow)
-{
-  if (aWindow->mLayerManager) {
-    aWindow->mLayerManager->Destroy();
-    aWindow->mLayerManager = NULL;
-  }
-}
-
-void
-nsWindow::AllowD3D9WithReinitializeCallback(nsWindow *aWindow)
-{
-  if (aWindow->mLayerManager) {
-    aWindow->mLayerManager->Destroy();
-    aWindow->mLayerManager = NULL;
-    (void) aWindow->GetLayerManager();
-  }
-}
-
-void
-nsWindow::StartAllowingD3D9(bool aReinitialize)
-{
-  sAllowD3D9 = true;
-
-  if (aReinitialize) {
-    EnumAllWindows(AllowD3D9WithReinitializeCallback);
-  } else {
-    EnumAllWindows(AllowD3D9Callback);
-  }
 }
 
 /**************************************************************
@@ -8691,13 +8493,13 @@ IsObsoleteSynapticsDriver()
 {
   HKEY key;
   LONG result = ::RegOpenKeyExW(HKEY_LOCAL_MACHINE,
-      L"Software\\Synaptics\\SynTP\\Install", 0, KEY_READ, &key);
+      L"Software\\Synaptics\\SynTP\\Install\\DriverVersion", 0, KEY_READ, &key);
   if (result != ERROR_SUCCESS)
     return PR_FALSE;
   DWORD type;
   PRUnichar buf[40];
   DWORD buflen = sizeof(buf);
-  result = ::RegQueryValueExW(key, L"DriverVersion", NULL, &type, (BYTE*)buf, &buflen);
+  result = ::RegQueryValueExW(key, NULL, NULL, &type, (BYTE*)buf, &buflen);
   ::RegCloseKey(key);
   if (result != ERROR_SUCCESS || type != REG_SZ)
     return PR_FALSE;

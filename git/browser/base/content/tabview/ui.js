@@ -203,20 +203,18 @@ let UI = {
       });
 
       // ___ setup observer to save canvas images
-      function quitObserver(subject, topic, data) {
-        if (topic == "quit-application-requested") {
-          if (self.isTabViewVisible())
-            GroupItems.removeHiddenGroups();
-
-          TabItems.saveAll(true);
-          self._save();
+      var observer = {
+        observe : function(subject, topic, data) {
+          if (topic == "quit-application-requested") {
+            if (self.isTabViewVisible()) {
+              GroupItems.removeHiddenGroups();
+              TabItems.saveAll(true);
+            }
+            self._save();
+          }
         }
-      }
-      Services.obs.addObserver(
-        quitObserver, "quit-application-requested", false);
-      this._cleanupFunctions.push(function() {
-        Services.obs.removeObserver(quitObserver, "quit-application-requested");
-      });
+      };
+      Services.obs.addObserver(observer, "quit-application-requested", false);
 
       // ___ Done
       this._frameInitialized = true;
@@ -239,6 +237,7 @@ let UI = {
     this._cleanupFunctions.forEach(function(func) {
       func();
     });
+
     this._cleanupFunctions = [];
 
     // additional clean up
@@ -986,9 +985,10 @@ let UI = {
 
     var startPos = { x: e.clientX, y: e.clientY };
     var phantom = iQ("<div>")
-      .addClass("groupItem phantom activeGroupItem dragRegion")
+      .addClass("groupItem phantom activeGroupItem")
       .css({
         position: "absolute",
+        opacity: .7,
         zIndex: -1,
         cursor: "default"
       })
@@ -1005,7 +1005,7 @@ let UI = {
         this.container.css(bounds);
       },
       setZ: function FauxItem_setZ(z) {
-        // don't set a z-index because we want to force it to be low.
+        this.container.css("z-index", z);
       },
       setOpacity: function FauxItem_setOpacity(opacity) {
         this.container.css("opacity", opacity);
@@ -1069,7 +1069,6 @@ let UI = {
 
     function finalize(e) {
       iQ(window).unbind("mousemove", updateSize);
-      item.container.removeClass("dragRegion");
       dragOutInfo.stop();
       if (phantom.css("opacity") != 1)
         collapse();

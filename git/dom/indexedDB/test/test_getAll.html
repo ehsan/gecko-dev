@@ -18,7 +18,7 @@
 
       const values = [ "a", "1", 1, "foo", 300, true, false, 4.5, null ];
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
@@ -30,7 +30,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore("foo", { autoIncrement: true });
+      let objectStore = db.createObjectStore("foo", "", true);
 
       request = objectStore.getAll();
       request.onerror = errorHandler;
@@ -94,19 +94,6 @@
       keyRange = IDBKeyRange.bound(4, 7);
 
       request = db.transaction("foo").objectStore("foo").getAll(keyRange);
-      request.onerror = errorHandler;
-      request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
-
-      is(event.result instanceof Array, true, "Got an array object");
-      is(event.result.length, 4, "Correct length");
-
-      for (let i in event.result) {
-        is(event.result[i], values[parseInt(i) + 3], "Same value");
-      }
-
-      // Get should take a key range also.
-      request = db.transaction("foo").objectStore("foo").get(keyRange);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;

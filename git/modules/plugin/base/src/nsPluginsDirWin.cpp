@@ -160,14 +160,18 @@ static void FreeStringArray(PRUint32 variants, char ** array)
   PR_Free(array);
 }
 
-static PRBool CanLoadPlugin(const PRUnichar* aBinaryPath)
+PRBool CanLoadPlugin(const char* binaryPath)
 {
 #if defined(_M_IX86) || defined(_M_X64) || defined(_M_IA64)
   PRBool canLoad = PR_FALSE;
 
-  HANDLE file = CreateFileW(aBinaryPath, GENERIC_READ,
+  int len = MultiByteToWideChar(CP_UTF8, 0, binaryPath, -1, NULL, 0);
+  WCHAR *wBinaryPath = new WCHAR[len];
+  MultiByteToWideChar(CP_UTF8, 0, binaryPath, -1, wBinaryPath, len);
+  HANDLE file = CreateFileW(wBinaryPath, GENERIC_READ,
                             FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  delete[] wBinaryPath;
   if (file != INVALID_HANDLE_VALUE) {
     HANDLE map = CreateFileMappingW(file, NULL, PAGE_READONLY, 0,
                                     GetFileSize(file, NULL), NULL);
@@ -231,7 +235,9 @@ PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
       if (!PL_strncasecmp(filename, "npoji", 5) ||
           !PL_strncasecmp(filename, "npjava", 6))
         return PR_FALSE;
-      return PR_TRUE;
+
+      // Check this last since it involves opening the file.
+      return CanLoadPlugin(cPath);
     }
   }
 
@@ -328,9 +334,6 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
   nsAutoString fullPath;
   if (NS_FAILED(rv = mPlugin->GetPath(fullPath)))
     return rv;
-
-  if (!CanLoadPlugin(fullPath.get()))
-    return NS_ERROR_FAILURE;
 
   nsAutoString fileName;
   if (NS_FAILED(rv = mPlugin->GetLeafName(fileName)))

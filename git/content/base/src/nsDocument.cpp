@@ -1934,8 +1934,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   // manually.
 
   tmp->mInUnlinkOrDeletion = PR_FALSE;
-
-  tmp->mIdentifierMap.Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -2129,9 +2127,6 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 
   // Release the stylesheets list.
   mDOMStyleSheets = nsnull;
-
-  // Clear the original URI so SetDocumentURI sets it.
-  mOriginalURI = nsnull;
 
   SetDocumentURI(aURI);
   // If mDocumentBaseURI is null, nsIDocument::GetBaseURI() returns
@@ -2514,11 +2509,6 @@ nsDocument::SetDocumentURI(nsIURI* aURI)
   else {
     equalBases = !oldBase && !newBase;
   }
-
-  // If this is the first time we're setting the document's URI, set the
-  // document's original URI.
-  if (!mOriginalURI)
-    mOriginalURI = mDocumentURI;
 
   // If changing the document's URI changed the base URI of the document, we
   // need to refresh the hrefs of all the links on the page.
@@ -3992,6 +3982,7 @@ nsDocument::BeginLoad()
   NS_DOCUMENT_NOTIFY_OBSERVERS(BeginLoad, (this));
 }
 
+// static
 void
 nsDocument::ReportEmptyGetElementByIdArg()
 {
@@ -4001,7 +3992,7 @@ nsDocument::ReportEmptyGetElementByIdArg()
                                   nsnull,
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,
-                                  "DOM", this);
+                                  "DOM");
 }
 
 Element*
@@ -5297,10 +5288,11 @@ nsDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
     nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                     "UseOfGetBoxObjectForWarning",
                                     nsnull, 0,
-                                    nsnull,
+                                    static_cast<nsIDocument*>(this)->
+                                      GetDocumentURI(),
                                     EmptyString(), 0, 0,
                                     nsIScriptError::warningFlag,
-                                    "BoxObjects", this);
+                                    "BoxObjects");
   }
 
   *aResult = nsnull;
@@ -5786,7 +5778,7 @@ nsDocument::AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 {
-  return nsNodeUtils::CloneNodeImpl(this, aDeep, !mCreatingStaticClone, aReturn);
+  return nsNodeUtils::CloneNodeImpl(this, aDeep, aReturn);
 }
 
 NS_IMETHODIMP
@@ -7084,6 +7076,10 @@ nsDocument::Destroy()
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
   nsContentUtils::ReleaseWrapper(static_cast<nsINode*>(this), this);
+
+  // Try really really hard to make sure we don't leak things through
+  // mIdentifierMap
+  mIdentifierMap.Clear();
 }
 
 void

@@ -574,13 +574,6 @@ public:
     return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
   }
 
-private:
-  // Enable updates for the accelerometer.
-  void EnableAccelerationUpdates();
-
-  // Disables updates for the accelerometer.
-  void DisableAccelerationUpdates();
-
 protected:
   // Object Management
   virtual ~nsGlobalWindow();
@@ -714,12 +707,6 @@ protected:
   void EnsureReflowFlushAndPaint();
   nsresult CheckSecurityWidthAndHeight(PRInt32* width, PRInt32* height);
   nsresult CheckSecurityLeftAndTop(PRInt32* left, PRInt32* top);
-
-  // Arguments to this function should have values in app units
-  nsresult SetCSSViewportWidthAndHeight(nscoord width, nscoord height);
-  // Arguments to this function should have values in device pixels
-  nsresult SetDocShellWidthAndHeight(PRInt32 width, PRInt32 height);
-
   static PRBool CanSetProperty(const char *aPrefName);
 
   static void MakeScriptDialogTitle(nsAString &aOutTitle);
@@ -876,7 +863,7 @@ protected:
   PRPackedBool           mFocusByKeyOccurred : 1;
 
   // Indicates whether this window is getting acceleration change events
-  PRPackedBool           mHasAcceleration : 1;
+  PRPackedBool           mHasAcceleration  : 1;
 
   // whether we've sent the destroy notification for our window id
   PRPackedBool           mNotifiedIDDestroyed : 1;
@@ -1062,8 +1049,6 @@ public:
 
   void LoadingNewDocument();
   nsresult RefreshMIMEArray();
-
-  static bool HasDesktopNotificationSupport();
 
 protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;

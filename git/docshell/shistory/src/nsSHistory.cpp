@@ -153,7 +153,6 @@ NS_INTERFACE_MAP_BEGIN(nsSHistory)
    NS_INTERFACE_MAP_ENTRY(nsISHistory)
    NS_INTERFACE_MAP_ENTRY(nsIWebNavigation)
    NS_INTERFACE_MAP_ENTRY(nsISHistoryInternal)
-   NS_INTERFACE_MAP_ENTRY(nsISHistory_2_0_BRANCH)
 NS_INTERFACE_MAP_END
 
 //*****************************************************************************
@@ -795,25 +794,6 @@ nsSHistory::Reload(PRUint32 aReloadFlags)
     return NS_OK;
 
   return LoadEntry(mIndex, loadType, HIST_CMD_RELOAD);
-}
-
-NS_IMETHODIMP
-nsSHistory::ReloadCurrentEntry()
-{
-  // Notify listeners
-  PRBool canNavigate = PR_TRUE;
-  if (mListener) {
-    nsCOMPtr<nsISHistoryListener> listener(do_QueryReferent(mListener));
-    if (listener) {
-      nsCOMPtr<nsIURI> currentURI;
-      GetCurrentURI(getter_AddRefs(currentURI));
-      listener->OnHistoryGotoIndex(mIndex, currentURI, &canNavigate);
-    }
-  }
-  if (!canNavigate)
-    return NS_OK;
-
-  return LoadEntry(mIndex, nsIDocShellLoadInfo::loadHistory, HIST_CMD_RELOAD);
 }
 
 void

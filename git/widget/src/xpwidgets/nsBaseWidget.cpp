@@ -137,10 +137,6 @@ nsBaseWidget::~nsBaseWidget()
     static_cast<BasicLayerManager*>(mLayerManager.get())->ClearRetainerWidget();
   }
 
-  if (mLayerManager) {
-    mLayerManager->Destroy();
-  }
-
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets--;
   printf("WIDGETS- = %d\n", gNumWidgets);
@@ -747,7 +743,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   : mWidget(aWidget)
 {
   BasicLayerManager* manager =
-    static_cast<BasicLayerManager*>(mWidget->GetLayerManager(nsnull));
+    static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
@@ -758,7 +754,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
 nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
 {
   BasicLayerManager* manager =
-    static_cast<BasicLayerManager*>(mWidget->GetLayerManager(nsnull));
+    static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
@@ -811,12 +807,6 @@ nsBaseWidget::GetShouldAccelerate()
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(bool* aAllowRetaining)
-{
-  return GetLayerManager(LAYER_MANAGER_CURRENT, aAllowRetaining);
-}
-
-LayerManager* nsBaseWidget::GetLayerManager(LayerManagerPersistence,
-                                            bool* aAllowRetaining)
 {
   if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
@@ -1037,9 +1027,6 @@ nsBaseWidget::SetAcceleratedRendering(PRBool aEnabled)
     return NS_OK;
   }
   mUseAcceleratedRendering = aEnabled;
-  if (mLayerManager) {
-    mLayerManager->Destroy();
-  }
   mLayerManager = NULL;
   return NS_OK;
 }

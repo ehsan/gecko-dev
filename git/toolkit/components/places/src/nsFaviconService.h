@@ -36,9 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsFaviconService_h_
-#define nsFaviconService_h_
-
 #include "nsCOMPtr.h"
 #include "nsDataHashtable.h"
 #include "nsIFaviconService.h"
@@ -48,12 +45,23 @@
 #include "nsToolkitCompsCID.h"
 
 #include "mozilla/storage.h"
-#include "mozilla/storage/StatementCache.h"
 
 // Favicons bigger than this size should not be saved to the db to avoid
 // bloating it with large image blobs.
 // This still allows us to accept a favicon even if we cannot optimize it.
 #define MAX_FAVICON_SIZE 10240
+
+namespace mozilla {
+namespace places {
+
+  enum FaviconStatementId {
+    DB_GET_ICON_INFO_WITH_PAGE = 0
+  , DB_INSERT_ICON = 1
+  , DB_ASSOCIATE_ICONURI_TO_PAGEURI = 2
+  };
+
+} // namespace places
+} // namespace mozilla
 
 // Most icons will be smaller than this rough estimate of the size of an
 // uncompressed 16x16 RGBA image of the same dimensions.
@@ -141,14 +149,25 @@ public:
    */
   nsresult FinalizeStatements();
 
-  void SendFaviconNotifications(nsIURI* aPage, nsIURI* aFaviconURI);
+  mozIStorageStatement* GetStatementById(
+    enum mozilla::places::FaviconStatementId aStatementId
+  )
+  {
+    using namespace mozilla::places;
+    switch(aStatementId) {
+      case DB_GET_ICON_INFO_WITH_PAGE:
+        return GetStatement(mDBGetIconInfoWithPage);
+      case DB_INSERT_ICON:
+        return GetStatement(mDBInsertIcon);
+      case DB_ASSOCIATE_ICONURI_TO_PAGEURI:
+        return GetStatement(mDBAssociateFaviconURIToPageURI);
+    }
+    return nsnull;
+  }
 
-  /**
-   * This cache should be used only for background thread statements.
-   *
-   * @pre must be running on the background thread of mDBConn.
-   */
-  mozilla::storage::StatementCache<mozIStorageStatement> mSyncStatements;
+  nsresult UpdateBookmarkRedirectFavicon(nsIURI* aPage, nsIURI* aFavicon);
+
+  void SendFaviconNotifications(nsIURI* aPage, nsIURI* aFaviconURI);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIFAVICONSERVICE
@@ -165,10 +184,13 @@ private:
   nsCOMPtr<mozIStorageStatement> mDBGetURL; // returns URL, data len given page
   nsCOMPtr<mozIStorageStatement> mDBGetData; // returns actual data given URL
   nsCOMPtr<mozIStorageStatement> mDBGetIconInfo;
+  nsCOMPtr<mozIStorageStatement> mDBGetIconInfoWithPage;
   nsCOMPtr<mozIStorageStatement> mDBInsertIcon;
   nsCOMPtr<mozIStorageStatement> mDBUpdateIcon;
   nsCOMPtr<mozIStorageStatement> mDBSetPageFavicon;
+  nsCOMPtr<mozIStorageStatement> mDBAssociateFaviconURIToPageURI;
   nsCOMPtr<mozIStorageStatement> mDBRemoveOnDiskReferences;
+  nsCOMPtr<mozIStorageStatement> mDBRemoveTempReferences;
   nsCOMPtr<mozIStorageStatement> mDBRemoveAllFavicons;
 
   static nsFaviconService* gFaviconService;
@@ -211,5 +233,3 @@ private:
 };
 
 #define FAVICON_ANNOTATION_NAME "favicon"
-
-#endif // nsFaviconService_h_

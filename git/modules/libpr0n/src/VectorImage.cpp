@@ -346,18 +346,8 @@ VectorImage::GetHeight(PRInt32* aHeight)
 NS_IMETHODIMP
 VectorImage::GetType(PRUint16* aType)
 {
-  NS_ENSURE_ARG_POINTER(aType);
-
-  *aType = GetType();
+  *aType = imgIContainer::TYPE_VECTOR;
   return NS_OK;
-}
-
-//******************************************************************************
-/* [noscript, notxpcom] PRUint16 GetType(); */
-NS_IMETHODIMP_(PRUint16)
-VectorImage::GetType()
-{
-  return imgIContainer::TYPE_VECTOR;
 }
 
 //******************************************************************************
@@ -539,7 +529,6 @@ VectorImage::Draw(gfxContext* aContext,
     mSVGDocumentWrapper->UpdateViewportBounds(aViewportSize);
     mLastRenderedSize = aViewportSize;
   }
-  mSVGDocumentWrapper->FlushPreserveAspectRatioOverride();
 
   nsIntSize imageSize = mHaveRestrictedRegion ?
     mRestrictedRegion.Size() : aViewportSize;
@@ -687,7 +676,6 @@ VectorImage::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt,
     observer->OnStopFrame(nsnull, 0);
     observer->OnStopDecode(nsnull, NS_OK, nsnull);
   }
-  EvaluateAnimation();
 
   return rv;
 }

@@ -255,7 +255,8 @@ SVGMotionSMILAnimationFunction::
       PRBool ok =
         path.GetDistancesFromOriginToEndsOfVisibleSegments(&mPathVertices);
       if (ok && mPathVertices.Length()) {
-        mPath = pathElem->GetFlattenedPath(gfxMatrix());
+        mPath = pathElem->GetFlattenedPath(
+                  pathElem->PrependLocalTransformTo(gfxMatrix()));
       }
     }
   }

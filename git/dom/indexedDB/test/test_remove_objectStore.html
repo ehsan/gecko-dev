@@ -21,7 +21,7 @@
       const description = "My Test Database";
       const objectStoreName = "Objects";
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
@@ -34,8 +34,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore(objectStoreName,
-                                             { keyPath: "foo" });
+      let objectStore = db.createObjectStore(objectStoreName, "foo");
 
       let addedCount = 0;
 
@@ -61,7 +60,7 @@
       db.deleteObjectStore(objectStore.name);
       is(db.objectStoreNames.length, 0, "Correct objectStores list");
 
-      objectStore = db.createObjectStore(objectStoreName, { keyPath: "foo" });
+      objectStore = db.createObjectStore(objectStoreName, "foo");
       is(db.objectStoreNames.length, 1, "Correct objectStoreNames list");
       is(db.objectStoreNames.item(0), objectStoreName, "Correct name");
 
@@ -84,7 +83,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      objectStore = db.createObjectStore(objectStoreName, { keyPath: "foo" });
+      objectStore = db.createObjectStore(objectStoreName, "foo");
 
       request = objectStore.add({foo:"bar"});
       request.onerror = errorHandler;

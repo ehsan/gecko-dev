@@ -84,6 +84,9 @@ protected:
 
   PRUint32 mCanvasFramebuffer;
 
+  // Indicates whether our texture was obtained through D2D interop.
+  bool mIsInteropTexture;
+
   PRPackedBool mDataIsPremultiplied;
   PRPackedBool mNeedsYFlip;
 };

@@ -69,6 +69,7 @@ abstract public class GeckoApp
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
     public static boolean mFullscreen = false;
+    ProgressDialog mProgressDialog;
 
     enum LaunchState {PreLaunch, Launching, WaitButton,
                       Launched, GeckoRunning, GeckoExiting};
@@ -123,11 +124,9 @@ abstract public class GeckoApp
         try {
             unpackComponents();
         } catch (FileNotFoundException fnfe) {
-            Log.e("GeckoApp", "error unpacking components", fnfe);
             showErrorDialog(getString(R.string.error_loading_file));
             return false;
         } catch (IOException ie) {
-            Log.e("GeckoApp", "error unpacking components", ie);
             String msg = ie.getMessage();
             if (msg.equalsIgnoreCase("No space left on device"))
                 showErrorDialog(getString(R.string.no_space_to_start_error));
@@ -135,6 +134,11 @@ abstract public class GeckoApp
                 showErrorDialog(getString(R.string.error_loading_file));
             return false;
         }
+
+        mProgressDialog = 
+            ProgressDialog.show(GeckoApp.this, "",
+                                getString(R.string.splash_screen_label),
+                                true);
 
         // and then fire us up
         if (i == null)
@@ -179,8 +183,45 @@ abstract public class GeckoApp
 
         checkAndLaunchUpdate();
 
+        if (!checkCPUCompatability())
+            return;
         // Load our JNI libs
         GeckoAppShell.loadGeckoLibs(getApplication().getPackageResourcePath());
+    }
+
+
+    boolean checkCPUCompatability() {
+        try {
+            BufferedReader reader =
+                new BufferedReader(new FileReader("/proc/cpuinfo"));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                int index = line.indexOf("Processor");
+                if (index == -1)
+                    continue;
+
+                int version = 5;
+                if (line.indexOf("(v8l)") != -1)
+                    version = 8;
+                if (line.indexOf("(v7l)") != -1)
+                    version = 7;
+                if (line.indexOf("(v6l)") != -1)
+                    version = 6;
+                
+                if (version < getMinCPUVersion()) {
+                    showErrorDialog(
+                        getString(R.string.incompatable_cpu_error));
+                    return false;
+                }
+                else {
+                    break;
+                }
+            }
+        } catch (Exception ex) {
+            // Not much we can do here, just continue assuming we're okay
+            Log.i("GeckoApp", "exception: " + ex);
+        }
+        return true;
     }
 
     @Override
@@ -192,7 +233,7 @@ abstract public class GeckoApp
             return;
         }
         final String action = intent.getAction();
-        if ("org.mozilla.gecko.DEBUG".equals(action) &&
+        if (action.equals("org.mozilla.gecko.DEBUG") &&
             checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitButton)) {
             final Button launchButton = new Button(this);
             launchButton.setText("Launch"); // don't need to localize
@@ -273,7 +314,8 @@ abstract public class GeckoApp
         // etc., and generally mark the profile as 'clean', and then
         // dirty it again if we get an onResume.
 
-        GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_STOPPING));
+        // XXX do the above.
+
         super.onStop();
     }
 
@@ -298,7 +340,7 @@ abstract public class GeckoApp
         // Tell Gecko to shutting down; we'll end up calling System.exit()
         // in onXreExit.
         if (isFinishing())
-            GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_SHUTDOWN));
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_STOPPING));
 
         super.onDestroy();
     }
@@ -320,8 +362,94 @@ abstract public class GeckoApp
         super.onLowMemory();
     }
 
-    abstract public String getPackageName();
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+                if (event.getRepeatCount() == 0) {
+                    event.startTracking();
+                    return true;
+                } else {
+                    return false;
+                }
+            case KeyEvent.KEYCODE_MENU:
+                if (event.getRepeatCount() == 0) {
+                    event.startTracking();
+                    break;
+                } else if ((event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0) {
+                    break;
+                }
+                // Ignore repeats for KEYCODE_MENU; they confuse the widget code.
+                return false;
+            case KeyEvent.KEYCODE_VOLUME_UP:
+            case KeyEvent.KEYCODE_VOLUME_DOWN:
+            case KeyEvent.KEYCODE_SEARCH:
+                return false;
+            case KeyEvent.KEYCODE_DEL:
+                // See comments in GeckoInputConnection.onKeyDel
+                if (surfaceView != null &&
+                    surfaceView.inputConnection != null &&
+                    surfaceView.inputConnection.onKeyDel()) {
+                    return true;
+                }
+                break;
+            case KeyEvent.KEYCODE_ENTER:
+                if ((event.getFlags() & KeyEvent.FLAG_EDITOR_ACTION) != 0 &&
+                    surfaceView.mIMEActionHint.equalsIgnoreCase("next"))
+                    event = new KeyEvent(event.getAction(), KeyEvent.KEYCODE_TAB);
+                break;
+            default:
+                break;
+        }
+        // KeyListener returns true if it handled the event for us.
+        if (GeckoApp.surfaceView.mIMEState == GeckoSurfaceView.IME_STATE_DISABLED ||
+            keyCode == KeyEvent.KEYCODE_ENTER ||
+            !GeckoApp.surfaceView.mKeyListener.onKeyDown(GeckoApp.surfaceView, GeckoApp.surfaceView.mEditable, keyCode, event))
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+        return true;
+    }
+
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+                if (!event.isTracking() || event.isCanceled())
+                    return false;
+                break;
+            default:
+                break;
+        }
+        if (GeckoApp.surfaceView.mIMEState == GeckoSurfaceView.IME_STATE_DISABLED ||
+            keyCode == KeyEvent.KEYCODE_ENTER ||
+            !GeckoApp.surfaceView.mKeyListener.onKeyUp(GeckoApp.surfaceView, GeckoApp.surfaceView.mEditable, keyCode, event))
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+        return true;
+    }
+
+    public boolean onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) {
+        GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+        return true;
+    }
+
+    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+                GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+                return true;
+            case KeyEvent.KEYCODE_MENU:
+                InputMethodManager imm = (InputMethodManager)
+                    surfaceView.getContext().getSystemService(
+                            Context.INPUT_METHOD_SERVICE);
+                imm.toggleSoftInputFromWindow(surfaceView.getWindowToken(),
+                                              imm.SHOW_FORCED, 0);
+                return true;
+            default:
+                break;
+        }
+        return false;
+    }
+
+    abstract public String getAppName();
     abstract public String getContentProcessName();
+    abstract public int getMinCPUVersion();
 
     protected void unpackComponents()
         throws IOException, FileNotFoundException
@@ -329,7 +457,7 @@ abstract public class GeckoApp
         ZipFile zip;
         InputStream listStream;
 
-        File componentsDir = new File("/data/data/" + getPackageName() +
+        File componentsDir = new File("/data/data/org.mozilla." + getAppName() +
                                       "/components");
         componentsDir.mkdir();
         zip = new ZipFile(getApplication().getPackageResourcePath());
@@ -362,7 +490,7 @@ abstract public class GeckoApp
             throw new FileNotFoundException("Can't find " + name + " in " +
                                             zip.getName());
 
-        File outFile = new File("/data/data/" + getPackageName() +
+        File outFile = new File("/data/data/org.mozilla." + getAppName() +
                                 "/" + name);
         if (outFile.exists() &&
             outFile.lastModified() == fileEntry.getTime() &&
@@ -404,17 +532,17 @@ abstract public class GeckoApp
 
     public void doRestart() {
         try {
-            String action = "org.mozilla.gecko.restart";
+            String action = "org.mozilla.gecko.restart" + getAppName();
             Intent intent = new Intent(action);
-            intent.setClassName(getPackageName(),
-                                getPackageName() + ".Restarter");
+            intent.setClassName("org.mozilla." + getAppName(),
+                                "org.mozilla." + getAppName() + ".Restarter");
             addEnvToIntent(intent);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                             Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
             Log.i("GeckoAppJava", intent.toString());
             startActivity(intent);
         } catch (Exception e) {
-            Log.i("GeckoAppJava", "error doing restart", e);
+            Log.i("GeckoAppJava", e.toString());
         }
         finish();
     }
@@ -427,16 +555,10 @@ abstract public class GeckoApp
         Log.i("GeckoAppJava", "Checking for an update");
 
         int statusCode = 8; // UNEXPECTED_ERROR
-        File downloadDir = null;
-        if (Build.VERSION.SDK_INT >= 8)
-            downloadDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-        else
-            downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
 
-        File updateDir = new File(new File(downloadDir, "updates"),"0");
-
-        File updateFile = new File(updateDir, "update.apk");
-        File statusFile = new File(updateDir, "update.status");
+        String updateDir = Environment.getExternalStorageDirectory().getPath() + "/downloads/updates/0/";
+        File updateFile = new File(updateDir + "update.apk");
+        File statusFile = new File(updateDir + "update.status");
 
         if (!statusFile.exists() || !readUpdateStatus(statusFile).equals("pending"))
             return;
@@ -447,7 +569,7 @@ abstract public class GeckoApp
         Log.i("GeckoAppJava", "Update is available!");
 
         // Launch APK
-        File updateFileToRun = new File(updateDir + getPackageName() + "-update.apk");
+        File updateFileToRun = new File(updateDir + getAppName() + "-update.apk");
         try {
             if (updateFile.renameTo(updateFileToRun)) {
                 String amCmd = "/system/bin/am start -a android.intent.action.VIEW " +
@@ -461,7 +583,7 @@ abstract public class GeckoApp
                 statusCode = 7; // WRITE_ERROR
             }
         } catch (Exception e) {
-            Log.i("GeckoAppJava", "error launching installer to update", e);
+            Log.i("GeckoAppJava", e.toString());
         }
 
         // Update the status file
@@ -474,7 +596,7 @@ abstract public class GeckoApp
             outStream.write(buf, 0, buf.length);
             outStream.close();
         } catch (Exception e) {
-            Log.i("GeckoAppJava", "error writing status file", e);
+            Log.i("GeckoAppJava", e.toString());
         }
 
         if (statusCode == 0)
@@ -488,7 +610,7 @@ abstract public class GeckoApp
             status = reader.readLine();
             reader.close();
         } catch (Exception e) {
-            Log.i("GeckoAppJava", "error reading update status", e);
+            Log.i("GeckoAppJava", e.toString());
         }
         return status;
     }
@@ -508,7 +630,7 @@ abstract public class GeckoApp
         try {
             filePickerResult = mFilePickerResult.take();
         } catch (InterruptedException e) {
-            Log.i("GeckoApp", "showing file picker ",  e);
+            Log.i("GeckoApp", "error: " + e);
         }
         
         return filePickerResult;
@@ -529,8 +651,8 @@ abstract public class GeckoApp
                     File.createTempFile("tmp_" + 
                                         (int)Math.floor(1000 * Math.random()), 
                                         fileExt, 
-                                        new File("/data/data/" +
-                                                 getPackageName()));
+                                        new File("/data/data/org.mozilla." +
+                                                 getAppName()));
                 
                 FileOutputStream fos = new FileOutputStream(file);
                 InputStream is = cr.openInputStream(uri);
@@ -543,13 +665,13 @@ abstract public class GeckoApp
                 fos.close();
                 filePickerResult =  file.getAbsolutePath();
             }catch (Exception e) {
-                Log.e("GeckoApp", "showing file picker", e);
+                Log.e("GeckoApp", "error : "+ e);
             }
         }
         try {
             mFilePickerResult.put(filePickerResult);
         } catch (InterruptedException e) {
-            Log.i("GeckoApp", "error returning file picker result", e);
+            Log.i("GeckoApp", "error: " + e);
         }
     }
 }

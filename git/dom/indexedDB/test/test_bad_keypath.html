@@ -16,7 +16,7 @@
       const name = window.location.pathname;
       const description = "My Test Database";
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
@@ -28,7 +28,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore("foo", { keyPath: "keyPath" });
+      let objectStore = db.createObjectStore("foo", "keyPath");
 
       request = objectStore.add({keyPath:"foo"});
       request.onerror = errorHandler;

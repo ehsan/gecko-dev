@@ -1,4 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil; -*-
+/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -42,7 +42,6 @@ import java.util.*;
 import java.util.zip.*;
 import java.nio.*;
 import java.lang.reflect.*;
-import java.text.*;
 
 import android.os.*;
 import android.app.*;
@@ -65,8 +64,7 @@ class GeckoAppShell
     // static members only
     private GeckoAppShell() { }
 
-    static private LinkedList<GeckoEvent> gPendingEvents =
-        new LinkedList<GeckoEvent>();
+    static private GeckoEvent gPendingResize = null;
 
     static private boolean gRestartScheduled = false;
 
@@ -111,38 +109,19 @@ class GeckoAppShell
             Log.i("GeckoApp", "env"+ c +": "+ env);
         }
 
-        File f = new File("/data/data/" + 
-                          GeckoApp.mAppContext.getPackageName() + "/tmp");
+        File f = new File("/data/data/org.mozilla." + 
+                          GeckoApp.mAppContext.getAppName() +"/tmp");
         if (!f.exists())
             f.mkdirs();
 
         GeckoAppShell.putenv("TMPDIR=" + f.getPath());
 
         f = Environment.getDownloadCacheDirectory();
-        GeckoAppShell.putenv("EXTERNAL_STORAGE=" + f.getPath());
-        File downloadDir = null;
-        if (Build.VERSION.SDK_INT >= 8)
-            downloadDir = GeckoApp.mAppContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-        else
-            downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
-        GeckoAppShell.putenv("DOWNLOADS_DIRECTORY=" + downloadDir.getPath());
+        GeckoAppShell.putenv("EXTERNAL_STORAGE" + f.getPath());
 
-        putLocaleEnv();
+        GeckoAppShell.putenv("LANG=" + Locale.getDefault().toString());
 
         loadLibs(apkName);
-    }
-
-    private static void putLocaleEnv() {
-        GeckoAppShell.putenv("LANG=" + Locale.getDefault().toString());
-        NumberFormat nf = NumberFormat.getInstance();
-        if (nf instanceof DecimalFormat) {
-            DecimalFormat df = (DecimalFormat)nf;
-            DecimalFormatSymbols dfs = df.getDecimalFormatSymbols();
-
-            GeckoAppShell.putenv("LOCALE_DECIMAL_POINT=" + dfs.getDecimalSeparator());
-            GeckoAppShell.putenv("LOCALE_THOUSANDS_SEP=" + dfs.getGroupingSeparator());
-            GeckoAppShell.putenv("LOCALE_GROUPING=" + (char)df.getGroupingSize());
-        }
     }
 
     public static void runGecko(String apkPath, String args, String url) {
@@ -164,20 +143,16 @@ class GeckoAppShell
 
     private static GeckoEvent mLastDrawEvent;
 
-    private static void sendPendingEventsToGecko() {
-        try {
-            while (!gPendingEvents.isEmpty()) {
-                GeckoEvent e = gPendingEvents.removeFirst();
-                notifyGeckoOfEvent(e);
-            }
-        } catch (NoSuchElementException e) {}
-    }
- 
     public static void sendEventToGecko(GeckoEvent e) {
         if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
+            if (gPendingResize != null) {
+                notifyGeckoOfEvent(gPendingResize);
+                gPendingResize = null;
+            }
             notifyGeckoOfEvent(e);
         } else {
-            gPendingEvents.addLast(e);
+            if (e.mType == GeckoEvent.SIZE_CHANGED)
+                gPendingResize = e;
         }
     }
 
@@ -360,7 +335,10 @@ class GeckoAppShell
     {
         // mLaunchState can only be Launched at this point
         GeckoApp.setLaunchState(GeckoApp.LaunchState.GeckoRunning);
-        sendPendingEventsToGecko();
+        if (gPendingResize != null) {
+            notifyGeckoOfEvent(gPendingResize);
+            gPendingResize = null;
+        }
     }
 
     static void onXreExit() {
@@ -388,7 +366,7 @@ class GeckoAppShell
         // the intent to be launched by the shortcut
         Intent shortcutIntent = new Intent("org.mozilla.fennec.WEBAPP");
         shortcutIntent.setClassName(GeckoApp.mAppContext,
-                                    GeckoApp.mAppContext.getPackageName() + ".App");
+                                    "org.mozilla." + GeckoApp.mAppContext.getAppName() + ".App");
         shortcutIntent.putExtra("args", "--webapp=" + aURI);
         
         Intent intent = new Intent();
@@ -408,10 +386,9 @@ class GeckoAppShell
         return getHandlersForIntent(intent);
     }
 
-    static String[] getHandlersForURL(String aURL, String aAction) {
-        // aURL may contain the whole URL or just the protocol
-        Uri uri = aURL.indexOf(':') >= 0 ? Uri.parse(aURL) : new Uri.Builder().scheme(aURL).build();
+    static String[] getHandlersForProtocol(String aScheme, String aAction) {
         Intent intent = getIntentForActionString(aAction);
+        Uri uri = new Uri.Builder().scheme(aScheme).build();
         intent.setData(uri);
         return getHandlersForIntent(intent);
     }
@@ -544,21 +521,23 @@ class GeckoAppShell
         // The intent to launch when the user clicks the expanded notification
         Intent notificationIntent = new Intent(GeckoApp.ACTION_ALERT_CLICK);
         notificationIntent.setClassName(GeckoApp.mAppContext,
-            GeckoApp.mAppContext.getPackageName() + ".NotificationHandler");
+            "org.mozilla." + GeckoApp.mAppContext.getAppName() + ".NotificationHandler");
 
         // Put the strings into the intent as an URI "alert:<name>#<cookie>"
         Uri dataUri = Uri.fromParts("alert", aAlertName, aAlertCookie);
         notificationIntent.setData(dataUri);
 
-        PendingIntent contentIntent = PendingIntent.getBroadcast(GeckoApp.mAppContext, 0, notificationIntent, 0);
+        PendingIntent contentIntent = PendingIntent.getActivity(GeckoApp.mAppContext, 0, notificationIntent, 0);
         notification.setLatestEventInfo(GeckoApp.mAppContext, aAlertTitle, aAlertText, contentIntent);
 
         // The intent to execute when the status entry is deleted by the user with the "Clear All Notifications" button
         Intent clearNotificationIntent = new Intent(GeckoApp.ACTION_ALERT_CLEAR);
         clearNotificationIntent.setClassName(GeckoApp.mAppContext,
-            GeckoApp.mAppContext.getPackageName() + ".NotificationHandler");
+            "org.mozilla." + GeckoApp.mAppContext.getAppName() + ".NotificationHandler");
         clearNotificationIntent.setData(dataUri);
-        notification.deleteIntent = PendingIntent.getBroadcast(GeckoApp.mAppContext, 0, clearNotificationIntent, 0);
+
+        PendingIntent pendingClearIntent = PendingIntent.getActivity(GeckoApp.mAppContext, 0, clearNotificationIntent, 0);
+        notification.deleteIntent = pendingClearIntent;
 
         mAlertNotifications.put(notificationID, notification);
 
@@ -655,14 +634,9 @@ class GeckoAppShell
     }
 
     public static void hideProgressDialog() {
-        GeckoApp.surfaceView.mShowingSplashScreen = false;
-    }
-
-    public static void setKeepScreenOn(final boolean on) {
-        GeckoApp.mAppContext.runOnUiThread(new Runnable() {
-            public void run() {
-                GeckoApp.surfaceView.setKeepScreenOn(on);
-            }
-        });
+        if (GeckoApp.mAppContext.mProgressDialog != null) {
+            GeckoApp.mAppContext.mProgressDialog.dismiss();
+            GeckoApp.mAppContext.mProgressDialog = null;
+        }
     }
 }

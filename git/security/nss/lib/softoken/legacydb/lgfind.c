@@ -714,7 +714,7 @@ lg_searchTokenList(SDB *sdb, SDBFind *search,
 	    crv = lg_GetULongAttribute(CKA_CLASS,&pTemplate[i],1, &objectClass);
 	    if (crv != CKR_OK) {
 		classFlags = 0;
-		break;
+		break;;
 	    }
 	    switch (objectClass) {
 	    case CKO_CERTIFICATE:
@@ -746,7 +746,6 @@ lg_searchTokenList(SDB *sdb, SDBFind *search,
 	case CKA_PRIVATE:
 	    if (pTemplate[i].ulValueLen != sizeof(CK_BBOOL)) {
 		classFlags = 0;
-		break;
 	    }
 	    if (*((CK_BBOOL *)pTemplate[i].pValue) == CK_TRUE) {
 		classFlags &= (LG_PRIVATE|LG_KEY);
@@ -757,7 +756,6 @@ lg_searchTokenList(SDB *sdb, SDBFind *search,
 	case CKA_SENSITIVE:
 	    if (pTemplate[i].ulValueLen != sizeof(CK_BBOOL)) {
 		classFlags = 0;
-		break;
 	    }
 	    if (*((CK_BBOOL *)pTemplate[i].pValue) == CK_TRUE) {
 		classFlags &= (LG_PRIVATE|LG_KEY);
@@ -768,7 +766,6 @@ lg_searchTokenList(SDB *sdb, SDBFind *search,
 	case CKA_TOKEN:
 	    if (pTemplate[i].ulValueLen != sizeof(CK_BBOOL)) {
 		classFlags = 0;
-		break;
 	    }
 	    if (*((CK_BBOOL *)pTemplate[i].pValue) != CK_TRUE) {
 		classFlags = 0;
@@ -781,11 +778,9 @@ lg_searchTokenList(SDB *sdb, SDBFind *search,
 	    classFlags &= LG_TRUST;
 	    copy = &cert_md5_hash; break;
 	case CKA_CERTIFICATE_TYPE:
-	    crv = lg_GetULongAttribute(CKA_CERTIFICATE_TYPE,&pTemplate[i],
-								1,&certType);
+	    crv = lg_GetULongAttribute(CKA_CLASS,&pTemplate[i],1,&certType);
 	    if (crv != CKR_OK) {
 		classFlags = 0;
-		break;
 	    }
 	    classFlags &= LG_CERT;
 	    if (certType != CKC_X_509) {
@@ -799,7 +794,6 @@ lg_searchTokenList(SDB *sdb, SDBFind *search,
 	case CKA_NETSCAPE_KRL:
 	    if (pTemplate[i].ulValueLen != sizeof(CK_BBOOL)) {
 		classFlags = 0;
-		break;
 	    }
 	    classFlags &= LG_CRL;
 	    isKrl = (PRBool)(*((CK_BBOOL *)pTemplate[i].pValue) == CK_TRUE);

@@ -169,7 +169,6 @@ public:
   NS_SCRIPTABLE NS_IMETHOD GetWidth(PRInt32 *aWidth);
   NS_SCRIPTABLE NS_IMETHOD GetHeight(PRInt32 *aHeight);
   NS_SCRIPTABLE NS_IMETHOD GetType(PRUint16 *aType);
-  NS_IMETHOD_(PRUint16) GetType(void);
   NS_SCRIPTABLE NS_IMETHOD GetAnimated(PRBool *aAnimated);
   NS_SCRIPTABLE NS_IMETHOD GetCurrentFrameIsOpaque(PRBool *aCurrentFrameIsOpaque);
   NS_IMETHOD GetFrame(PRUint32 aWhichFrame, PRUint32 aFlags, gfxASurface **_retval NS_OUTPARAM);
@@ -188,6 +187,9 @@ public:
 
   virtual nsresult StartAnimation();
   virtual nsresult StopAnimation();
+
+  // C++-only version of imgIContainer::GetType, for convenience
+  virtual PRUint16 GetType() { return imgIContainer::TYPE_RASTER; }
 
   // Methods inherited from Image
   nsresult Init(imgIDecoderObserver* aObserver,

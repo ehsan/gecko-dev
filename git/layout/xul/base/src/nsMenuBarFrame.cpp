@@ -151,7 +151,6 @@ nsMenuBarFrame::SetActive(PRBool aActiveFlag)
     InstallKeyboardNavigator();
   }
   else {
-    mActiveByKeyboard = PR_FALSE;
     RemoveKeyboardNavigator();
   }
 

@@ -163,9 +163,6 @@ public:
   virtual PRBool Init();
   virtual nsresult Reset();
 
-  // Returns the end time that a granulepos represents.
-  static PRInt64 Time(vorbis_info* aInfo, PRInt64 aGranulePos); 
- 
   vorbis_info mInfo;
   vorbis_comment mComment;
   vorbis_dsp_state mDsp;
@@ -187,9 +184,6 @@ public:
   // from any given interframe.
   PRInt64 MaxKeyframeOffset();
 
-  // Returns the end time that a granulepos represents.
-  static PRInt64 Time(th_info* aInfo, PRInt64 aGranulePos); 
-  
   th_info mInfo;
   th_comment mComment;
   th_setup_info *mSetup;

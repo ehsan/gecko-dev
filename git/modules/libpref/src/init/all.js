@@ -189,6 +189,8 @@ pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
+pref("gfx.3d_video.enabled", false);
+
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.sanitize", true);
 #ifdef XP_MACOSX
@@ -750,11 +752,6 @@ pref("network.ftp.control.qos", 0);
 // </http>
 
 // <ws>: WebSocket
-// The -76 websocket network protocol may be subject to HTTP cache poisoning
-// attacks. Until there is a secure open standard available and implemented
-// in necko the override-security-block preference must be set to true before
-// the normal enabled preference is considered. Bug 616733
-pref("network.websocket.override-security-block", false);
 pref("network.websocket.enabled", true);
 // </ws>
 
@@ -1349,6 +1346,7 @@ pref("dom.ipc.plugins.enabled.nppdf.so", false);
 #endif
 #endif
 
+pref("svg.enabled", true);
 pref("svg.smil.enabled", true);
 
 pref("font.minimum-size.ar", 0);
@@ -3202,7 +3200,14 @@ pref("image.mem.max_ms_before_yield", 400);
 pref("image.mem.max_bytes_for_sync_decode", 150000);
 
 // WebGL prefs
+// keep disabled on linux until bug 578877 is fixed
+// This is not an ideal define, but it gets the right set of
+// build machines.
+#ifdef MOZ_WIDGET_GTK2
+pref("webgl.enabled_for_all_sites", false);
+#else
 pref("webgl.enabled_for_all_sites", true);
+#endif
 pref("webgl.shader_validator", true);
 pref("webgl.force_osmesa", false);
 pref("webgl.mochitest_native_gl", false);
@@ -3278,6 +3283,3 @@ pref("extensions.alwaysUnpack", false);
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);
-
-// Desktop Notification
-pref("notification.feature.enabled", false);

@@ -699,8 +699,7 @@ class nsAutoCauseReflowNotifier;
 class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
                   public nsISelectionController, public nsIObserver,
-                  public nsSupportsWeakReference,
-                  public nsIPresShell_MOZILLA_2_0_BRANCH
+                  public nsSupportsWeakReference
 {
 public:
   PresShell();
@@ -968,8 +967,6 @@ public:
   virtual nscolor ComputeBackstopColor(nsIView* aDisplayRoot);
 
   virtual NS_HIDDEN_(nsresult) SetIsActive(PRBool aIsActive);
-
-  virtual PRBool GetIsViewportOverridden() { return mViewportOverridden; }
 
 protected:
   virtual ~PresShell();
@@ -1673,10 +1670,10 @@ PresShell::PresShell()
   sLiveShells->PutEntry(this);
 }
 
-NS_IMPL_ISUPPORTS9(PresShell, nsIPresShell, nsIDocumentObserver,
+NS_IMPL_ISUPPORTS8(PresShell, nsIPresShell, nsIDocumentObserver,
                    nsIViewObserver, nsISelectionController,
                    nsISelectionDisplay, nsIObserver, nsISupportsWeakReference,
-                   nsIMutationObserver, nsIPresShell_MOZILLA_2_0_BRANCH)
+                   nsIMutationObserver)
 
 PresShell::~PresShell()
 {
@@ -3972,16 +3969,16 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
           // Use a caret (collapsed selection) at the start of the anchor
           sel->CollapseToStart();
         }
+      }  
 
-        if (selectAnchor && xpointerResult) {
-          // Select the rest (if any) of the ranges in XPointerResult
-          PRUint32 count, i;
-          xpointerResult->GetLength(&count);
-          for (i = 1; i < count; i++) { // jumpToRange is i = 0
-            nsCOMPtr<nsIDOMRange> range;
-            xpointerResult->Item(i, getter_AddRefs(range));
-            sel->AddRange(range);
-          }
+      if (selectAnchor && xpointerResult) {
+        // Select the rest (if any) of the ranges in XPointerResult
+        PRUint32 count, i;
+        xpointerResult->GetLength(&count);
+        for (i = 1; i < count; i++) { // jumpToRange is i = 0
+          nsCOMPtr<nsIDOMRange> range;
+          xpointerResult->Item(i, getter_AddRefs(range));
+          sel->AddRange(range);
         }
       }
       // Selection is at anchor.
@@ -5277,8 +5274,6 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 
   NS_ENSURE_TRUE(!(aFlags & RENDER_IS_UNTRUSTED), NS_ERROR_NOT_IMPLEMENTED);
 
-  nsAutoScriptBlocker blockScripts;
-
   // Set up the rectangle as the path in aThebesContext
   gfxRect r(0, 0,
             nsPresContext::AppUnitsToFloatCSSPixels(aRect.width),
@@ -5562,7 +5557,6 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   nsRect ancestorRect = ancestorFrame->GetVisualOverflowRect();
 
   // get a display list containing the range
-  info->mBuilder.SetIncludeAllOutOfFlows();
   if (aForPrimarySelection) {
     info->mBuilder.SetSelectedFramesOnly();
   }
@@ -6070,28 +6064,18 @@ PresShell::Paint(nsIView*           aDisplayRoot,
                            NSCoordToFloat(bounds__.YMost()));
 #endif
 
-  AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Paint);
+  nsPresContext* presContext = GetPresContext();
+  AUTO_LAYOUT_PHASE_ENTRY_POINT(presContext, Paint);
 
   NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
   NS_ASSERTION(aDisplayRoot, "null view");
   NS_ASSERTION(aViewToPaint, "null view");
   NS_ASSERTION(aWidgetToPaint, "Can't paint without a widget");
 
+  nscolor bgcolor = ComputeBackstopColor(aDisplayRoot);
+
   nsIFrame* frame = aPaintDefaultBackground
       ? nsnull : static_cast<nsIFrame*>(aDisplayRoot->GetClientData());
-
-  LayerManager* layerManager = aWidgetToPaint->GetLayerManager();
-  NS_ASSERTION(layerManager, "Must be in paint event");
-
-  if (frame) {
-    if (!(frame->GetStateBits() & NS_FRAME_UPDATE_LAYER_TREE)) {
-      if (layerManager->DoEmptyTransaction())
-        return NS_OK;
-    }
-    frame->RemoveStateBits(NS_FRAME_UPDATE_LAYER_TREE);
-  }
-
-  nscolor bgcolor = ComputeBackstopColor(aDisplayRoot);
 
   if (frame && aViewToPaint == aDisplayRoot) {
     // Defer invalidates that are triggered during painting, and discard
@@ -6116,6 +6100,9 @@ PresShell::Paint(nsIView*           aDisplayRoot,
     // invalidates of areas that are already being repainted.
     frame->BeginDeferringInvalidatesForDisplayRoot(aDirtyRegion);
   }
+
+  LayerManager* layerManager = aWidgetToPaint->GetLayerManager();
+  NS_ASSERTION(layerManager, "Must be in paint event");
 
   layerManager->BeginTransaction();
   nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
@@ -7490,15 +7477,13 @@ PresShell::Freeze()
 
   mDocument->EnumerateFreezableElements(FreezeElement, nsnull);
 
-  if (mCaret) {
+  if (mCaret)
     mCaret->SetCaretVisible(PR_FALSE);
-  }
 
   mPaintingSuppressed = PR_TRUE;
 
-  if (mDocument) {
+  if (mDocument)
     mDocument->EnumerateSubDocuments(FreezeSubDocument, nsnull);
-  }
 
   nsPresContext* presContext = GetPresContext();
   if (presContext &&
@@ -7507,9 +7492,7 @@ PresShell::Freeze()
   }
 
   mFrozen = PR_TRUE;
-  if (mDocument) {
-    UpdateImageLockingState();
-  }
+  UpdateImageLockingState();
 }
 
 void
@@ -9257,8 +9240,6 @@ SetExternalResourceIsActive(nsIDocument* aDocument, void* aClosure)
 nsresult
 PresShell::SetIsActive(PRBool aIsActive)
 {
-  NS_PRECONDITION(mDocument, "should only be called with a document");
-
   mIsActive = aIsActive;
   nsPresContext* presContext = GetPresContext();
   if (presContext &&
@@ -9267,8 +9248,10 @@ PresShell::SetIsActive(PRBool aIsActive)
   }
 
   // Propagate state-change to my resource documents' PresShells
-  mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
-                                        &aIsActive);
+  if (mDocument) {
+    mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
+                                          &aIsActive);
+  }
   return UpdateImageLockingState();
 }
 

@@ -1,4 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
+/* -*- Mode: Java; tab-width: 20; indent-tabs-mode: nil; -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -109,7 +109,7 @@ public class GeckoInputConnection
         try {
             mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: deleteSurroundingText interrupted", e);
+            Log.e("GeckoAppJava", "IME: deleteSurroundingText interrupted");
             return false;
         }
         delStart = mSelectionStart > leftLength ?
@@ -194,7 +194,7 @@ public class GeckoInputConnection
         try {
             text = mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted", e);
+            Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted");
             return false;
         }
 
@@ -224,7 +224,7 @@ public class GeckoInputConnection
                     try {
                         text = mQueryResult.take();
                     } catch (InterruptedException e) {
-                        Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted", e);
+                        Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted");
                         return false;
                     }
                 }
@@ -251,7 +251,7 @@ public class GeckoInputConnection
         try {
             mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: getExtractedText interrupted", e);
+            Log.e("GeckoAppJava", "IME: getExtractedText interrupted");
             return null;
         }
         extract.selectionStart = mSelectionStart;
@@ -268,7 +268,7 @@ public class GeckoInputConnection
             return extract;
 
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: getExtractedText interrupted", e);
+            Log.e("GeckoAppJava", "IME: getExtractedText interrupted");
             return null;
         }
     }
@@ -282,7 +282,7 @@ public class GeckoInputConnection
         try {
             mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: getTextBefore/AfterCursor interrupted", e);
+            Log.e("GeckoAppJava", "IME: getTextBefore/AfterCursor interrupted");
             return null;
         }
 
@@ -305,7 +305,7 @@ public class GeckoInputConnection
         try {
             return mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: getTextBefore/AfterCursor: Interrupted!", e);
+            Log.e("GeckoAppJava", "IME: getTextBefore/AfterCursor: Interrupted!");
             return null;
         }
     }
@@ -331,7 +331,7 @@ public class GeckoInputConnection
             try {
                 mQueryResult.take();
             } catch (InterruptedException e) {
-                Log.e("GeckoAppJava", "IME: setComposingText interrupted", e);
+                Log.e("GeckoAppJava", "IME: setComposingText interrupted");
                 return false;
             }
             // Make sure we are in a composition

@@ -287,8 +287,6 @@ protected:
                              "element is valid!");
 
     /**
-     * Never show the invalid UI if the form has the novalidate attribute set.
-     *
      * Always show the invalid UI if:
      * - the form has already tried to be submitted but was invalid;
      * - the element is suffering from a custom error;
@@ -296,20 +294,8 @@ protected:
      * Otherwise, show the invalid UI if the element's value has been changed.
      */
 
-    if (mForm) {
-      if (mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-        return false;
-      }
-      if (mForm->HasEverTriedInvalidSubmit()) {
-        return true;
-      }
-    }
-
-    if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
-      return true;
-    }
-
-    return mValueChanged;
+    return (mForm && mForm->HasEverTriedInvalidSubmit()) ||
+           mValueChanged || GetValidityState(VALIDITY_STATE_CUSTOM_ERROR);
   }
 
   /**
@@ -319,16 +305,7 @@ protected:
    * @note This doesn't take into account the validity of the element.
    */
   bool ShouldShowValidUI() const {
-    if (mForm) {
-      if (mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-        return false;
-      }
-      if (mForm->HasEverTriedInvalidSubmit()) {
-        return true;
-      }
-    }
-
-    return mValueChanged;
+    return (mForm && mForm->HasEverTriedInvalidSubmit()) || mValueChanged;
   }
 
   /**

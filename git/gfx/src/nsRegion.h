@@ -184,13 +184,7 @@ public:
   nsRegion ConvertAppUnitsRoundOut (PRInt32 aFromAPP, PRInt32 aToAPP) const;
   nsRegion ConvertAppUnitsRoundIn (PRInt32 aFromAPP, PRInt32 aToAPP) const;
   nsIntRegion ToOutsidePixels (nscoord aAppUnitsPerPixel) const;
-  /**
-   * Gets the largest rectangle contained in the region.
-   * @param aContainingRect if non-empty, we choose a rectangle that
-   * maximizes the area intersecting with aContainingRect (and break ties by
-   * then choosing the largest rectangle overall)
-   */
-  nsRect GetLargestRectangle (const nsRect& aContainingRect = nsRect()) const;
+  nsRect GetLargestRectangle () const;
 
   /**
    * Make sure the region has at most aMaxRects by adding area to it
@@ -427,10 +421,7 @@ public:
   PRUint32 GetNumRects () const { return mImpl.GetNumRects (); }
   nsIntRect GetBounds () const { return FromRect (mImpl.GetBounds ()); }
   nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const;
-  nsIntRect GetLargestRectangle (const nsIntRect& aContainingRect = nsIntRect()) const
-  {
-    return FromRect (mImpl.GetLargestRectangle( ToRect(aContainingRect) ));
-  }
+  nsIntRect GetLargestRectangle () const { return FromRect (mImpl.GetLargestRectangle()); }
 
   /**
    * Make sure the region has at most aMaxRects by adding area to it

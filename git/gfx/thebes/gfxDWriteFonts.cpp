@@ -68,51 +68,6 @@ GetCairoAntialiasOption(gfxFont::AntialiasOption anAntialiasOption)
     }
 }
 
-// Code to determine whether Windows is set to use ClearType font smoothing;
-// based on private functions in cairo-win32-font.c
-
-#ifndef SPI_GETFONTSMOOTHINGTYPE
-#define SPI_GETFONTSMOOTHINGTYPE 0x200a
-#endif
-#ifndef FE_FONTSMOOTHINGCLEARTYPE
-#define FE_FONTSMOOTHINGCLEARTYPE 2
-#endif
-
-static bool
-HasClearType()
-{
-    OSVERSIONINFO versionInfo;
-    versionInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-
-    return (GetVersionEx(&versionInfo) &&
-            (versionInfo.dwMajorVersion > 5 ||
-             (versionInfo.dwMajorVersion == 5 &&
-              versionInfo.dwMinorVersion >= 1))); // XP or newer
-}
-
-static bool
-UsingClearType()
-{
-    BOOL fontSmoothing;
-    if (!SystemParametersInfo(SPI_GETFONTSMOOTHING, 0, &fontSmoothing, 0) ||
-        !fontSmoothing)
-    {
-        return false;    
-    }
-
-    if (!HasClearType()) {
-        return false;
-    }
-
-    UINT type;
-    if (SystemParametersInfo(SPI_GETFONTSMOOTHINGTYPE, 0, &type, 0) &&
-        type == FE_FONTSMOOTHINGCLEARTYPE)
-    {
-        return true;
-    }
-    return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // gfxDWriteFont
 gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
@@ -124,7 +79,6 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
     , mCairoScaledFont(nsnull)
     , mNeedsOblique(PR_FALSE)
     , mNeedsBold(aNeedsBold)
-    , mUsingClearType(PR_FALSE)
 {
     gfxDWriteFontEntry *fe =
         static_cast<gfxDWriteFontEntry*>(aFontEntry);
@@ -145,12 +99,6 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
     if (NS_FAILED(rv)) {
         mIsValid = PR_FALSE;
         return;
-    }
-
-    if ((anAAOption == gfxFont::kAntialiasDefault && UsingClearType()) ||
-        anAAOption == gfxFont::kAntialiasSubpixel)
-    {
-        mUsingClearType = PR_TRUE;
     }
 
     ComputeMetrics();
@@ -471,37 +419,8 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
     if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
         // for downloaded fonts, there may be layout tables cached in the entry
         // even though they're absent from the sanitized platform font
-        hb_blob_t *blob;
-        if (mFontEntry->GetExistingFontTable(aTag, &blob)) {
-            return blob;
-        }
+        return mFontEntry->GetFontTable(aTag);
     }
 
     return nsnull;
-}
-
-PRInt32
-gfxDWriteFont::GetHintedGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
-{
-    if (!mGlyphWidths.IsInitialized()) {
-        mGlyphWidths.Init(200);
-    }
-
-    PRInt32 width;
-    if (mGlyphWidths.Get(aGID, &width)) {
-        return width;
-    }
-
-    DWRITE_GLYPH_METRICS glyphMetrics;
-    HRESULT hr = mFontFace->GetGdiCompatibleGlyphMetrics(
-                  GetAdjustedSize(), 1.0f, nsnull, TRUE,
-                  &aGID, 1, &glyphMetrics, FALSE);
-
-    if (NS_SUCCEEDED(hr)) {
-        width = NS_lround(glyphMetrics.advanceWidth * mFUnitsConvFactor) << 16;
-        mGlyphWidths.Put(aGID, width);
-        return width;
-    }
-
-    return -1;
 }

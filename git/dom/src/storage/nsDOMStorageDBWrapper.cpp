@@ -75,7 +75,9 @@ nsDOMStorageDBWrapper::nsDOMStorageDBWrapper()
 
 nsDOMStorageDBWrapper::~nsDOMStorageDBWrapper()
 {
-  StopTempTableFlushTimer();
+  if (mFlushTimer) {
+    mFlushTimer->Cancel();
+  }
 }
 
 nsresult
@@ -93,6 +95,13 @@ nsDOMStorageDBWrapper::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mPrivateBrowsingDB.Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mFlushTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mFlushTimer->Init(nsDOMStorageManager::gStorageManager, 5000,
+                         nsITimer::TYPE_REPEATING_SLACK);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -443,30 +452,3 @@ nsDOMStorageDBWrapper::GetDomainFromScopeKey(const nsACString& aScope,
   ReverseString(reverseDomain, aDomain);
   return NS_OK;
 }
-
-void
-nsDOMStorageDBWrapper::EnsureTempTableFlushTimer()
-{
-  if (!mTempTableFlushTimer) {
-    nsresult rv;
-    mTempTableFlushTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
-
-    if (!NS_SUCCEEDED(rv)) {
-      mTempTableFlushTimer = nsnull;
-      return;
-    }
-
-    mTempTableFlushTimer->Init(nsDOMStorageManager::gStorageManager, 5000,
-                               nsITimer::TYPE_REPEATING_SLACK);
-  }
-}
-
-void
-nsDOMStorageDBWrapper::StopTempTableFlushTimer()
-{
-  if (mTempTableFlushTimer) {
-    mTempTableFlushTimer->Cancel();
-    mTempTableFlushTimer = nsnull;
-  }
-}
-

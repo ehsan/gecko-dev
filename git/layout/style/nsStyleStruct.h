@@ -173,8 +173,6 @@ public:
     return !(*this == aOther);
   };
 
-  PRBool IsOpaque();
-
   NS_INLINE_DECL_REFCOUNTING(nsStyleGradient)
 
 private:
@@ -280,7 +278,7 @@ struct nsStyleImage {
     // rect is non-trivial since each side value can be specified with
     // percentage unit, which can not be evaluated until the source image size
     // is available. Therefore, we currently postpone the evaluation of crop
-    // rect until the actual rendering time --- alternatively until GetOpaqueRegion()
+    // rect until the actual rendering time --- alternatively until IsOpaque()
     // is called.
     return mType == eStyleImageType_Null;
   }

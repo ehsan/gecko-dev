@@ -88,7 +88,6 @@
 #define LOADEND_STR "loadend"
 
 #define NS_PROGRESS_EVENT_INTERVAL 50
-const PRUint64 kUnknownSize = PRUint64(-1);
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileReader)
 
@@ -520,7 +519,7 @@ nsDOMFileReader::ReadFileContent(nsIDOMBlob* aFile,
   }
 
   //Obtain the total size of the file before reading
-  mReadTotal = kUnknownSize;
+  mReadTotal = -1;
   mFile->GetSize(&mReadTotal);
 
   rv = mChannel->AsyncOpen(this, nsnull);
@@ -576,17 +575,8 @@ nsDOMFileReader::DispatchProgressEvent(const nsAString& aType)
   if (!progress)
     return;
 
-  PRBool known;
-  PRUint64 size;
-  if (mReadTotal != kUnknownSize) {
-    known = PR_TRUE;
-    size = mReadTotal;
-  } else {
-    known = PR_FALSE;
-    size = 0;
-  }
-  progress->InitProgressEvent(aType, PR_FALSE, PR_FALSE, known,
-                              mReadTransferred, size);
+  progress->InitProgressEvent(aType, PR_FALSE, PR_FALSE, mReadTotal >= 0,
+                              mReadTransferred, PR_MAX(mReadTotal, 0));
 
   this->DispatchDOMEvent(nsnull, event, nsnull, nsnull);
 }

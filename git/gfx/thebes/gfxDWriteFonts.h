@@ -79,12 +79,6 @@ public:
     // use DWrite API to get direct access to system font data
     virtual hb_blob_t *GetFontTable(PRUint32 aTag);
 
-    virtual PRBool ProvidesHintedWidths() const {
-        return !mUsingClearType;
-    }
-
-    virtual PRInt32 GetHintedGlyphWidth(gfxContext *aCtx, PRUint16 aGID);
-
 protected:
     virtual void CreatePlatformShaper();
 
@@ -101,13 +95,8 @@ protected:
     cairo_scaled_font_t *mCairoScaledFont;
 
     gfxFont::Metrics mMetrics;
-
-    // cache of glyph widths in 16.16 fixed-point pixels
-    nsDataHashtable<nsUint32HashKey,PRInt32>    mGlyphWidths;
-
-    PRPackedBool mNeedsOblique;
-    PRPackedBool mNeedsBold;
-    PRPackedBool mUsingClearType;
+    PRBool mNeedsOblique;
+    PRBool mNeedsBold;
 };
 
 #endif

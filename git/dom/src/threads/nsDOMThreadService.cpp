@@ -597,8 +597,6 @@ DOMWorkerErrorReporter(JSContext* aCx,
     return;
   }
 
-  nsCOMPtr<nsIScriptError2> scriptError2(do_QueryInterface(scriptError));
-
   nsAutoString message, filename, line;
   PRUint32 lineNumber, columnNumber, flags, errorNumber;
 
@@ -622,11 +620,8 @@ DOMWorkerErrorReporter(JSContext* aCx,
     message.AssignWithConversion(aMessage);
   }
 
-  rv = scriptError2->InitWithWindowID(message.get(), filename.get(), line.get(),
-                                      lineNumber, columnNumber, flags,
-                                      "DOM Worker javascript",
-                                      worker->Pool()->WindowID());
-
+  rv = scriptError->Init(message.get(), filename.get(), line.get(), lineNumber,
+                         columnNumber, flags, "DOM Worker javascript");
   if (NS_FAILED(rv)) {
     return;
   }
@@ -1033,9 +1028,7 @@ nsDOMThreadService::CreateJSContext()
   JS_SetNativeStackQuota(cx, 256*1024);
   JS_SetScriptStackQuota(cx, 100*1024*1024);
 
-  JS_SetOptions(cx,
-    JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_JIT |
-    JSOPTION_PROFILING | JSOPTION_ANONFUNFIX);
+  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX);
   JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 1 * 1024 * 1024);
 
   return cx.forget();

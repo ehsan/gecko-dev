@@ -2662,7 +2662,7 @@ JS_GetGCParameterForThread(JSContext *cx, JSGCParamKey key)
 {
     JS_ASSERT(key == JSGC_MAX_CODE_CACHE_BYTES);
 #ifdef JS_TRACER
-    return JS_THREAD_DATA(cx)->maxCodeCacheBytes;
+    return JS_THREAD_DATA(cx)->traceMonitor.maxCodeCacheBytes;
 #else
     return 0;
 #endif
@@ -5499,8 +5499,8 @@ JS_WriteStructuredClone(JSContext *cx, jsval v, uint64 **bufp, size_t *nbytesp)
 JS_PUBLIC_API(JSBool)
 JS_StructuredClone(JSContext *cx, jsval v, jsval *vp)
 {
-    JSAutoStructuredCloneBuffer buf;
-    return buf.write(cx, v) && buf.read(vp);
+    JSAutoStructuredCloneBuffer buf(cx);
+    return buf.write(v) && buf.read(vp);
 }
 
 JS_PUBLIC_API(void)

@@ -142,8 +142,6 @@ public:
   enum ShaderMode {
     RGBLAYER,
     RGBALAYER,
-    COMPONENTLAYERPASS1,
-    COMPONENTLAYERPASS2,
     YCBCRLAYER,
     SOLIDCOLORLAYER
   };
@@ -206,12 +204,6 @@ private:
 
   /* Pixel shader used for RGBA textures */
   nsRefPtr<IDirect3DPixelShader9> mRGBAPS;
-
-  /* Pixel shader used for component alpha textures (pass 1) */
-  nsRefPtr<IDirect3DPixelShader9> mComponentPass1PS;
-
-  /* Pixel shader used for component alpha textures (pass 2) */
-  nsRefPtr<IDirect3DPixelShader9> mComponentPass2PS;
 
   /* Pixel shader used for RGB textures */
   nsRefPtr<IDirect3DPixelShader9> mYCbCrPS;

@@ -449,10 +449,7 @@ public:
         SIZE_CHANGED = 7,
         ACTIVITY_STOPPING = 8,
         ACTIVITY_PAUSING = 9,
-        ACTIVITY_SHUTDOWN = 10,
-        LOAD_URI = 11,
-        SURFACE_CREATED = 12,
-        SURFACE_DESTROYED = 13,
+        LOAD_URI = 10,
         dummy_java_enum_list_end
     };
 

@@ -685,9 +685,6 @@ nsWindow::SetBackgroundColor(const nscolor &aColor)
 NS_IMETHODIMP
 nsWindow::SetCursor(nsCursor aCursor)
 {
-    if (mCursor == aCursor)
-        return NS_OK;
-
     mCursor = aCursor;
     if (mWidget)
         mWidget->SetCursor(mCursor);
@@ -1017,12 +1014,12 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     nsEventStatus status;
     nsIntRect rect(r.x(), r.y(), r.width(), r.height());
 
-    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
         nsPaintEvent event(PR_TRUE, NS_PAINT, this);
         event.refPoint.x = r.x();
         event.refPoint.y = r.y();
         event.region = nsIntRegion(rect);
-        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
+        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
             SetClippingRegion(event.region);
         return DispatchEvent(&event);
     }
@@ -1485,15 +1482,8 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     int x_min_keycode = 0, x_max_keycode = 0, xkeysyms_per_keycode;
     XDisplayKeycodes(display, &x_min_keycode, &x_max_keycode);
     XModifierKeymap *xmodmap = XGetModifierMapping(display);
-    if (!xmodmap)
-        return nsEventStatus_eIgnore;
-
     KeySym *xkeymap = XGetKeyboardMapping(display, x_min_keycode, x_max_keycode - x_min_keycode,
                                           &xkeysyms_per_keycode);
-    if (!xkeymap) {
-        XFreeModifiermap(xmodmap);
-        return nsEventStatus_eIgnore;
-    }
 
     // create modifier masks
     qint32 shift_mask = 0, shift_lock_mask = 0, caps_lock_mask = 0, num_lock_mask = 0;
@@ -2592,11 +2582,6 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
         // Top level widget is just container, and should not be painted
         widget->setFlag(QGraphicsItem::ItemHasNoContents);
-#endif
-
-#ifdef MOZ_X11
-        XSetWindowBackgroundPixmap(QX11Info::display(),
-                                   newView->effectiveWinId(), None);
 #endif
     } else if (eWindowType_dialog == mWindowType && parent)
         parent->scene()->addItem(widget);

@@ -10,22 +10,16 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=605309
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 
 <script>
-if (is_feature_enabled() == false) {
+function boom()
+{
+  document.documentElement.focus();
+  var x = navigator.mozNotification;
+  document.documentElement.addEventListener('', function(){x}, false);
   SimpleTest.finish();
 }
-else
-{
-    function boom()
-    {
-        document.documentElement.focus();
-        var x = navigator.mozNotification;
-        document.documentElement.addEventListener('', function(){x}, false);
-        SimpleTest.finish();
-    }
 
-    SimpleTest.waitForExplicitFinish();
-    window.addEventListener("load", boom, false);
-}
+SimpleTest.waitForExplicitFinish();
+window.addEventListener("load", boom, false);
 </script>
 </head>
 <body>

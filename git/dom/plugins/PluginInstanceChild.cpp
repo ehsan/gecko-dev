@@ -112,8 +112,10 @@ struct RunnableMethodTraits<PluginInstanceChild>
     static void ReleaseCallee(PluginInstanceChild* obj) { }
 };
 
-PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
+PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
+                                         const nsCString& aMimeType)
     : mPluginIface(aPluginIface)
+    , mQuirks(0)
     , mCachedWindowActor(nsnull)
     , mCachedElementActor(nsnull)
 #if defined(OS_WIN)
@@ -144,6 +146,9 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     , mPendingPluginCall(false)
     , mDoAlphaExtraction(false)
     , mSurfaceDifferenceRect(0,0,0,0)
+#ifdef MOZ_X11
+    , mFlash10Quirks(false)
+#endif
 #if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
     , mMaemoImageRendering(PR_FALSE)
 #endif
@@ -159,29 +164,25 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
 #if defined(OS_WIN)
     memset(&mAlphaExtract, 0, sizeof(mAlphaExtract));
 #endif // OS_WIN
+    InitQuirksModes(aMimeType);
 #if defined(OS_WIN)
     InitPopupMenuHook();
 #endif // OS_WIN
 #ifdef MOZ_X11
-    // Maemo flash can render plugin with any provided rectangle and not require this quirk.
-#ifndef MOZ_PLATFORM_MAEMO
     const char *description = NULL;
     mPluginIface->getvalue(GetNPP(), NPPVpluginDescriptionString,
                            &description);
     if (description) {
         NS_NAMED_LITERAL_CSTRING(flash10Head, "Shockwave Flash 10.");
-        if (StringBeginsWith(nsDependentCString(description), flash10Head)) {
-          PluginModuleChild::current()->AddQuirk(PluginModuleChild::QUIRK_FLASH_EXPOSE_COORD_TRANSLATION);
-        }
+        mFlash10Quirks = StringBeginsWith(nsDependentCString(description), flash10Head);
     }
-#endif
 #endif
 }
 
 PluginInstanceChild::~PluginInstanceChild()
 {
 #if defined(OS_WIN)
-    NS_ASSERTION(!mPluginWindowHWND, "Destroying PluginInstanceChild without NPP_Destroy?");
+  DestroyPluginWindow();
 #endif
 #if defined(OS_MACOSX)
     if (mShColorSpace) {
@@ -193,10 +194,28 @@ PluginInstanceChild::~PluginInstanceChild()
 #endif
 }
 
-int
-PluginInstanceChild::GetQuirks()
+void
+PluginInstanceChild::InitQuirksModes(const nsCString& aMimeType)
 {
-    return PluginModuleChild::current()->GetQuirks();
+    // application/x-silverlight
+    // application/x-silverlight-2
+    NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
+    if (FindInReadable(silverlight, aMimeType)) {
+        mQuirks |= QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT;
+#ifdef OS_WIN
+        mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
+#endif
+    }
+
+#ifdef OS_WIN
+    // application/x-shockwave-flash
+    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
+    if (FindInReadable(flash, aMimeType)) {
+        mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
+        mQuirks |= QUIRK_FLASH_THROTTLE_WMUSER_EVENTS; 
+        mQuirks |= QUIRK_FLASH_HOOK_SETLONGPTR;
+    }
+#endif
 }
 
 NPError
@@ -941,9 +960,9 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
 
       case NPWindowTypeDrawable:
           mWindow.type = aWindow.type;
-          if (GetQuirks() & PluginModuleChild::QUIRK_WINLESS_TRACKPOPUP_HOOK)
+          if (mQuirks & QUIRK_WINLESS_TRACKPOPUP_HOOK)
               CreateWinlessPopupSurrogate();
-          if (GetQuirks() & PluginModuleChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)
+          if (mQuirks & QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)
               SetupFlashMsgThrottle();
           return SharedSurfaceSetWindow(aWindow);
       break;
@@ -1174,20 +1193,17 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
       self->CallPluginFocusChange(false);
 
     if (message == WM_USER+1 &&
-        (self->GetQuirks() & PluginModuleChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)) {
+        (self->mQuirks & PluginInstanceChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)) {
         self->FlashThrottleMessage(hWnd, message, wParam, lParam, true);
         return 0;
     }
-
-    LRESULT res = CallWindowProc(self->mPluginWndProc, hWnd, message, wParam,
-                                 lParam);
 
     // Make sure capture is released by the child on mouse events. Fixes a
     // problem with flash full screen mode mouse input. Appears to be
     // caused by a bug in flash, since we are not setting the capture
     // on the window. (In non-oopp land, we would set and release via
     // widget for other reasons.)
-    switch (message) {
+    switch(message) {    
       case WM_LBUTTONDOWN:
       case WM_MBUTTONDOWN:
       case WM_RBUTTONDOWN:
@@ -1197,6 +1213,9 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
       ReleaseCapture();
       break;
     }
+
+    LRESULT res = CallWindowProc(self->mPluginWndProc, hWnd, message, wParam,
+                                 lParam);
 
     if (message == WM_CLOSE)
         self->DestroyPluginWindow();
@@ -1342,7 +1361,7 @@ PluginInstanceChild::HookSetWindowLongPtr()
     return;
 #endif
 
-    if (!(GetQuirks() & PluginModuleChild::QUIRK_FLASH_HOOK_SETLONGPTR))
+    if (!(GetQuirks() & QUIRK_FLASH_HOOK_SETLONGPTR))
         return;
 
     sUser32Intercept.Init("user32.dll");
@@ -1425,7 +1444,7 @@ PluginInstanceChild::TrackPopupHookProc(HMENU hMenu,
 void
 PluginInstanceChild::InitPopupMenuHook()
 {
-    if (!(GetQuirks() & PluginModuleChild::QUIRK_WINLESS_TRACKPOPUP_HOOK) ||
+    if (!(mQuirks & QUIRK_WINLESS_TRACKPOPUP_HOOK) ||
         sUser32TrackPopupMenuStub)
         return;
 
@@ -1525,7 +1544,7 @@ PluginInstanceChild::WinlessHandleEvent(NPEvent& event)
     // TrackPopupMenu will fail if the parent window is not associated with
     // our ui thread. So we hook TrackPopupMenu so we can hand in a surrogate
     // parent created in the child process.
-    if ((GetQuirks() & PluginModuleChild::QUIRK_WINLESS_TRACKPOPUP_HOOK) && // XXX turn on by default?
+    if ((mQuirks & QUIRK_WINLESS_TRACKPOPUP_HOOK) && // XXX turn on by default?
           (event.event == WM_RBUTTONDOWN || // flash
            event.event == WM_RBUTTONUP)) {  // silverlight
       sWinlessPopupSurrogateHWND = mWinlessPopupSurrogateHWND;
@@ -2209,7 +2228,7 @@ PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
     mWindow.clipRect = aWindow.clipRect;
     mWindow.type = aWindow.type;
 
-    if (GetQuirks() & PluginModuleChild::QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT)
+    if (mQuirks & QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT)
         mIsTransparent = true;
 
     mLayersRendering = true;
@@ -2217,9 +2236,9 @@ PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
     UpdateWindowAttributes(true);
 
 #ifdef XP_WIN
-    if (GetQuirks() & PluginModuleChild::QUIRK_WINLESS_TRACKPOPUP_HOOK)
+    if (mQuirks & QUIRK_WINLESS_TRACKPOPUP_HOOK)
         CreateWinlessPopupSurrogate();
-    if (GetQuirks() & PluginModuleChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)
+    if (mQuirks & QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)
         SetupFlashMsgThrottle();
 #endif
 
@@ -2292,9 +2311,9 @@ PluginInstanceChild::CreateOptSurface(void)
 #endif
 
     // Make common shmem implementation working for any platform
-    mCurrentSurface =
-        gfxSharedImageSurface::CreateUnsafe(this, gfxIntSize(mWindow.width, mWindow.height), format);
-    return !!mCurrentSurface;
+    mCurrentSurface = new gfxSharedImageSurface();
+    return static_cast<gfxSharedImageSurface*>(mCurrentSurface.get())->
+        Init(this, gfxIntSize(mWindow.width, mWindow.height), format);
 }
 
 bool
@@ -2502,7 +2521,6 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
     // On maemo5 we do support Image rendering NPAPI
     if (mMaemoImageRendering &&
         aSurface->GetType() == gfxASurface::SurfaceTypeImage) {
-        aSurface->Flush();
         mPendingPluginCall = PR_TRUE;
         gfxImageSurface* image = static_cast<gfxImageSurface*>(aSurface);
         NPImageExpose imgExp;
@@ -2602,7 +2620,7 @@ PluginInstanceChild::PaintRectToSurface(const nsIntRect& aRect,
     nsIntRect plPaintRect(aRect);
     nsRefPtr<gfxASurface> renderSurface = aSurface;
 #ifdef MOZ_X11
-    if (mIsTransparent && (GetQuirks() & PluginModuleChild::QUIRK_FLASH_EXPOSE_COORD_TRANSLATION)) {
+    if (mIsTransparent && mFlash10Quirks) {
         // Work around a bug in Flash up to 10.1 d51 at least, where expose event
         // top left coordinates within the plugin-rect and not at the drawable
         // origin are misinterpreted.  (We can move the top left coordinate
@@ -2777,11 +2795,10 @@ PluginInstanceChild::ReadbackDifferenceRect(const nsIntRect& rect)
     if (!mBackSurface)
         return false;
 
-    // We can read safely from XSurface,SharedDIBSurface and Unsafe SharedMemory,
-    // because PluginHost is not able to modify that surface
+    // We can read safely from XSurface and SharedDIBSurface, because
+    // PluginHost is not able to modify that surface
 #if defined(MOZ_X11)
-    if (mBackSurface->GetType() != gfxASurface::SurfaceTypeXlib &&
-        !gfxSharedImageSurface::IsSharedImage(mBackSurface))
+    if (mBackSurface->GetType() != gfxASurface::SurfaceTypeXlib)
         return false;
 #elif defined(XP_WIN)
     if (!SharedDIBSurface::IsSharedDIBSurface(mBackSurface))
@@ -2973,6 +2990,13 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
     for (PRUint32 i = 0; i < streams.Length(); ++i)
         static_cast<BrowserStreamChild*>(streams[i])->FinishDelivery();
 
+    {
+        MutexAutoLock lock(mAsyncCallMutex);
+        for (PRUint32 i = 0; i < mPendingAsyncCalls.Length(); ++i)
+            mPendingAsyncCalls[i]->Cancel();
+        mPendingAsyncCalls.TruncateLength(0);
+    }
+
     mTimers.Clear();
     if (mCurrentInvalidateTask) {
         mCurrentInvalidateTask->Cancel();
@@ -2983,9 +3007,6 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
         mCurrentAsyncSetWindowTask = nsnull;
     }
 
-    // NPP_Destroy() should be a synchronization point for plugin threads
-    // calling NPN_AsyncCall: after this function returns, they are no longer
-    // allowed to make async calls on this instance.
     PluginModuleChild::current()->NPP_Destroy(this);
     mData.ndata = 0;
 
@@ -3005,15 +3026,7 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
     SharedSurfaceRelease();
     DestroyWinlessPopupSurrogate();
     UnhookWinlessFlashThrottle();
-    DestroyPluginWindow();
 #endif
-
-    // Pending async calls are discarded, not delivered. This matches the
-    // in-process behavior.
-    for (PRUint32 i = 0; i < mPendingAsyncCalls.Length(); ++i)
-        mPendingAsyncCalls[i]->Cancel();
-
-    mPendingAsyncCalls.Clear();
 
     return true;
 }

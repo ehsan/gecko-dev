@@ -181,30 +181,30 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
   if (!mTexImage)
     return;
 
+  // Note BGR: Cairo's image surfaces are always in what
+  // OpenGL and our shaders consider BGR format.
+  ColorTextureLayerProgram *program =
+    aManager->GetBasicLayerProgram(mLayer->CanUseOpaqueSurface(),
+                                   mTexImage->IsRGB());
+
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
   if (!mTexImage->InUpdate() || !mTexImage->EndUpdate()) {
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImage->Texture());
   }
 
-  // Note BGR: Cairo's image surfaces are always in what
-  // OpenGL and our shaders consider BGR format.
-  ColorTextureLayerProgram *program =
-    aManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
-
   float xres = mLayer->GetXResolution();
   float yres = mLayer->GetYResolution();
-
-  program->Activate();
-  program->SetLayerOpacity(mLayer->GetEffectiveOpacity());
-  program->SetLayerTransform(mLayer->GetEffectiveTransform());
-  program->SetRenderOffset(aOffset);
-  program->SetTextureUnit(0);
 
   nsIntRegionRectIterator iter(mLayer->GetEffectiveVisibleRegion());
   while (const nsIntRect *iterRect = iter.Next()) {
     nsIntRect quadRect = *iterRect;
+    program->Activate();
     program->SetLayerQuadRect(quadRect);
+    program->SetLayerOpacity(mLayer->GetEffectiveOpacity());
+    program->SetLayerTransform(mLayer->GetEffectiveTransform());
+    program->SetRenderOffset(aOffset);
+    program->SetTextureUnit(0);
     DEBUG_GL_ERROR_CHECK(gl());
 
     quadRect.MoveBy(-GetOriginOffset());
@@ -617,38 +617,18 @@ void
 ShadowBufferOGL::Upload(gfxASurface* aUpdate, const nsIntRegion& aUpdated,
                         const nsIntRect& aRect, const nsIntPoint& aRotation)
 {
-  gfxIntSize size = aUpdate->GetSize();
-  if (GetSize() != nsIntSize(size.width, size.height)) {
-    CreateTexture(aUpdate->GetContentType(),
-                  nsIntSize(size.width, size.height));
-  }
-
   nsIntRegion destRegion(aUpdated);
   // aUpdated is in screen coordinates.  Move it so that the layer's
   // top-left is 0,0
   nsIntPoint visTopLeft = mLayer->GetVisibleRegion().GetBounds().TopLeft();
   destRegion.MoveBy(-visTopLeft);
-
-  // |aUpdated|, |aRect|, and |aRotation| are in thebes-layer space,
-  // unadjusted for resolution.  The texture is in device space, so
-  // first we need to map the update params to device space.
-  //
-  // XXX this prematurely commits us to updating rects instead of
-  // regions here.  This will be a perf penalty on platforms that
-  // support region updates.  This is OK for now because the
-  // TextureImage backends we care about need to update contiguous
-  // rects anyway, and would do this conversion internally.  To fix
-  // this, we would need to scale the region instead of its bounds
-  // here.
-  nsIntRect destBounds = destRegion.GetBounds();
-  gfxRect destRect(destBounds.x, destBounds.y, destBounds.width, destBounds.height);
-  destRect.Scale(mLayer->GetXResolution(), mLayer->GetYResolution());
-  destRect.RoundOut();
-
   // NB: this gfxContext must not escape EndUpdate() below
-  nsIntRegion scaledDestRegion(nsIntRect(destRect.pos.x, destRect.pos.y,
-                                         destRect.size.width, destRect.size.height));
-  mTexImage->DirectUpdate(aUpdate, scaledDestRegion);
+  nsRefPtr<gfxContext> dest = mTexImage->BeginUpdate(destRegion);
+
+  dest->SetOperator(gfxContext::OPERATOR_SOURCE);
+  dest->DrawSurface(aUpdate, aUpdate->GetSize());
+
+  mTexImage->EndUpdate();
 
   mBufferRect = aRect;
   mBufferRotation = aRotation;
@@ -665,7 +645,7 @@ ShadowThebesLayerOGL::~ShadowThebesLayerOGL()
 {}
 
 void
-ShadowThebesLayerOGL::SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
+ShadowThebesLayerOGL::SetFrontBuffer(const ThebesBuffer& aNewFront,
                                      const nsIntRegion& aValidRegion,
                                      float aXResolution, float aYResolution)
 {
@@ -677,8 +657,14 @@ ShadowThebesLayerOGL::SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
     mBuffer = new ShadowBufferOGL(this);
   }
 
-  NS_ASSERTION(OptionalThebesBuffer::Tnull_t == aNewFront.type(),
-               "Only one system-memory buffer expected");
+  nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront.buffer());
+  gfxIntSize size = surf->GetSize();
+  mBuffer->CreateTexture(surf->GetContentType(),
+                         nsIntSize(size.width, size.height));
+
+
+
+  mDeadweight = aNewFront.buffer();
 }
 
 void
@@ -707,6 +693,9 @@ void
 ShadowThebesLayerOGL::DestroyFrontBuffer()
 {
   mBuffer = nsnull;
+  if (SurfaceDescriptor::T__None != mDeadweight.type()) {
+    mOGLManager->DestroySharedSurface(&mDeadweight, mAllocator);
+  }
 }
 
 void

@@ -13,7 +13,7 @@
   <script type="text/javascript;version=1.7">
     function testSteps()
     {
-      let request = mozIndexedDB.open(window.location.pathname);
+      let request = moz_indexedDB.open(window.location.pathname);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
@@ -26,7 +26,7 @@
 
       event.transaction.oncomplete = continueToNextStep;
 
-      db.createObjectStore("foo", { autoIncrement: true });
+      db.createObjectStore("foo", "", true);
       yield;
 
       let transaction = db.transaction("foo");

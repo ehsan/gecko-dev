@@ -23,7 +23,6 @@ function tabLoad(aEvent) {
   }
 
   HUDService.setFilterState(hudId, "network", false);
-  HUDService.setFilterState(hudId, "networkinfo", false);
 
   hud.filterBox.value = "test message";
   HUDService.updateFilterText(hud.filterBox);
@@ -38,17 +37,17 @@ function tabLoad(aEvent) {
 function tabReload(aEvent) {
   browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  let msgNode = hud.outputNode.querySelector(".webconsole-msg-network");
+  let msgNode = hud.outputNode.querySelector(".hud-network");
   ok(msgNode, "found network message");
   ok(msgNode.classList.contains("hud-filtered-by-type"),
     "network message is filtered by type");
   ok(msgNode.classList.contains("hud-filtered-by-string"),
     "network message is filtered by string");
 
-  let scrollBox = hud.outputNode.scrollBoxObject.element;
-  ok(scrollBox.scrollTop > 0, "scroll location is not at the top");
+  ok(hud.outputNode.scrollTop > 0, "scroll location is not at the top");
 
-  is(scrollBox.scrollTop, scrollBox.scrollHeight - scrollBox.clientHeight,
+  is(hud.outputNode.scrollTop,
+    hud.outputNode.scrollHeight - hud.outputNode.clientHeight,
     "scroll location is correct");
 
   executeSoon(finishTest);

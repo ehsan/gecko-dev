@@ -62,10 +62,9 @@ namespace {
  */
 class LayerManagerData : public LayerUserData {
 public:
-  LayerManagerData(LayerManager *aManager) :
+  LayerManagerData() :
     mInvalidateAllThebesContent(PR_FALSE),
-    mInvalidateAllLayers(PR_FALSE),
-    mLayerManager(aManager)
+    mInvalidateAllLayers(PR_FALSE)
   {
     MOZ_COUNT_CTOR(LayerManagerData);
     mFramesWithLayers.Init();
@@ -84,8 +83,6 @@ public:
   nsTHashtable<nsPtrHashKey<nsIFrame> > mFramesWithLayers;
   PRPackedBool mInvalidateAllThebesContent;
   PRPackedBool mInvalidateAllLayers;
-  /** Layer manager we belong to, we hold a reference to this object. */
-  nsRefPtr<LayerManager> mLayerManager;
 };
 
 static void DestroyRegion(void* aPropertyValue)
@@ -148,10 +145,8 @@ public:
    * mThebesLayerDataStack, then sets the children of the container layer
    * to be all the layers in mNewChildLayers in that order and removes any
    * layers as children of the container that aren't in mNewChildLayers.
-   * @param aTextContentFlags if any child layer has CONTENT_COMPONENT_ALPHA,
-   * set *aTextContentFlags to CONTENT_COMPONENT_ALPHA
    */
-  void Finish(PRUint32 *aTextContentFlags);
+  void Finish();
 
 protected:
   /**
@@ -168,7 +163,7 @@ protected:
     ThebesLayerData() :
       mActiveScrolledRoot(nsnull), mLayer(nsnull),
       mIsSolidColorInVisibleRegion(PR_FALSE),
-      mNeedComponentAlpha(PR_FALSE),
+      mHasText(PR_FALSE), mHasTextOverTransparent(PR_FALSE),
       mForceTransparentSurface(PR_FALSE) {}
     /**
      * Record that an item has been added to the ThebesLayer, so we
@@ -186,8 +181,7 @@ protected:
     void Accumulate(nsDisplayListBuilder* aBuilder,
                     nsDisplayItem* aItem,
                     const nsIntRect& aVisibleRect,
-                    const nsIntRect& aDrawRect,
-                    const FrameLayerBuilder::Clip& aClip);
+                    const nsIntRect& aDrawRect);
     nsIFrame* GetActiveScrolledRoot() { return mActiveScrolledRoot; }
 
     /**
@@ -240,10 +234,14 @@ protected:
      */
     PRPackedBool mIsSolidColorInVisibleRegion;
     /**
+     * True if there is any text visible in the layer.
+     */
+    PRPackedBool mHasText;
+    /**
      * True if there is any text visible in the layer that's over
      * transparent pixels in the layer.
      */
-    PRPackedBool mNeedComponentAlpha;
+    PRPackedBool mHasTextOverTransparent;
     /**
      * Set if the layer should be treated as transparent, even if its entire
      * area is covered by opaque display items. For example, this needs to
@@ -308,7 +306,6 @@ protected:
   already_AddRefed<ThebesLayer> FindThebesLayerFor(nsDisplayItem* aItem,
                                                    const nsIntRect& aVisibleRect,
                                                    const nsIntRect& aDrawRect,
-                                                   const FrameLayerBuilder::Clip& aClip,
                                                    nsIFrame* aActiveScrolledRoot);
   ThebesLayerData* GetTopThebesLayerData()
   {
@@ -410,11 +407,12 @@ FrameLayerBuilder::InternalDestroyDisplayItemData(nsIFrame* aFrame,
     NS_ASSERTION(data, "Frame with layer should have been recorded");
     data->mFramesWithLayers.RemoveEntry(aFrame);
     if (data->mFramesWithLayers.Count() == 0) {
-      // Destroying our user data will consume a reference from the layer
-      // manager. But don't actually release until we've released all the layers
-      // in the DisplayItemData array below!
-      managerRef = manager;
       manager->RemoveUserData(&gLayerManagerUserData);
+      // Consume the reference we added when we set the user data
+      // in DidEndTransaction. But don't actually release until we've
+      // released all the layers in the DisplayItemData array below!
+      managerRef = manager;
+      NS_RELEASE(manager);
     }
   }
 
@@ -487,8 +485,11 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
     // Update all the frames that used to have layers.
     data->mFramesWithLayers.EnumerateEntries(UpdateDisplayItemDataForFrame, this);
   } else {
-    data = new LayerManagerData(mRetainingManager);
+    data = new LayerManagerData();
     mRetainingManager->SetUserData(&gLayerManagerUserData, data);
+    // Addref mRetainingManager. We'll release it when 'data' is
+    // removed.
+    NS_ADDREF(mRetainingManager);
   }
   // Now go through all the frames that didn't have any retained
   // display items before, and record those retained display items.
@@ -869,14 +870,10 @@ ContainerState::PopThebesLayerData()
     }
     userData->mForcedBackgroundColor = backgroundColor;
   }
-  PRUint32 flags;
-  if (isOpaque && !data->mForceTransparentSurface) {
-    flags = Layer::CONTENT_OPAQUE;
-  } else if (data->mNeedComponentAlpha) {
-    flags = Layer::CONTENT_COMPONENT_ALPHA;
-  } else {
-    flags = 0;
-  }
+  PRUint32 flags =
+    ((isOpaque && !data->mForceTransparentSurface) ? Layer::CONTENT_OPAQUE : 0) |
+    (data->mHasText ? 0 : Layer::CONTENT_NO_TEXT) |
+    (data->mHasTextOverTransparent ? 0 : Layer::CONTENT_NO_TEXT_OVER_TRANSPARENT);
   layer->SetContentFlags(flags);
 
   if (lastIndex > 0) {
@@ -897,43 +894,11 @@ ContainerState::PopThebesLayerData()
   mThebesLayerDataStack.RemoveElementAt(lastIndex);
 }
 
-static PRBool
-SuppressComponentAlpha(nsDisplayListBuilder* aBuilder,
-                       nsDisplayItem* aItem,
-                       const nsRect& aComponentAlphaBounds)
-{
-  const nsRegion* windowTransparentRegion = aBuilder->GetFinalTransparentRegion();
-  if (!windowTransparentRegion || windowTransparentRegion->IsEmpty())
-    return PR_FALSE;
-
-  // Suppress component alpha for items in the toplevel window that are over
-  // the window translucent area
-  nsIFrame* f = aItem->GetUnderlyingFrame();
-  nsIFrame* ref = aBuilder->ReferenceFrame();
-  if (f->PresContext() != ref->PresContext())
-    return PR_FALSE;
-
-  for (nsIFrame* t = f; t; t = t->GetParent()) {
-    if (t->IsTransformed())
-      return PR_FALSE;
-  }
-
-  return windowTransparentRegion->Intersects(aComponentAlphaBounds);
-}
-
-static PRBool
-WindowHasTransparency(nsDisplayListBuilder* aBuilder)
-{
-  const nsRegion* windowTransparentRegion = aBuilder->GetFinalTransparentRegion();
-  return windowTransparentRegion && !windowTransparentRegion->IsEmpty();
-}
-
 void
 ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
                                             nsDisplayItem* aItem,
                                             const nsIntRect& aVisibleRect,
-                                            const nsIntRect& aDrawRect,
-                                            const FrameLayerBuilder::Clip& aClip)
+                                            const nsIntRect& aDrawRect)
 {
   nscolor uniformColor;
   if (aItem->IsUniform(aBuilder, &uniformColor)) {
@@ -958,39 +923,21 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
   mDrawRegion.SimplifyOutward(4);
 
   PRBool forceTransparentSurface = PR_FALSE;
-  nsRegion opaque = aItem->GetOpaqueRegion(aBuilder, &forceTransparentSurface);
-  if (!opaque.IsEmpty()) {
-    nsRegionRectIterator iter(opaque);
-    nscoord appUnitsPerDevPixel = AppUnitsPerDevPixel(aItem);
-    for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-      // We don't use SimplifyInward here since it's not defined exactly
-      // what it will discard. For our purposes the most important case
-      // is a large opaque background at the bottom of z-order (e.g.,
-      // a canvas background), so we need to make sure that the first rect
-      // we see doesn't get discarded.
-      nsIntRect rect = aClip.ApproximateIntersect(*r).ToNearestPixels(appUnitsPerDevPixel);
-      nsIntRegion tmp;
-      tmp.Or(mOpaqueRegion, rect);
-       // Opaque display items in chrome documents whose window is partially
-       // transparent are always added to the opaque region. This helps ensure
-       // that we get as much subpixel-AA as possible in the chrome.
-       if (tmp.GetNumRects() <= 4 ||
-           (WindowHasTransparency(aBuilder) &&
-            aItem->GetUnderlyingFrame()->PresContext()->IsChrome())) {
-        mOpaqueRegion = tmp;
-      }
+  if (aItem->IsOpaque(aBuilder, &forceTransparentSurface)) {
+    // We don't use SimplifyInward here since it's not defined exactly
+    // what it will discard. For our purposes the most important case
+    // is a large opaque background at the bottom of z-order (e.g.,
+    // a canvas background), so we need to make sure that the first rect
+    // we see doesn't get discarded.
+    nsIntRegion tmp;
+    tmp.Or(mOpaqueRegion, aDrawRect);
+    if (tmp.GetNumRects() <= 4) {
+      mOpaqueRegion = tmp;
     }
-  }
-  nsRect componentAlpha = aItem->GetComponentAlphaBounds(aBuilder);
-  componentAlpha.IntersectRect(componentAlpha, aItem->GetVisibleRect());
-  if (!componentAlpha.IsEmpty()) {
-    nscoord appUnitsPerDevPixel = AppUnitsPerDevPixel(aItem);
-    if (!mOpaqueRegion.Contains(componentAlpha.ToOutsidePixels(appUnitsPerDevPixel))) {
-      if (SuppressComponentAlpha(aBuilder, aItem, componentAlpha)) {
-        aItem->DisableComponentAlpha();
-      } else {
-        mNeedComponentAlpha = PR_TRUE;
-      }
+  } else if (aItem->HasText()) {
+    mHasText = PR_TRUE;
+    if (!mOpaqueRegion.Contains(aVisibleRect)) {
+      mHasTextOverTransparent = PR_TRUE;
     }
   }
   mForceTransparentSurface = mForceTransparentSurface || forceTransparentSurface;
@@ -1000,7 +947,6 @@ already_AddRefed<ThebesLayer>
 ContainerState::FindThebesLayerFor(nsDisplayItem* aItem,
                                    const nsIntRect& aVisibleRect,
                                    const nsIntRect& aDrawRect,
-                                   const FrameLayerBuilder::Clip& aClip,
                                    nsIFrame* aActiveScrolledRoot)
 {
   PRInt32 i;
@@ -1055,7 +1001,7 @@ ContainerState::FindThebesLayerFor(nsDisplayItem* aItem,
     layer = thebesLayerData->mLayer;
   }
 
-  thebesLayerData->Accumulate(mBuilder, aItem, aVisibleRect, aDrawRect, aClip);
+  thebesLayerData->Accumulate(mBuilder, aItem, aVisibleRect, aDrawRect);
   return layer.forget();
 }
 
@@ -1202,7 +1148,7 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       }
 
       nsRefPtr<ThebesLayer> thebesLayer =
-        FindThebesLayerFor(item, itemVisibleRect, itemDrawRect, aClip,
+        FindThebesLayerFor(item, itemVisibleRect, itemDrawRect,
                            activeScrolledRoot);
 
       InvalidateForLayerChange(item, thebesLayer);
@@ -1328,13 +1274,11 @@ ContainerState::CollectOldLayers()
 }
 
 void
-ContainerState::Finish(PRUint32* aTextContentFlags)
+ContainerState::Finish()
 {
   while (!mThebesLayerDataStack.IsEmpty()) {
     PopThebesLayerData();
   }
-
-  PRUint32 textContentFlags = 0;
 
   for (PRUint32 i = 0; i <= mNewChildLayers.Length(); ++i) {
     // An invariant of this loop is that the layers in mNewChildLayers
@@ -1342,9 +1286,6 @@ ContainerState::Finish(PRUint32* aTextContentFlags)
     Layer* layer;
     if (i < mNewChildLayers.Length()) {
       layer = mNewChildLayers[i];
-      if (!layer->GetVisibleRegion().IsEmpty()) {
-        textContentFlags |= layer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA;
-      }
       if (!layer->GetParent()) {
         // This is not currently a child of the container, so just add it
         // now.
@@ -1373,8 +1314,6 @@ ContainerState::Finish(PRUint32* aTextContentFlags)
     // If non-null, 'layer' is now in the right place in the list, so we
     // can just move on to the next one.
   }
-
-  *aTextContentFlags = textContentFlags;
 }
 
 static void
@@ -1463,19 +1402,11 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
 
   Clip clip;
   state.ProcessDisplayItems(aChildren, clip);
+  state.Finish();
 
-  // Set CONTENT_COMPONENT_ALPHA if any of our children have it.
-  // This is suboptimal ... a child could have text that's over transparent
-  // pixels in its own layer, but over opaque parts of previous siblings.
-  PRUint32 flags;
-  state.Finish(&flags);
-
-  if (aChildren.IsOpaque() && !aChildren.NeedsTransparentSurface()) {
-    // Clear CONTENT_COMPONENT_ALPHA
-    flags = Layer::CONTENT_OPAQUE;
-  }
+  PRUint32 flags = aChildren.IsOpaque() && 
+                   !aChildren.NeedsTransparentSurface() ? Layer::CONTENT_OPAQUE : 0;
   containerLayer->SetContentFlags(flags);
-
   return containerLayer.forget();
 }
 
@@ -1839,22 +1770,6 @@ FrameLayerBuilder::Clip::ApplyTo(gfxContext* aContext,
     aContext->RoundedRectangle(clip, pixelRadii);
     aContext->Clip();
   }
-}
-
-nsRect
-FrameLayerBuilder::Clip::ApproximateIntersect(const nsRect& aRect) const
-{
-  nsRect r = aRect;
-  if (mHaveClipRect) {
-    r.IntersectRect(r, mClipRect);
-  }
-  for (PRUint32 i = 0, iEnd = mRoundedClipRects.Length();
-       i < iEnd; ++i) {
-    const Clip::RoundedRect &rr = mRoundedClipRects[i];
-    nsRegion rgn = nsLayoutUtils::RoundedRectIntersectRect(rr.mRect, rr.mRadii, r);
-    r = rgn.GetLargestRectangle();
-  }
-  return r;
 }
 
 } // namespace mozilla

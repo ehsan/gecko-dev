@@ -75,6 +75,7 @@ using namespace mozilla; // for AutoSwap_* types
 gfxHarfBuzzShaper::gfxHarfBuzzShaper(gfxFont *aFont)
     : gfxFontShaper(aFont),
       mHBFace(nsnull),
+      mHBLanguage(nsnull),
       mKernTable(nsnull),
       mHmtxTable(nsnull),
       mNumLongMetrics(0),
@@ -82,7 +83,6 @@ gfxHarfBuzzShaper::gfxHarfBuzzShaper(gfxFont *aFont)
       mCmapFormat(-1),
       mSubtableOffset(0),
       mUVSTableOffset(0),
-      mUseFontGetGlyph(aFont->ProvidesGetGlyph()),
       mUseHintedWidths(aFont->ProvidesHintedWidths())
 {
 }
@@ -128,10 +128,6 @@ hb_codepoint_t
 gfxHarfBuzzShaper::GetGlyph(hb_codepoint_t unicode,
                             hb_codepoint_t variation_selector) const
 {
-    if (mUseFontGetGlyph) {
-        return mFont->GetGlyph(unicode, variation_selector);
-    }
-
     // we only instantiate a harfbuzz shaper if there's a cmap available
     NS_ASSERTION(mFont->GetFontEntry()->HasCmapTable(),
                  "we cannot be using this font!");
@@ -736,21 +732,21 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
 
         mHBFace = hb_face_create_for_tables(HBGetTable, nsnull, this);
 
-        if (!mUseFontGetGlyph) {
-            // get the cmap table and find offset to our subtable
-            mCmapTable = mFont->GetFontTable(TRUETYPE_TAG('c','m','a','p'));
-            if (!mCmapTable) {
-                NS_WARNING("failed to load cmap, glyphs will be missing");
-                return PR_FALSE;
-            }
-            const PRUint8* data = (const PRUint8*)hb_blob_lock(mCmapTable);
-            PRBool symbol;
-            mCmapFormat = gfxFontUtils::
-                FindPreferredSubtable(data, hb_blob_get_length(mCmapTable),
-                                      &mSubtableOffset, &mUVSTableOffset,
-                                      &symbol);
-            hb_blob_unlock(mCmapTable);
+        // get the cmap table and find offset to our subtable
+        mCmapTable = mFont->GetFontTable(TRUETYPE_TAG('c','m','a','p'));
+        if (!mCmapTable) {
+            NS_WARNING("failed to load cmap, glyphs will be missing");
+            return PR_FALSE;
         }
+        const PRUint8* data = (const PRUint8*)hb_blob_lock(mCmapTable);
+        PRBool symbol;
+        mCmapFormat =
+            gfxFontUtils::FindPreferredSubtable(data,
+                                                hb_blob_get_length(mCmapTable),
+                                                &mSubtableOffset,
+                                                &mUVSTableOffset,
+                                                &symbol);
+        hb_blob_unlock(mCmapTable);
 
         if (!mUseHintedWidths) {
             // if font doesn't implement hinted widths, we will be reading
@@ -785,10 +781,21 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
             }
             hb_blob_destroy(hheaTable);
         }
+
+        if (mFont->GetStyle()->languageOverride) {
+            mHBLanguage =
+                hb_ot_tag_to_language(mFont->GetStyle()->languageOverride);
+        } else if (mFont->GetFontEntry()->mLanguageOverride) {
+            mHBLanguage =
+                hb_ot_tag_to_language(mFont->GetFontEntry()->mLanguageOverride);
+        } else {
+            nsCString langString;
+            mFont->GetStyle()->language->ToUTF8String(langString);
+            mHBLanguage = hb_language_from_string(langString.get());
+        }
     }
 
-    if ((!mUseFontGetGlyph && mCmapFormat <= 0) ||
-        (!mUseHintedWidths && !mHmtxTable)) {
+    if (mCmapFormat <= 0 || (!mUseHintedWidths && !mHmtxTable)) {
         // unable to shape with this font
         return PR_FALSE;
     }
@@ -819,23 +826,25 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
     }
 
     // css features need to be merged with the existing ones, if any
-    const gfxFontStyle *style = aTextRun->GetFontGroup()->GetStyle();
-    const nsTArray<gfxFontFeature> *cssFeatures = &style->featureSettings;
-    if (cssFeatures->IsEmpty()) {
-        cssFeatures = &mFont->GetFontEntry()->mFeatureSettings;
+    const nsTArray<gfxFontFeature> *cssFeatures =
+        mFont->GetStyle()->featureSettings;
+    if (!cssFeatures) {
+        cssFeatures = mFont->GetFontEntry()->mFeatureSettings;
     }
-    for (PRUint32 i = 0; i < cssFeatures->Length(); ++i) {
-        PRUint32 j;
-        for (j = 0; j < features.Length(); ++j) {
-            if (cssFeatures->ElementAt(i).mTag == features[j].tag) {
-                features[j].value = cssFeatures->ElementAt(i).mValue;
-                break;
+    if (cssFeatures) {
+        for (PRUint32 i = 0; i < cssFeatures->Length(); ++i) {
+            PRUint32 j;
+            for (j = 0; j < features.Length(); ++j) {
+                if (cssFeatures->ElementAt(i).mTag == features[j].tag) {
+                    features[j].value = cssFeatures->ElementAt(i).mValue;
+                    break;
+                }
             }
-        }
-        if (j == features.Length()) {
-            const gfxFontFeature& f = cssFeatures->ElementAt(i);
-            hb_feature_t hbf = { f.mTag, f.mValue, 0, -1 };
-            features.AppendElement(hbf);
+            if (j == features.Length()) {
+                const gfxFontFeature& f = cssFeatures->ElementAt(i);
+                hb_feature_t hbf = { f.mTag, f.mValue, 0, -1 };
+                features.AppendElement(hbf);
+            }
         }
     }
 
@@ -850,19 +859,7 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
     hb_buffer_set_script(buffer,
                          aRunScript <= HB_SCRIPT_INHERITED ? HB_SCRIPT_LATIN
                          : hb_script_t(aRunScript));
-
-    hb_language_t language;
-    if (style->languageOverride) {
-        language = hb_ot_tag_to_language(style->languageOverride);
-    } else if (mFont->GetFontEntry()->mLanguageOverride) {
-        language =
-            hb_ot_tag_to_language(mFont->GetFontEntry()->mLanguageOverride);
-    } else {
-        nsCString langString;
-        style->language->ToUTF8String(langString);
-        language = hb_language_from_string(langString.get());
-    }
-    hb_buffer_set_language(buffer, language);
+    hb_buffer_set_language(buffer, mHBLanguage);
 
     hb_buffer_add_utf16(buffer, reinterpret_cast<const uint16_t*>(aString + aRunStart),
                         aRunLength, 0, aRunLength);

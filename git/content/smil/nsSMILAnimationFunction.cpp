@@ -84,17 +84,16 @@ nsAttrValue::EnumTable nsSMILAnimationFunction::sCalcModeTable[] = {
 // Constructors etc.
 
 nsSMILAnimationFunction::nsSMILAnimationFunction()
-  : mSampleTime(-1),
-    mRepeatIteration(0),
-    mBeginTime(LL_MININT),
-    mAnimationElement(nsnull),
-    mErrorFlags(0),
-    mIsActive(PR_FALSE),
+  : mIsActive(PR_FALSE),
     mIsFrozen(PR_FALSE),
+    mSampleTime(-1),
+    mRepeatIteration(0),
     mLastValue(PR_FALSE),
     mHasChanged(PR_TRUE),
     mValueNeedsReparsingEverySample(PR_FALSE),
-    mPrevSampleWasSingleValueAnimation(PR_FALSE)
+    mBeginTime(LL_MININT),
+    mAnimationElement(nsnull),
+    mErrorFlags(0)
 {
 }
 
@@ -177,17 +176,11 @@ nsSMILAnimationFunction::SampleAt(nsSMILTime aSampleTime,
                                   const nsSMILTimeValue& aSimpleDuration,
                                   PRUint32 aRepeatIteration)
 {
-  // * Update mHasChanged ("Might this sample be different from prev one?")
-  // Were we previously sampling a fill="freeze" final val? (We're not anymore.)
-  mHasChanged |= mLastValue;
-
-  // Are we sampling at a new point in simple duration? And does that matter?
-  mHasChanged |=
-    (mSampleTime != aSampleTime || mSimpleDuration != aSimpleDuration) &&
-    !IsValueFixedForSimpleDuration();
-
-  // Are we on a new repeat and accumulating across repeats?
-  mHasChanged |= (mRepeatIteration != aRepeatIteration) && GetAccumulate();
+  if (mHasChanged || mLastValue || mSampleTime != aSampleTime ||
+      mSimpleDuration != aSimpleDuration ||
+      mRepeatIteration != aRepeatIteration) {
+    mHasChanged = PR_TRUE;
+  }
 
   mSampleTime       = aSampleTime;
   mSimpleDuration   = aSimpleDuration;
@@ -230,7 +223,6 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
                                        nsSMILValue& aResult)
 {
   mHasChanged = PR_FALSE;
-  mPrevSampleWasSingleValueAnimation = PR_FALSE;
 
   // Skip animations that are inactive or in error
   if (!IsActiveOrFrozen() || mErrorFlags != 0)
@@ -268,7 +260,6 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
 
     // Single-valued animation
     result = values[0];
-    mPrevSampleWasSingleValueAnimation = PR_TRUE;
 
   } else if (mLastValue) {
 
@@ -927,13 +918,6 @@ nsSMILAnimationFunction::CheckKeySplines(PRUint32 aNumValues)
   }
 
   SetKeySplinesErrorFlag(PR_FALSE);
-}
-
-PRBool
-nsSMILAnimationFunction::IsValueFixedForSimpleDuration() const
-{
-  return mSimpleDuration.IsIndefinite() ||
-    (!mHasChanged && mPrevSampleWasSingleValueAnimation);
 }
 
 //----------------------------------------------------------------------

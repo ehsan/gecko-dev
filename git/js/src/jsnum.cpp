@@ -809,11 +809,8 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
         strcpy(tmpDest, nint);
     }
 
-    if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode) {
-        JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
-        cx->free(buf);
-        return ok;
-    }
+    if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode)
+        return cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
 
     str = js_NewStringCopyN(cx, buf, size);
     cx->free(buf);
@@ -1009,16 +1006,9 @@ js_InitRuntimeNumberState(JSContext *cx)
     number_constants[NC_MIN_VALUE].dval = u.d;
 
 #ifndef HAVE_LOCALECONV
-    const char* thousands_sep = getenv("LOCALE_THOUSANDS_SEP");
-    const char* decimal_point = getenv("LOCALE_DECIMAL_POINT");
-    const char* grouping = getenv("LOCALE_GROUPING");
-
-    rt->thousandsSeparator =
-        JS_strdup(cx, thousands_sep ? thousands_sep : "'");
-    rt->decimalSeparator =
-        JS_strdup(cx, decimal_point ? decimal_point : ".");
-    rt->numGrouping =
-        JS_strdup(cx, grouping ? grouping : "\3\0");
+    rt->thousandsSeparator = JS_strdup(cx, "'");
+    rt->decimalSeparator = JS_strdup(cx, ".");
+    rt->numGrouping = JS_strdup(cx, "\3\0");
 #else
     struct lconv *locale = localeconv();
     rt->thousandsSeparator =

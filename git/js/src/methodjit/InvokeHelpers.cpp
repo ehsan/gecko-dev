@@ -896,12 +896,9 @@ DisableTraceHint(VMFrame &f, ic::TraceICInfo &tic)
 static void
 EnableTraceHintAt(JSScript *script, js::mjit::JITScript *jit, jsbytecode *pc, uint16_t index)
 {
-    if (index >= jit->nTraceICs)
-        return;
+    JS_ASSERT(index < jit->nTraceICs);
     ic::TraceICInfo &tic = jit->traceICs[index];
-    if (!tic.initialized)
-        return;
-    
+
     JS_ASSERT(tic.jumpTargetPC == pc);
 
     JaegerSpew(JSpew_PICs, "Enabling trace IC %u in script %p\n", index, script);
