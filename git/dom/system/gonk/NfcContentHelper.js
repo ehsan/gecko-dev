@@ -383,17 +383,17 @@ NfcContentHelper.prototype = {
     Services.DOMRequest.fireSuccess(request, result);
   },
 
-  fireRequestError: function fireRequestError(requestId, errorMsg) {
+  fireRequestError: function fireRequestError(requestId, error) {
     let request = this.takeRequest(requestId);
     if (!request) {
       debug("not firing error for id: " + requestId +
-            ", errormsg: " + errorMsg);
+            ", error: " + JSON.stringify(error));
       return;
     }
 
     debug("fire request error, id: " + requestId +
-          ", errormsg: " + errorMsg);
-    Services.DOMRequest.fireError(request, errorMsg);
+          ", result: " + JSON.stringify(error));
+    Services.DOMRequest.fireError(request, error);
   },
 
   receiveMessage: function receiveMessage(message) {
@@ -416,8 +416,8 @@ NfcContentHelper.prototype = {
       case "NFC:MakeReadOnlyNDEFResponse":
       case "NFC:NotifySendFileStatusResponse":
       case "NFC:ConfigResponse":
-        if (result.errorMsg) {
-          this.fireRequestError(atob(result.requestId), result.errorMsg);
+        if (result.status !== NFC.GECKO_NFC_ERROR_SUCCESS) {
+          this.fireRequestError(atob(result.requestId), result.status);
         } else {
           this.fireRequestSuccess(atob(result.requestId), result);
         }
@@ -442,8 +442,8 @@ NfcContentHelper.prototype = {
     }
     delete this._requestMap[result.requestId];
 
-    if (result.errorMsg) {
-      this.fireRequestError(atob(result.requestId), result.errorMsg);
+    if (result.status !== NFC.GECKO_NFC_ERROR_SUCCESS) {
+      this.fireRequestError(atob(result.requestId), result.status);
       return;
     }
 
@@ -461,8 +461,8 @@ NfcContentHelper.prototype = {
   },
 
   handleGetDetailsNDEFResponse: function handleGetDetailsNDEFResponse(result) {
-    if (result.errorMsg) {
-      this.fireRequestError(atob(result.requestId), result.errorMsg);
+    if (result.status !== NFC.GECKO_NFC_ERROR_SUCCESS) {
+      this.fireRequestError(atob(result.requestId), result.status);
       return;
     }
 
@@ -475,7 +475,7 @@ NfcContentHelper.prototype = {
     // Privilaged status API. Always fire success to avoid using exposed props.
     // The receiver must check the boolean mapped status code to handle.
     let requestId = atob(result.requestId);
-    this.fireRequestSuccess(requestId, !result.errorMsg);
+    this.fireRequestSuccess(requestId, result.status == NFC.GECKO_NFC_ERROR_SUCCESS);
   },
 };
 

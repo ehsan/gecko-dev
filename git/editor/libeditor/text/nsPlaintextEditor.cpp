@@ -80,10 +80,7 @@ nsPlaintextEditor::nsPlaintextEditor()
 , mCaretStyle(0)
 #endif
 {
-  // check the "single line editor newline handling"
-  // and "caret behaviour in selection" prefs
-  GetDefaultEditorPrefs(mNewlineHandling, mCaretStyle);
-}
+} 
 
 nsPlaintextEditor::~nsPlaintextEditor()
 {
@@ -137,6 +134,10 @@ NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc,
     // Init the base editor
     res = nsEditor::Init(aDoc, aRoot, aSelCon, aFlags, aInitialValue);
   }
+
+  // check the "single line editor newline handling"
+  // and "caret behaviour in selection" prefs
+  GetDefaultEditorPrefs(mNewlineHandling, mCaretStyle);
 
   NS_ENSURE_SUCCESS(rulesRes, rulesRes);
 

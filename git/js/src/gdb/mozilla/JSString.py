@@ -4,11 +4,6 @@ import gdb
 import mozilla.prettyprinters
 from mozilla.prettyprinters import pretty_printer, ptr_pretty_printer
 
-try:
-    chr(10000) # UPPER RIGHT PENCIL
-except ValueError as exc: # yuck, we are in Python 2.x, so chr() is 8-bit
-    chr = unichr # replace with teh unicodes
-
 # Forget any printers from previous loads of this module.
 mozilla.prettyprinters.clear_module_printers(__name__)
 
@@ -48,13 +43,13 @@ class JSStringPtr(Common):
                 chars = d['inlineStorage']
             else:
                 chars = d['s']['u2']['nonInlineChars']
-            for i in range(length):
+            for i in xrange(length):
                 yield chars[i]
 
     def to_string(self):
         s = u''
         for c in self.jschars():
-            s += chr(c)
+            s += unichr(c)
         return s
 
 @ptr_pretty_printer("JSAtom")

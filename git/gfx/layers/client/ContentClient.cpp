@@ -260,6 +260,9 @@ ContentClientRemoteBuffer::CreateBackBuffer(const nsIntRect& aBufferRect)
       return;
     }
   }
+
+  mBufferRect = aBufferRect;
+  mBufferRotation = nsIntPoint();
 }
 
 void
@@ -794,7 +797,7 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
 }
 
 DrawTarget*
-ContentClientIncremental::BorrowDrawTargetForPainting(PaintState& aPaintState,
+ContentClientIncremental::BorrowDrawTargetForPainting(const PaintState& aPaintState,
                                                       RotatedContentBuffer::DrawIterator* aIter)
 {
   if (aPaintState.mMode == SurfaceMode::SURFACE_NONE) {
