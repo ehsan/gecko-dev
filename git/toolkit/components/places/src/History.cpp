@@ -146,9 +146,11 @@ Step::HandleResult(mozIStorageResultSet* aResultSet)
 NS_IMETHODIMP
 Step::HandleCompletion(PRUint16 aReason)
 {
-  nsCOMPtr<mozIStorageResultSet> resultSet = mResultSet;
-  mResultSet = NULL;
-  Callback(resultSet);
+  if (aReason == mozIStorageStatementCallback::REASON_FINISHED) {
+    nsCOMPtr<mozIStorageResultSet> resultSet = mResultSet;
+    mResultSet = NULL;
+    Callback(resultSet);
+  }
   return NS_OK;
 }
 
@@ -173,7 +175,7 @@ public:
     mozilla::dom::ContentChild * cpc = 
       mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendStartVisitedQuery(IPC::URI(aURI));
+    (void)cpc->SendStartVisitedQuery(aURI);
     return NS_OK;
   }
 #endif
@@ -211,6 +213,10 @@ public:
 
   NS_IMETHOD HandleCompletion(PRUint16 aReason)
   {
+    if (aReason != mozIStorageStatementCallback::REASON_FINISHED) {
+      return NS_OK;
+    }
+
     if (mIsVisited) {
       History::GetService()->NotifyVisited(mURI);
     }
@@ -984,7 +990,7 @@ History::NotifyVisited(nsIURI* aURI)
     mozilla::dom::ContentParent* cpp = 
       mozilla::dom::ContentParent::GetSingleton(PR_FALSE);
     if (cpp)
-      (void)cpp->SendNotifyVisited(IPC::URI(aURI));
+      (void)cpp->SendNotifyVisited(aURI);
   }
 #endif
 
@@ -1089,7 +1095,7 @@ History::VisitURI(nsIURI* aURI,
     mozilla::dom::ContentChild * cpc = 
       mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendVisitURI(IPC::URI(aURI), IPC::URI(aLastVisitedURI), aFlags);
+    (void)cpc->SendVisitURI(aURI, aLastVisitedURI, aFlags);
     return NS_OK;
   } 
 #endif /* MOZ_IPC */
@@ -1268,7 +1274,7 @@ History::SetURITitle(nsIURI* aURI, const nsAString& aTitle)
     mozilla::dom::ContentChild * cpc = 
       mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendSetURITitle(IPC::URI(aURI), nsDependentString(aTitle));
+    (void)cpc->SendSetURITitle(aURI, nsDependentString(aTitle));
     return NS_OK;
   } 
 #endif /* MOZ_IPC */

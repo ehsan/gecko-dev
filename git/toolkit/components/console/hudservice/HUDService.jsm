@@ -25,6 +25,8 @@
  *   Rob Campbell <rcampbell@mozilla.com>
  *   Johnathan Nightingale <jnightingale@mozilla.com>
  *   Patrick Walton <pcwalton@mozilla.com>
+ *   Julian Viereck <jviereck@mozilla.com>
+ *   Mihai Șucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -72,14 +74,16 @@ function LogFactory(aMessagePrefix)
 
 let log = LogFactory("*** HUDService:");
 
-const ELEMENT_NS_URI = "http://www.w3.org/1999/xhtml";
-const ELEMENT_NS = "html:";
 const HUD_STYLESHEET_URI = "chrome://global/skin/headsUpDisplay.css";
 const HUD_STRINGS_URI = "chrome://global/locale/headsUpDisplay.properties";
 
 XPCOMUtils.defineLazyGetter(this, "stringBundle", function () {
   return Services.strings.createBundle(HUD_STRINGS_URI);
 });
+
+// The amount of time in milliseconds that must pass between messages to
+// trigger the display of a new group.
+const NEW_GROUP_DELAY = 5000;
 
 const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
                  "Missing arguments: aMessage, aConsoleNode and aMessageNode are required.",
@@ -199,14 +203,18 @@ HUD_SERVICE.prototype =
     var origOnerrorFunc = window.onerror;
     window.onerror = function windowOnError(aErrorMsg, aURL, aLineNumber)
     {
-      var lineNum = "";
-      if (aLineNumber) {
-        lineNum = self.getFormatStr("errLine", [aLineNumber]);
+      if (aURL && !(aURL in self.uriRegistry)) {
+        var lineNum = "";
+        if (aLineNumber) {
+          lineNum = self.getFormatStr("errLine", [aLineNumber]);
+        }
+        console.error(aErrorMsg + " @ " + aURL + " " + lineNum);
       }
-      console.error(aErrorMsg + " @ " + aURL + " " + lineNum);
+
       if (origOnerrorFunc) {
         origOnerrorFunc(aErrorMsg, aURL, aLineNumber);
       }
+
       return false;
     };
   },
@@ -313,6 +321,8 @@ HUD_SERVICE.prototype =
     while (outputNode.firstChild) {
       outputNode.removeChild(outputNode.firstChild);
     }
+
+    outputNode.lastTimestamp = 0;
   },
 
   /**
@@ -641,7 +651,7 @@ HUD_SERVICE.prototype =
   function HS_filterLogMessage(aFilterString, aMessageNode)
   {
     aFilterString = aFilterString.toLowerCase();
-    var messageText = aMessageNode.innerHTML.toLowerCase();
+    var messageText = aMessageNode.textContent.toLowerCase();
     var idx = messageText.indexOf(aFilterString);
     if (idx > -1) {
       return { strLength: aFilterString.length, strIndex: idx };
@@ -689,24 +699,26 @@ HUD_SERVICE.prototype =
       throw new Error(ERRORS.MISSING_ARGS);
     }
 
+    let lastGroupNode = this.appendGroupIfNecessary(aConsoleNode,
+                                                    aMessage.timestamp);
     if (aFilterString) {
       var filtered = this.filterLogMessage(aFilterString, aMessageNode);
       if (filtered) {
         // we have successfully filtered a message, we need to log it
-        aConsoleNode.appendChild(aMessageNode);
-        aMessageNode.scrollIntoView(false);
+        lastGroupNode.appendChild(aMessageNode);
+        ConsoleUtils.scrollToVisible(aMessageNode);
       }
       else {
         // we need to ignore this message by changing its css class - we are
         // still logging this, it is just hidden
         var hiddenMessage = ConsoleUtils.hideLogMessage(aMessageNode);
-        aConsoleNode.appendChild(hiddenMessage);
+        lastGroupNode.appendChild(hiddenMessage);
       }
     }
     else {
       // log everything
-      aConsoleNode.appendChild(aMessageNode);
-      aMessageNode.scrollIntoView(false);
+      lastGroupNode.appendChild(aMessageNode);
+      ConsoleUtils.scrollToVisible(aMessageNode);
     }
     // store this message in the storage module:
     this.storage.recordEntry(aMessage.hudId, aMessage);
@@ -729,7 +741,7 @@ HUD_SERVICE.prototype =
   {
     if (aFilterState){
       aConsoleNode.appendChild(aMessageNode);
-      aMessageNode.scrollIntoView(false);
+      ConsoleUtils.scrollToVisible(aMessageNode);
     }
     // store this message in the storage module:
     this.storage.recordEntry(aMessage.hudId, aMessage);
@@ -1197,6 +1209,51 @@ HUD_SERVICE.prototype =
   },
 
   /**
+   * Builds and appends a group to the console if enough time has passed since
+   * the last message.
+   *
+   * @param nsIDOMNode aConsoleNode
+   *        The DOM node that holds the output of the console (NB: not the HUD
+   *        node itself).
+   * @param number aTimestamp
+   *        The timestamp of the newest message in milliseconds.
+   * @returns nsIDOMNode
+   *          The group into which the next message should be written.
+   */
+  appendGroupIfNecessary:
+  function HS_appendGroupIfNecessary(aConsoleNode, aTimestamp)
+  {
+    let hudBox = aConsoleNode;
+    while (hudBox != null && hudBox.getAttribute("class") !== "hud-box") {
+      hudBox = hudBox.parentNode;
+    }
+
+    let lastTimestamp = hudBox.lastTimestamp;
+    let delta = aTimestamp - lastTimestamp;
+    hudBox.lastTimestamp = aTimestamp;
+    if (delta < NEW_GROUP_DELAY) {
+      // No new group needed. Return the most recently-added group, if there is
+      // one.
+      let lastGroupNode = aConsoleNode.querySelector(".hud-group:last-child");
+      if (lastGroupNode != null) {
+        return lastGroupNode;
+      }
+    }
+
+    let chromeDocument = aConsoleNode.ownerDocument;
+    let groupNode = chromeDocument.createElement("vbox");
+    groupNode.setAttribute("class", "hud-group");
+
+    let separatorNode = chromeDocument.createElement("separator");
+    separatorNode.setAttribute("class", "groove hud-divider");
+    separatorNode.setAttribute("orient", "horizontal");
+    groupNode.appendChild(separatorNode);
+
+    aConsoleNode.appendChild(groupNode);
+    return groupNode;
+  },
+
+  /**
    * update loadgroup when the window object is re-created
    *
    * @param string aId
@@ -1605,16 +1662,11 @@ function HeadsUpDisplay(aConfig)
     }
     this.parentNode = parentNode;
   }
-  // create XUL, HTML and textNode Factories:
-  try  {
-    this.HTMLFactory = NodeFactory("html", "html", this.chromeDocument);
-  }
-  catch(ex) {
-    Cu.reportError(ex);
-  }
 
-  this.XULFactory = NodeFactory("xul", "xul", this.chromeDocument);
+  // create textNode Factory:
   this.textFactory = NodeFactory("text", "xul", this.chromeDocument);
+
+  this.chromeWindow = HUDService.getChromeWindowFromContentWindow(this.contentWindow);
 
   // create a panel dynamically and attach to the parentNode
   let hudBox = this.createHUD();
@@ -1626,6 +1678,8 @@ function HeadsUpDisplay(aConfig)
                                     this.notificationBox.childNodes[1]);
 
   let console = this.createConsole();
+
+  this.HUDBox.lastTimestamp = 0;
 
   this.contentWindow.wrappedJSObject.console = console;
 
@@ -1699,9 +1753,15 @@ HeadsUpDisplay.prototype = {
   {
     this.hudId = this.HUDBox.getAttribute("id");
 
-    // set outputNode
     this.outputNode = this.HUDBox.querySelectorAll(".hud-output-node")[0];
 
+    this.contextMenu = this.HUDBox.querySelector("#" + this.hudId +
+        "-output-contextmenu");
+    this.copyOutputMenuItem = this.HUDBox.
+      querySelector("menuitem[command=cmd_copy]");
+
+    this.chromeWindow = HUDService.
+      getChromeWindowFromContentWindow(this.contentWindow);
     this.chromeDocument = this.HUDBox.ownerDocument;
 
     if (this.outputNode) {
@@ -1728,30 +1788,6 @@ HeadsUpDisplay.prototype = {
   },
 
   /**
-   * Shortcut to make HTML nodes
-   *
-   * @param string aTag
-   * @returns nsIDOMNode
-   */
-  makeHTMLNode:
-  function HUD_makeHTMLNode(aTag)
-  {
-    var element;
-
-    if (this.HTMLFactory) {
-      element = this.HTMLFactory(aTag);
-    }
-    else {
-      var ns = ELEMENT_NS;
-      var nsUri = ELEMENT_NS_URI;
-      var tag = ns + aTag;
-      element = this.chromeDocument.createElementNS(nsUri, tag);
-    }
-
-    return element;
-  },
-
-  /**
    * Shortcut to make XUL nodes
    *
    * @param string aTag
@@ -1760,19 +1796,7 @@ HeadsUpDisplay.prototype = {
   makeXULNode:
   function HUD_makeXULNode(aTag)
   {
-    return this.XULFactory(aTag);
-  },
-
-  /**
-   * Clears the HeadsUpDisplay output node of any log messages
-   *
-   * @returns void
-   */
-  clearConsoleOutput: function HUD_clearConsoleOutput()
-  {
-    for each (var node in this.outputNode.childNodes) {
-      this.outputNode.removeChild(node);
-    }
+    return this.chromeDocument.createElement(aTag);
   },
 
   /**
@@ -1803,9 +1827,11 @@ HeadsUpDisplay.prototype = {
     consoleWrap.setAttribute("class", "hud-console-wrapper");
     consoleWrap.setAttribute("flex", "1");
 
-    this.outputNode = this.makeXULNode("vbox");
+    this.outputNode = this.makeXULNode("scrollbox");
     this.outputNode.setAttribute("class", "hud-output-node");
     this.outputNode.setAttribute("flex", "1");
+    this.outputNode.setAttribute("orient", "vertical");
+    this.outputNode.setAttribute("context", this.hudId + "-output-contextmenu");
 
     this.filterSpacer = this.makeXULNode("spacer");
     this.filterSpacer.setAttribute("flex", "1");
@@ -1826,6 +1852,16 @@ HeadsUpDisplay.prototype = {
     var command = "HUDConsoleUI.command(this)";
     this.consoleClearButton.setAttribute("oncommand", command);
 
+    this.copyOutputMenuItem = this.makeXULNode("menuitem");
+    this.copyOutputMenuItem.setAttribute("label", this.getStr("copyCmd.label"));
+    this.copyOutputMenuItem.setAttribute("accesskey", this.getStr("copyCmd.accesskey"));
+    this.copyOutputMenuItem.setAttribute("key", "key_copy");
+    this.copyOutputMenuItem.setAttribute("command", "cmd_copy");
+
+    this.contextMenu = this.makeXULNode("menupopup");
+    this.contextMenu.setAttribute("id", this.hudId + "-output-contextmenu");
+    this.contextMenu.appendChild(this.copyOutputMenuItem);
+
     this.filterPrefs = HUDService.getDefaultFilterPrefs(this.hudId);
 
     let consoleFilterToolbar = this.makeFilterToolbar();
@@ -1834,7 +1870,14 @@ HeadsUpDisplay.prototype = {
     consoleWrap.appendChild(consoleFilterToolbar);
 
     consoleWrap.appendChild(this.outputNode);
+
+    // We want the context menu inside the console wrapper, but outside the
+    // outputNode.
+    outerWrap.appendChild(this.contextMenu);
+
     outerWrap.appendChild(consoleWrap);
+
+    this.HUDBox.lastTimestamp = 0;
 
     this.jsTermParentNode = outerWrap;
     this.HUDBox.appendChild(outerWrap);
@@ -1867,30 +1910,43 @@ HeadsUpDisplay.prototype = {
     let buttons = ["Network", "CSSParser", "Exception", "Error",
                    "Info", "Warn", "Log",];
 
+    const pageButtons = [
+      { prefKey: "network", name: "PageNet" },
+      { prefKey: "cssparser", name: "PageCSS" },
+      { prefKey: "exception", name: "PageJS" }
+    ];
+    const consoleButtons = [
+      { prefKey: "error", name: "ConsoleErrors" },
+      { prefKey: "warn", name: "ConsoleWarnings" },
+      { prefKey: "info", name: "ConsoleInfo" },
+      { prefKey: "log", name: "ConsoleLog" }
+    ];
+
     let toolbar = this.makeXULNode("toolbar");
     toolbar.setAttribute("class", "hud-console-filter-toolbar");
     toolbar.setAttribute("mode", "text");
 
     toolbar.appendChild(this.consoleClearButton);
-    let btn;
-    for (var i = 0; i < buttons.length; i++) {
-      if (buttons[i] == "Clear") {
-        btn = this.makeButton(buttons[i], "plain");
-      }
-      else {
-        btn = this.makeButton(buttons[i], "checkbox");
-      }
-      toolbar.appendChild(btn);
-    }
+
+    let pageCategoryTitle = this.getStr("categoryPage");
+    this.addButtonCategory(toolbar, pageCategoryTitle, pageButtons);
+
+    let separator = this.makeXULNode("separator");
+    separator.setAttribute("orient", "vertical");
+    toolbar.appendChild(separator);
+
+    let consoleCategoryTitle = this.getStr("categoryConsole");
+    this.addButtonCategory(toolbar, consoleCategoryTitle, consoleButtons);
+
     toolbar.appendChild(this.filterSpacer);
     toolbar.appendChild(this.filterBox);
     return toolbar;
   },
 
-  makeButton: function HUD_makeButton(aName, aType)
+  makeButton: function HUD_makeButton(aName, aPrefKey, aType)
   {
     var self = this;
-    let prefKey = aName.toLowerCase();
+    let prefKey = aPrefKey;
 
     let btn;
     if (aType == "checkbox") {
@@ -1921,6 +1977,30 @@ HeadsUpDisplay.prototype = {
       btn.setAttribute("oncommand", command);
     }
     return btn;
+  },
+
+  /**
+   * Appends a category title and a series of buttons to the filter bar.
+   *
+   * @param nsIDOMNode aToolbar
+   *        The DOM node to which to add the category.
+   * @param string aTitle
+   *        The title for the category.
+   * @param Array aButtons
+   *        The buttons, specified as objects with "name" and "prefKey"
+   *        properties.
+   * @returns nsIDOMNode
+   */
+  addButtonCategory: function(aToolbar, aTitle, aButtons) {
+    let lbl = this.makeXULNode("label");
+    lbl.setAttribute("class", "hud-filter-cat");
+    lbl.setAttribute("value", aTitle);
+    aToolbar.appendChild(lbl);
+
+    for (let i = 0; i < aButtons.length; i++) {
+      let btn = aButtons[i];
+      aToolbar.appendChild(this.makeButton(btn.name, btn.prefKey, "checkbox"));
+    }
   },
 
   createHUD: function HUD_createHUD()
@@ -1987,7 +2067,6 @@ function HUDConsole(aHeadsUpDisplay)
   let hudId = hud.hudId;
   let outputNode = hud.outputNode;
   let chromeDocument = hud.chromeDocument;
-  let makeHTMLNode = hud.makeHTMLNode;
 
   aHeadsUpDisplay._console = this;
 
@@ -2004,7 +2083,7 @@ function HUDConsole(aHeadsUpDisplay)
     }
 
     let ts = ConsoleUtils.timestamp();
-    let messageNode = hud.makeHTMLNode("div");
+    let messageNode = hud.makeXULNode("label");
 
     let klass = "hud-msg-node hud-" + aLevel;
 
@@ -2062,17 +2141,14 @@ function HUDConsole(aHeadsUpDisplay)
 };
 
 /**
- * Creates a DOM Node factory for either XUL nodes or HTML nodes - as
- * well as textNodes
+ * Creates a DOM Node factory for XUL nodes - as well as textNodes
  * @param   aFactoryType
- *          "xul" or "html"
+ *          "xul" or "text"
  * @returns DOM Node Factory function
  */
 function NodeFactory(aFactoryType, aNameSpace, aDocument)
 {
   // aDocument is presumed to be a XULDocument
-  const ELEMENT_NS_URI = "http://www.w3.org/1999/xhtml";
-
   if (aFactoryType == "text") {
     function factory(aText) {
       return aDocument.createTextNode(aText);
@@ -2084,14 +2160,6 @@ function NodeFactory(aFactoryType, aNameSpace, aDocument)
       function factory(aTag)
       {
         return aDocument.createElement(aTag);
-      }
-      return factory;
-    }
-    else {
-      function factory(aTag)
-      {
-        var tag = "html:" + aTag;
-        return aDocument.createElementNS(ELEMENT_NS_URI, tag);
       }
       return factory;
     }
@@ -2344,9 +2412,6 @@ function JSTerm(aContext, aParentNode, aMixin)
   this.parentNode = aParentNode;
   this.mixins = aMixin;
 
-  this.elementFactory =
-    NodeFactory("html", "html", aParentNode.ownerDocument);
-
   this.xulElementFactory =
     NodeFactory("xul", "xul", aParentNode.ownerDocument);
 
@@ -2372,9 +2437,10 @@ JSTerm.prototype = {
   {
     this.createSandbox();
     this.inputNode = this.mixins.inputNode;
-    this.scrollToNode = this.mixins.scrollToNode;
-    let eventHandler = this.keyDown();
-    this.inputNode.addEventListener('keypress', eventHandler, false);
+    let eventHandlerKeyDown = this.keyDown();
+    this.inputNode.addEventListener('keypress', eventHandlerKeyDown, false);
+    let eventHandlerInput = this.inputEventHandler();
+    this.inputNode.addEventListener('input', eventHandlerInput, false);
     this.outputNode = this.mixins.outputNode;
     if (this.mixins.cssClassOverride) {
       this.cssClassOverride = this.mixins.cssClassOverride;
@@ -2465,7 +2531,10 @@ JSTerm.prototype = {
    */
   writeOutput: function JST_writeOutput(aOutputMessage, aIsInput)
   {
-    var node = this.elementFactory("div");
+    let lastGroupNode = HUDService.appendGroupIfNecessary(this.outputNode,
+                                                          Date.now());
+
+    var node = this.xulElementFactory("label");
     if (aIsInput) {
       node.setAttribute("class", "jsterm-input-line");
       aOutputMessage = "> " + aOutputMessage;
@@ -2483,8 +2552,9 @@ JSTerm.prototype = {
 
     var textNode = this.textFactory(aOutputMessage);
     node.appendChild(textNode);
-    this.outputNode.appendChild(node);
-    node.scrollIntoView(false);
+
+    lastGroupNode.appendChild(node);
+    ConsoleUtils.scrollToVisible(node);
   },
 
   clearOutput: function JST_clearOutput()
@@ -2494,6 +2564,18 @@ JSTerm.prototype = {
     while (outputNode.firstChild) {
       outputNode.removeChild(outputNode.firstChild);
     }
+
+    outputNode.lastTimestamp = 0;
+  },
+
+  inputEventHandler: function JSTF_inputEventHandler()
+  {
+    var self = this;
+    function handleInputEvent(aEvent) {
+      self.inputNode.setAttribute("rows",
+        Math.min(8, self.inputNode.value.split("\n").length));
+    }
+    return handleInputEvent;
   },
 
   keyDown: function JSTF_keyDown(aEvent)
@@ -2539,6 +2621,7 @@ JSTerm.prototype = {
           case 13:
             // return
             self.execute();
+            aEvent.preventDefault();
             break;
           case 38:
             // up arrow: history previous
@@ -2653,7 +2736,7 @@ JSTerm.prototype = {
   {
     var firstLineBreak = this.codeInputString.indexOf("\n");
     return ((firstLineBreak == -1) ||
-            (this.codeInputString.selectionStart <= firstLineBreak));
+            (this.inputNode.selectionStart <= firstLineBreak));
   },
 
   caretInLastLine: function JSTF_caretInLastLine()
@@ -2697,6 +2780,10 @@ JSTerm.prototype = {
   {
     let inputNode = this.inputNode;
     let inputValue = inputNode.value;
+    // If the inputNode has no value, then don't try to complete on it.
+    if (!inputValue) {
+      return;
+    }
     let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
 
     // 'Normalize' the selection so that end is always after start.
@@ -2803,9 +2890,6 @@ JSTermFirefoxMixin(aContext,
   this.setTimeout = aParentNode.ownerDocument.defaultView.setTimeout;
 
   if (aParentNode.ownerDocument) {
-    this.elementFactory =
-      NodeFactory("html", "html", aParentNode.ownerDocument);
-
     this.xulElementFactory =
       NodeFactory("xul", "xul", aParentNode.ownerDocument);
 
@@ -2829,25 +2913,22 @@ JSTermFirefoxMixin.prototype = {
   {
     let inputNode = this.xulElementFactory("textbox");
     inputNode.setAttribute("class", "jsterm-input-node");
+    inputNode.setAttribute("multiline", "true");
+    inputNode.setAttribute("rows", "1");
 
     if (this.existingConsoleNode == undefined) {
       // create elements
-      let term = this.elementFactory("div");
+      let term = this.xulElementFactory("vbox");
       term.setAttribute("class", "jsterm-wrapper-node");
       term.setAttribute("flex", "1");
 
-      let outputNode = this.elementFactory("div");
+      let outputNode = this.xulElementFactory("vbox");
       outputNode.setAttribute("class", "jsterm-output-node");
 
-      let scrollToNode = this.elementFactory("div");
-      scrollToNode.setAttribute("class", "jsterm-scroll-to-node");
-
       // construction
-      outputNode.appendChild(scrollToNode);
       term.appendChild(outputNode);
       term.appendChild(inputNode);
 
-      this.scrollToNode = scrollToNode;
       this.outputNode = outputNode;
       this.inputNode = inputNode;
       this.term = term;
@@ -2892,9 +2973,6 @@ function LogMessage(aMessage, aLevel, aOutputNode, aActivityObject)
   this.level = aLevel;
   this.origin = aMessage.origin;
 
-  this.elementFactory =
-  NodeFactory("html", "html", aOutputNode.ownerDocument);
-
   this.xulElementFactory =
   NodeFactory("xul", "xul", aOutputNode.ownerDocument);
 
@@ -2912,7 +2990,7 @@ LogMessage.prototype = {
    */
   createLogNode: function LM_createLogNode()
   {
-    this.messageNode = this.elementFactory("div");
+    this.messageNode = this.xulElementFactory("label");
 
     var ts = ConsoleUtils.timestamp();
     var timestampedMessage = ConsoleUtils.timestampString(ts) + ": " +
@@ -3056,21 +3134,37 @@ ConsoleUtils = {
     klass += " hud-hidden";
     aMessageNode.setAttribute("class", klass);
     return aMessageNode;
+  },
+
+  /**
+   * Scrolls a node so that it's visible in its containing XUL "scrollbox"
+   * element.
+   *
+   * @param nsIDOMNode aNode
+   *        The node to make visible.
+   * @returns void
+   */
+  scrollToVisible: function ConsoleUtils_scrollToVisible(aNode) {
+    let scrollBoxNode = aNode.parentNode;
+    while (scrollBoxNode.tagName !== "scrollbox") {
+      scrollBoxNode = scrollBoxNode.parentNode;
+    }
+
+    let boxObject = scrollBoxNode.boxObject;
+    let nsIScrollBoxObject = boxObject.QueryInterface(Ci.nsIScrollBoxObject);
+    nsIScrollBoxObject.ensureElementIsVisible(aNode);
   }
 };
 
 /**
- * Creates a DOM Node factory for either XUL nodes or HTML nodes - as
- * well as textNodes
+ * Creates a DOM Node factory for XUL nodes - as well as textNodes
  * @param   aFactoryType
- *          "xul", "html" or "text"
+ *          "xul" or "text"
  * @returns DOM Node Factory function
  */
 function NodeFactory(aFactoryType, aNameSpace, aDocument)
 {
   // aDocument is presumed to be a XULDocument
-  const ELEMENT_NS_URI = "http://www.w3.org/1999/xhtml";
-
   if (aFactoryType == "text") {
     function factory(aText) {
       return aDocument.createTextNode(aText);
@@ -3081,13 +3175,6 @@ function NodeFactory(aFactoryType, aNameSpace, aDocument)
     if (aNameSpace == "xul") {
       function factory(aTag) {
         return aDocument.createElement(aTag);
-      }
-      return factory;
-    }
-    else {
-      function factory(aTag) {
-        var tag = "html:" + aTag;
-        return aDocument.createElementNS(ELEMENT_NS_URI, tag);
       }
       return factory;
     }

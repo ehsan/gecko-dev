@@ -51,6 +51,7 @@
 #include "nsCSSParser.h"
 #include "mozilla/css/Loader.h"
 #include "nsIDOMMutationEvent.h"
+#include "nsXULElement.h"
 
 #ifdef MOZ_SVG
 #include "nsIDOMSVGStylable.h"
@@ -173,7 +174,7 @@ nsStyledElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
     modification = !!mAttrsAndChildren.GetAttr(nsGkAtoms::style);
   }
 
-  nsAttrValue attrValue(aStyleRule);
+  nsAttrValue attrValue(aStyleRule, nsnull);
 
   // XXXbz do we ever end up with ADDITION here?  I doubt it.
   PRUint8 modType = modification ?
@@ -235,11 +236,19 @@ nsStyledElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 // ---------------------------------------------------------------
 // Others and helpers
 
-nsresult
-nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
+nsIDOMCSSStyleDeclaration*
+nsStyledElement::GetStyle(nsresult* retval)
 {
+  nsXULElement* xulElement = nsXULElement::FromContent(this);
+  if (xulElement) {
+    nsresult rv = xulElement->EnsureLocalStyle();
+    if (NS_FAILED(rv)) {
+      *retval = rv;
+      return nsnull;
+    }
+  }
+    
   nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
-  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
   if (!slots->mStyle) {
     // Just in case...
@@ -250,13 +259,11 @@ nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
                                                      , PR_FALSE
 #endif // MOZ_SMIL
                                                      );
-    NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
     SetFlags(NODE_MAY_HAVE_STYLE);
   }
 
-  // Why bother with QI?
-  NS_ADDREF(*aStyle = slots->mStyle);
-  return NS_OK;
+  *retval = NS_OK;
+  return slots->mStyle;
 }
 
 nsresult
@@ -315,7 +322,7 @@ nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
                                       NodePrincipal(),
                                       getter_AddRefs(rule));
         if (rule) {
-          aResult.SetTo(rule);
+          aResult.SetTo(rule, &aValue);
           return;
         }
       }

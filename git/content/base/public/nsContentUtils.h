@@ -1497,12 +1497,14 @@ public:
   /**
    * Convert ASCII A-Z to a-z.
    */
+  static void ASCIIToLower(nsAString& aStr);
   static void ASCIIToLower(const nsAString& aSource, nsAString& aDest);
 
   /**
    * Convert ASCII a-z to A-Z.
    */
   static void ASCIIToUpper(nsAString& aStr);
+  static void ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
 
   static nsIInterfaceRequestor* GetSameOriginChecker();
 
@@ -1674,6 +1676,23 @@ public:
    */
   static PRBool IsFocusedContent(nsIContent *aContent);
 
+#ifdef MOZ_IPC
+#ifdef ANDROID
+  static void SetActiveFrameLoader(nsFrameLoader *aFrameLoader)
+  {
+    sActiveFrameLoader = aFrameLoader;
+  }
+
+  static void ClearActiveFrameLoader(const nsFrameLoader *aFrameLoader)
+  {
+    if (sActiveFrameLoader == aFrameLoader)
+      sActiveFrameLoader = nsnull;
+  }
+
+  static already_AddRefed<nsFrameLoader> GetActiveFrameLoader();
+#endif
+#endif
+
 private:
 
   static PRBool InitializeEventTable();
@@ -1763,6 +1782,12 @@ private:
   static nsIInterfaceRequestor* sSameOriginChecker;
 
   static PRBool sIsHandlingKeyBoardEvent;
+
+#ifdef MOZ_IPC
+#ifdef ANDROID
+  static nsFrameLoader *sActiveFrameLoader;
+#endif
+#endif
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \

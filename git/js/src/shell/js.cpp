@@ -1059,6 +1059,14 @@ PutStr(JSContext *cx, uintN argc, jsval *vp)
 }
 
 static JSBool
+Now(JSContext *cx, uintN argc, jsval *vp)
+{
+    jsdouble now = PRMJ_Now() / double(PRMJ_USEC_PER_MSEC);
+    JS_SET_RVAL(cx, vp, DOUBLE_TO_JSVAL(now));
+    return true;
+}
+
+static JSBool
 Print(JSContext *cx, uintN argc, jsval *vp)
 {
     jsval *argv;
@@ -2187,6 +2195,18 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
     return JS_FALSE;
 }
 
+JSBool
+DumpObject(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+{
+    JSObject *arg0 = NULL;
+    if (!JS_ConvertArguments(cx, argc, argv, "o", &arg0))
+        return JS_FALSE;
+
+    js_DumpObject(arg0);
+
+    return JS_TRUE;
+}
+
 #endif /* DEBUG */
 
 #ifdef TEST_CVTARGS
@@ -2862,7 +2882,7 @@ split_create_outer(JSContext *cx)
     cpx->outer = NULL;
 
     obj = JS_NewGlobalObject(cx, Jsvalify(&split_global_class));
-    if (!obj || !JS_SetParent(cx, obj, NULL)) {
+    if (!obj) {
         JS_free(cx, cpx);
         return NULL;
     }
@@ -2892,7 +2912,7 @@ split_create_inner(JSContext *cx, JSObject *outer)
     cpx->outer = outer;
 
     obj = JS_NewGlobalObject(cx, Jsvalify(&split_global_class));
-    if (!obj || !JS_SetParent(cx, obj, NULL) || !JS_SetPrivate(cx, obj, cpx)) {
+    if (!obj || !JS_SetPrivate(cx, obj, cpx)) {
         JS_free(cx, cpx);
         return NULL;
     }
@@ -3870,6 +3890,35 @@ Snarf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
+static JSBool
+Snarl(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+{
+    if (argc < 1) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
+                             "compile", "0", "s");
+    }
+
+    jsval arg0 = argv[0];
+    if (!JSVAL_IS_STRING(arg0)) {
+        const char *typeName = JS_GetTypeName(cx, JS_TypeOfValue(cx, arg0));
+        JS_ReportError(cx, "expected string to compile, got %s", typeName);
+        return JS_FALSE;
+    }
+
+    JSString *scriptContents = JSVAL_TO_STRING(arg0);
+    JSScript *script = JS_CompileUCScript(cx, NULL, JS_GetStringCharsZ(cx, scriptContents),
+                                          JS_GetStringLength(scriptContents), "<string>", 0);
+    if (!script)
+        return JS_FALSE;
+
+    JS_ExecuteScript(cx, obj, script, NULL);
+    JS_DestroyScript(cx, script);
+
+    return JS_TRUE;
+}
+
+
+
 JSBool
 Wrap(JSContext *cx, uintN argc, jsval *vp)
 {
@@ -3897,6 +3946,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("readline",       ReadLine,       0,0),
     JS_FN("print",          Print,          0,0),
     JS_FN("putstr",         PutStr,         0,0),
+    JS_FN("dateNow",        Now,            0,0),
     JS_FS("help",           Help,           0,0,0),
     JS_FS("quit",           Quit,           0,0,0),
     JS_FN("assertEq",       AssertEq,       2,0),
@@ -3922,6 +3972,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FS("disfile",        DisassFile,     1,0,0),
     JS_FS("dissrc",         DisassWithSrc,  1,0,0),
     JS_FN("dumpHeap",       DumpHeap,       0,0),
+    JS_FS("dumpObject",     DumpObject,     1,0,0),
     JS_FS("notes",          Notes,          1,0,0),
     JS_FS("tracing",        Tracing,        0,0,0),
     JS_FS("stats",          DumpStats,      1,0,0),
@@ -3969,6 +4020,8 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("scatter",        Scatter,        1,0),
 #endif
     JS_FS("snarf",          Snarf,        0,0,0),
+    JS_FS("snarl",          Snarl,        0,0,0),
+    JS_FS("read",           Snarf,        0,0,0),
     JS_FN("compile",        Compile,        1,0),
     JS_FN("parse",          Parse,          1,0),
     JS_FN("timeout",        Timeout,        1,0),
@@ -3989,6 +4042,7 @@ static const char *const shell_help_messages[] = {
 "readline()               Read a single line from stdin",
 "print([exp ...])         Evaluate and print expressions",
 "putstr([exp])            Evaluate and print expression without newline",
+"dateNow()                    Return the current time with sub-ms precision",
 "help([name ...])         Display usage and help messages",
 "quit()                   Quit the shell",
 "assertEq(actual, expected[, msg])\n"
@@ -4024,6 +4078,7 @@ static const char *const shell_help_messages[] = {
 "dissrc([fun])            Disassemble functions with source lines",
 "dumpHeap([fileName[, start[, toFind[, maxDepth[, toIgnore]]]]])\n"
 "  Interface to JS_DumpHeap with output sent to file",
+"dumpObject()             Dump an internal representation of an object",
 "notes([fun])             Show source notes for functions",
 "tracing([true|false|filename]) Turn bytecode execution tracing on/off.\n"
 "                         With filename, send to file.\n",
@@ -4079,6 +4134,8 @@ static const char *const shell_help_messages[] = {
 "scatter(fns)             Call functions concurrently (ignoring errors)",
 #endif
 "snarf(filename)          Read filename into returned string",
+"snarl(codestring)        Eval code, without being eval.",
+"read(filename)           Synonym for snarf",
 "compile(code)            Compiles a string to bytecode, potentially throwing",
 "parse(code)              Parses a string, potentially throwing",
 "timeout([seconds])\n"
@@ -5061,7 +5118,7 @@ main(int argc, char **argv, char **envp)
     CALIBRATION_DELAY_COUNT = 0;
 #endif
 
-    rt = JS_NewRuntime(64L * 1024L * 1024L);
+    rt = JS_NewRuntime(128L * 1024L * 1024L);
     if (!rt)
         return 1;
 

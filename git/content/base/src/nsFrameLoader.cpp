@@ -90,6 +90,7 @@
 #include "nsEventDispatcher.h"
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
+#include "nsIDocShellHistory.h"
 #include "nsIDOMNSHTMLDocument.h"
 #include "nsIXULWindow.h"
 
@@ -190,7 +191,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameLoader)
 NS_INTERFACE_MAP_END
 
 nsFrameLoader*
-nsFrameLoader::Create(nsIContent* aOwner)
+nsFrameLoader::Create(nsIContent* aOwner, PRBool aNetworkCreated)
 {
   NS_ENSURE_TRUE(aOwner, nsnull);
   nsIDocument* doc = aOwner->GetOwnerDoc();
@@ -199,7 +200,7 @@ nsFrameLoader::Create(nsIContent* aOwner)
                    doc->IsStaticDocument()),
                  nsnull);
 
-  return new nsFrameLoader(aOwner);
+  return new nsFrameLoader(aOwner, aNetworkCreated);
 }
 
 NS_IMETHODIMP
@@ -662,7 +663,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
 
 #ifdef MOZ_IPC
   if (mRemoteFrame) {
-    contentType = eContentTypeUI;
+    contentType = eContentTypeContent;
   }
   else
 #endif
@@ -1170,8 +1171,14 @@ nsFrameLoader::DestroyChild()
 {
 #ifdef MOZ_IPC
   if (mRemoteBrowser) {
+#ifdef ANDROID
+    nsContentUtils::ClearActiveFrameLoader(this);
+#endif
     mRemoteBrowser->SetOwnerElement(nsnull);
-    unused << PBrowserParent::Send__delete__(mRemoteBrowser);
+    // If this fails, it's most likely due to a content-process crash,
+    // and auto-cleanup will kick in.  Otherwise, the child side will
+    // destroy itself and send back __delete__().
+    unused << mRemoteBrowser->SendDestroy();
     mRemoteBrowser = nsnull;
   }
 #endif
@@ -1193,17 +1200,27 @@ nsFrameLoader::Destroy()
   }
 
   nsCOMPtr<nsIDocument> doc;
+  PRBool dynamicSubframeRemoval = PR_FALSE;
   if (mOwnerContent) {
     doc = mOwnerContent->GetOwnerDoc();
 
     if (doc) {
+      dynamicSubframeRemoval = !mIsTopLevelContent && !doc->InUnlinkOrDeletion();
       doc->SetSubDocumentFor(mOwnerContent, nsnull);
     }
 
     mOwnerContent = nsnull;
   }
   DestroyChild();
-  
+
+  // Seems like this is a dynamic frame removal.
+  if (dynamicSubframeRemoval) {
+    nsCOMPtr<nsIDocShellHistory> dhistory = do_QueryInterface(mDocShell);
+    if (dhistory) {
+      dhistory->RemoveFromSessionHistory();
+    }
+  }
+
   // Let the tree owner know we're gone.
   if (mIsTopLevelContent) {
     nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(mDocShell);
@@ -1325,6 +1342,13 @@ nsFrameLoader::MaybeCreateDocShell()
   // Create the docshell...
   mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
+
+  if (!mNetworkCreated) {
+    nsCOMPtr<nsIDocShellHistory> history = do_QueryInterface(mDocShell);
+    if (history) {
+      history->SetCreatedDynamically(PR_TRUE);
+    }
+  }
 
   // Get the frame name and tell the docshell about it.
   nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(mDocShell));
@@ -1702,6 +1726,9 @@ nsFrameLoader::ActivateRemoteFrame() {
 #ifdef MOZ_IPC
   if (mRemoteBrowser) {
     mRemoteBrowser->Activate();
+#ifdef ANDROID
+    nsContentUtils::SetActiveFrameLoader(this);
+#endif
     return NS_OK;
   }
 #endif
@@ -1885,6 +1912,15 @@ nsFrameLoader::EnsureMessageManager()
   if (NS_FAILED(rv)) {
     return rv;
   }
+
+  if (!mIsTopLevelContent
+#ifdef MOZ_IPC
+      && !mRemoteFrame
+#endif
+      ) {
+    return NS_OK;
+  }
+
   if (mMessageManager) {
 #ifdef MOZ_IPC
     if (ShouldUseRemoteProcess()) {

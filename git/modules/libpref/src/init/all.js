@@ -60,7 +60,7 @@ pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
 #ifndef WINCE
-pref("browser.cache.disk.capacity",         51200);
+pref("browser.cache.disk.capacity",         256000);
 #else
 pref("browser.cache.disk.capacity",         20000);
 #endif
@@ -222,6 +222,7 @@ pref("accessibility.tabfocus_applies_to_xul", true);
 pref("accessibility.usetexttospeech", "");
 pref("accessibility.usebrailledisplay", "");
 pref("accessibility.accesskeycausesactivation", true);
+pref("accessibility.mouse_focuses_formcontrol", false);
 
 // Type Ahead Find
 pref("accessibility.typeaheadfind", true);
@@ -1258,13 +1259,17 @@ pref("editor.positioning.offset",            0);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
+#ifndef DEBUG
 // How long a plugin is allowed to process a synchronous IPC message
 // before we consider it "hung".
-#ifndef DEBUG
 pref("dom.ipc.plugins.timeoutSecs", 45);
+// How long a plugin launch is allowed to take before
+// we consider it failed.
+pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
 #else
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
+pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
 #endif
 
 #ifndef ANDROID
@@ -3128,7 +3133,7 @@ pref("image.mem.min_discard_timeout_ms", 10000);
 
 // WebGL prefs
 pref("webgl.enabled_for_all_sites", false);
-pref("webgl.shader_validator", false);
+pref("webgl.shader_validator", true);
 pref("webgl.software_render", false);
 pref("webgl.osmesalib", "");
 
