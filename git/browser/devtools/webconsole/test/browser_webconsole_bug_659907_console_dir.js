@@ -9,48 +9,37 @@
 function test() {
   addTab("data:text/html;charset=utf-8,Web Console test for bug 659907: Expand console " +
          "object with a dir method");
-  browser.addEventListener("load", function onLoad(aEvent) {
-    browser.removeEventListener(aEvent.type, onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("load", onLoad, true);
 }
 
-function consoleOpened(hud) {
+function onLoad(aEvent) {
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
+
+  openConsole();
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hud = HUDService.hudReferences[hudId];
   outputNode = hud.outputNode;
   content.console.dir(content.document);
-  waitForSuccess({
-    name: "console.dir displayed",
-    validatorFn: function()
-    {
-      return outputNode.textContent.indexOf("[object HTMLDocument") > -1;
-    },
-    successFn: testConsoleDir.bind(null, outputNode),
-    failureFn: finishTest,
-  });
-}
-
-function testConsoleDir(outputNode) {
+  findLogEntry("[object HTMLDocument");
   let msg = outputNode.querySelectorAll(".webconsole-msg-inspector");
   is(msg.length, 1, "one message node displayed");
-  let view = msg[0].propertyTreeView;
+  let rows = msg[0].propertyTreeView._rows;
   let foundQSA = false;
   let foundLocation = false;
   let foundWrite = false;
-  for (let i = 0; i < view.rowCount; i++) {
-    let text = view.getCellText(i);
-    if (text == "querySelectorAll: function querySelectorAll()") {
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].display == "querySelectorAll: function querySelectorAll()") {
       foundQSA = true;
     }
-    else if (text  == "location: Object") {
+    else if (rows[i].display  == "location: Object") {
       foundLocation = true;
     }
-    else if (text  == "write: function write()") {
+    else if (rows[i].display  == "write: function write()") {
       foundWrite = true;
     }
   }
   ok(foundQSA, "found document.querySelectorAll");
   ok(foundLocation, "found document.location");
   ok(foundWrite, "found document.write");
-  msg = view = outputNode = null;
-  executeSoon(finishTest);
+  finishTest();
 }

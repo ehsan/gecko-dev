@@ -88,7 +88,7 @@ function onLoad() {
       is(hudRef.positionMenuitems.below.getAttribute("checked"), "true",
          "position menu checkbox is below");
 
-      executeSoon(finishTest);
+      finishTest();
     }, false);
 
     let diffHeight = Math.abs(hudBox.clientHeight - boxHeight);

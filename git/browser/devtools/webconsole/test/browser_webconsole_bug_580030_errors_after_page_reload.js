@@ -51,26 +51,33 @@ function test() {
 // see bug 580030: the error handler fails silently after page reload.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=580030
 function onLoad(aEvent) {
-  browser.removeEventListener(aEvent.type, onLoad, true);
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  openConsole(null, function(hud) {
-    hud.jsterm.clearOutput();
-    browser.addEventListener("load", testErrorsAfterPageReload, true);
+  openConsole();
+
+  browser.addEventListener("load", testErrorsAfterPageReload, true);
+  executeSoon(function() {
     content.location.reload();
   });
 }
 
 function testErrorsAfterPageReload(aEvent) {
-  browser.removeEventListener(aEvent.type, testErrorsAfterPageReload, true);
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
 
   // dispatch a click event to the button in the test page and listen for
   // errors.
 
   Services.console.registerListener(consoleObserver);
 
-  let button = content.document.querySelector("button").wrappedJSObject;
-  ok(button, "button found");
-  EventUtils.sendMouseEvent({type: "click"}, button, content);
+  var button = content.document.querySelector("button").wrappedJSObject;
+  var clickEvent = content.document.createEvent("MouseEvents");
+  clickEvent.initMouseEvent("click", true, true,
+    content, 0, 0, 0, 0, 0, false, false,
+    false, false, 0, null);
+
+  executeSoon(function() {
+    button.dispatchEvent(clickEvent);
+  });
 }
 
 var consoleObserver = {
@@ -88,14 +95,10 @@ var consoleObserver = {
 
     let outputNode = HUDService.getHudByWindow(content).outputNode;
 
-    waitForSuccess({
-      name: "error message after page reload",
-      validatorFn: function()
-      {
-        return outputNode.textContent.indexOf("fooBazBaz") > -1;
-      },
-      successFn: finishTest,
-      failureFn: finishTest,
+    executeSoon(function() {
+      let msg = "Found the error message after page reload";
+      testLogEntry(outputNode, "fooBazBaz", msg);
+      finishTest();
     });
   }
 };

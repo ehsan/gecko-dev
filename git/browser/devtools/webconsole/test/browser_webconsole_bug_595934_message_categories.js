@@ -89,12 +89,12 @@ const TESTS = [
     category: "Image",
     matchString: "corrupt",
   },
-  { // #15
+  /* Disabled until bug 675221 lands.
+  { // #7
     file: "test-bug-595934-workers.html",
     category: "Web Worker",
     matchString: "fooBarWorker",
-    expectError: true,
-  },
+  },*/
 ];
 
 let pos = -1;
@@ -103,14 +103,13 @@ let foundCategory = false;
 let foundText = false;
 let output = null;
 let jsterm = null;
-let testEnded = false;
 
 let TestObserver = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
 
   observe: function test_observe(aSubject)
   {
-    if (testEnded || !(aSubject instanceof Ci.nsIScriptError)) {
+    if (!(aSubject instanceof Ci.nsIScriptError)) {
       return;
     }
 
@@ -126,20 +125,23 @@ let TestObserver = {
     else {
       ok(false, aSubject.sourceName + ':' + aSubject.lineNumber + '; ' +
                 aSubject.errorMessage);
-      testEnded = true;
-      executeSoon(finishTest);
+      executeSoon(finish);
     }
   }
 };
 
-function consoleOpened(hud) {
+function tabLoad(aEvent) {
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
+
+  openConsole();
+
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hud = HUDService.hudReferences[hudId];
   output = hud.outputNode;
   output.addEventListener("DOMNodeInserted", onDOMNodeInserted, false);
   jsterm = hud.jsterm;
 
   Services.console.registerListener(TestObserver);
-
-  registerCleanupFunction(testEnd);
 
   executeSoon(testNext);
 }
@@ -154,30 +156,27 @@ function testNext() {
     let test = TESTS[pos];
     let testLocation = TESTS_PATH + test.file;
     if (test.onload) {
-      browser.addEventListener("load", function onLoad(aEvent) {
+      browser.addEventListener("load", function(aEvent) {
         if (content.location.href == testLocation) {
-          browser.removeEventListener(aEvent.type, onLoad, true);
+          browser.removeEventListener(aEvent.type, arguments.callee, true);
           test.onload(aEvent);
         }
       }, true);
     }
 
-    if (test.expectError) {
-      expectUncaughtException();
-    }
-
     content.location = testLocation;
   }
   else {
-    testEnded = true;
-    executeSoon(finishTest);
+    executeSoon(finish);
   }
 }
 
 function testEnd() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
   Services.console.unregisterListener(TestObserver);
   output.removeEventListener("DOMNodeInserted", onDOMNodeInserted, false);
-  TestObserver = output = jsterm = null;
+  output = jsterm = null;
+  finishTest();
 }
 
 function onDOMNodeInserted(aEvent) {
@@ -193,10 +192,10 @@ function onDOMNodeInserted(aEvent) {
 }
 
 function test() {
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
+  registerCleanupFunction(testEnd);
+
   addTab("data:text/html;charset=utf-8,Web Console test for bug 595934 - message categories coverage.");
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("load", tabLoad, true);
 }
 

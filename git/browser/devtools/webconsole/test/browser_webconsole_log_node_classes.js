@@ -45,15 +45,17 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 
 function test() {
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("DOMContentLoaded", testLogNodeClasses, false);
 }
 
-function consoleOpened(aHud) {
-  let console = content.console;
-  outputNode = aHud.outputNode;
+function testLogNodeClasses() {
+  browser.removeEventListener("DOMContentLoaded", testLogNodeClasses,
+                              false);
+
+  openConsole();
+
+  let console = browser.contentWindow.wrappedJSObject.console;
+  let outputNode = HUDService.getHudByWindow(content).outputNode;
 
   ok(console, "console exists");
   console.log("I am a log message");
@@ -61,19 +63,8 @@ function consoleOpened(aHud) {
   console.info("I am an info message");
   console.warn("I am a warning  message");
 
-  waitForSuccess({
-    name: "console.warn displayed",
-    validatorFn: function()
-    {
-      return aHud.outputNode.textContent.indexOf("a warning") > -1;
-    },
-    successFn: testLogNodeClasses,
-    failureFn: finishTest,
-  });
-}
-
-function testLogNodeClasses() {
-  let domLogEntries = outputNode.childNodes;
+  let domLogEntries =
+    outputNode.childNodes;
 
   let count = outputNode.childNodes.length;
   ok(count > 0, "LogCount: " + count);

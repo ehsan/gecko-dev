@@ -104,13 +104,7 @@ const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
  *   // Is a node highlightable.
  *   boolean isNodeHighlightable(aNode);
  *
- *   // Show/hide the veil and the infobar
- *   void showInfobar();
- *   void hideInfobar();
- *   void showVeil();
- *   void hideVeil();
- *
- *   // Add/Remove listeners
+ *   // Add/Remove lsiteners
  *   // @param aEvent - event name
  *   // @param aListener - function callback
  *   void addListener(aEvent, aListener);
@@ -177,7 +171,6 @@ Highlighter.prototype = {
     // The veil will make the whole page darker except
     // for the region of the selected box.
     this.buildVeil(this.veilContainer);
-    this.showVeil();
 
     this.buildInfobar(controlsBox);
 
@@ -374,36 +367,6 @@ Highlighter.prototype = {
     let nodeName = aNode.nodeName.toLowerCase();
     return !INSPECTOR_INVISIBLE_ELEMENTS[nodeName];
   },
-
-  /**
-   * Hide the veil
-   */
-   hideVeil: function Highlighter_hideVeil() {
-     this.veilContainer.removeAttribute("dim");
-   },
-
-  /**
-   * Show the veil
-   */
-   showVeil: function Highlighter_showVeil() {
-     this.veilContainer.setAttribute("dim", "true");
-   },
-
-   /**
-    * Hide the infobar
-    */
-    hideInfobar: function Highlighter_hideInfobar() {
-      this.nodeInfo.container.setAttribute("hidden", "true");
-    },
-
-   /**
-    * Show the infobar
-    */
-    showInfobar: function Highlighter_showInfobar() {
-      this.nodeInfo.container.removeAttribute("hidden");
-      this.moveInfobar();
-    },
-
   /**
    * Build the veil:
    *
@@ -420,6 +383,7 @@ Highlighter.prototype = {
    * @param nsIDOMElement aParent
    *        The container of the veil boxes.
    */
+
   buildVeil: function Highlighter_buildVeil(aParent)
   {
     // We will need to resize these boxes to surround a node.
