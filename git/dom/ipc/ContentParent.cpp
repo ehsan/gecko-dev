@@ -34,7 +34,6 @@
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ExternalHelperAppParent.h"
-#include "mozilla/dom/PFileDescriptorSetParent.h"
 #include "mozilla/dom/PMemoryReportRequestParent.h"
 #include "mozilla/dom/power/PowerManagerService.h"
 #include "mozilla/dom/DOMStorageIPC.h"
@@ -43,7 +42,6 @@
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
 #include "mozilla/dom/FileSystemRequestParent.h"
 #include "mozilla/dom/GeolocationBinding.h"
-#include "mozilla/dom/FileDescriptorSetParent.h"
 #include "mozilla/dom/telephony/TelephonyParent.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
 #include "SmsParent.h"
@@ -686,8 +684,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
             new nsDataHashtable<nsStringHashKey, ContentParent*>();
     }
 
-    // Each app gets its own ContentParent instance unless it shares it with
-    // a parent app.
+    // Each app gets its own ContentParent instance.
     nsAutoString manifestURL;
     if (NS_FAILED(ownApp->GetManifestURL(manifestURL))) {
         NS_ERROR("Failed to get manifest URL");
@@ -695,41 +692,8 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
     }
 
     ProcessPriority initialPriority = GetInitialProcessPriority(aFrameElement);
+
     nsRefPtr<ContentParent> p = sAppContentParents->Get(manifestURL);
-
-    if (!p && Preferences::GetBool("dom.ipc.reuse_parent_app")) {
-        nsAutoString parentAppURL;
-        aFrameElement->GetAttr(kNameSpaceID_None,
-                               nsGkAtoms::parentapp, parentAppURL);
-        nsAdoptingString systemAppURL =
-            Preferences::GetString("browser.homescreenURL");
-        nsCOMPtr<nsIAppsService> appsService =
-            do_GetService(APPS_SERVICE_CONTRACTID);
-        if (!parentAppURL.IsEmpty() &&
-            !parentAppURL.Equals(systemAppURL) &&
-            appsService) {
-            nsCOMPtr<mozIApplication> parentApp;
-            nsCOMPtr<mozIApplication> app;
-            appsService->GetAppByManifestURL(parentAppURL,
-                                             getter_AddRefs(parentApp));
-            appsService->GetAppByManifestURL(manifestURL,
-                                             getter_AddRefs(app));
-
-            // Only let certified apps re-use the same process.
-            unsigned short parentAppStatus = 0;
-            unsigned short appStatus = 0;
-            if (app &&
-                NS_SUCCEEDED(app->GetAppStatus(&appStatus)) &&
-                appStatus == nsIPrincipal::APP_STATUS_CERTIFIED &&
-                parentApp &&
-                NS_SUCCEEDED(parentApp->GetAppStatus(&parentAppStatus)) &&
-                parentAppStatus == nsIPrincipal::APP_STATUS_CERTIFIED) {
-                // Check if we can re-use the process of the parent app.
-                p = sAppContentParents->Get(parentAppURL);
-            }
-        }
-    }
-
     if (p) {
         // Check that the process is still alive and set its priority.
         // Hopefully the process won't die after this point, if this call
@@ -3273,10 +3237,7 @@ ContentParent::RecvKeywordToURI(const nsCString& aKeyword, OptionalInputStreamPa
     return true;
   }
 
-  nsTArray<mozilla::ipc::FileDescriptor> fds;
-  SerializeInputStream(postData, *aPostData, fds);
-  MOZ_ASSERT(fds.IsEmpty());
-
+  SerializeInputStream(postData, *aPostData);
   SerializeURI(uri, *aURI);
   return true;
 }
@@ -3387,19 +3348,6 @@ ContentParent::RecvBackUpXResources(const FileDescriptor& aXSocketFd)
       mChildXSocketFdDup.reset(aXSocketFd.PlatformHandle());
     }
 #endif
-    return true;
-}
-
-PFileDescriptorSetParent*
-ContentParent::AllocPFileDescriptorSetParent(const FileDescriptor& aFD)
-{
-    return new FileDescriptorSetParent(aFD);
-}
-
-bool
-ContentParent::DeallocPFileDescriptorSetParent(PFileDescriptorSetParent* aActor)
-{
-    delete static_cast<FileDescriptorSetParent*>(aActor);
     return true;
 }
 

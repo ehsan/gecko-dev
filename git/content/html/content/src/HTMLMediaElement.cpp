@@ -2040,6 +2040,8 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
 
   RegisterFreezableElement();
   NotifyOwnerDocumentActivityChanged();
+
+  mTextTrackManager = new TextTrackManager(this);
 }
 
 HTMLMediaElement::~HTMLMediaElement()
@@ -3961,9 +3963,9 @@ NS_IMETHODIMP HTMLMediaElement::WindowVolumeChanged()
 
 /* readonly attribute TextTrackList textTracks; */
 TextTrackList*
-HTMLMediaElement::TextTracks()
+HTMLMediaElement::TextTracks() const
 {
-  return GetOrCreateTextTrackManager()->TextTracks();
+  return mTextTrackManager ? mTextTrackManager->TextTracks() : nullptr;
 }
 
 already_AddRefed<TextTrack>
@@ -3971,11 +3973,13 @@ HTMLMediaElement::AddTextTrack(TextTrackKind aKind,
                                const nsAString& aLabel,
                                const nsAString& aLanguage)
 {
-  return
-    GetOrCreateTextTrackManager()->AddTextTrack(aKind, aLabel, aLanguage,
-                                                TextTrackMode::Hidden,
-                                                TextTrackReadyState::Loaded,
-                                                TextTrackSource::AddTextTrack);
+  if (mTextTrackManager) {
+    return mTextTrackManager->AddTextTrack(aKind, aLabel, aLanguage,
+                                           TextTrackMode::Hidden,
+                                           TextTrackReadyState::Loaded,
+                                           TextTrackSource::AddTextTrack);
+  }
+  return nullptr;
 }
 
 void
@@ -3984,15 +3988,6 @@ HTMLMediaElement::PopulatePendingTextTrackList()
   if (mTextTrackManager) {
     mTextTrackManager->PopulatePendingList();
   }
-}
-
-TextTrackManager*
-HTMLMediaElement::GetOrCreateTextTrackManager()
-{
-  if (!mTextTrackManager) {
-    mTextTrackManager = new TextTrackManager(this);
-  }
-  return mTextTrackManager;
 }
 
 AudioChannel

@@ -249,11 +249,11 @@ this.FxAccountsManager = {
   getAccount: function() {
     // We check first if we have session details cached.
     if (this._activeSession) {
-      // If our cache says that the account is not yet verified,
-      // we kick off verification before returning what we have.
+      // If our cache says that the account is not yet verified, we check that
+      // this information is correct, and update the cached data if not.
       if (this._activeSession && !this._activeSession.verified &&
           !Services.io.offline) {
-        this.verificationStatus(this._activeSession);
+        return this.verificationStatus(this._activeSession);
       }
 
       log.debug("Account " + JSON.stringify(this._user));
@@ -270,10 +270,11 @@ this.FxAccountsManager = {
 
         this._activeSession = user;
         // If we get a stored information of a not yet verified account,
-        // we kick off verification before returning what we have.
+        // we check this information with the server, update the stored
+        // data if needed and finally return the account details.
         if (!user.verified && !Services.io.offline) {
           log.debug("Unverified account");
-          this.verificationStatus(user);
+          return this.verificationStatus(user);
         }
 
         log.debug("Account " + JSON.stringify(this._user));
@@ -314,35 +315,44 @@ this.FxAccountsManager = {
   verificationStatus: function() {
     log.debug("verificationStatus");
     if (!this._activeSession || !this._activeSession.sessionToken) {
-      this._error(ERROR_NO_TOKEN_SESSION);
+      return this._error(ERROR_NO_TOKEN_SESSION);
     }
 
     // There is no way to unverify an already verified account, so we just
     // return the account details of a verified account
     if (this._activeSession.verified) {
       log.debug("Account already verified");
-      return;
+      return Promise.resolve(this._user);
     }
 
     if (Services.io.offline) {
-      this._error(ERROR_OFFLINE);
+      return this._error(ERROR_OFFLINE);
     }
 
     let client = this._getFxAccountsClient();
-    client.recoveryEmailStatus(this._activeSession.sessionToken).then(
+    return client.recoveryEmailStatus(this._activeSession.sessionToken).then(
       data => {
         let error = this._getError(data);
         if (error) {
-          this._error(error, data);
+          return this._error(error, data);
         }
-        // If the verification status has changed, update state.
+
+        // If the verification status is different from the one that we have
+        // stored, we update it and return the session data. If not, we simply
+        // return the session data.
         if (this._activeSession.verified != data.verified) {
           this._activeSession.verified = data.verified;
-          this._fxAccounts.setSignedInUser(this._activeSession);
+          return this._fxAccounts.setSignedInUser(this._activeSession).then(
+            () => {
+              log.debug(JSON.stringify(this._user));
+              return Promise.resolve(this._user);
+            }
+          );
         }
         log.debug(JSON.stringify(this._user));
+        return Promise.resolve(this._user);
       },
-      reason => { this._serverError(reason); }
+      reason => { return this._serverError(reason); }
     );
   },
 
@@ -405,7 +415,7 @@ this.FxAccountsManager = {
 
         log.debug("No signed in user");
 
-        if (aOptions && aOptions.silent) {
+        if (aOptions.silent) {
           return Promise.resolve(null);
         }
 

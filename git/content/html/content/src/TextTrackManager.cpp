@@ -178,6 +178,10 @@ void
 TextTrackManager::UpdateCueDisplay()
 {
   nsIFrame* frame = mMediaElement->GetPrimaryFrame();
+  if (!frame) {
+    return;
+  }
+
   nsVideoFrame* videoFrame = do_QueryFrame(frame);
   if (!videoFrame) {
     return;

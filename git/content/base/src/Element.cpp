@@ -251,6 +251,14 @@ Element::LockedStyleStates() const
   return nsEventStates();
 }
 
+static void
+nsEventStatesPropertyDtor(void *aObject, nsIAtom *aProperty,
+                          void *aPropertyValue, void *aData)
+{
+  nsEventStates *states = static_cast<nsEventStates*>(aPropertyValue);
+  delete states;
+}
+
 void
 Element::NotifyStyleStateChange(nsEventStates aStates)
 {
@@ -278,8 +286,7 @@ Element::LockStyleStates(nsEventStates aStates)
     *locks &= ~NS_EVENT_STATE_VISITED;
   }
 
-  SetProperty(nsGkAtoms::lockedStyleStates, locks,
-              nsINode::DeleteProperty<nsEventStates>);
+  SetProperty(nsGkAtoms::lockedStyleStates, locks, nsEventStatesPropertyDtor);
   SetHasLockedStyleStates();
 
   NotifyStyleStateChange(aStates);
@@ -298,8 +305,7 @@ Element::UnlockStyleStates(nsEventStates aStates)
     delete locks;
   }
   else {
-    SetProperty(nsGkAtoms::lockedStyleStates, locks,
-                nsINode::DeleteProperty<nsEventStates>);
+    SetProperty(nsGkAtoms::lockedStyleStates, locks, nsEventStatesPropertyDtor);
   }
 
   NotifyStyleStateChange(aStates);

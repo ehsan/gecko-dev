@@ -397,10 +397,7 @@ WebSocketChannelChild::SendBinaryStream(nsIInputStream *aStream,
   LOG(("WebSocketChannelChild::SendBinaryStream() %p\n", this));
 
   OptionalInputStreamParams stream;
-  nsTArray<mozilla::ipc::FileDescriptor> fds;
-  SerializeInputStream(aStream, stream, fds);
-
-  MOZ_ASSERT(fds.IsEmpty());
+  SerializeInputStream(aStream, stream);
 
   if (!mIPCOpen || !SendSendBinaryStream(stream, aLength))
     return NS_ERROR_UNEXPECTED;

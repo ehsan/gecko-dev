@@ -1344,7 +1344,7 @@ TabChild::SetProcessNameToAppName()
     return;
   }
 
-  ContentChild::GetSingleton()->SetProcessName(appName, true);
+  ContentChild::GetSingleton()->SetProcessName(appName);
 }
 
 bool
@@ -1700,9 +1700,11 @@ bool
 TabChild::RecvNotifyTransformBegin(const ViewID& aViewId)
 {
   nsIScrollableFrame* sf = nsLayoutUtils::FindScrollableFrameFor(aViewId);
-  nsIScrollbarOwner* scrollbarOwner = do_QueryFrame(sf);
-  if (scrollbarOwner) {
-    scrollbarOwner->ScrollbarActivityStarted();
+  if (sf) {
+    nsIScrollbarOwner* scrollbarOwner = do_QueryFrame(sf);
+    if (scrollbarOwner) {
+      scrollbarOwner->ScrollbarActivityStarted();
+    }
   }
   return true;
 }
@@ -1711,9 +1713,11 @@ bool
 TabChild::RecvNotifyTransformEnd(const ViewID& aViewId)
 {
   nsIScrollableFrame* sf = nsLayoutUtils::FindScrollableFrameFor(aViewId);
-  nsIScrollbarOwner* scrollbarOwner = do_QueryFrame(sf);
-  if (scrollbarOwner) {
-    scrollbarOwner->ScrollbarActivityStopped();
+  if (sf) {
+    nsIScrollbarOwner* scrollbarOwner = do_QueryFrame(sf);
+    if (scrollbarOwner) {
+      scrollbarOwner->ScrollbarActivityStopped();
+    }
   }
   return true;
 }

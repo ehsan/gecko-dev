@@ -322,6 +322,21 @@ nsDOMWindowUtils::GetViewportInfo(uint32_t aDisplayWidth,
   return NS_OK;
 }
 
+static void DestroyDisplayPortPropertyData(void* aObject, nsIAtom* aPropertyName,
+                                           void* aPropertyValue, void* aData)
+{
+  DisplayPortPropertyData* data =
+    static_cast<DisplayPortPropertyData*>(aPropertyValue);
+  delete data;
+}
+
+static void DestroyNsRect(void* aObject, nsIAtom* aPropertyName,
+                          void* aPropertyValue, void* aData)
+{
+  nsRect* rect = static_cast<nsRect*>(aPropertyValue);
+  delete rect;
+}
+
 static void
 MaybeReflowForInflationScreenWidthChange(nsPresContext *aPresContext)
 {
@@ -407,7 +422,7 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
 
   content->SetProperty(nsGkAtoms::DisplayPort,
                        new DisplayPortPropertyData(displayport, aPriority),
-                       nsINode::DeleteProperty<DisplayPortPropertyData>);
+                       DestroyDisplayPortPropertyData);
 
   nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
   if (rootScrollFrame) {
@@ -490,7 +505,7 @@ nsDOMWindowUtils::SetCriticalDisplayPortForElement(float aXPx, float aYPx,
                              nsPresContext::CSSPixelsToAppUnits(aWidthPx),
                              nsPresContext::CSSPixelsToAppUnits(aHeightPx));
   content->SetProperty(nsGkAtoms::CriticalDisplayPort, new nsRect(criticalDisplayport),
-                       nsINode::DeleteProperty<nsRect>);
+                       DestroyNsRect);
 
   nsIFrame* rootFrame = presShell->GetRootFrame();
   if (rootFrame) {

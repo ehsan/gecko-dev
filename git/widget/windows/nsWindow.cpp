@@ -494,8 +494,7 @@ nsWindow::Create(nsIWidget *aParent,
       parent = nullptr;
     }
 
-    if (IsVistaOrLater() && !IsWin8OrLater() &&
-        HasBogusPopupsDropShadowOnMultiMonitor()) {
+    if (IsVistaOrLater() && !IsWin8OrLater()) {
       extendedStyle |= WS_EX_COMPOSITED;
     }
 

@@ -193,7 +193,7 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
             DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT | DIAGNOSTIC_BIGIMAGE;
             diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
             GetCompositor()->DrawDiagnostics(diagnostics, rect, aClipRect,
-                                             aTransform, mFlashCounter);
+                                             aTransform);
           }
         }
       }
@@ -213,8 +213,7 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
 
   DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT;
   diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
-  GetCompositor()->DrawDiagnostics(diagnostics, *aVisibleRegion, aClipRect,
-                                   aTransform, mFlashCounter);
+  GetCompositor()->DrawDiagnostics(diagnostics, *aVisibleRegion, aClipRect, aTransform);
 }
 
 
@@ -445,7 +444,7 @@ DeprecatedContentHostBase::Composite(EffectChain& aEffectChain,
               DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT | DIAGNOSTIC_BIGIMAGE;
               diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
               GetCompositor()->DrawDiagnostics(diagnostics, rect, aClipRect,
-                                               aTransform, mFlashCounter);
+                                               aTransform);
             }
         }
       }
@@ -465,8 +464,7 @@ DeprecatedContentHostBase::Composite(EffectChain& aEffectChain,
 
   DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT;
   diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
-  GetCompositor()->DrawDiagnostics(diagnostics, *aVisibleRegion, aClipRect,
-                                   aTransform, mFlashCounter);
+  GetCompositor()->DrawDiagnostics(diagnostics, *aVisibleRegion, aClipRect, aTransform);
 }
 
 void

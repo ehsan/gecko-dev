@@ -127,13 +127,13 @@ ImageHost::Composite(EffectChain& aEffectChain,
       GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
                                 aOpacity, aTransform);
       GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE|DIAGNOSTIC_BIGIMAGE,
-                                       rect, aClipRect, aTransform, mFlashCounter);
+                                       rect, aClipRect, aTransform);
     } while (it->NextTile());
     it->EndTileIteration();
     // layer border
     GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE,
                                      gfxPictureRect, aClipRect,
-                                     aTransform, mFlashCounter);
+                                     aTransform);
   } else {
     IntSize textureSize = source->GetSize();
     gfx::Rect rect;
@@ -157,7 +157,7 @@ ImageHost::Composite(EffectChain& aEffectChain,
                               aOpacity, aTransform);
     GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE,
                                      rect, aClipRect,
-                                     aTransform, mFlashCounter);
+                                     aTransform);
   }
 }
 
@@ -322,7 +322,7 @@ DeprecatedImageHostSingle::Composite(EffectChain& aEffectChain,
       GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
                                 aOpacity, aTransform);
       GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE|DIAGNOSTIC_BIGIMAGE,
-                                       rect, aClipRect, aTransform, mFlashCounter);
+                                       rect, aClipRect, aTransform);
     } while (it->NextTile());
     it->EndTileIteration();
   } else {
@@ -348,7 +348,7 @@ DeprecatedImageHostSingle::Composite(EffectChain& aEffectChain,
     GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
                               aOpacity, aTransform);
     GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE,
-                                     rect, aClipRect, aTransform, mFlashCounter);
+                                     rect, aClipRect, aTransform);
   }
 
   mDeprecatedTextureHost->Unlock();

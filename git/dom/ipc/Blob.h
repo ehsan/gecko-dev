@@ -157,7 +157,6 @@ template <ActorFlavorEnum ActorFlavor>
 class Blob : public BlobTraits<ActorFlavor>::BaseType
 {
   friend class RemoteBlob<ActorFlavor>;
-  friend class BlobTraits<ActorFlavor>::BaseType;
 
 public:
   typedef typename BlobTraits<ActorFlavor>::ConcreteContentManagerType ContentManager;

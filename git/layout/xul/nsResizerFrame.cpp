@@ -448,6 +448,15 @@ nsResizerFrame::ResizeContent(nsIContent* aContent, const Direction& aDirection,
 }
 
 /* static */ void
+nsResizerFrame::SizeInfoDtorFunc(void *aObject, nsIAtom *aPropertyName,
+                                 void *aPropertyValue, void *aData)
+{
+  nsResizerFrame::SizeInfo *propertyValue =
+    static_cast<nsResizerFrame::SizeInfo*>(aPropertyValue);
+  delete propertyValue;
+}
+
+/* static */ void
 nsResizerFrame::MaybePersistOriginalSize(nsIContent* aContent,
                                          const SizeInfo& aSizeInfo)
 {
@@ -459,7 +468,7 @@ nsResizerFrame::MaybePersistOriginalSize(nsIContent* aContent,
 
   nsAutoPtr<SizeInfo> sizeInfo(new SizeInfo(aSizeInfo));
   rv = aContent->SetProperty(nsGkAtoms::_moz_original_size, sizeInfo.get(),
-                             nsINode::DeleteProperty<nsResizerFrame::SizeInfo>);
+                             &SizeInfoDtorFunc);
   if (NS_SUCCEEDED(rv))
     sizeInfo.forget();
 }

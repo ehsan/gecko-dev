@@ -3359,6 +3359,15 @@ static void ScrollToShowRect(nsIFrame*                aFrame,
   }
 }
 
+static void
+DeleteScrollIntoViewData(void* aObject, nsIAtom* aPropertyName,
+                         void* aPropertyValue, void* aData)
+{
+  PresShell::ScrollIntoViewData* data =
+    static_cast<PresShell::ScrollIntoViewData*>(aPropertyValue);
+  delete data;
+}
+
 nsresult
 PresShell::ScrollContentIntoView(nsIContent*              aContent,
                                  nsIPresShell::ScrollAxis aVertical,
@@ -3380,7 +3389,7 @@ PresShell::ScrollContentIntoView(nsIContent*              aContent,
   data->mContentScrollHAxis = aHorizontal;
   data->mContentToScrollToFlags = aFlags;
   if (NS_FAILED(mContentToScrollTo->SetProperty(nsGkAtoms::scrolling, data,
-                                                nsINode::DeleteProperty<PresShell::ScrollIntoViewData>))) {
+                                                ::DeleteScrollIntoViewData))) {
     mContentToScrollTo = nullptr;
   }
 

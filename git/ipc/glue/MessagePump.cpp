@@ -299,11 +299,7 @@ MessagePumpForNonMainThreads::Run(base::MessagePump::Delegate* aDelegate)
     MOZ_CRASH("Failed to set timer target!");
   }
 
-  base::ScopedNSAutoreleasePool autoReleasePool;
-
   for (;;) {
-    autoReleasePool.Recycle();
-
     bool didWork = NS_ProcessNextEvent(mThread, false) ? true : false;
     if (!keep_running_) {
       break;

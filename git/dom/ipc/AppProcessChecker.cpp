@@ -75,6 +75,12 @@ AssertAppProcess(PBrowserParent* aActor,
         break;
     }
   }
+
+  if (!aValid) {
+    printf_stderr("Security problem: Content process does not have `%s'.  It will be killed.\n", aCapability);
+    ContentParent* process = tab->Manager();
+    process->KillHard();
+  }
   return aValid;
 }
 
@@ -99,6 +105,12 @@ AssertAppStatus(PBrowserParent* aActor,
     }
   }
 
+  if (!valid) {
+    printf_stderr("Security problem: Content process does not have `%d' status.  It will be killed.\n", aStatus);
+    ContentParent* process = tab->Manager();
+    process->KillHard();
+  }
+
   return valid;
 }
 
@@ -114,10 +126,6 @@ AssertAppProcess(PContentParent* aActor,
       return true;
     }
   }
-
-  printf_stderr("Security problem: Content process does not have `%s'.  It will be killed.\n", aCapability);
-  static_cast<ContentParent*>(aActor)->KillHard();
-
   return false;
 }
 
@@ -132,10 +140,6 @@ AssertAppStatus(PContentParent* aActor,
       return true;
     }
   }
-
-  printf_stderr("Security problem: Content process does not have `%d' status.  It will be killed.\n", aStatus);
-  static_cast<ContentParent*>(aActor)->KillHard();
-
   return false;
 }
 

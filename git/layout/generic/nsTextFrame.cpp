@@ -603,6 +603,12 @@ struct FlowLengthProperty {
   // The offset of the next fixed continuation after mStartOffset, or
   // of the end of the text if there is none
   int32_t mEndFlowOffset;
+
+  static void Destroy(void* aObject, nsIAtom* aPropertyName,
+                      void* aPropertyValue, void* aData)
+  {
+    delete static_cast<FlowLengthProperty*>(aPropertyValue);
+  }
 };
 
 int32_t nsTextFrame::GetInFlowContentLength() {
@@ -635,7 +641,7 @@ int32_t nsTextFrame::GetInFlowContentLength() {
   if (!flowLength) {
     flowLength = new FlowLengthProperty;
     if (NS_FAILED(mContent->SetProperty(nsGkAtoms::flowlength, flowLength,
-                                        nsINode::DeleteProperty<FlowLengthProperty>))) {
+                                        FlowLengthProperty::Destroy))) {
       delete flowLength;
       flowLength = nullptr;
     }
@@ -7567,6 +7573,12 @@ struct NewlineProperty {
   int32_t mStartOffset;
   // The offset of the first \n after mStartOffset, or -1 if there is none
   int32_t mNewlineOffset;
+
+  static void Destroy(void* aObject, nsIAtom* aPropertyName,
+                      void* aPropertyValue, void* aData)
+  {
+    delete static_cast<NewlineProperty*>(aPropertyValue);
+  }
 };
 
 nsresult
@@ -8098,7 +8110,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     if (!cachedNewlineOffset) {
       cachedNewlineOffset = new NewlineProperty;
       if (NS_FAILED(mContent->SetProperty(nsGkAtoms::newline, cachedNewlineOffset,
-                                          nsINode::DeleteProperty<NewlineProperty>))) {
+                                          NewlineProperty::Destroy))) {
         delete cachedNewlineOffset;
         cachedNewlineOffset = nullptr;
       }

@@ -12,7 +12,7 @@
 
 class nsITimer;
 namespace JS {
-class CallArgs;
+class Value;
 }
 
 namespace mozilla { namespace net {
@@ -33,7 +33,7 @@ public:
                 const nsCString &aPACScript);
   void     Shutdown();
   void     GC();
-  bool     MyIPAddress(const JS::CallArgs &aArgs);
+  bool     MyIPAddress(JS::Value *vp);
   bool     ResolveAddress(const nsCString &aHostName,
                           NetAddr *aNetAddr, unsigned int aTimeout);
 
@@ -83,7 +83,7 @@ private:
 
   bool SrcAddress(const NetAddr *remoteAddress, nsCString &localAddress);
   bool MyIPAddressTryHost(const nsCString &hostName, unsigned int timeout,
-                          const JS::CallArgs &aArgs);
+                          JS::Value *vp);
 
   JSRuntimeWrapper *mJSRuntime;
   bool              mJSNeedsSetup;

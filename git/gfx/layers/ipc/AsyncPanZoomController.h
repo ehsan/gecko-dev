@@ -757,7 +757,6 @@ private:
   friend class Axis;
   friend class FlingAnimation;
 
-
   /* The functions and members in this section are used to build a tree
    * structure out of APZC instances. This tree can only be walked or
    * manipulated while holding the lock in the associated APZCTreeManager
@@ -805,7 +804,6 @@ private:
   nsRefPtr<AsyncPanZoomController> mPrevSibling;
   nsRefPtr<AsyncPanZoomController> mParent;
 
-
   /* The functions and members in this section are used to maintain the
    * area that this APZC instance is responsible for. This is used when
    * hit-testing to see which APZC instance should handle touch events.
@@ -832,6 +830,9 @@ public:
   }
 
 private:
+  /* Unique id assigned to each APZC. Used with ViewID to uniquely identify
+   * shared FrameMeterics used in progressive tile painting. */
+  const uint32_t mAPZCId;
   /* This is the visible region of the layer that this APZC corresponds to, in
    * that layer's screen pixels (the same coordinate system in which this APZC
    * receives events in ReceiveInputEvent()). */
@@ -841,15 +842,6 @@ private:
   gfx3DMatrix mAncestorTransform;
   /* This is the CSS transform for this APZC's layer. */
   gfx3DMatrix mCSSTransform;
-
-
-  /* The functions and members in this section are used for sharing the
-   * FrameMetrics across processes for the progressive tiling code.
-   */
-private:
-  /* Unique id assigned to each APZC. Used with ViewID to uniquely identify
-   * shared FrameMeterics used in progressive tile painting. */
-  const uint32_t mAPZCId;
 
   ipc::SharedMemoryBasic* mSharedFrameMetricsBuffer;
   CrossProcessMutex* mSharedLock;

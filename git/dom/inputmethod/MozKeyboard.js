@@ -675,7 +675,7 @@ MozInputContext.prototype = {
     return this.replaceSurroundingText(null, offset, length);
   },
 
-  sendKey: function ic_sendKey(keyCode, charCode, modifiers, repeat) {
+  sendKey: function ic_sendKey(keyCode, charCode, modifiers) {
     let self = this;
     return this._sendPromise(function(resolverId) {
       cpmm.sendAsyncMessage('Keyboard:SendKey', {
@@ -683,8 +683,7 @@ MozInputContext.prototype = {
         requestId: resolverId,
         keyCode: keyCode,
         charCode: charCode,
-        modifiers: modifiers,
-        repeat: repeat
+        modifiers: modifiers
       });
     });
   },
