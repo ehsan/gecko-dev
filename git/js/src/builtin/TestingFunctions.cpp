@@ -1879,7 +1879,7 @@ DumpObject(JSContext *cx, unsigned argc, jsval *vp)
     if (!obj)
         return false;
 
-    DumpObject(obj);
+    js_DumpObject(obj);
 
     args.rval().setUndefined();
     return true;
@@ -1924,7 +1924,7 @@ static bool
 DumpBacktrace(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    DumpBacktrace(cx);
+    js_DumpBacktrace(cx);
     args.rval().setUndefined();
     return true;
 }

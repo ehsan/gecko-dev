@@ -264,7 +264,7 @@ public:
                                           IceConfiguration *aDst);
   static nsresult AddIceServer(const RTCIceServer& aServer,
                                IceConfiguration* aDst);
-  already_AddRefed<DOMMediaStream> MakeMediaStream();
+  already_AddRefed<DOMMediaStream> MakeMediaStream(uint32_t aHint);
 
   nsresult CreateRemoteSourceStreamInfo(nsRefPtr<RemoteSourceStreamInfo>* aInfo,
                                         const std::string& aId);

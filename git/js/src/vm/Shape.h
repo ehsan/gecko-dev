@@ -320,6 +320,10 @@ class Shape;
 class UnownedBaseShape;
 struct StackBaseShape;
 
+namespace gc {
+void MergeCompartments(JSCompartment *source, JSCompartment *target);
+}
+
 // This class is used to add a post barrier on the AccessorShape's getter/setter
 // objects. It updates the shape's entry in the parent's KidsHash table.
 class ShapeGetterSetterRef : public gc::BufferableRef

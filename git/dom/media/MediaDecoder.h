@@ -392,13 +392,8 @@ public:
     ~DecodedStreamData();
 
     // microseconds
-    bool IsFinished() const {
-      return mListener->IsFinishedOnMainThread();
-    }
-
-    int64_t GetClock() const {
-      return mInitialTime + mListener->GetLastOutputTime();
-    }
+    int64_t GetLastOutputTime() { return mListener->GetLastOutputTime(); }
+    bool IsFinished() { return mListener->IsFinishedOnMainThread(); }
 
     // The following group of fields are protected by the decoder's monitor
     // and can be read or written on any thread.
@@ -406,7 +401,7 @@ public:
     int64_t mAudioFramesWritten;
     // Saved value of aInitialTime. Timestamp of the first audio and/or
     // video packet written.
-    const int64_t mInitialTime; // microseconds
+    int64_t mInitialTime; // microseconds
     // mNextVideoTime is the end timestamp for the last packet sent to the stream.
     // Therefore video packets starting at or after this time need to be copied
     // to the output stream.
@@ -458,6 +453,13 @@ public:
 
       MutexAutoLock lock(mMutex);
       mStream = nullptr;
+    }
+    bool SetFinishedOnMainThread(bool aFinished)
+    {
+      MutexAutoLock lock(mMutex);
+      bool result = !mStreamFinishedOnMainThread;
+      mStreamFinishedOnMainThread = aFinished;
+      return result;
     }
     bool IsFinishedOnMainThread()
     {

@@ -20,12 +20,6 @@ class Function;
 class Promise;
 class RequestOrUSVString;
 
-namespace cache {
-
-class CacheStorage;
-
-} // namespace cache
-
 namespace indexedDB {
 
 class IDBFactory;
@@ -54,7 +48,6 @@ class WorkerGlobalScope : public DOMEventTargetHelper,
   nsRefPtr<WorkerNavigator> mNavigator;
   nsRefPtr<Performance> mPerformance;
   nsRefPtr<IDBFactory> mIndexedDB;
-  nsRefPtr<cache::CacheStorage> mCacheStorage;
 
 protected:
   WorkerPrivate* mWorkerPrivate;
@@ -148,9 +141,6 @@ public:
 
   already_AddRefed<IDBFactory>
   GetIndexedDB(ErrorResult& aErrorResult);
-
-  already_AddRefed<cache::CacheStorage>
-  GetCaches(ErrorResult& aRv);
 };
 
 class DedicatedWorkerGlobalScope MOZ_FINAL : public WorkerGlobalScope

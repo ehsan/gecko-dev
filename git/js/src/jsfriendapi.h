@@ -188,47 +188,41 @@ AddRawValueRoot(JSContext *cx, JS::Value *vp, const char *name);
 JS_FRIEND_API(void)
 RemoveRawValueRoot(JSContext *cx, JS::Value *vp);
 
+} /* namespace js */
+
 #ifdef JS_DEBUG
 
 /*
  * Routines to print out values during debugging.  These are FRIEND_API to help
- * the debugger find them and to support temporarily hacking js::Dump* calls
+ * the debugger find them and to support temporarily hacking js_Dump* calls
  * into other code.
  */
 
 extern JS_FRIEND_API(void)
-DumpString(JSString *str);
+js_DumpString(JSString *str);
 
 extern JS_FRIEND_API(void)
-DumpAtom(JSAtom *atom);
+js_DumpAtom(JSAtom *atom);
 
 extern JS_FRIEND_API(void)
-DumpObject(JSObject *obj);
+js_DumpObject(JSObject *obj);
 
 extern JS_FRIEND_API(void)
-DumpChars(const char16_t *s, size_t n);
+js_DumpChars(const char16_t *s, size_t n);
 
 extern JS_FRIEND_API(void)
-DumpValue(const JS::Value &val);
+js_DumpValue(const JS::Value &val);
 
 extern JS_FRIEND_API(void)
-DumpId(jsid id);
+js_DumpId(jsid id);
 
 extern JS_FRIEND_API(void)
-DumpInterpreterFrame(JSContext *cx, InterpreterFrame *start = nullptr);
-
-extern JS_FRIEND_API(bool)
-DumpPC(JSContext *cx);
-
-extern JS_FRIEND_API(bool)
-DumpScript(JSContext *cx, JSScript *scriptArg);
+js_DumpInterpreterFrame(JSContext *cx, js::InterpreterFrame *start = nullptr);
 
 #endif
 
 extern JS_FRIEND_API(void)
-DumpBacktrace(JSContext *cx);
-
-} // namespace js
+js_DumpBacktrace(JSContext *cx);
 
 namespace JS {
 
@@ -546,12 +540,13 @@ namespace shadow {
 struct ObjectGroup {
     const Class *clasp;
     JSObject    *proto;
-    JSCompartment *compartment;
 };
 
 struct BaseShape {
     const js::Class *clasp_;
     JSObject *parent;
+    JSObject *_1;
+    JSCompartment *compartment;
 };
 
 class Shape {
@@ -566,8 +561,8 @@ public:
 // This layout is shared by all objects except for Typed Objects (which still
 // have a shape and group).
 struct Object {
-    shadow::ObjectGroup *group;
     shadow::Shape       *shape;
+    shadow::ObjectGroup *group;
     JS::Value           *slots;
     void                *_1;
 
@@ -693,7 +688,7 @@ GetObjectParent(JSObject *obj)
 static MOZ_ALWAYS_INLINE JSCompartment *
 GetObjectCompartment(JSObject *obj)
 {
-    return reinterpret_cast<shadow::Object*>(obj)->group->compartment;
+    return reinterpret_cast<shadow::Object*>(obj)->shape->base->compartment;
 }
 
 JS_FRIEND_API(JSObject *)

@@ -432,11 +432,10 @@ nsComputedDOMStyle::GetStyleContextForElementNoFlush(Element* aElement,
       return nullptr;
   }
 
-  // XXX the !aElement->IsHTMLElement(nsGkAtoms::area)
-  // check is needed due to bug 135040 (to avoid using
+  // XXX the !aElement->IsHTML(nsGkAtoms::area)
+  // check is needed due to bug 135040 (to avoid using 
   // mPrimaryFrame). Remove it once that's fixed.
-  if (!aPseudo && aStyleType == eAll &&
-      !aElement->IsHTMLElement(nsGkAtoms::area)) {
+  if (!aPseudo && aStyleType == eAll && !aElement->IsHTML(nsGkAtoms::area)) {
     nsIFrame* frame = nsLayoutUtils::GetStyleFrame(aElement);
     if (frame) {
       nsStyleContext* result = frame->StyleContext();
@@ -598,11 +597,10 @@ nsComputedDOMStyle::UpdateCurrentStyleSources(bool aNeedsLayoutFlush)
     return;
   }
 
-  // XXX the !mContent->IsHTMLElement(nsGkAtoms::area)
-  // check is needed due to bug 135040 (to avoid using
+  // XXX the !mContent->IsHTML(nsGkAtoms::area)
+  // check is needed due to bug 135040 (to avoid using 
   // mPrimaryFrame). Remove it once that's fixed.
-  if (!mPseudo && mStyleType == eAll &&
-      !mContent->IsHTMLElement(nsGkAtoms::area)) {
+  if (!mPseudo && mStyleType == eAll && !mContent->IsHTML(nsGkAtoms::area)) {
     mOuterFrame = mContent->GetPrimaryFrame();
     mInnerFrame = mOuterFrame;
     if (mOuterFrame) {

@@ -969,7 +969,7 @@ nsDocumentViewer::LoadComplete(nsresult aStatus)
 
     docShell->GetRestoringDocument(&restoring);
     if (!restoring) {
-      NS_ASSERTION(mDocument->IsXULDocument() || // readyState for XUL is bogus
+      NS_ASSERTION(mDocument->IsXUL() || // readyState for XUL is bogus
                    mDocument->GetReadyStateEnum() ==
                      nsIDocument::READYSTATE_INTERACTIVE ||
                    // test_stricttransportsecurity.html has old-style
@@ -1785,13 +1785,6 @@ nsDocumentViewer::SetDocumentInternal(nsIDocument* aDocument,
   aDocument->SetContainer(mContainer);
 
   if (mDocument != aDocument) {
-    if (aForceReuseInnerWindow) {
-      // Transfer the navigation timing information to the new document, since
-      // we're keeping the same inner and hence should really have the same
-      // timing information.
-      aDocument->SetNavigationTiming(mDocument->GetNavigationTiming());
-    }
-
     if (mDocument->IsStaticDocument()) {
       mDocument->SetScriptGlobalObject(nullptr);
       mDocument->Destroy();
@@ -2202,7 +2195,7 @@ nsDocumentViewer::CreateStyleSet(nsIDocument* aDocument,
   // The document will fill in the document sheets when we create the presshell
 
   if (aDocument->IsBeingUsedAsImage()) {
-    MOZ_ASSERT(aDocument->IsSVGDocument(),
+    MOZ_ASSERT(aDocument->IsSVG(),
                "Do we want to skip most sheets for this new image type?");
 
     // SVG-as-an-image must be kept as light and small as possible. We
@@ -2282,7 +2275,7 @@ nsDocumentViewer::CreateStyleSet(nsIDocument* aDocument,
     styleSet->PrependStyleSheet(nsStyleSet::eOverrideSheet, sheet);
   }
 
-  if (!aDocument->IsSVGDocument()) {
+  if (!aDocument->IsSVG()) {
     // !!! IMPORTANT - KEEP THIS BLOCK IN SYNC WITH
     // !!! SVGDocument::EnsureNonSVGUserAgentStyleSheetsLoaded.
 

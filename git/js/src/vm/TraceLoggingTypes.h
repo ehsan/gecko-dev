@@ -44,7 +44,6 @@
     _(PhiAnalysis)                                    \
     _(MakeLoopsContiguous)                            \
     _(ApplyTypes)                                     \
-    _(EagerSimdUnbox)                                 \
     _(AliasAnalysis)                                  \
     _(GVN)                                            \
     _(LICM)                                           \

@@ -872,7 +872,7 @@ IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
 
   nsCOMPtr<nsIDOMXULDocument> xulDoc =
     do_QueryInterface(aContent->OwnerDoc());
-  if (!xulDoc && !aContent->IsXULElement())
+  if (!xulDoc && !aContent->IsXUL())
     return true;
 
     // For XUL we do visibility checks.
@@ -890,18 +890,21 @@ IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
   if (control)
     return true;
 
-  // HTML area, label and legend elements are never focusable, so
-  // we need to check for them explicitly before giving up.
-  if (aContent->IsAnyOfHTMLElements(nsGkAtoms::area,
-                                    nsGkAtoms::label,
-                                    nsGkAtoms::legend)) {
-    return true;
-  }
+  if (aContent->IsHTML()) {
+    nsIAtom* tag = aContent->Tag();
 
-  // XUL label elements are never focusable, so we need to check for them
-  // explicitly before giving up.
-  if (aContent->IsXULElement(nsGkAtoms::label)) {
-    return true;
+    // HTML area, label and legend elements are never focusable, so
+    // we need to check for them explicitly before giving up.
+    if (tag == nsGkAtoms::area ||
+        tag == nsGkAtoms::label ||
+        tag == nsGkAtoms::legend)
+      return true;
+
+  } else if (aContent->IsXUL()) {
+    // XUL label elements are never focusable, so we need to check for them
+    // explicitly before giving up.
+    if (aContent->Tag() == nsGkAtoms::label)
+      return true;
   }
 
   return false;
@@ -1121,7 +1124,9 @@ EventStateManager::IsRemoteTarget(nsIContent* target) {
   }
 
   // <browser/iframe remote=true> from XUL
-  if (target->IsAnyOfXULElements(nsGkAtoms::browser, nsGkAtoms::iframe) &&
+  if ((target->Tag() == nsGkAtoms::browser ||
+       target->Tag() == nsGkAtoms::iframe) &&
+      target->IsXUL() &&
       target->AttrValueIs(kNameSpaceID_None, nsGkAtoms::Remote,
                           nsGkAtoms::_true, eIgnoreCase)) {
     return true;
@@ -1285,7 +1290,7 @@ EventStateManager::CreateClickHoldTimer(nsPresContext* inPresContext,
       return;
     
     // check for a <menubutton> like bookmarks
-    if (mGestureDownContent->IsXULElement(nsGkAtoms::menubutton))
+    if (mGestureDownContent->Tag() == nsGkAtoms::menubutton)
       return;
   }
 
@@ -1379,37 +1384,40 @@ EventStateManager::FireContextClick()
 
     // before dispatching, check that we're not on something that
     // doesn't get a context menu
+    nsIAtom *tag = mGestureDownContent->Tag();
     bool allowedToDispatch = true;
 
-    if (mGestureDownContent->IsAnyOfXULElements(nsGkAtoms::scrollbar,
-                                                nsGkAtoms::scrollbarbutton,
-                                                nsGkAtoms::button)) {
-      allowedToDispatch = false;
-    } else if (mGestureDownContent->IsXULElement(nsGkAtoms::toolbarbutton)) {
-      // a <toolbarbutton> that has the container attribute set
-      // will already have its own dropdown.
-      if (nsContentUtils::HasNonEmptyAttr(mGestureDownContent,
-              kNameSpaceID_None, nsGkAtoms::container)) {
+    if (mGestureDownContent->IsXUL()) {
+      if (tag == nsGkAtoms::scrollbar ||
+          tag == nsGkAtoms::scrollbarbutton ||
+          tag == nsGkAtoms::button)
         allowedToDispatch = false;
-      } else {
-        // If the toolbar button has an open menu, don't attempt to open
-          // a second menu
-        if (mGestureDownContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::open,
-                                             nsGkAtoms::_true, eCaseMatters)) {
+      else if (tag == nsGkAtoms::toolbarbutton) {
+        // a <toolbarbutton> that has the container attribute set
+        // will already have its own dropdown.
+        if (nsContentUtils::HasNonEmptyAttr(mGestureDownContent,
+                kNameSpaceID_None, nsGkAtoms::container)) {
           allowedToDispatch = false;
+        } else {
+          // If the toolbar button has an open menu, don't attempt to open
+            // a second menu
+          if (mGestureDownContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::open,
+                                               nsGkAtoms::_true, eCaseMatters)) {
+            allowedToDispatch = false;
+          }
         }
       }
     }
-    else if (mGestureDownContent->IsHTMLElement()) {
+    else if (mGestureDownContent->IsHTML()) {
       nsCOMPtr<nsIFormControl> formCtrl(do_QueryInterface(mGestureDownContent));
 
       if (formCtrl) {
         allowedToDispatch = formCtrl->IsTextControl(false) ||
                             formCtrl->GetType() == NS_FORM_INPUT_FILE;
       }
-      else if (mGestureDownContent->IsAnyOfHTMLElements(nsGkAtoms::applet,
-                                                        nsGkAtoms::embed,
-                                                        nsGkAtoms::object)) {
+      else if (tag == nsGkAtoms::applet ||
+               tag == nsGkAtoms::embed  ||
+               tag == nsGkAtoms::object) {
         allowedToDispatch = false;
       }
     }
@@ -2638,7 +2646,7 @@ static bool
 NodeAllowsClickThrough(nsINode* aNode)
 {
   while (aNode) {
-    if (aNode->IsXULElement()) {
+    if (aNode->IsElement() && aNode->AsElement()->IsXUL()) {
       mozilla::dom::Element* element = aNode->AsElement();
       static nsIContent::AttrValuesArray strings[] =
         {&nsGkAtoms::always, &nsGkAtoms::never, nullptr};
@@ -2880,7 +2888,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             EnsureDocument(mPresContext);
             if (mDocument) {
 #ifdef XP_MACOSX
-              if (!activeContent || !activeContent->IsXULElement())
+              if (!activeContent || !activeContent->IsXUL())
 #endif
                 fm->ClearFocus(mDocument->GetWindow());
               fm->SetFocusedWindow(mDocument->GetWindow());
@@ -4799,7 +4807,8 @@ EventStateManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent)
    * the current link. We want to make sure that the UI gets informed when they
    * are actually removed from the DOM.
    */
-  if (aContent->IsAnyOfHTMLElements(nsGkAtoms::a, nsGkAtoms::area) &&
+  if (aContent->IsHTML() &&
+      (aContent->Tag() == nsGkAtoms::a || aContent->Tag() == nsGkAtoms::area) &&
       (aContent->AsElement()->State().HasAtLeastOneOfStates(NS_EVENT_STATE_FOCUS |
                                                             NS_EVENT_STATE_HOVER))) {
     nsGenericHTMLElement* element = static_cast<nsGenericHTMLElement*>(aContent);

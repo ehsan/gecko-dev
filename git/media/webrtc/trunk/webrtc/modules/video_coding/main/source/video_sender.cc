@@ -137,7 +137,6 @@ int32_t VideoSender::RegisterSendCodec(const VideoCodec* sendCodec,
     return VCM_CODEC_ERROR;
   }
 
-  // XXX fix VP9 (bug 1138629)
   int numLayers = (sendCodec->codecType != kVideoCodecVP8)
                       ? 1
                       : sendCodec->codecSpecific.VP8.numberOfTemporalLayers;

@@ -1061,11 +1061,10 @@ nsRange::IsValidBoundary(nsINode* aNode)
   }
 
   if (aNode->IsNodeOfType(nsINode::eCONTENT)) {
-    if (aNode->NodeInfo()->NameAtom() == nsGkAtoms::documentTypeNodeName) {
+    nsIContent* content = static_cast<nsIContent*>(aNode);
+    if (content->Tag() == nsGkAtoms::documentTypeNodeName) {
       return nullptr;
     }
-
-    nsIContent* content = static_cast<nsIContent*>(aNode);
 
     if (!mMaySpanAnonymousSubtrees) {
       // If the node is in a shadow tree then the ShadowRoot is the root.

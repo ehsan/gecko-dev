@@ -81,9 +81,6 @@ JitOptions::JitOptions()
     // Toggle whether eager scalar replacement is globally disabled.
     SET_DEFAULT(disableScalarReplacement, false);
 
-    // Toggle whether eager simd unboxing is globally disabled.
-    SET_DEFAULT(disableEagerSimdUnbox, false);
-
     // Toggle whether global value numbering is globally disabled.
     SET_DEFAULT(disableGvn, false);
 

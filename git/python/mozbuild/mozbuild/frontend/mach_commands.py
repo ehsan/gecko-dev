@@ -17,10 +17,6 @@ from mozbuild.base import MachCommandBase
 import mozpack.path as mozpath
 
 
-class InvalidPathException(Exception):
-    """Represents an error due to an invalid path."""
-
-
 @CommandProvider
 class MozbuildFileCommands(MachCommandBase):
     @Command('mozbuild-reference', category='build-dev',
@@ -92,12 +88,8 @@ class MozbuildFileCommands(MachCommandBase):
                      help='Paths whose data to query')
     def file_info_bugzilla(self, paths):
         components = defaultdict(set)
-        try:
-            for p, m in self._get_files_info(paths).items():
-                components[m.get('BUG_COMPONENT')].add(p)
-        except InvalidPathException as e:
-            print(e.message)
-            return 1
+        for p, m in self._get_files_info(paths).items():
+            components[m.get('BUG_COMPONENT')].add(p)
 
         for component, files in sorted(components.items(), key=lambda x: (x is None, x)):
             print('%s :: %s' % (component.product, component.component) if component else 'UNKNOWN')
@@ -109,44 +101,24 @@ class MozbuildFileCommands(MachCommandBase):
     @CommandArgument('paths', nargs='+',
                      help='Paths whose data to query')
     def file_info_missing_bugzilla(self, paths):
-        try:
-            for p, m in sorted(self._get_files_info(paths).items()):
-                if 'BUG_COMPONENT' not in m:
-                    print(p)
-        except InvalidPathException as e:
-            print(e.message)
-            return 1
+        for p, m in sorted(self._get_files_info(paths).items()):
+            if 'BUG_COMPONENT' not in m:
+                print(p)
 
     def _get_reader(self):
-        from mozbuild.frontend.reader import BuildReader, EmptyConfig
-        config = EmptyConfig(self.topsrcdir)
+        from mozbuild.frontend.reader import BuildReader
+        config = self.config_environment
         return BuildReader(config)
 
     def _get_files_info(self, paths):
-        from mozpack.files import FileFinder
-
-        # Normalize to relative from topsrcdir.
         relpaths = []
         for p in paths:
             a = mozpath.abspath(p)
             if not mozpath.basedir(a, [self.topsrcdir]):
-                raise InvalidPathException('path is outside topsrcdir: %s' % p)
+                print('path is not inside topsrcdir: %s' % p)
+                return 1
 
             relpaths.append(mozpath.relpath(a, self.topsrcdir))
 
-        finder = FileFinder(self.topsrcdir, find_executables=False)
-
-        # Expand wildcards.
-        allpaths = []
-        for p in relpaths:
-            if '*' not in p:
-                if p not in allpaths:
-                    allpaths.append(p)
-                continue
-
-            for path, f in finder.find(p):
-                if path not in allpaths:
-                    allpaths.append(path)
-
         reader = self._get_reader()
-        return reader.files_info(allpaths)
+        return reader.files_info(relpaths)

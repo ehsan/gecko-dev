@@ -2572,7 +2572,7 @@ struct DumpOp {
     void operator()(const Value& v) {
         fprintf(stderr, "  actual (arg %d): ", i_);
 #ifdef DEBUG
-        DumpValue(v);
+        js_DumpValue(v);
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2589,7 +2589,7 @@ JitFrameIterator::dumpBaseline() const
     if (isFunctionFrame()) {
         fprintf(stderr, "  callee fun: ");
 #ifdef DEBUG
-        DumpObject(callee());
+        js_DumpObject(callee());
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2616,7 +2616,7 @@ JitFrameIterator::dumpBaseline() const
         fprintf(stderr, "  slot %u: ", i);
 #ifdef DEBUG
         Value *v = frame->valueSlot(i);
-        DumpValue(*v);
+        js_DumpValue(*v);
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2638,7 +2638,7 @@ InlineFrameIterator::dump() const
         isFunction = true;
         fprintf(stderr, "  callee fun: ");
 #ifdef DEBUG
-        DumpObject(callee(fallback));
+        js_DumpObject(callee(fallback));
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2677,7 +2677,7 @@ InlineFrameIterator::dump() const
         } else
             fprintf(stderr, "  slot %u: ", i);
 #ifdef DEBUG
-        DumpValue(si.maybeRead(fallback));
+        js_DumpValue(si.maybeRead(fallback));
 #else
         fprintf(stderr, "?\n");
 #endif

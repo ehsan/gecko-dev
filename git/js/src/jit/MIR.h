@@ -1814,12 +1814,6 @@ class MSimdSwizzle
         return new(alloc) MSimdSwizzle(obj, type, laneX, laneY, laneZ, laneW);
     }
 
-    static MSimdSwizzle *New(TempAllocator &alloc, MDefinition *obj, MIRType type,
-                             uint32_t laneX, uint32_t laneY, uint32_t laneZ, uint32_t laneW)
-    {
-        return new(alloc) MSimdSwizzle(obj, type, laneX, laneY, laneZ, laneW);
-    }
-
     bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
         if (!ins->isSimdSwizzle())
             return false;
@@ -1834,57 +1828,6 @@ class MSimdSwizzle
     MDefinition *foldsTo(TempAllocator &alloc) MOZ_OVERRIDE;
 
     ALLOW_CLONE(MSimdSwizzle)
-};
-
-// A "general swizzle" is a swizzle with non-constant lane indices.  This is the
-// one that Ion inlines and it can be folded into a MSimdSwizzle if lane indices
-// are constant. Performance of general swizzle does not really matter, as we
-// expect to always get constant indices.
-class MSimdGeneralSwizzle :
-    public MAryInstruction<5>,
-    public SimdSwizzlePolicy::Data
-{
-  protected:
-    MSimdGeneralSwizzle(MDefinition *vec, MDefinition *lanes[4], MIRType type)
-    {
-        MOZ_ASSERT(IsSimdType(type));
-        MOZ_ASSERT(SimdTypeToLength(type) == 4);
-
-        initOperand(0, vec);
-        for (unsigned i = 0; i < 4; i++)
-            initOperand(1 + i, lanes[i]);
-
-        setResultType(type);
-        specialization_ = type;
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(SimdGeneralSwizzle);
-    ALLOW_CLONE(MSimdGeneralSwizzle);
-
-    static MSimdGeneralSwizzle *New(TempAllocator &alloc, MDefinition *vec, MDefinition *lanes[4],
-                                    MIRType type)
-    {
-        return new(alloc) MSimdGeneralSwizzle(vec, lanes, type);
-    }
-
-    MDefinition *input() const {
-        return getOperand(0);
-    }
-    MDefinition *lane(size_t i) const {
-        return getOperand(1 + i);
-    }
-
-    bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
-        return congruentIfOperandsEqual(ins);
-    }
-
-    MDefinition *foldsTo(TempAllocator &alloc) MOZ_OVERRIDE;
-
-    AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::None();
-    }
 };
 
 // Applies a shuffle operation to the inputs, selecting the 2 first lanes of the
@@ -3153,8 +3096,7 @@ class MSimdBox
         MOZ_ASSERT(IsSimdType(op->type()));
         setMovable();
         setResultType(MIRType_Object);
-        if (constraints)
-            setResultTypeSet(MakeSingletonTypeSet(constraints, templateObject));
+        setResultTypeSet(MakeSingletonTypeSet(constraints, templateObject));
     }
 
   public:
@@ -10053,18 +9995,16 @@ class MGuardShape
     }
 };
 
-// Bail if the object's shape or unboxed group is not in the input list.
-class MGuardReceiverPolymorphic
+// Bail if the object's shape is not one of the shapes in shapes_.
+class MGuardShapePolymorphic
   : public MUnaryInstruction,
     public SingleObjectPolicy::Data
 {
     Vector<Shape *, 4, JitAllocPolicy> shapes_;
-    Vector<ObjectGroup *, 4, JitAllocPolicy> unboxedGroups_;
 
-    MGuardReceiverPolymorphic(TempAllocator &alloc, MDefinition *obj)
+    MGuardShapePolymorphic(TempAllocator &alloc, MDefinition *obj)
       : MUnaryInstruction(obj),
-        shapes_(alloc),
-        unboxedGroups_(alloc)
+        shapes_(alloc)
     {
         setGuard();
         setMovable();
@@ -10072,16 +10012,15 @@ class MGuardReceiverPolymorphic
     }
 
   public:
-    INSTRUCTION_HEADER(GuardReceiverPolymorphic)
+    INSTRUCTION_HEADER(GuardShapePolymorphic)
 
-    static MGuardReceiverPolymorphic *New(TempAllocator &alloc, MDefinition *obj) {
-        return new(alloc) MGuardReceiverPolymorphic(alloc, obj);
+    static MGuardShapePolymorphic *New(TempAllocator &alloc, MDefinition *obj) {
+        return new(alloc) MGuardShapePolymorphic(alloc, obj);
     }
 
     MDefinition *obj() const {
         return getOperand(0);
     }
-
     bool addShape(Shape *shape) {
         return shapes_.append(shape);
     }
@@ -10090,16 +10029,6 @@ class MGuardReceiverPolymorphic
     }
     Shape *getShape(size_t i) const {
         return shapes_[i];
-    }
-
-    bool addUnboxedGroup(ObjectGroup *group) {
-        return unboxedGroups_.append(group);
-    }
-    size_t numUnboxedGroups() const {
-        return unboxedGroups_.length();
-    }
-    ObjectGroup *getUnboxedGroup(size_t i) const {
-        return unboxedGroups_[i];
     }
 
     bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE;
