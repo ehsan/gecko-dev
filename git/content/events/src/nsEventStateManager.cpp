@@ -3872,14 +3872,8 @@ public:
 
   ~MouseEnterLeaveDispatcher()
   {
-    if (mType == NS_MOUSEENTER) {
-      for (PRInt32 i = mTargets.Count() - 1; i >= 0; --i) {
-        mESM->DispatchMouseEvent(mEvent, mType, mTargets[i], mRelatedTarget);
-      }
-    } else {
-      for (PRInt32 i = 0; i < mTargets.Count(); ++i) {
-        mESM->DispatchMouseEvent(mEvent, mType, mTargets[i], mRelatedTarget);
-      }
+    for (PRInt32 i = 0; i < mTargets.Count(); ++i) {
+      mESM->DispatchMouseEvent(mEvent, mType, mTargets[i], mRelatedTarget);
     }
   }
 

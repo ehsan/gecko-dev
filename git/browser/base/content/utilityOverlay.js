@@ -9,13 +9,9 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   const PREF = "browser.newtab.url";
-  const TOPIC = "private-browsing-transition-complete";
 
   function getNewTabPageURL() {
-    if (("gPrivateBrowsingUI" in window) && gPrivateBrowsingUI.privateWindow)
-      return "about:privatebrowsing";
-    else
-      return Services.prefs.getCharPref(PREF) || "about:blank";
+    return Services.prefs.getCharPref(PREF) || "about:blank";
   }
 
   function update() {
@@ -23,12 +19,9 @@ XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   }
 
   Services.prefs.addObserver(PREF, update, false);
-  Services.obs.addObserver(update, TOPIC, false);
-
   addEventListener("unload", function onUnload() {
     removeEventListener("unload", onUnload);
     Services.prefs.removeObserver(PREF, update);
-    Services.obs.removeObserver(update, TOPIC);
   });
 
   return getNewTabPageURL();
