@@ -54,120 +54,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         }
     };
 
-    /*
-     * Base class for creating a branch.
-     */
-    class Branch
-    {
-        bool init_;
-        Condition cond_;
-        Label *jump_;
-        Register reg_;
-
-      public:
-        Branch()
-          : init_(false),
-            cond_(Equal),
-            jump_(NULL),
-            reg_(Register::FromCode(0))      // Quell compiler warnings.
-        { }
-
-        Branch(Condition cond, Register reg, Label *jump)
-          : init_(true),
-            cond_(cond),
-            jump_(jump),
-            reg_(reg)
-        { }
-
-        bool isInitialized() const {
-            return init_;
-        }
-
-        Condition cond() const {
-            return cond_;
-        }
-
-        Label *jump() const {
-            return jump_;
-        }
-
-        Register reg() const {
-            return reg_;
-        }
-
-        void invertCondition() {
-            cond_ = InvertCondition(cond_);
-        }
-
-        void relink(Label *jump) {
-            jump_ = jump;
-        }
-
-        virtual void emit(MacroAssembler &masm) = 0;
-    };
-
-    /*
-     * Creates a branch based on a specific types::Type.
-     * Note: emits number test (int/double) for types::Type::DoubleType()
-     */
-    class BranchType : public Branch
-    {
-        types::Type type_;
-
-      public:
-        BranchType()
-          : Branch(),
-            type_(types::Type::UnknownType())
-        { }
-
-        BranchType(Condition cond, Register reg, types::Type type, Label *jump)
-          : Branch(cond, reg, jump),
-            type_(type)
-        { }
-
-        void emit(MacroAssembler &masm) {
-            JS_ASSERT(isInitialized());
-            MIRType mirType = MIRType_None;
-
-            if (type_.isPrimitive())
-                mirType = MIRTypeFromValueType(type_.primitive());
-            else if (type_.isAnyObject())
-                mirType = MIRType_Object;
-            else
-                MOZ_ASSUME_UNREACHABLE("Unknown conversion to mirtype");
-
-            if (mirType == MIRType_Double)
-                masm.branchTestNumber(cond(), reg(), jump());
-            else
-                masm.branchTestMIRType(cond(), reg(), mirType, jump());
-        }
-
-    };
-
-    /*
-     * Creates a branch based on a GCPtr.
-     */
-    class BranchGCPtr : public Branch
-    {
-        ImmGCPtr ptr_;
-
-      public:
-        BranchGCPtr()
-          : Branch(),
-            ptr_(ImmGCPtr(NULL))
-        { }
-
-        BranchGCPtr(Condition cond, Register reg, ImmGCPtr ptr, Label *jump)
-          : Branch(cond, reg, jump),
-            ptr_(ptr)
-        { }
-
-        void emit(MacroAssembler &masm) {
-            JS_ASSERT(isInitialized());
-            masm.branchPtr(cond(), reg(), ptr_, jump());
-        }
-    };
-
     mozilla::Maybe<AutoRooter> autoRooter_;
     mozilla::Maybe<IonContext> ionContext_;
     mozilla::Maybe<AutoIonContextAlloc> alloc_;
@@ -274,11 +160,14 @@ class MacroAssembler : public MacroAssemblerSpecific
     // Emits a test of a value against all types in a TypeSet. A scratch
     // register is required.
     template <typename Source, typename TypeSet>
-    void guardTypeSet(const Source &address, const TypeSet *types, Register scratch, Label *miss);
+    void guardTypeSet(const Source &address, const TypeSet *types, Register scratch,
+                      Label *matched, Label *miss);
     template <typename TypeSet>
-    void guardObjectType(Register obj, const TypeSet *types, Register scratch, Label *miss);
+    void guardObjectType(Register obj, const TypeSet *types,
+                         Register scratch, Label *matched, Label *miss);
     template <typename Source>
-    void guardType(const Source &address, types::Type type, Register scratch, Label *miss);
+    void guardType(const Source &address, types::Type type, Register scratch,
+                   Label *matched, Label *miss);
 
     void loadObjShape(Register objReg, Register dest) {
         loadPtr(Address(objReg, JSObject::offsetOfShape()), dest);
@@ -313,6 +202,10 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     template <typename Value>
     Condition testMIRType(Condition cond, const Value &val, MIRType type) {
+        JS_ASSERT(type == MIRType_Null    || type == MIRType_Undefined  ||
+                  type == MIRType_Boolean || type == MIRType_Int32      ||
+                  type == MIRType_String  || type == MIRType_Object     ||
+                  type == MIRType_Double);
         switch (type) {
           case MIRType_Null:        return testNull(cond, val);
           case MIRType_Undefined:   return testUndefined(cond, val);
@@ -321,7 +214,6 @@ class MacroAssembler : public MacroAssemblerSpecific
           case MIRType_String:      return testString(cond, val);
           case MIRType_Object:      return testObject(cond, val);
           case MIRType_Double:      return testDouble(cond, val);
-          case MIRType_Magic:       return testMagic(cond, val);
           default:
             MOZ_ASSUME_UNREACHABLE("Bad MIRType");
         }
@@ -672,14 +564,15 @@ class MacroAssembler : public MacroAssemblerSpecific
     void canonicalizeDouble(FloatRegister reg) {
         Label notNaN;
         branchDouble(DoubleOrdered, reg, reg, &notNaN);
-        loadConstantDouble(js_NaN, reg);
+        loadStaticDouble(&js_NaN, reg);
         bind(&notNaN);
     }
 
     void canonicalizeFloat(FloatRegister reg) {
+        static float js_NaN_float = js_NaN;
         Label notNaN;
         branchFloat(DoubleOrdered, reg, reg, &notNaN);
-        loadConstantFloat32((float)js_NaN, reg);
+        loadStaticFloat32(&js_NaN_float, reg);
         bind(&notNaN);
     }
 
@@ -1117,6 +1010,11 @@ class MacroAssembler : public MacroAssemblerSpecific
     else                                                                \
         method##Float32(arg1f, arg2);                                   \
 
+    void loadStaticFloatingPoint(const double *dp, const float *fp, FloatRegister dest,
+                                 MIRType destType)
+    {
+        DISPATCH_FLOATING_POINT_OP(loadStatic, destType, dp, fp, dest);
+    }
     void loadConstantFloatingPoint(double d, float f, FloatRegister dest, MIRType destType) {
         DISPATCH_FLOATING_POINT_OP(loadConstant, destType, d, f, dest);
     }

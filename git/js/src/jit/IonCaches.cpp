@@ -21,7 +21,6 @@
 #include "vm/Shape.h"
 
 #include "vm/Interpreter-inl.h"
-#include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -1629,6 +1628,8 @@ GetPropertyIC::tryAttachArgumentsLength(JSContext *cx, IonScript *ion, HandleObj
     const Class *clasp = obj->is<StrictArgumentsObject>() ? &StrictArgumentsObject::class_
                                                           : &NormalArgumentsObject::class_;
 
+    Label fail;
+    Label pass;
     masm.branchTestObjClass(Assembler::NotEqual, object(), tmpReg, clasp, &failures);
 
     // Get initial ArgsObj length value, test if length has been overridden.
@@ -1949,7 +1950,7 @@ SetPropertyIC::attachNativeExisting(JSContext *cx, IonScript *ion, HandleObject 
     MacroAssembler masm(cx);
     RepatchStubAppender attacher(*this);
 
-    Label failures, barrierFailure;
+    Label failures;
     masm.branchPtr(Assembler::NotEqual,
                    Address(object(), JSObject::offsetOfShape()),
                    ImmGCPtr(obj->lastProperty()), &failures);
@@ -1973,10 +1974,20 @@ SetPropertyIC::attachNativeExisting(JSContext *cx, IonScript *ion, HandleObject 
             JS_ASSERT(propTypes);
             JS_ASSERT(!propTypes->unknown());
 
+            Label barrierSuccess;
+            Label barrierFailure;
+
             Register scratchReg = object();
             masm.push(scratchReg);
 
-            masm.guardTypeSet(valReg, propTypes, scratchReg, &barrierFailure);
+            masm.guardTypeSet(valReg, propTypes, scratchReg,
+                                &barrierSuccess, &barrierFailure);
+
+            masm.bind(&barrierFailure);
+            masm.pop(object());
+            masm.jump(&failures);
+
+            masm.bind(&barrierSuccess);
             masm.pop(object());
         }
     }
@@ -2001,11 +2012,6 @@ SetPropertyIC::attachNativeExisting(JSContext *cx, IonScript *ion, HandleObject 
     }
 
     attacher.jumpRejoin(masm);
-
-    if (barrierFailure.used()) {
-        masm.bind(&barrierFailure);
-        masm.pop(object());
-    }
 
     masm.bind(&failures);
     attacher.jumpNextStub(masm);
@@ -3069,6 +3075,8 @@ GetElementIC::attachArgumentsElement(JSContext *cx, IonScript *ion, JSObject *ob
     const Class *clasp = obj->is<StrictArgumentsObject>() ? &StrictArgumentsObject::class_
                                                           : &NormalArgumentsObject::class_;
 
+    Label fail;
+    Label pass;
     masm.branchTestObjClass(Assembler::NotEqual, object(), tmpReg, clasp, &failures);
 
     // Get initial ArgsObj length value, test if length has been overridden.

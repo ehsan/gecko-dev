@@ -1277,9 +1277,9 @@ double MetroWidget::GetDefaultScaleInternal()
 LayoutDeviceIntPoint
 MetroWidget::CSSIntPointToLayoutDeviceIntPoint(const CSSIntPoint &aCSSPoint)
 {
-  CSSToLayoutDeviceScale scale = GetDefaultScale();
-  LayoutDeviceIntPoint devPx(int32_t(NS_round(scale.scale * aCSSPoint.x)),
-                             int32_t(NS_round(scale.scale * aCSSPoint.y)));
+  double scale = GetDefaultScale();
+  LayoutDeviceIntPoint devPx(int32_t(NS_round(scale * aCSSPoint.x)),
+                             int32_t(NS_round(scale * aCSSPoint.y)));
   return devPx;
 }
 

@@ -341,21 +341,15 @@ nsWindow::GetDPI()
 double
 nsWindow::GetDefaultScaleInternal()
 {
-    static double density = 0.0;
-
-    if (density != 0.0) {
-        return density;
+    float dpi = GetDPI();
+    if (dpi < 200) { // includes desktop displays, LDPI, and MDPI Android devices
+        return 1.0;
     }
-
-    if (AndroidBridge::Bridge()) {
-        density = AndroidBridge::Bridge()->GetDensity();
+    if (dpi < 300) { // includes Nokia N900, HDPI Android devices
+        return 1.5;
     }
-
-    if (!density) {
-        density = 1.0;
-    }
-
-    return density;
+    // for very high-density displays calculate an integer ratio.
+    return floor(dpi / 150);
 }
 
 NS_IMETHODIMP

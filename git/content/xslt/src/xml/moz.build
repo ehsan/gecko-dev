@@ -17,9 +17,3 @@ FAIL_ON_WARNINGS = True
 
 LIBXUL_LIBRARY = True
 
-LOCAL_INCLUDES += [
-    '../base',
-    '../xpath',
-    '../xslt',
-    '/content/base/src',
-]

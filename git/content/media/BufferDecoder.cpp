@@ -77,7 +77,7 @@ BufferDecoder::GetResource() const
 }
 
 void
-BufferDecoder::NotifyBytesConsumed(int64_t aBytes, int64_t aOffset)
+BufferDecoder::NotifyBytesConsumed(int64_t aBytes)
 {
   // ignore
 }

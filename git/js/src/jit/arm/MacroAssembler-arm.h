@@ -536,17 +536,17 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         // for now, assume that it'll be nearby?
         as_bl(label, Always);
     }
-    void call(ImmWord imm) {
-        call(ImmPtr((void*)imm.value));
+    void call(ImmWord word) {
+        BufferOffset bo = m_buffer.nextOffset();
+        addPendingJump(bo, (void*)word.value, Relocation::HARDCODED);
+        ma_call((void *) word.value);
     }
     void call(ImmPtr imm) {
-        BufferOffset bo = m_buffer.nextOffset();
-        addPendingJump(bo, imm, Relocation::HARDCODED);
-        ma_call(imm.value);
+        call(ImmWord(uintptr_t(imm.value)));
     }
     void call(IonCode *c) {
         BufferOffset bo = m_buffer.nextOffset();
-        addPendingJump(bo, ImmPtr(c->raw()), Relocation::IONCODE);
+        addPendingJump(bo, c->raw(), Relocation::IONCODE);
         RelocStyle rs;
         if (hasMOVWT())
             rs = L_MOVWT;
@@ -558,7 +558,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     }
     void branch(IonCode *c) {
         BufferOffset bo = m_buffer.nextOffset();
-        addPendingJump(bo, ImmPtr(c->raw()), Relocation::IONCODE);
+        addPendingJump(bo, c->raw(), Relocation::IONCODE);
         RelocStyle rs;
         if (hasMOVWT())
             rs = L_MOVWT;
@@ -776,6 +776,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void loadInt32OrDouble(const Operand &src, const FloatRegister &dest);
     void loadInt32OrDouble(Register base, Register index,
                            const FloatRegister &dest, int32_t shift = defaultShift);
+    void loadStaticDouble(const double *dp, const FloatRegister &dest);
     void loadConstantDouble(double dp, const FloatRegister &dest);
     // treat the value as a boolean, and set condition codes accordingly
     Condition testInt32Truthy(bool truthy, const ValueOperand &operand);
@@ -785,6 +786,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
 
     void boolValueToFloat32(const ValueOperand &operand, const FloatRegister &dest);
     void int32ValueToFloat32(const ValueOperand &operand, const FloatRegister &dest);
+    void loadStaticFloat32(const float *fp, const FloatRegister &dest);
     void loadConstantFloat32(float f, const FloatRegister &dest);
 
     template<typename T>

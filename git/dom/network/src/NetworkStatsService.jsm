@@ -22,7 +22,6 @@ const TOPIC_INTERFACE_REGISTERED   = "network-interface-registered";
 const TOPIC_INTERFACE_UNREGISTERED = "network-interface-unregistered";
 const NET_TYPE_WIFI = Ci.nsINetworkInterface.NETWORK_TYPE_WIFI;
 const NET_TYPE_MOBILE = Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE;
-const NET_TYPE_UNKNOWN = Ci.nsINetworkInterface.NETWORK_TYPE_UNKNOWN;
 
 // The maximum traffic amount can be saved in the |cachedAppStats|.
 const MAX_CACHED_TRAFFIC = 500 * 1000 * 1000; // 500 MB
@@ -425,8 +424,8 @@ this.NetworkStatsService = {
             aTimeStamp + " " + aRxBytes + " " + aTxBytes);
     }
 
-    // Check if |aAppId| and |aConnectionType| are valid.
-    if (!aAppId || aConnectionType == NET_TYPE_UNKNOWN) {
+    // |aAppId| can not be 0 or null in this case.
+    if (!aAppId) {
       return;
     }
 

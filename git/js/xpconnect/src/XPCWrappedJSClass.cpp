@@ -252,7 +252,10 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(JSContext* cx,
 
         JS_SetOptions(cx, oldOpts);
 
-        if (!success && JS_IsExceptionPending(cx)) {
+        if (!success) {
+            MOZ_ASSERT(JS_IsExceptionPending(cx),
+                       "JS failed without setting an exception!");
+
             RootedValue jsexception(cx, NullValue());
 
             if (JS_GetPendingException(cx, jsexception.address())) {
@@ -287,8 +290,6 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(JSContext* cx,
             // Don't report if reporting was disabled by someone else.
             if (!(oldOpts & JSOPTION_DONT_REPORT_UNCAUGHT))
                 JS_ReportPendingException(cx);
-        } else if (!success) {
-            NS_WARNING("QI hook ran OOMed - this is probably a bug!");
         }
     }
 

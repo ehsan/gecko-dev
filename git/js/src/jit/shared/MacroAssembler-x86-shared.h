@@ -240,38 +240,19 @@ class MacroAssemblerX86Shared : public Assembler
     }
 
     void convertInt32ToDouble(const Register &src, const FloatRegister &dest) {
-        // cvtsi2sd and friends write only part of their output register, which
-        // causes slowdowns on out-of-order processors. Explicitly break
-        // dependencies with xorpd (and xorps elsewhere), which are handled
-        // specially in modern CPUs, for this purpose. See sections 8.14, 9.8,
-        // 10.8, 12.9, 13.16, 14.14, and 15.8 of Agner's Microarchitecture
-        // document.
-        zeroDouble(dest);
         cvtsi2sd(src, dest);
     }
     void convertInt32ToDouble(const Address &src, FloatRegister dest) {
-        convertInt32ToDouble(Operand(src), dest);
-    }
-    void convertInt32ToDouble(const Operand &src, FloatRegister dest) {
-        // Clear the output register first to break dependencies; see above;
-        zeroDouble(dest);
         cvtsi2sd(Operand(src), dest);
     }
     void convertInt32ToFloat32(const Register &src, const FloatRegister &dest) {
-        // Clear the output register first to break dependencies; see above;
-        zeroFloat32(dest);
         cvtsi2ss(src, dest);
     }
     void convertInt32ToFloat32(const Address &src, FloatRegister dest) {
-        convertInt32ToFloat32(Operand(src), dest);
-    }
-    void convertInt32ToFloat32(const Operand &src, FloatRegister dest) {
-        // Clear the output register first to break dependencies; see above;
-        zeroFloat32(dest);
-        cvtsi2ss(src, dest);
+        cvtsi2ss(Operand(src), dest);
     }
     Condition testDoubleTruthy(bool truthy, const FloatRegister &reg) {
-        zeroDouble(ScratchFloatReg);
+        xorpd(ScratchFloatReg, ScratchFloatReg);
         ucomisd(ScratchFloatReg, reg);
         return truthy ? NonZero : Zero;
     }
@@ -343,9 +324,6 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void zeroDouble(FloatRegister reg) {
         xorpd(reg, reg);
-    }
-    void zeroFloat32(FloatRegister reg) {
-        xorps(reg, reg);
     }
     void negateDouble(FloatRegister reg) {
         // From MacroAssemblerX86Shared::maybeInlineDouble

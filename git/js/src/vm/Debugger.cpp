@@ -3715,12 +3715,7 @@ DebuggerSource_getText(JSContext *cx, unsigned argc, Value *vp)
     THIS_DEBUGSOURCE_REFERENT(cx, argc, vp, "(get text)", args, obj, sourceObject);
 
     ScriptSource *ss = sourceObject->source();
-    bool hasSourceData = ss->hasSourceData();
-    if (!ss->hasSourceData() && !JSScript::loadSource(cx, ss, &hasSourceData))
-        return false;
-
-    JSString *str = hasSourceData ? ss->substring(cx, 0, ss->length())
-                                  : js_NewStringCopyZ<CanGC>(cx, "[no source]");
+    JSString *str = ss->substring(cx, 0, ss->length());
     if (!str)
         return false;
 

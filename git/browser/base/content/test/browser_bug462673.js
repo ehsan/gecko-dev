@@ -3,11 +3,7 @@ var runs = [
     is(tabbrowser.browsers.length, 2, "test_bug462673.html has opened a second tab");
     is(tabbrowser.selectedTab, tab.nextSibling, "dependent tab is selected");
     tabbrowser.removeTab(tab);
-    // Closing a tab will also close its parent chrome window, but async
-    executeSoon(function() {
-      ok(win.closed, "Window is closed");
-      testComplete(win);
-    });
+    ok(win.closed, "Window is closed");
   },
   function (win, tabbrowser, tab) {
     var newTab = tabbrowser.addTab();
@@ -21,21 +17,12 @@ var runs = [
       is(tabbrowser.selectedBrowser, newBrowser, "Browser for remaining tab is selected");
       is(tabbrowser.mTabBox.selectedPanel, newBrowser.parentNode.parentNode.parentNode.parentNode, "Panel for remaining tab is selected");
     }
-    testComplete(win);
   }
 ];
 
 function test() {
   waitForExplicitFinish();
   runOneTest();
-}
-
-function testComplete(win) {
-  win.close();
-  if (runs.length)
-    runOneTest();
-  else
-    finish();
 }
 
 function runOneTest() {
@@ -52,6 +39,11 @@ function runOneTest() {
 
       executeSoon(function () {
         runs.shift()(win, win.gBrowser, tab);
+        win.close();
+        if (runs.length)
+          runOneTest();
+        else
+          finish();
       });
     }, true);
 

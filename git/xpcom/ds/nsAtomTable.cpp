@@ -557,6 +557,7 @@ RegisterStaticAtoms(const nsStaticAtom* aAtoms, uint32_t aAtomCount)
   }
   
   for (uint32_t i=0; i<aAtomCount; i++) {
+#ifdef NS_STATIC_ATOM_USE_WIDE_STRINGS
     NS_ASSERTION(nsCRT::IsAscii((PRUnichar*)aAtoms[i].mStringBuffer->Data()),
                  "Static atoms must be ASCII!");
 
@@ -590,6 +591,22 @@ RegisterStaticAtoms(const nsStaticAtom* aAtoms, uint32_t aAtomCount)
         gStaticAtomTable->Put(nsAtomString(atom), atom);
       }
     }
+#else // NS_STATIC_ATOM_USE_WIDE_STRINGS
+    NS_ASSERTION(nsCRT::IsAscii((char*)aAtoms[i].mStringBuffer->Data()),
+                 "Static atoms must be ASCII!");
+
+    uint32_t stringLen = aAtoms[i].mStringBuffer->StorageSize() - 1;
+
+    NS_ConvertASCIItoUTF16 str((char*)aAtoms[i].mStringBuffer->Data(),
+                               stringLen);
+    nsIAtom* atom = NS_NewPermanentAtom(str);
+    *aAtoms[i].mAtom = atom;
+
+    if (!gStaticAtomTableSealed) {
+      gStaticAtomTable->Put(str, atom);
+    }
+#endif
+
   }
   return NS_OK;
 }

@@ -1692,7 +1692,7 @@ MacroAssemblerARMCompat::callWithExitFrame(IonCode *target)
     uint32_t descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
     Push(Imm32(descriptor)); // descriptor
 
-    addPendingJump(m_buffer.nextOffset(), ImmPtr(target->raw()), Relocation::IONCODE);
+    addPendingJump(m_buffer.nextOffset(), target->raw(), Relocation::IONCODE);
     RelocStyle rs;
     if (hasMOVWT())
         rs = L_MOVWT;
@@ -1710,7 +1710,7 @@ MacroAssemblerARMCompat::callWithExitFrame(IonCode *target, Register dynStack)
     makeFrameDescriptor(dynStack, IonFrame_OptimizedJS);
     Push(dynStack); // descriptor
 
-    addPendingJump(m_buffer.nextOffset(), ImmPtr(target->raw()), Relocation::IONCODE);
+    addPendingJump(m_buffer.nextOffset(), target->raw(), Relocation::IONCODE);
     RelocStyle rs;
     if (hasMOVWT())
         rs = L_MOVWT;
@@ -2904,6 +2904,12 @@ MacroAssemblerARMCompat::loadConstantFloat32(float f, const FloatRegister &dest)
 }
 
 void
+MacroAssemblerARMCompat::loadStaticFloat32(const float *fp, const FloatRegister &dest)
+{
+    loadConstantFloat32(*fp, dest);
+}
+
+void
 MacroAssemblerARMCompat::loadInt32OrDouble(const Operand &src, const FloatRegister &dest)
 {
     Label notInt32, end;
@@ -2954,6 +2960,11 @@ MacroAssemblerARMCompat::loadConstantDouble(double dp, const FloatRegister &dest
     as_FImm64Pool(dest, dp);
 }
 
+void
+MacroAssemblerARMCompat::loadStaticDouble(const double *dp, const FloatRegister &dest)
+{
+    loadConstantDouble(*dp, dest);
+}
     // treat the value as a boolean, and set condition codes accordingly
 
 Assembler::Condition
@@ -3756,7 +3767,7 @@ MacroAssemblerARMCompat::toggledCall(IonCode *target, bool enabled)
 {
     BufferOffset bo = nextOffset();
     CodeOffsetLabel offset(bo.getOffset());
-    addPendingJump(bo, ImmPtr(target->raw()), Relocation::IONCODE);
+    addPendingJump(bo, target->raw(), Relocation::IONCODE);
     ma_movPatchable(ImmPtr(target->raw()), ScratchRegister, Always, hasMOVWT() ? L_MOVWT : L_LDR);
     if (enabled)
         ma_blx(ScratchRegister);
