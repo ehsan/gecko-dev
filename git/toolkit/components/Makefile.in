@@ -36,98 +36,95 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH     = ../..
+DEPTH   = ../..
 topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
-VPATH     = @srcdir@
+VPATH   = @srcdir@
 
 include $(topsrcdir)/config/config.mk
 
 # These component dirs are built for all apps (including suite)
 
 ifdef MOZ_ENABLE_XREMOTE
-PARALLEL_DIRS += remote
+DIRS += remote
 endif
-
-PARALLEL_DIRS += \
-  aboutmemory \
-  apppicker \
-  commandlines \
-  console \
-  contentprefs \
-  cookie \
-  exthelper \
-  filepicker \
-  find \
-  microformats \
-  parentalcontrols \
-  passwordmgr \
-  places \
-  startup \
-  statusfilter \
-  typeaheadfind \
-  urlformatter \
-  viewconfig \
-  $(NULL)
-
-ifdef BUILD_CTYPES
-PARALLEL_DIRS += \
-  ctypes \
-  $(NULL)
-endif
+DIRS += \
+        urlformatter \
+        contentprefs \
+        microformats \
+        places \
+	apppicker \
+	filepicker \
+	console \
+	cookie \
+	exthelper \
+	viewconfig \
+	typeaheadfind \
+	parentalcontrols \
+	passwordmgr \
+	aboutmemory \
+	$(NULL)
 
 ifneq (,$(filter cocoa, $(MOZ_WIDGET_TOOLKIT)))
 TOOL_DIRS += alerts
 else
-PARALLEL_DIRS += alerts
+DIRS += alerts
 endif
 
 ifdef MOZ_FEEDS
-PARALLEL_DIRS += feeds
+DIRS += feeds
 endif
 
 ifdef MOZ_HELP_VIEWER
-PARALLEL_DIRS += help
+DIRS += help
 endif
 
 ifdef NS_PRINTING
-PARALLEL_DIRS += printing
+DIRS +=	printing
 endif
 
 ifdef MOZ_VIEW_SOURCE
-PARALLEL_DIRS += viewsource
+DIRS +=	viewsource
 endif
 
 ifdef MOZ_XUL
-PARALLEL_DIRS += \
+DIRS += \
   autocomplete \
   satchel \
   $(NULL)
 endif
 
-ifdef MOZ_TOOLKIT_SEARCH
-PARALLEL_DIRS += search
+ifndef MOZ_THUNDERBIRD
+
+ifndef MOZ_SUITE
+DIRS +=	search
 endif
 
+endif # MOZ_THUNDERBIRD
+
 ifdef MOZ_RDF
-PARALLEL_DIRS += \
-  downloads \
-  intl \
-  $(NULL)
+DIRS +=	downloads
 endif
 
 ifdef MOZ_URL_CLASSIFIER
-PARALLEL_DIRS += url-classifier
+DIRS += url-classifier
 endif
 
 ifdef MOZ_FASTSTART
-PARALLEL_DIRS += faststart
+DIRS += faststart
 endif
 
 DIRS += \
-  build \
-  $(NULL)
+	commandlines \
+	startup \
+	build \
+	$(NULL)
 
 EXTRA_PP_COMPONENTS = nsDefaultCLH.js
+
+ifeq ($(MOZ_BUILD_APP),camino)
+DIRS += autocomplete/public
+DIRS += downloads/public
+endif
 
 include $(topsrcdir)/config/rules.mk

@@ -36,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsCOMPtr.h"
 #include "nsIDOMHTMLLabelElement.h"
-#include "nsIDOMNSHTMLLabelElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
@@ -47,6 +46,7 @@
 #include "nsIForm.h"
 #include "nsIDOMDocument.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
 #include "nsGUIEvent.h"
 #include "nsIEventStateManager.h"
 #include "nsEventDispatcher.h"
@@ -54,8 +54,7 @@
 #include "nsFocusManager.h"
 
 class nsHTMLLabelElement : public nsGenericHTMLFormElement,
-                           public nsIDOMHTMLLabelElement,
-                           public nsIDOMNSHTMLLabelElement
+                           public nsIDOMHTMLLabelElement
 {
 public:
   nsHTMLLabelElement(nsINodeInfo *aNodeInfo);
@@ -76,13 +75,10 @@ public:
   // nsIDOMHTMLLabelElement
   NS_DECL_NSIDOMHTMLLABELELEMENT
 
-  // nsIDOMNSHTMLLabelElement
-  NS_DECL_NSIDOMNSHTMLLABELELEMENT
-
   // nsIFormControl
-  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_LABEL; }
+  NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_LABEL; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
 
   NS_IMETHOD Focus();
@@ -111,7 +107,7 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
-  already_AddRefed<nsIContent> GetControlContent();
+  already_AddRefed<nsIContent> GetForContent();
   already_AddRefed<nsIContent> GetFirstFormControl(nsIContent *current);
 
   // XXX It would be nice if we could use an event flag instead.
@@ -141,13 +137,9 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLabelElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLabelElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLLabelElement, nsHTMLLabelElement)
-
 // QueryInterface implementation for nsHTMLLabelElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLabelElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLLabelElement,
-                                   nsIDOMHTMLLabelElement,
-                                   nsIDOMNSHTMLLabelElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLLabelElement, nsIDOMHTMLLabelElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLabelElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLabelElement)
@@ -165,18 +157,6 @@ nsHTMLLabelElement::GetForm(nsIDOMHTMLFormElement** aForm)
   return nsGenericHTMLFormElement::GetForm(aForm);
 }
 
-NS_IMETHODIMP
-nsHTMLLabelElement::GetControl(nsIDOMHTMLElement** aElement)
-{
-  *aElement = nsnull;
-
-  nsCOMPtr<nsIContent> content = GetControlContent();
-  nsCOMPtr<nsIDOMHTMLElement> element = do_QueryInterface(content);
-
-  element.swap(*aElement);
-  return NS_OK;
-}
-
 
 NS_IMPL_STRING_ATTR(nsHTMLLabelElement, AccessKey, accesskey)
 NS_IMPL_STRING_ATTR(nsHTMLLabelElement, HtmlFor, _for)
@@ -187,8 +167,7 @@ nsHTMLLabelElement::Focus()
   // retarget the focus method at the for content
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm) {
-    nsCOMPtr<nsIContent> content = GetControlContent();
-
+    nsCOMPtr<nsIContent> content = GetForContent();
     nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(content);
     if (elem)
       fm->SetFocus(elem, 0);
@@ -264,8 +243,7 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     return NS_OK;
   }
 
-  nsCOMPtr<nsIContent> content = GetControlContent();
-
+  nsCOMPtr<nsIContent> content = GetForContent();
   if (content && !EventTargetIn(aVisitor.mEvent, content, this)) {
     mHandlingEvent = PR_TRUE;
     switch (aVisitor.mEvent->message) {
@@ -351,7 +329,7 @@ nsHTMLLabelElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLLabelElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLLabelElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                       nsIContent* aSubmitElement)
 {
   return NS_OK;
@@ -394,7 +372,7 @@ nsHTMLLabelElement::PerformAccesskey(PRBool aKeyCausesActivation,
                                      PRBool aIsTrustedEvent)
 {
   if (!aKeyCausesActivation) {
-    nsCOMPtr<nsIContent> content = GetControlContent();
+    nsCOMPtr<nsIContent> content = GetForContent();
     if (content)
       content->PerformAccesskey(aKeyCausesActivation, aIsTrustedEvent);
   } else {
@@ -405,7 +383,6 @@ nsHTMLLabelElement::PerformAccesskey(PRBool aKeyCausesActivation,
     // Click on it if the users prefs indicate to do so.
     nsMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK,
                        nsnull, nsMouseEvent::eReal);
-    event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
 
     nsAutoPopupStatePusher popupStatePusher(aIsTrustedEvent ?
                                             openAllowed : openAbused);
@@ -415,37 +392,41 @@ nsHTMLLabelElement::PerformAccesskey(PRBool aKeyCausesActivation,
   }
 }
 
-already_AddRefed<nsIContent>
-nsHTMLLabelElement::GetControlContent()
+inline PRBool IsNonLabelFormControl(nsIContent *aContent)
 {
-  nsAutoString elementId;
+  return aContent->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) &&
+         aContent->Tag() != nsGkAtoms::label;
+}
 
-  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::_for, elementId)) {
-    // No @for, so we are a label for our first form control element.
-    // Do a depth-first traversal to look for the first form control element.
+already_AddRefed<nsIContent>
+nsHTMLLabelElement::GetForContent()
+{
+  nsresult rv;
+
+  // Get the element that this label is for
+  nsAutoString elementId;
+  rv = GetHtmlFor(elementId);
+  if (NS_SUCCEEDED(rv) && !elementId.IsEmpty()) {
+    // We have a FOR attribute.
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    GetOwnerDocument(getter_AddRefs(domDoc));
+    if (domDoc) {
+      nsCOMPtr<nsIDOMElement> domElement;
+      domDoc->GetElementById(elementId, getter_AddRefs(domElement));
+      nsIContent *result = nsnull;
+      if (domElement) {
+        CallQueryInterface(domElement, &result);
+        if (result && !IsNonLabelFormControl(result)) {
+          NS_RELEASE(result); // assigns null
+        }
+      }
+      return result;
+    }
+  } else {
+    // No FOR attribute, we are a label for our first form control element.
+    // do a depth-first traversal to look for the first form control element
     return GetFirstFormControl(this);
   }
-
-  // We have a @for. The id has to be linked to an element in the same document
-  // and this element should be a labelable form control.
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc) {
-    return nsnull;
-  }
-
-  nsresult rv;
-  nsIContent* content = doc->GetElementById(elementId, &rv);
-  NS_ENSURE_SUCCESS(rv, nsnull);
-  if (!content) {
-    return nsnull;
-  }
-
-  nsCOMPtr<nsIFormControl> element = do_QueryInterface(content);
-  if (element && element->IsLabelableControl()) {
-    NS_ADDREF(content);
-    return content;
-  }
-
   return nsnull;
 }
 
@@ -456,22 +437,18 @@ nsHTMLLabelElement::GetFirstFormControl(nsIContent *current)
 
   for (PRUint32 i = 0; i < numNodes; i++) {
     nsIContent *child = current->GetChildAt(i);
-    if (!child) {
-      continue;
-    }
+    if (child) {
+      if (IsNonLabelFormControl(child)) {
+        NS_ADDREF(child);
+        return child;
+      }
 
-    nsCOMPtr<nsIFormControl> element = do_QueryInterface(child);
-    if (element && element->IsLabelableControl()) {
-      NS_ADDREF(child);
-      return child;
-    }
-
-    nsIContent* content = GetFirstFormControl(child).get();
-    if (content) {
-      return content;
+      nsIContent* content = GetFirstFormControl(child).get();
+      if (content) {
+        return content;
+      }
     }
   }
 
   return nsnull;
 }
-

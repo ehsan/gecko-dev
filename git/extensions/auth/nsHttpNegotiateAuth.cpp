@@ -221,14 +221,11 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpChannel *httpChannel,
                                          const PRUnichar *password,
                                          nsISupports **sessionState,
                                          nsISupports **continuationState,
-                                         PRUint32 *flags,
                                          char **creds)
 {
     // ChallengeReceived must have been called previously.
     nsIAuthModule *module = (nsIAuthModule *) *continuationState;
     NS_ENSURE_TRUE(module, NS_ERROR_NOT_INITIALIZED);
-
-    *flags = USING_INTERNAL_IDENTITY;
 
     LOG(("nsHttpNegotiateAuth::GenerateCredentials() [challenge=%s]\n", challenge));
 
@@ -260,14 +257,14 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpChannel *httpChannel,
             challenge++;
         len = strlen(challenge);
 
-        // strip off any padding (see bug 230351)
-        while (challenge[len - 1] == '=')
-            len--;
-
         inTokenLen = (len * 3)/4;
         inToken = malloc(inTokenLen);
         if (!inToken)
             return (NS_ERROR_OUT_OF_MEMORY);
+
+        // strip off any padding (see bug 230351)
+        while (challenge[len - 1] == '=')
+            len--;
 
         //
         // Decode the response that followed the "Negotiate" token

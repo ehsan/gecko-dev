@@ -132,7 +132,7 @@ nsAboutCacheEntry::NewChannel(nsIURI *uri, nsIChannel **result)
 NS_IMETHODIMP
 nsAboutCacheEntry::GetURIFlags(nsIURI *aURI, PRUint32 *result)
 {
-    *result = nsIAboutModule::HIDE_FROM_ABOUTABOUT;
+    *result = 0;
     return NS_OK;
 }
 

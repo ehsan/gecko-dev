@@ -82,13 +82,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 
-DOMCI_DATA(SVGUseElement, nsSVGUseElement)
-
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGUseElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGUseElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGURIReference,
                            nsIDOMSVGUseElement, nsIMutationObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGUseElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGUseElement)
   if (aIID.Equals(NS_GET_IID(nsSVGUseElement)))
     foundInterface = reinterpret_cast<nsISupports*>(this);
   else
@@ -97,18 +95,8 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGUseElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-#ifdef _MSC_VER
-// Disable "warning C4355: 'this' : used in base member initializer list".
-// We can ignore that warning because we know that mSource's constructor 
-// doesn't dereference the pointer passed to it.
-#pragma warning(push)
-#pragma warning(disable:4355)
-#endif
 nsSVGUseElement::nsSVGUseElement(nsINodeInfo *aNodeInfo)
   : nsSVGUseElementBase(aNodeInfo), mSource(this)
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 {
 }
 
@@ -198,7 +186,8 @@ nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
                                   nsIContent *aContent,
                                   PRInt32 aNameSpaceID,
                                   nsIAtom *aAttribute,
-                                  PRInt32 aModType)
+                                  PRInt32 aModType,
+                                  PRUint32 aStateMask)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
     TriggerReclone();
@@ -208,7 +197,6 @@ nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
 void
 nsSVGUseElement::ContentAppended(nsIDocument *aDocument,
                                  nsIContent *aContainer,
-                                 nsIContent *aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContainer)) {

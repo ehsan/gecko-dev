@@ -37,7 +37,6 @@
 
 #include "nsAlertsService.h"
 #include "nsAlertsIconListener.h"
-#include "nsAutoPtr.h"
 
 NS_IMPL_THREADSAFE_ADDREF(nsAlertsService)
 NS_IMPL_THREADSAFE_RELEASE(nsAlertsService)
@@ -65,7 +64,7 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
                                                      nsIObserver * aAlertListener,
                                                      const nsAString & aAlertName)
 {
-  nsRefPtr<nsAlertsIconListener> alertListener = new nsAlertsIconListener();
+  nsCOMPtr<nsAlertsIconListener> alertListener = new nsAlertsIconListener();
   if (!alertListener)
     return NS_ERROR_OUT_OF_MEMORY;
 

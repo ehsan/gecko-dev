@@ -39,8 +39,7 @@
 #include <QPixmap>
 #include <QX11Info>
 #include <QApplication>
-#include <QDesktopWidget>
-#include <QPaintEngine>
+#include <QWidget>
 
 #include "gfxQtPlatform.h"
 
@@ -51,13 +50,7 @@
 #include "gfxImageSurface.h"
 #include "gfxQPainterSurface.h"
 
-#ifdef MOZ_PANGO
-#include "gfxPangoFonts.h"
-#include "gfxContext.h"
-#include "gfxUserFontSet.h"
-#else
 #include "gfxFT2Fonts.h"
-#endif
 
 #include "nsUnicharUtils.h"
 
@@ -65,25 +58,12 @@
 
 #include "nsMathUtils.h"
 #include "nsTArray.h"
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
-#endif
 
 #include "qcms.h"
 
-#ifndef MOZ_PANGO
 #include <ft2build.h>
 #include FT_FREETYPE_H
-#endif
 
-#include "nsIPrefBranch.h"
-#include "nsIPrefService.h"
-
-// Because the QPainter backend has some problems with glyphs rendering
-// it is better to use image or xlib cairo backends by default
-#define DEFAULT_RENDER_MODE RENDER_BUFFERED
-
-static QPaintEngine::Type sDefaultQtPaintEngineType = QPaintEngine::X11;
 gfxFontconfigUtils *gfxQtPlatform::sFontconfigUtils = nsnull;
 static cairo_user_data_key_t cairo_qt_pixmap_key;
 static void do_qt_pixmap_unref (void *data)
@@ -92,7 +72,6 @@ static void do_qt_pixmap_unref (void *data)
     delete pmap;
 }
 
-#ifndef MOZ_PANGO
 typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
 typedef nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<FontEntry> > > PrefFontTable;
 static FontTable *gPlatformFonts = NULL;
@@ -100,18 +79,14 @@ static FontTable *gPlatformFontAliases = NULL;
 static PrefFontTable *gPrefFonts = NULL;
 static gfxSparseBitSet *gCodepointsWithNoFonts = NULL;
 static FT_Library gPlatformFTLibrary = NULL;
-#endif
+
 
 gfxQtPlatform::gfxQtPlatform()
 {
-    mPrefFonts.Init(50);
-
     if (!sFontconfigUtils)
         sFontconfigUtils = gfxFontconfigUtils::GetFontconfigUtils();
 
-#ifdef MOZ_PANGO
-    g_type_init();
-#else
+
     FT_Init_FreeType(&gPlatformFTLibrary);
 
     gPlatformFonts = new FontTable();
@@ -122,38 +97,6 @@ gfxQtPlatform::gfxQtPlatform()
     gPrefFonts->Init(100);
     gCodepointsWithNoFonts = new gfxSparseBitSet();
     UpdateFontList();
-#endif
-
-    nsresult rv;
-    PRInt32 ival;
-    // 0 - default gfxQPainterSurface
-    // 1 - gfxImageSurface
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
-    if (prefs) {
-      rv = prefs->GetIntPref("mozilla.widget-qt.render-mode", &ival);
-      if (NS_FAILED(rv))
-          ival = DEFAULT_RENDER_MODE;
-    }
-
-    const char *envTypeOverride = getenv("MOZ_QT_RENDER_TYPE");
-    if (envTypeOverride)
-        ival = atoi(envTypeOverride);
-
-    switch (ival) {
-        case 0:
-            mRenderMode = RENDER_QPAINTER;
-            break;
-        case 1:
-            mRenderMode = RENDER_BUFFERED;
-            break;
-        default:
-            mRenderMode = RENDER_QPAINTER;
-    }
-
-    // Qt doesn't provide a public API to detect the graphicssystem type. We hack
-    // around this by checking what type of graphicssystem a test QPixmap uses.
-    QPixmap pixmap(1, 1);
-    sDefaultQtPaintEngineType = pixmap.paintEngine()->type();
 }
 
 gfxQtPlatform::~gfxQtPlatform()
@@ -161,9 +104,6 @@ gfxQtPlatform::~gfxQtPlatform()
     gfxFontconfigUtils::Shutdown();
     sFontconfigUtils = nsnull;
 
-#ifdef MOZ_PANGO
-    gfxPangoFontGroup::Shutdown();
-#else
     delete gPlatformFonts;
     gPlatformFonts = NULL;
     delete gPlatformFontAliases;
@@ -177,7 +117,7 @@ gfxQtPlatform::~gfxQtPlatform()
 
     FT_Done_FreeType(gPlatformFTLibrary);
     gPlatformFTLibrary = NULL;
-#endif
+
 
 #if 0
     // It would be nice to do this (although it might need to be after
@@ -192,62 +132,16 @@ already_AddRefed<gfxASurface>
 gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                       gfxASurface::gfxImageFormat imageFormat)
 {
-    nsRefPtr<gfxASurface> newSurface = nsnull;
-
-    if (mRenderMode == RENDER_QPAINTER) {
-      newSurface = new gfxQPainterSurface(size, gfxASurface::ContentFromFormat(imageFormat));
-      return newSurface.forget();
-    }
-
-    if (mRenderMode == RENDER_BUFFERED &&
-        sDefaultQtPaintEngineType != QPaintEngine::X11) {
-      newSurface = new gfxImageSurface(size, imageFormat);
-      return newSurface.forget();
-    }
-
-#ifdef MOZ_X11
-    int xrenderFormatID = -1;
-    switch (imageFormat) {
-        case gfxASurface::ImageFormatARGB32:
-            xrenderFormatID = PictStandardARGB32;
-            break;
-        case gfxASurface::ImageFormatRGB24:
-            xrenderFormatID = PictStandardRGB24;
-            break;
-        case gfxASurface::ImageFormatA8:
-            xrenderFormatID = PictStandardA8;
-            break;
-        case gfxASurface::ImageFormatA1:
-            xrenderFormatID = PictStandardA1;
-            break;
-        default:
-            return nsnull;
-    }
-
-    // XXX we really need a different interface here, something that passes
-    // in more context, including the display and/or target surface type that
-    // we should try to match
-    XRenderPictFormat* xrenderFormat =
-        XRenderFindStandardFormat(QX11Info().display(), xrenderFormatID);
-
-    newSurface = new gfxXlibSurface((Display*)QX11Info().display(),
-                                    xrenderFormat,
-                                    size);
-#endif
-
-    if (newSurface) {
-        gfxContext ctx(newSurface);
-        ctx.SetOperator(gfxContext::OPERATOR_CLEAR);
-        ctx.Paint();
-    }
+    nsRefPtr<gfxASurface> newSurface =
+        new gfxQPainterSurface (size, gfxASurface::ContentFromFormat(imageFormat));
 
     return newSurface.forget();
 }
 
 nsresult
-gfxQtPlatform::GetFontList(nsIAtom *aLangGroup,
-                           const nsACString& aGenericFamily,
-                           nsTArray<nsString>& aListOfFonts)
+gfxQtPlatform::GetFontList(const nsACString& aLangGroup,
+                            const nsACString& aGenericFamily,
+                            nsTArray<nsString>& aListOfFonts)
 {
     return sFontconfigUtils->GetFontList(aLangGroup, aGenericFamily,
                                          aListOfFonts);
@@ -256,10 +150,10 @@ gfxQtPlatform::GetFontList(nsIAtom *aLangGroup,
 nsresult
 gfxQtPlatform::UpdateFontList()
 {
-#ifndef MOZ_PANGO
     FcPattern *pat = NULL;
     FcObjectSet *os = NULL;
     FcFontSet *fs = NULL;
+    PRInt32 result = -1;
 
     pat = FcPatternCreate();
     os = FcObjectSetBuild(FC_FAMILY, FC_FILE, FC_INDEX, FC_WEIGHT, FC_SLANT, FC_WIDTH, NULL);
@@ -272,6 +166,8 @@ gfxQtPlatform::UpdateFontList()
 
         if (FcPatternGetString(fs->fonts[i], FC_FAMILY, 0, (FcChar8 **) &str) != FcResultMatch)
             continue;
+
+        printf("Family: %s\n", str);
 
         nsAutoString name(NS_ConvertUTF8toUTF16(nsDependentCString(str)).get());
         nsAutoString key(name);
@@ -287,10 +183,12 @@ gfxQtPlatform::UpdateFontList()
 
         if (FcPatternGetString(fs->fonts[i], FC_FILE, 0, (FcChar8 **) &str) == FcResultMatch) {
             fe->mFilename = nsDependentCString(str);
+            printf(" - file: %s\n", str);
         }
 
         int x;
         if (FcPatternGetInteger(fs->fonts[i], FC_INDEX, 0, &x) == FcResultMatch) {
+            printf(" - index: %d\n", x);
             fe->mFTFontIndex = x;
         } else {
             fe->mFTFontIndex = 0;
@@ -331,6 +229,7 @@ gfxQtPlatform::UpdateFontList()
                 fe->mWeight = (((x * 4) + 100) / 100) * 100;
                 break;
             }
+            printf(" - weight: %d\n", fe->mWeight);
         }
 
         fe->mItalic = PR_FALSE;
@@ -340,9 +239,12 @@ gfxQtPlatform::UpdateFontList()
             case FC_SLANT_OBLIQUE:
                 fe->mItalic = PR_TRUE;
             }
+            printf(" - slant: %d\n", x);
         }
 
-        // XXX deal with font-stretch (FC_WIDTH) stuff later
+        if (FcPatternGetInteger(fs->fonts[i], FC_WIDTH, 0, &x) == FcResultMatch)
+            printf(" - width: %d\n", x);
+        // XXX deal with font-stretch stuff later
     }
 
     if (pat)
@@ -351,7 +253,6 @@ gfxQtPlatform::UpdateFontList()
         FcObjectSetDestroy(os);
     if (fs)
         FcFontSetDestroy(fs);
-#endif
 
     return sFontconfigUtils->UpdateFontList();
 }
@@ -362,10 +263,7 @@ gfxQtPlatform::ResolveFontName(const nsAString& aFontName,
                                 void *aClosure,
                                 PRBool& aAborted)
 {
-#ifdef MOZ_PANGO
-    return sFontconfigUtils->ResolveFontName(aFontName, aCallback,
-                                             aClosure, aAborted);
-#else
+
     nsAutoString name(aFontName);
     ToLowerCase(name);
 
@@ -390,6 +288,7 @@ gfxQtPlatform::ResolveFontName(const nsAString& aFontName,
         nsAutoString altName = NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str)));
         ToLowerCase(altName);
         if (gPlatformFonts->Get(altName, &ff)) {
+            printf("Adding alias: %s -> %s\n", utf8Name.get(), str);
             gPlatformFontAliases->Put(name, ff);
             aAborted = !(*aCallback)(NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str))), aClosure);
             goto DONE;
@@ -423,6 +322,7 @@ gfxQtPlatform::ResolveFontName(const nsAString& aFontName,
         nsAutoString altName = NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str)));
         ToLowerCase(altName);
         if (gPlatformFonts->Get(altName, &ff)) {
+            printf("Adding alias: %s -> %s\n", utf8Name.get(), str);
             gPlatformFontAliases->Put(name, ff);
             aAborted = !(*aCallback)(NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str))), aClosure);
             goto DONE;
@@ -435,7 +335,6 @@ gfxQtPlatform::ResolveFontName(const nsAString& aFontName,
     FcFontSetDestroy(nfs);
 
     return NS_OK;
-#endif
 }
 
 nsresult
@@ -449,56 +348,8 @@ gfxQtPlatform::CreateFontGroup(const nsAString &aFamilies,
                                const gfxFontStyle *aStyle,
                                gfxUserFontSet* aUserFontSet)
 {
-#ifdef MOZ_PANGO
-    return new gfxPangoFontGroup(aFamilies, aStyle, aUserFontSet);
-#else
     return new gfxFT2FontGroup(aFamilies, aStyle);
-#endif
 }
-
-#ifdef MOZ_PANGO
-gfxFontEntry*
-gfxQtPlatform::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                const nsAString& aFontName)
-{
-    return gfxPangoFontGroup::NewFontEntry(*aProxyEntry, aFontName);
-}
-
-gfxFontEntry*
-gfxQtPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                 const PRUint8 *aFontData, PRUint32 aLength)
-{
-    // passing ownership of the font data to the new font entry
-    return gfxPangoFontGroup::NewFontEntry(*aProxyEntry,
-                                           aFontData, aLength);
-}
-
-PRBool
-gfxQtPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
-{
-    // check for strange format flags
-    NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
-                 "strange font format hint set");
-
-    // accept supported formats
-    // Pango doesn't apply features from AAT TrueType extensions.
-    // Assume that if this is the only SFNT format specified,
-    // then AAT extensions are required for complex script support.
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
-                        gfxUserFontSet::FLAG_FORMAT_OPENTYPE |
-                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
-        return PR_TRUE;
-    }
-
-    // reject all other formats, known and unknown
-    if (aFormatFlags != 0) {
-        return PR_FALSE;
-    }
-
-    // no format hint set, need to look at data
-    return PR_TRUE;
-}
-#endif
 
 qcms_profile*
 gfxQtPlatform::GetPlatformCMSOutputProfile()
@@ -506,7 +357,6 @@ gfxQtPlatform::GetPlatformCMSOutputProfile()
     return nsnull;
 }
 
-#ifndef MOZ_PANGO
 FT_Library
 gfxQtPlatform::GetFTLibrary()
 {
@@ -577,24 +427,13 @@ gfxQtPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
 }
 
 PRBool
-gfxQtPlatform::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFontEntry> > *array)
+gfxQtPlatform::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> > *aFontEntryList)
 {
-    return mPrefFonts.Get(aKey, array);
+    return gPrefFonts->Get(aKey, aFontEntryList);
 }
 
 void
-gfxQtPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFontEntry> >& array)
+gfxQtPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList)
 {
-    mPrefFonts.Put(aKey, array);
+    gPrefFonts->Put(aKey, aFontEntryList);
 }
-#endif
-
-void
-gfxQtPlatform::InitDisplayCaps()
-{
-    QDesktopWidget* rootWindow = qApp->desktop();
-    sDPI = rootWindow->logicalDpiY(); // y-axis DPI for fonts
-    if (sDPI <= 0)
-        sDPI = 96; // something more sensible
-}
-

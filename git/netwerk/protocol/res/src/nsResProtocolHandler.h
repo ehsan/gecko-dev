@@ -70,7 +70,6 @@ public:
     nsresult Init();
 
 private:
-    nsresult Init(nsIFile *aOmniJar);
     nsresult AddSpecialDir(const char* aSpecialDir, const nsACString& aSubstitution);
     nsInterfaceHashtable<nsCStringHashKey,nsIURI> mSubstitutions;
     nsCOMPtr<nsIIOService> mIOService;

@@ -71,9 +71,7 @@
 #include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 #include <math.h>  // for log()
-#include "mozilla/Services.h"
 
-#include "mozilla/FunctionTimer.h"
 
 /******************************************************************************
  * nsCacheProfilePrefObserver
@@ -176,13 +174,13 @@ NS_IMPL_ISUPPORTS1(nsCacheProfilePrefObserver, nsIObserver)
 nsresult
 nsCacheProfilePrefObserver::Install()
 {
-    // install profile-change observer
-    nsCOMPtr<nsIObserverService> observerService =
-        mozilla::services::GetObserverService();
-    if (!observerService)
-        return NS_ERROR_FAILURE;
-    
     nsresult rv, rv2 = NS_OK;
+    
+    // install profile-change observer
+    nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_ARG(observerService);
+    
     for (unsigned int i=0; i<NS_ARRAY_LENGTH(observerList); i++) {
         rv = observerService->AddObserver(this, observerList[i], PR_FALSE);
         if (NS_FAILED(rv)) 
@@ -212,11 +210,12 @@ nsCacheProfilePrefObserver::Install()
     //     In that case, we detect the presence of a profile by the existence
     //     of the NS_APP_USER_PROFILE_50_DIR directory.
 
-    nsCOMPtr<nsIFile> directory;
+    nsCOMPtr<nsIFile>  directory;
     rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
                                 getter_AddRefs(directory));
-    if (NS_SUCCEEDED(rv))
+    if (NS_SUCCEEDED(rv)) {
         mHaveProfile = PR_TRUE;
+    }
 
     rv = ReadPrefs(branch);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -230,7 +229,7 @@ nsCacheProfilePrefObserver::Remove()
 {
     // remove Observer Service observers
     nsCOMPtr<nsIObserverService> obs =
-        mozilla::services::GetObserverService();
+            do_GetService("@mozilla.org/observer-service;1");
     if (obs) {
         for (unsigned int i=0; i<NS_ARRAY_LENGTH(observerList); i++) {
             obs->RemoveObserver(this, observerList[i]);
@@ -239,11 +238,13 @@ nsCacheProfilePrefObserver::Remove()
 
     // remove Pref Service observers
     nsCOMPtr<nsIPrefBranch2> prefs =
-        do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (!prefs)
-        return;
-    for (unsigned int i=0; i<NS_ARRAY_LENGTH(prefList); i++)
-        prefs->RemoveObserver(prefList[i], this); // remove cache pref observers
+           do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs) {
+        for (unsigned int i=0; i<NS_ARRAY_LENGTH(prefList); i++) {
+            // remove cache pref observers
+            prefs->RemoveObserver(prefList[i], this);
+        }
+    }
 }
 
 
@@ -580,7 +581,7 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
         return capacity;
     }
 
-    static PRUint64 bytes = PR_GetPhysicalMemorySize();
+    PRUint64 bytes = PR_GetPhysicalMemorySize();
     CACHE_LOG_DEBUG(("Physical Memory size is %llu\n", bytes));
 
     // If getting the physical memory failed, arbitrarily assume
@@ -670,8 +671,6 @@ nsCacheService::~nsCacheService()
 nsresult
 nsCacheService::Init()
 {
-    NS_TIME_FUNCTION;
-
     NS_ASSERTION(!mInitialized, "nsCacheService already initialized.");
     if (mInitialized)
         return NS_ERROR_ALREADY_INITIALIZED;
@@ -795,7 +794,7 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
     if (this == nsnull) return NS_ERROR_NOT_AVAILABLE; // XXX eh?
 
     nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     if (obsSvc) {
         // Proxy to the UI thread since the observer service isn't thredsafe.
         // We use an async proxy, since this it's not important whether this
@@ -814,19 +813,19 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
     }
 
     nsCacheServiceAutoLock lock;
-    nsresult res = NS_OK;
+    nsresult rv = NS_OK;
 
 #ifdef NECKO_DISK_CACHE
     if (storagePolicy == nsICache::STORE_ANYWHERE ||
         storagePolicy == nsICache::STORE_ON_DISK) {
 
         if (mEnableDiskDevice) {
-            nsresult rv;
-            if (!mDiskDevice)
+            if (!mDiskDevice) {
                 rv = CreateDiskDevice();
-            if (mDiskDevice)
-                rv = mDiskDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv)) res = rv;
+                if (NS_FAILED(rv)) return rv;
+            }
+            rv = mDiskDevice->EvictEntries(clientID);
+            if (NS_FAILED(rv)) return rv;
         }
     }
 #endif // ! NECKO_DISK_CACHE
@@ -835,12 +834,12 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
     // Only clear the offline cache if it has been specifically asked for.
     if (storagePolicy == nsICache::STORE_OFFLINE) {
         if (mEnableOfflineDevice) {
-            nsresult rv;
-            if (!mOfflineDevice)
+            if (!mOfflineDevice) {
                 rv = CreateOfflineDevice();
-            if (mOfflineDevice)
-                rv = mOfflineDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv)) res = rv;
+                if (NS_FAILED(rv)) return rv;
+            }
+            rv = mOfflineDevice->EvictEntries(clientID);
+            if (NS_FAILED(rv)) return rv;
         }
     }
 #endif // ! NECKO_OFFLINE_CACHE
@@ -850,13 +849,12 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
 
         // If there is no memory device, there is no need to evict it...
         if (mMemoryDevice) {
-            nsresult rv;
             rv = mMemoryDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv)) res = rv;
+            if (NS_FAILED(rv)) return rv;
         }
     }
 
-    return res;
+    return NS_OK;
 }
 
 
@@ -1498,11 +1496,6 @@ void
 nsCacheService::OnProfileShutdown(PRBool cleanse)
 {
     if (!gService)  return;
-    if (!gService->mInitialized) {
-        // The cache service has been shut down, but someone is still holding
-        // a reference to it. Ignore this call.
-        return;
-    }
     nsCacheServiceAutoLock lock;
 
     gService->DoomActiveEntries();

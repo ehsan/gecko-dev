@@ -72,7 +72,9 @@ CPPSRCS		= \
 		nsHTMLFrameElement.cpp \
 		nsHTMLFrameSetElement.cpp \
 		nsHTMLHRElement.cpp \
+		nsHTMLHeadElement.cpp \
 		nsHTMLHeadingElement.cpp \
+		nsHTMLHtmlElement.cpp \
 		nsHTMLIFrameElement.cpp \
 		nsHTMLImageElement.cpp \
 		nsHTMLInputElement.cpp \
@@ -87,7 +89,6 @@ CPPSRCS		= \
 		nsHTMLSharedObjectElement.cpp \
 		nsHTMLOptionElement.cpp \
 		nsHTMLOptGroupElement.cpp \
-		nsHTMLOutputElement.cpp \
 		nsHTMLParagraphElement.cpp \
 		nsHTMLPreElement.cpp \
 		nsHTMLScriptElement.cpp \
@@ -126,11 +127,7 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../xbl/src \
 		-I$(srcdir)/../../../../layout/style \
 		-I$(srcdir)/../../../../layout/tables \
-		-I$(srcdir)/../../../../layout/xul/base/src \
-		-I$(srcdir)/../../../../layout/generic \
 		-I$(srcdir)/../../../../dom/base \
-		-I$(srcdir)/../../../../editor/libeditor/base \
-		-I$(srcdir)/../../../../editor/libeditor/text \
 		-I$(srcdir) \
 		$(NULL)
 

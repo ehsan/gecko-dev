@@ -46,7 +46,7 @@ var gTargetNode = null;
 
 var gEntityConverter = null;
 var gWrapLongLines = false;
-const gViewSourceCSS = 'resource://gre-resources/viewsource.css';
+const gViewSourceCSS = 'resource://gre/res/viewsource.css';
 const NS_XHTML = 'http://www.w3.org/1999/xhtml';
 
 // These are markers used to delimit the selection during processing. They
@@ -80,11 +80,6 @@ function onLoadViewPartialSource()
     viewPartialSourceForSelection(window.arguments[2]);
   else
     viewPartialSourceForFragment(window.arguments[2], window.arguments[3]);
-
-  gBrowser.droppedLinkHandler = function (event, url, name) {
-    viewSource(url)
-    event.preventDefault();
-  }
 
   window.content.focus();
 }
@@ -277,9 +272,6 @@ function drawSelection()
   findInst.findNext();
 
   var selection = content.getSelection();
-  if (!selection.rangeCount)
-    return;
-
   var range = selection.getRangeAt(0);
 
   var startContainer = range.startContainer;

@@ -51,10 +51,9 @@ function testElement(element)
   var scrollWidth, scrollHeight, clientWidth, clientHeight;
   if (element.id == "scrollbox") {
     var lastchild = $("lastline");
-    scrollWidth = Math.floor(lastchild.getBoundingClientRect().width) + paddingLeft + paddingRight;
-    var contentsHeight = element.lastChild.getBoundingClientRect().bottom -
-        element.firstChild.getBoundingClientRect().top;
-    scrollHeight = Math.floor(contentsHeight) + paddingTop + paddingBottom;
+    scrollWidth = Math.round(lastchild.getBoundingClientRect().width) + paddingLeft + paddingRight;
+    scrollHeight = Math.round(element.lastChild.getBoundingClientRect().bottom) -
+                   Math.round(element.firstChild.getBoundingClientRect().top) + paddingTop + paddingBottom;
     clientWidth = paddingLeft + width + paddingRight - scrollbarWidth;
     clientHeight = paddingTop + height + paddingBottom - scrollbarHeight;
   }

@@ -81,11 +81,11 @@ nsTreeColFrame::Init(nsIContent*      aContent,
   return rv;
 }
 
-void
-nsTreeColFrame::DestroyFrom(nsIFrame* aDestructRoot)
+void                                                                
+nsTreeColFrame::Destroy()                          
 {
   InvalidateColumns(PR_FALSE);
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }
 
 class nsDisplayXULTreeColSplitterTarget : public nsDisplayItem {
@@ -99,25 +99,24 @@ public:
   }
 #endif
 
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   NS_DISPLAY_DECL_NAME("XULTreeColSplitterTarget")
 };
 
-void
-nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                                           HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+nsIFrame* 
+nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder,
+                                           nsPoint aPt, HitTestState* aState)
 {
-  nsRect rect = aRect - aBuilder->ToReferenceFrame(mFrame);
-  // If we are in either in the first 4 pixels or the last 4 pixels, we're going to
+  nsPoint pt = aPt - aBuilder->ToReferenceFrame(mFrame);
+  // If we are in either the first 4 pixels or the last 4 pixels, we're going to
   // do something really strange.  Check for an adjacent splitter.
   PRBool left = PR_FALSE;
   PRBool right = PR_FALSE;
-  if (mFrame->GetSize().width - nsPresContext::CSSPixelsToAppUnits(4) <= rect.XMost()) {
+  if (mFrame->GetSize().width - nsPresContext::CSSPixelsToAppUnits(4) <= pt.x)
     right = PR_TRUE;
-  } else if (nsPresContext::CSSPixelsToAppUnits(4) > rect.x) {
+  else if (nsPresContext::CSSPixelsToAppUnits(4) > pt.x)
     left = PR_TRUE;
-  }
 
   // Swap left and right for RTL trees in order to find the correct splitter
   if (mFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
@@ -128,6 +127,7 @@ nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder, const
 
   if (left || right) {
     // We are a header. Look for the correct splitter.
+    const nsFrameList& frames(mFrame->GetParent()->GetChildList(nsnull));
     nsIFrame* child;
     if (left)
       child = mFrame->GetPrevSibling();
@@ -136,10 +136,11 @@ nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder, const
 
     if (child && child->GetContent()->NodeInfo()->Equals(nsGkAtoms::splitter,
                                                          kNameSpaceID_XUL)) {
-      aOutFrames->AppendElement(child);
+      return child;
     }
   }
-
+  
+  return nsnull;
 }
 
 nsresult

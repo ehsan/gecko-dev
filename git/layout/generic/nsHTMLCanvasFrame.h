@@ -43,20 +43,14 @@
 #include "nsSplittableFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIIOService.h"
-#include "Layers.h"
-#include "ImageLayers.h"
-
-class nsPresContext;
 
 nsIFrame* NS_NewHTMLCanvasFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 class nsHTMLCanvasFrame : public nsSplittableFrame
 {
 public:
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
   NS_DECL_FRAMEARENA_HELPERS
 
   nsHTMLCanvasFrame(nsStyleContext* aContext) : nsSplittableFrame(aContext) {}
@@ -65,8 +59,8 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager);
+  void PaintCanvas(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect, nsPoint aPt);
                               
   /* get the size of the canvas's image */
   nsIntSize GetCanvasSize();
@@ -100,6 +94,7 @@ public:
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
+  NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
 #endif
 
 protected:

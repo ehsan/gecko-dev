@@ -54,8 +54,6 @@
 #include "jsstr.h"
 #include "jsxdrapi.h"
 
-#include "jsobjinlines.h"
-
 #ifdef DEBUG
 #define DBG(x) x
 #else
@@ -683,7 +681,7 @@ js_XDRStringAtom(JSXDRState *xdr, JSAtom **atomp)
 JS_PUBLIC_API(JSBool)
 JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
 {
-    if (!js_XDRScript(xdr, scriptp, true, NULL))
+    if (!js_XDRScript(xdr, scriptp, NULL))
         return JS_FALSE;
     if (xdr->mode == JSXDR_DECODE)
         js_CallNewScriptHook(xdr->cx, *scriptp, NULL);

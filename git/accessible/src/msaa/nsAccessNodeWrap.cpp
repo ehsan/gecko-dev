@@ -37,18 +37,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessNodeWrap.h"
-
-#include "AccessibleApplication.h"
 #include "ISimpleDOMNode_i.c"
-
 #include "nsAccessibilityAtoms.h"
-#include "nsAccessibilityService.h"
-#include "nsApplicationAccessibleWrap.h"
-#include "nsCoreUtils.h"
-#include "nsRootAccessible.h"
-
+#include "nsIAccessibilityService.h"
+#include "nsIAccessible.h"
 #include "nsAttrName.h"
 #include "nsIDocument.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMViewCSS.h"
@@ -56,8 +51,12 @@
 #include "nsINameSpaceManager.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPresShell.h"
 #include "nsPIDOMWindow.h"
+#include "nsRootAccessible.h"
 #include "nsIServiceManager.h"
+#include "AccessibleApplication.h"
+#include "nsApplicationAccessibleWrap.h"
 
 /// the accessible library and cached methods
 HINSTANCE nsAccessNodeWrap::gmAccLib = nsnull;
@@ -147,11 +146,9 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
 
   // Can get to IAccessibleApplication from any node via QS
   if (iid == IID_IAccessibleApplication) {
-    nsApplicationAccessible *applicationAcc = GetApplicationAccessible();
-    if (!applicationAcc)
-      return E_NOINTERFACE;
-
-    nsresult rv = applicationAcc->QueryNativeInterface(iid, ppv);
+    nsRefPtr<nsApplicationAccessibleWrap> app =
+      GetApplicationAccessible();
+    nsresult rv = app->QueryNativeInterface(iid, ppv);
     return NS_SUCCEEDED(rv) ? S_OK : E_NOINTERFACE;
   }
 
@@ -253,10 +250,12 @@ __try{
   for (PRUint32 index = 0; index < numAttribs; index++) {
     aNameSpaceIDs[index] = 0; aAttribValues[index] = aAttribNames[index] = nsnull;
     nsAutoString attributeValue;
+    const char *pszAttributeName; 
 
     const nsAttrName* name = content->GetAttrNameAt(index);
     aNameSpaceIDs[index] = static_cast<short>(name->NamespaceID());
-    aAttribNames[index] = ::SysAllocString(name->LocalName()->GetUTF16String());
+    name->LocalName()->GetUTF8String(&pszAttributeName);
+    aAttribNames[index] = ::SysAllocString(NS_ConvertUTF8toUTF16(pszAttributeName).get());
     content->GetAttr(name->NamespaceID(), name->LocalName(), attributeValue);
     aAttribValues[index] = ::SysAllocString(attributeValue.get());
   }
@@ -412,12 +411,18 @@ ISimpleDOMNode* nsAccessNodeWrap::MakeAccessNode(nsIDOMNode *node)
   if (!doc)
     return NULL;
 
+  nsCOMPtr<nsIAccessibilityService> accService(do_GetService("@mozilla.org/accessibilityService;1"));
+  if (!accService)
+    return NULL;
+
   ISimpleDOMNode *iNode = NULL;
-  nsAccessible *acc =
-    GetAccService()->GetAccessibleInWeakShell(node, mWeakShell);
-  if (acc) {
-    IAccessible *msaaAccessible = nsnull;
-    acc->GetNativeInterface((void**)&msaaAccessible); // addrefs
+  nsCOMPtr<nsIAccessible> nsAcc;
+  accService->GetAccessibleInWeakShell(node, mWeakShell, getter_AddRefs(nsAcc));
+  if (nsAcc) {
+    nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(nsAcc));
+    NS_ASSERTION(accessNode, "nsIAccessible impl does not inherit from nsIAccessNode");
+    IAccessible *msaaAccessible;
+    nsAcc->GetNativeInterface((void**)&msaaAccessible); // addrefs
     msaaAccessible->QueryInterface(IID_ISimpleDOMNode, (void**)&iNode); // addrefs
     msaaAccessible->Release(); // Release IAccessible
   }
@@ -588,6 +593,9 @@ __try {
  
 void nsAccessNodeWrap::InitAccessibility()
 {
+  NS_ASSERTION(!gIsAccessibilityActive,
+               "Accessibility was initialized already!");
+
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
     prefBranch->GetBoolPref("accessibility.disableenumvariant", &gIsEnumVariantSupportDisabled);
@@ -613,6 +621,8 @@ void nsAccessNodeWrap::ShutdownAccessibility()
 {
   NS_IF_RELEASE(gTextEvent);
   ::DestroyCaret();
+
+  NS_ASSERTION(gIsAccessibilityActive, "Accessibility was shutdown already!");
 
   nsAccessNode::ShutdownXPAccessibility();
 }

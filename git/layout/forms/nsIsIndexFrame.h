@@ -50,37 +50,42 @@ typedef   nsTextControlFrame nsNewFrame;
 
 class nsIsIndexFrame : public nsBlockFrame,
                        public nsIAnonymousContentCreator,
+                       public nsIDOMKeyListener,
                        public nsIStatefulFrame
 {
 public:
   nsIsIndexFrame(nsStyleContext* aContext);
   virtual ~nsIsIndexFrame();
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy(); 
 
-private:
-  void KeyPress(nsIDOMEvent* aKeyEvent);
+  /**
+   * Processes a key pressed event
+   * @param aKeyEvent @see nsIDOMEvent.h 
+   * @returns whether the event was consumed or ignored. @see nsresult
+   */
+  NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent) { return NS_OK; }
 
-  class KeyListener : public nsIDOMKeyListener
-  {
-    NS_DECL_ISUPPORTS
+  /**
+   * Processes a key release event
+   * @param aKeyEvent @see nsIDOMEvent.h 
+   * @returns whether the event was consumed or ignored. @see nsresult
+   */
+  NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent) { return NS_OK; }
 
-    KeyListener(nsIsIndexFrame* aOwner) : mOwner(aOwner) { };
+  /**
+   * Processes a key typed event
+   * @param aKeyEvent @see nsIDOMEvent.h 
+   * @returns whether the event was consumed or ignored. @see nsresult
+   *
+   */
+  NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent); // we only care when a key is pressed
 
-    NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent) { return NS_OK; }
-
-    NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent) { return NS_OK; }
-
-    NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent); // we only care when a key is pressed
-
-    NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
-
-    nsIsIndexFrame* mOwner;
-  };
-
-public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
+
+  // nsISupports
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   // nsIFormControlFrame
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
@@ -98,7 +103,8 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
+
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
 
   NS_IMETHOD OnSubmit(nsPresContext* aPresContext);
 
@@ -125,7 +131,8 @@ private:
   char* UnicodeToNewBytes(const PRUnichar* aSrc, PRUint32 aLen, nsIUnicodeEncoder* encoder);
   void URLEncode(const nsString& aString, nsIUnicodeEncoder* encoder, nsString& oString);
 
-  nsCOMPtr<KeyListener> mListener;
+  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
+  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
 };
 
 #endif

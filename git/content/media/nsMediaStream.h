@@ -53,8 +53,6 @@
 // done rather than a byte range request.
 #define SEEK_VS_READ_THRESHOLD (32*1024)
 
-#define HTTP_REQUESTED_RANGE_NOT_SATISFIABLE_CODE 416
-
 class nsMediaDecoder;
 
 /**
@@ -310,7 +308,7 @@ public:
   ~nsMediaChannelStream();
 
   // These are called on the main thread by nsMediaCache. These must
-  // not block or grab locks, because the media cache is holding its lock.
+  // not block or grab locks.
   // Notify that data is available from the cache. This can happen even
   // if this stream didn't read any data, since another stream might have
   // received data for the same resource.
@@ -319,10 +317,6 @@ public:
   // if this stream didn't read any data, since another stream might have
   // received data for the same resource.
   void CacheClientNotifyDataEnded(nsresult aStatus);
-
-  // These are called on the main thread by nsMediaCache. These shouldn't block,
-  // but they may grab locks --- the media cache is not holding its lock
-  // when these are called.
   // Start a new load at the given aOffset. The old load is cancelled
   // and no more data from the old load will be notified via
   // nsMediaCacheStream::NotifyDataReceived/Ended.
@@ -411,7 +405,7 @@ protected:
   nsRefPtr<Listener> mListener;
   // A data received event for the decoder that has been dispatched but has
   // not yet been processed.
-  nsRevocableEventPtr<nsRunnableMethod<nsMediaChannelStream, void, false> > mDataReceivedEvent;
+  nsRevocableEventPtr<nsNonOwningRunnableMethod<nsMediaChannelStream> > mDataReceivedEvent;
   PRUint32           mSuspendCount;
   // When this flag is set, if we get a network error we should silently
   // reopen the stream.

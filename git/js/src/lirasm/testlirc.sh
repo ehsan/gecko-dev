@@ -2,8 +2,6 @@
 
 set -eu
 
-LIRASM=$1
-
 TESTS_DIR=`dirname "$0"`/tests
 
 for infile in "$TESTS_DIR"/*.in
@@ -15,25 +13,15 @@ do
         exit 1
     fi
 
-    # Treat "random.in" and "random-opt.in" specially.
-    if [ `basename $infile` = "random.in" ]
+    if ./lirasm --execute $infile > testoutput.txt && cmp -s testoutput.txt $outfile
     then
-        infile="--random 1000000"
-    elif [ `basename $infile` = "random-opt.in" ]
-    then
-        infile="--random 1000000 --optimize"
-    fi
-
-    if $LIRASM --execute $infile | tr -d '\r' > testoutput.txt && cmp -s testoutput.txt $outfile
-    then
-        echo "TEST-PASS | lirasm | lirasm --execute $infile"
+        echo "$0: output correct for $infile"
     else
-        echo "TEST-UNEXPECTED-FAIL | lirasm | lirasm --execute $infile"
-        echo "expected output"
-        cat $outfile
-        echo "actual output"
+        echo "$0: incorrect output for $infile"
+        echo "$0: === actual output ==="
         cat testoutput.txt
+        echo "$0: === expected output ==="
+	cat $outfile
     fi
 done
-
 rm testoutput.txt

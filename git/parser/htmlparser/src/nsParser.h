@@ -229,6 +229,16 @@ class nsParser : public nsIParser,
      */
     NS_IMETHOD BuildModel(void);
 
+    /**
+     *  Call this when you want control whether or not the parser will parse
+     *  and tokenize input (TRUE), or whether it just caches input to be 
+     *  parsed later (FALSE).
+     *  
+     *  @update  gess 9/1/98
+     *  @param   aState determines whether we parse/tokenize or just cache.
+     *  @return  current state
+     */
+    NS_IMETHOD        ContinueParsing();
     NS_IMETHOD        ContinueInterruptedParsing();
     NS_IMETHOD_(void) BlockParser();
     NS_IMETHOD_(void) UnblockParser();
@@ -334,31 +344,6 @@ class nsParser : public nsIParser,
      */
     virtual PRBool CanInterrupt();
 
-    /**
-     * Return true.
-     */
-    virtual PRBool IsInsertionPointDefined();
-
-    /**
-     * No-op.
-     */
-    virtual void BeginEvaluatingParserInsertedScript();
-
-    /**
-     * No-op.
-     */
-    virtual void EndEvaluatingParserInsertedScript();
-
-    /**
-     * No-op.
-     */
-    virtual void MarkAsNotScriptCreated();
-
-    /**
-     * Always false.
-     */
-    virtual PRBool IsScriptCreated();
-
     /**  
      *  Set to parser state to indicate whether parsing tokens can be interrupted
      *  @param aCanInterrupt PR_TRUE if parser can be interrupted, PR_FALSE if it can not be interrupted.
@@ -409,10 +394,6 @@ class nsParser : public nsIParser,
 
     PRBool IsScriptExecuting() {
       return mSink && mSink->IsScriptExecuting();
-    }
-
-    PRBool IsOkToProcessNetworkData() {
-      return !IsScriptExecuting() && !mProcessingNetworkData;
     }
 
  protected:
@@ -503,8 +484,6 @@ protected:
     nsString            mUnusedInput;
     nsCString           mCharset;
     nsCString           mCommandStr;
-
-    PRBool              mProcessingNetworkData;
 
     static nsICharsetAlias*            sCharsetAliasService;
     static nsICharsetConverterManager* sCharsetConverterManager;

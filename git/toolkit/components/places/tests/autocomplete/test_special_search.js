@@ -210,6 +210,5 @@ function resetRestrict(aType)
   else
     branch += "restrict.";
 
-  if (prefs.prefHasUserValue(branch + aType))
-    prefs.clearUserPref(branch + aType);
+  prefs.clearUserPref(branch + aType);
 }

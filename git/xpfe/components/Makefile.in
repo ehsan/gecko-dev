@@ -44,6 +44,8 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = appcomps
 
+EXPORTS = nsXPFEComponentsCID.h
+
 include $(topsrcdir)/config/config.mk
 
 MOZ_HAVE_BROWSER=1
@@ -57,8 +59,13 @@ ifdef MOZ_SUNBIRD
 MOZ_HAVE_BROWSER=
 endif
 
+DIRS = \
+        find \
+        $(NULL)
+
 ifdef MOZ_RDF
 DIRS += \
+        intl \
         windowds \
         $(NULL)
 endif
@@ -73,6 +80,10 @@ DIRS += \
         $(NULL)
 
 # build should be last
+DIRS += build
+endif
+
+ifdef MOZ_THUNDERBIRD
 DIRS += build
 endif
 

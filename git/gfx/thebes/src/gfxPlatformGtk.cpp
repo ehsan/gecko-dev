@@ -91,6 +91,16 @@
 #include FT_FREETYPE_H
 #endif
 
+#ifdef MOZ_PLATFORM_HILDON
+#include "nsCOMPtr.h"
+#include "nsILocalFile.h"
+#include "nsILineInputStream.h"
+#include "nsNetUtil.h"
+
+PRInt32 gfxPlatformGtk::sMaemoClassic = -1;
+#endif
+
+PRInt32 gfxPlatformGtk::sPlatformDPI = -1;
 gfxFontconfigUtils *gfxPlatformGtk::sFontconfigUtils = nsnull;
 
 #ifndef MOZ_PANGO
@@ -258,7 +268,7 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
 #ifdef MOZ_PANGO
 
 nsresult
-gfxPlatformGtk::GetFontList(nsIAtom *aLangGroup,
+gfxPlatformGtk::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
                             nsTArray<nsString>& aListOfFonts)
 {
@@ -523,13 +533,54 @@ gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
 void
 gfxPlatformGtk::InitDisplayCaps()
 {
-    // Make sure init is run so we have a resolution
     GdkScreen *screen = gdk_screen_get_default();
-    gtk_settings_get_for_screen(screen);
-    gfxPlatform::sDPI = PRInt32(round(gdk_screen_get_resolution(screen)));
+    gtk_settings_get_for_screen(screen); // Make sure init is run so we have a resolution
+    gfxPlatformGtk::sPlatformDPI = PRInt32(round(gdk_screen_get_resolution(screen)));
+
+    if (gfxPlatformGtk::sPlatformDPI <= 0) {
+        // Fall back to something sane
+        gfxPlatformGtk::sPlatformDPI = 96;
+    }
+
+#ifdef MOZ_PLATFORM_HILDON
+    // Check the cached value
+    if (gfxPlatform::sDPI == -1) {
+        nsresult rv;
+        nsCOMPtr<nsILocalFile> file;
+        rv = NS_NewLocalFile(NS_LITERAL_STRING("/proc/component_version"),
+                             PR_TRUE, getter_AddRefs(file));
+        if (NS_SUCCEEDED(rv)) {
+            nsCOMPtr<nsIInputStream> fileStream;
+            NS_NewLocalFileInputStream(getter_AddRefs(fileStream), file);
+            nsCOMPtr<nsILineInputStream> lineStream = do_QueryInterface(fileStream);
+            
+            // Extract the product code from the component_version file
+            nsCAutoString buffer;
+            PRBool isMore = PR_TRUE;
+            if (lineStream && NS_SUCCEEDED(lineStream->ReadLine(buffer, &isMore))) {
+                if (StringEndsWith(buffer, NS_LITERAL_CSTRING("RX-51"))) {
+                    gfxPlatform::sDPI = 265; // It's an N900
+                    gfxPlatformGtk::sMaemoClassic = 0;
+                }
+                else if (StringEndsWith(buffer, NS_LITERAL_CSTRING("RX-44")) ||
+                         StringEndsWith(buffer, NS_LITERAL_CSTRING("RX-48")) ||
+                         StringEndsWith(buffer, NS_LITERAL_CSTRING("RX-34"))) {
+                    gfxPlatform::sDPI = 225; // It's an N810/N800
+                    gfxPlatformGtk::sMaemoClassic = 1;
+                }
+            }
+        }
+    }
+#else
+    gfxPlatform::sDPI = gfxPlatformGtk::sPlatformDPI;
+#endif
+
     if (gfxPlatform::sDPI <= 0) {
         // Fall back to something sane
         gfxPlatform::sDPI = 96;
+    } else {
+        // Minimum DPI is 96
+        gfxPlatform::sDPI = PR_MAX(sDPI, 96);
     }
 }
 

@@ -101,17 +101,17 @@ nsTSubstring_CharT::MutatePrep( size_type capacity, char_type** oldData, PRUint3
     // able to allocate it.  Just bail out in cases like that.  We don't want
     // to be allocating 2GB+ strings anyway.
     if (capacity > size_type(-1)/2) {
-      // Also assert for |capacity| equal to |size_type(-1)|, since we used to
-      // use that value to flag immutability.
+      // Also assert for |capacity| equal to |size_type(-1)|, since we use that value to
+      // flag immutability.
       NS_ASSERTION(capacity != size_type(-1), "Bogus capacity");
       return PR_FALSE;
     }
 
-    // |curCapacity == 0| means that the buffer is immutable or 0-sized, so we
-    // need to allocate a new buffer. We cannot use the existing buffer even
+    // |curCapacity == size_type(-1)| means that the buffer is immutable, so we
+    // need to allocate a new buffer.  we cannot use the existing buffer even
     // though it might be large enough.
 
-    if (curCapacity != 0)
+    if (curCapacity != size_type(-1))
       {
         if (capacity <= curCapacity) {
           mFlags &= ~F_VOIDED;  // mutation clears voided flag
@@ -272,7 +272,7 @@ nsTSubstring_CharT::ReplacePrep( index_type cutStart, size_type cutLen, size_typ
 nsTSubstring_CharT::size_type
 nsTSubstring_CharT::Capacity() const
   {
-    // return 0 to indicate an immutable or 0-sized buffer
+    // return size_type(-1) to indicate an immutable buffer
 
     size_type capacity;
     if (mFlags & F_SHARED)
@@ -280,10 +280,9 @@ nsTSubstring_CharT::Capacity() const
         // if the string is readonly, then we pretend that it has no capacity.
         nsStringBuffer* hdr = nsStringBuffer::FromData(mData);
         if (hdr->IsReadonly())
-          capacity = 0;
-        else {
+          capacity = size_type(-1);
+        else
           capacity = (hdr->StorageSize() / sizeof(char_type)) - 1;
-        }
       }
     else if (mFlags & F_FIXED)
       {
@@ -299,7 +298,7 @@ nsTSubstring_CharT::Capacity() const
       }
     else
       {
-        capacity = 0;
+        capacity = size_type(-1);
       }
 
     return capacity;
@@ -555,7 +554,7 @@ nsTSubstring_CharT::Replace( index_type cutStart, size_type cutLength, const sub
       tuple.WriteTo(mData + cutStart, length);
   }
 
-PRBool
+void
 nsTSubstring_CharT::SetCapacity( size_type capacity )
   {
     // capacity does not include room for the terminating null char
@@ -573,7 +572,7 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
         char_type* oldData;
         PRUint32 oldFlags;
         if (!MutatePrep(capacity, &oldData, &oldFlags))
-          return PR_FALSE; // out-of-memory
+          return; // out-of-memory
 
         // compute new string length
         size_type newLen = NS_MIN(mLength, capacity);
@@ -595,14 +594,23 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
         // for backwards compat with the old string implementation.
         mData[capacity] = char_type(0);
       }
-
-    return PR_TRUE;
   }
 
 void
 nsTSubstring_CharT::SetLength( size_type length )
   {
-    if (SetCapacity(length))
+    if (mLength == length) {
+      mFlags &= ~F_VOIDED;  // mutation clears voided flag
+      return;
+    }
+
+    SetCapacity(length);
+
+    // XXX(darin): SetCapacity may fail, but it doesn't give us a way to find
+    // out.  We should improve that.  For now we just verify that the capacity
+    // changed as expected as a means of error checking.
+ 
+    if (Capacity() >= length)
       mLength = length;
   }
 
@@ -729,14 +737,4 @@ nsTSubstring_CharT::StripChar( char_type aChar, PRInt32 aOffset )
       }
     *to = char_type(0); // add the null
     mLength = to - mData;
-  }
-
-void nsTSubstring_CharT::AppendPrintf( const char* format, ...)
-  {
-    char buf[32];
-    va_list ap;
-    va_start(ap, format);
-    PRUint32 len = PR_vsnprintf(buf, sizeof(buf), format, ap);
-    AppendASCII(buf, len);
-    va_end(ap);
   }

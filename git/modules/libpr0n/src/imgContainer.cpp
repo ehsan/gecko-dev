@@ -139,24 +139,25 @@ NS_IMPL_ISUPPORTS4(imgContainer, imgIContainer, nsITimerCallback, nsIProperties,
 //******************************************************************************
 imgContainer::imgContainer() :
   mSize(0,0),
+  mHasSize(PR_FALSE),
   mAnim(nsnull),
   mAnimationMode(kNormalAnimMode),
   mLoopCount(-1),
   mObserver(nsnull),
-  mLockCount(0),
-  mDiscardTimer(nsnull),
-  mDecoder(nsnull),
-  mWorker(nsnull),
-  mBytesDecoded(0),
-  mDecoderFlags(imgIDecoder::DECODER_FLAG_NONE),
-  mHasSize(PR_FALSE),
   mDecodeOnDraw(PR_FALSE),
   mMultipart(PR_FALSE),
   mInitialized(PR_FALSE),
   mDiscardable(PR_FALSE),
+  mLockCount(0),
+  mDiscardTimer(nsnull),
   mHasSourceData(PR_FALSE),
   mDecoded(PR_FALSE),
   mHasBeenDecoded(PR_FALSE),
+  mDecoder(nsnull),
+  mWorker(nsnull),
+  mBytesDecoded(0),
+  mDecoderInput(nsnull),
+  mDecoderFlags(imgIDecoder::DECODER_FLAG_NONE),
   mWorkerPending(PR_FALSE),
   mInDecoder(PR_FALSE),
   mError(PR_FALSE)
@@ -234,9 +235,9 @@ NS_IMETHODIMP imgContainer::Init(imgIDecoderObserver *aObserver,
   // Store initialization data
   mObserver = do_GetWeakReference(aObserver);
   mSourceDataMimeType.Assign(aMimeType);
-  mDiscardable = !!(aFlags & INIT_FLAG_DISCARDABLE);
-  mDecodeOnDraw = !!(aFlags & INIT_FLAG_DECODE_ON_DRAW);
-  mMultipart = !!(aFlags & INIT_FLAG_MULTIPART);
+  mDiscardable = aFlags & INIT_FLAG_DISCARDABLE;
+  mDecodeOnDraw = aFlags & INIT_FLAG_DECODE_ON_DRAW;;
+  mMultipart = aFlags & INIT_FLAG_MULTIPART;
 
   // Statistics
   if (mDiscardable) {
@@ -312,7 +313,7 @@ NS_IMETHODIMP imgContainer::ExtractFrame(PRUint32 aWhichFrame,
   // FLAG_SYNC_DECODE
   PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
                         0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
+  imgFrame *frame = GetImgFrame(frameIndex);
   if (!frame) {
     *_retval = nsnull;
     return NS_ERROR_FAILURE;
@@ -378,17 +379,6 @@ imgFrame *imgContainer::GetImgFrame(PRUint32 framenum)
   return mFrames.SafeElementAt(framenum, nsnull);
 }
 
-imgFrame *imgContainer::GetDrawableImgFrame(PRUint32 framenum)
-{
-  imgFrame *frame = GetImgFrame(framenum);
-
-  // We will return a paletted frame if it's not marked as compositing failed
-  // so we can catch crashes for reasons we haven't investigated.
-  if (frame && frame->GetCompositingFailed())
-    return nsnull;
-  return frame;
-}
-
 PRUint32 imgContainer::GetCurrentImgFrameIndex() const
 {
   if (mAnim)
@@ -400,11 +390,6 @@ PRUint32 imgContainer::GetCurrentImgFrameIndex() const
 imgFrame *imgContainer::GetCurrentImgFrame()
 {
   return GetImgFrame(GetCurrentImgFrameIndex());
-}
-
-imgFrame *imgContainer::GetCurrentDrawableImgFrame()
-{
-  return GetDrawableImgFrame(GetCurrentImgFrameIndex());
 }
 
 //******************************************************************************
@@ -546,7 +531,7 @@ NS_IMETHODIMP imgContainer::CopyFrame(PRUint32 aWhichFrame,
   // FLAG_SYNC_DECODE
   PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
                         0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
+  imgFrame *frame = GetImgFrame(frameIndex);
   if (!frame) {
     *_retval = nsnull;
     return NS_ERROR_FAILURE;
@@ -597,7 +582,7 @@ NS_IMETHODIMP imgContainer::GetFrame(PRUint32 aWhichFrame,
   // FLAG_SYNC_DECODE
   PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
                           0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
+  imgFrame *frame = GetImgFrame(frameIndex);
   if (!frame) {
     *_retval = nsnull;
     return NS_ERROR_FAILURE;
@@ -639,38 +624,18 @@ NS_IMETHODIMP imgContainer::GetDataSize(PRUint32 *_retval)
   *_retval = 0;
 
   // Account for any compressed source data
-  *_retval += GetSourceDataSize();
+  *_retval += mSourceData.Length();
   NS_ABORT_IF_FALSE(StoringSourceData() || (*_retval == 0),
                     "Non-zero source data size when we aren't storing it?");
 
   // Account for any uncompressed frames
-  *_retval += GetDecodedDataSize();
-  return NS_OK;
-}
-
-PRUint32 imgContainer::GetDecodedDataSize()
-{
-  PRUint32 val = 0;
   for (PRUint32 i = 0; i < mFrames.Length(); ++i) {
     imgFrame *frame = mFrames.SafeElementAt(i, nsnull);
     NS_ABORT_IF_FALSE(frame, "Null frame in frame array!");
-    val += frame->EstimateMemoryUsed();
+    *_retval += frame->GetImageDataLength();
   }
 
-  return val;
-}
-
-PRUint32 imgContainer::GetSourceDataSize()
-{
-  return mSourceData.Length();
-}
-
-void imgContainer::DeleteImgFrame(PRUint32 framenum)
-{
-  NS_ABORT_IF_FALSE(framenum < mFrames.Length(), "Deleting invalid frame!");
-
-  delete mFrames[framenum];
-  mFrames[framenum] = nsnull;
+  return NS_OK;
 }
 
 nsresult imgContainer::InternalAddFrameHelper(PRUint32 framenum, imgFrame *aFrame,
@@ -688,10 +653,6 @@ nsresult imgContainer::InternalAddFrameHelper(PRUint32 framenum, imgFrame *aFram
 
   frame->GetImageData(imageData, imageLength);
 
-  // We are in the middle of decoding. This will be unlocked when we finish the
-  // decoder->Write() call.
-  frame->LockImageData();
-
   mFrames.InsertElementAt(framenum, frame.forget());
 
   return NS_OK;
@@ -707,11 +668,6 @@ nsresult imgContainer::InternalAddFrame(PRUint32 framenum,
                                         PRUint32 **paletteData,
                                         PRUint32 *paletteLength)
 {
-  // We assume that we're in the middle of decoding because we unlock the
-  // previous frame when we create a new frame, and only when decoding do we
-  // lock frames.
-  NS_ABORT_IF_FALSE(mInDecoder, "Only decoders may add frames!");
-
   NS_ABORT_IF_FALSE(framenum <= mFrames.Length(), "Invalid frame index!");
   if (framenum > mFrames.Length())
     return NS_ERROR_INVALID_ARG;
@@ -721,13 +677,6 @@ nsresult imgContainer::InternalAddFrame(PRUint32 framenum,
 
   nsresult rv = frame->Init(aX, aY, aWidth, aHeight, aFormat, aPaletteDepth);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // We know we are in a decoder. Therefore, we must unlock the previous frame
-  // when we move on to decoding into the next frame.
-  if (mFrames.Length() > 0) {
-    imgFrame *prevframe = mFrames.ElementAt(mFrames.Length() - 1);
-    prevframe->UnlockImageData();
-  }
 
   if (mFrames.Length() == 0) {
     return InternalAddFrameHelper(framenum, frame.forget(), imageData, imageLength, 
@@ -879,7 +828,7 @@ NS_IMETHODIMP imgContainer::EnsureCleanFrame(PRUint32 aFrameNum, PRInt32 aX, PRI
   nsIntRect rect = frame->GetRect();
   if (rect.x != aX || rect.y != aY || rect.width != aWidth || rect.height != aHeight ||
       frame->GetFormat() != aFormat) {
-    DeleteImgFrame(aFrameNum);
+    delete frame;
     return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
                             /* aPaletteDepth = */ 0, imageData, imageLength,
                             /* aPaletteData = */ nsnull, 
@@ -1497,11 +1446,8 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
                               nextFrame, nextFrameIndex))) {
       // something went wrong, move on to next
       NS_WARNING("imgContainer::Notify(): Composing Frame Failed\n");
-      nextFrame->SetCompositingFailed(PR_TRUE);
       mAnim->currentAnimationFrameIndex = nextFrameIndex;
       return NS_OK;
-    } else {
-      nextFrame->SetCompositingFailed(PR_FALSE);
     }
   }
   // Set currentAnimationFrameIndex at the last possible moment
@@ -1619,10 +1565,7 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
     }
     nsresult rv = mAnim->compositingFrame->Init(0, 0, mSize.width, mSize.height,
                                                 gfxASurface::ImageFormatARGB32);
-    if (NS_FAILED(rv)) {
-      mAnim->compositingFrame = nsnull;
-      return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
     needToBlankComposite = PR_TRUE;
   } else if (aNextFrameIndex == 1) {
     // When we are looping the compositing frame needs to be cleared.
@@ -1726,10 +1669,7 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
       }
       nsresult rv = mAnim->compositingPrevFrame->Init(0, 0, mSize.width, mSize.height,
                                                       gfxASurface::ImageFormatARGB32);
-      if (NS_FAILED(rv)) {
-        mAnim->compositingPrevFrame = nsnull;
-        return rv;
-      }
+      NS_ENSURE_SUCCESS(rv, rv);
     }
 
     CopyFrameImage(mAnim->compositingFrame, mAnim->compositingPrevFrame);
@@ -1778,9 +1718,7 @@ void imgContainer::ClearFrame(imgFrame *aFrame)
   if (!aFrame)
     return;
 
-  nsresult rv = aFrame->LockImageData();
-  if (NS_FAILED(rv))
-    return;
+  aFrame->LockImageData();
 
   nsRefPtr<gfxASurface> surf;
   aFrame->GetSurface(getter_AddRefs(surf));
@@ -1799,9 +1737,7 @@ void imgContainer::ClearFrame(imgFrame *aFrame, nsIntRect &aRect)
   if (!aFrame || aRect.width <= 0 || aRect.height <= 0)
     return;
 
-  nsresult rv = aFrame->LockImageData();
-  if (NS_FAILED(rv))
-    return;
+  aFrame->LockImageData();
 
   nsRefPtr<gfxASurface> surf;
   aFrame->GetSurface(getter_AddRefs(surf));
@@ -2136,6 +2072,14 @@ imgContainer::InitDecoder (PRUint32 dFlags)
   nsresult result = mDecoder->Init(this, observer, dFlags);
   CONTAINER_ENSURE_SUCCESS(result);
 
+  // Create an nsIInputStream for the data. Because nsIStringInputStreams don't
+  // like their dependent data to grow dynamically, we reset the stream to the
+  // proper buffer each time we write data to the decoder. Nevertheless, it's
+  // worth keeping the structure around to avoid needless construction and
+  // destruction.
+  mDecoderInput = do_CreateInstance("@mozilla.org/io/string-input-stream;1");
+  CONTAINER_ENSURE_TRUE(mDecoderInput, NS_ERROR_OUT_OF_MEMORY);
+
   // Create a decode worker
   mWorker = new imgDecodeWorker(this);
   CONTAINER_ENSURE_TRUE(mWorker, NS_ERROR_OUT_OF_MEMORY);
@@ -2194,6 +2138,9 @@ imgContainer::ShutdownDecoder(eShutdownIntent aIntent)
     return rv;
   }
 
+  // Get rid of the stream
+  mDecoderInput = nsnull;
+
   // Kill off the worker
   mWorker = nsnull;
 
@@ -2218,35 +2165,22 @@ imgContainer::ShutdownDecoder(eShutdownIntent aIntent)
   return NS_OK;
 }
 
-// Writes the data to the decoder, updating the total number of bytes written.
+// Wraps a shared stream around the data and passes the stream to the decoder,
+// updating the total number of bytes written.
 nsresult
 imgContainer::WriteToDecoder(const char *aBuffer, PRUint32 aCount)
 {
   // We should have a decoder
   NS_ABORT_IF_FALSE(mDecoder, "Trying to write to null decoder!");
 
-  // The decoder will start decoding into the current frame (if we have one).
-  // When it needs to add another frame, we will unlock this frame and lock the
-  // new frame.
-  // Our invariant is that, while in the decoder, the last frame is always
-  // locked, and all others are unlocked.
-  if (mFrames.Length() > 0) {
-    imgFrame *curframe = mFrames.ElementAt(mFrames.Length() - 1);
-    curframe->LockImageData();
-  }
+  // Wrap a shared stream around the data
+  nsresult rv = mDecoderInput->ShareData(aBuffer, aCount);
+  CONTAINER_ENSURE_SUCCESS(rv);
 
   // Write
   mInDecoder = PR_TRUE;
-  nsresult rv = mDecoder->Write(aBuffer, aCount);
+  rv = mDecoder->WriteFrom(mDecoderInput, aCount);
   mInDecoder = PR_FALSE;
-
-  // We unlock the current frame, even if that frame is different from the
-  // frame we entered the decoder with. (See above.)
-  if (mFrames.Length() > 0) {
-    imgFrame *curframe = mFrames.ElementAt(mFrames.Length() - 1);
-    curframe->UnlockImageData();
-  }
-
   CONTAINER_ENSURE_SUCCESS(rv);
 
   // Keep track of the total number of bytes written over the lifetime of the
@@ -2411,8 +2345,9 @@ NS_IMETHODIMP imgContainer::Draw(gfxContext *aContext, gfxPattern::GraphicsFilte
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  imgFrame *frame = GetCurrentDrawableImgFrame();
+  imgFrame *frame = GetCurrentImgFrame();
   if (!frame) {
+    NS_ABORT_IF_FALSE(!mDecoded, "Decoded but frame not available?");
     return NS_OK; // Getting the frame (above) touches the image and kicks off decoding
   }
 

@@ -38,6 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
 
@@ -46,35 +48,43 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-const kTopicShutdown = "places-shutdown";
+const kQuitApplication = "quit-application";
 const kSyncFinished = "places-sync-finished";
 const kDebugStopSync = "places-debug-stop-sync";
 const kDebugStartSync = "places-debug-start-sync";
 
 const kSyncPrefName = "places.syncDBTableIntervalInSecs";
 const kDefaultSyncInterval = 120;
+const kExpireDaysPrefName = "browser.history_expire_days";
+const kDefaultExpireDays = 90;
+
+// The number of milliseconds in a day.
+const kMSPerDay = 86400000;
+
+// The max number of entries we will flush out when we expire.
+const kMaxExpire = 24;
 
 // Query Constants.  These describe the queries we use.
 const kQuerySyncPlacesId = 0;
 const kQuerySyncHistoryVisitsId = 1;
-
-////////////////////////////////////////////////////////////////////////////////
-//// Modules
-
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
+const kQuerySelectExpireVisitsId = 2;
+const kQueryExpireVisitsId = 3;
+const kQuerySelectExpireHistoryOrphansId = 4;
+const kQueryExpireHistoryOrphansId = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsPlacesDBFlush class
 
 function nsPlacesDBFlush()
 {
+  this._prefs = Cc["@mozilla.org/preferences-service;1"].
+                getService(Ci.nsIPrefBranch);
+
   // Get our sync interval
   try {
     // We want to silently fail since getIntPref throws if it does not exist,
     // and use a default to fallback to.
-    this._syncInterval = Services.prefs.getIntPref(kSyncPrefName);
+    this._syncInterval = this._prefs.getIntPref(kSyncPrefName);
     if (this._syncInterval <= 0)
       this._syncInterval = kDefaultSyncInterval;
   }
@@ -83,13 +93,30 @@ function nsPlacesDBFlush()
     this._syncInterval = kDefaultSyncInterval;
   }
 
-  // Register observers
-  Services.obs.addObserver(this, kTopicShutdown, false);
-  Services.obs.addObserver(this, kDebugStopSync, false);
-  Services.obs.addObserver(this, kDebugStartSync, false);
+  // Get our maximum allowable age of visits in days.
+  try {
+    // We want to silently fail since getIntPref throws if it does not exist,
+    // and use a default to fallback to.
+    this._expireDays = this._prefs.getIntPref(kExpireDaysPrefName);
+    if (this._expireDays <= 0)
+      this._expireDays = kDefaultExpireDays;
+  }
+  catch (e) {
+    // The preference did not exist, so use the default.
+    this._expireDays = kDefaultExpireDays;
+  }
 
-  let (pb2 = Services.prefs.QueryInterface(Ci.nsIPrefBranch2))
+  // Register observers
+  this._os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+  this._os.addObserver(this, kQuitApplication, false);
+  this._os.addObserver(this, kDebugStopSync, false);
+  this._os.addObserver(this, kDebugStartSync, false);
+
+  let (pb2 = this._prefs.QueryInterface(Ci.nsIPrefBranch2)) {
     pb2.addObserver(kSyncPrefName, this, false);
+    pb2.addObserver(kExpireDaysPrefName, this, false);
+  }
 
   // Create our timer to update everything
   this._timer = this._newTimer();
@@ -98,9 +125,22 @@ function nsPlacesDBFlush()
   //// Smart Getters
 
   XPCOMUtils.defineLazyGetter(this, "_db", function() {
-    return PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                              .DBConnection;
+    return Cc["@mozilla.org/browser/nav-history-service;1"].
+           getService(Ci.nsPIPlacesDatabase).
+           DBConnection;
   });
+
+  XPCOMUtils.defineLazyServiceGetter(this, "_ios",
+                                     "@mozilla.org/network/io-service;1",
+                                     "nsIIOService");
+
+  XPCOMUtils.defineLazyServiceGetter(this, "_hsn",
+                                     "@mozilla.org/browser/nav-history-service;1",
+                                     "nsPIPlacesHistoryListenersNotifier");
+
+  XPCOMUtils.defineLazyServiceGetter(this, "_bs",
+                                     "@mozilla.org/browser/nav-bookmarks-service;1",
+                                     "nsINavBookmarksService");
 }
 
 nsPlacesDBFlush.prototype = {
@@ -109,39 +149,42 @@ nsPlacesDBFlush.prototype = {
 
   observe: function DBFlush_observe(aSubject, aTopic, aData)
   {
-    if (aTopic == kTopicShutdown) {
-      Services.obs.removeObserver(this, kTopicShutdown);
-      Services.obs.removeObserver(this, kDebugStopSync);
-      Services.obs.removeObserver(this, kDebugStartSync);
+    if (aTopic == kQuitApplication) {
+      this._os.removeObserver(this, kQuitApplication);
+      this._os.removeObserver(this, kDebugStopSync);
+      this._os.removeObserver(this, kDebugStartSync);
 
-      let (pb2 = Services.prefs.QueryInterface(Ci.nsIPrefBranch2))
+      let (pb2 = this._prefs.QueryInterface(Ci.nsIPrefBranch2)) {
         pb2.removeObserver(kSyncPrefName, this);
-
-      if (this._timer) {
-        this._timer.cancel();
-        this._timer = null;
+        pb2.removeObserver(kExpireDaysPrefName, this);
       }
-
+      this._timer.cancel();
+      this._timer = null;
       // Other components could still make changes to history at this point,
       // for example to clear private data on shutdown, so here we dispatch
       // an event to the main thread so that we will sync after
-      // Places shutdown ensuring all data have been saved.
-      Services.tm.mainThread.dispatch({
+      // quit-application ensuring all data have been saved.
+      let tm = Cc["@mozilla.org/thread-manager;1"].
+          getService(Ci.nsIThreadManager);
+      tm.mainThread.dispatch({
         _self: this,
         run: function() {
-          // Flush any remaining change to disk tables.
+          let pip = Cc["@mozilla.org/browser/nav-history-service;1"].
+                    getService(Ci.nsPIPlacesDatabase);
+          pip.commitPendingChanges();
           this._self._flushWithQueries([kQuerySyncPlacesId, kQuerySyncHistoryVisitsId]);
-
           // Close the database connection, this was the last sync and we can't
           // ensure database coherence from now on.
+          pip.finalizeInternalStatements();
           this._self._finalizeInternalStatements();
-          this._self._db.asyncClose();
+          this._self._db.close();
         }
       }, Ci.nsIThread.DISPATCH_NORMAL);
+
     }
     else if (aTopic == "nsPref:changed" && aData == kSyncPrefName) {
       // Get the new pref value, and then update our timer
-      this._syncInterval = Services.prefs.getIntPref(kSyncPrefName);
+      this._syncInterval = this._prefs.getIntPref(kSyncPrefName);
       if (this._syncInterval <= 0)
         this._syncInterval = kDefaultSyncInterval;
 
@@ -152,6 +195,12 @@ nsPlacesDBFlush.prototype = {
 
       this._timer.cancel();
       this._timer = this._newTimer();
+    }
+    else if (aTopic == "nsPref:changed" && aData == kExpireDaysPrefName) {
+      // Get the new pref and store it.
+      this._expireDays = this._prefs.getIntPref(kExpireDaysPrefName);
+      if (this._expireDays <= 0)
+        this._expireDays = kDefaultExpireDays;
     }
     else if (aTopic == kDebugStopSync) {
       this._syncStopped = true;
@@ -189,7 +238,7 @@ nsPlacesDBFlush.prototype = {
   {
     // Sync only if we added a TYPE_BOOKMARK item.  Note, we want to run the
     // least amount of queries as possible here for performance reasons.
-    if (!this._inBatchMode && aItemType == PlacesUtils.bookmarks.TYPE_BOOKMARK)
+    if (!this._inBatchMode && aItemType == this._bs.TYPE_BOOKMARK)
       this._flushWithQueries([kQuerySyncPlacesId]);
   },
 
@@ -218,13 +267,13 @@ nsPlacesDBFlush.prototype = {
   // the implementations can be found above.
   //onBeginUpdateBatch: function() { },
   //onEndUpdateBatch: function() { },
-  onVisit: function() { },
-  onTitleChanged: function() { },
-  onBeforeDeleteURI: function() { },
-  onDeleteURI: function() { },
+  onVisit: function(aURI, aVisitID, aTime, aSessionID, aReferringID, aTransitionType) { },
+  onTitleChanged: function(aURI, aPageTitle) { },
+  onBeforeDeleteURI: function(aURI) { },
+  onDeleteURI: function(aURI) { },
   onClearHistory: function() { },
-  onPageChanged: function() { },
-  onDeleteVisits: function() { },
+  onPageChanged: function(aURI, aWhat, aValue) { },
+  onPageExpired: function(aURI, aVisitTime, aWholeEntry) { },
 
   //////////////////////////////////////////////////////////////////////////////
   //// nsITimerCallback
@@ -232,6 +281,10 @@ nsPlacesDBFlush.prototype = {
   notify: function DBFlush_timerCallback()
   {
     let queries = [
+      kQuerySelectExpireVisitsId,
+      kQueryExpireVisitsId,
+      kQuerySelectExpireHistoryOrphansId,
+      kQueryExpireHistoryOrphansId,
       kQuerySyncPlacesId,
       kQuerySyncHistoryVisitsId,
     ];
@@ -243,6 +296,21 @@ nsPlacesDBFlush.prototype = {
 
   handleResult: function DBFlush_handleResult(aResultSet)
   {
+    // The only results we'll ever get back is for notifying about expiration.
+    if (!this._expiredResults)
+      this._expiredResults = [];
+
+    let row;
+    while (row = aResultSet.getNextRow()) {
+      if (row.getResultByName("hidden"))
+        continue;
+
+      this._expiredResults.push({
+        uri: this._ios.newURI(row.getResultByName("url"), null, null),
+        visitDate: row.getResultByName("visit_date"),
+        wholeEntry: (row.getResultByName("whole_entry") == 1)
+      });
+    }
   },
 
   handleError: function DBFlush_handleError(aError)
@@ -254,8 +322,20 @@ nsPlacesDBFlush.prototype = {
   handleCompletion: function DBFlush_handleCompletion(aReason)
   {
     if (aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED) {
+      // Dispatch to history that we've finished expiring if we have results.
+      if (this._expiredResults) {
+        while (this._expiredResults.length) {
+          let visit = this._expiredResults.shift();
+          this._hsn.notifyOnPageExpired(visit.uri, visit.visitDate,
+                                        visit.wholeEntry);
+        }
+
+        // And reset it...
+        delete this._expiredResults;
+      }
+
       // Dispatch a notification that sync has finished.
-      Services.obs.notifyObservers(null, kSyncFinished, null);
+      this._os.notifyObservers(null, kSyncFinished, null);
     }
   },
 
@@ -289,10 +369,9 @@ nsPlacesDBFlush.prototype = {
    */
   _finalizeInternalStatements: function DBFlush_finalizeInternalStatements()
   {
-    this._cachedStatements.forEach(function(stmt) {
-      if (stmt instanceof Ci.mozIStorageAsyncStatement)
+    for each (let stmt in this._cachedStatements)
+      if (stmt instanceof Ci.mozIStorageStatement)
         stmt.finalize();
-    });
   },
 
   /**
@@ -319,6 +398,15 @@ nsPlacesDBFlush.prototype = {
         case kQuerySyncPlacesId:
           params.transition_type = Ci.nsINavHistoryService.TRANSITION_EMBED;
           break;
+        case kQuerySelectExpireVisitsId:
+        case kQueryExpireVisitsId:
+          params.visit_date = (Date.now() - (this._expireDays * kMSPerDay)) * 1000;
+          params.max_expire = kMaxExpire;
+          break;
+        case kQuerySelectExpireHistoryOrphansId:
+        case kQueryExpireHistoryOrphansId:
+          params.max_expire = kMaxExpire;
+          break;
       }
 
       return stmt;
@@ -328,9 +416,7 @@ nsPlacesDBFlush.prototype = {
       case kQuerySyncHistoryVisitsId:
         // For history table we want to leave embed visits in memory, since
         // those are expired with current session, so we are filtering them out.
-        // Notice that instead we _want_ to sync framed_link visits, since those
-        // come from user's actions.
-        this._cachedStatements[aQueryType] = this._db.createAsyncStatement(
+        this._cachedStatements[aQueryType] = this._db.createStatement(
           "DELETE FROM moz_historyvisits_temp " +
           "WHERE visit_type <> :transition_type"
         );
@@ -340,7 +426,7 @@ nsPlacesDBFlush.prototype = {
         // For places table we want to leave places associated with embed visits
         // in memory, they usually have hidden = 1 and at least an embed visit
         // in historyvisits_temp table.
-        this._cachedStatements[aQueryType] = this._db.createAsyncStatement(
+        this._cachedStatements[aQueryType] = this._db.createStatement(
           "DELETE FROM moz_places_temp " +
           "WHERE id IN ( " +
             "SELECT id FROM moz_places_temp h " +
@@ -349,6 +435,68 @@ nsPlacesDBFlush.prototype = {
               "WHERE place_id = h.id AND visit_type = :transition_type " +
               "LIMIT 1 " +
             ") " +
+          ")"
+        );
+        break;
+
+      case kQuerySelectExpireVisitsId:
+        // Determine which entries will be flushed out from moz_historyvisits
+        // when kQueryExpireVisitsId runs.
+        this._cachedStatements[aQueryType] = this._db.createStatement(
+          "SELECT h.url, v.visit_date, h.hidden, 0 AS whole_entry " +
+          "FROM moz_places h " +
+          "JOIN moz_historyvisits v ON h.id = v.place_id " +
+          "WHERE v.visit_date < :visit_date " +
+          "ORDER BY v.visit_date ASC " +
+          "LIMIT :max_expire"
+        );
+        break;
+
+      case kQueryExpireVisitsId:
+        // Expire entries from moz_historyvisits.
+        this._cachedStatements[aQueryType] = this._db.createStatement(
+          "DELETE FROM moz_historyvisits " +
+          "WHERE id IN ( " +
+            "SELECT id " +
+            "FROM moz_historyvisits " +
+            "WHERE visit_date < :visit_date " +
+            "ORDER BY visit_date ASC " +
+            "LIMIT :max_expire " +
+          ")"
+        );
+        break;
+
+      case kQuerySelectExpireHistoryOrphansId:
+        // Determine which entries will be flushed out from moz_places
+        // when kQueryExpireHistoryOrphansId runs.
+        this._cachedStatements[aQueryType] = this._db.createStatement(
+          "SELECT h.url, h.last_visit_date AS visit_date, h.hidden, " +
+                 "1 as whole_entry FROM moz_places h " +
+          "LEFT JOIN moz_historyvisits v ON h.id = v.place_id " +
+          "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id " +
+          "LEFT JOIN moz_bookmarks b ON h.id = b.fk " +
+          "WHERE v.id IS NULL " +
+            "AND v_t.id IS NULL " +
+            "AND b.id IS NULL " +
+            "AND SUBSTR(h.url, 1, 6) <> 'place:' " +
+          "LIMIT :max_expire"
+        );
+        break;
+
+      case kQueryExpireHistoryOrphansId:
+        // Flush out entries from moz_historyvisits.
+        this._cachedStatements[aQueryType] = this._db.createStatement(
+          "DELETE FROM moz_places_view " +
+          "WHERE id IN ( " +
+            "SELECT h.id FROM moz_places h " +
+            "LEFT JOIN moz_historyvisits v ON h.id = v.place_id " +
+            "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id " +
+            "LEFT JOIN moz_bookmarks b ON h.id = b.fk " +
+            "WHERE v.id IS NULL " +
+              "AND v_t.id IS NULL " +
+              "AND b.id IS NULL " +
+              "AND SUBSTR(h.url, 1, 6) <> 'place:' " +
+            "LIMIT :max_expire" +
           ")"
         );
         break;

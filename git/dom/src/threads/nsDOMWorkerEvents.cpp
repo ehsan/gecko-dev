@@ -263,22 +263,14 @@ NS_IMPL_CI_INTERFACE_GETTER2(nsDOMWorkerMessageEvent, nsIDOMEvent,
 
 NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(nsDOMWorkerMessageEvent)
 
-nsresult
-nsDOMWorkerMessageEvent::SetJSVal(JSContext* aCx,
-                                  jsval aData)
-{
-  if (!mDataVal.Hold(aCx)) {
-    NS_WARNING("Failed to hold jsval!");
-    return NS_ERROR_FAILURE;
-  }
-
-  mDataVal = aData;
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsDOMWorkerMessageEvent::GetData(nsAString& aData)
 {
+  if (!mIsJSON) {
+    aData.Assign(mData);
+    return NS_OK;
+  }
+
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   NS_ENSURE_TRUE(xpc, NS_ERROR_UNEXPECTED);
 
@@ -287,27 +279,71 @@ nsDOMWorkerMessageEvent::GetData(nsAString& aData)
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(cc, NS_ERROR_UNEXPECTED);
 
-  if (!mDataValWasReparented) {
-    if (JSVAL_IS_OBJECT(mDataVal) && !JSVAL_IS_NULL(mDataVal)) {
-      JSContext* cx;
-      rv = cc->GetJSContext(&cx);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv =
-        nsContentUtils::ReparentClonedObjectToScope(cx,
-                                                    JSVAL_TO_OBJECT(mDataVal),
-                                                    JS_GetGlobalObject(cx));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    mDataValWasReparented = PR_TRUE;
-  }
-
   jsval* retval;
   rv = cc->GetRetValPtr(&retval);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (mHaveCachedJSVal) {
+    cc->SetReturnValueWasSet(PR_TRUE);
+    *retval = mCachedJSVal;
+    return NS_OK;
+  }
+
+  if (mHaveAttemptedConversion) {
+    // Don't try to convert again if the first time around we saw an error.
+    return NS_ERROR_FAILURE;
+  }
+  mHaveAttemptedConversion = PR_TRUE;
+
+  JSContext* cx;
+  rv = cc->GetJSContext(&cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSAutoRequest ar(cx);
+
+  JSBool ok = mCachedJSVal.Hold(cx);
+  NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
+
+  JSONParser* parser = JS_BeginJSONParse(cx, mCachedJSVal.ToJSValPtr());
+  NS_ENSURE_TRUE(parser, NS_ERROR_UNEXPECTED);
+
+  // This is slightly sneaky, but now that JS_BeginJSONParse succeeded we always
+  // need call JS_FinishJSONParse even if JS_ConsumeJSONText fails. We'll report
+  // an error if either failed, though.
+  ok = JS_ConsumeJSONText(cx, parser, (jschar*)mData.get(),
+                          (uint32)mData.Length());
+
+  // Note the '&& ok' after the call here!
+  ok = JS_FinishJSONParse(cx, parser, JSVAL_NULL) && ok;
+  if (!ok) {
+    mCachedJSVal = JSVAL_NULL;
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  NS_ASSERTION(mCachedJSVal.ToJSObject(), "Bad JSON result!");
+
+  if (mIsPrimitive) {
+    jsval primitive;
+
+    ok = JS_GetProperty(cx, mCachedJSVal.ToJSObject(), JSON_PRIMITIVE_PROPNAME,
+                        &primitive);
+    if (!ok) {
+      mCachedJSVal = JSVAL_NULL;
+      return NS_ERROR_UNEXPECTED;
+    }
+
+    mCachedJSVal = primitive;
+  }
+
+  // We no longer need to hold this copy of the data around.
+  mData.Truncate();
+
+  // Now that everything has succeeded we'll set this flag so that we return the
+  // cached jsval in the future.
+  mHaveCachedJSVal = PR_TRUE;
+
+  *retval = mCachedJSVal;
   cc->SetReturnValueWasSet(PR_TRUE);
-  *retval = mDataVal;
   return NS_OK;
 }
 
@@ -334,6 +370,7 @@ nsDOMWorkerMessageEvent::InitMessageEvent(const nsAString& aTypeArg,
                                           const nsAString& aOriginArg,
                                           nsISupports* aSourceArg)
 {
+  mData.Assign(aDataArg);
   mOrigin.Assign(aOriginArg);
   mSource = aSourceArg;
   return nsDOMWorkerEvent::InitEvent(aTypeArg, aCanBubbleArg, aCancelableArg);

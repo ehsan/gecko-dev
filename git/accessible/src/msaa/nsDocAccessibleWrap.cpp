@@ -43,6 +43,7 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIPresShell.h"
 #include "nsISelectionController.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
@@ -92,17 +93,23 @@ STDMETHODIMP nsDocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
   return S_OK;
 }
 
-nsAccessible*
-nsDocAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
+void
+nsDocAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild,
+                                        nsIAccessible **aXPAccessible)
 {
+  *aXPAccessible = nsnull;
+
+  if (IsDefunct())
+    return;
+
   // If lVal negative then it is treated as child ID and we should look for
   // accessible through whole accessible subtree including subdocuments.
   // Otherwise we treat lVal as index in parent.
 
   if (aVarChild.lVal < 0)
-    return IsDefunct() ? nsnull : GetXPAccessibleForChildID(aVarChild);
-
-  return nsAccessibleWrap::GetXPAccessibleFor(aVarChild);
+    GetXPAccessibleForChildID(aVarChild, aXPAccessible);
+  else
+    nsDocAccessible::GetXPAccessibleFor(aVarChild, aXPAccessible);
 }
 
 STDMETHODIMP
@@ -117,7 +124,8 @@ __try {
     // It is used by AccessibleObjectFromEvent() called by AT when AT handles
     // our MSAA event.
 
-    nsAccessible *xpAccessible = GetXPAccessibleForChildID(varChild);
+    nsCOMPtr<nsIAccessible> xpAccessible;
+    GetXPAccessibleForChildID(varChild, getter_AddRefs(xpAccessible));
     if (!xpAccessible)
       return E_FAIL;
 
@@ -132,6 +140,41 @@ __try {
   return nsAccessibleWrap::get_accChild(varChild, ppdispChild);
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
+}
+
+void
+nsDocAccessibleWrap::FireAnchorJumpEvent()
+{
+  // Staying on the same page, jumping to a named anchor
+  // Fire EVENT_SCROLLING_START on first leaf accessible -- because some
+  // assistive technologies only cache the child numbers for leaf accessibles
+  // the can only relate events back to their internal model if it's a leaf.
+  // There is usually an accessible for the focus node, but if it's an empty text node
+  // we have to move forward in the document to get one
+  nsDocAccessible::FireAnchorJumpEvent();
+  if (!mIsAnchorJumped)
+    return;
+
+  nsCOMPtr<nsIDOMNode> focusNode;
+  if (mIsAnchor) {
+    nsCOMPtr<nsISelectionController> selCon(do_QueryReferent(mWeakShell));
+    if (!selCon)
+      return;
+
+    nsCOMPtr<nsISelection> domSel;
+    selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(domSel));
+    if (!domSel)
+      return;
+
+    domSel->GetFocusNode(getter_AddRefs(focusNode));
+  }
+  else {
+    focusNode = mDOMNode; // Moved to top, so event is for 1st leaf after root
+  }
+
+  nsCOMPtr<nsIAccessible> accessible = GetFirstAvailableAccessible(focusNode, PR_TRUE);
+  nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SCROLLING_START,
+                           accessible);
 }
 
 STDMETHODIMP nsDocAccessibleWrap::get_URL(/* [out] */ BSTR __RPC_FAR *aURL)
@@ -270,24 +313,26 @@ STDMETHODIMP nsDocAccessibleWrap::get_accValue(
 
 struct nsSearchAccessibleInCacheArg
 {
-  nsRefPtr<nsAccessible> mAccessible;
+  nsCOMPtr<nsIAccessNode> mAccessNode;
   void *mUniqueID;
 };
 
 static PLDHashOperator
-SearchAccessibleInCache(const void* aKey, nsDocAccessible* aDocAccessible,
+SearchAccessibleInCache(const void* aKey, nsIAccessNode* aAccessNode,
                         void* aUserArg)
 {
-  NS_ASSERTION(aDocAccessible,
+  nsCOMPtr<nsIAccessibleDocument> docAccessible(do_QueryInterface(aAccessNode));
+  NS_ASSERTION(docAccessible,
                "No doc accessible for the object in doc accessible cache!");
 
-  if (aDocAccessible) {
+  if (docAccessible) {
     nsSearchAccessibleInCacheArg* arg =
       static_cast<nsSearchAccessibleInCacheArg*>(aUserArg);
-    nsAccessNode* accessNode =
-      aDocAccessible->GetCachedAccessNode(arg->mUniqueID);
+    nsCOMPtr<nsIAccessNode> accessNode;
+    docAccessible->GetCachedAccessNode(arg->mUniqueID,
+                                       getter_AddRefs(accessNode));
     if (accessNode) {
-      arg->mAccessible = do_QueryObject(accessNode);
+      arg->mAccessNode = accessNode;
       return PL_DHASH_STOP;
     }
   }
@@ -295,9 +340,12 @@ SearchAccessibleInCache(const void* aKey, nsDocAccessible* aDocAccessible,
   return PL_DHASH_NEXT;
 }
 
-nsAccessible*
-nsDocAccessibleWrap::GetXPAccessibleForChildID(const VARIANT& aVarChild)
+void
+nsDocAccessibleWrap::GetXPAccessibleForChildID(const VARIANT& aVarChild,
+                                               nsIAccessible  **aAccessible)
 {
+  *aAccessible = nsnull;
+
   NS_PRECONDITION(aVarChild.vt == VT_I4 && aVarChild.lVal < 0,
                   "Variant doesn't point to child ID!");
 
@@ -309,6 +357,6 @@ nsDocAccessibleWrap::GetXPAccessibleForChildID(const VARIANT& aVarChild)
 
   gGlobalDocAccessibleCache.EnumerateRead(SearchAccessibleInCache,
                                           static_cast<void*>(&arg));
-
-  return arg.mAccessible;
+  if (arg.mAccessNode)
+    CallQueryInterface(arg.mAccessNode, aAccessible);
 }

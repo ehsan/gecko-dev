@@ -430,7 +430,7 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
         Init();
 
     if (!elib) 
-	    return NS_ERROR_NOT_AVAILABLE;
+	    return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIStreamLoader> loader;
     rv = NS_NewStreamLoader(getter_AddRefs(loader), aURL, this);

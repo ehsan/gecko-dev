@@ -101,7 +101,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
 !insertmacro SetBrandNameVars
-!insertmacro UpdateShortcutAppModelIDs
 !insertmacro UnloadUAC
 !insertmacro WriteRegDWORD2
 !insertmacro WriteRegStr2
@@ -225,9 +224,6 @@ Section "Uninstall"
   ${un.RegCleanMain} "Software\Mozilla"
   ${un.RegCleanUninstall}
   ${un.DeleteShortcuts}
-
-  ; Unregister resources associated with Win7 taskbar jump lists.
-  ApplicationID::UninstallJumpLists "${AppUserModelID}"
 
   ClearErrors
   WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"

@@ -87,9 +87,6 @@ protected:
   virtual EnumAttributesInfo GetEnumInfo();
   virtual StringAttributesInfo GetStringInfo();
 
-  virtual void DidAnimateLength(PRUint8 aAttrEnum);
-  virtual void DidAnimateEnum(PRUint8 aAttrEnum);
-
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];
   static LengthInfo sLengthInfo[4];

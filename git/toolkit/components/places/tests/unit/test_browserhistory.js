@@ -182,10 +182,8 @@ function run_test() {
   // remove annotation and bookmark
   annosvc.removePageAnnotation(deletedPages[bookmarkIndex], annoName);
   bmsvc.removeItem(bookmark);
-  waitForClearHistory(continue_test);
-}
+  bhist.removeAllPages();
 
-function continue_test() {
   /**
    * removePagesByTimeframe
    * Remove all pages for a given timeframe.

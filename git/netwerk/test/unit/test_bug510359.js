@@ -34,7 +34,8 @@ function checkValueAndTrigger(request, data, ctx) {
         index++;
         triggerNextTest();
     } else {
-        httpserver.stop(do_test_finished);
+        do_test_finished();
+        httpserver.stop();
     }
 }
 

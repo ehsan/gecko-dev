@@ -40,6 +40,7 @@
 #include "jsapi.h"
 #include "jsdtoa.h"
 #include "jsprvtd.h"
+#include "jsnum.h"
 #include "jsbool.h"
 #include "jsarena.h"
 #include "jscntxt.h"
@@ -62,7 +63,7 @@
 
 static const char kXPConnectServiceCID[] = "@mozilla.org/js/xpc/XPConnect;1";
 
-#define JSON_STREAM_BUFSIZE 4096
+#define JSON_STREAM_BUFSIZE 1024
 
 NS_INTERFACE_MAP_BEGIN(nsJSON)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIJSON)
@@ -192,27 +193,6 @@ WriteCallback(const jschar *buf, uint32 len, void *data)
     return JS_FALSE;
 
   return JS_TRUE;
-}
-
-NS_IMETHODIMP
-nsJSON::EncodeFromJSVal(jsval *value, JSContext *cx, nsAString &result)
-{
-  result.Truncate();
-
-  // Begin a new request
-  JSAutoRequest ar(cx);
-
-  nsJSONWriter writer;
-  JSBool ok = JS_Stringify(cx, value, NULL, JSVAL_NULL,
-                           WriteCallback, &writer);
-  if (!ok) {
-    return NS_ERROR_XPC_BAD_CONVERT_JS;
-  }
-
-  NS_ENSURE_TRUE(writer.DidWrite(), NS_ERROR_UNEXPECTED);
-  writer.FlushBuffer();
-  result.Assign(writer.mOutputString);
-  return NS_OK;
 }
 
 nsresult
@@ -402,30 +382,6 @@ nsJSON::DecodeFromStream(nsIInputStream *aStream, PRInt32 aContentLength)
   return DecodeInternal(aStream, aContentLength, PR_TRUE);
 }
 
-NS_IMETHODIMP
-nsJSON::DecodeToJSVal(const nsAString &str, JSContext *cx, jsval *result)
-{
-  JSAutoRequest ar(cx);
-
-  JSONParser *parser = JS_BeginJSONParse(cx, result);
-  NS_ENSURE_TRUE(parser, NS_ERROR_UNEXPECTED);
-
-  JSBool ok = JS_ConsumeJSONText(cx, parser,
-                                 (jschar*)PromiseFlatString(str).get(),
-                                 (uint32)str.Length());
-
-  // Since we've called JS_BeginJSONParse, we have to call JS_FinishJSONParse,
-  // even if JS_ConsumeJSONText fails.  But if either fails, we'll report an
-  // error.
-  ok = ok && JS_FinishJSONParse(cx, parser, JSVAL_NULL);
-
-  if (!ok) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  return NS_OK;
-}
-
 nsresult
 nsJSON::DecodeInternal(nsIInputStream *aStream,
                        PRInt32 aContentLength,
@@ -606,7 +562,7 @@ nsJSONListener::OnDataAvailable(nsIRequest *aRequest, nsISupports *aContext,
   while (bytesRemaining) {
     unsigned int bytesRead;
     rv = aStream->Read(buffer,
-                       NS_MIN((unsigned long)sizeof(buffer), bytesRemaining),
+                       PR_MIN(sizeof(buffer), bytesRemaining),
                        &bytesRead);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = ProcessBytes(buffer, bytesRead);

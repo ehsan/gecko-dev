@@ -49,8 +49,7 @@ LIBXUL_LIBRARY = 1
 
 CPPSRCS = \
   nsAccessNode.cpp \
-  nsAccEvent.cpp \
-  nsAccIterator.cpp \
+  nsAccessibleEventData.cpp \
   nsARIAGridAccessible.cpp \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
@@ -62,9 +61,8 @@ CPPSRCS = \
   nsAccessibilityService.cpp \
   nsAccessible.cpp \
   nsAccessibleRelation.cpp \
-  nsAccTreeWalker.cpp \
+  nsAccessibleTreeWalker.cpp \
   nsBaseWidgetAccessible.cpp \
-  nsEventShell.cpp \
   nsFormControlAccessible.cpp \
   nsRootAccessible.cpp \
   nsApplicationAccessible.cpp \
@@ -75,8 +73,8 @@ CPPSRCS = \
   $(NULL)
 
 EXPORTS = \
-  a11yGeneric.h \
-  nsAccessible.h \
+  nsRootAccessible.h \
+  nsAccessibleEventData.h \
   nsAccessNode.h \
   $(NULL)
 

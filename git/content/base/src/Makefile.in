@@ -64,19 +64,12 @@ EXPORTS		= \
 		mozAutoDocUpdate.h \
 		$(NULL)
 
-EXPORTS_NAMESPACES = mozilla/dom
-
-EXPORTS_mozilla/dom = \
-  Link.h \
-  $(NULL)
-
 CPPSRCS		= \
 		mozSanitizingSerializer.cpp \
 		nsAtomListUtils.cpp \
 		nsAttrAndChildArray.cpp \
 		nsAttrValue.cpp \
 		nsCCUncollectableMarker.cpp \
-		nsChannelPolicy.cpp \
 		nsCommentNode.cpp \
 		nsContentAreaDragDrop.cpp \
 		nsContentIterator.cpp \
@@ -86,23 +79,20 @@ CPPSRCS		= \
 		nsContentUtils.cpp \
 		nsCopySupport.cpp \
 		nsCrossSiteListenerProxy.cpp \
-		nsCSPService.cpp \
 		nsDataDocumentContentPolicy.cpp \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
 		nsDOMDocumentType.cpp \
 		nsDOMFile.cpp \
-		nsDOMFileReader.cpp \
+		nsDOMFileRequest.cpp \
 		nsDOMLists.cpp \
 		nsDOMParser.cpp \
 		nsDOMSerializer.cpp \
 		nsDOMTokenList.cpp \
-		nsDOMSettableTokenList.cpp \
 		nsDocument.cpp \
 		nsDocumentEncoder.cpp \
 		nsDocumentFragment.cpp \
 		nsFrameLoader.cpp \
-		nsFormData.cpp \
 		nsGenConImageContent.cpp \
 		nsGenericDOMDataNode.cpp \
 		nsGenericElement.cpp \
@@ -142,10 +132,6 @@ CPPSRCS		= \
 		nsXMLContentSerializer.cpp \
 		nsXMLHttpRequest.cpp \
 		nsXMLNameSpaceMap.cpp \
-		Link.cpp \
-		nsFileDataProtocolHandler.cpp \
-		nsFrameMessageManager.cpp \
-		nsInProcessTabChildGlobal.cpp \
 		$(NULL)
 
 GQI_SRCS = contentbase.gqi
@@ -154,15 +140,7 @@ GQI_SRCS = contentbase.gqi
 # static lib.
 FORCE_STATIC_LIB = 1
 
-EXTRA_COMPONENTS = \
-		$(srcdir)/nsBadCertHandler.js \
-		contentSecurityPolicy.js \
-		contentAreaDropListener.js \
-		$(NULL)
-
-EXTRA_JS_MODULES = \
-		CSPUtils.jsm \
-		$(NULL)
+EXTRA_COMPONENTS = $(srcdir)/nsBadCertHandler.js
 
 include $(topsrcdir)/config/rules.mk
 
@@ -179,8 +157,6 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../dom/base \
 		-I$(srcdir)/../../xml/document/src \
 		-I$(topsrcdir)/xpcom/io \
-		-I$(topsrcdir)/js/src/xpconnect/src \
-		-I$(topsrcdir)/caps/include \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

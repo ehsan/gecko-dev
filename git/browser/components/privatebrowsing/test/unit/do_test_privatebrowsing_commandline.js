@@ -43,7 +43,7 @@ function testprivatecl() {
 
 testprivatecl.prototype = {
   _arguments: ["private", "silent"],
-  get length() {
+  get length getLength() {
     return this._arguments.length;
   },
   getArgument: function getArgument(aIndex) {
@@ -74,7 +74,7 @@ testprivatecl.prototype = {
   STATE_INITIAL_LAUNCH: 0,
   STATE_REMOTE_AUTO: 1,
   STATE_REMOTE_EXPLICIT: 2,
-  get state() {
+  get state getState() {
     return this.STATE_INITIAL_LAUNCH;
   },
   preventDefault: false,
@@ -97,12 +97,9 @@ testprivatecl.prototype = {
 function do_test() {
   // initialization
   let pb = Cc[PRIVATEBROWSING_CONTRACT_ID].
-           getService(Ci.nsIPrivateBrowsingService).
-           QueryInterface(Ci.nsIObserver);
+           getService(Ci.nsIPrivateBrowsingService);
 
   let testcl = new testprivatecl();
-
-  pb.observe(testcl, "command-line-startup", null);
 
   let catMan = Cc["@mozilla.org/categorymanager;1"].
                getService(Ci.nsICategoryManager);

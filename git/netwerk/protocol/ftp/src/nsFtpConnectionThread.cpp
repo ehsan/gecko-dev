@@ -45,7 +45,6 @@
 #include "prlog.h"
 #include "prtime.h"
 
-#include "nsIOService.h"
 #include "nsFTPChannel.h"
 #include "nsFtpConnectionThread.h"
 #include "nsFtpControlConnection.h"
@@ -1037,34 +1036,6 @@ nsFtpState::R_mdtm() {
             NS_ASSERTION(mResponseMsg.Length() == 14, "Unknown MDTM response");
         } else {
             mModTime = mResponseMsg;
-
-            // Save lastModified time for downloaded files.
-            nsCAutoString timeString;
-            PRInt32 error;
-            PRExplodedTime exTime;
-
-            mResponseMsg.Mid(timeString, 0, 4);
-            exTime.tm_year  = timeString.ToInteger(&error, 10);
-            mResponseMsg.Mid(timeString, 4, 2);
-            exTime.tm_month = timeString.ToInteger(&error, 10) - 1; //january = 0
-            mResponseMsg.Mid(timeString, 6, 2);
-            exTime.tm_mday  = timeString.ToInteger(&error, 10);
-            mResponseMsg.Mid(timeString, 8, 2);
-            exTime.tm_hour  = timeString.ToInteger(&error, 10);
-            mResponseMsg.Mid(timeString, 10, 2);
-            exTime.tm_min   = timeString.ToInteger(&error, 10);
-            mResponseMsg.Mid(timeString, 12, 2);
-            exTime.tm_sec   = timeString.ToInteger(&error, 10);
-            exTime.tm_usec  = 0;
-
-            exTime.tm_params.tp_gmt_offset = 0;
-            exTime.tm_params.tp_dst_offset = 0;
-
-            PR_NormalizeTime(&exTime, PR_GMTParameters);
-            exTime.tm_params = PR_LocalTimeParameters(&exTime);
-
-            PRTime time = PR_ImplodeTime(&exTime);
-            (void)mChannel->SetLastModifiedTime(time);
         }
     }
 
@@ -1529,8 +1500,8 @@ nsFtpState::R_pasv() {
         // open a buffered, asynchronous socket input stream
         nsCOMPtr<nsIInputStream> input;
         rv = mDataTransport->OpenInputStream(0,
-                                             nsIOService::gDefaultSegmentSize,
-                                             nsIOService::gDefaultSegmentCount,
+                                             FTP_DATA_CHANNEL_SEG_SIZE,
+                                             FTP_DATA_CHANNEL_SEG_COUNT,
                                              getter_AddRefs(input));
         NS_ENSURE_SUCCESS(rv, FTP_ERROR);
         mDataStream = do_QueryInterface(input);
@@ -1625,7 +1596,7 @@ nsFtpState::InstallCacheListener()
             do_CreateInstance(NS_STREAMLISTENERTEE_CONTRACTID);
     NS_ENSURE_STATE(tee);
 
-    nsresult rv = tee->Init(mChannel->StreamListener(), out, nsnull);
+    nsresult rv = tee->Init(mChannel->StreamListener(), out);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mChannel->SetStreamListener(tee);
@@ -1656,10 +1627,9 @@ nsFtpState::OpenCacheDataStream()
 
     // Open a non-blocking, buffered input stream...
     nsCOMPtr<nsIInputStream> transportInput;
-    transport->OpenInputStream(0,
-                               nsIOService::gDefaultSegmentSize,
-                               nsIOService::gDefaultSegmentCount,
-                               getter_AddRefs(transportInput));
+    transport->OpenInputStream(0, FTP_DATA_CHANNEL_SEG_SIZE,
+                                  FTP_DATA_CHANNEL_SEG_COUNT,
+                                  getter_AddRefs(transportInput));
     NS_ENSURE_STATE(transportInput);
 
     mDataStream = do_QueryInterface(transportInput);

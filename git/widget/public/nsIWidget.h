@@ -43,7 +43,6 @@
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsRegion.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -61,17 +60,10 @@ class   nsIRenderingContext;
 class   nsIDeviceContext;
 struct  nsFont;
 class   nsIRollupListener;
-class   nsIMenuRollup;
 class   nsGUIEvent;
 class   imgIContainer;
 class   gfxASurface;
 class   nsIContent;
-
-namespace mozilla {
-namespace layers {
-class LayerManager;
-}
-}
 
 /**
  * Callback function that processes events.
@@ -110,8 +102,9 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0xf286438a, 0x6ec6, 0x4766, \
-  { 0xa4, 0x76, 0x4a, 0x44, 0x80, 0x95, 0xd3, 0x1f } }
+{ 0x6bdb96ba, 0x1727, 0x40ae, \
+  { 0x85, 0x55, 0x9c, 0x53, 0x4b, 0x95, 0x23, 0x98 } }
+
 /*
  * Window shadow styles
  * Also used for the -moz-window-shadow CSS property
@@ -119,9 +112,6 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 
 #define NS_STYLE_WINDOW_SHADOW_NONE             0
 #define NS_STYLE_WINDOW_SHADOW_DEFAULT          1
-#define NS_STYLE_WINDOW_SHADOW_MENU             2
-#define NS_STYLE_WINDOW_SHADOW_TOOLTIP          3
-#define NS_STYLE_WINDOW_SHADOW_SHEET            4
 
 /**
  * Cursor types.
@@ -186,7 +176,6 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 class nsIWidget : public nsISupports {
 
   public:
-    typedef mozilla::layers::LayerManager LayerManager;
 
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_IID)
 
@@ -590,16 +579,6 @@ class nsIWidget : public nsISupports {
     virtual nsTransparencyMode GetTransparencyMode() = 0;
 
     /**
-     * Updates a region of the window that might not have opaque content drawn. Widgets should
-     * assume that the initial possibly transparent region is empty.
-     *
-     * @param aDirtyRegion the region of the window that aMaybeTransparentRegion pertains to
-     * @param aPossiblyTransparentRegion the region of the window that is possibly transparent
-     */
-    virtual void UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
-                                                 const nsIntRegion &aPossiblyTransparentRegion) {};
-
-    /**
      * This represents a command to set the bounds and clip region of
      * a child widget.
      */
@@ -685,14 +664,6 @@ class nsIWidget : public nsISupports {
     virtual nsIToolkit* GetToolkit() = 0;    
 
     /**
-     * Return the widget's LayerManager. The layer tree for that
-     * LayerManager is what gets rendered to the widget.
-     * The layer manager is guaranteed to be the same for the lifetime
-     * of the widget.
-     */
-    virtual LayerManager* GetLayerManager() = 0;
-
-    /**
      * Scroll a set of rectangles in this widget and (as simultaneously as
      * possible) modify the specified child widgets.
      * 
@@ -702,8 +673,11 @@ class nsIWidget : public nsISupports {
      * operation fails to blit because part of the window is unavailable
      * (e.g. partially offscreen).
      * 
-     * The caller guarantees that the rectangles in aDestRects are
-     * non-intersecting.
+     * The caller guarantees that the rectangles in aDestRects are ordered
+     * so that copying from aDestRects[i] - aDelta to aDestRects[i] does
+     * not alter anything in aDestRects[j] - aDelta for j > i. That is,
+     * it's safe to just copy the rectangles in the order given in
+     * aDestRects.
      *
      * @param aDelta amount to scroll (device pixels)
      * @param aDestRects rectangles to copy into
@@ -726,6 +700,7 @@ class nsIWidget : public nsISupports {
     virtual void RemoveChild(nsIWidget* aChild) = 0;
     virtual void* GetNativeData(PRUint32 aDataType) = 0;
     virtual void FreeNativeData(void * data, PRUint32 aDataType) = 0;//~~~
+    virtual nsIRenderingContext* GetRenderingContext() = 0;
 
     // GetDeviceContext returns a weak pointer to this widget's device context
     virtual nsIDeviceContext* GetDeviceContext() = 0;
@@ -792,8 +767,7 @@ class nsIWidget : public nsISupports {
      * @param aConsumeRollupEvent PR_TRUE consumes the rollup event, PR_FALSE dispatches rollup event
      *
      */
-    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
-                                   PRBool aDoCapture, PRBool aConsumeRollupEvent) = 0;
+    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent) = 0;
 
     /**
      * Bring this window to the user's attention.  This is intended to be a more
@@ -849,20 +823,7 @@ class nsIWidget : public nsISupports {
      *                windows.
      */
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, PRBool aActive) = 0;
-
-    /**
-     * If set to true, the window will draw its contents into the titlebar
-     * instead of below it.
-     *
-     * Ignored on any platform that does not support it. Ignored by widgets that
-     * do not represent windows.
-     * May result in a resize event, so should only be called from places where
-     * reflow and painting is allowed.
-     *
-     * @param aState Whether drawing into the titlebar should be activated.
-     */
-    virtual void SetDrawsInTitlebar(PRBool aState) = 0;
-
+    
     /*
      * Determine whether the widget shows a resize widget. If it does,
      * aResizerRect returns the resizer's rect.
@@ -935,17 +896,11 @@ class nsIWidget : public nsISupports {
 
     /**
      * Utility method intended for testing. Dispatches native mouse events
-     * may even move the mouse cursor. On Mac the events are guaranteed to
-     * be sent to the window containing this widget, but on Windows they'll go
-     * to whatever's topmost on the screen at that position, so for
-     * cross-platform testing ensure that your window is at the top of the
-     * z-order.
-     * @param aPoint screen location of the mouse, in device
-     * pixels, with origin at the top left
-     * @param aNativeMessage *platform-specific* event type (e.g. on Mac,
-     * NSMouseMoved; on Windows, MOUSEEVENTF_MOVE, MOUSEEVENTF_LEFTDOWN etc)
-     * @param aModifierFlags *platform-specific* modifier flags (ignored
-     * on Windows)
+     * to this widget and may even move the mouse cursor.
+     * @param aPoint screen location of the mouse, in pixels, with origin at
+     * the top left
+     * @param aNativeMessage *platform-specific* event type (e.g. NSMouseMoved)
+     * @param aModifierFlags *platform-specific* modifier flags
      */
     virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                                 PRUint32 aNativeMessage,
@@ -955,7 +910,7 @@ class nsIWidget : public nsISupports {
      * Activates a native menu item at the position specified by the index
      * string. The index string is a string of positive integers separated
      * by the "|" (pipe) character. The last integer in the string represents
-     * the item index in a submenu located using the integers preceding it.
+     * the item index in a submenu located using the integers preceeding it.
      *
      * Example: 1|0|4
      * In this string, the first integer represents the top-level submenu
@@ -1061,11 +1016,6 @@ class nsIWidget : public nsISupports {
      * Destruct and don't commit the IME composition string.
      */
     NS_IMETHOD CancelIMEComposition() = 0;
-
-    /**
-     * Set accelerated rendering to 'True' or 'False'
-     */
-    NS_IMETHOD SetAcceleratedRendering(PRBool aEnabled) = 0;
 
     /*
      * Get toggled key states.

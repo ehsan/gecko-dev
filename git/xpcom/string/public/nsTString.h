@@ -280,9 +280,7 @@ class nsTString_CharT : public nsTSubstring_CharT
          * @return  int rep of string value, and possible (out) error code
          */
       NS_COM PRInt32 ToInteger( PRInt32* aErrorCode, PRUint32 aRadix=kRadix10 ) const;
-      PRInt32 ToInteger( nsresult* aErrorCode, PRUint32 aRadix=kRadix10 ) const {
-        return ToInteger(reinterpret_cast<PRInt32*>(aErrorCode), aRadix);
-      }
+      
 
         /**
          * |Left|, |Mid|, and |Right| are annoying signatures that seem better almost
@@ -384,25 +382,25 @@ class nsTString_CharT : public nsTSubstring_CharT
       NS_COM void AppendWithConversion( const nsTAString_IncompatibleCharT& aString );
       NS_COM void AppendWithConversion( const incompatible_char_type* aData, PRInt32 aLength=-1 );
 
-      using nsTSubstring_CharT::AppendInt;
-
         /**
          * Append the given integer to this string 
-         * @param aInteger The integer to append
-         * @param aRadix   The radix to use; can be 8, 10 or 16.
-         * @deprecated Use AppendInt( PRInt32 aInteger ) or
-         *             AppendInt( PRUint32 aInteger, PRInt32 aRadix = 10 )
          */
-      NS_COM void AppendInt( PRInt32 aInteger, PRInt32 aRadix ); //radix=8,10 or 16
+      NS_COM void AppendInt( PRInt32 aInteger, PRInt32 aRadix=kRadix10 ); //radix=8,10 or 16
+
+        /**
+         * Append the given unsigned integer to this string
+         */
+      inline void AppendInt( PRUint32 aInteger, PRInt32 aRadix = kRadix10 )
+        {
+          AppendInt(PRInt32(aInteger), aRadix);
+        }
 
         /**
          * Append the given 64-bit integer to this string.
          * @param aInteger The integer to append
          * @param aRadix   The radix to use; can be 8, 10 or 16.
-         * @deprecated Use AppendInt( PRInt64 aInteger ) or
-         *             AppendInt( PRUint64 aInteger, PRInt32 aRadix = 10 )
          */
-      NS_COM void AppendInt( PRInt64 aInteger, PRInt32 aRadix );
+      NS_COM void AppendInt( PRInt64 aInteger, PRInt32 aRadix=kRadix10 );
 
         /**
          * Append the given float to this string 

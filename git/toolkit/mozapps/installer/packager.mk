@@ -78,28 +78,10 @@ PACKAGE       = $(PKG_PATH)$(PKG_BASENAME)$(PKG_SUFFIX)
 
 # By default, the SDK uses the same packaging type as the main bundle,
 # but on mac it is a .tar.bz2
-SDK_PATH      = $(PKG_PATH)
-ifeq ($(MOZ_APP_NAME),xulrunner)
-SDK_PATH = sdk/
-endif
 SDK_SUFFIX    = $(PKG_SUFFIX)
-SDK           = $(SDK_PATH)$(PKG_BASENAME).sdk$(SDK_SUFFIX)
+SDK           = $(PKG_PATH)$(PKG_BASENAME).sdk$(SDK_SUFFIX)
 
 MAKE_PACKAGE	= $(error What is a $(MOZ_PKG_FORMAT) package format?);
-MAKE_CAB	= $(error Don't know how to make a CAB!);
-
-ifdef WINCE
-ifndef WINCE_WINDOWS_MOBILE
-CABARGS += -s
-endif
-ifdef MOZ_FASTSTART
-CABARGS += -faststart
-endif
-VSINSTALLDIR ?= $(error VSINSTALLDIR not set, must be set to the Visual Studio install directory)
-MAKE_CAB	= $(PYTHON) $(MOZILLA_DIR)/build/package/wince/make_wince_cab.py \
-	$(CABARGS) "$(VSINSTALLDIR)/SmartDevices/SDK/SDKTools/cabwiz.exe" \
-	"$(MOZ_PKG_DIR)" "$(MOZ_APP_DISPLAYNAME)" "$(PKG_PATH)$(PKG_BASENAME).cab"
-endif
 
 CREATE_FINAL_TAR = $(TAR) -c --owner=0 --group=0 --numeric-owner \
   --mode="go-w" -f
@@ -131,7 +113,16 @@ MAKE_SDK = $(ZIP) -r9D $(SDK) $(MOZ_APP_NAME)-sdk
 endif
 ifeq ($(MOZ_PKG_FORMAT),CAB)
 PKG_SUFFIX	= .cab
-MAKE_PACKAGE	= $(MAKE_CAB)
+ifndef WINCE_WINDOWS_MOBILE
+CABARGS += -s
+endif
+ifdef MOZ_FASTSTART
+CABARGS += -faststart
+endif
+VSINSTALLDIR ?= $(error VSINSTALLDIR not set, must be set to the Visual Studio install directory)
+MAKE_PACKAGE	= $(PYTHON) $(topsrcdir)/build/package/wince/make_wince_cab.py \
+	$(CABARGS) "$(VSINSTALLDIR)/SmartDevices/SDK/SDKTools/cabwiz.exe" \
+	"$(MOZ_PKG_DIR)" "$(MOZ_APP_DISPLAYNAME)" "$(PACKAGE)"
 UNMAKE_PACKAGE	= $(error Unpacking CAB files is not supported)
 endif
 ifeq ($(MOZ_PKG_FORMAT),DMG)
@@ -197,9 +188,6 @@ UNMAKE_PACKAGE	= \
 # individual dmg and are created by hdiutil.
 SDK_SUFFIX = .tar.bz2
 SDK = $(MOZ_PKG_APPNAME)-$(MOZ_PKG_VERSION).$(AB_CD).mac-$(TARGET_CPU).sdk$(SDK_SUFFIX)
-ifeq ($(MOZ_APP_NAME),xulrunner)
-SDK = $(SDK_PATH)$(MOZ_APP_NAME)-$(MOZ_PKG_VERSION).$(AB_CD).mac-$(TARGET_CPU).sdk$(SDK_SUFFIX)
-endif
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | bzip2 -vf > $(SDK)
 endif
 
@@ -220,7 +208,7 @@ ifeq ($(OS_ARCH),OS2)
 NSS_DLL_SUFFIX	= .DLL
 SIGN_CMD	= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/sign.cmd $(DIST)
 else
-SIGN_CMD	= $(RUN_TEST_PROGRAM) $(DIST)/bin/shlibsign$(BIN_SUFFIX) -v -i
+SIGN_CMD	= $(RUN_TEST_PROGRAM) $(DIST)/bin/shlibsign -v -i
 endif
 endif
 
@@ -266,6 +254,7 @@ NO_PKG_FILES += \
 	msmap* \
 	nm2tsv* \
 	nsinstall* \
+	rebasedlls* \
 	res/samples \
 	res/throbber \
 	shlibsign* \
@@ -295,9 +284,7 @@ ifdef MOZ_PKG_REMOVALS
 MOZ_PKG_REMOVALS_GEN = removed-files
 
 $(MOZ_PKG_REMOVALS_GEN): $(MOZ_PKG_REMOVALS) $(GLOBAL_DEPS)
-	cat $(MOZ_PKG_REMOVALS) | \
-	sed -e 's/^[ \t]*//' | \
-	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) > $(MOZ_PKG_REMOVALS_GEN)
+	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $(MOZ_PKG_REMOVALS) > $(MOZ_PKG_REMOVALS_GEN)
 
 GARBAGE += $(MOZ_PKG_REMOVALS_GEN)
 endif
@@ -371,9 +358,6 @@ stage-package: $(MOZ_PKG_MANIFEST) $(MOZ_PKG_REMOVALS_GEN)
 # do not strip the binaries actually in the tree.
 	@echo "Creating package directory..."
 	@mkdir $(DIST)/$(MOZ_PKG_DIR)
-ifndef UNIVERSAL_BINARY
-# If UNIVERSAL_BINARY, the package will be made from an already-prepared
-# STAGEPATH
 ifdef MOZ_PKG_MANIFEST
 	$(RM) -rf $(DIST)/xpt
 	$(call PACKAGER_COPY, "$(call core_abspath,$(DIST))",\
@@ -382,6 +366,9 @@ ifdef MOZ_PKG_MANIFEST
 	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/components -v -x "$(XPIDL_LINK)"
 else # !MOZ_PKG_MANIFEST
 ifeq ($(MOZ_PKG_FORMAT),DMG)
+# If UNIVERSAL_BINARY, the package will be made from an already-prepared
+# STAGEPATH
+ifndef UNIVERSAL_BINARY
 ifndef STAGE_SDK
 	@cd $(DIST) && rsync -auv --copy-unsafe-links $(_APPNAME) $(MOZ_PKG_DIR)
 	@echo "Linking XPT files..."
@@ -391,6 +378,7 @@ ifndef STAGE_SDK
 else
 	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_DIR); tar -xf -)
 endif
+endif
 else
 	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_DIR); tar -xf -)
 	@echo "Linking XPT files..."
@@ -399,7 +387,6 @@ else
 	@($(XPIDL_LINK) $(DIST)/xpt/$(MOZ_PKG_APPNAME).xpt $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt && rm -f $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt && cp $(DIST)/xpt/$(MOZ_PKG_APPNAME).xpt $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components) || echo No *.xpt files found in: $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/.  Continuing...
 endif # DMG
 endif # MOZ_PKG_MANIFEST
-endif # UNIVERSAL_BINARY
 ifndef PKG_SKIP_STRIP
 	@echo "Stripping package directory..."
 	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \
@@ -426,14 +413,7 @@ ifndef PKG_SKIP_STRIP
 			$(PLATFORM_EXCLUDE_LIST) \
 			-exec $(STRIP) $(STRIP_FLAGS) {} >/dev/null 2>&1 \;
 	$(SIGN_NSS)
-else
-ifdef UNIVERSAL_BINARY
-# universal binaries will have had their .chk files removed prior to the unify
-# step, and if they're also --disable-install-strip then they won't get
-# re-signed in the block above.
-	$(SIGN_NSS)
-endif # UNIVERSAL_BINARY
-endif # PKG_SKIP_STRIP
+endif
 	@echo "Removing unpackaged files..."
 ifdef NO_PKG_FILES
 	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH); rm -rf $(NO_PKG_FILES)
@@ -446,7 +426,6 @@ make-package: stage-package $(PACKAGE_XULRUNNER)
 	@echo "Compressing..."
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	cd $(DIST) && $(MAKE_PACKAGE)
-	@echo "$(BUILDID) $(MOZ_SOURCE_STAMP)" > $(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt
 
 # The install target will install the application to prefix/lib/appname-version
 # In addition if INSTALL_SDK is set, it will install the development headers,
@@ -511,7 +490,6 @@ make-sdk:
 # sdk/lib is the same as sdk/sdk/lib
 	(cd $(DIST)/sdk/lib && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DIST)/$(MOZ_APP_NAME)-sdk/lib && tar -xf -)
-	$(NSINSTALL) -D $(DIST)/$(SDK_PATH)
 	cd $(DIST) && $(MAKE_SDK)
 
 ifeq ($(OS_TARGET), WINNT)
@@ -533,11 +511,9 @@ upload:
 		$(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
-		$(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR))) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt) \
 		$(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 
 ifndef MOZ_PKG_SRCDIR

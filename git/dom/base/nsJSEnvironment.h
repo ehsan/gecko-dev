@@ -48,11 +48,6 @@
 #include "nsScriptNameSpaceManager.h"
 
 class nsIXPConnectJSObjectHolder;
-class nsAutoPoolRelease;
-namespace js {
-class AutoArrayRooter;
-template <class> class LazilyConstructed;
-}
 
 class nsJSContext : public nsIScriptContext,
                     public nsIXPCScriptNotify
@@ -64,8 +59,6 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsJSContext,
                                                          nsIScriptContext)
-
-  virtual nsIScriptObjectPrincipal* GetObjectPrincipal();
 
   virtual PRUint32 GetScriptTypeID()
     { return nsIProgrammingLanguage::JAVASCRIPT; }
@@ -156,8 +149,6 @@ public:
   virtual PRBool GetProcessingScriptTag();
   virtual void SetProcessingScriptTag(PRBool aResult);
 
-  virtual PRBool GetExecutingScript();
-
   virtual void SetGCOnDestruction(PRBool aGCOnDestruction);
 
   virtual nsresult InitClasses(void *aGlobalObj);
@@ -212,14 +203,15 @@ public:
 
 protected:
   nsresult InitializeExternalClasses();
+  // aHolder should be holding our global object
+  nsresult FindXPCNativeWrapperClass(nsIXPConnectJSObjectHolder *aHolder);
 
   // Helper to convert xpcom datatypes to jsvals.
-  nsresult ConvertSupportsTojsvals(nsISupports *aArgs,
-                                   void *aScope,
-                                   PRUint32 *aArgc,
-                                   jsval **aArgv,
-                                   js::LazilyConstructed<nsAutoPoolRelease> &aPoolRelease,
-                                   js::LazilyConstructed<js::AutoArrayRooter> &aRooter);
+  JS_FORCES_STACK nsresult ConvertSupportsTojsvals(nsISupports *aArgs,
+                                                   void *aScope,
+                                                   PRUint32 *aArgc,
+                                                   void **aArgv,
+                                                   void **aMarkp);
 
   nsresult AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv);
 
@@ -300,7 +292,6 @@ private:
   PRPackedBool mGCOnDestruction;
   PRPackedBool mProcessingScriptTag;
 
-  PRUint32 mExecuteDepth;
   PRUint32 mDefaultJSOptions;
   PRTime mOperationCallbackTime;
 

@@ -37,7 +37,7 @@
 #
 # ***** END LICENSE BLOCK *****
 -->
-<html xmlns="http://www.w3.org/1999/xhtml" accelerated="11">
+<html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <style type="text/css"><![CDATA[
 
@@ -82,10 +82,6 @@ window.addEventListener("focus", function () {
   window.removeEventListener("focus", arguments.callee, false);
 
   window.fullScreen = true;
-
-  window.addEventListener("deactivate", function () {
-    window.close();
-  }, false);
 
   video = document.querySelector("video");
 

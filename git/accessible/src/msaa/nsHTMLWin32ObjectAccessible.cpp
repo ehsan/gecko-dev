@@ -37,24 +37,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLWin32ObjectAccessible.h"
+#include "nsAccessibleWrap.h"
 
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLWin32ObjectOwnerAccessible
-////////////////////////////////////////////////////////////////////////////////
 
-nsHTMLWin32ObjectOwnerAccessible::
-  nsHTMLWin32ObjectOwnerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell,
-                                   void* aHwnd) :
-  nsAccessibleWrap(aNode, aShell)
+nsHTMLWin32ObjectOwnerAccessible::nsHTMLWin32ObjectOwnerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell, void* aHwnd):
+nsAccessibleWrap(aNode, aShell)
 {
   mHwnd = aHwnd;
-
-  // Our only child is a nsHTMLWin32ObjectAccessible object.
-  mNativeAccessible = new nsHTMLWin32ObjectAccessible(mHwnd);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLWin32ObjectOwnerAccessible: nsAccessNode implementation
 
 nsresult
 nsHTMLWin32ObjectOwnerAccessible::Shutdown()
@@ -64,50 +54,36 @@ nsHTMLWin32ObjectOwnerAccessible::Shutdown()
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLWin32ObjectOwnerAccessible: nsAccessible implementation
-
-nsresult
-nsHTMLWin32ObjectOwnerAccessible::GetRoleInternal(PRUint32 *aRole)
+/** 
+  * Our only child is a nsHTMLWin32ObjectAccessible 
+  */
+NS_IMETHODIMP nsHTMLWin32ObjectOwnerAccessible::GetFirstChild(nsIAccessible **aFirstChild)
 {
-  NS_ENSURE_ARG_POINTER(aRole);
-
-  *aRole = nsIAccessibleRole::ROLE_EMBEDDED_OBJECT;
+  *aFirstChild = mNativeAccessible;
+  if (!mNativeAccessible) {
+    if (!mHwnd) {
+      return NS_OK;
+    }
+    mNativeAccessible = new nsHTMLWin32ObjectAccessible(mHwnd) ;
+    SetFirstChild(mNativeAccessible);
+    *aFirstChild = mNativeAccessible;
+  }
+  NS_IF_ADDREF(*aFirstChild);
   return NS_OK;
 }
 
-nsresult
-nsHTMLWin32ObjectOwnerAccessible::GetStateInternal(PRUint32 *aState,
-                                                   PRUint32 *aExtraState)
+NS_IMETHODIMP nsHTMLWin32ObjectOwnerAccessible::GetLastChild(nsIAccessible **aLastChild)
 {
-  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
-  if (rv == NS_OK_DEFUNCT_OBJECT)
-    return rv;
-
-  // XXX: No HWND means this is windowless plugin which is not accessible in
-  // the meantime.
-  if (!mHwnd)
-    *aState = nsIAccessibleStates::STATE_UNAVAILABLE;
-
-  return rv;
+  return GetFirstChild(aLastChild);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLWin32ObjectOwnerAccessible: nsAccessible protected implementation
-
-void
-nsHTMLWin32ObjectOwnerAccessible::CacheChildren()
+NS_IMETHODIMP nsHTMLWin32ObjectOwnerAccessible::GetChildCount(PRInt32 *aChildCount)
 {
-  if (mNativeAccessible) {
-    mChildren.AppendElement(mNativeAccessible);
-    mNativeAccessible->SetParent(this);
-  }
+  nsCOMPtr<nsIAccessible> onlyChild;
+  GetFirstChild(getter_AddRefs(onlyChild));
+  *aChildCount = onlyChild ? 1 : 0;
+  return NS_OK;
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLWin32ObjectAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLWin32ObjectAccessible::nsHTMLWin32ObjectAccessible(void* aHwnd):
 nsLeafAccessible(nsnull, nsnull)

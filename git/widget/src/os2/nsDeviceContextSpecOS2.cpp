@@ -346,13 +346,11 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::GetSurfaceForPrinter(gfxASurface **surface
 
   PRInt16 outputFormat;
   mPrintSettings->GetOutputFormat(&outputFormat);
-  int printerDest;
-  GetDestination(printerDest);
-  if (printerDest != printPreview) {
-    // for now always set the output format to PDF, see bug 415522
-    outputFormat = nsIPrintSettings::kOutputFormatPDF;
-    mPrintSettings->SetOutputFormat(outputFormat); // save PDF format in settings
-  }
+  // for now always set the output format to PDF, see bug 415522:
+  printf("print output format is %d but we are setting it to %d (PDF)\n",
+         outputFormat, nsIPrintSettings::kOutputFormatPDF);
+  outputFormat = nsIPrintSettings::kOutputFormatPDF;
+  mPrintSettings->SetOutputFormat(outputFormat); // save PDF format in settings
 
   if (outputFormat == nsIPrintSettings::kOutputFormatPDF) {
     nsXPIDLString filename;
@@ -404,9 +402,12 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::GetSurfaceForPrinter(gfxASurface **surface
     newSurface = new(std::nothrow) gfxPDFSurface(stream, gfxSize(width, height));
   } else {
     int numCopies = 0;
-    GetCopies(numCopies);
+    int printerDest = 0;
     char *filename = nsnull;
-    if (printerDest == printToFile) {
+
+    GetCopies(numCopies);
+    GetDestination(printerDest);
+    if (!printerDest) {
       GetPath(&filename);
     }
     mPrintingStarted = PR_TRUE;
@@ -497,10 +498,10 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::BeginDocument(PRUnichar* aTitle,
   }
 
   char *title = GetACPString(aTitle);
-  PCSZ pszGenericDocName = "Mozilla Document";
-  PCSZ pszDocName = title ? title : pszGenericDocName;
+  const PSZ pszGenericDocName = "Mozilla Document";
+  PSZ pszDocName = title ? title : pszGenericDocName;
   LONG lResult = DevEscape(mPrintDC, DEVESC_STARTDOC,
-                           strlen(pszDocName) + 1, const_cast<BYTE*>(pszDocName),
+                           strlen(pszDocName) + 1, pszDocName,
                            (PLONG)NULL, (PBYTE)NULL);
   mPrintingStarted = PR_TRUE;
   if (title) {

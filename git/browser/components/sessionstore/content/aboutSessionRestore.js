@@ -127,7 +127,7 @@ function restoreSession() {
   var top = getBrowserWindow();
   
   // if there's only this page open, reuse the window for restoring the session
-  if (top.gBrowser.tabs.length == 1) {
+  if (top.gBrowser.tabContainer.childNodes.length == 1) {
     ss.setWindowState(top, stateString, true);
     return;
   }
@@ -140,7 +140,7 @@ function restoreSession() {
     
     var tabbrowser = top.gBrowser;
     var tabIndex = tabbrowser.getBrowserIndexForDocument(document);
-    tabbrowser.removeTab(tabbrowser.tabs[tabIndex]);
+    tabbrowser.removeTab(tabbrowser.tabContainer.childNodes[tabIndex]);
   }, true);
 }
 
@@ -160,15 +160,9 @@ function onListClick(aEvent) {
   var row = {}, col = {};
   treeView.treeBox.getCellAt(aEvent.clientX, aEvent.clientY, row, col, {});
   if (col.value) {
-    // Restore this specific tab in the same window for middle/double/accel clicking
-    // on a tab's title.
-#ifdef XP_MACOSX
-    let accelKey = aEvent.metaKey;
-#else
-    let accelKey = aEvent.ctrlKey;
-#endif
-    if ((aEvent.button == 1 || aEvent.button == 0 && aEvent.detail == 2 || accelKey) &&
-        col.value.id == "title" &&
+    // restore this specific tab in the same window for middle-clicking
+    // or Ctrl+clicking on a tab's title
+    if ((aEvent.button == 1 || aEvent.ctrlKey) && col.value.id == "title" &&
         !treeView.isContainer(row.value))
       restoreSingleTab(row.value, aEvent.shiftKey);
     else if (col.value.id == "restore")

@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef jsstrinlines_h___
-#define jsstrinlines_h___
+#ifndef jsstr_inlines_h___
+#define jsstr_inlines_h___
 
 #include "jsstr.h"
 
@@ -72,4 +72,4 @@ JSString::intString(jsint i)
     return &JSString::intStringTable[u];
 }
 
-#endif /* jsstrinlines_h___ */
+#endif /* jsstr_inlines_h___ */

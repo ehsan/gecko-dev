@@ -109,7 +109,7 @@ var observer = {
 
       stmt.finalize();
 
-      do_test_finished();
+      finish_test();
     }
   }
 }

@@ -140,9 +140,6 @@ public:
 
   // interfaces:
   NS_DECL_ISUPPORTS_INHERITED
-#ifdef MOZ_SMIL
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsSVGSVGElement, nsSVGSVGElementBase)
-#endif // MOZ_SMIL
   NS_DECL_NSIDOMSVGSVGELEMENT
   NS_DECL_NSIDOMSVGFITTOVIEWBOX
   NS_DECL_NSIDOMSVGLOCATABLE
@@ -197,9 +194,6 @@ public:
   virtual void DidChangeViewBox(PRBool aDoSetAttr);
   virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
 
-  virtual void DidAnimateViewBox();
-  virtual void DidAnimatePreserveAspectRatio();
-  
   // nsSVGSVGElement methods:
   float GetLength(PRUint8 mCtxType);
   float GetMMPerPx(PRUint8 mCtxType = 0);
@@ -227,13 +221,13 @@ protected:
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
-#endif // MOZ_SMIL
+#endif // MOZ_SMIL   
 
   // implementation helpers:
 
   PRBool IsRoot() {
     NS_ASSERTION((IsInDoc() && !GetParent()) ==
-                 (GetOwnerDoc() && (GetOwnerDoc()->GetRootElement() == this)),
+                 (GetOwnerDoc() && (GetOwnerDoc()->GetRootContent() == this)),
                  "Can't determine if we're root");
     return IsInDoc() && !GetParent();
   }

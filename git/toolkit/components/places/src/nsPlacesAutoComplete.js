@@ -72,7 +72,7 @@ const kBookTagSQLFragment =
   book_tag_sql_fragment("tags", "GROUP_CONCAT(t.title, ',')", true);
 
 // observer topics
-const kTopicShutdown = "places-shutdown";
+const kQuitApplication = "quit-application";
 const kPrefChanged = "nsPref:changed";
 
 // Match type constants.  These indicate what type of search function we should
@@ -94,7 +94,6 @@ const kQueryIndexVisitCount = 6;
 const kQueryIndexTyped = 7;
 const kQueryIndexPlaceId = 8;
 const kQueryIndexQueryType = 9;
-const kQueryIndexOpenPageCount = 10;
 
 // AutoComplete query type constants.  Describes the various types of queries
 // that we can process.
@@ -218,11 +217,9 @@ function nsPlacesAutoComplete()
   // Note: h.frecency is only selected because we need it for ordering.
   function sql_base_fragment(aTableName) {
     return "SELECT h.url, h.title, f.url, " + kBookTagSQLFragment + ", " +
-                  "h.visit_count, h.typed, h.id, :query_type, t.open_count, " +
-                  "h.frecency " +
+                  "h.visit_count, h.typed, h.id, :query_type, h.frecency " +
            "FROM " + aTableName + " h " +
            "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id " +
-           "LEFT OUTER JOIN moz_openpages_temp t ON t.place_id = h.id " +
            "WHERE h.frecency <> 0 " +
            "AND AUTOCOMPLETE_MATCH(:searchString, h.url, " +
                                   "IFNULL(bookmark, h.title), tags, " +
@@ -234,7 +231,7 @@ function nsPlacesAutoComplete()
                    "UNION ALL " +
                    sql_base_fragment("moz_places") +
                    "AND +h.id NOT IN (SELECT id FROM moz_places_temp) " +
-                   "ORDER BY h.frecency DESC, h.id DESC " +
+                   "ORDER BY h.frecency DESC " +
                    "LIMIT :maxResults";
 
   //////////////////////////////////////////////////////////////////////////////
@@ -294,13 +291,6 @@ function nsPlacesAutoComplete()
     );
   });
 
-  XPCOMUtils.defineLazyGetter(this, "_openPagesQuery", function() {
-    let replacementText = "AND t.open_count > 0";
-    return this._db.createStatement(
-      SQL_BASE.replace("{ADDITIONAL_CONDITIONS}", replacementText, "g")
-    );
-  });
-
   XPCOMUtils.defineLazyGetter(this, "_typedQuery", function() {
     let replacementText = "AND h.typed = 1";
     return this._db.createStatement(
@@ -316,12 +306,10 @@ function nsPlacesAutoComplete()
     // title).
     return this._db.createStatement(
       "/* do not warn (bug 487789) */ " +
-      "SELECT IFNULL(h_t.url, h.url) AS c_url, " +
-             "IFNULL(h_t.title, h.title) AS c_title, f.url, " +
-              kBookTagSQLFragment + ", " +
-              "IFNULL(h_t.visit_count, h.visit_count) AS c_visit_count, " +
-              "IFNULL(h_t.typed, h.typed) AS c_typed, " +
-              "IFNULL(h_t.id, h.id), :query_type, t.open_count, rank " +
+      "SELECT IFNULL(h_t.url, h.url), IFNULL(h_t.title, h.title), f.url, " +
+              kBookTagSQLFragment + ", IFNULL(h_t.visit_count, h.visit_count), " +
+              "IFNULL(h_t.typed, h.typed), IFNULL(h_t.id, h.id), " +
+              ":query_type, rank " +
       "FROM ( " +
         "SELECT ROUND(MAX(((i.input = :search_string) + " +
                           "(SUBSTR(i.input, 1, LENGTH(:search_string)) = :search_string)) * " +
@@ -332,12 +320,11 @@ function nsPlacesAutoComplete()
       ") AS i " +
       "LEFT JOIN moz_places h ON h.id = i.place_id " +
       "LEFT JOIN moz_places_temp h_t ON h_t.id = i.place_id " +
-      "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) " + 
-      "LEFT JOIN moz_openpages_temp t ON t.place_id = i.place_id " +
-      "WHERE c_url NOTNULL " +
-      "AND AUTOCOMPLETE_MATCH(:searchString, c_url, " +
-                             "IFNULL(bookmark, c_title), tags, " +
-                             "c_visit_count, c_typed, parent, " +
+      "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) "+
+      "WHERE IFNULL(h_t.url, h.url) NOTNULL " +
+      "AND AUTOCOMPLETE_MATCH(:searchString, 0 /* url */, " +
+                             "IFNULL(bookmark, 1 /* title */), tags, " +
+                             "6 /* visit_count */, 7 /* typed */, parent, " +
                              ":matchBehavior, :searchBehavior) " +
       "ORDER BY rank DESC, IFNULL(h_t.frecency, h.frecency) DESC"
     );
@@ -354,13 +341,12 @@ function nsPlacesAutoComplete()
                   best_favicon_for_revhost("moz_places") + "), b.parent, " +
         "b.title, NULL, IFNULL(h_t.visit_count, h.visit_count), " +
         "IFNULL(h_t.typed, h.typed), COALESCE(h_t.id, h.id, b.fk), " +
-        ":query_type, t.open_count " +
+        ":query_type " +
       "FROM moz_keywords k " +
       "JOIN moz_bookmarks b ON b.keyword_id = k.id " +
       "LEFT JOIN moz_places AS h ON h.url = search_url " +
       "LEFT JOIN moz_places_temp AS h_t ON h_t.url = search_url " +
       "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) " +
-      "LEFT JOIN moz_openpages_temp t ON t.place_id = IFNULL(h_t.id, h.id) " +
       "WHERE LOWER(k.keyword) = LOWER(:keyword) " +
       "ORDER BY IFNULL(h_t.frecency, h.frecency) DESC"
     );
@@ -378,7 +364,7 @@ function nsPlacesAutoComplete()
   // register observers
   this._os = Cc["@mozilla.org/observer-service;1"].
               getService(Ci.nsIObserverService);
-  this._os.addObserver(this, kTopicShutdown, false);
+  this._os.addObserver(this, kQuitApplication, false);
 
 }
 
@@ -398,9 +384,6 @@ nsPlacesAutoComplete.prototype = {
 
     this._currentSearchString =
       this._fixupSearchText(this._originalSearchString.toLowerCase());
-
-    var searchParamParts = aSearchParam.split(" ");
-    this._enableActions = searchParamParts.indexOf("enable-actions") != -1;
 
     this._listener = aListener;
     let result = Cc["@mozilla.org/autocomplete/simple-result;1"].
@@ -521,11 +504,11 @@ nsPlacesAutoComplete.prototype = {
 
   observe: function PAC_observe(aSubject, aTopic, aData)
   {
-    if (aTopic == kTopicShutdown) {
-      this._os.removeObserver(this, kTopicShutdown);
+    if (aTopic == kQuitApplication) {
+      this._os.removeObserver(this, kQuitApplication);
 
       // Remove our preference observer.
-      this._prefs.QueryInterface(Ci.nsIPrefBranch2).removeObserver("", this);
+      this._prefs.removeObserver("", this);
       delete this._prefs;
 
       // Finalize the statements that we have used.
@@ -534,7 +517,6 @@ nsPlacesAutoComplete.prototype = {
         "_historyQuery",
         "_bookmarkQuery",
         "_tagsQuery",
-        "_openPagesQuery",
         "_typedQuery",
         "_adaptiveQuery",
         "_keywordQuery",
@@ -614,7 +596,6 @@ nsPlacesAutoComplete.prototype = {
     delete this._usedPlaceIds;
     delete this._pendingQuery;
     this._secondPass = false;
-    this._enableActions = false;
   },
 
   /**
@@ -697,14 +678,13 @@ nsPlacesAutoComplete.prototype = {
     this._restrictBookmarkToken = safeGetter("restrict.bookmark", "*");
     this._restrictTypedToken = safeGetter("restrict.typed", "~");
     this._restrictTagToken = safeGetter("restrict.tag", "+");
-    this._restrictOpenPageToken = safeGetter("restrict.openpage", "%");
     this._matchTitleToken = safeGetter("match.title", "#");
     this._matchURLToken = safeGetter("match.url", "@");
     this._defaultBehavior = safeGetter("default.behavior", 0);
     // Further restrictions to apply for "empty searches" (i.e. searches for "").
-    // By default we use (HISTORY | TYPED | OPENPAGE) = 161.
+    // By default we use (HISTORY | TYPED) = 33.
     this._emptySearchDefaultBehavior = this._defaultBehavior |
-                                       safeGetter("default.behavior.emptyRestriction", 161);
+                                       safeGetter("default.behavior.emptyRestriction", 33);
 
     // Validate matchBehavior; default to MATCH_BOUNDARY_ANYWHERE.
     if (this._matchBehavior != MATCH_ANYWHERE &&
@@ -744,11 +724,6 @@ nsPlacesAutoComplete.prototype = {
           break;
         case this._restrictTagToken:
           this._setBehavior("tag");
-          break;
-        case this._restrictOpenPageToken:
-          if (!this._enableActions)
-            continue;
-          this._setBehavior("openpage");
           break;
         case this._matchTitleToken:
           this._setBehavior("title");
@@ -803,7 +778,6 @@ nsPlacesAutoComplete.prototype = {
                 this._hasBehavior("bookmark") ? this._bookmarkQuery :
                 this._hasBehavior("typed") ? this._typedQuery :
                 this._hasBehavior("history") ? this._historyQuery :
-                this._hasBehavior("openpage") ? this._openPagesQuery :
                 this._defaultQuery;
 
     // Bind the needed parameters to the query so consumers can use it.
@@ -904,7 +878,6 @@ nsPlacesAutoComplete.prototype = {
     let entryBookmarkTitle = entryParentId ?
       aRow.getResultByIndex(kQueryIndexBookmarkTitle) : null;
     let entryTags = aRow.getResultByIndex(kQueryIndexTags) || "";
-    let openPageCount = aRow.getResultByIndex(kQueryIndexOpenPageCount) || 0;
 
     // Always prefer the bookmark title unless it is empty
     let title = entryBookmarkTitle || entryTitle;
@@ -951,22 +924,8 @@ nsPlacesAutoComplete.prototype = {
         style = "favicon";
     }
 
-    // If actions aren't enabled, avoid doing any additional work.
-    if (!this._enableActions) {
-      this._addToResults(entryId, escapedEntryURL, title, entryFavicon, style);
-      return true;
-    }
-
-    // Add a special entry for an open-page match.
-    if ((this._hasBehavior("openpage") || this._hasBehavior("everything")) &&
-        openPageCount > 0)
-      this._addToResults(entryId, "moz-action:switchtab," + escapedEntryURL, title, entryFavicon, "action");
-
-    // If restricting to only open-page matches, there should only be the
-    // switch-to-tab results.
-    if (!this._onlyHasBehavior("openpage"))
-      this._addToResults(entryId, escapedEntryURL, title, entryFavicon, style);
-
+    // And finally add this to our results.
+    this._addToResults(entryId, escapedEntryURL, title, entryFavicon, style);
     return true;
   },
 
@@ -1020,29 +979,12 @@ nsPlacesAutoComplete.prototype = {
    * Determines if the specified AutoComplete behavior is set.
    *
    * @param aType
-   *        The behavior type to test for, or "everything" to test if no
-   *        specific behavior has been set.
+   *        The behavior type to test for.
    * @return true if the behavior is set, false otherwise.
    */
   _hasBehavior: function PAC_hasBehavior(aType)
   {
-    if (aType == "everything")
-      return this._behavior == 0;
     return (this._behavior &
-            Ci.mozIPlacesAutoComplete["BEHAVIOR_" + aType.toUpperCase()]);
-  },
-
-  /**
-   * Determines if the specified AutoComplete behavior is the only behavior set.
-   *
-   * @param aType
-   *        The behavior type to test for.
-   * @return true if the behavior is set and no other behaviors are set,
-   *         false otherwise.
-   */
-  _onlyHasBehavior: function PAC_onlyHasBehavior(aType)
-  {
-    return (this._behavior ==
             Ci.mozIPlacesAutoComplete["BEHAVIOR_" + aType.toUpperCase()]);
   },
 

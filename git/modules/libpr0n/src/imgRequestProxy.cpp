@@ -53,7 +53,7 @@
 #include "ImageLogging.h"
 
 #include "nspr.h"
-#include "imgContainerRequest.h"
+
 
 NS_IMPL_ISUPPORTS4(imgRequestProxy, imgIRequest, nsIRequest,
                    nsISupportsPriority, nsISecurityInfoProvider)
@@ -191,7 +191,7 @@ void imgRequestProxy::RemoveFromLoadGroup(PRBool releaseLoadGroup)
   */
   nsCOMPtr<imgIRequest> kungFuDeathGrip(this);
 
-  mLoadGroup->RemoveRequest(this, nsnull, NS_OK);
+  mLoadGroup->RemoveRequest(this, NS_OK, nsnull);
   mIsInLoadGroup = PR_FALSE;
 
   if (releaseLoadGroup) {
@@ -262,21 +262,9 @@ NS_IMETHODIMP imgRequestProxy::CancelAndForgetObserver(nsresult aStatus)
 
   mCanceled = PR_TRUE;
 
-  // Now cheat and make sure our removal from loadgroup happens async
-  PRBool oldIsInLoadGroup = mIsInLoadGroup;
-  mIsInLoadGroup = PR_FALSE;
-  
   // Passing false to aNotify means that mListener will still get
   // OnStopRequest, if needed.
   mOwner->RemoveProxy(this, aStatus, PR_FALSE);
-
-  mIsInLoadGroup = oldIsInLoadGroup;
-
-  if (mIsInLoadGroup) {
-    nsCOMPtr<nsIRunnable> ev =
-      NS_NewRunnableMethod(this, &imgRequestProxy::DoRemoveFromLoadGroup);
-    NS_DispatchToCurrentThread(ev);
-  }
 
   NullOutListener();
 
@@ -685,47 +673,3 @@ void imgRequestProxy::NullOutListener()
     mListener = nsnull;
   }
 }
-
-NS_IMETHODIMP
-imgRequestProxy::GetStaticRequest(imgIRequest** aReturn)
-{
-  *aReturn = nsnull;
-  nsCOMPtr<imgIContainer> img, currentFrame;
-  GetImage(getter_AddRefs(img));
-  if (img) {
-    PRBool animated = PR_FALSE;
-    nsresult rv = img->GetAnimated(&animated);
-    if (NS_SUCCEEDED(rv) && !animated) {
-      NS_ADDREF(*aReturn = this);
-      return NS_OK;
-    }
-
-    PRInt32 w = 0;
-    PRInt32 h = 0;
-    img->GetWidth(&w);
-    img->GetHeight(&h);
-    nsIntRect rect(0, 0, w, h);
-    img->ExtractFrame(imgIContainer::FRAME_CURRENT, rect,
-                      imgIContainer::FLAG_SYNC_DECODE,
-                      getter_AddRefs(currentFrame));
-  }
-
-  nsCOMPtr<nsIURI> uri;
-  GetURI(getter_AddRefs(uri));
-  PRUint32 imageStatus = 0;
-  GetImageStatus(&imageStatus);
-  nsCOMPtr<nsIPrincipal> principal;
-  GetImagePrincipal(getter_AddRefs(principal));
-
-  imgContainerRequest* req =
-    new imgContainerRequest(currentFrame, uri, imageStatus,
-                            mOwner ? mOwner->GetState() : 0,
-                            principal);
-  if (!req) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  NS_ADDREF(*aReturn = req);
-  return NS_OK;
-}
-

@@ -68,10 +68,8 @@ interface nsILayoutHistoryState;
 interface nsISecureBrowserUI;
 interface nsIDOMStorage;
 interface nsIPrincipal;
-interface nsIWebBrowserPrint;
-interface nsIVariant;
 
-[scriptable, uuid(3adde256-05a9-43a7-a190-f8fe75eecfd6)]
+[scriptable, uuid(8ADFB831-1053-4A19-884D-BCDAD7277B4B)]
 interface nsIDocShell : nsISupports
 {
   /**
@@ -169,13 +167,6 @@ interface nsIDocShell : nsISupports
                               in boolean firstParty,
                               out nsIDocShell aDocShell,
                               out nsIRequest aRequest);
-
-  /**
-   * Do either a history.pushState() or history.replaceState() operation,
-   * depending on the value of aReplace.
-   */
-  void addState(in nsIVariant aData, in DOMString aTitle,
-                in DOMString aURL, in boolean aReplace);
 
   /**
    * Creates a DocShellLoadInfo object that you can manipulate and then pass
@@ -347,10 +338,9 @@ interface nsIDocShell : nsISupports
   /**
    * Load commands for the document 
    */
-  const unsigned long LOAD_CMD_NORMAL  = 0x1;   // Normal load
-  const unsigned long LOAD_CMD_RELOAD  = 0x2;   // Reload
-  const unsigned long LOAD_CMD_HISTORY = 0x4;   // Load from history
-  const unsigned long LOAD_CMD_PUSHSTATE = 0x8; // History.pushState()
+  const unsigned long LOAD_CMD_NORMAL  = 0x1; // Normal load
+  const unsigned long LOAD_CMD_RELOAD  = 0x2; // Reload
+  const unsigned long LOAD_CMD_HISTORY = 0x4; // Load from history
 
   readonly attribute unsigned long busyFlags;
 
@@ -439,23 +429,17 @@ interface nsIDocShell : nsISupports
    * If it doesn't already exist, a new one will be created.
    *
    * @param uri the uri of the storage object to retrieve
-   * @param documentURI new storage will be created with reference to this
-   *                    document.documentURI that will appear in storage event
    */
-  nsIDOMStorage getSessionStorageForURI(in nsIURI uri,
-                                        in DOMString documentURI);
+  nsIDOMStorage getSessionStorageForURI(in nsIURI uri);
 
   /*
    * Retrieves the WebApps session storage object for the supplied principal.
    *
    * @param principal returns a storage for this principal
-   * @param documentURI new storage will be created with reference to this
-   *                    document.documentURI that will appear in storage event
    * @param create If true and a session storage object doesn't
    *               already exist, a new one will be created.
    */
   nsIDOMStorage getSessionStorageForPrincipal(in nsIPrincipal principal,
-                                              in DOMString documentURI,
                                               in boolean create);
 
   /*
@@ -504,11 +488,4 @@ interface nsIDocShell : nsISupports
    * and should be treated accordingly.
    **/
   attribute boolean isOffScreenBrowser;    
-
-  /**
-   * If the current content viewer isn't initialized for print preview,
-   * it is replaced with one which is and to which an about:blank document
-   * is loaded.
-   */
-  readonly attribute nsIWebBrowserPrint printPreview;
 };

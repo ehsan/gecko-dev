@@ -46,7 +46,9 @@
 #include "nsIDOMElement.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"
+#include "nsIScrollableView.h"
 #include "nsIScrollableFrame.h"
+
 
 class nsScrollBoxObject : public nsIScrollBoxObject, public nsBoxObject
 {
@@ -57,9 +59,7 @@ public:
   nsScrollBoxObject();
   virtual ~nsScrollBoxObject();
 
-  virtual nsIScrollableFrame* GetScrollFrame() {
-    return do_QueryFrame(GetFrame(PR_FALSE));
-  }
+  virtual nsIScrollableView* GetScrollableView();
 
   /* additional members */
 };
@@ -86,14 +86,12 @@ nsScrollBoxObject::~nsScrollBoxObject()
 /* void scrollTo (in long x, in long y); */
 NS_IMETHODIMP nsScrollBoxObject::ScrollTo(PRInt32 x, PRInt32 y)
 {
-  nsIScrollableFrame* sf = GetScrollFrame();
-  if (!sf)
+  nsIScrollableView* scrollableView = GetScrollableView();
+  if (!scrollableView)
     return NS_ERROR_FAILURE;
 
-  sf->ScrollTo(nsPoint(nsPresContext::CSSPixelsToAppUnits(x),
-                       nsPresContext::CSSPixelsToAppUnits(y)),
-               nsIScrollableFrame::INSTANT);
-  return NS_OK;
+  return scrollableView->ScrollTo(nsPresContext::CSSPixelsToAppUnits(x),
+                                  nsPresContext::CSSPixelsToAppUnits(y), 0);
 }
 
 /* void scrollBy (in long dx, in long dy); */
@@ -110,13 +108,11 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollBy(PRInt32 dx, PRInt32 dy)
 /* void scrollByLine (in long dlines); */
 NS_IMETHODIMP nsScrollBoxObject::ScrollByLine(PRInt32 dlines)
 {
-  nsIScrollableFrame* sf = GetScrollFrame();
-  if (!sf)
+  nsIScrollableView* scrollableView = GetScrollableView();
+  if (!scrollableView)
     return NS_ERROR_FAILURE;
 
-  sf->ScrollBy(nsIntPoint(0, dlines), nsIScrollableFrame::LINES,
-               nsIScrollableFrame::SMOOTH);
-  return NS_OK;
+  return scrollableView->ScrollByLines(0, dlines);
 }
 
 // XUL <scrollbox> elements have a single box child element.
@@ -143,8 +139,8 @@ static nsIFrame* GetScrolledBox(nsBoxObject* aScrollBox) {
 /* void scrollByIndex (in long dindexes); */
 NS_IMETHODIMP nsScrollBoxObject::ScrollByIndex(PRInt32 dindexes)
 {
-    nsIScrollableFrame* sf = GetScrollFrame();
-    if (!sf)
+    nsIScrollableView* scrollableView = GetScrollableView();
+    if (!scrollableView)
        return NS_ERROR_FAILURE;
     nsIFrame* scrolledBox = GetScrolledBox(this);
     if (!scrolledBox)
@@ -156,7 +152,8 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollByIndex(PRInt32 dindexes)
     nsIFrame* child = scrolledBox->GetChildBox();
 
     PRBool horiz = scrolledBox->IsHorizontal();
-    nsPoint cp = sf->GetScrollPosition();
+    nsPoint cp;
+    scrollableView->GetScrollPosition(cp.x,cp.y);
     nscoord diff = 0;
     PRInt32 curIndex = 0;
     PRBool isLTR = scrolledBox->IsNormalDirection();
@@ -229,24 +226,23 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollByIndex(PRInt32 dindexes)
        // selected child is scrolled to the left edge of the scrollbox.
        // In the right-to-left case we scroll so that the right edge of the
        // selected child is scrolled to the right edge of the scrollbox.
-       sf->ScrollTo(nsPoint(isLTR ? rect.x : rect.x + rect.width - frameWidth,
-                            cp.y),
-                    nsIScrollableFrame::INSTANT);
+       return scrollableView->ScrollTo((isLTR) ? rect.x :
+                                       rect.x + rect.width - frameWidth, cp.y, 0);
    else
-       sf->ScrollTo(nsPoint(cp.x, rect.y), nsIScrollableFrame::INSTANT);
-
-   return NS_OK;
+       return scrollableView->ScrollTo(cp.x, rect.y, 0);
 }
 
 /* void scrollToLine (in long line); */
 NS_IMETHODIMP nsScrollBoxObject::ScrollToLine(PRInt32 line)
 {
-  nsIScrollableFrame* sf = GetScrollFrame();
-  if (!sf)
-     return NS_ERROR_FAILURE;
+  nsIScrollableView* scrollableView = GetScrollableView();
+  if (!scrollableView)
+    return NS_ERROR_FAILURE;
   
-  nscoord y = sf->GetLineScrollAmount().height * line;
-  sf->ScrollTo(nsPoint(0, y), nsIScrollableFrame::INSTANT);
+  nscoord height = 0;
+  scrollableView->GetLineHeight(&height);
+  scrollableView->ScrollTo(0, height * line, 0);
+
   return NS_OK;
 }
 
@@ -254,8 +250,8 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollToLine(PRInt32 line)
 NS_IMETHODIMP nsScrollBoxObject::ScrollToElement(nsIDOMElement *child)
 {
     NS_ENSURE_ARG_POINTER(child);
-    nsIScrollableFrame* sf = GetScrollFrame();
-    if (!sf)
+    nsIScrollableView* scrollableView = GetScrollableView();
+    if (!scrollableView)
        return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIPresShell> shell = GetPresShell(PR_FALSE);
@@ -289,7 +285,9 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollToElement(nsIDOMElement *child)
     // TODO: make sure the child is inside the box
 
     // get our current info
-    nsPoint cp = sf->GetScrollPosition();
+    nsPoint cp;
+    scrollableView->GetScrollPosition(cp.x,cp.y);
+
     nsIntRect prect;
     GetOffsetRect(prect);
     crect = prect.ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
@@ -303,8 +301,7 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollToElement(nsIDOMElement *child)
         newy = rect.y - crect.y;
     }
     // scroll away
-    sf->ScrollTo(nsPoint(newx, newy), nsIScrollableFrame::INSTANT);
-    return NS_OK;
+    return scrollableView->ScrollTo(newx, newy, 0);
 }
 
 /* void scrollToIndex (in long index); */
@@ -316,13 +313,17 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollToIndex(PRInt32 index)
 /* void getPosition (out long x, out long y); */
 NS_IMETHODIMP nsScrollBoxObject::GetPosition(PRInt32 *x, PRInt32 *y)
 {
-  nsIScrollableFrame* sf = GetScrollFrame();
-  if (!sf)
-     return NS_ERROR_FAILURE;
+  nsIScrollableView* scrollableView = GetScrollableView();
+  if (!scrollableView)
+    return NS_ERROR_FAILURE;
 
-  nsPoint pt = sf->GetScrollPosition();
-  *x = nsPresContext::AppUnitsToIntCSSPixels(pt.x);
-  *y = nsPresContext::AppUnitsToIntCSSPixels(pt.y);
+  nscoord xc, yc;
+  nsresult rv = scrollableView->GetScrollPosition(xc, yc);
+  if (NS_FAILED(rv))
+    return rv;
+
+  *x = nsPresContext::AppUnitsToIntCSSPixels(xc);
+  *y = nsPresContext::AppUnitsToIntCSSPixels(yc);
 
   return NS_OK;  
 }
@@ -367,8 +368,8 @@ NS_IMETHODIMP nsScrollBoxObject::EnsureElementIsVisible(nsIDOMElement *child)
     childBoxObject->GetWidth(&width);
     childBoxObject->GetHeight(&height);
 
-    nsIScrollableFrame* sf = GetScrollFrame();
-    if (!sf)
+    nsIScrollableView* scrollableView = GetScrollableView();
+    if (!scrollableView)
        return NS_ERROR_FAILURE;
 
     nsIFrame* scrolledBox = GetScrolledBox(this);
@@ -385,7 +386,8 @@ NS_IMETHODIMP nsScrollBoxObject::EnsureElementIsVisible(nsIDOMElement *child)
     // TODO: make sure the child is inside the box
 
     // get our current info
-    nsPoint cp = sf->GetScrollPosition();
+    nsPoint cp;
+    scrollableView->GetScrollPosition(cp.x,cp.y);
     nsIntRect prect;
     GetOffsetRect(prect);
     crect = prect.ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
@@ -408,8 +410,7 @@ NS_IMETHODIMP nsScrollBoxObject::EnsureElementIsVisible(nsIDOMElement *child)
     }
     
     // scroll away
-    sf->ScrollTo(nsPoint(newx, newy), nsIScrollableFrame::INSTANT);
-    return NS_OK;
+    return scrollableView->ScrollTo(newx, newy, 0);
 }
 
 /* void ensureIndexIsVisible (in long index); */
@@ -422,6 +423,25 @@ NS_IMETHODIMP nsScrollBoxObject::EnsureIndexIsVisible(PRInt32 index)
 NS_IMETHODIMP nsScrollBoxObject::EnsureLineIsVisible(PRInt32 line)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+nsIScrollableView* 
+nsScrollBoxObject::GetScrollableView()
+{
+  // get the frame.
+  nsIFrame* frame = GetFrame(PR_FALSE);
+  if (!frame) 
+    return nsnull;
+  
+  nsIScrollableFrame* scrollFrame = do_QueryFrame(frame);
+  if (!scrollFrame)
+    return nsnull;
+
+  nsIScrollableView* scrollingView = scrollFrame->GetScrollableView();
+  if (!scrollingView)
+    return nsnull;
+
+  return scrollingView;
 }
 
 nsresult

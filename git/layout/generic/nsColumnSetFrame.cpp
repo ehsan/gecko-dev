@@ -245,8 +245,11 @@ nsColumnSetFrame::PaintColumnRule(nsIRenderingContext* aCtx,
   if (!ruleWidth)
     return;
 
-  nscolor ruleColor =
-    GetVisitedDependentColor(eCSSProperty__moz_column_rule_color);
+  nscolor ruleColor;
+  if (colStyle->mColumnRuleColorIsForeground)
+    ruleColor = GetStyleColor()->mColor;
+  else
+    ruleColor = colStyle->mColumnRuleColor;
 
   // In order to re-use a large amount of code, we treat the column rule as a border.
   // We create a new border style object and fill in all the details of the column rule as
@@ -276,10 +279,10 @@ nsColumnSetFrame::PaintColumnRule(nsIRenderingContext* aCtx,
                    contentRect.y);
 
     nsRect lineRect(linePt, ruleSize);
-    nsCSSRendering::PaintBorderWithStyleBorder(presContext, *aCtx, this,
-        aDirtyRect, lineRect, border, GetStyleContext(),
-        // Remember, we only have the "left" "border". Skip everything else
-        (1 << NS_SIDE_TOP | 1 << NS_SIDE_RIGHT | 1 << NS_SIDE_BOTTOM));
+    nsCSSRendering::PaintBorder(presContext, *aCtx, this, aDirtyRect,
+                                lineRect, border, GetStyleContext(),
+                                // Remember, we only have the "left" "border". Skip everything else
+                                (1 << NS_SIDE_TOP | 1 << NS_SIDE_RIGHT | 1 << NS_SIDE_BOTTOM));
 
     child = nextSibling;
     nextSibling = nextSibling->GetNextSibling();
@@ -1071,7 +1074,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
 
-  NS_ASSERTION(NS_FRAME_IS_FULLY_COMPLETE(aStatus) ||
+  NS_ASSERTION(NS_FRAME_IS_COMPLETE(aStatus) ||
                aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE,
                "Column set should be complete if the available height is unconstrained");
 

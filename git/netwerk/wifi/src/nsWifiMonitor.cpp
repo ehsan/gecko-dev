@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -52,7 +52,6 @@
 #include "nsIProxyObjectManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
-#include "mozilla/Services.h"
 
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gWifiMonitorLog;
@@ -72,7 +71,7 @@ nsWifiMonitor::nsWifiMonitor()
 
   mMonitor = nsAutoMonitor::NewMonitor("nsWifiMonitor");
 
-  nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> obsSvc = do_GetService("@mozilla.org/observer-service;1");
   if (obsSvc)
     obsSvc->AddObserver(this, "xpcom-shutdown", PR_FALSE);
 
@@ -113,7 +112,7 @@ NS_IMETHODIMP nsWifiMonitor::StartWatching(nsIWifiListener *aListener)
   }
 
   nsAutoMonitor mon(mMonitor);
-
+  
   mKeepGoing = PR_TRUE;
 
   mListeners.AppendElement(nsWifiListener(aListener));
@@ -131,7 +130,7 @@ NS_IMETHODIMP nsWifiMonitor::StopWatching(nsIWifiListener *aListener)
   LOG(("removing listener\n"));
 
   nsAutoMonitor mon(mMonitor);
-
+  
   for (PRUint32 i = 0; i < mListeners.Length(); i++) {
 
     if (mListeners[i].mListener == aListener) {

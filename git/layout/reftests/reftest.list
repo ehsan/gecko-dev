@@ -38,9 +38,6 @@ include bugs/reftest.list
 # canvas 2D
 include canvas/reftest.list
 
-# css default pseudo class tests
-include css-default/reftest.list
-
 # css @import tests
 include css-import/reftest.list
 
@@ -56,18 +53,11 @@ include css-mediaqueries/reftest.list
 # css namespaces
 include css-namespace/reftest.list
 
-# css parsing
-include css-parsing/reftest.list
-
 # css transitions
 include css-transitions/reftest.list
 
 # css values and units
 include css-valuesandunits/reftest.list
-
-# Reftests in css-visited are run using
-# layout/style/test/test_visited_reftests instead of using the reftest
-# harness.
 
 # columns/
 include columns/reftest.list
@@ -77,12 +67,6 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
-
-# dom/
-include dom/reftest.list
-
-# editor/
-include editor/reftest.list
 
 # generated-content/
 include generated-content/reftest.list
@@ -120,9 +104,6 @@ include image-region/reftest.list
 # inline borders and padding
 include inline-borderpadding/reftest.list
 
-# layers/
-include layers/reftest.list
-
 # line-breaking/
 include line-breaking/reftest.list
 
@@ -137,9 +118,6 @@ include marquee/reftest.list
 
 # native-theme/
 include native-theme/reftest.list
-
-# netwerk/
-include ../../netwerk/test/reftest/reftest.list
 
 # object/
 include object/reftest.list
@@ -165,6 +143,9 @@ include selection/reftest.list
 
 # svg/
 include svg/reftest.list
+
+# svg-integration/
+include svg-integration/reftest.list
 
 # tab-size/
 include tab-size/reftest.list

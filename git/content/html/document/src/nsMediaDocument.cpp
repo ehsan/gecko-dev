@@ -141,8 +141,8 @@ nsMediaDocument::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Create a bundle for the localization
-  nsCOMPtr<nsIStringBundleService> stringService =
-    mozilla::services::GetStringBundleService();
+  nsCOMPtr<nsIStringBundleService> stringService(
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID));
   if (stringService) {
     stringService->CreateBundle(NSMEDIADOCUMENT_PROPERTIES_URI,
                                 getter_AddRefs(mStringBundle));
@@ -276,13 +276,25 @@ nsresult
 nsMediaDocument::StartLayout()
 {
   mMayStartLayout = PR_TRUE;
-  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
-  // Don't mess with the presshell if someone has already handled
-  // its initial reflow.
-  if (shell && !shell->DidInitialReflow()) {
+  nsPresShellIterator iter(this);
+  nsCOMPtr<nsIPresShell> shell;
+  while ((shell = iter.GetNextShell())) {
+    if (shell->DidInitialReflow()) {
+      // Don't mess with this presshell: someone has already handled
+      // its initial reflow.
+      continue;
+    }
+    
     nsRect visibleArea = shell->GetPresContext()->GetVisibleArea();
     nsresult rv = shell->InitialReflow(visibleArea.width, visibleArea.height);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    // Now trigger a refresh.  vm might be null if the presshell got
+    // Destroy() called already.
+    nsIViewManager* vm = shell->GetViewManager();
+    if (vm) {
+      vm->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
+    }
   }
 
   return NS_OK;

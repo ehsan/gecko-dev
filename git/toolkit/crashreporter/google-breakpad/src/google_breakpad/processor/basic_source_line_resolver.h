@@ -1,4 +1,4 @@
-// Copyright (c) 2010 Google Inc.
+// Copyright (c) 2006, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -33,14 +33,28 @@
 #ifndef GOOGLE_BREAKPAD_PROCESSOR_BASIC_SOURCE_LINE_RESOLVER_H__
 #define GOOGLE_BREAKPAD_PROCESSOR_BASIC_SOURCE_LINE_RESOLVER_H__
 
+// TODO: Platforms that have no hash_map can use map, at the likely cost of
+// performance.
+#ifdef __SUNPRO_CC
+#define BSLR_NO_HASH_MAP
+#endif  // __SUNPRO_CC
+
+#ifdef BSLR_NO_HASH_MAP
 #include <map>
+#else  // BSLR_NO_HASH_MAP
+#include <ext/hash_map>
+#endif  // BSLR_NO_HASH_MAP
 
 #include "google_breakpad/processor/source_line_resolver_interface.h"
 
 namespace google_breakpad {
 
 using std::string;
+#ifdef BSLR_NO_HASH_MAP
 using std::map;
+#else  // BSLR_NO_HASH_MAP
+using __gnu_cxx::hash_map;
+#endif  // BSLR_NO_HASH_MAP
 
 class BasicSourceLineResolver : public SourceLineResolverInterface {
  public:
@@ -60,10 +74,10 @@ class BasicSourceLineResolver : public SourceLineResolverInterface {
   virtual bool LoadModuleUsingMapBuffer(const string &module_name,
                                         const string &map_buffer);
 
+
   virtual bool HasModule(const string &module_name) const;
-  virtual void FillSourceLineInfo(StackFrame *frame) const;
-  virtual WindowsFrameInfo *FindWindowsFrameInfo(const StackFrame *frame) const;
-  virtual CFIFrameInfo *FindCFIFrameInfo(const StackFrame *frame) const;
+
+  virtual StackFrameInfo* FillSourceLineInfo(StackFrame *frame) const;
 
  private:
   template<class T> class MemAddrMap;
@@ -71,13 +85,23 @@ class BasicSourceLineResolver : public SourceLineResolverInterface {
   struct Function;
   struct PublicSymbol;
   struct File;
+#ifdef BSLR_NO_HASH_MAP
   struct CompareString {
     bool operator()(const string &s1, const string &s2) const;
   };
+#else  // BSLR_NO_HASH_MAP
+  struct HashString {
+    size_t operator()(const string &s) const;
+  };
+#endif  // BSLR_NO_HASH_MAP
   class Module;
 
   // All of the modules we've loaded
+#ifdef BSLR_NO_HASH_MAP
   typedef map<string, Module*, CompareString> ModuleMap;
+#else  // BSLR_NO_HASH_MAP
+  typedef hash_map<string, Module*, HashString> ModuleMap;
+#endif  // BSLR_NO_HASH_MAP
   ModuleMap *modules_;
 
   // Disallow unwanted copy ctor and assignment operator

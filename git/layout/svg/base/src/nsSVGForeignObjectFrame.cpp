@@ -100,10 +100,10 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
   return rv;
 }
 
-void nsSVGForeignObjectFrame::DestroyFrom(nsIFrame* aDestructRoot)
+void nsSVGForeignObjectFrame::Destroy()
 {
   nsSVGUtils::GetOuterSVGFrame(this)->UnregisterForeignObject(this);
-  nsSVGForeignObjectFrameBase::DestroyFrom(aDestructRoot);
+  nsSVGForeignObjectFrameBase::Destroy();
 }
 
 nsIAtom *
@@ -206,12 +206,11 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   if (!kid)
     return NS_OK;
 
-  gfxMatrix matrixForChildren = GetCanvasTMForChildren();
-  gfxMatrix matrix = GetCanvasTM();
+  gfxMatrix matrix = GetCanvasTMForChildren();
 
   nsIRenderingContext *ctx = aContext->GetRenderingContext(this);
 
-  if (!ctx || matrixForChildren.IsSingular()) {
+  if (!ctx || matrix.IsSingular()) {
     NS_WARNING("Can't render foreignObject element!");
     return NS_ERROR_FAILURE;
   }
@@ -234,31 +233,12 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
 
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, 0.0f, 0.0f, width, height);
-    nsSVGUtils::SetClipRect(gfx, matrix, clipRect);
+    nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
   }
 
-  gfx->Multiply(matrixForChildren);
+  gfx->Multiply(matrix);
 
-  // Transform the dirty rect into the rectangle containing the
-  // transformed dirty rect.
-  gfxMatrix invmatrix = matrix.Invert();
-  NS_ASSERTION(!invmatrix.IsSingular(),
-               "inverse of non-singular matrix should be non-singular");
-
-  gfxRect transDirtyRect = gfxRect(aDirtyRect->x, aDirtyRect->y,
-                                   aDirtyRect->width, aDirtyRect->height);
-  transDirtyRect = invmatrix.TransformBounds(transDirtyRect);
-
-  transDirtyRect.Scale(nsPresContext::AppUnitsPerCSSPixel());
-  nsPoint tl(NSToCoordFloor(transDirtyRect.X()),
-             NSToCoordFloor(transDirtyRect.Y()));
-  nsPoint br(NSToCoordCeil(transDirtyRect.XMost()),
-             NSToCoordCeil(transDirtyRect.YMost()));
-  nsRect kidDirtyRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
-
-  kidDirtyRect.IntersectRect(kidDirtyRect, kid->GetRect());
-
-  nsresult rv = nsLayoutUtils::PaintFrame(ctx, kid, nsRegion(kidDirtyRect),
+  nsresult rv = nsLayoutUtils::PaintFrame(ctx, kid, nsRegion(kid->GetRect()),
                                           NS_RGBA(0,0,0,0),
                                           nsLayoutUtils::PAINT_IN_TRANSFORM);
 
@@ -400,7 +380,9 @@ nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
     // PresShell and prevent it from reflowing us properly in future. Besides
     // that, nsSVGOuterSVGFrame::DidReflow will take care of reflowing us
     // synchronously, so there's no need.
-    if (!PresContext()->PresShell()->IsReflowLocked()) {
+    PRBool reflowing;
+    PresContext()->PresShell()->IsReflowLocked(&reflowing);
+    if (!reflowing) {
       UpdateGraphic(); // update mRect before requesting reflow
       RequestReflow(nsIPresShell::eResize);
     }
@@ -632,6 +614,10 @@ nsSVGForeignObjectFrame::InvalidateDirtyRect(nsSVGOuterSVGFrame* aOuter,
   rect.IntersectRect(rect, mRect);
   if (rect.IsEmpty())
     return;
+
+  // XXX invalidate the entire covered region
+  // See bug 418063
+  rect.UnionRect(rect, mRect);
 
   rect = nsSVGUtils::FindFilterInvalidation(this, rect);
   aOuter->InvalidateWithFlags(rect, aFlags);

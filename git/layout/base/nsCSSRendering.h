@@ -95,22 +95,9 @@ struct nsCSSRendering {
                           nsIFrame* aForFrame,
                           const nsRect& aDirtyRect,
                           const nsRect& aBorderArea,
+                          const nsStyleBorder& aBorderStyle,
                           nsStyleContext* aStyleContext,
                           PRIntn aSkipSides = 0);
-
-  /**
-   * Like PaintBorder, but taking an nsStyleBorder argument instead of
-   * getting it from aStyleContext.
-   */
-  static void PaintBorderWithStyleBorder(nsPresContext* aPresContext,
-                                         nsIRenderingContext& aRenderingContext,
-                                         nsIFrame* aForFrame,
-                                         const nsRect& aDirtyRect,
-                                         const nsRect& aBorderArea,
-                                         const nsStyleBorder& aBorderStyle,
-                                         nsStyleContext* aStyleContext,
-                                         PRIntn aSkipSides = 0);
-
 
   /**
    * Render the outline for an element using css rendering rules
@@ -125,6 +112,8 @@ struct nsCSSRendering {
                           nsIFrame* aForFrame,
                           const nsRect& aDirtyRect,
                           const nsRect& aBorderArea,
+                          const nsStyleBorder& aBorderStyle,
+                          const nsStyleOutline& aOutlineStyle,
                           nsStyleContext* aStyleContext);
 
   /**
@@ -146,16 +135,13 @@ struct nsCSSRendering {
                             nsStyleGradient* aGradient,
                             const nsRect& aDirtyRect,
                             const nsRect& aOneCellArea,
-                            const nsRect& aFillArea);
+                            const nsRect& aFillArea,
+                            PRBool aRepeat);
 
   /**
-   * Find the frame whose background style should be used to draw the
-   * canvas background. aForFrame must be the frame for the root element
-   * whose background style should be used. This function will return
-   * aForFrame unless the <body> background should be propagated, in
-   * which case we return the frame associated with the <body>'s background.
+   * Gets the root frame for the frame
    */
-  static nsIFrame* FindBackgroundStyleFrame(nsIFrame* aForFrame);
+  static nsIFrame* FindRootFrame(nsIFrame* aForFrame);
 
   /**
    * @return PR_TRUE if |aFrame| is a canvas frame, in the CSS sense.
@@ -163,65 +149,41 @@ struct nsCSSRendering {
   static PRBool IsCanvasFrame(nsIFrame* aFrame);
 
   /**
-   * Fill in an aBackgroundSC to be used to paint the background
+   * Fill in an nsStyleBackground to be used to paint the background
    * for an element.  This applies the rules for propagating
    * backgrounds between BODY, the root element, and the canvas.
    * @return PR_TRUE if there is some meaningful background.
    */
   static PRBool FindBackground(nsPresContext* aPresContext,
                                nsIFrame* aForFrame,
-                               nsStyleContext** aBackgroundSC);
+                               const nsStyleBackground** aBackground);
 
   /**
    * As FindBackground, but the passed-in frame is known to be a root frame
    * (returned from nsCSSFrameConstructor::GetRootElementStyleFrame())
    * and there is always some meaningful background returned.
    */
-  static nsStyleContext* FindRootFrameBackground(nsIFrame* aForFrame);
+  static const nsStyleBackground* FindRootFrameBackground(nsIFrame* aForFrame);
 
   /**
-   * Returns background style information for the canvas.
-   *
-   * @param aForFrame
-   *   the frame used to represent the canvas, in the CSS sense (i.e.
-   *   nsCSSRendering::IsCanvasFrame(aForFrame) must be true)
-   * @param aRootElementFrame
-   *   the frame representing the root element of the document
-   * @param aBackground
-   *   contains background style information for the canvas on return
-   */
-  static nsStyleContext*
-  FindCanvasBackground(nsIFrame* aForFrame, nsIFrame* aRootElementFrame)
-  {
-    NS_ABORT_IF_FALSE(IsCanvasFrame(aForFrame), "not a canvas frame");
-    if (aRootElementFrame)
-      return FindRootFrameBackground(aRootElementFrame);
-
-    // This should always give transparent, so we'll fill it in with the
-    // default color if needed.  This seems to happen a bit while a page is
-    // being loaded.
-    return aForFrame->GetStyleContext();
-  }
-
-  /**
-   * Find a frame which draws a non-transparent background,
+   * Find a style context containing a non-transparent background,
    * for various table-related and HR-related backwards-compatibility hacks.
-   * This function will also stop if it finds themed frame which might draw
-   * background.
+   * This function will also stop if it finds a -moz-appearance value, as
+   * the theme may draw a widget as a background.
    *
    * Be very hesitant if you're considering calling this function -- it's
    * usually not what you want.
    */
-  static nsIFrame*
-  FindNonTransparentBackgroundFrame(nsIFrame* aFrame,
-                                    PRBool aStartAtParent = PR_FALSE);
+  static nsStyleContext*
+  FindNonTransparentBackground(nsStyleContext* aContext,
+                               PRBool aStartAtParent = PR_FALSE);
 
   /**
    * Determine the background color to draw taking into account print settings.
    */
   static nscolor
   DetermineBackgroundColor(nsPresContext* aPresContext,
-                           nsStyleContext* aStyleContext,
+                           const nsStyleBackground& aBackground,
                            nsIFrame* aFrame);
 
   /**
@@ -259,7 +221,7 @@ struct nsCSSRendering {
                                     nsIFrame* aForFrame,
                                     const nsRect& aDirtyRect,
                                     const nsRect& aBorderArea,
-                                    nsStyleContext *aStyleContext,
+                                    const nsStyleBackground& aBackground,
                                     const nsStyleBorder& aBorder,
                                     PRUint32 aFlags,
                                     nsRect* aBGClipRect = nsnull);
@@ -428,9 +390,6 @@ public:
    * @param aDirtyRect           The absolute dirty rect in app units. Used to
    *                             optimize the temporary surface size and speed up blur.
    *
-   * @param aSkipRect            An area in device pixels (NOT app units!) to avoid
-   *                             blurring over, to prevent unnecessary work.
-   *
    * @return            A blank 8-bit alpha-channel-only graphics context to
    *                    draw on, or null on error. Must not be freed. The
    *                    context has a device offset applied to it given by
@@ -446,7 +405,7 @@ public:
    */
   gfxContext* Init(const nsRect& aRect, nscoord aBlurRadius,
                    PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx,
-                   const nsRect& aDirtyRect, const gfxRect* aSkipRect);
+                   const nsRect& aDirtyRect);
 
   /**
    * Does the actual blurring and mask applying. Users of this object *must*

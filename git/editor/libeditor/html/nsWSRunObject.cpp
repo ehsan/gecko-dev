@@ -694,8 +694,6 @@ nsWSRunObject::AdjustWhitespace()
 already_AddRefed<nsIDOMNode>
 nsWSRunObject::GetWSBoundingParent()
 {
-  if (!mNode)
-    return nsnull;
   nsCOMPtr<nsIDOMNode> wsBoundingParent = mNode;
   while (!IsBlockNode(wsBoundingParent))
   {

@@ -58,7 +58,7 @@ nsScriptElement::ScriptAvailable(nsresult aResult,
     nsCOMPtr<nsIContent> cont =
       do_QueryInterface((nsIScriptElement*) this);
 
-    nsRefPtr<nsPresContext> presContext =
+    nsCOMPtr<nsPresContext> presContext =
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -91,7 +91,7 @@ nsScriptElement::ScriptEvaluated(nsresult aResult,
     nsCOMPtr<nsIContent> cont =
       do_QueryInterface((nsIScriptElement*) this);
 
-    nsRefPtr<nsPresContext> presContext =
+    nsCOMPtr<nsPresContext> presContext =
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -121,7 +121,8 @@ nsScriptElement::AttributeChanged(nsIDocument* aDocument,
                                   nsIContent* aContent,
                                   PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  PRInt32 aModType)
+                                  PRInt32 aModType,
+                                  PRUint32 aStateMask)
 {
   MaybeProcessScript();
 }
@@ -129,7 +130,6 @@ nsScriptElement::AttributeChanged(nsIDocument* aDocument,
 void
 nsScriptElement::ContentAppended(nsIDocument* aDocument,
                                  nsIContent* aContainer,
-                                 nsIContent* aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   MaybeProcessScript();
@@ -180,8 +180,6 @@ nsScriptElement::MaybeProcessScript()
       mMalformed || !HasScriptContent()) {
     return NS_OK;
   }
-
-  FreezeUriAsyncDefer();
 
   if (InNonScriptingContainer(cont)) {
     // Make sure to flag ourselves as evaluated

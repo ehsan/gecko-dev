@@ -43,6 +43,7 @@
 #include "nsXBLPrototypeResources.h"
 #include "nsXBLPrototypeHandler.h"
 #include "nsXBLProtoImplMethod.h"
+#include "nsICSSStyleSheet.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsWeakReference.h"
 #include "nsIContent.h"
@@ -59,7 +60,6 @@ class nsIXBLService;
 class nsFixedSizeAllocator;
 class nsXBLProtoImplField;
 class nsXBLBinding;
-class nsCSSStyleSheet;
 
 // *********************************************************************/
 // The XBLPrototypeBinding class
@@ -74,12 +74,7 @@ public:
   void SetBindingElement(nsIContent* aElement);
 
   nsIURI* BindingURI() const { return mBindingURI; }
-  nsIURI* AlternateBindingURI() const { return mAlternateBindingURI; }
   nsIURI* DocURI() const { return mXBLDocInfoWeak->DocumentURI(); }
-
-  // Checks if aURI refers to this binding by comparing to both possible
-  // binding URIs.
-  PRBool CompareBindingURI(nsIURI* aURI) const;
 
   nsresult GetAllowScripts(PRBool* aResult);
 
@@ -149,12 +144,12 @@ public:
   void SetInitialAttributes(nsIContent* aBoundElement, nsIContent* aAnonymousContent);
 
   nsIStyleRuleProcessor* GetRuleProcessor();
-  nsXBLPrototypeResources::sheet_array_type* GetStyleSheets();
+  nsCOMArray<nsICSSStyleSheet>* GetStyleSheets();
 
   PRBool HasInsertionPoints() { return mInsertionPointTable != nsnull; }
   
   PRBool HasStyleSheets() {
-    return mResources && mResources->mStyleSheetList.Length() > 0;
+    return mResources && mResources->mStyleSheetList.Count() > 0;
   }
 
   nsresult FlushSkinSheets();
@@ -164,8 +159,7 @@ public:
   // XXXbz this aIndex has nothing to do with an index into the child
   // list of the insertion parent or anything.
   nsIContent* GetInsertionPoint(nsIContent* aBoundElement,
-                                nsIContent* aCopyRoot,
-                                const nsIContent *aChild,
+                                nsIContent* aCopyRoot, nsIContent *aChild,
                                 PRUint32* aIndex);
 
   nsIContent* GetSingleInsertionPoint(nsIContent* aBoundElement,
@@ -201,8 +195,7 @@ public:
   // binding's handlers, properties, etc are all set.
   nsresult Init(const nsACString& aRef,
                 nsIXBLDocumentInfo* aInfo,
-                nsIContent* aElement,
-                PRBool aFirstBinding = PR_FALSE);
+                nsIContent* aElement);
 
   void Traverse(nsCycleCollectionTraversalCallback &cb) const;
   void UnlinkJSObjects();
@@ -263,7 +256,6 @@ protected:
 // MEMBER VARIABLES
 protected:
   nsCOMPtr<nsIURI> mBindingURI;
-  nsCOMPtr<nsIURI> mAlternateBindingURI; // Alternate id-less URI that is only non-null on the first binding.
   nsCOMPtr<nsIContent> mBinding; // Strong. We own a ref to our content element in the binding doc.
   nsAutoPtr<nsXBLPrototypeHandler> mPrototypeHandler; // Strong. DocInfo owns us, and we own the handlers.
   

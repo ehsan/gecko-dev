@@ -40,31 +40,24 @@
 #ifndef NS_SMILCSSVALUETYPE_H_
 #define NS_SMILCSSVALUETYPE_H_
 
-#include "nsISMILType.h"
-#include "nsCSSProperty.h"
+#include "nsISMILCSSValueType.h"
 #include "nscore.h" // For NS_OVERRIDE
 
 class nsIContent;
-class nsAString;
 
 /*
- * nsSMILCSSValueType: Represents a SMIL-animated CSS value.
+ * nsSMILCSSValueType: Represents a SMIL-animated simple (non-shorthand) CSS
+ * value.
  */
-class nsSMILCSSValueType : public nsISMILType
+class nsSMILCSSValueType : public nsISMILCSSValueType
 {
 public:
-  // Singleton for nsSMILValue objects to hold onto.
-  static nsSMILCSSValueType sSingleton;
-
-protected:
-  // nsISMILType Methods
-  // -------------------
-  NS_OVERRIDE virtual void     Init(nsSMILValue& aValue) const;
+  // nsISMILValueType Methods
+  // ------------------------
+  NS_OVERRIDE virtual nsresult Init(nsSMILValue& aValue) const;
   NS_OVERRIDE virtual void     Destroy(nsSMILValue&) const;
   NS_OVERRIDE virtual nsresult Assign(nsSMILValue& aDest,
                                       const nsSMILValue& aSrc) const;
-  NS_OVERRIDE virtual PRBool   IsEqual(const nsSMILValue& aLeft,
-                                       const nsSMILValue& aRight) const;
   NS_OVERRIDE virtual nsresult Add(nsSMILValue& aDest,
                                    const nsSMILValue& aValueToAdd,
                                    PRUint32 aCount) const;
@@ -76,53 +69,21 @@ protected:
                                            double aUnitDistance,
                                            nsSMILValue& aResult) const;
 
-public:
-  // Helper Methods
-  // --------------
-  /**
-   * Sets up the given nsSMILValue to represent the given string value.  The
-   * string is interpreted as a value for the given property on the given
-   * element.
-   *
-   * On failure, this method leaves aValue.mType == nsSMILNullType::sSingleton.
-   * Otherwise, this method leaves aValue.mType == this class's singleton.
-   *
-   * @param       aPropID         The property for which we're parsing a value.
-   * @param       aTargetElement  The target element to whom the property/value
-   *                              setting applies.
-   * @param       aString         The string to be parsed as a CSS value.
-   * @param       aUseSVGMode     A flag to indicate whether we should parse
-   *                              |aString| in SVG mode.
-   * @param [out] aValue          The nsSMILValue to be populated. Should
-   *                              initially be null-typed.
-   * @pre  aValue.IsNull()
-   * @post aValue.IsNull() || aValue.mType == nsSMILCSSValueType::sSingleton
-   */
-  static void ValueFromString(nsCSSProperty aPropID,
-                              nsIContent* aTargetElement,
-                              const nsAString& aString,
-                              PRBool aUseSVGMode,
-                              nsSMILValue& aValue);
+  // nsISMILCSSValueType Methods
+  // ---------------------------
+  NS_OVERRIDE virtual PRBool ValueFromString(nsCSSProperty aPropID,
+                                             nsIContent* aTargetElement,
+                                             const nsAString& aString,
+                                             nsSMILValue& aValue) const;
 
-  /**
-   * Creates a string representation of the given nsSMILValue.
-   *
-   * Note: aValue is expected to be of this type (that is, it's expected to
-   * have been initialized by nsSMILCSSValueType::sSingleton).  If aValue is a
-   * freshly-initialized value, this method will succeed, though the resulting
-   * string will be empty.
-   *
-   * @param       aValue   The nsSMILValue to be converted into a string.
-   * @param [out] aString  The string to be populated with the given value.
-   * @return               PR_TRUE on success, PR_FALSE on failure.
-   */
-  static PRBool ValueToString(const nsSMILValue& aValue, nsAString& aString);
+  NS_OVERRIDE virtual PRBool ValueToString(const nsSMILValue& aValue,
+                                           nsAString& aString) const;
+
+  // Singleton for nsSMILValue objects to hold onto.
+  static nsSMILCSSValueType sSingleton;
 
 private:
-  // Private constructor & destructor: prevent instances beyond my singleton,
-  // and prevent others from deleting my singleton.
-  nsSMILCSSValueType()  {}
-  ~nsSMILCSSValueType() {}
+  nsSMILCSSValueType() {}
 };
 
 #endif // NS_SMILCSSVALUETYPE_H_

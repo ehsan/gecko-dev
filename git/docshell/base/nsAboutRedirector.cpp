@@ -64,7 +64,6 @@ struct RedirEntry {
   URI.  Perhaps we should separate the two concepts out...
  */
 static RedirEntry kRedirMap[] = {
-    { "about", "chrome://global/content/aboutAbout.xhtml", 0 },
     { "credits", "http://www.mozilla.org/credits/",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "mozilla", "chrome://global/content/mozilla.xhtml",
@@ -84,13 +83,8 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "neterror", "chrome://global/content/netError.xhtml",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-      nsIAboutModule::ALLOW_SCRIPT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT },
+      nsIAboutModule::ALLOW_SCRIPT },
     { "memory", "chrome://global/content/aboutMemory.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT },
-    { "addons", "chrome://mozapps/content/extensions/extensions.xul",
-      nsIAboutModule::ALLOW_SCRIPT },
-    { "support", "chrome://global/content/aboutSupport.xhtml",
       nsIAboutModule::ALLOW_SCRIPT }
 };
 static const int kRedirTotal = NS_ARRAY_LENGTH(kRedirMap);

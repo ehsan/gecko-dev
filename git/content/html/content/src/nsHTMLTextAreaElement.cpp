@@ -49,7 +49,7 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
@@ -61,6 +61,7 @@
 #include "nsIEventStateManager.h"
 #include "nsLinebreakConverter.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIPrivateDOMEvent.h"
@@ -118,9 +119,9 @@ public:
   NS_IMETHOD SetUserInput(const nsAString& aInput);
 
   // nsIFormControl
-  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_TEXTAREA; }
+  NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_TEXTAREA; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
@@ -149,8 +150,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
-
   /**
    * Called when an attribute is about to be changed
    */
@@ -158,10 +157,20 @@ public:
                                  const nsAString* aValue, PRBool aNotify);
 
   // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+  virtual void CharacterDataChanged(nsIDocument* aDocument,
+                                    nsIContent* aContent,
+                                    CharacterDataChangeInfo* aInfo);
+  virtual void ContentAppended(nsIDocument* aDocument,
+                                nsIContent* aContainer,
+                               PRInt32 aNewIndexInContainer);
+  virtual void ContentInserted(nsIDocument* aDocument,
+                               nsIContent* aContainer,
+                               nsIContent* aChild,
+                               PRInt32 aIndexInContainer);
+  virtual void ContentRemoved(nsIDocument* aDocument,
+                              nsIContent* aContainer,
+                              nsIContent* aChild,
+                              PRInt32 aIndexInContainer);
 
   virtual void UpdateEditableState()
   {
@@ -199,11 +208,6 @@ protected:
                             nsITextControlFrame* aFrame,
                             PRBool aUserInput);
   nsresult GetSelectionRange(PRInt32* aSelectionStart, PRInt32* aSelectionEnd);
-
-  virtual PRBool AcceptAutofocus() const
-  {
-    return PR_TRUE;
-  }
 
   /**
    * Common method to call from the various mutation observer methods.
@@ -253,8 +257,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLTextAreaElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLTextAreaElement, nsGenericElement) 
 
-
-DOMCI_DATA(HTMLTextAreaElement, nsHTMLTextAreaElement)
 
 // QueryInterface implementation for nsHTMLTextAreaElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTextAreaElement)
@@ -309,7 +311,7 @@ nsHTMLTextAreaElement::Select()
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
 
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
+  nsCOMPtr<nsPresContext> presContext = GetPresContext();
   if (state == eInactiveWindow) {
     if (fm)
       fm->SetFocus(this, nsIFocusManager::FLAG_NOSCROLL);
@@ -367,16 +369,12 @@ nsHTMLTextAreaElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, AccessKey, accesskey)
-NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Autofocus, autofocus)
 NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Cols, cols)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Disabled, disabled)
-NS_IMPL_NON_NEGATIVE_INT_ATTR(nsHTMLTextAreaElement, MaxLength, maxlength)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, ReadOnly, readonly)
 NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Rows, rows)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, TabIndex, tabindex, 0)
-NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Wrap, wrap)
-NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Placeholder, placeholder)
   
 
 NS_IMETHODIMP 
@@ -430,9 +428,7 @@ nsHTMLTextAreaElement::TakeTextFrameValue(const nsAString& aValue)
   if (mValue) {
     nsMemory::Free(mValue);
   }
-  nsString value(aValue);
-  nsContentUtils::PlatformToDOMLineBreaks(value);
-  mValue = ToNewUTF8String(value);
+  mValue = ToNewUTF8String(aValue);
   return NS_OK;
 }
 
@@ -525,9 +521,6 @@ nsHTMLTextAreaElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::maxlength) {
-      return aResult.ParseNonNegativeIntValue(aValue);
-    }
     if (aAttribute == nsGkAtoms::cols) {
       return aResult.ParseIntWithBounds(aValue, 0);
     }
@@ -556,8 +549,6 @@ nsHTMLTextAreaElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
   if (aAttribute == nsGkAtoms::rows ||
       aAttribute == nsGkAtoms::cols) {
     NS_UpdateHint(retval, NS_STYLE_HINT_REFLOW);
-  } else if (aAttribute == nsGkAtoms::wrap) {
-    NS_UpdateHint(retval, nsChangeHint_ReconstructFrame);
   }
   return retval;
 }
@@ -799,9 +790,6 @@ nsHTMLTextAreaElement::Reset()
   // If the frame is there, we have to set the value so that it will show up.
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
   if (formControlFrame) {
-    // To get the initial spellchecking, reset value to
-    // empty string before setting the default value.
-    SetValue(EmptyString());
     nsAutoString resetVal;
     GetDefaultValue(resetVal);
     rv = SetValue(resetVal);
@@ -812,7 +800,7 @@ nsHTMLTextAreaElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLTextAreaElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                          nsIContent* aSubmitElement)
 {
   nsresult rv = NS_OK;
@@ -843,7 +831,7 @@ nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
   //
   // Submit
   //
-  rv = aFormSubmission->AddNameValuePair(name, value);
+  rv = aFormSubmission->AddNameValuePair(this, name, value);
 
   return rv;
 }
@@ -936,8 +924,7 @@ nsHTMLTextAreaElement::CharacterDataChanged(nsIDocument* aDocument,
 void
 nsHTMLTextAreaElement::ContentAppended(nsIDocument* aDocument,
                                        nsIContent* aContainer,
-                                       nsIContent* aFirstNewContent,
-                                       PRInt32 /* unused */)
+                                       PRInt32 aNewIndexInContainer)
 {
   ContentChanged(aContainer);
 }
@@ -946,7 +933,7 @@ void
 nsHTMLTextAreaElement::ContentInserted(nsIDocument* aDocument,
                                        nsIContent* aContainer,
                                        nsIContent* aChild,
-                                       PRInt32 /* unused */)
+                                       PRInt32 aIndexInContainer)
 {
   ContentChanged(aChild);
 }
@@ -988,18 +975,3 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   return nsGenericHTMLFormElement::AfterSetAttr(aNameSpaceID, aName, aValue,
                                                 aNotify);
 }
-
-nsresult
-nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  nsresult rv = nsGenericHTMLFormElement::CopyInnerTo(aDest);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    nsAutoString value;
-    const_cast<nsHTMLTextAreaElement*>(this)->GetValue(value);
-    static_cast<nsHTMLTextAreaElement*>(aDest)->SetValue(value);
-  }
-  return NS_OK;
-}
-

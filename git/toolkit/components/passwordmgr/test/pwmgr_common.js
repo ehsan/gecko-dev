@@ -138,12 +138,12 @@ function commonInit() {
 
 
     // Check that initial state has no logins
-    var logins = pwmgr.getAllLogins();
+    var logins = pwmgr.getAllLogins({});
     if (logins.length) {
         //todo(false, "Warning: wasn't expecting logins to be present.");
         pwmgr.removeAllLogins();
     }
-    var disabledHosts = pwmgr.getAllDisabledHosts();
+    var disabledHosts = pwmgr.getAllDisabledHosts({});
     if (disabledHosts.length) {
         //todo(false, "Warning: wasn't expecting disabled hosts to be present.");
         for each (var host in disabledHosts)
@@ -153,13 +153,13 @@ function commonInit() {
     // Add a login that's used in multiple tests
     var login = Components.classes["@mozilla.org/login-manager/loginInfo;1"].
                 createInstance(Components.interfaces.nsILoginInfo);
-    login.init("http://mochi.test:8888", "http://mochi.test:8888", null,
+    login.init("http://localhost:8888", "http://localhost:8888", null,
                "testuser", "testpass", "uname", "pword");
     pwmgr.addLogin(login);
 
     // Last sanity check
-    logins = pwmgr.getAllLogins();
+    logins = pwmgr.getAllLogins({});
     is(logins.length, 1, "Checking for successful init login");
-    disabledHosts = pwmgr.getAllDisabledHosts();
+    disabledHosts = pwmgr.getAllDisabledHosts({});
     is(disabledHosts.length, 0, "Checking for no disabled hosts");
 }

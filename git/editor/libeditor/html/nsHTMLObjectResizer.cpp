@@ -64,6 +64,7 @@
 #include "nsIPrefService.h"
 #include "nsIServiceManager.h"
 
+#include "nsPresContext.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
 
@@ -193,8 +194,7 @@ nsHTMLEditor::CreateResizer(nsIDOMElement ** aReturn, PRInt16 aLocation, nsIDOMN
 
   // add the mouse listener so we can detect a click on a resizer
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(*aReturn));
-  evtTarget->AddEventListener(NS_LITERAL_STRING("mousedown"), mEventListener,
-                              PR_TRUE);
+  evtTarget->AddEventListener(NS_LITERAL_STRING("mousedown"), mMouseListenerP, PR_TRUE);
 
   nsAutoString locationStr;
   switch (aLocation) {
@@ -439,9 +439,7 @@ nsHTMLEditor::HideResizers(void)
 
   // get the presshell's document observer interface.
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  // We allow the pres shell to be null; when it is, we presume there
-  // are no document observers to notify, but we still want to
-  // UnbindFromTree.
+  if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
   nsresult res;
   nsCOMPtr<nsIDOMNode> parentNode;
@@ -455,43 +453,43 @@ nsHTMLEditor::HideResizers(void)
 
   NS_NAMED_LITERAL_STRING(mousedown, "mousedown");
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mTopLeftHandle, parentContent, ps);
   mTopLeftHandle = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mTopHandle, parentContent, ps);
   mTopHandle = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mTopRightHandle, parentContent, ps);
   mTopRightHandle = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mLeftHandle, parentContent, ps);
   mLeftHandle = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mRightHandle, parentContent, ps);
   mRightHandle = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mBottomLeftHandle, parentContent, ps);
   mBottomLeftHandle = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mBottomHandle, parentContent, ps);
   mBottomHandle = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mBottomRightHandle, parentContent, ps);
   mBottomRightHandle = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mResizingShadow, parentContent, ps);
   mResizingShadow = nsnull;
 
-  RemoveListenerAndDeleteRef(mousedown, mEventListener, PR_TRUE,
+  RemoveListenerAndDeleteRef(mousedown, mMouseListenerP, PR_TRUE,
                              mResizingInfo, parentContent, ps);
   mResizingInfo = nsnull;
 
@@ -854,7 +852,7 @@ nsHTMLEditor::GetNewResizingX(PRInt32 aX, PRInt32 aY)
   PRInt32 resized = mResizedObjectX +
                     GetNewResizingIncrement(aX, aY, kX) * mXIncrementFactor;
   PRInt32 max =   mResizedObjectX + mResizedObjectWidth;
-  return NS_MIN(resized, max);
+  return PR_MIN(resized, max);
 }
 
 PRInt32
@@ -863,7 +861,7 @@ nsHTMLEditor::GetNewResizingY(PRInt32 aX, PRInt32 aY)
   PRInt32 resized = mResizedObjectY +
                     GetNewResizingIncrement(aX, aY, kY) * mYIncrementFactor;
   PRInt32 max =   mResizedObjectY + mResizedObjectHeight;
-  return NS_MIN(resized, max);
+  return PR_MIN(resized, max);
 }
 
 PRInt32
@@ -872,7 +870,7 @@ nsHTMLEditor::GetNewResizingWidth(PRInt32 aX, PRInt32 aY)
   PRInt32 resized = mResizedObjectWidth +
                      GetNewResizingIncrement(aX, aY, kWidth) *
                          mWidthIncrementFactor;
-  return NS_MAX(resized, 1);
+  return PR_MAX(resized, 1);
 }
 
 PRInt32
@@ -881,7 +879,7 @@ nsHTMLEditor::GetNewResizingHeight(PRInt32 aX, PRInt32 aY)
   PRInt32 resized = mResizedObjectHeight +
                      GetNewResizingIncrement(aX, aY, kHeight) *
                          mHeightIncrementFactor;
-  return NS_MAX(resized, 1);
+  return PR_MAX(resized, 1);
 }
 
 

@@ -854,10 +854,6 @@ PK11_ImportCert(PK11SlotInfo *slot, CERTCertificate *cert,
     nssCertificateStoreTrace unlockTrace = {NULL, NULL, PR_FALSE, PR_FALSE};
 
     if (keyID == NULL) {
-	goto loser; /* error code should be set already */
-    }
-    if (!token) {
-    	PORT_SetError(SEC_ERROR_NO_TOKEN);
 	goto loser;
     }
 
@@ -873,6 +869,17 @@ PK11_ImportCert(PK11SlotInfo *slot, CERTCertificate *cert,
 	if (c == NULL) {
 	    goto loser;
 	}
+    }
+
+    if (c->object.cryptoContext) {
+	/* Delete the temp instance */
+	NSSCryptoContext *cc = c->object.cryptoContext;
+	nssCertificateStore_Lock(cc->certStore, &lockTrace);
+	nssCertificateStore_RemoveCertLOCKED(cc->certStore, c);
+	nssCertificateStore_Unlock(cc->certStore, &lockTrace, &unlockTrace);
+	c->object.cryptoContext = NULL;
+	cert->istemp = PR_FALSE;
+	cert->isperm = PR_TRUE;
     }
 
     /* set the id for the cert */
@@ -919,18 +926,6 @@ PK11_ImportCert(PK11SlotInfo *slot, CERTCertificate *cert,
 	}
 	goto loser;
     }
-
-    if (c->object.cryptoContext) {
-	/* Delete the temp instance */
-	NSSCryptoContext *cc = c->object.cryptoContext;
-	nssCertificateStore_Lock(cc->certStore, &lockTrace);
-	nssCertificateStore_RemoveCertLOCKED(cc->certStore, c);
-	nssCertificateStore_Unlock(cc->certStore, &lockTrace, &unlockTrace);
-	c->object.cryptoContext = NULL;
-	cert->istemp = PR_FALSE;
-	cert->isperm = PR_TRUE;
-    }
-
     /* add the new instance to the cert, force an update of the
      * CERTCertificate, and finish
      */
@@ -1945,7 +1940,7 @@ PK11_TraverseCertsInSlot(PK11SlotInfo *slot,
 	nssPKIObjectCollection_Destroy(collection);
 	return SECFailure;
     }
-    (void)nssTrustDomain_GetCertsFromCache(td, certList);
+    (void *)nssTrustDomain_GetCertsFromCache(td, certList);
     transfer_token_certs_to_collection(certList, tok, collection);
     instances = nssToken_FindObjects(tok, NULL, CKO_CERTIFICATE,
                                      tokenOnly, 0, &nssrv);

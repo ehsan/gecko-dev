@@ -43,25 +43,14 @@
 #define MOZ_FT2_FONTS 1
 #endif
 
-
-/**
- * XXX to get CAIRO_HAS_DDRAW_SURFACE, CAIRO_HAS_D2D_SURFACE and
- * CAIRO_HAS_DWRITE_FONT
- */
-#include "cairo.h"
-
 #include "gfxFontUtils.h"
 #include "gfxWindowsSurface.h"
-#include "gfxFont.h"
 #ifdef MOZ_FT2_FONTS
 #include "gfxFT2Fonts.h"
 #else
-#ifdef CAIRO_HAS_DWRITE_FONT
-#include "gfxDWriteFonts.h"
-#endif
+#include "gfxWindowsFonts.h"
 #endif
 #include "gfxPlatform.h"
-#include "gfxContext.h"
 
 #include "nsTArray.h"
 #include "nsDataHashtable.h"
@@ -72,49 +61,13 @@ typedef struct FT_LibraryRec_ *FT_Library;
 
 #include <windows.h>
 
-// Utility to get a Windows HDC from a thebes context,
-// used by both GDI and Uniscribe font shapers
-struct DCFromContext {
-    DCFromContext(gfxContext *aContext) {
-        dc = NULL;
-        nsRefPtr<gfxASurface> aSurface = aContext->CurrentSurface();
-        NS_ASSERTION(aSurface, "DCFromContext: null surface");
-        if (aSurface &&
-            (aSurface->GetType() == gfxASurface::SurfaceTypeWin32 ||
-             aSurface->GetType() == gfxASurface::SurfaceTypeWin32Printing))
-        {
-            dc = static_cast<gfxWindowsSurface*>(aSurface.get())->GetDC();
-            needsRelease = PR_FALSE;
-        }
-        if (!dc) {
-            dc = GetDC(NULL);
-            SetGraphicsMode(dc, GM_ADVANCED);
-            needsRelease = PR_TRUE;
-        }
-    }
-
-    ~DCFromContext() {
-        if (needsRelease)
-            ReleaseDC(NULL, dc);
-    }
-
-    operator HDC () {
-        return dc;
-    }
-
-    HDC dc;
-    PRBool needsRelease;
-};
-
-class THEBES_API gfxWindowsPlatform : public gfxPlatform {
+class THEBES_API gfxWindowsPlatform : public gfxPlatform, private gfxFontInfoLoader {
 public:
     gfxWindowsPlatform();
     virtual ~gfxWindowsPlatform();
     static gfxWindowsPlatform *GetPlatform() {
         return (gfxWindowsPlatform*) gfxPlatform::GetPlatform();
     }
-
-    virtual gfxPlatformFontList* CreatePlatformFontList();
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxImageFormat imageFormat);
@@ -138,9 +91,6 @@ public:
         /* Use DirectDraw with OpenGL on Windows CE */
         RENDER_DDRAW_GL,
 
-        /* Use Direct2D rendering */
-        RENDER_DIRECT2D,
-
         /* max */
         RENDER_MODE_MAX
     };
@@ -148,11 +98,13 @@ public:
     RenderMode GetRenderMode() { return mRenderMode; }
     void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
 
-    nsresult GetFontList(nsIAtom *aLangGroup,
+    nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts);
 
     nsresult UpdateFontList();
+
+    void GetFontFamilyList(nsTArray<nsRefPtr<FontFamily> >& aFamilyArray);
 
     nsresult ResolveFontName(const nsAString& aFontName,
                              FontResolverCallback aCallback,
@@ -182,41 +134,32 @@ public:
      */
     virtual PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags);
 
-    /* Find a FontFamily/FontEntry object that represents a font on your system given a name */
-    gfxFontFamily *FindFontFamily(const nsAString& aName);
-    gfxFontEntry *FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontStyle);
+    /* Given a string and a font we already have find the font that
+     * supports the most code points and most closely resembles aFont
+     *
+     * this involves looking at the fonts on your machine and seeing which
+     * code points they support as well as looking at things like the font
+     * family, style, weight, etc.
+     */
+    already_AddRefed<gfxFont>
+    FindFontForChar(PRUint32 aCh, gfxFont *aFont);
 
-    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *array);
-    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& array);
+    /* Find a FontFamily/FontEntry object that represents a font on your system given a name */
+    FontFamily *FindFontFamily(const nsAString& aName);
+    FontEntry *FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontStyle);
+
+    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> > *array);
+    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& array);
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }
 
-    // ClearType is not always enabled even when available (e.g. Windows XP)
-    // if either of these prefs are enabled and apply, use ClearType rendering
-    PRBool UseClearTypeForDownloadableFonts();
-    PRBool UseClearTypeAlways();
-
-    // OS version in 16.16 major/minor form
-    // based on http://msdn.microsoft.com/en-us/library/ms724834(VS.85).aspx
-    enum {
-        kWindowsUnknown = 0,
-        kWindows2000 = 0x50000,
-        kWindowsXP = 0x50001,
-        kWindowsServer2003 = 0x50002,
-        kWindowsVista = 0x60000,
-        kWindows7 = 0x60001
-    };
-
-    static PRInt32 WindowsOSVersion();
-
-    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
-
-#ifdef CAIRO_HAS_DWRITE_FONT
-    IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
-#endif
+    typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
 
 #ifdef MOZ_FT2_FONTS
     FT_Library GetFTLibrary();
+private:
+    void AppendFacesFromFontFile(const PRUnichar *aFileName);
+    void FindFonts();
 #endif
 
 protected:
@@ -224,20 +167,62 @@ protected:
 
     RenderMode mRenderMode;
 
-    PRBool mUseClearTypeForDownloadableFonts;
-    PRBool mUseClearTypeAlways;
-
 private:
     void Init();
 
-#ifdef CAIRO_HAS_DWRITE_FONT
-    nsRefPtr<IDWriteFactory> mDWriteFactory;
-#endif
+    void InitBadUnderlineList();
+
+    static int CALLBACK FontEnumProc(const ENUMLOGFONTEXW *lpelfe,
+                                     const NEWTEXTMETRICEXW *metrics,
+                                     DWORD fontType, LPARAM data);
+    static int CALLBACK FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
+                                            const NEWTEXTMETRICEXW *nmetrics,
+                                            DWORD fontType, LPARAM data);
+
+    static PLDHashOperator FontGetStylesProc(nsStringHashKey::KeyType aKey,
+                                             nsRefPtr<FontFamily>& aFontFamily,
+                                             void* userArg);
+
+    static PLDHashOperator FontGetCMapDataProc(nsStringHashKey::KeyType aKey,
+                                               nsRefPtr<FontFamily>& aFontFamily,
+                                               void* userArg);
+
+    static int CALLBACK FontResolveProc(const ENUMLOGFONTEXW *lpelfe,
+                                        const NEWTEXTMETRICEXW *metrics,
+                                        DWORD fontType, LPARAM data);
+
+    static PLDHashOperator HashEnumFunc(nsStringHashKey::KeyType aKey,
+                                        nsRefPtr<FontFamily>& aData,
+                                        void* userArg);
+
+    static PLDHashOperator FindFontForCharProc(nsStringHashKey::KeyType aKey,
+                                               nsRefPtr<FontFamily>& aFontFamily,
+                                               void* userArg);
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 
-    // TODO: unify this with mPrefFonts (NB: holds families, not fonts) in gfxPlatformFontList
-    nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
+    static int PrefChangedCallback(const char*, void*);
+
+    // gfxFontInfoLoader overrides, used to load in font cmaps
+    virtual void InitLoader();
+    virtual PRBool RunLoader();
+    virtual void FinishLoader();
+
+    FontTable mFonts;
+    FontTable mFontAliases;
+    FontTable mFontSubstitutes;
+    nsTArray<nsString> mNonExistingFonts;
+
+    // when system-wide font lookup fails for a character, cache it to skip future searches
+    gfxSparseBitSet mCodepointsWithNoFonts;
+    
+    nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<FontEntry> > > mPrefFonts;
+
+    // data used as part of the font cmap loading process
+    nsTArray<nsRefPtr<FontFamily> > mFontFamilies;
+    PRUint32 mStartIndex;
+    PRUint32 mIncrement;
+    PRUint32 mNumFamilies;
 };
 
 #endif /* GFX_WINDOWS_PLATFORM_H */

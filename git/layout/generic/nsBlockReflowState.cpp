@@ -110,10 +110,8 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   mPresContext = aPresContext;
   mNextInFlow = static_cast<nsBlockFrame*>(mBlock->GetNextInFlow());
 
-  NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aReflowState.ComputedWidth(),
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_ASSERTION(NS_UNCONSTRAINEDSIZE != aReflowState.ComputedWidth(),
+               "no unconstrained widths should be present anymore");
   mContentArea.width = aReflowState.ComputedWidth();
 
   // Compute content area height. Unlike the width, if we have a
@@ -157,8 +155,7 @@ nsBlockReflowState::~nsBlockReflowState()
   }
 
   if (GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    mPresContext->PropertyTable()->
-      Delete(mBlock, nsBlockFrame::FloatContinuationProperty());
+    mBlock->UnsetProperty(nsGkAtoms::floatContinuationProperty);
   }
 }
 
@@ -433,9 +430,8 @@ void
 nsBlockReflowState::SetupFloatContinuationList()
 {
   if (!GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    mPresContext->PropertyTable()->
-      Set(mBlock, nsBlockFrame::FloatContinuationProperty(),
-          &mFloatContinuations);
+    mBlock->SetProperty(nsGkAtoms::floatContinuationProperty,
+                        &mFloatContinuations, nsnull);
     SetFlag(BRS_PROPTABLE_FLOATCLIST, PR_TRUE);
   }
 }
@@ -638,7 +634,7 @@ nsBlockReflowState::CanPlaceFloat(const nsSize& aFloatSize, PRUint8 aFloats,
   if (aFloatAvailableSpace.mHasFloats) {
     // XXX We should allow overflow by up to half a pixel here (bug 21193).
     if (aFloatAvailableSpace.mRect.width < aFloatSize.width) {
-      // The available width is too narrow (and it's been impacted by a
+      // The available width is too narrow (and its been impacted by a
       // prior float)
       result = PR_FALSE;
     }
@@ -652,12 +648,12 @@ nsBlockReflowState::CanPlaceFloat(const nsSize& aFloatSize, PRUint8 aFloats,
   // space.
   if (NSCoordGreaterThan(aFloatSize.height,
                          aFloatAvailableSpace.mRect.height)) {
-    // The available height is too short. However, it's possible that
+    // The available height is too short. However, its possible that
     // there is enough open space below which is not impacted by a
     // float.
     //
     // Compute the X coordinate for the float based on its float
-    // type, assuming it's placed on the current line. This is
+    // type, assuming its placed on the current line. This is
     // where the float will be placed horizontally if it can go
     // here.
     nscoord xa;
@@ -943,7 +939,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame*       aFloat,
     // area into which the float has grown or from which the float has
     // shrunk.
     nscoord top = NS_MIN(region.y, oldRegion.y) - borderPadding.top;
-    nscoord bottom = NS_MAX(region.YMost(), oldRegion.YMost()) - borderPadding.top;
+    nscoord bottom = NS_MAX(region.YMost(), oldRegion.YMost()) - borderPadding.left;
     mFloatManager->IncludeInDamage(top, bottom);
   }
 

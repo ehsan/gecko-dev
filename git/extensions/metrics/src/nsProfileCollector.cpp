@@ -220,7 +220,7 @@ nsProfileCollector::LogMemory(nsIMetricsEventItem *profile)
   nsMetricsUtils::NewPropertyBag(getter_AddRefs(properties));
   NS_ENSURE_STATE(properties);
 
-  static PRUint64 size = PR_GetPhysicalMemorySize();
+  PRUint64 size = PR_GetPhysicalMemorySize();
   if (size == 0) {
     MS_LOG(("Failed to get physical memory size"));
     return NS_ERROR_FAILURE;

@@ -50,15 +50,8 @@
 #include "nsTArray.h"
 #include "nsTHashtable.h"
 #include "prmem.h"
-#include "prinit.h"
-#include "prlog.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#include "nsCOMPtr.h"
-#include "nsServiceManagerUtils.h"
-#include "nsPrintfCString.h"
-#endif
+#ifndef DEBUG_TRACEMALLOC_PRESARENA
 
 // Even on 32-bit systems, we allocate objects from the frame arena
 // that require 8-byte alignment.  The cast to PRUword is needed
@@ -68,187 +61,37 @@
 #define PL_ARENA_CONST_ALIGN_MASK ((PRUword(1) << ALIGN_SHIFT) - 1)
 #include "plarena.h"
 
-#ifdef _WIN32
-# include <windows.h>
-#else
-# include <unistd.h>
-# include <sys/mman.h>
-# ifndef MAP_ANON
-#  ifdef MAP_ANONYMOUS
-#   define MAP_ANON MAP_ANONYMOUS
-#  else
-#   error "Don't know how to get anonymous memory"
-#  endif
-# endif
-#endif
-
-#ifndef DEBUG_TRACEMALLOC_PRESARENA
-
 // Size to use for PLArena block allocations.
 static const size_t ARENA_PAGE_SIZE = 4096;
 
-// Freed memory is filled with a poison value, which we arrange to
-// form a pointer either to an always-unmapped region of the address
-// space, or to a page that has been reserved and rendered
-// inaccessible via OS primitives.  See tests/TestPoisonArea.cpp for
-// extensive discussion of the requirements for this page.  The code
-// from here to 'class FreeList' needs to be kept in sync with that
-// file.
+// Freed memory is filled with a poison value, which is believed to
+// form a pointer to an always-unmapped region of the address space on
+// all platforms of interest. The low 12 bits of this number are
+// chosen to fall in the middle of the typical 4096-byte page, and
+// make the address odd.
+//
+// With the possible exception of PPC64, current 64-bit CPUs permit
+// only a subset (2^48 to 2^56, depending) of the full virtual address
+// space to be used.  x86-64 has the inaccessible region in the
+// *middle* of the address space, whereas all others are believed to
+// have it at the highest addresses.  Use an address in this region if
+// we possibly can; if the hardware doesn't let anyone use it, we
+// needn't worry about the OS.
+//
+// TODO: Confirm that this value is a pointer to an always-unmapped
+// address space region on (at least) Win32, Win64, WinCE, ARM Linux,
+// MacOSX, and add #ifdefs below as necessary. (Bug 507294.)
 
-#ifdef _WIN32
-static void *
-ReserveRegion(PRUword region, PRUword size)
-{
-  return VirtualAlloc((void *)region, size, MEM_RESERVE, PAGE_NOACCESS);
-}
-
-static void
-ReleaseRegion(void *region, PRUword size)
-{
-  VirtualFree(region, size, MEM_RELEASE);
-}
-
-static bool
-ProbeRegion(PRUword region, PRUword size)
-{
-  SYSTEM_INFO sinfo;
-  GetSystemInfo(&sinfo);
-  if (region >= (PRUword)sinfo.lpMaximumApplicationAddress &&
-      region + size >= (PRUword)sinfo.lpMaximumApplicationAddress) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-static PRUword
-GetDesiredRegionSize()
-{
-  SYSTEM_INFO sinfo;
-  GetSystemInfo(&sinfo);
-  return sinfo.dwAllocationGranularity;
-}
-
-#define RESERVE_FAILED 0
-
-#else // Unix
-
-static void *
-ReserveRegion(PRUword region, PRUword size)
-{
-  return mmap((caddr_t)region, size, PROT_NONE, MAP_PRIVATE|MAP_ANON, -1, 0);
-}
-
-static void
-ReleaseRegion(void *region, PRUword size)
-{
-  munmap((caddr_t)region, size);
-}
-
-static bool
-ProbeRegion(PRUword region, PRUword size)
-{
-  if (madvise((caddr_t)region, size, MADV_NORMAL)) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-static PRUword
-GetDesiredRegionSize()
-{
-  return sysconf(_SC_PAGESIZE);
-}
-
-#define RESERVE_FAILED MAP_FAILED
-
-#endif // system dependencies
-
-PR_STATIC_ASSERT(sizeof(PRUword) == 4 || sizeof(PRUword) == 8);
-PR_STATIC_ASSERT(sizeof(PRUword) == sizeof(void *));
-
-static PRUword
-ReservePoisonArea(PRUword rgnsize)
-{
-  if (sizeof(PRUword) == 8) {
-    // Use the hardware-inaccessible region.
-    // We have to avoid 64-bit constants and shifts by 32 bits, since this
-    // code is compiled in 32-bit mode, although it is never executed there.
-    return
-      (((PRUword(0x7FFFFFFFu) << 31) << 1 | PRUword(0xF0DEAFFFu))
-       & ~(rgnsize-1));
-
-  } else {
-    // First see if we can allocate the preferred poison address from the OS.
-    PRUword candidate = (0xF0DEAFFF & ~(rgnsize-1));
-    void *result = ReserveRegion(candidate, rgnsize);
-    if (result == (void *)candidate) {
-      // success - inaccessible page allocated
-      return candidate;
-    }
-
-    // That didn't work, so see if the preferred address is within a range
-    // of permanently inacessible memory.
-    if (ProbeRegion(candidate, rgnsize)) {
-      // success - selected page cannot be usable memory
-      if (result != RESERVE_FAILED)
-        ReleaseRegion(result, rgnsize);
-      return candidate;
-    }
-
-    // The preferred address is already in use.  Did the OS give us a
-    // consolation prize?
-    if (result != RESERVE_FAILED) {
-      return PRUword(result);
-    }
-
-    // It didn't, so try to allocate again, without any constraint on
-    // the address.
-    result = ReserveRegion(0, rgnsize);
-    if (result != RESERVE_FAILED) {
-      return PRUword(result);
-    }
-
-    NS_RUNTIMEABORT("no usable poison region identified");
-    return 0;
-  }
-}
-
-static PRUword ARENA_POISON;
-static PRCallOnceType ARENA_POISON_guard;
-
-static PRStatus
-ARENA_POISON_init()
-{
-  PRUword rgnsize = GetDesiredRegionSize();
-  PRUword rgnbase = ReservePoisonArea(rgnsize);
-
-  if (rgnsize == 0) // can't happen
-    return PR_FAILURE;
-
-  ARENA_POISON = rgnbase + rgnsize/2 - 1;
-
-#ifdef MOZ_CRASHREPORTER
-  nsCOMPtr<nsICrashReporter> cr =
-    do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-  PRBool enabled;
-  if (cr && NS_SUCCEEDED(cr->GetEnabled(&enabled)) && enabled) {
-    cr->AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonBase"),
-                            nsPrintfCString(17, "%.16llx", PRUint64(rgnbase)));
-    cr->AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonSize"),
-                            nsPrintfCString("%lu", PRUint32(rgnsize)));
-  }
+#if defined(__x86_64__) || defined(_M_AMD64)
+const PRUword ARENA_POISON = 0x7FFFFFFFF0DEA7FF;
+#else
+// This evaluates to 0xF0DE_A7FF when PRUword is 32 bits long, but to
+// 0xFFFF_FFFF_F0DE_A7FF when it's 64 bits.
+const PRUword ARENA_POISON = (~PRUword(0x0FFFFF00) | PRUword(0x0DEA700));
 #endif
-  return PR_SUCCESS;
-}
-
 
 // All keys to this hash table fit in 32 bits (see below) so we do not
 // bother actually hashing them.
-
-namespace {
-
 class FreeList : public PLDHashEntryHdr
 {
 public:
@@ -276,8 +119,6 @@ protected:
   friend class nsTHashtable<FreeList>;
 };
 
-}
-
 struct nsPresArena::State {
   nsTHashtable<FreeList> mFreeLists;
   PLArenaPool mPool;
@@ -286,7 +127,6 @@ struct nsPresArena::State {
   {
     mFreeLists.Init();
     PL_INIT_ARENA_POOL(&mPool, "PresArena", ARENA_PAGE_SIZE);
-    PR_CallOnce(&ARENA_POISON_guard, ARENA_POISON_init);
   }
 
   ~State()
@@ -357,27 +197,13 @@ struct nsPresArena::State {
   }
 };
 
-PRUint32
-nsPresArena::Size()
-{
-  PLArena *arena = &mState->mPool.first;
-  PRUint32 result = 0;
-
-  while (arena) {
-    result += arena->limit - arena->base;
-    arena = arena->next;
-  }
-
-  return result;
-}
-
 #else
 // Stub implementation that forwards everything to malloc and does not
 // poison.
 
 struct nsPresArena::State
 {
-  void* Allocate(PRUint32 /* unused */, size_t aSize)
+  void* Allocate(PRUnit32 /* unused */, size_t aSize)
   {
     return PR_Malloc(aSize);
   }
@@ -387,12 +213,6 @@ struct nsPresArena::State
     PR_Free(aPtr);
   }
 };
-
-PRUint32
-nsPresArena::Size()
-{
-  return 0;
-}
 
 #endif // DEBUG_TRACEMALLOC_PRESARENA
 

@@ -37,17 +37,15 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsICanvasRenderingContextWebGL.h"
-#include "nsDOMClassInfoID.h"
+#include "WebGLArray.h"
 
 #define DUMMY(func,rtype)  nsresult func (rtype ** aResult) { return NS_ERROR_FAILURE; }
 
 DUMMY(NS_NewCanvasRenderingContextWebGL, nsICanvasRenderingContextWebGL)
-
-DOMCI_DATA(CanvasRenderingContextWebGL, void)
-DOMCI_DATA(WebGLBuffer, void)
-DOMCI_DATA(WebGLTexture, void)
-DOMCI_DATA(WebGLProgram, void)
-DOMCI_DATA(WebGLShader, void)
-DOMCI_DATA(WebGLFramebuffer, void)
-DOMCI_DATA(WebGLRenderbuffer, void)
-DOMCI_DATA(WebGLUniformLocation, void)
+DUMMY(NS_NewCanvasFloatArray, nsISupports)
+DUMMY(NS_NewCanvasByteArray, nsISupports)
+DUMMY(NS_NewCanvasUnsignedByteArray, nsISupports)
+DUMMY(NS_NewCanvasShortArray, nsISupports)
+DUMMY(NS_NewCanvasUnsignedShortArray, nsISupports)
+DUMMY(NS_NewCanvasIntArray, nsISupports)
+DUMMY(NS_NewCanvasUnsignedIntArray, nsISupports)

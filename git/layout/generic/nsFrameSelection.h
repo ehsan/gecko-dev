@@ -41,6 +41,7 @@
 #include "nsIFrame.h"
 #include "nsIContent.h"
 #include "nsISelectionController.h"
+#include "nsIScrollableViewProvider.h"
 #include "nsITableLayout.h"
 #include "nsITableCellLayout.h"
 #include "nsIDOMElement.h"
@@ -79,7 +80,6 @@ struct SelectionDetails
 };
 
 class nsIPresShell;
-class nsIScrollableFrame;
 
 enum EWordMovementType { eStartWord, eEndWord, eDefaultBehavior };
 
@@ -202,7 +202,7 @@ struct nsPrevNextBidiLevels
 };
 
 class nsTypedSelection;
-class nsIScrollableFrame;
+class nsIScrollableView;
 
 /**
  * Methods which are marked with *unsafe* should be handled with special care.
@@ -225,6 +225,25 @@ public:
    *  @param aLimiter limits the selection to nodes with aLimiter parents
    */
   void Init(nsIPresShell *aShell, nsIContent *aLimiter);
+
+  /**
+   * SetScrollableViewProvider sets the scroll view provider.
+   * @param aProvider The provider of the scroll view.
+   */
+  void SetScrollableViewProvider(nsIScrollableViewProvider* aProvider)
+  {
+    mScrollableViewProvider = aProvider;
+  }
+
+  /**
+   * GetScrollableView returns the current scroll view.
+   */
+  nsIScrollableView* GetScrollableView() const
+  {
+    return mScrollableViewProvider
+      ? mScrollableViewProvider->GetScrollableView()
+      : nsnull;
+  }
 
   /** HandleClick will take the focus to the new frame at the new offset and 
    *  will either extend the selection from the old anchor, or replace the old anchor.
@@ -325,18 +344,16 @@ public:
                                             PRInt32 aEndRowIndex,
                                             PRInt32 aEndColumnIndex);
 
-  /** StartAutoScrollTimer is responsible for scrolling frames so that
-   *  aPoint is always visible, and for selecting any frame that contains
-   *  aPoint. The timer will also reset itself to fire again if we have
-   *  not scrolled to the end of the document.
-   *  @param aFrame is the outermost frame to use when searching for
-   *  the closest frame for the point, i.e. the frame that is capturing
-   *  the mouse
-   *  @param aPoint is relative to aFrame.
+  /** StartAutoScrollTimer is responsible for scrolling views so that aPoint is always
+   *  visible, and for selecting any frame that contains aPoint. The timer will also reset
+   *  itself to fire again if we have not scrolled to the end of the document.
+   *  @param aView is view to use when searching for the closest frame to the point,
+   *  which is the view that is capturing the mouse
+   *  @param aPoint is relative to the view.
    *  @param aDelay is the timer's interval.
    */
   /*unsafe*/
-  nsresult StartAutoScrollTimer(nsIFrame *aFrame,
+  nsresult StartAutoScrollTimer(nsIView *aView,
                                 nsPoint aPoint,
                                 PRUint32 aDelay);
 
@@ -423,12 +440,12 @@ public:
    *
    * @param aForward if PR_TRUE, scroll forward if not scroll backward
    * @param aExtend  if PR_TRUE, extend selection to the new point
-   * @param aScrollableFrame the frame to scroll
+   * @param aScrollableView the view that needs the scrolling
    */
   /*unsafe*/
   void CommonPageMove(PRBool aForward,
                       PRBool aExtend,
-                      nsIScrollableFrame* aScrollableFrame);
+                      nsIScrollableView *aScrollableView);
 
   void SetHint(HINT aHintRight) { mHint = aHintRight; }
   HINT GetHint() const { return mHint; }
@@ -635,16 +652,13 @@ private:
 
   void ResizeBuffer(PRUint32 aNewBufSize);
 /*HELPER METHODS*/
-  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection,
-                         nsSelectionAmount aAmount);
-  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection,
-                         nsSelectionAmount aAmount,
-                         PRBool aVisualMovement);
+  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection, nsSelectionAmount aAmount);
 
   nsresult     FetchDesiredX(nscoord &aDesiredX); //the x position requested by the Key Handling for up down
   void         InvalidateDesiredX(); //do not listen to mDesiredX you must get another.
   void         SetDesiredX(nscoord aX); //set the mDesiredX
 
+  nsresult     GetRootForContentSubtree(nsIContent *aContent, nsIContent **aParent);
   nsresult     ConstrainFrameAndPointToAnchorSubtree(nsIFrame *aFrame, nsPoint& aPoint, nsIFrame **aRetFrame, nsPoint& aRetPoint);
 
   PRUint32     GetBatching() const {return mBatching; }
@@ -716,6 +730,7 @@ private:
 #endif
 
   PRInt32 mDesiredX;
+  nsIScrollableViewProvider* mScrollableViewProvider;
 
   nsMouseEvent mDelayedMouseEvent;
 

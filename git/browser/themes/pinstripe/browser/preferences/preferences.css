@@ -146,7 +146,7 @@ prefpane .groupbox-body {
   margin: 0;
 }
 
-#tabPrefsBox {
+#paneTabs > vbox {
   margin: 12px 4px;
 }
 

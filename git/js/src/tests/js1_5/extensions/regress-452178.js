@@ -54,8 +54,16 @@ function test()
 
   jit(true);
 
-  Object.defineProperty(this, "q", { get: function(){}, enumerable: true, configurable: true });
-  for (var j = 0; j < 4; ++j) q = 1;
+  expect = 'TypeError: setting a property that has only a getter';
+
+  try
+  {
+    q getter= function(){}; for (var j = 0; j < 4; ++j) q = 1;
+  }
+  catch(ex)
+  {
+    actual = ex + '';
+  }
 
   jit(false);
 

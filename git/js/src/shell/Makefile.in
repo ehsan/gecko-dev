@@ -45,10 +45,7 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 PROGRAM         = js$(BIN_SUFFIX)
-CPPSRCS		= \
-  js.cpp \
-  jsworkers.cpp \
-  $(NULL)
+CPPSRCS		= js.cpp
 
 DEFINES         += -DEXPORT_JS_API
 

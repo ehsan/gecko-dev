@@ -46,16 +46,10 @@
 #include "nsCOMPtr.h"
 
 class nsCSSDeclaration;
-class nsCSSParser;
+class nsICSSParser;
+class nsICSSLoader;
 class nsIURI;
 class nsIPrincipal;
-class nsIDocument;
-
-namespace mozilla {
-namespace css {
-class Loader;
-}
-}
 
 class CSS2PropertiesTearoff : public nsIDOMNSCSS2Properties
 {
@@ -64,7 +58,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(CSS2PropertiesTearoff)
 
   NS_DECL_NSIDOMCSS2PROPERTIES
-  NS_DECL_NSIDOMSVGCSS2PROPERTIES
   NS_DECL_NSIDOMNSCSS2PROPERTIES
 
   CSS2PropertiesTearoff(nsICSSDeclaration *aOuter);
@@ -99,7 +92,7 @@ public:
                          const nsAString & value, const nsAString & priority);
   NS_IMETHOD GetLength(PRUint32 *aLength);
   NS_IMETHOD Item(PRUint32 index, nsAString & _retval);
-  NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) = 0;
+  NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) = 0; 
 
 protected:
   // Always fills in the out parameter, even on failure, and if the out
@@ -108,29 +101,26 @@ protected:
   virtual nsresult GetCSSDeclaration(nsCSSDeclaration **aDecl,
                                      PRBool aAllocate) = 0;
   virtual nsresult DeclarationChanged() = 0;
-  // Document that we must call BeginUpdate/EndUpdate on around the
-  // calls to DeclarationChanged and the style rule mutation that leads
-  // to it.
-  virtual nsIDocument* DocToUpdate() = 0;
-
+  
   // This will only fail if it can't get a parser or a principal.
   // This means it can return NS_OK without aURI or aCSSLoader being
   // initialized.
   virtual nsresult GetCSSParsingEnvironment(nsIURI** aSheetURI,
                                             nsIURI** aBaseURI,
                                             nsIPrincipal** aSheetPrincipal,
-                                            mozilla::css::Loader** aCSSLoader) = 0;
+                                            nsICSSLoader** aCSSLoader,
+                                            nsICSSParser** aCSSParser) = 0;
 
   nsresult ParsePropertyValue(const nsCSSProperty aPropID,
-                              const nsAString& aPropValue,
-                              PRBool aIsImportant);
+                              const nsAString& aPropValue);
   nsresult ParseDeclaration(const nsAString& aDecl,
                             PRBool aParseOnlyOneDecl, PRBool aClearOldDecl);
 
   // Prop-id based version of RemoveProperty.  Note that this does not
   // return the old value; it just does a straight removal.
   nsresult RemoveProperty(const nsCSSProperty aPropID);
-
+  
+  
 protected:
   virtual ~nsDOMCSSDeclaration();
 };

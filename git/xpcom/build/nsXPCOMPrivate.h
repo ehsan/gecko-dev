@@ -224,11 +224,6 @@ namespace mozilla {
 nsresult
 ShutdownXPCOM(nsIServiceManager* servMgr);
 
-/**
- * C++ namespaced version of NS_LogTerm.
- */
-void LogTerm();
-
 } // namespace mozilla
 
 
@@ -310,18 +305,5 @@ void LogTerm();
 #define MAXPATHLEN 1024
 #endif
 #endif
-
-extern PRBool gXPCOMShuttingDown;
-
-namespace mozilla {
-namespace services {
-
-/** 
- * Clears service cache, sets gXPCOMShuttingDown
- */
-void Shutdown();
-
-} // namespace services
-} // namespace mozilla
 
 #endif

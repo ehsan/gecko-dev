@@ -256,8 +256,7 @@ nsInstallTrigger::HandleContent(const char * aContentType,
             }
             else
             {
-                nsCOMPtr<nsIObserverService> os =
-                  mozilla::services::GetObserverService();
+                nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                 if (os)
                     os->NotifyObservers(installInfo,
                                         "xpinstall-install-blocked",
@@ -301,8 +300,7 @@ static void updatePermissions( const char* aPref,
             rv = NS_NewURI(getter_AddRefs(uri), host);
             if (NS_SUCCEEDED(rv))
             {
-                aPermissionManager->Add( uri, XPI_PERMISSION, aPermission, 
-                                         nsIPermissionManager::EXPIRE_NEVER, 0 );
+                aPermissionManager->Add( uri, XPI_PERMISSION, aPermission );
             }
             start = match+1;
         } while ( match > 0 );

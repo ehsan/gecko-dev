@@ -51,6 +51,7 @@
 #include "nsTPtrArray.h"
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
+#include "nsIURI.h"
 #include "prprf.h"
 #ifdef MOZ_SVG
 #include "nsISVGValue.h"
@@ -259,6 +260,11 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
       cont->mFloatValue = otherCont->mFloatValue;
       break;
     }
+    case eLazyURIValue:
+    {
+      NS_IF_ADDREF(cont->mURI = otherCont->mURI);
+      break;
+    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -388,7 +394,24 @@ nsAttrValue::ToString(nsAString& aResult) const
 #endif
     case eEnum:
     {
-      GetEnumString(aResult, PR_FALSE);
+      PRInt16 val = GetEnumValue();
+      PRUint32 allEnumBits =
+        cont ? cont->mEnumValue : static_cast<PRUint32>(GetIntInternal());
+      const EnumTable* table = sEnumTableArray->
+        ElementAt(allEnumBits & NS_ATTRVALUE_ENUMTABLEINDEX_MASK);
+      while (table->tag) {
+        if (table->value == val) {
+          aResult.AssignASCII(table->tag);
+          if (allEnumBits & NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER) {
+            ToUpperCase(aResult);
+          }
+          return;
+        }
+        table++;
+      }
+
+      NS_NOTREACHED("couldn't find value in EnumTable");
+
       break;
     }
     case ePercent:
@@ -424,6 +447,16 @@ nsAttrValue::ToString(nsAString& aResult) const
       aResult = str;
       break;
     }
+    // No need to do for eLazyURIValue, since that always stores the
+    // original string.
+#ifdef DEBUG
+    case eLazyURIValue:
+    {
+      NS_NOTREACHED("Shouldn't get here");
+      aResult.Truncate();
+      break;
+    }
+#endif
     default:
     {
       aResult.Truncate();
@@ -451,32 +484,6 @@ nsAttrValue::GetColorValue(nscolor& aColor) const
 
   aColor = GetMiscContainer()->mColor;
   return PR_TRUE;
-}
-
-void
-nsAttrValue::GetEnumString(nsAString& aResult, PRBool aRealTag) const
-{
-  NS_PRECONDITION(Type() == eEnum, "wrong type");
-
-  PRUint32 allEnumBits =
-    (BaseType() == eIntegerBase) ? static_cast<PRUint32>(GetIntInternal())
-                                   : GetMiscContainer()->mEnumValue;
-  PRInt16 val = allEnumBits >> NS_ATTRVALUE_ENUMTABLEINDEX_BITS;
-  const EnumTable* table = sEnumTableArray->
-    ElementAt(allEnumBits & NS_ATTRVALUE_ENUMTABLEINDEX_MASK);
-
-  while (table->tag) {
-    if (table->value == val) {
-      aResult.AssignASCII(table->tag);
-      if (!aRealTag && allEnumBits & NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER) {
-        ToUpperCase(aResult);
-      }
-      return;
-    }
-    table++;
-  }
-
-  NS_NOTREACHED("couldn't find value in EnumTable");
 }
 
 PRInt32
@@ -519,7 +526,7 @@ nsAttrValue::HashValue() const
       nsStringBuffer* str = static_cast<nsStringBuffer*>(GetPtr());
       if (str) {
         PRUint32 len = str->StorageSize()/sizeof(PRUnichar) - 1;
-        return nsCRT::HashCode(static_cast<PRUnichar*>(str->Data()), len);
+        return nsCRT::BufferHashCode(static_cast<PRUnichar*>(str->Data()), len);
       }
 
       return 0;
@@ -584,6 +591,17 @@ nsAttrValue::HashValue() const
     {
       // XXX this is crappy, but oh well
       return cont->mFloatValue;
+    }
+    case eLazyURIValue:
+    {
+      NS_ASSERTION(static_cast<ValueBaseType>(cont->mStringBits &
+                                              NS_ATTRVALUE_BASETYPE_MASK) ==
+                   eStringBase,
+                   "Unexpected type");
+      nsStringBuffer* str = static_cast<nsStringBuffer*>(MISC_STR_PTR(cont));
+      NS_ASSERTION(str, "How did that happen?");
+      PRUint32 len = str->StorageSize()/sizeof(PRUnichar) - 1;
+      return nsCRT::BufferHashCode(static_cast<PRUnichar*>(str->Data()), len);
     }
     default:
     {
@@ -687,6 +705,11 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
     {
       return thisCont->mFloatValue == otherCont->mFloatValue;
     }
+    case eLazyURIValue:
+    {
+      needsStringComparison = PR_TRUE;
+      break;
+    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -725,11 +748,10 @@ nsAttrValue::Equals(const nsAString& aValue,
       return aValue.IsEmpty();
     }
     case eAtomBase:
+      // Need a way to just do case-insensitive compares on atoms..
       if (aCaseSensitive == eCaseMatters) {
-        return static_cast<nsIAtom*>(GetPtr())->Equals(aValue);
+        return static_cast<nsIAtom*>(GetPtr())->Equals(aValue);;
       }
-      return nsDependentAtomString(static_cast<nsIAtom*>(GetPtr())).
-        Equals(aValue, nsCaseInsensitiveStringComparator());
     default:
       break;
   }
@@ -759,7 +781,7 @@ nsAttrValue::Equals(nsIAtom* aValue, nsCaseTreatment aCaseSensitive) const
                               str->StorageSize()/sizeof(PRUnichar) - 1);
         return aValue->Equals(dep);
       }
-      return aValue == nsGkAtoms::_empty;
+      return aValue->EqualsUTF8(EmptyCString());
     }
     case eAtomBase:
     {
@@ -786,11 +808,11 @@ nsAttrValue::Contains(nsIAtom* aValue, nsCaseTreatment aCaseSensitive) const
         return aValue == atom;
       }
 
-      // For performance reasons, don't do a full on unicode case insensitive
-      // string comparison. This is only used for quirks mode anyway.
-      return
-        nsContentUtils::EqualsIgnoreASCIICase(nsDependentAtomString(aValue),
-                                              nsDependentAtomString(atom));
+      const char *val1, *val2;
+      aValue->GetUTF8String(&val1);
+      atom->GetUTF8String(&val2);
+
+      return nsCRT::strcasecmp(val1, val2) == 0;
     }
     default:
     {
@@ -800,14 +822,12 @@ nsAttrValue::Contains(nsIAtom* aValue, nsCaseTreatment aCaseSensitive) const
           return array->IndexOf(aValue) >= 0;
         }
 
-        nsDependentAtomString val1(aValue);
+        const char *val1, *val2;
+        aValue->GetUTF8String(&val1);
 
         for (PRInt32 i = 0, count = array->Count(); i < count; ++i) {
-          // For performance reasons, don't do a full on unicode case
-          // insensitive string comparison. This is only used for quirks mode
-          // anyway.
-          if (nsContentUtils::EqualsIgnoreASCIICase(val1,
-                nsDependentAtomString(array->ObjectAt(i)))) {
+          array->ObjectAt(i)->GetUTF8String(&val2);
+          if (nsCRT::strcasecmp(val1, val2) == 0) {
             return PR_TRUE;
           }
         }
@@ -967,58 +987,46 @@ nsAttrValue::SetIntValueAndType(PRInt32 aValue, ValueType aType,
 }
 
 PRBool
-nsAttrValue::GetEnumTableIndex(const EnumTable* aTable, PRInt16& aResult)
-{
-  PRInt16 index = sEnumTableArray->IndexOf(aTable);
-  if (index < 0) {
-    index = sEnumTableArray->Length();
-    NS_ASSERTION(index <= NS_ATTRVALUE_ENUMTABLEINDEX_MAXVALUE,
-        "too many enum tables");
-    if (!sEnumTableArray->AppendElement(aTable)) {
-      return PR_FALSE;
-    }
-  }
-
-  aResult = index;
-
-  return PR_TRUE;
-}
-
-PRBool
 nsAttrValue::ParseEnumValue(const nsAString& aValue,
                             const EnumTable* aTable,
                             PRBool aCaseSensitive)
 {
   ResetIfSet();
-  const EnumTable* tableEntry = aTable;
 
-  while (tableEntry->tag) {
-    if (aCaseSensitive ? aValue.EqualsASCII(tableEntry->tag) :
-                         aValue.LowerCaseEqualsASCII(tableEntry->tag)) {
-      PRInt16 index;
-      if (!GetEnumTableIndex(aTable, index)) {
-        return PR_FALSE;
+  while (aTable->tag) {
+    if (aCaseSensitive ? aValue.EqualsASCII(aTable->tag) :
+                         aValue.LowerCaseEqualsASCII(aTable->tag)) {
+
+      // Find index of EnumTable
+      PRInt16 index = sEnumTableArray->IndexOf(aTable);
+      if (index < 0) {
+        index = sEnumTableArray->Length();
+        NS_ASSERTION(index <= NS_ATTRVALUE_ENUMTABLEINDEX_MAXVALUE,
+                     "too many enum tables");
+        if (!sEnumTableArray->AppendElement(aTable)) {
+          return PR_FALSE;
+        }
       }
 
-      PRInt32 value = (tableEntry->value << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) +
+      PRInt32 value = (aTable->value << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) +
                       index;
 
-      PRBool equals = aCaseSensitive || aValue.EqualsASCII(tableEntry->tag);
+      PRBool equals = aCaseSensitive || aValue.EqualsASCII(aTable->tag);
       if (!equals) {
         nsAutoString tag;
-        tag.AssignASCII(tableEntry->tag);
+        tag.AssignASCII(aTable->tag);
         ToUpperCase(tag);
         if ((equals = tag.Equals(aValue))) {
           value |= NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER;
         }
       }
       SetIntValueAndType(value, eEnum, equals ? nsnull : &aValue);
-      NS_ASSERTION(GetEnumValue() == tableEntry->value,
+      NS_ASSERTION(GetEnumValue() == aTable->value,
                    "failed to store enum properly");
 
       return PR_TRUE;
     }
-    tableEntry++;
+    aTable++;
   }
 
   return PR_FALSE;
@@ -1040,7 +1048,7 @@ nsAttrValue::ParseSpecialIntValue(const nsAString& aString,
     return PR_FALSE;
   }
 
-  PRInt32 val = NS_MAX(originalVal, 0);
+  PRInt32 val = PR_MAX(originalVal, 0);
 
   // % (percent)
   // XXX RFindChar means that 5%x will be parsed!
@@ -1074,44 +1082,10 @@ nsAttrValue::ParseIntWithBounds(const nsAString& aString,
     return PR_FALSE;
   }
 
-  PRInt32 val = NS_MAX(originalVal, aMin);
-  val = NS_MIN(val, aMax);
+  PRInt32 val = PR_MAX(originalVal, aMin);
+  val = PR_MIN(val, aMax);
   strict = strict && (originalVal == val);
   SetIntValueAndType(val, eInteger, strict ? nsnull : &aString);
-
-  return PR_TRUE;
-}
-
-PRBool
-nsAttrValue::ParseNonNegativeIntValue(const nsAString& aString)
-{
-  ResetIfSet();
-
-  PRInt32 ec;
-  PRBool strict;
-  PRInt32 originalVal = StringToInteger(aString, &strict, &ec);
-  if (NS_FAILED(ec) || originalVal < 0) {
-    return PR_FALSE;
-  }
-
-  SetIntValueAndType(originalVal, eInteger, nsnull);
-
-  return PR_TRUE;
-}
-
-PRBool
-nsAttrValue::ParsePositiveIntValue(const nsAString& aString)
-{
-  ResetIfSet();
-
-  PRInt32 ec;
-  PRBool strict;
-  PRInt32 originalVal = StringToInteger(aString, &strict, &ec);
-  if (NS_FAILED(ec) || originalVal <= 0) {
-    return PR_FALSE;
-  }
-
-  SetIntValueAndType(originalVal, eInteger, nsnull);
 
   return PR_TRUE;
 }
@@ -1197,6 +1171,58 @@ PRBool nsAttrValue::ParseFloatValue(const nsAString& aString)
   return PR_FALSE;
 }
 
+PRBool nsAttrValue::ParseLazyURIValue(const nsAString& aString)
+{
+  ResetIfSet();
+
+  if (EnsureEmptyMiscContainer()) {
+    MiscContainer* cont = GetMiscContainer();
+    cont->mURI = nsnull;
+    cont->mType = eLazyURIValue;
+
+    // Don't use SetMiscAtomOrString because atomizing URIs is not
+    // likely to do us much good.
+    nsStringBuffer* buf = GetStringBuffer(aString);
+    if (!buf) {
+      return PR_FALSE;
+    }
+    cont->mStringBits = reinterpret_cast<PtrBits>(buf) | eStringBase;
+    
+    return PR_TRUE;
+  }
+
+  return PR_FALSE;
+}
+
+void
+nsAttrValue::CacheURIValue(nsIURI* aURI)
+{
+  NS_PRECONDITION(Type() == eLazyURIValue, "wrong type");
+  NS_PRECONDITION(!GetMiscContainer()->mURI, "Why are we being called?");
+  NS_IF_ADDREF(GetMiscContainer()->mURI = aURI);
+}
+
+void
+nsAttrValue::DropCachedURI()
+{
+  NS_PRECONDITION(Type() == eLazyURIValue, "wrong type");
+  NS_IF_RELEASE(GetMiscContainer()->mURI);
+}
+
+const nsCheapString
+nsAttrValue::GetURIStringValue() const
+{
+  NS_PRECONDITION(Type() == eLazyURIValue, "wrong type");
+  NS_PRECONDITION(static_cast<ValueBaseType>(GetMiscContainer()->mStringBits &
+                                             NS_ATTRVALUE_BASETYPE_MASK) ==
+                  eStringBase,
+                  "Unexpected type");
+  NS_PRECONDITION(MISC_STR_PTR(GetMiscContainer()),
+                  "Should have a string buffer here!");
+  return nsCheapString(static_cast<nsStringBuffer*>
+                                  (MISC_STR_PTR(GetMiscContainer())));
+}
+
 void
 nsAttrValue::SetMiscAtomOrString(const nsAString* aValue)
 {
@@ -1262,6 +1288,11 @@ nsAttrValue::EnsureEmptyMiscContainer()
         break;
       }
 #endif
+      case eLazyURIValue:
+      {
+        NS_IF_RELEASE(cont->mURI);
+        break;
+      }
       default:
       {
         break;

@@ -41,14 +41,7 @@ function run_test_on_service()
   let Cc = Components.classes;
   let Ci = Components.interfaces;
   let Cu = Components.utils;
-  Cu.import("resource:///modules/openLocationLastURL.jsm");
-
-  function clearHistory() {
-    // simulate clearing the private data
-    Cc["@mozilla.org/observer-service;1"].
-    getService(Ci.nsIObserverService).
-    notifyObservers(null, "browser:purge-session-history", "");
-  }
+  Cu.import("resource://gre/modules/openLocationLastURL.jsm");
 
   let pb = Cc[PRIVATEBROWSING_CONTRACT_ID].
            getService(Ci.nsIPrivateBrowsingService);
@@ -71,10 +64,6 @@ function run_test_on_service()
   gOpenLocationLastURL.value = url2;
   do_check_eq(gOpenLocationLastURL.value, url2);
 
-  clearHistory();
-  do_check_eq(gOpenLocationLastURL.value, "");
-  gOpenLocationLastURL.value = url2;
-
   pb.privateBrowsingEnabled = true;
   do_check_eq(gOpenLocationLastURL.value, "");
 
@@ -87,15 +76,6 @@ function run_test_on_service()
 
   pb.privateBrowsingEnabled = false;
   do_check_eq(gOpenLocationLastURL.value, url2);
-
-  pb.privateBrowsingEnabled = true;
-  gOpenLocationLastURL.value = url1;
-  do_check_neq(gOpenLocationLastURL.value, "");
-  clearHistory();
-  do_check_eq(gOpenLocationLastURL.value, "");
-
-  pb.privateBrowsingEnabled = false;
-  do_check_eq(gOpenLocationLastURL.value, "");
 }
 
 // Support running tests on both the service itself and its wrapper

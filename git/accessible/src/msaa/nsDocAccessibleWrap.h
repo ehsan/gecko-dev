@@ -44,8 +44,6 @@
 #define _nsDocAccessibleWrap_H_
 
 #include "ISimpleDOMDocument.h"
-
-#include "nsAccUtils.h"
 #include "nsDocAccessible.h"
 #include "nsIDocShellTreeItem.h"
 
@@ -60,6 +58,8 @@ public:
     STDMETHODIMP_(ULONG) AddRef();
     STDMETHODIMP_(ULONG) Release();
     STDMETHODIMP      QueryInterface(REFIID, void**);
+
+    void GetXPAccessibleFor(const VARIANT& varChild, nsIAccessible **aXPAccessible);
 
     // ISimpleDOMDocument
     virtual /* [id][propget] */ HRESULT STDMETHODCALLTYPE get_URL( 
@@ -92,8 +92,7 @@ public:
         /* [optional][in] */ VARIANT varChild,
         /* [retval][out] */ BSTR __RPC_FAR *pszValue);
 
-  // nsAccessibleWrap
-  virtual nsAccessible *GetXPAccessibleFor(const VARIANT& varChild);
+    virtual void FireAnchorJumpEvent();
 
   // nsDocAccessibleWrap
 
@@ -101,8 +100,10 @@ public:
    * Find an accessible by the given child ID in cached documents.
    *
    * @param  aVarChild    [in] variant pointing to the child ID
+   * @param  aAccessible  [out] the found accessible
    */
-  static nsAccessible *GetXPAccessibleForChildID(const VARIANT& aVarChild);
+  static void GetXPAccessibleForChildID(const VARIANT& aVarChild,
+                                        nsIAccessible **aAccessible);
 };
 
 #endif

@@ -89,13 +89,7 @@ NS_IMETHODIMP JoinElementTxn::Init(nsEditor   *aEditor,
 NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("%p Do Join of %p and %p\n",
-           static_cast<void*>(this),
-           static_cast<void*>(mLeftNode.get()),
-           static_cast<void*>(mRightNode.get()));
-  }
+  if (gNoisy) { printf("%p Do Join of %p and %p\n", this, mLeftNode.get(), mRightNode.get()); }
 #endif
 
   NS_PRECONDITION((mEditor && mLeftNode && mRightNode), "null arg");
@@ -136,11 +130,7 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
 #ifdef NS_DEBUG
     if (NS_SUCCEEDED(result))
     {
-      if (gNoisy)
-      {
-        printf("  left node = %p removed\n",
-               static_cast<void*>(mLeftNode.get()));
-      }
+      if (gNoisy) { printf("  left node = %p removed\n", mLeftNode.get()); }
     }
 #endif
   }
@@ -157,12 +147,7 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
 NS_IMETHODIMP JoinElementTxn::UndoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("%p Undo Join, right node = %p\n",
-           static_cast<void*>(this),
-           static_cast<void*>(mRightNode.get()));
-  }
+  if (gNoisy) { printf("%p Undo Join, right node = %p\n", this, mRightNode.get()); }
 #endif
 
   NS_ASSERTION(mRightNode && mLeftNode && mParent, "bad state");

@@ -52,16 +52,16 @@
 #include "nsAutoLock.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
-#include "mozilla/Services.h"
 
 #if defined(XP_WIN)
 #include <windows.h>
 #endif
 
-#if defined(MOZ_PLATFORM_MAEMO) && defined(__arm__)
+#if defined (NS_OSSO)
+#include <osso-mem.h>
 #include <fcntl.h>
 #include <unistd.h>
-static const char kHighMark[] = "/sys/kernel/high_watermark";
+const char* kHighMark = "/sys/kernel/high_watermark";
 #endif
 
 // Some platforms notify you when system memory is low, others do not.
@@ -115,37 +115,25 @@ static const int kRequiredMemory = 0x3000000;
 NS_IMETHODIMP
 nsMemoryImpl::IsLowMemory(PRBool *result)
 {
-#if defined(WINCE_WINDOWS_MOBILE)
+#if defined(WINCE)
     MEMORYSTATUS stat;
     GlobalMemoryStatus(&stat);
     *result = (stat.dwMemoryLoad >= 98);
-#elif defined(WINCE)
-    // Bug 525323 - GlobalMemoryStatus kills perf on WinCE.
-    *result = PR_FALSE;
 #elif defined(XP_WIN)
     MEMORYSTATUSEX stat;
     stat.dwLength = sizeof stat;
     GlobalMemoryStatusEx(&stat);
     *result = (stat.ullAvailPageFile < kRequiredMemory) &&
         ((float)stat.ullAvailPageFile / stat.ullTotalPageFile) < 0.1;
-#elif defined(MOZ_PLATFORM_MAEMO) && defined(__arm__)
-    static int osso_highmark_fd = -1;
-    if (osso_highmark_fd == -1) {
-        osso_highmark_fd = open (kHighMark, O_RDONLY);
-
-        if (osso_highmark_fd == -1) {
-            NS_ERROR("can't find the osso highmark file");    
-            *result = PR_FALSE;
-            return NS_OK;
-        }
+#elif defined(NS_OSSO)
+    int fd = open (kHighMark, O_RDONLY);
+    if (fd == -1) {
+        *result = PR_FALSE;
+        return NS_OK;
     }
-
-    // be kind, rewind.
-    lseek(osso_highmark_fd, 0L, SEEK_SET);
-
     int c = 0;
-    read (osso_highmark_fd, &c, 1);
-
+    read (fd, &c, 1);
+    close(fd);
     *result = (c == '1');
 #else
     *result = PR_FALSE;
@@ -169,7 +157,7 @@ nsMemoryImpl::Create(nsISupports* outer, const nsIID& aIID, void **aResult)
 nsresult
 nsMemoryImpl::FlushMemory(const PRUnichar* aReason, PRBool aImmediate)
 {
-    nsresult rv = NS_OK;
+    nsresult rv;
 
     if (aImmediate) {
         // They've asked us to run the flusher *immediately*. We've
@@ -207,7 +195,7 @@ nsMemoryImpl::FlushMemory(const PRUnichar* aReason, PRBool aImmediate)
 nsresult
 nsMemoryImpl::RunFlushers(const PRUnichar* aReason)
 {
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
     if (os) {
 
         // Instead of:
@@ -276,7 +264,7 @@ NS_Alloc(PRSize size)
     if (size > PR_INT32_MAX)
         return nsnull;
 
-    void* result = moz_malloc(size);
+    void* result = PR_Malloc(size);
     if (! result) {
         // Request an asynchronous flush
         sGlobalMemory.FlushMemory(NS_LITERAL_STRING("alloc-failure").get(), PR_FALSE);
@@ -290,7 +278,7 @@ NS_Realloc(void* ptr, PRSize size)
     if (size > PR_INT32_MAX)
         return nsnull;
 
-    void* result = moz_realloc(ptr, size);
+    void* result = PR_Realloc(ptr, size);
     if (! result && size != 0) {
         // Request an asynchronous flush
         sGlobalMemory.FlushMemory(NS_LITERAL_STRING("alloc-failure").get(), PR_FALSE);
@@ -301,7 +289,7 @@ NS_Realloc(void* ptr, PRSize size)
 XPCOM_API(void)
 NS_Free(void* ptr)
 {
-    moz_free(ptr);
+    PR_Free(ptr);
 }
 
 nsresult

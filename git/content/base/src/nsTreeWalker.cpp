@@ -77,13 +77,11 @@ nsTreeWalker::~nsTreeWalker()
 
 NS_IMPL_CYCLE_COLLECTION_3(nsTreeWalker, mFilter, mCurrentNode, mRoot)
 
-DOMCI_DATA(TreeWalker, nsTreeWalker)
-
 // QueryInterface implementation for nsTreeWalker
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeWalker)
     NS_INTERFACE_MAP_ENTRY(nsIDOMTreeWalker)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMTreeWalker)
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeWalker)
+    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(TreeWalker)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeWalker)
@@ -148,7 +146,9 @@ NS_IMETHODIMP nsTreeWalker::SetCurrentNode(nsIDOMNode * aCurrentNode)
 {
     NS_ENSURE_TRUE(aCurrentNode, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
 
-    nsresult rv = nsContentUtils::CheckSameOrigin(mRoot, aCurrentNode);
+    // This QI is dumb, but this shouldn't be a critical operation
+    nsCOMPtr<nsIDOMNode> domRoot = do_QueryInterface(mRoot);
+    nsresult rv = nsContentUtils::CheckSameOrigin(domRoot, aCurrentNode);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mCurrentNode = do_QueryInterface(aCurrentNode);

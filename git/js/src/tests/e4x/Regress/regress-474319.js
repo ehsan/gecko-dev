@@ -53,14 +53,7 @@ if (typeof gczeal != 'function' || !('map' in Array.prototype))
 else
 {
     gczeal(2);
-    try
-    {
-      (function(){[<y><z/></y>].map(''.concat)})();
-    }
-    catch(ex)
-    {
-    }
-    gczeal(0);
+    (function(){[<y><z/></y>].map(''.concat)})();
 }
 TEST(1, expect, actual);
 

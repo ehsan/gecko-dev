@@ -90,6 +90,7 @@ public:
   nsJPEGDecoder();
   virtual ~nsJPEGDecoder();
 
+  nsresult  ProcessData(const char *data, PRUint32 count);
   void NotifyDone(PRBool aSuccess);
 
 protected:
@@ -106,6 +107,7 @@ public:
   struct jpeg_source_mgr mSourceMgr;
   decoder_error_mgr mErr;
   jstate mState;
+  PRBool mError;
 
   PRUint32 mBytesToSkip;
 

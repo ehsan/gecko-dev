@@ -43,7 +43,6 @@
 #include "nsWeakReference.h"
 
 #include "nsIEditor.h"
-#include "nsIPlaintextEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
 
@@ -58,6 +57,7 @@
 #include "nsIEditActionListener.h"
 #include "nsIEditorObserver.h"
 #include "nsIDocumentStateListener.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIDOMElement.h"
 #include "nsSelectionState.h"
 #include "nsIEditorSpellCheck.h"
@@ -85,10 +85,8 @@ class RemoveStyleSheetTxn;
 class nsIFile;
 class nsISelectionController;
 class nsIDOMEventTarget;
-class nsCSSStyleSheet;
-class nsKeyEvent;
 
-#define kMOZEditorBogusNodeAttrAtom nsEditProperty::mozEditorBogusNode
+#define kMOZEditorBogusNodeAttr NS_LITERAL_STRING("_moz_editor_bogus_node")
 #define kMOZEditorBogusNodeValue NS_LITERAL_STRING("TRUE")
 
 /** implementation of an editor object.  it will be the controller/focal point 
@@ -167,10 +165,9 @@ public:
                                nsCOMPtr<nsIDOMNode> *aInOutNode, 
                                PRInt32 *aInOutOffset,
                                nsIDOMDocument *aDoc);
-  nsresult InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
-                                      nsIDOMCharacterData *aTextNode, 
-                                      PRInt32 aOffset,
-                                      PRBool aSuppressIME = PR_FALSE);
+  NS_IMETHOD InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
+                                           nsIDOMCharacterData *aTextNode, 
+                                           PRInt32 aOffset, PRBool suppressIME=PR_FALSE);
   NS_IMETHOD DeleteSelectionImpl(EDirection aAction);
   NS_IMETHOD DeleteSelectionAndCreateNode(const nsAString& aTag,
                                            nsIDOMNode ** aNewNode);
@@ -261,11 +258,11 @@ protected:
 
   /** create a transaction for adding a style sheet
     */
-  NS_IMETHOD CreateTxnForAddStyleSheet(nsCSSStyleSheet* aSheet, AddStyleSheetTxn* *aTxn);
+  NS_IMETHOD CreateTxnForAddStyleSheet(nsICSSStyleSheet* aSheet, AddStyleSheetTxn* *aTxn);
 
   /** create a transaction for removing a style sheet
     */
-  NS_IMETHOD CreateTxnForRemoveStyleSheet(nsCSSStyleSheet* aSheet, RemoveStyleSheetTxn* *aTxn);
+  NS_IMETHOD CreateTxnForRemoveStyleSheet(nsICSSStyleSheet* aSheet, RemoveStyleSheetTxn* *aTxn);
   
   NS_IMETHOD DeleteText(nsIDOMCharacterData *aElement,
                         PRUint32             aOffset,
@@ -313,6 +310,9 @@ protected:
   /** make the given selection span the entire document */
   NS_IMETHOD SelectEntireDocument(nsISelection *aSelection);
 
+  /* Helper for output routines -- we expect subclasses to override this */
+  NS_IMETHOD GetWrapWidth(PRInt32* aWrapCol);
+
   /** helper method for scrolling the selection into view after
    *  an edit operation. aScrollToAnchor should be PR_TRUE if you
    *  want to scroll to the point where the selection was started.
@@ -345,9 +345,9 @@ protected:
 
 
   // install the event listeners for the editor 
-  virtual nsresult InstallEventListeners();
+  nsresult InstallEventListeners();
 
-  virtual nsresult CreateEventListeners();
+  virtual nsresult CreateEventListeners() = 0;
 
   // unregister and release our event listeners
   virtual void RemoveEventListeners();
@@ -356,8 +356,6 @@ protected:
    * Return true if spellchecking should be enabled for this editor.
    */
   PRBool GetDesiredSpellCheckState();
-
-  nsKeyEvent* GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent);
 
 public:
 
@@ -570,8 +568,6 @@ public:
 
   PRBool GetShouldTxnSetSelection();
 
-  virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
-
   nsresult HandleInlineSpellCheck(PRInt32 action,
                                     nsISelection *aSelection,
                                     nsIDOMNode *previousSelectedNode,
@@ -585,81 +581,6 @@ public:
 
   // Fast non-refcounting editor root element accessor
   nsIDOMElement *GetRoot();
-
-  // Accessor methods to flags
-  PRBool IsPlaintextEditor() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorPlaintextMask) != 0;
-  }
-
-  PRBool IsSingleLineEditor() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorSingleLineMask) != 0;
-  }
-
-  PRBool IsPasswordEditor() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorPasswordMask) != 0;
-  }
-
-  PRBool IsReadonly() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorReadonlyMask) != 0;
-  }
-
-  PRBool IsDisabled() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorDisabledMask) != 0;
-  }
-
-  PRBool IsInputFiltered() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorFilterInputMask) != 0;
-  }
-
-  PRBool IsMailEditor() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorMailMask) != 0;
-  }
-
-  PRBool UseAsyncUpdate() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask) != 0;
-  }
-
-  PRBool IsWrapHackEnabled() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorEnableWrapHackMask) != 0;
-  }
-
-  PRBool IsFormWidget() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorWidgetMask) != 0;
-  }
-
-  PRBool NoCSS() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorNoCSSMask) != 0;
-  }
-
-  PRBool IsInteractionAllowed() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorAllowInteraction) != 0;
-  }
-
-  PRBool DontEchoPassword() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorDontEchoPassword) != 0;
-  }
-
-  PRBool IsTabbable() const
-  {
-    return IsSingleLineEditor() || IsPasswordEditor() || IsFormWidget() ||
-           IsInteractionAllowed();
-  }
-
-  // Whether the editor has focus or not.
-  virtual PRBool HasFocus();
 
 protected:
 
@@ -714,7 +635,12 @@ protected:
 
   nsString* mPhonetic;
 
- nsCOMPtr<nsIDOMEventListener> mEventListener;
+  nsCOMPtr<nsIDOMEventListener> mKeyListenerP;
+  nsCOMPtr<nsIDOMEventListener> mMouseListenerP;
+  nsCOMPtr<nsIDOMEventListener> mTextListenerP;
+  nsCOMPtr<nsIDOMEventListener> mCompositionListenerP;
+  nsCOMPtr<nsIDOMEventListener> mDragListenerP;
+  nsCOMPtr<nsIDOMEventListener> mFocusListenerP;
 
   friend PRBool NSCanUnload(nsISupports* serviceMgr);
   friend class nsAutoTxnsConserveSelection;

@@ -194,7 +194,7 @@ tests.push({
     stmt.params['anno'] = this._usedPageAttribute;
     stmt.execute();
     stmt.finalize();
-    // Add an annotation with a nonexistent attribute
+    // Add an annotation with a not existant attribute
     stmt = mDBConn.createStatement("INSERT INTO moz_annos (place_id, anno_attribute_id) VALUES(:place_id, 1337)");
     stmt.params['place_id'] = this._placeId;
     stmt.execute();
@@ -241,7 +241,7 @@ tests.push({
     stmt.params['anno'] = this._usedPageAttribute;
     stmt.execute();
     stmt.reset();
-    // Add an annotation to a nonexistent page
+    // Add an annotation to a not existant page
     stmt.params['place_id'] = 1337;
     stmt.params['anno'] = this._usedPageAttribute;
     stmt.execute();
@@ -259,7 +259,7 @@ tests.push({
     stmt.params['anno'] = this._usedPageAttribute;
     do_check_true(stmt.executeStep());
     stmt.finalize();
-    // Check that an annotation to a nonexistent page has been removed
+    // Check that annotation to a not existant page has been removed
     stmt = mDBConn.createStatement("SELECT id FROM moz_annos WHERE place_id = 1337");
     do_check_false(stmt.executeStep());
     stmt.finalize();
@@ -526,7 +526,7 @@ tests.push({
     this._placeId = addPlace();
     // Add a bookmark using the keyword
     this._validKeywordItemId = addBookmark(this._placeId, bs.TYPE_BOOKMARK, bs.unfiledBookmarksFolder, this._validKeywordId);
-    // Add a bookmark using a nonexistent keyword
+    // Add a bookmark using a not existant keyword
     this._invalidKeywordItemId = addBookmark(this._placeId, bs.TYPE_BOOKMARK, bs.unfiledBookmarksFolder, this._invalidKeywordId);
   },
 
@@ -893,7 +893,7 @@ tests.push({
     stmt.params['anno'] = this._usedItemAttribute;
     stmt.execute();
     stmt.finalize();
-    // Add an annotation with a nonexistent attribute
+    // Add an annotation with a not existant attribute
     stmt = mDBConn.createStatement("INSERT INTO moz_items_annos (item_id, anno_attribute_id) VALUES(:item_id, 1337)");
     stmt.params['item_id'] = this._bookmarkId;
     stmt.execute();
@@ -944,7 +944,7 @@ tests.push({
     stmt.params["anno"] = this._usedItemAttribute;
     stmt.execute();
     stmt.reset();
-    // Add an annotation to a nonexistent item
+    // Add an annotation to a not existant item
     stmt.params["item_id"] = this._invalidBookmarkId;
     stmt.params["anno"] = this._usedItemAttribute;
     stmt.execute();
@@ -962,7 +962,7 @@ tests.push({
     stmt.params['anno'] = this._usedItemAttribute;
     do_check_true(stmt.executeStep());
     stmt.finalize();
-    // Check that an annotation to a nonexistent page has been removed
+    // Check that annotation to a not existant page has been removed
     stmt = mDBConn.createStatement("SELECT id FROM moz_items_annos WHERE item_id = 8888");
     do_check_false(stmt.executeStep());
     stmt.finalize();
@@ -1028,7 +1028,7 @@ tests.push({
     // Insert a place using the existing favicon entry
     this._validIconPlaceId = addPlace("http://www1.mozilla.org", 1);
 
-    // Insert a place using a nonexistent favicon entry
+    // Insert a place using a not existant favicon entry
     this._invalidIconPlaceId = addPlace("http://www2.mozilla.org", 1337);
   },
 
@@ -1110,12 +1110,12 @@ tests.push({
     do_check_true(bh.isVisited(this._uri2));
     
     do_check_eq(bs.getBookmarkURI(this._bookmarkId).spec, this._uri1.spec);
-    do_check_eq(bs.getItemIndex(this._folderId), 0);
+    do_check_true(bs.getItemIndex(this._folderId) == 0);
 
     do_check_eq(bs.getItemType(this._folderId), bs.TYPE_FOLDER);
     do_check_eq(bs.getItemType(this._separatorId), bs.TYPE_SEPARATOR);
 
-    do_check_eq(ts.getTagsForURI(this._uri1).length, 1);
+    do_check_true(ts.getTagsForURI(this._uri1, {}).length == 1);
     do_check_eq(bs.getKeywordForBookmark(this._bookmarkId), "testkeyword");
     do_check_eq(fs.getFaviconForPage(this._uri2).spec,
                 "http://www2.mozilla.org/favicon.ico");

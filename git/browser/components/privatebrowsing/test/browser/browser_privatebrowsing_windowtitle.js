@@ -44,7 +44,7 @@ function test() {
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
 
-  const testPageURL = "http://mochi.test:8888/browser/" +
+  const testPageURL = "http://localhost:8888/browser/" +
     "browser/components/privatebrowsing/test/browser/browser_privatebrowsing_windowtitle_page.html";
   waitForExplicitFinish();
 
@@ -80,11 +80,19 @@ function test() {
 
     let tab = gBrowser.selectedTab = gBrowser.addTab();
     let browser = gBrowser.selectedBrowser;
-    browser.stop();
     // ensure that the test is run after the titlebar has been updated
-    browser.addEventListener("pageshow", function () {
-      browser.removeEventListener("pageshow", arguments.callee, false);
-      executeSoon(function () {
+    let timer = null;
+    let _updateTitlebar = gBrowser.updateTitlebar;
+    gBrowser.updateTitlebar = function() {
+      if (timer) {
+        timer.cancel();
+        timer = null;
+      }
+      timer = Cc["@mozilla.org/timer;1"].
+              createInstance(Ci.nsITimer);
+      timer.initWithCallback(function () {
+        _updateTitlebar.apply(gBrowser, arguments);
+        gBrowser.updateTitlebar = _updateTitlebar;
         is(document.title, expected_title, "The window title for " + url +
            " is correct (" + (insidePB ? "inside" : "outside") +
            " private browsing mode)");
@@ -107,8 +115,8 @@ function test() {
             setTimeout(funcNext, 0);
           };
         }, false);
-      });
-    }, false);
+      }, 300, Ci.nsITimer.TYPE_ONE_SHOT);
+    };
 
     browser.loadURI(url);
   }

@@ -171,17 +171,17 @@ nsLineLayout::BeginLineReflow(nscoord aX, nscoord aY,
                               PRBool aIsTopOfPage)
 {
   NS_ASSERTION(nsnull == mRootSpan, "bad linelayout user");
-  NS_WARN_IF_FALSE(aWidth != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_ASSERTION(aWidth != NS_UNCONSTRAINEDSIZE,
+               "should no longer be using unconstrained widths");
 #ifdef DEBUG
   if ((aWidth != NS_UNCONSTRAINEDSIZE) && CRAZY_WIDTH(aWidth)) {
+    NS_NOTREACHED("bad width");
     nsFrame::ListTag(stdout, mBlockReflowState->frame);
     printf(": Init: bad caller: width WAS %d(0x%x)\n",
            aWidth, aWidth);
   }
   if ((aHeight != NS_UNCONSTRAINEDSIZE) && CRAZY_HEIGHT(aHeight)) {
+    NS_NOTREACHED("bad height");
     nsFrame::ListTag(stdout, mBlockReflowState->frame);
     printf(": Init: bad caller: height WAS %d(0x%x)\n",
            aHeight, aHeight);
@@ -203,7 +203,6 @@ nsLineLayout::BeginLineReflow(nscoord aX, nscoord aY,
   SetFlag(LL_IMPACTEDBYFLOATS, aImpactedByFloats);
   mTotalPlacedFrames = 0;
   SetFlag(LL_LINEISEMPTY, PR_TRUE);
-  SetFlag(LL_LINEATSTART, PR_TRUE);
   SetFlag(LL_LINEENDSINBR, PR_FALSE);
   mSpanDepth = 0;
   mMaxTopBoxHeight = mMaxBottomBoxHeight = 0;
@@ -314,11 +313,9 @@ nsLineLayout::UpdateBand(const nsRect& aNewAvailSpace,
 #endif
 
   // Compute the difference between last times width and the new width
-  NS_WARN_IF_FALSE(mRootSpan->mRightEdge != NS_UNCONSTRAINEDSIZE &&
-                   aNewAvailSpace.width != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_ASSERTION(mRootSpan->mRightEdge != NS_UNCONSTRAINEDSIZE &&
+               aNewAvailSpace.width != NS_UNCONSTRAINEDSIZE,
+               "shouldn't use unconstrained widths anymore");
   // The root span's mLeftEdge moves to aX
   nscoord deltaX = aNewAvailSpace.x - mRootSpan->mLeftEdge;
   // The width of all spans changes by this much (the root span's
@@ -778,10 +775,8 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   // Inline-ish and text-ish things don't compute their width;
   // everything else does.  We need to give them an available width that
   // reflects the space left on the line.
-  NS_WARN_IF_FALSE(psd->mRightEdge != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_ASSERTION(psd->mRightEdge != NS_UNCONSTRAINEDSIZE,
+               "shouldn't have unconstrained widths anymore");
   if (reflowState.ComputedWidth() == NS_UNCONSTRAINEDSIZE)
     reflowState.availableWidth = psd->mRightEdge - psd->mX;
 
@@ -907,6 +902,22 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
         if (frag) {
           pfd->SetFlag(PFD_ISNONWHITESPACETEXTFRAME,
                        !content->TextIsOnlyWhitespace());
+// fix for bug 40882
+#ifdef IBMBIDI
+          if (mPresContext->BidiEnabled()) {
+            if (frag->Is2b()) {
+              //PRBool isVisual;
+              //mPresContext->IsVisualMode(isVisual);
+              PRUnichar ch = /*(isVisual) ?
+                              *(frag->Get2b() + frag->GetLength() - 1) :*/ *frag->Get2b();
+              if (IS_BIDI_DIACRITIC(ch)) {
+                mPresContext->PropertyTable()->SetProperty(aFrame,
+                           nsGkAtoms::endsInDiacritic, NS_INT32_TO_PTR(ch),
+                                                           nsnull, nsnull);
+              }
+            }
+          }
+#endif // IBMBIDI
         }
       }
     }
@@ -1005,10 +1016,6 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
       if (!isEmpty) {
         psd->mHasNonemptyContent = PR_TRUE;
         SetFlag(LL_LINEISEMPTY, PR_FALSE);
-        if (!pfd->mSpan) {
-          // nonempty leaf content has been placed
-          SetFlag(LL_LINEATSTART, PR_FALSE);
-        }
       }
 
       // Place the frame, updating aBounds with the final size and
@@ -1071,12 +1078,12 @@ nsLineLayout::ApplyStartMargin(PerFrameData* pfd,
   PRBool ltr = (NS_STYLE_DIRECTION_LTR == aReflowState.mStyleVisibility->mDirection);
 
   // Only apply start-margin on the first-in flow for inline frames,
-  // and make sure to not apply it to any inline other than the first
-  // in an ib split.  Note that the ib special sibling annotations
-  // only live on the first continuation, but we don't want to apply
-  // the start margin for later continuations anyway.
+  // and make sure to not apply it to the last part of an ib split.
+  // Note that the ib special sibling annotations only live on the
+  // first continuation, but we don't want to apply the start margin
+  // for later continuations anyway.
   if (pfd->mFrame->GetPrevContinuation() ||
-      nsLayoutUtils::FrameIsNonFirstInIBSplit(pfd->mFrame)) {
+      nsLayoutUtils::FrameIsInLastPartOfIBSplit(pfd->mFrame)) {
     // Zero this out so that when we compute the max-element-width of
     // the frame we will properly avoid adding in the starting margin.
     if (ltr)
@@ -1087,10 +1094,8 @@ nsLineLayout::ApplyStartMargin(PerFrameData* pfd,
   else {
     pfd->mBounds.x += ltr ? pfd->mMargin.left : pfd->mMargin.right;
 
-    NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aReflowState.availableWidth,
-                     "have unconstrained width; this should only result from "
-                     "very large sizes, not attempts at intrinsic width "
-                     "calculation");
+    NS_ASSERTION(NS_UNCONSTRAINEDSIZE != aReflowState.availableWidth,
+                 "shouldn't have unconstrained widths anymore");
     if (NS_UNCONSTRAINEDSIZE == aReflowState.ComputedWidth()) {
       // For inline-ish and text-ish things (which don't compute widths
       // in the reflow state), adjust available width to account for the
@@ -1146,21 +1151,20 @@ nsLineLayout::CanPlaceFrame(PerFrameData* pfd,
 
     /*
      * We want to only apply the end margin if we're the last continuation and
-     * either not in an {ib} split or the last inline in it.  In all other
-     * cases we want to zero it out.  That means zeroing it out if any of these
-     * conditions hold:
+     * not in the first part of an {ib} split.  In all other cases we want to
+     * zero it out.  That means zeroing it out if any of these conditions hold:
      * 1) The frame is not complete (in this case it will get a next-in-flow)
      * 2) The frame is complete but has a non-fluid continuation on its
      *    continuation chain.  Note that if it has a fluid continuation, that
      *    continuation will get destroyed later, so we don't want to drop the
      *    end-margin in that case.
-     * 3) The frame is in an {ib} split and is not the last part.
+     * 3) The frame is in the first part of an {ib} split.
      *
      * However, none of that applies if this is a letter frame (XXXbz why?)
      */
     if ((NS_FRAME_IS_NOT_COMPLETE(aStatus) ||
          pfd->mFrame->GetLastInFlow()->GetNextContinuation() ||
-         nsLayoutUtils::FrameIsNonLastInIBSplit(pfd->mFrame))
+         nsLayoutUtils::FrameIsInFirstPartOfIBSplit(pfd->mFrame))
         && !pfd->GetFlag(PFD_ISLETTERFRAME)) {
       if (ltr)
         pfd->mMargin.right = 0;
@@ -2404,10 +2408,8 @@ nsLineLayout::HorizontalAlignFrames(nsRect& aLineBounds,
                                     PRBool aAllowJustify)
 {
   PerSpanData* psd = mRootSpan;
-  NS_WARN_IF_FALSE(psd->mRightEdge != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_ASSERTION(psd->mRightEdge != NS_UNCONSTRAINEDSIZE,
+               "shouldn't have unconstrained widths anymore");
   nscoord availWidth = psd->mRightEdge - psd->mLeftEdge;
   nscoord remainingWidth = availWidth - aLineBounds.width;
 #ifdef NOISY_HORIZONTAL_ALIGN

@@ -13,7 +13,7 @@
 #
 # The Original Code is mozilla.org build system.
 #
-# The Initial Developer of the Original Code is Mozilla Foundation
+# The Initial Developer of the Original Code is Mozilla Corporation
 # Portions created by the Initial Developer are Copyright (C) 2008
 # the Initial Developer. All Rights Reserved.
 #
@@ -58,8 +58,6 @@ _TEST_FILES	= \
 		test_clearWatch.html \
 		test_clearWatch_invalid.html \
 		test_timeoutWatch.html \
-		test_windowClose.html \
-		windowTest.html \
 		geolocation_common.js  \
 		geolocation.html \
 		test_optional_api_params.html \

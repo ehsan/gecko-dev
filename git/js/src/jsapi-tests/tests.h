@@ -39,8 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsapi.h"
-#include "jsprvtd.h"
-#include "jsvector.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,7 +58,7 @@ public:
 
     ~jsvalRoot() { JS_RemoveRoot(cx, &v); }
 
-    operator jsval() const { return value(); }
+    operator jsval() const { return v; }
 
     jsvalRoot & operator=(jsval value) {
         v = value;
@@ -68,40 +66,11 @@ public:
     }
 
     jsval * addr() { return &v; }
-    jsval value() const { return v; }
 
 private:
     JSContext *cx;
     jsval v;
 };
-
-/* Note: Aborts on OOM. */
-class JSAPITestString {
-    js::Vector<char, 0, js::SystemAllocPolicy> chars;
-public:
-    JSAPITestString() {}
-    JSAPITestString(const char *s) { *this += s; }
-    JSAPITestString(const JSAPITestString &s) { *this += s; }
-
-    const char *begin() const { return chars.begin(); }
-    const char *end() const { return chars.end(); }
-    size_t length() const { return chars.length(); }
-
-    JSAPITestString & operator +=(const char *s) {
-        if (!chars.append(s, strlen(s)))
-            abort();
-        return *this;
-    }
-
-    JSAPITestString & operator +=(const JSAPITestString &s) {
-        if (!chars.append(s.begin(), s.length()))
-            abort();
-        return *this;
-    }
-};
-
-inline JSAPITestString operator+(JSAPITestString a, const char *b) { return a += b; }
-inline JSAPITestString operator+(JSAPITestString a, const JSAPITestString &b) { return a += b; }
 
 class JSAPITest
 {
@@ -113,7 +82,7 @@ public:
     JSContext *cx;
     JSObject *global;
     bool knownFail;
-    JSAPITestString msgs;
+    std::string msgs;
 
     JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false) {
         next = list;
@@ -154,22 +123,23 @@ public:
     bool exec(const char *bytes, const char *filename, int lineno) {
         jsvalRoot v(cx);
         return JS_EvaluateScript(cx, global, bytes, strlen(bytes), filename, lineno, v.addr()) ||
-               fail(bytes, filename, lineno);
+            fail(bytes, filename, lineno);
+        return true;
     }
 
 #define EVAL(s, vp) do { if (!evaluate(s, __FILE__, __LINE__, vp)) return false; } while (false)
 
     bool evaluate(const char *bytes, const char *filename, int lineno, jsval *vp) {
         return JS_EvaluateScript(cx, global, bytes, strlen(bytes), filename, lineno, vp) ||
-               fail(bytes, filename, lineno);
+            fail(bytes, filename, lineno);
     }
 
-    JSAPITestString toSource(jsval v) {
+    std::string toSource(jsval v) {
         JSString *str = JS_ValueToSource(cx, v);
         if (str)
-            return JSAPITestString(JS_GetStringBytes(str));
+            return std::string(JS_GetStringBytes(str));
         JS_ClearPendingException(cx);
-        return JSAPITestString("<<error converting value to string>>");
+        return std::string("<<error converting value to string>>");
     }
 
 #define CHECK_SAME(actual, expected) \
@@ -182,9 +152,9 @@ public:
                    const char *actualExpr, const char *expectedExpr,
                    const char *filename, int lineno) {
         return JS_SameValue(cx, actual, expected) ||
-               fail(JSAPITestString("CHECK_SAME failed: expected JS_SameValue(cx, ") +
-                    actualExpr + ", " + expectedExpr + "), got !JS_SameValue(cx, " +
-                    toSource(actual) + ", " + toSource(expected) + ")", filename, lineno);
+            fail(std::string("CHECK_SAME failed: expected JS_SameValue(cx, ") +
+                 actualExpr + ", " + expectedExpr + "), got !JS_SameValue(cx, " +
+                 toSource(actual) + ", " + toSource(expected) + ")", filename, lineno);
     }
 
 #define CHECK(expr) \
@@ -193,7 +163,7 @@ public:
             return fail("CHECK failed: " #expr, __FILE__, __LINE__); \
     } while (false)
 
-    bool fail(JSAPITestString msg = JSAPITestString(), const char *filename = "-", int lineno = 0) {
+    bool fail(std::string msg = std::string(), const char *filename = "-", int lineno = 0) {
         if (JS_IsExceptionPending(cx)) {
             jsvalRoot v(cx);
             JS_GetPendingException(cx, v.addr());
@@ -202,12 +172,12 @@ public:
             if (s)
                 msg += JS_GetStringBytes(s);
         }
-        fprintf(stderr, "%s:%d:%.*s\n", filename, lineno, msg.length(), msg.begin());
+        fprintf(stderr, "%s:%d:%s\n", filename, lineno, msg.c_str());
         msgs += msg;
         return false;
     }
 
-    JSAPITestString messages() const { return msgs; }
+    std::string messages() const { return msgs; }
 
 protected:
     virtual JSRuntime * createRuntime() {

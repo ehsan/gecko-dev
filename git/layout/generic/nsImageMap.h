@@ -50,6 +50,7 @@
 
 class nsIDOMHTMLAreaElement;
 class nsIDOMHTMLMapElement;
+class nsPresContext;
 class nsIRenderingContext;
 class nsIURI;
 class nsString;
@@ -97,6 +98,7 @@ public:
 
   //nsIImageMap
   NS_IMETHOD GetBoundsForAreaContent(nsIContent *aContent, 
+                                     nsPresContext* aPresContext, 
                                      nsRect& aBounds);
 
 protected:

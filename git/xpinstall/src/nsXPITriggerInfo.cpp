@@ -38,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jscntxt.h"
 #include "nscore.h"
 #include "plstr.h"
 #include "nsXPITriggerInfo.h"
@@ -234,79 +233,87 @@ XPITriggerEvent::~XPITriggerEvent()
 NS_IMETHODIMP
 XPITriggerEvent::Run()
 {
-    JSAutoRequest ar(cx);
+    jsval  ret;
+    void*  mark;
+    jsval* args = nsnull;
+
+    JS_BeginRequest(cx);
 
     // If Components doesn't exist in the global object then XPConnect has
     // been torn down, probably because the page was closed. Bail out if that
     // is the case.
     JSObject* innerGlobal = JS_GetGlobalForObject(cx, JSVAL_TO_OBJECT(cbval));
     jsval components;
-    if (!JS_LookupProperty(cx, innerGlobal, "Components", &components) ||
-        !JSVAL_IS_OBJECT(components))
-        return 0;
+    if (JS_LookupProperty(cx, innerGlobal, "Components", &components) &&
+        JSVAL_IS_OBJECT(components))
+    {
+        args = JS_PushArguments(cx, &mark, "Wi", URL.get(), status);
+    }
 
-    // Build arguments into rooted jsval array
-    jsval args[2] = { JSVAL_NULL, JSVAL_NULL };
-    js::AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(args), args);
+    if ( args )
+    {
+        // This code is all in a JS request, and here we're about to
+        // push the context onto the context stack and also push
+        // arguments. Be very very sure that no early returns creep in
+        // here w/o doing the proper cleanup!
 
-    // args[0] is the URL
-    JSString *str = JS_NewUCStringCopyZ(cx, reinterpret_cast<const jschar*>(URL.get()));
-    if (!str)
-        return 0;
-    args[0] = STRING_TO_JSVAL(str);
+        const char *errorStr = nsnull;
 
-    // args[1] is the status
-    if (!JS_NewNumberValue(cx, status, &args[1]))
-        return 0;
+        nsCOMPtr<nsIJSContextStack> stack =
+            do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+        if (stack)
+            stack->Push(cx);
 
-    class StackPushGuard {
-        nsCOMPtr<nsIJSContextStack> mStack;
-    public:
-        StackPushGuard(JSContext *cx)
-          : mStack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"))
+        nsCOMPtr<nsIScriptSecurityManager> secman =
+            do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
+
+        if (!secman)
         {
-            if (mStack)
-                mStack->Push(cx);
+            errorStr = "Could not get script security manager service";
         }
 
-        ~StackPushGuard()
+        nsCOMPtr<nsIPrincipal> principal;
+        if (!errorStr)
         {
-            if (mStack)
-                mStack->Pop(nsnull);
+            secman->GetSubjectPrincipal(getter_AddRefs(principal));
+            if (!principal)
+            {
+                errorStr = "Could not get principal from script security manager";
+            }
         }
-    } stackPushGuard(cx);
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-        do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-    if (!secman)
-    {
-        JS_ReportError(cx, "Could not get script security manager service");
-        return 0;
+        if (!errorStr)
+        {
+            PRBool equals = PR_FALSE;
+            principal->Equals(princ, &equals);
+
+            if (!equals)
+            {
+                errorStr = "Principal of callback context is different than InstallTriggers";
+            }
+        }
+
+        if (errorStr)
+        {
+            JS_ReportError(cx, errorStr);
+        }
+        else
+        {
+            JS_CallFunctionValue(cx,
+                                 JS_GetGlobalObject(cx),
+                                 cbval,
+                                 2,
+                                 args,
+                                 &ret);
+        }
+
+        if (stack)
+            stack->Pop(nsnull);
+
+        JS_PopArguments(cx, mark);
     }
+    JS_EndRequest(cx);
 
-    nsCOMPtr<nsIPrincipal> principal;
-    secman->GetSubjectPrincipal(getter_AddRefs(principal));
-    if (!principal)
-    {
-         JS_ReportError(cx, "Could not get principal from script security manager");
-         return 0;
-    }
-
-    PRBool equals = PR_FALSE;
-    principal->Equals(princ, &equals);
-    if (!equals)
-    {
-        JS_ReportError(cx, "Principal of callback context is different than InstallTriggers");
-        return 0;
-    }
-
-    jsval ret;
-    JS_CallFunctionValue(cx,
-                         JS_GetGlobalObject(cx),
-                         cbval,
-                         2,
-                         args,
-                         &ret);
     return 0;
 }
 

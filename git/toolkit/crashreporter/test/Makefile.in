@@ -43,41 +43,11 @@ relativesrcdir  = toolkit/crashreporter/test
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = crashreporter_test
+MODULE = crashreporter
 XPCSHELL_TESTS = unit
-
-LIBRARY_NAME = testcrasher
-IS_COMPONENT    = 1
-
-XPIDLSRCS = nsITestCrasher.idl
-
-CPPSRCS = \
-  nsTestCrasher.cpp \
-  $(NULL)
-
-LOCAL_INCLUDES += -I$(XPIDL_GEN_DIR)
-EXTRA_DSO_LIBS += xpcom
-EXTRA_DSO_LDOPTS += $(LIBS_DIR) $(MOZ_COMPONENT_LIBS)
-
-ifdef MOZ_ENABLE_LIBXUL
-EXTRA_DSO_LDOPTS += $(XPCOM_GLUE_LDOPTS)
-else
-
-MOZILLA_INTERNAL_API = 1
-
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-EXTRA_DSO_LDOPTS += $(DIST)/bin/XUL
-else
-EXTRA_DSO_LIBS += xul
-endif
-
-EXTRA_DSO_LDOPTS += $(EXTRA_DSO_LIBS) $(XPCOM_LIBS)
-
-endif
 
 include $(topsrcdir)/config/rules.mk
 
-ifeq (browser,$(MOZ_BUILD_APP))
 _BROWSER_FILES = \
   browser/aboutcrashes_utils.js \
   browser/crashreport.sjs \
@@ -88,13 +58,3 @@ _BROWSER_FILES = \
 
 libs::  $(_BROWSER_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)/browser
-	$(NSINSTALL) -D $(DEPTH)/_tests/xpcshell/$(MODULE)/unit/components
-	$(INSTALL) $(SHARED_LIBRARY) \
-          $(DEPTH)/_tests/xpcshell/$(MODULE)/unit/components
-else
-
-libs::
-	$(NSINSTALL) -D $(DEPTH)/_tests/xpcshell/$(MODULE)/unit/components
-	$(INSTALL) $(SHARED_LIBRARY) \
-          $(DEPTH)/_tests/xpcshell/$(MODULE)/unit/components
-endif

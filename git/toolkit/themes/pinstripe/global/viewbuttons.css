@@ -37,7 +37,7 @@
 %include shared.inc
 
 #topBar {
-  -moz-appearance: toolbar;
+  -moz-appearance: -moz-mac-unified-toolbar;
 }
 
 .viewGroupWrapper {
@@ -53,8 +53,7 @@
   margin: 4px 0 9px;
 }
 
-#viewGroup > radio,
-#viewGroup > toolbarbutton {
+#viewGroup > * {
   -moz-box-orient: vertical;
   -moz-box-align: center;
   -moz-appearance: none;
@@ -67,8 +66,7 @@
   background: @toolbarbuttonBackground@;
 }
 
-#viewGroup > radio:active:hover,
-#viewGroup > toolbarbutton:active:hover {
+#viewGroup > :not([checked=true]):not([selected=true]):active:hover {
   background: @toolbarbuttonPressedBackgroundColor@;
   text-shadow: @loweredShadow@;
   -moz-box-shadow: @toolbarbuttonPressedInnerShadow@;
@@ -88,45 +86,36 @@
   -moz-box-shadow: inset #1c1c1c 0 3px 5px;
 }
 
-#viewGroup:-moz-window-inactive {
+:root:not([active]) #viewGroup {
   background-color: rgba(0, 0, 0, 0.25);
 }
 
-#viewGroup > radio:-moz-window-inactive,
-#viewGroup > toolbarbutton:-moz-window-inactive {
+:root:not([active]) #viewGroup > * {
   color: @toolbarbuttonInactiveFontColor@ !important; /* remove this when we support click-through */
   border-color: rgba(0, 0, 0, 0.4);
   background-image: @toolbarbuttonInactiveBackgroundImage@;
 }
 
-#viewGroup > radio[selected=true]:-moz-window-inactive,
-#viewGroup > toolbarbutton[checked=true]:-moz-window-inactive {
+:root:not([active]) #viewGroup > radio[selected=true],
+:root:not([active]) #viewGroup > toolbarbutton[checked=true] {
   color: #E6E6E6 !important; /* remove this when we support click-through */
   background: #8E8E8E;
   -moz-box-shadow: inset rgba(0, 0, 0, 0.5) 0 3px 5px;
 }
 
-#viewGroup > radio:-moz-locale-dir(ltr):first-child,
-#viewGroup > radio:-moz-locale-dir(ltr)[first-visible],
-#viewGroup > radio:-moz-locale-dir(rtl):last-child,
-#viewGroup > radio:-moz-locale-dir(rtl)[last-visible],
-#viewGroup > toolbarbutton:-moz-locale-dir(ltr):first-child,
-#viewGroup > toolbarbutton:-moz-locale-dir(ltr)[first-visible],
-#viewGroup > toolbarbutton:-moz-locale-dir(rtl):last-child,
-#viewGroup > toolbarbutton:-moz-locale-dir(rtl)[last-visible] {
+#viewGroup:-moz-locale-dir(ltr) > :first-child,
+#viewGroup:-moz-locale-dir(ltr) > [first-visible],
+#viewGroup:-moz-locale-dir(rtl) > :last-child,
+#viewGroup:-moz-locale-dir(rtl) > [last-visible] {
   -moz-border-radius-topleft: 2px;
   -moz-border-radius-bottomleft: 2px;
   border-left: none !important;
 }
 
-#viewGroup > radio:-moz-locale-dir(ltr):last-child,
-#viewGroup > radio:-moz-locale-dir(ltr)[last-visible],
-#viewGroup > radio:-moz-locale-dir(rtl):first-child,
-#viewGroup > radio:-moz-locale-dir(rtl)[first-visible],
-#viewGroup > toolbarbutton:-moz-locale-dir(ltr):last-child,
-#viewGroup > toolbarbutton:-moz-locale-dir(ltr)[last-visible],
-#viewGroup > toolbarbutton:-moz-locale-dir(rtl):first-child,
-#viewGroup > toolbarbutton:-moz-locale-dir(rtl)[first-visible] {
+#viewGroup:-moz-locale-dir(ltr) > :last-child,
+#viewGroup:-moz-locale-dir(ltr) > [last-visible],
+#viewGroup:-moz-locale-dir(rtl) > :first-child,
+#viewGroup:-moz-locale-dir(rtl) > [first-visible] {
   -moz-border-radius-topright: 2px;
   -moz-border-radius-bottomright: 2px;
 }

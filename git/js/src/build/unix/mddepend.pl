@@ -73,7 +73,7 @@ while (<>) {
   my @deps = split /\s+/, $rest;
   push @{$alldeps{$obj}}, @deps;
   if (DEBUG >= 2) {
-    foreach my $dep (@deps) { print STDERR "add $obj $dep\n"; }
+    foreach my $dep (@deps) { print "add $obj $dep\n"; }
   }
 }
 
@@ -88,21 +88,21 @@ OBJ_LOOP: foreach my $obj (keys %alldeps) {
   foreach my $dep_file (@{$deps}) {
     my $dep_mtime = $modtimes{$dep_file};
     if (not defined $dep_mtime) {
-      print STDERR "Skipping $dep_file for $obj, will stat() later\n" if DEBUG >= 2;
+      print "Skipping $dep_file for $obj, will stat() later\n" if DEBUG >= 2;
       $not_in_cache{$dep_file} = 1;
       next;
     }
 
-    print STDERR "Found $dep_file in cache\n" if DEBUG >= 2;
+    print "Found $dep_file in cache\n" if DEBUG >= 2;
 
     if ($dep_mtime > $mtime) {
-      print STDERR "$dep_file($dep_mtime) newer than $obj($mtime)\n" if DEBUG;
+      print "$dep_file($dep_mtime) newer than $obj($mtime)\n" if DEBUG;
     }
     elsif ($dep_mtime == -1) {
-      print STDERR "Couldn't stat $dep_file for $obj\n" if DEBUG;
+      print "Couldn't stat $dep_file for $obj\n" if DEBUG;
     }
     else {
-      print STDERR "$dep_file($dep_mtime) older than $obj($mtime)\n" if DEBUG >= 2;
+      print "$dep_file($dep_mtime) older than $obj($mtime)\n" if DEBUG >= 2;
       next;
     }
 
@@ -111,17 +111,17 @@ OBJ_LOOP: foreach my $obj (keys %alldeps) {
   }
 
   foreach my $dep_file (keys %not_in_cache) {
-    print STDERR "STAT $dep_file for $obj\n" if DEBUG >= 2;
+    print "STAT $dep_file for $obj\n" if DEBUG >= 2;
     my $dep_mtime = $modtimes{$dep_file} = (stat $dep_file)[9] || -1;
 
     if ($dep_mtime > $mtime) {
-      print STDERR "$dep_file($dep_mtime) newer than $obj($mtime)\n" if DEBUG;
+      print "$dep_file($dep_mtime) newer than $obj($mtime)\n" if DEBUG;
     }
     elsif ($dep_mtime == -1) {
-      print STDERR "Couldn't stat $dep_file for $obj\n" if DEBUG;
+      print "Couldn't stat $dep_file for $obj\n" if DEBUG;
     }
     else {
-      print STDERR "$dep_file($dep_mtime) older than $obj($mtime)\n" if DEBUG >= 2;
+      print "$dep_file($dep_mtime) older than $obj($mtime)\n" if DEBUG >= 2;
       next;
     }
 
@@ -133,11 +133,7 @@ OBJ_LOOP: foreach my $obj (keys %alldeps) {
 }
 
 # Output objects to rebuild (if needed).
-if ($outfile eq '-') {
-    if (@objs) {
-	print "@objs: FORCE\n";
-    }
-} elsif (@objs) {
+if (@objs) {
   my $old_output;
   my $new_output = "@objs: FORCE\n";
 

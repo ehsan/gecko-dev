@@ -51,7 +51,6 @@
 #include "nsContentUtils.h"
 #include "nsNodeInfoManager.h"
 #include "nsAttrName.h"
-#include "nsUnicharUtils.h"
 
 //----------------------------------------------------------------------
 
@@ -115,7 +114,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMAttributeMap)
   tmp->mAttributeCache.Enumerate(TraverseMapEntry, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-DOMCI_DATA(NamedNodeMap, nsDOMAttributeMap)
 
 // QueryInterface implementation for nsDOMAttributeMap
 NS_INTERFACE_TABLE_HEAD(nsDOMAttributeMap)
@@ -124,7 +122,7 @@ NS_INTERFACE_TABLE_HEAD(nsDOMAttributeMap)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDOMAttributeMap)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NamedNodeMap)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NamedNodeMap)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMAttributeMap)
@@ -338,13 +336,6 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
         NS_ENSURE_SUCCESS(rv, rv);
       }
       else {
-        if (mContent->IsInHTMLDocument() &&
-            mContent->IsHTML()) {
-          nsAutoString lower;
-          ToLowerCase(name, lower);
-          name = lower;
-        }
-
         rv = mContent->NodeInfo()->NodeInfoManager()->
           GetNodeInfo(name, nsnull, kNameSpaceID_None, getter_AddRefs(ni));
         NS_ENSURE_SUCCESS(rv, rv);
@@ -362,8 +353,19 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
     NS_ENSURE_SUCCESS(rv, rv);
     iAttribute->SetMap(this);
 
-    rv = mContent->SetAttr(ni->NamespaceID(), ni->NameAtom(),
-                           ni->GetPrefixAtom(), value, PR_TRUE);
+    if (!aWithNS && ni->NamespaceID() == kNameSpaceID_None &&
+        mContent->IsHTML()) {
+      // Set via setAttribute(), which may do normalization on the
+      // attribute name for HTML
+      nsCOMPtr<nsIDOMElement> ourElement(do_QueryInterface(mContent));
+      NS_ASSERTION(ourElement, "HTML content that's not an element?");
+      rv = ourElement->SetAttribute(name, value);
+    }
+    else {
+      // It's OK to just use SetAttr
+      rv = mContent->SetAttr(ni->NamespaceID(), ni->NameAtom(),
+                             ni->GetPrefixAtom(), value, PR_TRUE);
+    }
     if (NS_FAILED(rv)) {
       DropAttribute(ni->NamespaceID(), ni->NameAtom());
     }
@@ -469,6 +471,7 @@ nsDOMAttributeMap::GetNamedItemNSInternal(const nsAString& aNamespaceURI,
     return NS_OK;
   }
 
+  NS_ConvertUTF16toUTF8 utf8Name(aLocalName);
   PRInt32 nameSpaceID = kNameSpaceID_None;
 
   if (!aNamespaceURI.IsEmpty()) {
@@ -487,7 +490,7 @@ nsDOMAttributeMap::GetNamedItemNSInternal(const nsAString& aNamespaceURI,
     nsIAtom* nameAtom = name->LocalName();
 
     if (nameSpaceID == attrNS &&
-        nameAtom->Equals(aLocalName)) {
+        nameAtom->EqualsUTF8(utf8Name)) {
       nsCOMPtr<nsINodeInfo> ni;
       ni = mContent->NodeInfo()->NodeInfoManager()->
         GetNodeInfo(nameAtom, name->GetPrefix(), nameSpaceID);

@@ -61,6 +61,7 @@
 #include "nsITimer.h"
 #include "nsWeakReference.h"
 #include "nsTArray.h"
+#include "nsIStringStream.h"
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
 
@@ -107,7 +108,7 @@
  * destroy the old frame and build the new one.
  *
  * @note
- * <li> "Mask", "Alpha", and "Alpha Level" are interchangeable phrases in
+ * <li> "Mask", "Alpha", and "Alpha Level" are interchangable phrases in
  * respects to imgContainer.
  *
  * @par
@@ -154,9 +155,6 @@ public:
                                     PRUint32 toOffset, PRUint32 count,
                                     PRUint32 *writeCount);
 
-  PRUint32 GetDecodedDataSize();
-  PRUint32 GetSourceDataSize();
-
 private:
   struct Anim
   {
@@ -167,6 +165,11 @@ private:
     PRUint32                   currentAnimationFrameIndex; // 0 to numFrames-1
     //! Track the last composited frame for Optimizations (See DoComposite code)
     PRInt32                    lastCompositedFrameIndex;
+    //! Whether we can assume there will be no more frames
+    //! (and thus loop the animation)
+    PRBool                     doneDecoding;
+    //! Are we currently animating the image?
+    PRBool                     animating;
     /** For managing blending of frames
      *
      * Some animations will use the compositingFrame to composite images
@@ -185,12 +188,7 @@ private:
     nsAutoPtr<imgFrame>        compositingPrevFrame;
     //! Timer to animate multiframed images
     nsCOMPtr<nsITimer>         timer;
-    //! Whether we can assume there will be no more frames
-    //! (and thus loop the animation)
-    PRPackedBool               doneDecoding;
-    //! Are we currently animating the image?
-    PRPackedBool               animating;
-
+    
     Anim() :
       firstFrameRefreshArea(),
       currentDecodingFrameIndex(0),
@@ -208,20 +206,8 @@ private:
     }
   };
 
-  /**
-   * Deletes and nulls out the frame in mFrames[framenum].
-   *
-   * Does not change the size of mFrames.
-   *
-   * @param framenum The index of the frame to be deleted. 
-   *                 Must lie in [0, mFrames.Length() )
-   */
-  void DeleteImgFrame(PRUint32 framenum);
-
   imgFrame* GetImgFrame(PRUint32 framenum);
-  imgFrame* GetDrawableImgFrame(PRUint32 framenum);
   imgFrame* GetCurrentImgFrame();
-  imgFrame* GetCurrentDrawableImgFrame();
   PRUint32 GetCurrentImgFrameIndex() const;
   
   inline Anim* ensureAnimExists()
@@ -296,6 +282,7 @@ private:
 private: // data
 
   nsIntSize                  mSize;
+  PRBool                     mHasSize;
   
   //! All the frames of the image
   // IMPORTANT: if you use mFrames in a method, call EnsureImageIsDecoded() first 
@@ -319,13 +306,28 @@ private: // data
   //! imgIDecoderObserver
   nsWeakPtr                  mObserver;
 
+  // Decoding on draw?
+  PRBool                     mDecodeOnDraw;
+
+  // Multipart?
+  PRBool                     mMultipart;
+
+  // Have we been initalized?
+  PRBool                     mInitialized;
+
   // Discard members
+  PRBool                     mDiscardable;
   PRUint32                   mLockCount;
   nsCOMPtr<nsITimer>         mDiscardTimer;
 
   // Source data members
   nsTArray<char>             mSourceData;
+  PRBool                     mHasSourceData;
   nsCString                  mSourceDataMimeType;
+
+  // Do we have the frames in decoded form?
+  PRBool                     mDecoded;
+  PRBool                     mHasBeenDecoded;
 
   friend class imgDecodeWorker;
 
@@ -333,25 +335,13 @@ private: // data
   nsCOMPtr<imgIDecoder>          mDecoder;
   nsRefPtr<imgDecodeWorker>      mWorker;
   PRUint32                       mBytesDecoded;
+  nsCOMPtr<nsIStringInputStream> mDecoderInput;
   PRUint32                       mDecoderFlags;
+  PRBool                         mWorkerPending;
+  PRBool                         mInDecoder;
 
-  // Boolean flags (clustered together to conserve space):
-  PRPackedBool               mHasSize:1;       // Has SetSize() been called?
-  PRPackedBool               mDecodeOnDraw:1;  // Decoding on draw?
-  PRPackedBool               mMultipart:1;     // Multipart?
-  PRPackedBool               mInitialized:1;   // Have we been initalized?
-  PRPackedBool               mDiscardable:1;   // Is container discardable?
-  PRPackedBool               mHasSourceData:1; // Do we have source data?
-
-  // Do we have the frames in decoded form?
-  PRPackedBool               mDecoded:1;
-  PRPackedBool               mHasBeenDecoded:1;
-
-  // Helpers for decoder
-  PRPackedBool               mWorkerPending:1;
-  PRPackedBool               mInDecoder:1;
-
-  PRPackedBool               mError:1;  // Error handling
+  // Error handling
+  PRBool                         mError;
 
   // Discard code
   nsresult ResetDiscardTimer();

@@ -71,8 +71,7 @@ function run_test() {
     do_check_eq(uri4.asciiHost, uri5.asciiHost);
   } finally {
     for each (var pref in prefData) {
-      if (prefs.prefHasUserValue(pref.name))
-        prefs.clearUserPref(pref.name);
+      prefs.clearUserPref(pref.name);
     }
   }
 }

@@ -90,6 +90,7 @@ public:
   // nsIDOMCompositionListener
   NS_IMETHOD HandleStartComposition(nsIDOMEvent* aCompositionEvent);
   NS_IMETHOD HandleEndComposition(nsIDOMEvent* aCompositionEvent);
+  NS_IMETHOD HandleQueryComposition(nsIDOMEvent* aCompositionEvent);
 
   // nsIDOMFormListener
   NS_IMETHOD Submit(nsIDOMEvent* aEvent);

@@ -13,7 +13,8 @@ function MAC(content, clientKey)
     .getService(Ci.nsIKeyObjectFactory).keyFromString(Ci.nsIKeyObject.HMAC, clientKey);
   hmac.init(Ci.nsICryptoHMAC.SHA1, keyObject);
 
-  var data = converter.convertToByteArray(content);
+  var result = {};
+  var data = converter.convertToByteArray(content, result);
   hmac.update(data, data.length);
   return hmac.finish(true);
 }

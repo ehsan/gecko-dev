@@ -35,7 +35,6 @@ function testExpertPref() {
 
   // Clean up
   gBrowser.removeCurrentTab();
-  if (gPrefService.prefHasUserValue("browser.xul.error_pages.expert_bad_cert"))
-    gPrefService.clearUserPref("browser.xul.error_pages.expert_bad_cert");
+  gPrefService.clearUserPref("browser.xul.error_pages.expert_bad_cert");
   finish();
 }

@@ -38,7 +38,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGLength.h"
-#include "nsSVGUtils.h"
 #include "nsGkAtoms.h"
 #include "nsSVGValue.h"
 #include "nsTextFormatter.h"
@@ -151,13 +150,11 @@ nsSVGLength::nsSVGLength()
 NS_IMPL_ADDREF(nsSVGLength)
 NS_IMPL_RELEASE(nsSVGLength)
 
-DOMCI_DATA(SVGLength, nsSVGLength)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsISVGLength)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLength)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -345,7 +342,9 @@ nsSVGLength::GetValueAsString(nsAString & aValueAsString)
       return NS_ERROR_UNEXPECTED;
   }
 
-  aValueAsString.Append(nsDependentAtomString(UnitAtom));
+  nsAutoString unitString;
+  UnitAtom->ToString(unitString);
+  aValueAsString.Append(unitString);
 
   return NS_OK;
 }
@@ -353,7 +352,7 @@ nsSVGLength::GetValueAsString(nsAString & aValueAsString)
 NS_IMETHODIMP
 nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
 {
-  nsresult rv = NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = NS_OK;
 
   char *str = ToNewCString(aValueAsString);
 
@@ -364,8 +363,8 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
   if (*number) {
     char *rest;
     float value = float(PR_strtod(number, &rest));
-    if (rest != number) {
-      const char* unitStr = nsCRT::strtok(rest, SVG_WSP_DELIM, &rest);
+    if (rest!=number) {
+      const char* unitStr = nsCRT::strtok(rest, "\x20\x9\xD\xA", &rest);
       PRUint16 unitType = SVG_LENGTHTYPE_UNKNOWN;
       if (!unitStr || *unitStr=='\0') {
         unitType = SVG_LENGTHTYPE_NUMBER;
@@ -395,8 +394,14 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
         mValueInSpecifiedUnits = value;
         mSpecifiedUnitType     = unitType;
         DidModify();
-        rv = NS_OK;
+      } else { // parse error
+        // not a valid unit type
+        rv = NS_ERROR_FAILURE;
       }
+    }
+    else { // parse error
+      // no number
+      rv = NS_ERROR_FAILURE;
     }
   }
 
@@ -412,7 +417,7 @@ nsSVGLength::NewValueSpecifiedUnits(PRUint16 unitType, float valueInSpecifiedUni
   NS_ENSURE_FINITE(valueInSpecifiedUnits, NS_ERROR_ILLEGAL_VALUE);
 
   if (!IsValidUnitType(unitType))
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return NS_ERROR_FAILURE;
 
   WillModify();
   mValueInSpecifiedUnits = valueInSpecifiedUnits;
@@ -427,7 +432,7 @@ NS_IMETHODIMP
 nsSVGLength::ConvertToSpecifiedUnits(PRUint16 unitType)
 {
   if (!IsValidUnitType(unitType))
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return NS_ERROR_FAILURE;
 
   WillModify();
   float valueInUserUnits;
@@ -503,13 +508,13 @@ float nsSVGLength::AxisLength()
 float nsSVGLength::EmLength()
 {
   nsCOMPtr<nsIContent> element = do_QueryReferent(mElement);
-  return nsSVGUtils::GetFontSize(element->AsElement());
+  return nsSVGUtils::GetFontSize(element);
 }
 
 float nsSVGLength::ExLength()
 {
   nsCOMPtr<nsIContent> element = do_QueryReferent(mElement);
-  return nsSVGUtils::GetFontXHeight(element->AsElement());
+  return nsSVGUtils::GetFontXHeight(element);
 }
 
 PRBool nsSVGLength::IsValidUnitType(PRUint16 unit)

@@ -126,7 +126,7 @@
             class="sortDirectionIndicator"
             persist="hidden width ordinal sortDirection"/>
       </treecols>
-
+  
       <treechildren id="configTreeBody" ondblclick="if (event.button == 0) ModifySelected();"/>
     </tree>
   </vbox>

@@ -36,44 +36,17 @@
 #
 # ***** END LICENSE BLOCK ***** */
 
-import glob, logging, os, shutil, subprocess, sys
+import glob, logging, os, subprocess, sys
 import re
-from urlparse import urlparse
 
 __all__ = [
   "addCommonOptions",
   "checkForCrashes",
   "dumpLeakLog",
-  "isURL",
   "processLeakLog",
-  "getDebuggerInfo",
-  "DEBUGGER_INFO",
-  "replaceBackSlashes",
   ]
 
-# Map of debugging programs to information about them, like default arguments
-# and whether or not they are interactive.
-DEBUGGER_INFO = {
-  # gdb requires that you supply the '--args' flag in order to pass arguments
-  # after the executable name to the executable.
-  "gdb": {
-    "interactive": True,
-    "args": "-q --args"
-  },
-
-  # valgrind doesn't explain much about leaks unless you set the
-  # '--leak-check=full' flag.
-  "valgrind": {
-    "interactive": False,
-    "args": "--leak-check=full"
-  }
-}
-
 log = logging.getLogger()
-
-def isURL(thing):
-  """Return True if |thing| looks like a URL."""
-  return urlparse(thing).scheme != ''
 
 def addCommonOptions(parser, defaults={}):
   parser.add_option("--xre-path",
@@ -86,22 +59,10 @@ def addCommonOptions(parser, defaults={}):
   parser.add_option("--symbols-path",
                     action = "store", type = "string", dest = "symbolsPath",
                     default = defaults['SYMBOLS_PATH'],
-                    help = "absolute path to directory containing breakpad symbols, or the URL of a zip file containing symbols")
-  parser.add_option("--debugger",
-                    action = "store", dest = "debugger",
-                    help = "use the given debugger to launch the application")
-  parser.add_option("--debugger-args",
-                    action = "store", dest = "debuggerArgs",
-                    help = "pass the given args to the debugger _before_ "
-                           "the application on the command line")
-  parser.add_option("--debugger-interactive",
-                    action = "store_true", dest = "debuggerInteractive",
-                    help = "prevents the test harness from redirecting "
-                        "stdout and stderr for interactive debuggers")
+                    help = "absolute path to directory containing breakpad symbols")
 
 def checkForCrashes(dumpDir, symbolsPath, testName=None):
   stackwalkPath = os.environ.get('MINIDUMP_STACKWALK', None)
-  stackwalkCGI = os.environ.get('MINIDUMP_STACKWALK_CGI', None)
   # try to get the caller's filename if no test name is given
   if testName is None:
     try:
@@ -112,104 +73,24 @@ def checkForCrashes(dumpDir, symbolsPath, testName=None):
   foundCrash = False
   dumps = glob.glob(os.path.join(dumpDir, '*.dmp'))
   for d in dumps:
-    log.info("PROCESS-CRASH | %s | application crashed (minidump found)", testName)
-    if symbolsPath and stackwalkPath and os.path.exists(stackwalkPath):
+    log.info("TEST-UNEXPECTED-FAIL | %s | application crashed (minidump found)", testName)
+    if symbolsPath and stackwalkPath:
       nullfd = open(os.devnull, 'w')
       # eat minidump_stackwalk errors
       subprocess.call([stackwalkPath, d, symbolsPath], stderr=nullfd)
       nullfd.close()
-    elif stackwalkCGI and symbolsPath and isURL(symbolsPath):
-      f = None
-      try:
-        f = open(d, "rb")
-        sys.path.append(os.path.join(os.path.dirname(__file__), "poster.zip"))
-        from poster.encode import multipart_encode
-        from poster.streaminghttp import register_openers
-        import urllib2
-        register_openers()
-        datagen, headers = multipart_encode({"minidump": f,
-                                             "symbols": symbolsPath})
-        request = urllib2.Request(stackwalkCGI, datagen, headers)
-        print urllib2.urlopen(request).read()
-      finally:
-        if f:
-          f.close()
     else:
       if not symbolsPath:
         print "No symbols path given, can't process dump."
-      if not stackwalkPath and not stackwalkCGI:
-        print "Neither MINIDUMP_STACKWALK nor MINIDUMP_STACKWALK_CGI is set, can't process dump."
-      else:
-        if stackwalkPath and not os.path.exists(stackwalkPath):
-          print "MINIDUMP_STACKWALK binary not found: %s" % stackwalkPath
-        elif stackwalkCGI and not isURL(stackwalkCGI):
-          print "MINIDUMP_STACKWALK_CGI is not a URL: %s" % stackwalkCGI
-        elif symbolsPath and not isURL(symbolsPath):
-          print "symbolsPath is not a URL: %s" % symbolsPath
-    dumpSavePath = os.environ.get('MINIDUMP_SAVE_PATH', None)
-    if dumpSavePath:
-      shutil.move(d, dumpSavePath)
-      print "Saved dump as %s" % os.path.join(dumpSavePath,
-                                              os.path.basename(d))
-    else:
-      os.remove(d)
+      if not stackwalkPath:
+        print "MINIDUMP_STACKWALK not set, can't process dump."
+    os.remove(d)
     extra = os.path.splitext(d)[0] + ".extra"
     if os.path.exists(extra):
       os.remove(extra)
     foundCrash = True
 
   return foundCrash
-  
-def getFullPath(directory, path):
-  "Get an absolute path relative to 'directory'."
-  return os.path.normpath(os.path.join(directory, os.path.expanduser(path)))
-
-def searchPath(directory, path):
-  "Go one step beyond getFullPath and try the various folders in PATH"
-  # Try looking in the current working directory first.
-  newpath = getFullPath(directory, path)
-  if os.path.isfile(newpath):
-    return newpath
-
-  # At this point we have to fail if a directory was given (to prevent cases
-  # like './gdb' from matching '/usr/bin/./gdb').
-  if not os.path.dirname(path):
-    for dir in os.environ['PATH'].split(os.pathsep):
-      newpath = os.path.join(dir, path)
-      if os.path.isfile(newpath):
-        return newpath
-  return None
-
-def getDebuggerInfo(directory, debugger, debuggerArgs, debuggerInteractive = False):
-
-  debuggerInfo = None
-
-  if debugger:
-    debuggerPath = searchPath(directory, debugger)
-    if not debuggerPath:
-      print "Error: Path %s doesn't exist." % debugger
-      sys.exit(1)
-
-    debuggerName = os.path.basename(debuggerPath).lower()
-
-    def getDebuggerInfo(type, default):
-      if debuggerName in DEBUGGER_INFO and type in DEBUGGER_INFO[debuggerName]:
-        return DEBUGGER_INFO[debuggerName][type]
-      return default
-
-    debuggerInfo = {
-      "path": debuggerPath,
-      "interactive" : getDebuggerInfo("interactive", False),
-      "args": getDebuggerInfo("args", "").split()
-    }
-
-    if debuggerArgs:
-      debuggerInfo["args"] = debuggerArgs.split()
-    if debuggerInteractive:
-      debuggerInfo["interactive"] = debuggerInteractive
-  
-  return debuggerInfo
-
 
 def dumpLeakLog(leakLogFile, filter = False):
   """Process the leak log, without parsing it.
@@ -234,10 +115,16 @@ def dumpLeakLog(leakLogFile, filter = False):
   # Simply copy the log.
   log.info(leakReport.rstrip("\n"))
 
-def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
-  """Process a single leak log, corresponding to the specified
-  process PID and type.
+def processLeakLog(leakLogFile, leakThreshold = 0):
+  """Process the leak log, parsing it.
+
+  Use this function if you want an additional PASS/FAIL summary.
+  It must be used with the |XPCOM_MEM_BLOAT_LOG| environment variable.
   """
+
+  if not os.path.exists(leakLogFile):
+    log.info("WARNING | automationutils.processLeakLog() | refcount logging is off, so leaks can't be detected!")
+    return
 
   #                  Per-Inst  Leaked      Total  Rem ...
   #   0 TOTAL              17     192  419115886    2 ...
@@ -246,10 +133,7 @@ def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
                       r"(?P<size>-?\d+)\s+(?P<bytesLeaked>-?\d+)\s+"
                       r"-?\d+\s+(?P<numLeaked>-?\d+)")
 
-  processString = ""
-  if PID and processType:
-    processString = "| %s process %s " % (processType, PID)
-  leaks = open(leakLogFileName, "r")
+  leaks = open(leakLogFile, "r")
   for line in leaks:
     matches = lineRe.match(line)
     if (matches and
@@ -259,13 +143,10 @@ def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
     log.info(line.rstrip())
   leaks.close()
 
-  leaks = open(leakLogFileName, "r")
+  leaks = open(leakLogFile, "r")
   seenTotal = False
-  crashedOnPurpose = False
   prefix = "TEST-PASS"
   for line in leaks:
-    if line.find("purposefully crash") > -1:
-      crashedOnPurpose = True
     matches = lineRe.match(line)
     if not matches:
       continue
@@ -274,8 +155,7 @@ def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
     bytesLeaked = int(matches.group("bytesLeaked"))
     numLeaked = int(matches.group("numLeaked"))
     if size < 0 or bytesLeaked < 0 or numLeaked < 0:
-      log.info("TEST-UNEXPECTED-FAIL %s| automationutils.processLeakLog() | negative leaks caught!" %
-               processString)
+      log.info("TEST-UNEXPECTED-FAIL | automationutils.processLeakLog() | negative leaks caught!")
       if name == "TOTAL":
         seenTotal = True
     elif name == "TOTAL":
@@ -283,14 +163,13 @@ def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
       # Check for leaks.
       if bytesLeaked < 0 or bytesLeaked > leakThreshold:
         prefix = "TEST-UNEXPECTED-FAIL"
-        leakLog = "TEST-UNEXPECTED-FAIL %s| automationutils.processLeakLog() | leaked" \
-                  " %d bytes during test execution" % (processString, bytesLeaked)
+        leakLog = "TEST-UNEXPECTED-FAIL | automationutils.processLeakLog() | leaked" \
+                  " %d bytes during test execution" % bytesLeaked
       elif bytesLeaked > 0:
-        leakLog = "TEST-PASS %s| automationutils.processLeakLog() | WARNING leaked" \
-                  " %d bytes during test execution" % (processString, bytesLeaked)
+        leakLog = "TEST-PASS | automationutils.processLeakLog() | WARNING leaked" \
+                  " %d bytes during test execution" % bytesLeaked
       else:
-        leakLog = "TEST-PASS %s| automationutils.processLeakLog() | no leaks detected!" \
-                  % processString
+        leakLog = "TEST-PASS | automationutils.processLeakLog() | no leaks detected!"
       # Remind the threshold if it is not 0, which is the default/goal.
       if leakThreshold != 0:
         leakLog += " (threshold set at %d bytes)" % leakThreshold
@@ -304,53 +183,14 @@ def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
         else:
           instance = "instance"
           rest = ""
-        log.info("%(prefix)s %(process)s| automationutils.processLeakLog() | leaked %(numLeaked)d %(instance)s of %(name)s "
+        log.info("%(prefix)s | automationutils.processLeakLog() | leaked %(numLeaked)d %(instance)s of %(name)s "
                  "with size %(size)s bytes%(rest)s" %
                  { "prefix": prefix,
-                   "process": processString,
                    "numLeaked": numLeaked,
                    "instance": instance,
                    "name": name,
                    "size": matches.group("size"),
                    "rest": rest })
   if not seenTotal:
-    if crashedOnPurpose:
-      log.info("INFO | automationutils.processLeakLog() | process %s was " \
-               "deliberately crashed and thus has no leak log" % PID)
-    else:
-      log.info("TEST-UNEXPECTED-FAIL %s| automationutils.processLeakLog() | missing output line for total leaks!" %
-             processString)
+    log.info("TEST-UNEXPECTED-FAIL | automationutils.processLeakLog() | missing output line for total leaks!")
   leaks.close()
-
-
-def processLeakLog(leakLogFile, leakThreshold = 0):
-  """Process the leak log, including separate leak logs created
-  by child processes.
-
-  Use this function if you want an additional PASS/FAIL summary.
-  It must be used with the |XPCOM_MEM_BLOAT_LOG| environment variable.
-  """
-
-  if not os.path.exists(leakLogFile):
-    log.info("WARNING | automationutils.processLeakLog() | refcount logging is off, so leaks can't be detected!")
-    return
-
-  (leakLogFileDir, leakFileBase) = os.path.split(leakLogFile)
-  pidRegExp = re.compile(r".*?_([a-z]*)_pid(\d*)$")
-  if leakFileBase[-4:] == ".log":
-    leakFileBase = leakFileBase[:-4]
-    pidRegExp = re.compile(r".*?_([a-z]*)_pid(\d*).log$")
-
-  for fileName in os.listdir(leakLogFileDir):
-    if fileName.find(leakFileBase) != -1:
-      thisFile = os.path.join(leakLogFileDir, fileName)
-      processPID = 0
-      processType = None
-      m = pidRegExp.search(fileName)
-      if m:
-        processType = m.group(1)
-        processPID = m.group(2)
-      processSingleLeakFile(thisFile, processPID, processType, leakThreshold)
-
-def replaceBackSlashes(input):
-  return input.replace('\\', '/')

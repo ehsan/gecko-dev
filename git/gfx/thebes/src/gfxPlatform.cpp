@@ -49,11 +49,8 @@
 #include "gfxBeOSPlatform.h"
 #elif defined(XP_OS2)
 #include "gfxOS2Platform.h"
-#elif defined(ANDROID)
-#include "gfxAndroidPlatform.h"
 #endif
 
-#include "gfxAtoms.h"
 #include "gfxPlatformFontList.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
@@ -61,12 +58,8 @@
 #include "gfxTextRunWordCache.h"
 #include "gfxUserFontSet.h"
 
-#include "nsUnicodeRange.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
-#include "nsIUGenCategory.h"
-#include "nsUnicharUtilCIID.h"
-#include "nsILocaleService.h"
 
 #include "nsWeakReference.h"
 
@@ -77,10 +70,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
-#include "nsIPrefLocalizedString.h"
-#include "nsCRT.h"
-
-#include "mozilla/FunctionTimer.h"
 
 gfxPlatform *gPlatform = nsnull;
 
@@ -131,35 +120,6 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
     return NS_OK;
 }
 
-#define GFX_DOWNLOADABLE_FONTS_ENABLED "gfx.downloadable_fonts.enabled"
-
-class FontPrefsObserver : public nsIObserver
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
-};
-
-NS_IMPL_ISUPPORTS1(FontPrefsObserver, nsIObserver)
-
-NS_IMETHODIMP
-FontPrefsObserver::Observe(nsISupports *aSubject,
-                           const char *aTopic,
-                           const PRUnichar *someData)
-{
-    nsCOMPtr<nsIPrefBranch> branch = do_QueryInterface(aSubject);
-    if (!branch || someData == nsnull) {
-        NS_ERROR("font pref observer code broken");
-        return NS_ERROR_UNEXPECTED;
-    }
-    
-    gfxPlatform::GetPlatform()->FontsPrefsChanged(branch, 
-        NS_ConvertUTF16toUTF8(someData).get());
-
-    return NS_OK;
-}
-
-
 
 // this needs to match the list of pref font.default.xx entries listed in all.js!
 // the order *must* match the order in eFontPrefLang
@@ -193,15 +153,10 @@ static const char *gPrefLangNames[] = {
     "x-telu",
     "x-knda",
     "x-sinh",
-    "x-tibt",
     "x-unicode",
     "x-user-def"
 };
 
-gfxPlatform::gfxPlatform()
-{
-    mAllowDownloadableFonts = UNINITIALIZED_VALUE;
-}
 
 gfxPlatform*
 gfxPlatform::GetPlatform()
@@ -213,9 +168,6 @@ nsresult
 gfxPlatform::Init()
 {
     NS_ASSERTION(!gPlatform, "Already started???");
-
-    gfxAtoms::RegisterAtoms();
-
 #if defined(XP_WIN)
     gPlatform = new gfxWindowsPlatform;
 #elif defined(XP_MACOSX)
@@ -228,15 +180,13 @@ gfxPlatform::Init()
     gPlatform = new gfxBeOSPlatform;
 #elif defined(XP_OS2)
     gPlatform = new gfxOS2Platform;
-#elif defined(ANDROID)
-    gPlatform = new gfxAndroidPlatform;
 #endif
     if (!gPlatform)
         return NS_ERROR_OUT_OF_MEMORY;
 
     nsresult rv;
 
-#if defined(XP_MACOSX) || defined(XP_WIN) // temporary, until this is implemented on others
+#if defined(XP_MACOSX) // temporary, until this is implemented on others
     rv = gfxPlatformFontList::Init();
     if (NS_FAILED(rv)) {
         NS_ERROR("Could not initialize gfxPlatformFontList");
@@ -271,14 +221,9 @@ gfxPlatform::Init()
 
     /* Create and register our CMS Override observer. */
     gPlatform->overrideObserver = new SRGBOverrideObserver();
-    FontPrefsObserver *fontPrefObserver = new FontPrefsObserver();
-
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (prefs) {
+    if (prefs)
         prefs->AddObserver(CMForceSRGBPrefName, gPlatform->overrideObserver, PR_TRUE);
-        prefs->AddObserver(GFX_DOWNLOADABLE_FONTS_ENABLED, fontPrefObserver, PR_FALSE);
-        prefs->AddObserver("gfx.font_rendering.", fontPrefObserver, PR_FALSE);
-    }
 
     return NS_OK;
 }
@@ -291,8 +236,7 @@ gfxPlatform::Shutdown()
     gfxTextRunCache::Shutdown();
     gfxTextRunWordCache::Shutdown();
     gfxFontCache::Shutdown();
-    gfxFontGroup::Shutdown();
-#if defined(XP_MACOSX) || defined(XP_WIN) // temporary, until this is implemented on others
+#if defined(XP_MACOSX) // temporary, until this is implemented on others
     gfxPlatformFontList::Shutdown();
 #endif
 
@@ -335,12 +279,6 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
 {
     const gfxIntSize& surfaceSize = aSurface->GetSize();
 
-#ifdef XP_WIN
-    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() == 
-        gfxWindowsPlatform::RENDER_DIRECT2D) {
-        return nsnull;
-    }
-#endif
     nsRefPtr<gfxASurface> optSurface = CreateOffscreenSurface(surfaceSize, format);
     if (!optSurface || optSurface->CairoStatus() != 0)
         return nsnull;
@@ -356,7 +294,7 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
 }
 
 nsresult
-gfxPlatform::GetFontList(nsIAtom *aLangGroup,
+gfxPlatform::GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts)
 {
@@ -369,28 +307,26 @@ gfxPlatform::UpdateFontList()
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-PRBool 
-gfxPlatform::GetBoolPref(const char *aPref, PRBool aDefault)
-{
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (prefs) {
-        PRBool allow;
-        nsresult rv = prefs->GetBoolPref(aPref, &allow);
-        if (NS_SUCCEEDED(rv))
-            return allow;
-    }
-
-    return aDefault;
-}
+#define GFX_DOWNLOADABLE_FONTS_ENABLED "gfx.downloadable_fonts.enabled"
 
 PRBool
 gfxPlatform::DownloadableFontsEnabled()
 {
-    if (mAllowDownloadableFonts == UNINITIALIZED_VALUE) {
-        mAllowDownloadableFonts = GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, PR_FALSE);
+    static PRBool initialized = PR_FALSE;
+    static PRBool allowDownloadableFonts = PR_FALSE;
+
+    if (initialized == PR_FALSE) {
+        initialized = PR_TRUE;
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            PRBool allow;
+            nsresult rv = prefs->GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, &allow);
+            if (NS_SUCCEEDED(rv))
+                allowDownloadableFonts = allow;
+        }
     }
 
-    return mAllowDownloadableFonts;
+    return allowDownloadableFonts;
 }
 
 gfxFontEntry*
@@ -410,7 +346,7 @@ gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
 }
 
 static void
-AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGenericName)
+AppendGenericFontFromPref(nsString& aFonts, const char *aLangGroup, const char *aGenericName)
 {
     nsresult rv;
 
@@ -418,22 +354,20 @@ AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGe
     if (!prefs)
         return;
 
-    nsCAutoString prefName, langGroupString;
+    nsCAutoString prefName;
     nsXPIDLCString nameValue, nameListValue;
-
-    aLangGroup->ToUTF8String(langGroupString);
 
     nsCAutoString genericDotLang;
     if (aGenericName) {
         genericDotLang.Assign(aGenericName);
     } else {
         prefName.AssignLiteral("font.default.");
-        prefName.Append(langGroupString);
+        prefName.Append(aLangGroup);
         prefs->GetCharPref(prefName.get(), getter_Copies(genericDotLang));
     }
 
     genericDotLang.AppendLiteral(".");
-    genericDotLang.Append(langGroupString);
+    genericDotLang.Append(aLangGroup);
 
     // fetch font.name.xxx value                   
     prefName.AssignLiteral("font.name.");
@@ -457,13 +391,13 @@ AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGe
 }
 
 void
-gfxPlatform::GetPrefFonts(nsIAtom *aLanguage, nsString& aFonts, PRBool aAppendUnicode)
+gfxPlatform::GetPrefFonts(const char *aLangGroup, nsString& aFonts, PRBool aAppendUnicode)
 {
     aFonts.Truncate();
 
-    AppendGenericFontFromPref(aFonts, aLanguage, nsnull);
+    AppendGenericFontFromPref(aFonts, aLangGroup, nsnull);
     if (aAppendUnicode)
-        AppendGenericFontFromPref(aFonts, gfxAtoms::x_unicode, nsnull);
+        AppendGenericFontFromPref(aFonts, "x-unicode", nsnull);
 }
 
 PRBool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArrayLen, PrefFontCallback aCallback,
@@ -506,27 +440,8 @@ PRBool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangAr
         prefName.Append(genericDotLang);
         rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameListValue));
         if (NS_SUCCEEDED(rv) && !nameListValue.Equals(nameValue)) {
-            const char kComma = ',';
-            const char *p, *p_end;
-            nsCAutoString list(nameListValue);
-            list.BeginReading(p);
-            list.EndReading(p_end);
-            while (p < p_end) {
-                while (nsCRT::IsAsciiSpace(*p)) {
-                    if (++p == p_end)
-                        break;
-                }
-                if (p == p_end)
-                    break;
-                const char *start = p;
-                while (++p != p_end && *p != kComma)
-                    /* nothing */ ;
-                nsCAutoString fontName(Substring(start, p));
-                fontName.CompressWhitespace(PR_FALSE, PR_TRUE);
-                if (!aCallback(prefLang, NS_ConvertUTF8toUTF16(fontName), aClosure))
-                    return PR_FALSE;
-                p++;
-            }
+            if (!aCallback(prefLang, NS_ConvertUTF8toUTF16(nameListValue), aClosure))
+                return PR_FALSE;
         }
     }
 
@@ -545,16 +460,6 @@ gfxPlatform::GetFontPrefLangFor(const char* aLang)
     return eFontPrefLang_Others;
 }
 
-eFontPrefLang
-gfxPlatform::GetFontPrefLangFor(nsIAtom *aLang)
-{
-    if (!aLang)
-        return eFontPrefLang_Others;
-    nsCAutoString lang;
-    aLang->ToUTF8String(lang);
-    return GetFontPrefLangFor(lang.get());
-}
-
 const char*
 gfxPlatform::GetPrefLangName(eFontPrefLang aLang)
 {
@@ -563,187 +468,13 @@ gfxPlatform::GetPrefLangName(eFontPrefLang aLang)
     return nsnull;
 }
 
-eFontPrefLang
-gfxPlatform::GetFontPrefLangFor(PRUint8 aUnicodeRange)
-{
-    switch (aUnicodeRange) {
-        case kRangeSetLatin:   return eFontPrefLang_Western;
-        case kRangeCyrillic:   return eFontPrefLang_Cyrillic;
-        case kRangeGreek:      return eFontPrefLang_Greek;
-        case kRangeTurkish:    return eFontPrefLang_Turkish;
-        case kRangeHebrew:     return eFontPrefLang_Hebrew;
-        case kRangeArabic:     return eFontPrefLang_Arabic;
-        case kRangeBaltic:     return eFontPrefLang_Baltic;
-        case kRangeThai:       return eFontPrefLang_Thai;
-        case kRangeKorean:     return eFontPrefLang_Korean;
-        case kRangeJapanese:   return eFontPrefLang_Japanese;
-        case kRangeSChinese:   return eFontPrefLang_ChineseCN;
-        case kRangeTChinese:   return eFontPrefLang_ChineseTW;
-        case kRangeDevanagari: return eFontPrefLang_Devanagari;
-        case kRangeTamil:      return eFontPrefLang_Tamil;
-        case kRangeArmenian:   return eFontPrefLang_Armenian;
-        case kRangeBengali:    return eFontPrefLang_Bengali;
-        case kRangeCanadian:   return eFontPrefLang_Canadian;
-        case kRangeEthiopic:   return eFontPrefLang_Ethiopic;
-        case kRangeGeorgian:   return eFontPrefLang_Georgian;
-        case kRangeGujarati:   return eFontPrefLang_Gujarati;
-        case kRangeGurmukhi:   return eFontPrefLang_Gurmukhi;
-        case kRangeKhmer:      return eFontPrefLang_Khmer;
-        case kRangeMalayalam:  return eFontPrefLang_Malayalam;
-        case kRangeSetCJK:     return eFontPrefLang_CJKSet;
-        default:               return eFontPrefLang_Others;
-    }
-}
-
+const PRUint32 kFontPrefLangCJKMask = (1 << (PRUint32) eFontPrefLang_Japanese) | (1 << (PRUint32) eFontPrefLang_ChineseTW)
+                                      | (1 << (PRUint32) eFontPrefLang_ChineseCN) | (1 << (PRUint32) eFontPrefLang_ChineseHK)
+                                      | (1 << (PRUint32) eFontPrefLang_Korean) | (1 << (PRUint32) eFontPrefLang_CJKSet);
 PRBool 
 gfxPlatform::IsLangCJK(eFontPrefLang aLang)
 {
-    switch (aLang) {
-        case eFontPrefLang_Japanese:
-        case eFontPrefLang_ChineseTW:
-        case eFontPrefLang_ChineseCN:
-        case eFontPrefLang_ChineseHK:
-        case eFontPrefLang_Korean:
-        case eFontPrefLang_CJKSet:
-            return PR_TRUE;
-        default:
-            return PR_FALSE;
-    }
-}
-
-void 
-gfxPlatform::GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang)
-{
-    if (IsLangCJK(aCharLang)) {
-        AppendCJKPrefLangs(aPrefLangs, aLen, aCharLang, aPageLang);
-    } else {
-        AppendPrefLang(aPrefLangs, aLen, aCharLang);
-    }
-
-    AppendPrefLang(aPrefLangs, aLen, eFontPrefLang_Others);
-}
-
-void
-gfxPlatform::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang)
-{
-    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-
-    // prefer the lang specified by the page *if* CJK
-    if (IsLangCJK(aPageLang)) {
-        AppendPrefLang(aPrefLangs, aLen, aPageLang);
-    }
-    
-    // if not set up, set up the default CJK order, based on accept lang settings and locale
-    if (mCJKPrefLangs.Length() == 0) {
-    
-        // temp array
-        eFontPrefLang tempPrefLangs[kMaxLenPrefLangList];
-        PRUint32 tempLen = 0;
-        
-        // Add the CJK pref fonts from accept languages, the order should be same order
-        nsCAutoString list;
-        if (prefs) {
-            nsCOMPtr<nsIPrefLocalizedString> prefString;
-            nsresult rv =
-                prefs->GetComplexValue("intl.accept_languages",
-                                       NS_GET_IID(nsIPrefLocalizedString),
-                                       getter_AddRefs(prefString));
-            if (NS_SUCCEEDED(rv) && prefString) {
-                nsAutoString temp;
-                prefString->ToString(getter_Copies(temp));
-                LossyCopyUTF16toASCII(temp, list);
-            }
-        }
-        
-        if (!list.IsEmpty()) {
-            const char kComma = ',';
-            const char *p, *p_end;
-            list.BeginReading(p);
-            list.EndReading(p_end);
-            while (p < p_end) {
-                while (nsCRT::IsAsciiSpace(*p)) {
-                    if (++p == p_end)
-                        break;
-                }
-                if (p == p_end)
-                    break;
-                const char *start = p;
-                while (++p != p_end && *p != kComma)
-                    /* nothing */ ;
-                nsCAutoString lang(Substring(start, p));
-                lang.CompressWhitespace(PR_FALSE, PR_TRUE);
-                eFontPrefLang fpl = gfxPlatform::GetFontPrefLangFor(lang.get());
-                switch (fpl) {
-                    case eFontPrefLang_Japanese:
-                    case eFontPrefLang_Korean:
-                    case eFontPrefLang_ChineseCN:
-                    case eFontPrefLang_ChineseHK:
-                    case eFontPrefLang_ChineseTW:
-                        AppendPrefLang(tempPrefLangs, tempLen, fpl);
-                        break;
-                    default:
-                        break;
-                }
-                p++;
-            }
-        }
-
-        do { // to allow 'break' to abort this block if a call fails
-            nsresult rv;
-            nsCOMPtr<nsILocaleService> ls =
-                do_GetService(NS_LOCALESERVICE_CONTRACTID, &rv);
-            if (NS_FAILED(rv))
-                break;
-
-            nsCOMPtr<nsILocale> appLocale;
-            rv = ls->GetApplicationLocale(getter_AddRefs(appLocale));
-            if (NS_FAILED(rv))
-                break;
-
-            nsString localeStr;
-            rv = appLocale->
-                GetCategory(NS_LITERAL_STRING(NSILOCALE_MESSAGE), localeStr);
-            if (NS_FAILED(rv))
-                break;
-
-            const nsAString& lang = Substring(localeStr, 0, 2);
-            if (lang.EqualsLiteral("ja")) {
-                AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Japanese);
-            } else if (lang.EqualsLiteral("zh")) {
-                const nsAString& region = Substring(localeStr, 3, 2);
-                if (region.EqualsLiteral("CN")) {
-                    AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseCN);
-                } else if (region.EqualsLiteral("TW")) {
-                    AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseTW);
-                } else if (region.EqualsLiteral("HK")) {
-                    AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseHK);
-                }
-            } else if (lang.EqualsLiteral("ko")) {
-                AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Korean);
-            }
-        } while (0);
-
-        // last resort... (the order is same as old gfx.)
-        AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Japanese);
-        AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Korean);
-        AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseCN);
-        AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseHK);
-        AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseTW);
-        
-        // copy into the cached array
-        PRUint32 j;
-        for (j = 0; j < tempLen; j++) {
-            mCJKPrefLangs.AppendElement(tempPrefLangs[j]);
-        }
-    }
-    
-    // append in cached CJK langs
-    PRUint32  i, numCJKlangs = mCJKPrefLangs.Length();
-    
-    for (i = 0; i < numCJKlangs; i++) {
-        AppendPrefLang(aPrefLangs, aLen, (eFontPrefLang) (mCJKPrefLangs[i]));
-    }
-        
+    return kFontPrefLangCJKMask & (1 << (PRUint32) aLang);
 }
 
 void 
@@ -857,7 +588,6 @@ qcms_profile *
 gfxPlatform::GetCMSOutputProfile()
 {
     if (!gCMSOutputProfile) {
-        NS_TIME_FUNCTION;
 
         nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
         if (prefs) {
@@ -1043,70 +773,3 @@ gfxPlatform::InitDisplayCaps()
     // Fall back to something sane
     gfxPlatform::sDPI = 96;
 }
-
-// default SetupClusterBoundaries, based on Unicode properties;
-// platform subclasses may override if they wish
-static nsIUGenCategory* gGenCategory = nsnull;
-
-static nsIUGenCategory*
-GetGenCategory()
-{
-    if (!gGenCategory) {
-        nsresult rv = CallGetService(NS_UNICHARCATEGORY_CONTRACTID, &gGenCategory);
-        if (NS_FAILED(rv)) {
-            NS_ERROR("Failed to get the Unicode character category service!");
-            gGenCategory = nsnull;
-        }
-    }
-    return gGenCategory;
-}
-
-void
-gfxPlatform::SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString)
-{
-    if (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_8BIT) {
-        // 8-bit text doesn't have clusters.
-        // XXX is this true in all languages???
-        // behdad: don't think so.  Czech for example IIRC has a
-        // 'ch' grapheme.
-        return;
-    }
-
-    nsIUGenCategory* gc = GetGenCategory();
-    if (!gc) {
-        NS_WARNING("No Unicode category service: cannot determine clusters");
-        return;
-    }
-
-    PRUint32 i, length = aTextRun->GetLength();
-    for (i = 0; i < length; ++i) {
-        PRBool surrogatePair = PR_FALSE;
-        PRUint32 ch = aString[i];
-        if (NS_IS_HIGH_SURROGATE(ch) &&
-            i < length - 1 && NS_IS_LOW_SURROGATE(aString[i+1])) {
-            ch = SURROGATE_TO_UCS4(ch, aString[i+1]);
-            surrogatePair = PR_TRUE;
-        }
-        if (i > 0 && gc->Get(ch) == nsIUGenCategory::kMark) {
-            gfxTextRun::CompressedGlyph g;
-            aTextRun->SetGlyphs(i, g.SetComplex(PR_FALSE, PR_TRUE, 0), nsnull);
-        }
-        if (surrogatePair) {
-            ++i;
-            gfxTextRun::CompressedGlyph g;
-            aTextRun->SetGlyphs(i, g.SetComplex(PR_FALSE, PR_TRUE, 0), nsnull);
-        }
-    }
-}
-
-void
-gfxPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref)
-{
-    NS_ASSERTION(aPref != nsnull, "null pref branch");
-    if (!strcmp(GFX_DOWNLOADABLE_FONTS_ENABLED, aPref)) {
-        mAllowDownloadableFonts = UNINITIALIZED_VALUE;
-    }
-}
-
-
-

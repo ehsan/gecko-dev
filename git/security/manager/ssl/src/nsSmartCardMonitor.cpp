@@ -211,9 +211,7 @@ SmartCardMonitoringThread::SetTokenName(CK_SLOT_ID slotid,
   if (mHash) {
     if (tokenName) {
       int len = strlen(tokenName) + 1;
-      /* this must match the allocator used in
-       * PLHashAllocOps.freeEntry DefaultFreeEntry */
-      char *entry = (char *)PR_Malloc(len+sizeof(PRUint32));
+      char *entry = (char *)malloc(len+sizeof(PRUint32));
      
       if (entry) {  
         memcpy(entry,&series,sizeof(PRUint32));
@@ -223,10 +221,8 @@ SmartCardMonitoringThread::SetTokenName(CK_SLOT_ID slotid,
         return;
       }
     } 
-    else {
-      // if tokenName was not provided, remove the old one (implicit delete)
-      PL_HashTableRemove(mHash,(void *)slotid);
-    }
+    // if tokenName was not provided, remove the old one (implicit delete)
+    PL_HashTableRemove(mHash,(void *)slotid);
   }
 }
 

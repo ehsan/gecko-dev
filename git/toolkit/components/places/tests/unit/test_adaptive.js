@@ -147,7 +147,12 @@ function ensure_results(expected, searchTerm)
       do_check_eq(controller.getStyleAt(i), expected[i].style);
     }
 
-    next_test();
+    if (tests.length)
+      (tests.shift())();
+    else {
+      obs.removeObserver(observer, PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC);
+      do_test_finished();
+    }
   };
 
   controller.startSearch(searchTerm);
@@ -228,6 +233,19 @@ let observer = {
 obs.addObserver(observer, PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC, false);
 
 /**
+ * Clean up database for next test
+ */
+function prepTest(name) {
+  print("Test " + name);
+  bhist.removeAllPages();
+  observer.runCount = -1;
+
+  // Remove all bookmarks and tags.
+  bsvc.removeFolderChildren(bsvc.unfiledBookmarksFolder);
+  bsvc.removeFolderChildren(bsvc.tagsFolder);
+}
+
+/**
  * Make the result object for a given URI that will be passed to ensure_results.
  */
 function makeResult(aURI) {
@@ -240,7 +258,7 @@ function makeResult(aURI) {
 let tests = [
   // Test things without a search term
   function() {
-    print("Test 0 same count, diff rank, same term; no search");
+    prepTest("0 same count, diff rank, same term; no search");
     observer.results = [
       makeResult(uri1),
       makeResult(uri2),
@@ -251,7 +269,7 @@ let tests = [
     setCountRank(uri2, c1, c2, s2);
   },
   function() {
-    print("Test 1 same count, diff rank, same term; no search");
+    prepTest("1 same count, diff rank, same term; no search");
     observer.results = [
       makeResult(uri2),
       makeResult(uri1),
@@ -262,7 +280,7 @@ let tests = [
     setCountRank(uri2, c1, c1, s2);
   },
   function() {
-    print("Test 2 diff count, same rank, same term; no search");
+    prepTest("2 diff count, same rank, same term; no search");
     observer.results = [
       makeResult(uri1),
       makeResult(uri2),
@@ -273,7 +291,7 @@ let tests = [
     setCountRank(uri2, c2, c1, s2);
   },
   function() {
-    print("Test 3 diff count, same rank, same term; no search");
+    prepTest("3 diff count, same rank, same term; no search");
     observer.results = [
       makeResult(uri2),
       makeResult(uri1),
@@ -286,7 +304,7 @@ let tests = [
 
   // Test things with a search term (exact match one, partial other)
   function() {
-    print("Test 4 same count, same rank, diff term; one exact/one partial search");
+    prepTest("4 same count, same rank, diff term; one exact/one partial search");
     observer.results = [
       makeResult(uri1),
       makeResult(uri2),
@@ -297,7 +315,7 @@ let tests = [
     setCountRank(uri2, c1, c1, s2);
   },
   function() {
-    print("Test 5 same count, same rank, diff term; one exact/one partial search");
+    prepTest("5 same count, same rank, diff term; one exact/one partial search");
     observer.results = [
       makeResult(uri2),
       makeResult(uri1),
@@ -310,7 +328,7 @@ let tests = [
 
   // Test things with a search term (exact match both)
   function() {
-    print("Test 6 same count, diff rank, same term; both exact search");
+    prepTest("6 same count, diff rank, same term; both exact search");
     observer.results = [
       makeResult(uri1),
       makeResult(uri2),
@@ -321,7 +339,7 @@ let tests = [
     setCountRank(uri2, c1, c2, s1);
   },
   function() {
-    print("Test 7 same count, diff rank, same term; both exact search");
+    prepTest("7 same count, diff rank, same term; both exact search");
     observer.results = [
       makeResult(uri2),
       makeResult(uri1),
@@ -334,7 +352,7 @@ let tests = [
 
   // Test things with a search term (partial match both)
   function() {
-    print("Test 8 same count, diff rank, same term; both partial search");
+    prepTest("8 same count, diff rank, same term; both partial search");
     observer.results = [
       makeResult(uri1),
       makeResult(uri2),
@@ -345,7 +363,7 @@ let tests = [
     setCountRank(uri2, c1, c2, s2);
   },
   function() {
-    print("Test 9 same count, diff rank, same term; both partial search");
+    prepTest("9 same count, diff rank, same term; both partial search");
     observer.results = [
       makeResult(uri2),
       makeResult(uri1),
@@ -356,7 +374,7 @@ let tests = [
     setCountRank(uri2, c1, c1, s2);
   },
   function() {
-    print("Test 10 same count, same rank, same term, decay first; exact match");
+    prepTest("10 same count, same rank, same term, decay first; exact match");
     observer.results = [
       makeResult(uri2),
       makeResult(uri1),
@@ -368,7 +386,7 @@ let tests = [
     setCountRank(uri2, c1, c1, s1);
   },
   function() {
-    print("Test 11 same count, same rank, same term, decay second; exact match");
+    prepTest("11 same count, same rank, same term, decay second; exact match");
     observer.results = [
       makeResult(uri1),
       makeResult(uri2),
@@ -381,7 +399,7 @@ let tests = [
   },
   // Test that bookmarks or tags are hidden if the preferences are set right.
   function() {
-    print("Test 12 same count, diff rank, same term; no search; history only");
+    prepTest("12 same count, diff rank, same term; no search; history only");
     prefs.setIntPref("browser.urlbar.matchBehavior",
                      Ci.mozIPlacesAutoComplete.BEHAVIOR_HISTORY);
     observer.results = [
@@ -394,7 +412,7 @@ let tests = [
     setCountRank(uri2, c1, c2, s2);
   },
   function() {
-    print("Test 13 same count, diff rank, same term; no search; history only with tag");
+    prepTest("13 same count, diff rank, same term; no search; history only with tag");
     prefs.setIntPref("browser.urlbar.matchBehavior",
                      Ci.mozIPlacesAutoComplete.BEHAVIOR_HISTORY);
     observer.results = [
@@ -413,21 +431,5 @@ let tests = [
  */
 function run_test() {
   do_test_pending();
-  next_test();
-}
-
-function next_test() {
-  if (tests.length) {
-    // Cleanup.
-    bsvc.removeFolderChildren(bsvc.unfiledBookmarksFolder);
-    bsvc.removeFolderChildren(bsvc.tagsFolder);
-    observer.runCount = -1;
-
-    let test = tests.shift();
-    waitForClearHistory(test);
-  }
-  else {
-    obs.removeObserver(observer, PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC);
-    do_test_finished();
-  }
+  (tests.shift())();
 }

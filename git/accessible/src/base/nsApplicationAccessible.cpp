@@ -42,40 +42,64 @@
  
 #include "nsApplicationAccessible.h"
 
-#include "nsAccessibilityService.h"
-#include "nsAccUtils.h"
-
 #include "nsIComponentManager.h"
-#include "nsIDOMDocument.h"
-#include "nsIDOMWindow.h"
-#include "nsIWindowMediator.h"
 #include "nsServiceManagerUtils.h"
-#include "mozilla/Services.h"
 
-nsApplicationAccessible::nsApplicationAccessible() :
-  nsAccessibleWrap(nsnull, nsnull)
+nsApplicationAccessible::nsApplicationAccessible():
+    nsAccessibleWrap(nsnull, nsnull), mChildren(nsnull)
 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsApplicationAccessible, nsAccessible,
-                             nsIAccessibleApplication)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsApplicationAccessible)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsApplicationAccessible,
+                                                  nsAccessible)
+
+  nsCOMPtr<nsISimpleEnumerator> enumerator;
+  tmp->mChildren->Enumerate(getter_AddRefs(enumerator));
+
+  nsCOMPtr<nsIWeakReference> childWeakRef;
+  nsCOMPtr<nsIAccessible> accessible;
+
+  PRBool hasMoreElements;
+  while(NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreElements))
+        && hasMoreElements) {
+
+    enumerator->GetNext(getter_AddRefs(childWeakRef));
+    accessible = do_QueryReferent(childWeakRef);
+    if (accessible) {
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "nsApplicationAccessible child");
+      cb.NoteXPCOMChild(accessible);
+    }
+  }
+  
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsApplicationAccessible,
+                                                nsAccessible)
+  tmp->mChildren->Clear();
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsApplicationAccessible)
+NS_INTERFACE_MAP_END_INHERITING(nsAccessible)
+
+NS_IMPL_ADDREF_INHERITED(nsApplicationAccessible, nsAccessible)
+NS_IMPL_RELEASE_INHERITED(nsApplicationAccessible, nsAccessible)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessNode
 
-NS_IMETHODIMP
-nsApplicationAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
+nsresult
+nsApplicationAccessible::Init()
 {
-  NS_ENSURE_ARG_POINTER(aRootDocument);
-  *aRootDocument = nsnull;
-
-  return NS_OK;
+  nsresult rv;
+  mChildren = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+  return rv;
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
 NS_IMETHODIMP
@@ -84,7 +108,7 @@ nsApplicationAccessible::GetName(nsAString& aName)
   aName.Truncate();
 
   nsCOMPtr<nsIStringBundleService> bundleService =
-    mozilla::services::GetStringBundleService();
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID);
 
   NS_ASSERTION(bundleService, "String bundle service must be present!");
   NS_ENSURE_STATE(bundleService);
@@ -106,131 +130,17 @@ nsApplicationAccessible::GetName(nsAString& aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsApplicationAccessible::GetDescription(nsAString& aValue)
+nsresult
+nsApplicationAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  aValue.Truncate();
+  *aRole = nsIAccessibleRole::ROLE_APP_ROOT;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsApplicationAccessible::GetRole(PRUint32 *aRole)
 {
-  NS_ENSURE_ARG_POINTER(aRole);
-
   return GetRoleInternal(aRole);
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
-{
-  NS_ENSURE_ARG_POINTER(aState);
-  *aState = 0;
-
-  if (aExtraState)
-    *aExtraState = 0;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetParent(nsIAccessible **aAccessible)
-{
-  NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nsnull;
-
-  return IsDefunct() ? NS_ERROR_FAILURE : NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsIAccessibleApplication
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetAppName(nsAString& aName)
-{
-  aName.Truncate();
-
-  if (!mAppInfo)
-    return NS_ERROR_FAILURE;
-
-  nsCAutoString cname;
-  nsresult rv = mAppInfo->GetName(cname);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AppendUTF8toUTF16(cname, aName);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetAppVersion(nsAString& aVersion)
-{
-  aVersion.Truncate();
-
-  if (!mAppInfo)
-    return NS_ERROR_FAILURE;
-
-  nsCAutoString cversion;
-  nsresult rv = mAppInfo->GetVersion(cversion);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AppendUTF8toUTF16(cversion, aVersion);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetPlatformName(nsAString& aName)
-{
-  aName.AssignLiteral("Gecko");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
-{
-  aVersion.Truncate();
-
-  if (!mAppInfo)
-    return NS_ERROR_FAILURE;
-
-  nsCAutoString cversion;
-  nsresult rv = mAppInfo->GetPlatformVersion(cversion);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AppendUTF8toUTF16(cversion, aVersion);
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessNode public methods
-
-PRBool
-nsApplicationAccessible::IsDefunct()
-{
-  return nsAccessibilityService::gIsShutdown;
-}
-
-nsresult
-nsApplicationAccessible::Init()
-{
-  mAppInfo = do_GetService("@mozilla.org/xre/app-info;1");
-  return NS_OK;
-}
-
-nsresult
-nsApplicationAccessible::Shutdown()
-{
-  mAppInfo = nsnull;
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible public methods
-
-nsresult
-nsApplicationAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = nsIAccessibleRole::ROLE_APP_ROOT;
-  return NS_OK;
 }
 
 nsresult
@@ -244,94 +154,124 @@ nsApplicationAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsAccessible*
-nsApplicationAccessible::GetParent()
+NS_IMETHODIMP
+nsApplicationAccessible::GetParent(nsIAccessible **aParent)
 {
-  return nsnull;
+  *aParent = nsnull;
+  return NS_OK;
 }
 
-void
-nsApplicationAccessible::InvalidateChildren()
+NS_IMETHODIMP
+nsApplicationAccessible::GetChildAt(PRInt32 aChildNum, nsIAccessible **aChild)
 {
-  // Do nothing because application children are kept updated by
-  // AddRootAccessible() and RemoveRootAccessible() method calls.
+  NS_ENSURE_ARG_POINTER(aChild);
+  *aChild = nsnull;
+
+  PRUint32 count = 0;
+  nsresult rv = NS_OK;
+
+  if (mChildren) {
+    rv = mChildren->GetLength(&count);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  if (aChildNum >= static_cast<PRInt32>(count) || count == 0)
+    return NS_ERROR_INVALID_ARG;
+
+  if (aChildNum < 0)
+    aChildNum = count - 1;
+
+  nsCOMPtr<nsIWeakReference> childWeakRef;
+  rv = mChildren->QueryElementAt(aChildNum, NS_GET_IID(nsIWeakReference),
+                                 getter_AddRefs(childWeakRef));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (childWeakRef) {
+    nsCOMPtr<nsIAccessible> childAcc(do_QueryReferent(childWeakRef));
+    NS_IF_ADDREF(*aChild = childAcc);
+  }
+
+  return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible protected methods
+NS_IMETHODIMP
+nsApplicationAccessible::GetNextSibling(nsIAccessible **aNextSibling)
+{
+  NS_ENSURE_ARG_POINTER(aNextSibling);
+
+  *aNextSibling = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetPreviousSibling(nsIAccessible **aPreviousSibling)
+{
+  NS_ENSURE_ARG_POINTER(aPreviousSibling);
+
+  *aPreviousSibling = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetIndexInParent(PRInt32 *aIndexInParent)
+{
+  NS_ENSURE_ARG_POINTER(aIndexInParent);
+
+  *aIndexInParent = -1;
+  return NS_OK;
+}
 
 void
 nsApplicationAccessible::CacheChildren()
 {
-  // CacheChildren is called only once for application accessible when its
-  // children are requested because empty InvalidateChldren() prevents its
-  // repeated calls.
-
-  // Basically children are kept updated by Add/RemoveRootAccessible method
-  // calls. However if there are open windows before accessibility was started
-  // then we need to make sure root accessibles for open windows are created so
-  // that all root accessibles are stored in application accessible children
-  // array.
-
-  nsCOMPtr<nsIWindowMediator> windowMediator =
-    do_GetService(NS_WINDOWMEDIATOR_CONTRACTID);
-
-  nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
-  nsresult rv = windowMediator->GetEnumerator(nsnull,
-                                              getter_AddRefs(windowEnumerator));
-  if (NS_FAILED(rv))
+  if (!mChildren) {
+    mAccChildCount = eChildCountUninitialized;
     return;
+  }
 
-  PRBool hasMore = PR_FALSE;
-  windowEnumerator->HasMoreElements(&hasMore);
-  while (hasMore) {
-    nsCOMPtr<nsISupports> window;
-    windowEnumerator->GetNext(getter_AddRefs(window));
-    nsCOMPtr<nsIDOMWindow> DOMWindow = do_QueryInterface(window);
-    if (DOMWindow) {
-      nsCOMPtr<nsIDOMDocument> DOMDocument;
-      DOMWindow->GetDocument(getter_AddRefs(DOMDocument));
-      if (DOMDocument) {
-        nsCOMPtr<nsIAccessible> accessible;
-        GetAccService()->GetAccessibleFor(DOMDocument,
-                                          getter_AddRefs(accessible));
+  if (mAccChildCount == eChildCountUninitialized) {
+    mAccChildCount = 0;// Prevent reentry
+    nsCOMPtr<nsISimpleEnumerator> enumerator;
+    mChildren->Enumerate(getter_AddRefs(enumerator));
+
+    nsCOMPtr<nsIWeakReference> childWeakRef;
+    nsCOMPtr<nsIAccessible> accessible;
+    nsRefPtr<nsAccessible> prevAcc;
+    PRBool hasMoreElements;
+
+    while(NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreElements)) &&
+          hasMoreElements) {
+      enumerator->GetNext(getter_AddRefs(childWeakRef));
+      accessible = do_QueryReferent(childWeakRef);
+      if (accessible) {
+        if (prevAcc)
+          prevAcc->SetNextSibling(accessible);
+        else
+          SetFirstChild(accessible);
+
+        prevAcc = nsAccUtils::QueryAccessible(accessible);
+        prevAcc->SetParent(this);
       }
     }
-    windowEnumerator->HasMoreElements(&hasMore);
+
+    PRUint32 count = 0;
+    mChildren->GetLength(&count);
+    mAccChildCount = static_cast<PRInt32>(count);
   }
 }
 
-nsAccessible*
-nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
-{
-  if (IsDefunct()) {
-    if (aError)
-      *aError = NS_ERROR_FAILURE;
-
-    return nsnull;
-  }
-
-  if (aError)
-    *aError = NS_OK; // fail peacefully
-
-  return nsnull;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Public methods
+// nsApplicationAccessible
 
 nsresult
 nsApplicationAccessible::AddRootAccessible(nsIAccessible *aRootAccessible)
 {
   NS_ENSURE_ARG_POINTER(aRootAccessible);
 
-  nsRefPtr<nsAccessible> rootAcc = do_QueryObject(aRootAccessible);
+  // add by weak reference
+  nsresult rv = mChildren->AppendElement(aRootAccessible, PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!mChildren.AppendElement(rootAcc))
-    return NS_ERROR_FAILURE;
-
-  rootAcc->SetParent(this);
-
+  InvalidateChildren();
   return NS_OK;
 }
 
@@ -340,8 +280,17 @@ nsApplicationAccessible::RemoveRootAccessible(nsIAccessible *aRootAccessible)
 {
   NS_ENSURE_ARG_POINTER(aRootAccessible);
 
-  // It's not needed to void root accessible parent because this method is
-  // called on root accessible shutdown and its parent will be cleared
-  // properly.
-  return mChildren.RemoveElement(aRootAccessible) ? NS_OK : NS_ERROR_FAILURE;
+  PRUint32 index = 0;
+
+  // we must use weak ref to get the index
+  nsCOMPtr<nsIWeakReference> weakPtr = do_GetWeakReference(aRootAccessible);
+  nsresult rv = mChildren->IndexOf(0, weakPtr, &index);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mChildren->RemoveElementAt(index);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  InvalidateChildren();
+  return NS_OK;
 }
+

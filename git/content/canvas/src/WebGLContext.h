@@ -51,25 +51,24 @@
 
 #include "nsICanvasRenderingContextWebGL.h"
 #include "nsICanvasRenderingContextInternal.h"
-#include "nsHTMLCanvasElement.h"
 #include "nsWeakReference.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIJSNativeInitializer.h"
 
-#include "GLContext.h"
-#include "Layers.h"
+#include "SimpleBuffer.h"
+#include "nsGLPbuffer.h"
 
 class nsIDocShell;
 
 namespace mozilla {
 
+class WebGLArray;
 class WebGLTexture;
 class WebGLBuffer;
 class WebGLProgram;
 class WebGLShader;
 class WebGLFramebuffer;
 class WebGLRenderbuffer;
-class WebGLUniformLocation;
 
 class WebGLZeroingObject;
 
@@ -211,39 +210,14 @@ class WebGLBuffer;
 
 struct WebGLVertexAttribData {
     WebGLVertexAttribData()
-        : buf(0), stride(0), size(0), byteOffset(0), type(0), enabled(PR_FALSE)
+        : buf(0), stride(0), size(0), offset(0), enabled(PR_FALSE)
     { }
 
     WebGLObjectRefPtr<WebGLBuffer> buf;
-    WebGLuint stride;
-    WebGLuint size;
-    GLuint byteOffset;
-    GLenum type;
+    GLuint stride;
+    GLuint size;
+    GLuint offset;
     PRBool enabled;
-
-    GLuint actualStride() const {
-        if (stride) return stride;
-        GLuint componentSize = 0;
-        switch(type) {
-            case LOCAL_GL_BYTE:
-                componentSize = sizeof(GLbyte);
-                break;
-            case LOCAL_GL_UNSIGNED_BYTE:
-                componentSize = sizeof(GLubyte);
-                break;
-            case LOCAL_GL_SHORT:
-                componentSize = sizeof(GLshort);
-                break;
-            case LOCAL_GL_UNSIGNED_SHORT:
-                componentSize = sizeof(GLushort);
-                break;
-            // XXX case LOCAL_GL_FIXED:
-            case LOCAL_GL_FLOAT:
-                componentSize = sizeof(GLfloat);
-                break;
-        }
-        return size * componentSize;
-    }
 };
 
 class WebGLContext :
@@ -259,7 +233,7 @@ public:
     NS_DECL_NSICANVASRENDERINGCONTEXTWEBGL
 
     // nsICanvasRenderingContextInternal
-    NS_IMETHOD SetCanvasElement(nsHTMLCanvasElement* aParentCanvas);
+    NS_IMETHOD SetCanvasElement(nsICanvasElement* aParentCanvas);
     NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height);
     NS_IMETHOD InitializeWithSurface(nsIDocShell *docShell, gfxASurface *surface, PRInt32 width, PRInt32 height)
         { return NS_ERROR_NOT_IMPLEMENTED; }
@@ -270,50 +244,28 @@ public:
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool b) { return NS_OK; };
 
-    nsresult SynthesizeGLError(WebGLenum err);
-    nsresult SynthesizeGLError(WebGLenum err, const char *fmt, ...);
-
-    nsresult ErrorInvalidEnum(const char *fmt, ...);
-    nsresult ErrorInvalidOperation(const char *fmt, ...);
-    nsresult ErrorInvalidValue(const char *fmt, ...);
-
-    already_AddRefed<CanvasLayer> GetCanvasLayer(LayerManager *manager);
-    void MarkContextClean() { }
-
 protected:
-    nsHTMLCanvasElement* mCanvasElement;
+    GLES20Wrap *gl;
 
-    nsRefPtr<gl::GLContext> gl;
+    nsICanvasElement* mCanvasElement;
 
+    nsGLPbuffer *mGLPbuffer;
     PRInt32 mWidth, mHeight;
 
     PRBool mInvalidated;
 
-    WebGLuint mActiveTexture;
-    WebGLenum mSynthesizedGLError;
-
-    PRBool SafeToCreateCanvas3DContext(nsHTMLCanvasElement *canvasElement);
+    PRBool SafeToCreateCanvas3DContext(nsICanvasElement *canvasElement);
     PRBool ValidateGL();
     PRBool ValidateBuffers(PRUint32 count);
 
     void Invalidate();
 
-    void MakeContextCurrent() { gl->MakeCurrent(); }
+    void MakeContextCurrent() { mGLPbuffer->MakeContextCurrent(); }
 
-    // helpers
-    nsresult TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum internalformat,
-                             WebGLsizei width, WebGLsizei height, WebGLint border,
-                             WebGLenum format, WebGLenum type,
-                             void *data, PRUint32 byteLength);
-    nsresult TexSubImage2D_base(WebGLenum target, WebGLint level,
-                                WebGLint xoffset, WebGLint yoffset,
-                                WebGLsizei width, WebGLsizei height,
-                                WebGLenum format, WebGLenum type,
-                                void *pixels, PRUint32 byteLength);
+    nsresult TexImageElementBase(nsIDOMHTMLElement *imageOrCanvas,
+                                 gfxImageSurface **imageOut);
 
-    nsresult DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
-                                      gfxImageSurface **imageOut,
-                                      PRBool flipY, PRBool premultiplyAlpha);
+    GLuint mActiveTexture;
 
     // the buffers bound to the current program's attribs
     nsTArray<WebGLVertexAttribData> mAttribBuffers;
@@ -329,12 +281,10 @@ protected:
     WebGLObjectRefPtr<WebGLBuffer> mBoundElementArrayBuffer;
     WebGLObjectRefPtr<WebGLProgram> mCurrentProgram;
 
-    // XXX these 3 are wrong types, and aren't used atm (except for the length of the attachments)
-    nsTArray<WebGLObjectRefPtr<WebGLTexture> > mFramebufferColorAttachments;
-    nsRefPtr<WebGLFramebuffer> mFramebufferDepthAttachment;
-    nsRefPtr<WebGLFramebuffer> mFramebufferStencilAttachment;
+    nsTArray<nsRefPtr<WebGLFramebuffer> > mBoundColorFramebuffers;
+    nsRefPtr<WebGLFramebuffer> mBoundDepthFramebuffer;
+    nsRefPtr<WebGLFramebuffer> mBoundStencilFramebuffer;
 
-    nsRefPtr<WebGLFramebuffer> mBoundFramebuffer;
     nsRefPtr<WebGLRenderbuffer> mBoundRenderbuffer;
 
     // lookup tables for GL name -> object wrapper
@@ -345,10 +295,9 @@ protected:
     nsRefPtrHashtable<nsUint32HashKey, WebGLFramebuffer> mMapFramebuffers;
     nsRefPtrHashtable<nsUint32HashKey, WebGLRenderbuffer> mMapRenderbuffers;
 
-public:
     // console logging helpers
-    static void LogMessage (const char *fmt, ...);
-    static void LogMessage(const char *fmt, va_list ap);
+    void LogMessage (const char *fmt, ...);
+    nsresult ErrorMessage (const char *fmt, ...);
 };
 
 // this class is a mixin for the named type wrappers, and is used
@@ -383,139 +332,52 @@ protected:
     nsTArray<WebGLObjectBaseRefPtr *> mRefOwners;
 };
 
-class WebGLRectangleObject
-{
-protected:
-    WebGLRectangleObject()
-        : mWidth(0), mHeight(0) { }
-
-public:
-    WebGLsizei width() { return mWidth; }
-    void width(WebGLsizei value) { mWidth = value; }
-
-    WebGLsizei height() { return mHeight; }
-    void height(WebGLsizei value) { mHeight = value; }
-
-    void setDimensions(WebGLsizei width, WebGLsizei height) {
-        mWidth = width;
-        mHeight = height;
-    }
-
-    void setDimensions(WebGLRectangleObject *rect) {
-        if (rect) {
-            mWidth = rect->width();
-            mHeight = rect->height();
-        } else {
-            mWidth = 0;
-            mHeight = 0;
-        }
-    }
-
-protected:
-    WebGLsizei mWidth;
-    WebGLsizei mHeight;
-};
-
-#define WEBGLBUFFER_PRIVATE_IID \
-    {0xd69f22e9, 0x6f98, 0x48bd, {0xb6, 0x94, 0x34, 0x17, 0xed, 0x06, 0x11, 0xab}}
 class WebGLBuffer :
     public nsIWebGLBuffer,
     public WebGLZeroingObject
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(WEBGLBUFFER_PRIVATE_IID)
-
-    WebGLBuffer(WebGLuint name)
-        : mName(name), mDeleted(PR_FALSE), mByteLength(0), mTarget(LOCAL_GL_NONE), mData(nsnull)
+    WebGLBuffer(GLuint name)
+        : mName(name), mDeleted(PR_FALSE), mGLType(0)
     { }
-
-    ~WebGLBuffer() {
-        Delete();
-    }
 
     void Delete() {
         if (mDeleted)
             return;
         ZeroOwners();
-
-        free(mData);
-        mData = nsnull;
-
         mDeleted = PR_TRUE;
-        mByteLength = 0;
+    }
+    PRBool Deleted() { return mDeleted; }
+    GLuint GLName() { return mName; }
+
+    void Set(nsICanvasArray *na) {
+        mGLType = na->NativeType();
+        mElementSize = na->NativeElementSize();
+        mCount = na->NativeCount();
     }
 
-    PRBool Deleted() const { return mDeleted; }
-    GLuint GLName() const { return mName; }
-    GLuint ByteLength() const { return mByteLength; }
-    GLenum Target() const { return mTarget; }
-    const void *Data() const { return mData; }
-
-    void SetByteLength(GLuint byteLength) { mByteLength = byteLength; }
-    void SetTarget(GLenum target) { mTarget = target; }
-
-    // element array buffers are the only buffers for which we need to keep a copy of the data.
-    // this method assumes that the byte length has previously been set by calling SetByteLength.
-    void CopyDataIfElementArray(const void* data) {
-        if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
-            mData = realloc(mData, mByteLength);
-            memcpy(mData, data, mByteLength);
-        }
-    }
-
-    // same comments as for CopyElementArrayData
-    void ZeroDataIfElementArray() {
-        if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
-            mData = realloc(mData, mByteLength);
-            memset(mData, 0, mByteLength);
-        }
-    }
-
-    // same comments as for CopyElementArrayData
-    void CopySubDataIfElementArray(GLuint byteOffset, GLuint byteLength, const void* data) {
-        if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
-            memcpy((void*) (size_t(mData)+byteOffset), data, byteLength);
-        }
-    }
-
-    // this method too is only for element array buffers. It returns the maximum value in the part of
-    // the buffer starting at given offset, consisting of given count of elements. The type T is the type
-    // to interprete the array elements as, must be GLushort or GLubyte.
-    template<typename T>
-    T FindMaximum(GLuint count, GLuint byteOffset)
-    {
-        const T* start = reinterpret_cast<T*>(reinterpret_cast<size_t>(mData) + byteOffset);
-        const T* stop = start + count;
-        T result = 0;
-        for(const T* ptr = start; ptr != stop; ++ptr) {
-            if (*ptr > result) result = *ptr;
-        }
-        return result;
-    }
+    GLenum GLType() { return mGLType; }
+    PRUint32 ByteCount() { return mElementSize * mCount; }
+    PRUint32 Count() { return mCount; }
+    PRUint32 ElementSize() { return mElementSize; }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLBUFFER
 protected:
-    WebGLuint mName;
+    GLuint mName;
     PRBool mDeleted;
-    GLuint mByteLength;
-    GLenum mTarget;
-    void* mData; // in the case of an Element Array Buffer, we keep a copy.
+
+    GLenum mGLType;
+    PRUint32 mElementSize;
+    PRUint32 mCount;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(WebGLBuffer, WEBGLBUFFER_PRIVATE_IID)
-
-#define WEBGLTEXTURE_PRIVATE_IID \
-    {0x4c19f189, 0x1f86, 0x4e61, {0x96, 0x21, 0x0a, 0x11, 0xda, 0x28, 0x10, 0xdd}}
 class WebGLTexture :
     public nsIWebGLTexture,
-    public WebGLZeroingObject,
-    public WebGLRectangleObject
+    public WebGLZeroingObject
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(WEBGLTEXTURE_PRIVATE_IID)
-
-    WebGLTexture(WebGLuint name) :
+    WebGLTexture(GLuint name) :
         mName(name), mDeleted(PR_FALSE) { }
 
     void Delete() {
@@ -526,27 +388,21 @@ public:
     }
 
     PRBool Deleted() { return mDeleted; }
-    WebGLuint GLName() { return mName; }
+    GLuint GLName() { return mName; }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLTEXTURE
 protected:
-    WebGLuint mName;
+    GLuint mName;
     PRBool mDeleted;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(WebGLTexture, WEBGLTEXTURE_PRIVATE_IID)
-
-#define WEBGLPROGRAM_PRIVATE_IID \
-    {0xb3084a5b, 0xa5b4, 0x4ee0, {0xa0, 0xf0, 0xfb, 0xdd, 0x64, 0xaf, 0x8e, 0x82}}
 class WebGLProgram :
     public nsIWebGLProgram,
     public WebGLZeroingObject
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(WEBGLPROGRAM_PRIVATE_IID)
-
-    WebGLProgram(WebGLuint name) :
+    WebGLProgram(GLuint name) :
         mName(name), mDeleted(PR_FALSE) { }
 
     void Delete() {
@@ -556,27 +412,21 @@ public:
         mDeleted = PR_TRUE;
     }
     PRBool Deleted() { return mDeleted; }
-    WebGLuint GLName() { return mName; }
+    GLuint GLName() { return mName; }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLPROGRAM
 protected:
-    WebGLuint mName;
+    GLuint mName;
     PRBool mDeleted;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(WebGLProgram, WEBGLPROGRAM_PRIVATE_IID)
-
-#define WEBGLSHADER_PRIVATE_IID \
-    {0x48cce975, 0xd459, 0x4689, {0x83, 0x82, 0x37, 0x82, 0x6e, 0xac, 0xe0, 0xa7}}
 class WebGLShader :
     public nsIWebGLShader,
     public WebGLZeroingObject
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(WEBGLSHADER_PRIVATE_IID)
-
-    WebGLShader(WebGLuint name) :
+    WebGLShader(GLuint name) :
         mName(name), mDeleted(PR_FALSE) { }
 
     void Delete() {
@@ -586,28 +436,21 @@ public:
         mDeleted = PR_TRUE;
     }
     PRBool Deleted() { return mDeleted; }
-    WebGLuint GLName() { return mName; }
+    GLuint GLName() { return mName; }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLSHADER
 protected:
-    WebGLuint mName;
+    GLuint mName;
     PRBool mDeleted;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(WebGLShader, WEBGLSHADER_PRIVATE_IID)
-
-#define WEBGLFRAMEBUFFER_PRIVATE_IID \
-    {0x0052a16f, 0x4bc9, 0x4a55, {0x9d, 0xa3, 0x54, 0x95, 0xaa, 0x4e, 0x80, 0xb9}}
 class WebGLFramebuffer :
     public nsIWebGLFramebuffer,
-    public WebGLZeroingObject,
-    public WebGLRectangleObject
+    public WebGLZeroingObject
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(WEBGLFRAMEBUFFER_PRIVATE_IID)
-
-    WebGLFramebuffer(WebGLuint name) :
+    WebGLFramebuffer(GLuint name) :
         mName(name), mDeleted(PR_FALSE) { }
 
     void Delete() {
@@ -617,28 +460,21 @@ public:
         mDeleted = PR_TRUE;
     }
     PRBool Deleted() { return mDeleted; }
-    WebGLuint GLName() { return mName; }
+    GLuint GLName() { return mName; }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLFRAMEBUFFER
 protected:
-    WebGLuint mName;
+    GLuint mName;
     PRBool mDeleted;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(WebGLFramebuffer, WEBGLFRAMEBUFFER_PRIVATE_IID)
-
-#define WEBGLRENDERBUFFER_PRIVATE_IID \
-    {0x3cbc2067, 0x5831, 0x4e3f, {0xac, 0x52, 0x7e, 0xf4, 0x5c, 0x04, 0xff, 0xae}}
 class WebGLRenderbuffer :
     public nsIWebGLRenderbuffer,
-    public WebGLZeroingObject,
-    public WebGLRectangleObject
+    public WebGLZeroingObject
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(WEBGLRENDERBUFFER_PRIVATE_IID)
-
-    WebGLRenderbuffer(WebGLuint name) :
+    WebGLRenderbuffer(GLuint name) :
         mName(name), mDeleted(PR_FALSE) { }
 
     void Delete() {
@@ -648,43 +484,196 @@ public:
         mDeleted = PR_TRUE;
     }
     PRBool Deleted() { return mDeleted; }
-    WebGLuint GLName() { return mName; }
+    GLuint GLName() { return mName; }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLRENDERBUFFER
 protected:
-    WebGLuint mName;
+    GLuint mName;
     PRBool mDeleted;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(WebGLRenderbuffer, WEBGLRENDERBUFFER_PRIVATE_IID)
+//
+// array wrapper classes
+//
 
-#define WEBGLUNIFORMLOCATION_PRIVATE_IID \
-    {0x01a8a614, 0xb109, 0x42f1, {0xb4, 0x40, 0x8d, 0x8b, 0x87, 0x0b, 0x43, 0xa7}}
-class WebGLUniformLocation :
-    public nsIWebGLUniformLocation,
-    public WebGLZeroingObject
+class WebGLFloatArray :
+    public nsICanvasFloatArray,
+    public nsIJSNativeInitializer
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(WEBGLUNIFORMLOCATION_PRIVATE_IID)
-
-    WebGLUniformLocation(WebGLProgram *program, GLint location) :
-        mProgram(program), mLocation(location) { }
-
-    WebGLProgram *Program() const { return mProgram; }
-    GLint Location() const { return mLocation; }
-
-    // needed for our generic helpers to check nsIxxx parameters, see GetConcreteObject.
-    PRBool Deleted() { return PR_FALSE; }
+    WebGLFloatArray();
+    WebGLFloatArray(JSContext *cx, JSObject *arrayObj, jsuint arrayLen);
 
     NS_DECL_ISUPPORTS
-    NS_DECL_NSIWEBGLUNIFORMLOCATION
+    NS_DECL_NSICANVASARRAY
+    NS_DECL_NSICANVASFLOATARRAY
+
+    static nsresult NewCanvasFloatArray(nsISupports **aNewObject);
+
+    NS_IMETHOD Initialize(nsISupports* aOwner,
+                          JSContext* aCx,
+                          JSObject* aObj,
+                          PRUint32 aArgc,
+                          jsval* aArgv);
+
 protected:
-    WebGLObjectRefPtr<WebGLProgram> mProgram;
-    GLint mLocation;
+    SimpleBuffer mBuffer;
+    PRUint32 mLength;
+    PRUint32 mSize;
+    PRUint32 mElementSize;
+    PRUint32 mCount;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(WebGLUniformLocation, WEBGLUNIFORMLOCATION_PRIVATE_IID)
+class WebGLByteArray :
+    public nsICanvasByteArray,
+    public nsIJSNativeInitializer
+{
+public:
+    WebGLByteArray();
+    WebGLByteArray(JSContext *cx, JSObject *arrayObj, jsuint arrayLen);
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICANVASARRAY
+    NS_DECL_NSICANVASBYTEARRAY
+
+    NS_IMETHOD Initialize(nsISupports* aOwner,
+                          JSContext* aCx,
+                          JSObject* aObj,
+                          PRUint32 aArgc,
+                          jsval* aArgv);
+protected:
+    SimpleBuffer mBuffer;
+    PRUint32 mLength;
+    PRUint32 mSize;
+    PRUint32 mElementSize;
+    PRUint32 mCount;
+};
+
+class WebGLUnsignedByteArray :
+    public nsICanvasUnsignedByteArray,
+    public nsIJSNativeInitializer
+{
+public:
+    WebGLUnsignedByteArray();
+    WebGLUnsignedByteArray(JSContext *cx, JSObject *arrayObj, jsuint arrayLen);
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICANVASARRAY
+    NS_DECL_NSICANVASUNSIGNEDBYTEARRAY
+
+    NS_IMETHOD Initialize(nsISupports* aOwner,
+                          JSContext* aCx,
+                          JSObject* aObj,
+                          PRUint32 aArgc,
+                          jsval* aArgv);
+protected:
+    SimpleBuffer mBuffer;
+    PRUint32 mLength;
+    PRUint32 mSize;
+    PRUint32 mElementSize;
+    PRUint32 mCount;
+};
+
+class WebGLShortArray :
+    public nsICanvasShortArray,
+    public nsIJSNativeInitializer
+{
+public:
+    WebGLShortArray();
+    WebGLShortArray(JSContext *cx, JSObject *arrayObj, jsuint arrayLen);
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICANVASARRAY
+    NS_DECL_NSICANVASSHORTARRAY
+
+    NS_IMETHOD Initialize(nsISupports* aOwner,
+                          JSContext* aCx,
+                          JSObject* aObj,
+                          PRUint32 aArgc,
+                          jsval* aArgv);
+protected:
+    SimpleBuffer mBuffer;
+    PRUint32 mLength;
+    PRUint32 mSize;
+    PRUint32 mElementSize;
+    PRUint32 mCount;
+};
+
+class WebGLUnsignedShortArray :
+    public nsICanvasUnsignedShortArray,
+    public nsIJSNativeInitializer
+{
+public:
+    WebGLUnsignedShortArray();
+    WebGLUnsignedShortArray(JSContext *cx, JSObject *arrayObj, jsuint arrayLen);
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICANVASARRAY
+    NS_DECL_NSICANVASUNSIGNEDSHORTARRAY
+
+    NS_IMETHOD Initialize(nsISupports* aOwner,
+                          JSContext* aCx,
+                          JSObject* aObj,
+                          PRUint32 aArgc,
+                          jsval* aArgv);
+protected:
+    SimpleBuffer mBuffer;
+    PRUint32 mLength;
+    PRUint32 mSize;
+    PRUint32 mElementSize;
+    PRUint32 mCount;
+};
+
+class WebGLIntArray :
+    public nsICanvasIntArray,
+    public nsIJSNativeInitializer
+{
+public:
+    WebGLIntArray();
+    WebGLIntArray(JSContext *cx, JSObject *arrayObj, jsuint arrayLen);
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICANVASARRAY
+    NS_DECL_NSICANVASINTARRAY
+
+    NS_IMETHOD Initialize(nsISupports* aOwner,
+                          JSContext* aCx,
+                          JSObject* aObj,
+                          PRUint32 aArgc,
+                          jsval* aArgv);
+protected:
+    SimpleBuffer mBuffer;
+    PRUint32 mLength;
+    PRUint32 mSize;
+    PRUint32 mElementSize;
+    PRUint32 mCount;
+};
+
+class WebGLUnsignedIntArray :
+    public nsICanvasUnsignedIntArray,
+    public nsIJSNativeInitializer
+{
+public:
+    WebGLUnsignedIntArray();
+    WebGLUnsignedIntArray(JSContext *cx, JSObject *arrayObj, jsuint arrayLen);
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICANVASARRAY
+    NS_DECL_NSICANVASUNSIGNEDINTARRAY
+
+    NS_IMETHOD Initialize(nsISupports* aOwner,
+                          JSContext* aCx,
+                          JSObject* aObj,
+                          PRUint32 aArgc,
+                          jsval* aArgv);
+protected:
+    SimpleBuffer mBuffer;
+    PRUint32 mLength;
+    PRUint32 mSize;
+    PRUint32 mElementSize;
+    PRUint32 mCount;
+};
 
 }
 

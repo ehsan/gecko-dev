@@ -57,17 +57,16 @@ JS_BEGIN_EXTERN_C
 extern jsbytecode *
 js_UntrapScriptCode(JSContext *cx, JSScript *script);
 
-/* The closure argument will be marked. */
 extern JS_PUBLIC_API(JSBool)
 JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
-           JSTrapHandler handler, jsval closure);
+           JSTrapHandler handler, void *closure);
 
 extern JS_PUBLIC_API(JSOp)
 JS_GetTrapOpcode(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 extern JS_PUBLIC_API(void)
 JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
-             JSTrapHandler *handlerp, jsval *closurep);
+             JSTrapHandler *handlerp, void **closurep);
 
 extern JS_PUBLIC_API(void)
 JS_ClearScriptTraps(JSContext *cx, JSScript *script);
@@ -79,10 +78,10 @@ extern JS_PUBLIC_API(JSTrapStatus)
 JS_HandleTrap(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval);
 
 extern JS_PUBLIC_API(JSBool)
-JS_SetInterrupt(JSRuntime *rt, JSInterruptHook handler, void *closure);
+JS_SetInterrupt(JSRuntime *rt, JSTrapHandler handler, void *closure);
 
 extern JS_PUBLIC_API(JSBool)
-JS_ClearInterrupt(JSRuntime *rt, JSInterruptHook *handlerp, void **closurep);
+JS_ClearInterrupt(JSRuntime *rt, JSTrapHandler *handlerp, void **closurep);
 
 /************************************************************************/
 
@@ -195,9 +194,6 @@ JS_StackFramePrincipals(JSContext *cx, JSStackFrame *fp);
  */
 extern JS_PUBLIC_API(JSPrincipals *)
 JS_EvalFramePrincipals(JSContext *cx, JSStackFrame *fp, JSStackFrame *caller);
-
-JSPrincipals *
-js_EvalFramePrincipals(JSContext *cx, JSObject *callee, JSStackFrame *caller);
 
 extern JS_PUBLIC_API(void *)
 JS_GetFrameAnnotation(JSContext *cx, JSStackFrame *fp);
@@ -338,7 +334,7 @@ JS_PutPropertyDescArray(JSContext *cx, JSPropertyDescArray *pda);
 /************************************************************************/
 
 extern JS_PUBLIC_API(JSBool)
-JS_SetDebuggerHandler(JSRuntime *rt, JSDebuggerHandler hook, void *closure);
+JS_SetDebuggerHandler(JSRuntime *rt, JSTrapHandler handler, void *closure);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SetSourceHandler(JSRuntime *rt, JSSourceHandler handler, void *closure);
@@ -353,7 +349,7 @@ extern JS_PUBLIC_API(JSBool)
 JS_SetObjectHook(JSRuntime *rt, JSObjectHook hook, void *closure);
 
 extern JS_PUBLIC_API(JSBool)
-JS_SetThrowHook(JSRuntime *rt, JSThrowHook hook, void *closure);
+JS_SetThrowHook(JSRuntime *rt, JSTrapHandler hook, void *closure);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SetDebugErrorHook(JSRuntime *rt, JSDebugErrorHook hook, void *closure);
@@ -425,15 +421,11 @@ JS_NewSystemObject(JSContext *cx, JSClass *clasp, JSObject *proto,
 
 /************************************************************************/
 
-extern JS_PUBLIC_API(const JSDebugHooks *)
+extern JS_PUBLIC_API(JSDebugHooks *)
 JS_GetGlobalDebugHooks(JSRuntime *rt);
 
 extern JS_PUBLIC_API(JSDebugHooks *)
-JS_SetContextDebugHooks(JSContext *cx, const JSDebugHooks *hooks);
-
-/* Disable debug hooks for this context. */
-extern JS_PUBLIC_API(JSDebugHooks *)
-JS_ClearContextDebugHooks(JSContext *cx);
+JS_SetContextDebugHooks(JSContext *cx, JSDebugHooks *hooks);
 
 #ifdef MOZ_SHARK
 

@@ -86,43 +86,6 @@ nsReverseStringSQLFunction::OnFunctionCall(
   return NS_OK;
 }
 
-class nsIsOfflineSQLFunction : public mozIStorageFunction
-{
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGEFUNCTION
-};
-
-NS_IMPL_ISUPPORTS1(nsIsOfflineSQLFunction, mozIStorageFunction)
-
-NS_IMETHODIMP
-nsIsOfflineSQLFunction::OnFunctionCall(
-    mozIStorageValueArray *aFunctionArguments, nsIVariant **aResult)
-{
-  nsresult rv;
-
-  nsCAutoString scope;
-  rv = aFunctionArguments->GetUTF8String(0, scope);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString domain;
-  rv = nsDOMStorageDBWrapper::GetDomainFromScopeKey(scope, domain);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool hasOfflinePermission = IsOfflineAllowed(domain);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIWritableVariant> outVar(do_CreateInstance(
-      NS_VARIANT_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = outVar->SetAsBool(hasOfflinePermission);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aResult = outVar.get();
-  outVar.forget();
-  return NS_OK;
-}
-
 nsresult
 nsDOMStoragePersistentDB::Init()
 {
@@ -163,16 +126,10 @@ nsDOMStoragePersistentDB::Init()
         " ON webappsstore2(scope, key)"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<mozIStorageFunction> function1(new nsReverseStringSQLFunction());
-  NS_ENSURE_TRUE(function1, NS_ERROR_OUT_OF_MEMORY);
+  nsCOMPtr<mozIStorageFunction> function(new nsReverseStringSQLFunction());
+  NS_ENSURE_TRUE(function, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = mConnection->CreateFunction(NS_LITERAL_CSTRING("REVERSESTRING"), 1, function1);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<mozIStorageFunction> function2(new nsIsOfflineSQLFunction());
-  NS_ENSURE_TRUE(function2, NS_ERROR_OUT_OF_MEMORY);
-
-  rv = mConnection->CreateFunction(NS_LITERAL_CSTRING("ISOFFLINE"), 1, function2);
+  rv = mConnection->CreateFunction(NS_LITERAL_CSTRING("REVERSESTRING"), 1, function);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool exists;
@@ -287,21 +244,12 @@ nsDOMStoragePersistentDB::Init()
          getter_AddRefs(mRemoveAllStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // check the usage for a given owner that is an offline-app allowed domain
+  // check the usage for a given owner
   rv = mConnection->CreateStatement(
          NS_LITERAL_CSTRING("SELECT SUM(LENGTH(key) + LENGTH(value)) "
                             "FROM webappsstore2 "
                             "WHERE scope GLOB ?1"),
-         getter_AddRefs(mGetFullUsageStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // check the usage for a given owner that is not an offline-app allowed domain
-  rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("SELECT SUM(LENGTH(key) + LENGTH(value)) "
-                            "FROM webappsstore2 "
-                            "WHERE scope GLOB ?1 "
-                            "AND NOT ISOFFLINE(scope)"),
-         getter_AddRefs(mGetOfflineExcludedUsageStatement));
+         getter_AddRefs(mGetUsageStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -382,15 +330,14 @@ nsDOMStoragePersistentDB::SetKey(nsDOMStorage* aStorage,
                                  const nsAString& aValue,
                                  PRBool aSecure,
                                  PRInt32 aQuota,
-                                 PRBool aExcludeOfflineFromUsage,
                                  PRInt32 *aNewUsage)
 {
   mozStorageStatementScoper scope(mGetKeyValueStatement);
 
   PRInt32 usage = 0;
   nsresult rv;
-  if (!aStorage->GetQuotaDomainDBKey(!aExcludeOfflineFromUsage).IsEmpty()) {
-    rv = GetUsage(aStorage, aExcludeOfflineFromUsage, &usage);
+  if (!aStorage->GetQuotaDomainDBKey().IsEmpty()) {
+    rv = GetUsage(aStorage, &usage);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -463,8 +410,8 @@ nsDOMStoragePersistentDB::SetKey(nsDOMStorage* aStorage,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  if (!aStorage->GetQuotaDomainDBKey(!aExcludeOfflineFromUsage).IsEmpty()) {
-    mCachedOwner = aStorage->GetQuotaDomainDBKey(!aExcludeOfflineFromUsage);
+  if (!aStorage->GetQuotaDomainDBKey().IsEmpty()) {
+    mCachedOwner = aStorage->GetQuotaDomainDBKey();
     mCachedUsage = usage;
   }
 
@@ -495,12 +442,11 @@ nsDOMStoragePersistentDB::SetSecure(nsDOMStorage* aStorage,
 nsresult
 nsDOMStoragePersistentDB::RemoveKey(nsDOMStorage* aStorage,
                                     const nsAString& aKey,
-                                    PRBool aExcludeOfflineFromUsage,
                                     PRInt32 aKeyUsage)
 {
   mozStorageStatementScoper scope(mRemoveKeyStatement);
 
-  if (aStorage->GetQuotaDomainDBKey(!aExcludeOfflineFromUsage) == mCachedOwner) {
+  if (aStorage->GetQuotaDomainDBKey() == mCachedOwner) {
     mCachedUsage -= aKeyUsage;
   }
 
@@ -621,13 +567,9 @@ nsDOMStoragePersistentDB::RemoveAll()
 }
 
 nsresult
-nsDOMStoragePersistentDB::GetUsage(nsDOMStorage* aStorage,
-                                   PRBool aExcludeOfflineFromUsage,
-                                   PRInt32 *aUsage)
+nsDOMStoragePersistentDB::GetUsage(nsDOMStorage* aStorage, PRInt32 *aUsage)
 {
-  return GetUsageInternal(aStorage->GetQuotaDomainDBKey(!aExcludeOfflineFromUsage),
-                                                        aExcludeOfflineFromUsage,
-                                                        aUsage);
+  return GetUsageInternal(aStorage->GetQuotaDomainDBKey(), aUsage);
 }
 
 nsresult
@@ -640,16 +582,14 @@ nsDOMStoragePersistentDB::GetUsage(const nsACString& aDomain,
   nsCAutoString quotadomainDBKey;
   rv = nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(aDomain,
                                                      aIncludeSubDomains,
-                                                     PR_FALSE,
                                                      quotadomainDBKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return GetUsageInternal(quotadomainDBKey, PR_FALSE, aUsage);
+  return GetUsageInternal(quotadomainDBKey, aUsage);
 }
 
 nsresult
 nsDOMStoragePersistentDB::GetUsageInternal(const nsACString& aQuotaDomainDBKey,
-                                           PRBool aExcludeOfflineFromUsage,
                                            PRInt32 *aUsage)
 {
   if (aQuotaDomainDBKey == mCachedOwner) {
@@ -657,21 +597,16 @@ nsDOMStoragePersistentDB::GetUsageInternal(const nsACString& aQuotaDomainDBKey,
     return NS_OK;
   }
 
-  mozIStorageStatement* statement = aExcludeOfflineFromUsage
-    ? mGetOfflineExcludedUsageStatement : mGetFullUsageStatement;
-
-  mozStorageStatementScoper scope(statement);
+  mozStorageStatementScoper scope(mGetUsageStatement);
 
   nsresult rv;
 
-  nsCAutoString scopeValue(aQuotaDomainDBKey);
-  scopeValue += NS_LITERAL_CSTRING("*");
-
-  rv = statement->BindUTF8StringParameter(0, scopeValue);
+  rv = mGetUsageStatement->BindUTF8StringParameter(0, aQuotaDomainDBKey +
+      NS_LITERAL_CSTRING("*"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool exists;
-  rv = statement->ExecuteStep(&exists);
+  rv = mGetUsageStatement->ExecuteStep(&exists);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!exists) {
@@ -679,7 +614,7 @@ nsDOMStoragePersistentDB::GetUsageInternal(const nsACString& aQuotaDomainDBKey,
     return NS_OK;
   }
 
-  rv = statement->GetInt32(0, aUsage);
+  rv = mGetUsageStatement->GetInt32(0, aUsage);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!aQuotaDomainDBKey.IsEmpty()) {

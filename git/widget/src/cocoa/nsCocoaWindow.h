@@ -59,37 +59,6 @@ typedef struct _nsCocoaWindowList {
   nsCocoaWindow *window; // Weak
 } nsCocoaWindowList;
 
-// NSWindow subclass that is the base class for all of our own window classes.
-// Among other things, this class handles the storage of those settings that
-// need to be persisted across window destruction and reconstruction, i.e. when
-// switching to and from fullscreen mode.
-// We don't save shadow, transparency mode or background color because it's not
-// worth the hassle - Gecko will reset them anyway as soon as the window is
-// resized.
-@interface BaseWindow : NSWindow
-{
-  // Data Storage
-  NSMutableDictionary* mState;
-  BOOL mDrawsIntoWindowFrame;
-  NSColor* mActiveTitlebarColor;
-  NSColor* mInactiveTitlebarColor;
-
-  // Shadow
-  BOOL mScheduledShadowInvalidation;
-}
-
-- (void)importState:(NSDictionary*)aState;
-- (NSMutableDictionary*)exportState;
-- (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
-- (BOOL)drawsContentsIntoWindowFrame;
-- (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
-- (NSColor*)titlebarColorForActiveWindow:(BOOL)aActive;
-
-- (void)deferredInvalidateShadow;
-- (void)invalidateShadow;
-
-@end
-
 @interface NSWindow (Undocumented)
 
 // If a window has been explicitly removed from the "window cache" (to
@@ -106,7 +75,7 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-@interface PopupWindow : BaseWindow
+@interface PopupWindow : NSWindow
 {
 @private
   BOOL mIsContextMenu;
@@ -119,7 +88,7 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-@interface BorderlessWindow : BaseWindow
+@interface BorderlessWindow : NSWindow
 {
 }
 
@@ -154,38 +123,45 @@ struct UnifiedGradientInfo {
   BOOL drawTitlebar; // NO for toolbar, YES for titlebar
 };
 
-@class ToolbarWindow;
-
 // NSColor subclass that allows us to draw separate colors both in the titlebar 
 // and for background of the window.
 @interface TitlebarAndBackgroundColor : NSColor
 {
-  ToolbarWindow *mWindow; // [WEAK] (we are owned by the window)
+  NSColor *mActiveTitlebarColor;
+  NSColor *mInactiveTitlebarColor;
+  NSColor *mBackgroundColor;
+  NSWindow *mWindow; // [WEAK] (we are owned by the window)
 }
 
-- (id)initWithWindow:(ToolbarWindow*)aWindow;
+- (id)initWithActiveTitlebarColor:(NSColor*)aActiveTitlebarColor
+            inactiveTitlebarColor:(NSColor*)aInactiveTitlebarColor
+                  backgroundColor:(NSColor*)aBackgroundColor
+                        forWindow:(NSWindow*)aWindow;
 
+// Pass nil here to get the default appearance.
+- (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
+- (NSColor*)activeTitlebarColor;
+- (NSColor*)inactiveTitlebarColor;
+
+- (void)setBackgroundColor:(NSColor*)aColor;
+- (NSColor*)backgroundColor;
+
+- (NSWindow*)window;
 @end
 
 // NSWindow subclass for handling windows with toolbars.
-@interface ToolbarWindow : BaseWindow
+@interface ToolbarWindow : NSWindow
 {
   TitlebarAndBackgroundColor *mColor;
   float mUnifiedToolbarHeight;
-  BOOL mWaitingForUnifiedToolbarHeight;
-  NSColor *mBackgroundColor;
 }
-// Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
 - (void)setUnifiedToolbarHeight:(float)aToolbarHeight;
 - (float)unifiedToolbarHeight;
-- (void)beginMaybeResetUnifiedToolbar;
-- (void)endMaybeResetUnifiedToolbar;
 - (float)titlebarHeight;
-- (NSRect)titlebarRect;
-- (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
-- (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect;
-- (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
+// This method is also available on NSWindows (via a category), and is the 
+// preferred way to check the background color of a window.
+- (NSColor*)windowBackgroundColor;
 @end
 
 class nsCocoaWindow : public nsBaseWidget, public nsPIWidgetCocoa
@@ -247,10 +223,8 @@ public:
     virtual void Scroll(const nsIntPoint& aDelta,
                         const nsTArray<nsIntRect>& aDestRects,
                         const nsTArray<Configuration>& aConfigurations);
-    virtual LayerManager* GetLayerManager();
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
-    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
-                                   PRBool aDoCapture, PRBool aConsumeRollupEvent);
+    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
     NS_IMETHOD GetAttention(PRInt32 aCycleCount);
     virtual PRBool HasPendingInputEvent();
     virtual nsTransparencyMode GetTransparencyMode();
@@ -258,7 +232,6 @@ public:
     NS_IMETHOD SetWindowShadowStyle(PRInt32 aStyle);
     virtual void SetShowsToolbarButton(PRBool aShow);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
-    virtual void SetDrawsInTitlebar(PRBool aState);
     virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                                 PRUint32 aNativeMessage,
                                                 PRUint32 aModifierFlags);
@@ -284,6 +257,8 @@ public:
     // nsIKBStateControl interface
     NS_IMETHOD ResetInputState();
     
+    void MakeBackgroundTransparent(PRBool aTransparent);
+
     NS_IMETHOD BeginSecureKeyboardInput();
     NS_IMETHOD EndSecureKeyboardInput();
 
@@ -300,18 +275,13 @@ protected:
                                               nsIAppShell *aAppShell,
                                               nsIToolkit *aToolkit);
   void                 DestroyNativeWindow();
-  void                 AdjustWindowShadow();
-  void                 SetUpWindowFilter();
-  void                 CleanUpWindowFilter();
 
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
-  BaseWindow*          mWindow;         // our cocoa window [STRONG]
+  NSWindow*            mWindow;         // our cocoa window [STRONG]
   WindowDelegate*      mDelegate;       // our delegate for processing window msgs [STRONG]
   nsRefPtr<nsMenuBarX> mMenuBar;
   NSWindow*            mSheetWindowParent; // if this is a sheet, this is the NSWindow it's attached to
   nsChildView*         mPopupContentView; // if this is a popup, this is its content widget
-  PRInt32              mShadowStyle;
-  NSUInteger           mWindowFilter;
 
   PRPackedBool         mIsResizing;     // we originated the resize, prevent infinite recursion
   PRPackedBool         mWindowMadeHere; // true if we created the window, false for embedding

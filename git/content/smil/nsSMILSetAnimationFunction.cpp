@@ -97,6 +97,12 @@ nsSMILSetAnimationFunction::UnsetAttr(nsIAtom* aAttribute)
   return nsSMILAnimationFunction::UnsetAttr(aAttribute);
 }
 
+nsSMILAnimationFunction::nsSMILCalcMode
+nsSMILSetAnimationFunction::GetCalcMode() const
+{
+  return CALC_DISCRETE;
+}
+
 PRBool
 nsSMILSetAnimationFunction::HasAttr(nsIAtom* aAttName) const
 {

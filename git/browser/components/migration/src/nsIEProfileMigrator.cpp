@@ -378,6 +378,10 @@ const regEntry gRegEntries[] = {
     "network.http.proxy.version",
     TranslateDWORDtoHTTPVersion },
 // SecureProtocols
+  { "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Url History",
+    "DaysToKeep",
+    "browser.history_expire_days",
+    TranslateDWORDtoPRInt32 },
   { "Software\\Microsoft\\Internet Explorer\\Settings",
     "Always Use My Colors",            // XXX DWORD
     "browser.display.use_document_colors",
@@ -401,7 +405,11 @@ const regEntry gRegEntries[] = {
   { 0,
     "Always Use My Font Face",    // XXX DWORD
     "browser.display.use_document_fonts",
-    TranslateYNtoFT }
+    TranslateYNtoFT },
+  { "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Url History",
+    "DaysToKeep",
+    "browser.history_expire_days",
+    TranslateDWORDtoPRInt32 }
 };
 
 #if 0
@@ -940,7 +948,7 @@ nsIEProfileMigrator::CopyPasswords(PRBool aReplace)
   }
 
   PStoreCreateInstancePtr PStoreCreateInstance = (PStoreCreateInstancePtr)::GetProcAddress(pstoreDLL, "PStoreCreateInstance");
-  IPStore* PStore;
+  IPStorePtr PStore;
   hr = PStoreCreateInstance(&PStore, 0, 0, 0);
 
   rv = GetSignonsListFromPStore(PStore, &signonsFound);
@@ -977,7 +985,7 @@ nsIEProfileMigrator::MigrateSiteAuthSignons(IPStore* aPStore)
     return NS_OK;
 
   GUID mtGuid = {0};
-  IEnumPStoreItems* enumItems = NULL;
+  IEnumPStoreItemsPtr enumItems = NULL;
   hr = aPStore->EnumItems(0, &IEPStoreSiteAuthGUID, &mtGuid, 0, &enumItems);
   if (SUCCEEDED(hr) && enumItems != NULL) {
     LPWSTR itemName = NULL;
@@ -1042,7 +1050,7 @@ nsIEProfileMigrator::GetSignonsListFromPStore(IPStore* aPStore, nsTArray<SignonD
 
   NS_ENSURE_ARG_POINTER(aPStore);
 
-  IEnumPStoreItems* enumItems = NULL;
+  IEnumPStoreItemsPtr enumItems = NULL;
   hr = aPStore->EnumItems(0, &IEPStoreAutocompGUID, &IEPStoreAutocompGUID, 0, &enumItems);
   if (SUCCEEDED(hr) && enumItems != NULL) {
     LPWSTR itemName = NULL;
@@ -1122,7 +1130,7 @@ nsIEProfileMigrator::ResolveAndMigrateSignons(IPStore* aPStore, nsTArray<SignonD
 {
   HRESULT hr;
 
-  IEnumPStoreItems* enumItems = NULL;
+  IEnumPStoreItemsPtr enumItems = NULL;
   hr = aPStore->EnumItems(0, &IEPStoreAutocompGUID, &IEPStoreAutocompGUID, 0, &enumItems);
   if (SUCCEEDED(hr) && enumItems != NULL) {
     LPWSTR itemName = NULL;
@@ -1263,12 +1271,12 @@ nsIEProfileMigrator::CopyFormData(PRBool aReplace)
   }
 
   PStoreCreateInstancePtr PStoreCreateInstance = (PStoreCreateInstancePtr)::GetProcAddress(pstoreDLL, "PStoreCreateInstance");
-  IPStore* PStore = NULL;
+  IPStorePtr PStore = NULL;
   hr = PStoreCreateInstance(&PStore, 0, 0, 0);
   if (FAILED(hr) || PStore == NULL)
     return NS_OK;
 
-  IEnumPStoreItems* enumItems = NULL;
+  IEnumPStoreItemsPtr enumItems = NULL;
   hr = PStore->EnumItems(0, &IEPStoreAutocompGUID, &IEPStoreAutocompGUID, 0, &enumItems);
   if (SUCCEEDED(hr) && enumItems != NULL) {
     LPWSTR itemName = NULL;
@@ -1420,7 +1428,7 @@ nsIEProfileMigrator::CopyFavoritesBatched(PRBool aReplace)
     do_GetService("@mozilla.org/file/directory_service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIFile> favoritesDirectory;
-  (void)fileLocator->Get(NS_WIN_FAVORITES_DIR, NS_GET_IID(nsIFile),
+  (void)fileLocator->Get("Favs", NS_GET_IID(nsIFile),
                          getter_AddRefs(favoritesDirectory));
 
   // If |favoritesDirectory| is null, it means that we're on a Windows

@@ -75,20 +75,16 @@ class nsSMILValue;
 
 class nsISMILType
 {
-  /**
-   * Only give the nsSMILValue class access to this interface.
-   */
-  friend class nsSMILValue;
-
-protected:
+public:
   /**
    * Initialises aValue and sets it to some identity value such that adding
    * aValue to another value of the same type has no effect.
    *
-   * @pre  aValue.IsNull()
-   * @post aValue.mType == this
+   * @pre (aValue.mType == this && aValue.mU is valid)
+   *      || aValue.mType == null-type
+   * @post aValue.mType == this || NS_FAILED(rv)
    */
-  virtual void Init(nsSMILValue& aValue) const = 0;
+  virtual nsresult Init(nsSMILValue& aValue) const = 0;
 
   /**
    * Destroys any data associated with a value of this type.
@@ -111,29 +107,6 @@ protected:
    */
   virtual nsresult Assign(nsSMILValue& aDest,
                           const nsSMILValue& aSrc) const = 0;
-
-  /**
-   * Test two nsSMILValue objects (of this nsISMILType) for equality.
-   *
-   * A return value of PR_TRUE represents a guarantee that aLeft and aRight are
-   * equal. (That is, they would behave identically if passed to the methods
-   * Add, SandwichAdd, ComputeDistance, and Interpolate).
-   *
-   * A return value of PR_FALSE simply indicates that we make no guarantee
-   * about equality.
-   *
-   * NOTE: It's perfectly legal for implementations of this method to return
-   * PR_FALSE in all cases.  However, smarter implementations will make this
-   * method more useful for optimization.
-   *
-   * @param   aLeft       The left-hand side of the equality check.
-   * @param   aRight      The right-hand side of the equality check.
-   * @return  PR_TRUE if we're sure the values are equal, PR_FALSE otherwise.
-   *
-   * @pre aDest.mType == aSrc.mType == this
-   */
-  virtual PRBool IsEqual(const nsSMILValue& aLeft,
-                         const nsSMILValue& aRight) const = 0;
 
   /**
    * Adds two values.
@@ -238,12 +211,11 @@ protected:
                                double aUnitDistance,
                                nsSMILValue& aResult) const = 0;
 
-  /**
-   * Protected destructor, to ensure that no one accidentally deletes an
-   * instance of this class.
-   * (The only instances in existence should be singletons - one per subclass.)
+  /*
+   * Virtual destructor: Nothing to do here, but subclasses
+   * may need it.
    */
-  ~nsISMILType() {}
+  virtual ~nsISMILType() {};
 };
 
 #endif // NS_ISMILTYPE_H_

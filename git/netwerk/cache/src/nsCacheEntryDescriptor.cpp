@@ -89,20 +89,14 @@ nsCacheEntryDescriptor::GetClientID(char ** result)
 
 
 NS_IMETHODIMP
-nsCacheEntryDescriptor::GetDeviceID(char ** aDeviceID)
+nsCacheEntryDescriptor::GetDeviceID(char ** result)
 {
-    NS_ENSURE_ARG_POINTER(aDeviceID);
+    NS_ENSURE_ARG_POINTER(result);
     nsCacheServiceAutoLock lock;
     if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
 
-    const char* deviceID = mCacheEntry->GetDeviceID();
-    if (!deviceID) {
-        *aDeviceID = nsnull;
-        return NS_OK;
-    }
-
-    *aDeviceID = NS_strdup(deviceID);
-    return *aDeviceID ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    *result = NS_strdup(mCacheEntry->GetDeviceID());
+    return *result ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 

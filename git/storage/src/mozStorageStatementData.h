@@ -46,9 +46,6 @@
 #include "nsTArray.h"
 
 #include "mozStorageBindingParamsArray.h"
-#include "mozIStorageBaseStatement.h"
-#include "mozStorageConnection.h"
-#include "StorageBaseStatementInternal.h"
 
 struct sqlite3_stmt;
 
@@ -60,7 +57,7 @@ class StatementData
 public:
   StatementData(sqlite3_stmt *aStatement,
                 already_AddRefed<BindingParamsArray> aParamsArray,
-                StorageBaseStatementInternal *aStatementOwner)
+                nsISupports *aStatementOwner)
   : mStatement(aStatement)
   , mParamsArray(aParamsArray)
   , mStatementOwner(aStatementOwner)
@@ -76,50 +73,24 @@ public:
   {
   }
 
-  /**
-   * Return the sqlite statement, fetching it from the storage statement.  In
-   * the case of AsyncStatements this may actually create the statement 
-   */
-  inline int getSqliteStatement(sqlite3_stmt **_stmt)
+  operator sqlite3_stmt *() const
   {
-    if (!mStatement) {
-      int rc = mStatementOwner->getAsyncStatement(&mStatement);
-      NS_ENSURE_TRUE(rc == SQLITE_OK, rc);
-    }
-    *_stmt = mStatement;
-    return SQLITE_OK;
+    NS_ASSERTION(mStatement, "NULL sqlite3_stmt being handed off!");
+    return mStatement;
   }
-
   operator BindingParamsArray *() const { return mParamsArray; }
 
   /**
-   * Provide the ability to coerce back to a sqlite3 * connection for purposes 
-   * of getting an error message out of it.
-   */
-  operator sqlite3 *() const
-  {
-    return mStatementOwner->getOwner()->GetNativeConnection();
-  }
-
-  /**
    * NULLs out our sqlite3_stmt (it is held by the owner) after reseting it and
-   * clear all bindings to it.  This is expected to occur on the async thread.
-   *
-   * We do not clear mParamsArray out because we only want to release
-   * mParamsArray on the calling thread because of XPCVariant addref/release
-   * thread-safety issues.  The same holds for mStatementOwner which can be
-   * holding such a reference chain as well.
+   * clear all bindings to it.  Then, NULL out the rest of our data.
    */
   inline void finalize()
   {
-    // In the AsyncStatement case we may never have populated mStatement if the
-    // AsyncExecuteStatements got canceled or a failure occurred in constructing
-    // the statement.
-    if (mStatement) {
-      (void)::sqlite3_reset(mStatement);
-      (void)::sqlite3_clear_bindings(mStatement);
-      mStatement = NULL;
-    }
+    (void)::sqlite3_reset(mStatement);
+    (void)::sqlite3_clear_bindings(mStatement);
+    mStatement = NULL;
+    mParamsArray = nsnull;
+    mStatementOwner = nsnull;
   }
 
   /**
@@ -129,7 +100,7 @@ public:
    * @return true if the statement has parameters to bind against, false
    *         otherwise.
    */
-  inline bool hasParametersToBeBound() const { return !!mParamsArray; }
+  inline bool hasParametersToBeBound() const { return mParamsArray != nsnull; }
   /**
    * Indicates if this statement needs a transaction for execution.
    *
@@ -148,7 +119,7 @@ private:
    * We hold onto a reference of the statement's owner so it doesn't get
    * destroyed out from under us.
    */
-  nsCOMPtr<StorageBaseStatementInternal> mStatementOwner;
+  nsCOMPtr<nsISupports> mStatementOwner;
 };
 
 } // namespace storage

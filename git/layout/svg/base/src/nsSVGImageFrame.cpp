@@ -202,8 +202,7 @@ nsSVGImageFrame::GetImageTransform()
   mImageContainer->GetHeight(&nativeHeight);
 
   gfxMatrix viewBoxTM =
-    nsSVGUtils::GetViewBoxTransform(element,
-                                    width, height,
+    nsSVGUtils::GetViewBoxTransform(width, height,
                                     0, 0, nativeWidth, nativeHeight,
                                     element->mPreserveAspectRatio);
 
@@ -257,7 +256,6 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
   if (thebesPattern) {
 
     thebesPattern->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
-    thebesPattern->SetExtend(gfxPattern::EXTEND_PAD_EDGE);
 
     gfxContext *gfx = aContext->GetGfxContext();
 

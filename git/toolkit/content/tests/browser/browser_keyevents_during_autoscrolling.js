@@ -1,7 +1,9 @@
 function test()
 {
   const kPrefName_AutoScroll = "general.autoScroll";
-  Services.prefs.setBoolPref(kPrefName_AutoScroll, true);
+  var prefSvc = Components.classes["@mozilla.org/preferences-service;1"]
+                          .getService(Components.interfaces.nsIPrefBranch2);
+  prefSvc.setBoolPref(kPrefName_AutoScroll, true);
 
   const kNoKeyEvents   = 0;
   const kKeyDownEvent  = 1;
@@ -50,12 +52,12 @@ function test()
   }
 
   waitForExplicitFinish();
-  gBrowser.selectedBrowser.addEventListener("pageshow", onLoad, false);
+  gBrowser.addEventListener("load", onLoad, false);
   var dataUri = 'data:text/html,<body style="height:10000px;"></body>';
   gBrowser.loadURI(dataUri);
 
   function onLoad() {
-    gBrowser.selectedBrowser.removeEventListener("pageshow", onLoad, false);
+    gBrowser.removeEventListener("load", onLoad, false);
     waitForFocus(onFocus, content);
   }
 
@@ -101,8 +103,7 @@ function test()
     root.removeEventListener("keyup", onKey, true);
 
     // restore the changed prefs
-    if (Services.prefs.prefHasUserValue(kPrefName_AutoScroll))
-      Services.prefs.clearUserPref(kPrefName_AutoScroll);
+    prefSvc.clearUserPref(kPrefName_AutoScroll);
 
     // cleaning-up
     gBrowser.addTab().linkedBrowser.stop();

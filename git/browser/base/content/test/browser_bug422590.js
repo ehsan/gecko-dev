@@ -43,12 +43,14 @@ function testCustomize(aWindow, aCallback) {
   is(fileMenu.disabled, true,
      "file menu is disabled during toolbar customization");
 
-  aWindow.gNavToolbox.addEventListener("beforecustomization", function () {
-    aWindow.gNavToolbox.removeEventListener("beforecustomization", arguments.callee, false);
-    executeSoon(ctInit);
-  }, false);
-
+  // Set a callback on the window's toolbox
+  var nt = aWindow.getNavToolbox();
+  var oldHandler = nt.customizeInitialized;
+  nt.customizeInitialized = ctInit;
   function ctInit() {
+    // Restore customizeInitialized handler
+    nt.customizeInitialized = oldHandler;
+
     // Close toolbar customization
     closeToolbarCustomization(aWindow, ctEl);
 
@@ -63,11 +65,14 @@ function testCustomize(aWindow, aCallback) {
 }
 
 function closeToolbarCustomization(aWindow, aCTWindow) {
-  // Force the cleanup code to be run now instead of onunload.
-  // This also hides the sheet on Mac.
+  var osString = Components.classes["@mozilla.org/xre/app-info;1"].
+                 getService(Components.interfaces.nsIXULRuntime).OS;
+
+  // Force the cleanup code to be run now instead of onunload
+  // This also hides the sheet on Mac
   aCTWindow.finishToolbarCustomization();
 
-  // On windows and linux, need to explicitly close the window.
-  if (!gCustomizeSheet)
+  // On windows and linux, need to explicitly close the window
+  if (osString != "Darwin")
     aCTWindow.close();
 }

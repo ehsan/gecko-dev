@@ -123,7 +123,6 @@
 #include "nsIDOMViewCSS.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsCSSDeclaration.h"
-#include "nsCSSParser.h"
 #include "nsIListBoxObject.h"
 #include "nsContentUtils.h"
 #include "nsContentList.h"
@@ -132,6 +131,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsDOMAttributeMap.h"
 #include "nsDOMCSSDeclaration.h"
+#include "nsStyledElement.h"
 #include "nsGkAtoms.h"
 #include "nsXULContentUtils.h"
 #include "nsNodeUtils.h"
@@ -151,12 +151,14 @@
 #include "nsNodeInfoManager.h"
 #include "nsXBLBinding.h"
 #include "nsEventDispatcher.h"
+#include "nsPresShellIterator.h"
 #include "mozAutoDocUpdate.h"
 #include "nsIDOMXULCommandEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsCCUncollectableMarker.h"
 
 // Global object maintenance
+nsICSSParser* nsXULPrototypeElement::sCSSParser = nsnull;
 nsIXBLService * nsXULElement::gXBLService = nsnull;
 
 /**
@@ -236,7 +238,7 @@ NS_INTERFACE_MAP_END_AGGREGATED(mElement)
 //
 
 nsXULElement::nsXULElement(nsINodeInfo* aNodeInfo)
-    : nsStyledElement(aNodeInfo),
+    : nsGenericElement(aNodeInfo),
       mBindingParent(nsnull)
 {
     XUL_PROTOTYPE_ATTRIBUTE_METER(gNumElements);
@@ -303,7 +305,7 @@ nsresult
 nsXULElement::Create(nsXULPrototypeElement* aPrototype,
                      nsIDocument* aDocument,
                      PRBool aIsScriptable,
-                     Element** aResult)
+                     nsIContent** aResult)
 {
     // Create an nsXULElement from a prototype
     NS_PRECONDITION(aPrototype != nsnull, "null ptr");
@@ -358,15 +360,13 @@ NS_NewXULElement(nsIContent** aResult, nsINodeInfo *aNodeInfo)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
-                                                  nsStyledElement)
+                                                  nsGenericElement)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mPrototype,
                                                     nsXULPrototypeElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsXULElement, nsStyledElement)
-NS_IMPL_RELEASE_INHERITED(nsXULElement, nsStyledElement)
-
-DOMCI_DATA(XULElement, nsXULElement)
+NS_IMPL_ADDREF_INHERITED(nsXULElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsXULElement, nsGenericElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULElement)
     NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXULElement)
@@ -381,7 +381,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULElement)
                                    new nsXULElementTearoff(this))
     NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIFrameLoaderOwner,
                                    new nsXULElementTearoff(this))
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULElement)
+    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XULElement)
 NS_ELEMENT_INTERFACE_MAP_END
 
 //----------------------------------------------------------------------
@@ -499,7 +499,7 @@ nsXULElement::GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
         return NS_ERROR_UNEXPECTED; // XXX
 
     nsPIDOMWindow *window;
-    Element *root = doc->GetRootElement();
+    nsIContent *root = doc->GetRootContent();
     if ((!root || root == this) && !mNodeInfo->Equals(nsGkAtoms::overlay) &&
         (window = doc->GetInnerWindow()) && window->IsInnerWindow()) {
 
@@ -515,21 +515,13 @@ nsXULElement::GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
         return NS_OK;
     }
 
-    return nsStyledElement::GetEventListenerManagerForAttr(aManager,
-                                                           aTarget,
-                                                           aDefer);
-}
-
-// returns true if the element is not a list
-static PRBool IsNonList(nsINodeInfo* aNodeInfo)
-{
-  return !aNodeInfo->Equals(nsGkAtoms::tree) &&
-         !aNodeInfo->Equals(nsGkAtoms::listbox) &&
-         !aNodeInfo->Equals(nsGkAtoms::richlistbox);
+    return nsGenericElement::GetEventListenerManagerForAttr(aManager,
+                                                            aTarget,
+                                                            aDefer);
 }
 
 PRBool
-nsXULElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
+nsXULElement::IsFocusable(PRInt32 *aTabIndex)
 {
   /* 
    * Returns true if an element may be focused, and false otherwise. The inout
@@ -562,12 +554,6 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
   // elements are not focusable by default
   PRBool shouldFocus = PR_FALSE;
 
-#ifdef XP_MACOSX
-  // on Mac, mouse interactions only focus the element if it's a list
-  if (aWithMouse && IsNonList(mNodeInfo))
-    return PR_FALSE;
-#endif
-
   nsCOMPtr<nsIDOMXULControlElement> xulControl = 
     do_QueryInterface(static_cast<nsIContent*>(this));
   if (xulControl) {
@@ -594,10 +580,8 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
       }
       else {
         // otherwise, if there is no tabindex attribute, just use the value of
-        // *aTabIndex to indicate focusability. Reset any supplied tabindex to 0.
+        // *aTabIndex to indicate focusability
         shouldFocus = *aTabIndex >= 0;
-        if (shouldFocus)
-          *aTabIndex = 0;
       }
 
       if (shouldFocus && sTabFocusModelAppliesToXUL &&
@@ -609,7 +593,7 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
         // (textboxes are handled as html:input)
         // For compatibility, we only do this for controls, otherwise elements like <browser>
         // cannot take this focus.
-        if (IsNonList(mNodeInfo))
+        if (!mNodeInfo->Equals(nsGkAtoms::tree) && !mNodeInfo->Equals(nsGkAtoms::listbox))
           *aTabIndex = -1;
       }
     }
@@ -646,7 +630,15 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
             return;
     }
 
-    nsIFrame* frame = content->GetPrimaryFrame();
+    nsIDocument* doc = GetCurrentDoc();
+    if (!doc)
+        return;
+
+    nsIPresShell *shell = doc->GetPrimaryShell();
+    if (!shell)
+        return;
+
+    nsIFrame* frame = shell->GetPrimaryFrameFor(content);
     if (!frame)
         return;
 
@@ -685,9 +677,8 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
               fm->SetFocus(element, nsIFocusManager::FLAG_BYKEY);
           }
         }
-        if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist) {
-            ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD);
-        }
+        if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist)
+            elm->Click();
     }
     else {
         content->PerformAccesskey(aKeyCausesActivation, aIsTrustedEvent);
@@ -874,12 +865,9 @@ nsXULElement::BindToTree(nsIDocument* aDocument,
                          nsIContent* aBindingParent,
                          PRBool aCompileEventHandlers)
 {
-  // Calling the nsStyledElementBase method on purpose to skip over
-  // nsStyledElement, since we don't want the style attribute
-  // reparsing it does.
-  nsresult rv = nsStyledElementBase::BindToTree(aDocument, aParent,
-                                                aBindingParent,
-                                                aCompileEventHandlers);
+  nsresult rv = nsGenericElement::BindToTree(aDocument, aParent,
+                                             aBindingParent,
+                                             aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
@@ -920,7 +908,7 @@ nsXULElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
         }
     }
 
-    nsStyledElement::UnbindFromTree(aDeep, aNullParent);
+    nsGenericElement::UnbindFromTree(aDeep, aNullParent);
 }
 
 nsresult
@@ -993,7 +981,7 @@ nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEve
       }
     }
 
-    rv = nsStyledElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
+    rv = nsGenericElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
     
     if (newCurrentIndex == -2)
         controlElement->SetCurrentItem(nsnull);
@@ -1080,8 +1068,8 @@ nsXULElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         }
     }
 
-    return nsStyledElement::BeforeSetAttr(aNamespaceID, aName,
-                                          aValue, aNotify);
+    return nsGenericElement::BeforeSetAttr(aNamespaceID, aName,
+                                           aValue, aNotify);
 }
 
 nsresult
@@ -1109,41 +1097,44 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         if (aName == nsGkAtoms::hidechrome &&
             mNodeInfo->Equals(nsGkAtoms::window) &&
             aValue) {
-            HideWindowChrome(aValue->EqualsLiteral("true"));
+            HideWindowChrome(aValue && NS_LITERAL_STRING("true").Equals(*aValue));
+        }
+        
+        nsIDocument *document = GetCurrentDoc();
+        if (aName == nsGkAtoms::title &&
+            document && document->GetRootContent() == this) {
+            document->NotifyPossibleTitleChange(PR_FALSE);
         }
 
-        // title, (in)activetitlebarcolor and drawintitlebar are settable on
-        // any root node (windows, dialogs, etc)
-        nsIDocument *document = GetCurrentDoc();
-        if (document && document->GetRootElement() == this) {
-            if (aName == nsGkAtoms::title) {
-                document->NotifyPossibleTitleChange(PR_FALSE);
+        // (in)activetitlebarcolor is settable on any root node (windows, dialogs, etc)
+        if ((aName == nsGkAtoms::activetitlebarcolor ||
+             aName == nsGkAtoms::inactivetitlebarcolor) &&
+            document && document->GetRootContent() == this) {
+
+            nscolor color = NS_RGBA(0, 0, 0, 0);
+            nsAttrValue attrValue;
+            attrValue.ParseColor(*aValue, document);
+            attrValue.GetColorValue(color);
+
+            SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
+        }
+
+        // if the localedir changed on the root element, reset the document direction
+        if (aName == nsGkAtoms::localedir &&
+            document && document->GetRootContent() == this) {
+            nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
+            if (xuldoc) {
+                xuldoc->ResetDocumentDirection();
             }
-            else if ((aName == nsGkAtoms::activetitlebarcolor ||
-                      aName == nsGkAtoms::inactivetitlebarcolor)) {
-                nscolor color = NS_RGBA(0, 0, 0, 0);
-                nsAttrValue attrValue;
-                attrValue.ParseColor(*aValue, document);
-                attrValue.GetColorValue(color);
-                SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
-            }
-            else if (aName == nsGkAtoms::drawintitlebar) {
-                SetDrawsInTitlebar(aValue && aValue->EqualsLiteral("true"));
-            }
-            else if (aName == nsGkAtoms::localedir) {
-                // if the localedir changed on the root element, reset the document direction
-                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
-                if (xuldoc) {
-                    xuldoc->ResetDocumentDirection();
-                }
-            }
-            else if (aName == nsGkAtoms::lwtheme ||
-                     aName == nsGkAtoms::lwthemetextcolor) {
-                // if the lwtheme changed, make sure to reset the document lwtheme cache
-                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
-                if (xuldoc) {
-                    xuldoc->ResetDocumentLWTheme();
-                }
+        }
+
+        // if the lwtheme changed, make sure to reset the document lwtheme cache
+        if ((aName == nsGkAtoms::lwtheme ||
+             aName == nsGkAtoms::lwthemetextcolor) &&
+            document && document->GetRootContent() == this) {
+            nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
+            if (xuldoc) {
+                xuldoc->ResetDocumentLWTheme();
             }
         }
 
@@ -1155,8 +1146,8 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         // so, then we need to unhook the old one.  Or something.
     }
 
-    return nsStyledElement::AfterSetAttr(aNamespaceID, aName,
-                                         aValue, aNotify);
+    return nsGenericElement::AfterSetAttr(aNamespaceID, aName,
+                                          aValue, aNotify);
 }
 
 PRBool
@@ -1166,8 +1157,26 @@ nsXULElement::ParseAttribute(PRInt32 aNamespaceID,
                              nsAttrValue& aResult)
 {
     // Parse into a nsAttrValue
-    if (!nsStyledElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
-                                         aResult)) {
+
+    // WARNING!!
+    // This code is largely duplicated in nsXULPrototypeElement::SetAttrAt.
+    // Any changes should be made to both functions.
+    if (aNamespaceID == kNameSpaceID_None) {
+        if (aAttribute == nsGkAtoms::style) {
+            SetFlags(NODE_MAY_HAVE_STYLE);
+            nsStyledElement::ParseStyleAttribute(this, aValue, aResult, PR_FALSE);
+            return PR_TRUE;
+        }
+
+        if (aAttribute == nsGkAtoms::_class) {
+            SetFlags(NODE_MAY_HAVE_CLASS);
+            aResult.ParseAtomArray(aValue);
+            return PR_TRUE;
+        }
+    }
+
+    if (!nsGenericElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
+                                          aResult)) {
         // Fall back to parsing as atom for short values
         aResult.ParseStringOrAtom(aValue);
     }
@@ -1178,8 +1187,9 @@ nsXULElement::ParseAttribute(PRInt32 aNamespaceID,
 const nsAttrName*
 nsXULElement::InternalGetExistingAttrNameFromQName(const nsAString& aStr) const
 {
+    NS_ConvertUTF16toUTF8 name(aStr);
     const nsAttrName* attrName =
-        mAttrsAndChildren.GetExistingAttrNameFromQName(aStr);
+        mAttrsAndChildren.GetExistingAttrNameFromQName(name);
     if (attrName) {
         return attrName;
     }
@@ -1188,7 +1198,7 @@ nsXULElement::InternalGetExistingAttrNameFromQName(const nsAString& aStr) const
         PRUint32 i;
         for (i = 0; i < mPrototype->mNumAttributes; ++i) {
             attrName = &mPrototype->mAttributes[i].mName;
-            if (attrName->QualifiedNameEquals(aStr)) {
+            if (attrName->QualifiedNameEquals(name)) {
                 return attrName;
             }
         }
@@ -1336,9 +1346,11 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
 
     nsCOMPtr<nsIDOMAttr> attrNode;
     if (hasMutationListeners) {
+        nsAutoString attrName;
+        aName->ToString(attrName);
         nsAutoString ns;
         nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNameSpaceID, ns);
-        GetAttributeNodeNS(ns, nsDependentAtomString(aName), getter_AddRefs(attrNode));
+        GetAttributeNodeNS(ns, attrName, getter_AddRefs(attrNode));
     }
 
     nsDOMSlots *slots = GetExistingDOMSlots();
@@ -1365,29 +1377,29 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             HideWindowChrome(PR_FALSE);
         }
 
-        if (doc && doc->GetRootElement() == this) {
-            if ((aName == nsGkAtoms::activetitlebarcolor ||
-                 aName == nsGkAtoms::inactivetitlebarcolor)) {
-                // Use 0, 0, 0, 0 as the "none" color.
-                SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
+        if ((aName == nsGkAtoms::activetitlebarcolor ||
+             aName == nsGkAtoms::inactivetitlebarcolor) &&
+            doc && doc->GetRootContent() == this) {
+            // Use 0, 0, 0, 0 as the "none" color.
+            SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
+        }
+
+        // if the localedir changed on the root element, reset the document direction
+        if (aName == nsGkAtoms::localedir &&
+            doc && doc->GetRootContent() == this) {
+            nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
+            if (xuldoc) {
+                xuldoc->ResetDocumentDirection();
             }
-            else if (aName == nsGkAtoms::localedir) {
-                // if the localedir changed on the root element, reset the document direction
-                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
-                if (xuldoc) {
-                    xuldoc->ResetDocumentDirection();
-                }
-            }
-            else if ((aName == nsGkAtoms::lwtheme ||
-                      aName == nsGkAtoms::lwthemetextcolor)) {
-                // if the lwtheme changed, make sure to restyle appropriately
-                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
-                if (xuldoc) {
-                    xuldoc->ResetDocumentLWTheme();
-                }
-            }
-            else if (aName == nsGkAtoms::drawintitlebar) {
-                SetDrawsInTitlebar(PR_FALSE);
+        }
+
+        // if the lwtheme changed, make sure to restyle appropriately
+        if ((aName == nsGkAtoms::lwtheme ||
+             aName == nsGkAtoms::lwthemetextcolor) &&
+            doc && doc->GetRootContent() == this) {
+            nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
+            if (xuldoc) {
+                xuldoc->ResetDocumentLWTheme();
             }
         }
 
@@ -1420,11 +1432,12 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             doc->ContentStatesChanged(this, nsnull, stateMask);
         }
         nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
-                                      nsIDOMMutationEvent::REMOVAL);
+                                      nsIDOMMutationEvent::REMOVAL,
+                                      stateMask);
     }
 
     if (hasMutationListeners) {
-        mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
+        mozAutoRemovableBlockerRemover blockerRemover;
 
         nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
@@ -1566,7 +1579,7 @@ nsXULElement::DestroyContent()
         }
     }
 
-    nsStyledElement::DestroyContent();
+    nsGenericElement::DestroyContent();
 }
 
 #ifdef DEBUG
@@ -1579,7 +1592,7 @@ nsXULElement::List(FILE* out, PRInt32 aIndent) const
     }
     prefix.Append(' ');
 
-    nsStyledElement::List(out, aIndent, prefix);
+    nsGenericElement::List(out, aIndent, prefix);
 }
 #endif
 
@@ -1662,7 +1675,7 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
         }
     }
 
-    return nsStyledElement::PreHandleEvent(aVisitor);
+    return nsGenericElement::PreHandleEvent(aVisitor);
 }
 
 // XXX This _should_ be an implementation method, _not_ publicly exposed :-(
@@ -1768,6 +1781,39 @@ nsXULElement::GetInlineStyleRule()
     return nsnull;
 }
 
+NS_IMETHODIMP
+nsXULElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
+{
+  SetFlags(NODE_MAY_HAVE_STYLE);
+  PRBool modification = PR_FALSE;
+  nsAutoString oldValueStr;
+
+  PRBool hasListeners = aNotify &&
+    nsContentUtils::HasMutationListeners(this,
+                                         NS_EVENT_BITS_MUTATION_ATTRMODIFIED,
+                                         this);
+
+  // There's no point in comparing the stylerule pointers since we're always
+  // getting a new stylerule here. And we can't compare the stringvalues of
+  // the old and the new rules since both will point to the same declaration
+  // and thus will be the same.
+  if (hasListeners) {
+    // save the old attribute so we can set up the mutation event properly
+    // XXXbz if the old rule points to the same declaration as the new one,
+    // this is getting the new attr value, not the old one....
+    modification = GetAttr(kNameSpaceID_None, nsGkAtoms::style,
+                           oldValueStr);
+  }
+  else if (aNotify && IsInDoc()) {
+    modification = !!mAttrsAndChildren.GetAttr(nsGkAtoms::style);
+  }
+
+  nsAttrValue attrValue(aStyleRule);
+
+  return SetAttrAndNotify(kNameSpaceID_None, nsGkAtoms::style, nsnull, oldValueStr,
+                          attrValue, modification, hasListeners, aNotify, nsnull);
+}
+
 nsChangeHint
 nsXULElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
                                      PRInt32 aModType) const
@@ -1800,6 +1846,18 @@ NS_IMETHODIMP_(PRBool)
 nsXULElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
     return PR_FALSE;
+}
+
+nsIAtom *
+nsXULElement::GetIDAttributeName() const
+{
+    return nsGkAtoms::id;
+}
+
+nsIAtom *
+nsXULElement::GetClassAttributeName() const
+{
+    return nsGkAtoms::_class;
 }
 
 // Controllers Methods
@@ -1926,7 +1984,6 @@ nsXULElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
         }
     }
 
-    // XXXbz could this call nsStyledElement::GetStyle now?
     nsDOMSlots* slots = GetDOMSlots();
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
@@ -1957,8 +2014,8 @@ nsXULElement::LoadSrc()
         return NS_OK;
     }
     if (!IsInDoc() ||
-        !GetOwnerDoc()->GetRootElement() ||
-        GetOwnerDoc()->GetRootElement()->
+        !GetOwnerDoc()->GetRootContent() ||
+        GetOwnerDoc()->GetRootContent()->
             NodeInfo()->Equals(nsGkAtoms::overlay, kNameSpaceID_XUL)) {
         return NS_OK;
     }
@@ -1975,20 +2032,12 @@ nsXULElement::LoadSrc()
 nsresult
 nsXULElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
 {
-    *aFrameLoader = GetFrameLoader().get();
-    return NS_OK;
-}
-
-already_AddRefed<nsFrameLoader>
-nsXULElement::GetFrameLoader()
-{
+    *aFrameLoader = nsnull;
     nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingSlots());
-    if (!slots)
-        return nsnull;
-
-    nsFrameLoader* loader = slots->mFrameLoader;
-    NS_IF_ADDREF(loader);
-    return loader;
+    if (slots) {
+        NS_IF_ADDREF(*aFrameLoader = slots->mFrameLoader);
+    }
+    return NS_OK;
 }
 
 nsresult
@@ -2067,21 +2116,16 @@ nsXULElement::Blur()
 NS_IMETHODIMP
 nsXULElement::Click()
 {
-  return ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN);
-}
-
-nsresult
-nsXULElement::ClickWithInputSource(PRUint16 aInputSource)
-{
     if (BoolAttrIsTrue(nsGkAtoms::disabled))
         return NS_OK;
 
     nsCOMPtr<nsIDocument> doc = GetCurrentDoc(); // Strong just in case
     if (doc) {
-        nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
-        if (shell) {
+        nsPresShellIterator iter(doc);
+        nsCOMPtr<nsIPresShell> shell;
+        while ((shell = iter.GetNextShell())) {
             // strong ref to PresContext so events don't destroy it
-            nsRefPtr<nsPresContext> context = shell->GetPresContext();
+            nsCOMPtr<nsPresContext> context = shell->GetPresContext();
 
             PRBool isCallerChrome = nsContentUtils::IsCallerChrome();
 
@@ -2091,8 +2135,6 @@ nsXULElement::ClickWithInputSource(PRUint16 aInputSource)
                                  nsnull, nsMouseEvent::eReal);
             nsMouseEvent eventClick(isCallerChrome, NS_MOUSE_CLICK, nsnull,
                                     nsMouseEvent::eReal);
-            eventDown.inputSource = eventUp.inputSource = eventClick.inputSource 
-                                  = aInputSource;
 
             // send mouse down
             nsEventStatus status = nsEventStatus_eIgnore;
@@ -2135,7 +2177,7 @@ nsXULElement::GetBindingParent() const
 PRBool
 nsXULElement::IsNodeOfType(PRUint32 aFlags) const
 {
-    return !(aFlags & ~eCONTENT);
+    return !(aFlags & ~(eCONTENT | eELEMENT));
 }
 
 static void
@@ -2213,7 +2255,7 @@ nsXULElement::AddPopupListener(nsIAtom* aName)
 PRInt32
 nsXULElement::IntrinsicState() const
 {
-    PRInt32 state = nsStyledElement::IntrinsicState();
+    PRInt32 state = nsGenericElement::IntrinsicState();
 
     const nsIAtom* tag = Tag();
     if (GetNameSpaceID() == kNameSpaceID_XUL &&
@@ -2232,7 +2274,7 @@ nsGenericElement::nsAttrInfo
 nsXULElement::GetAttrInfo(PRInt32 aNamespaceID, nsIAtom *aName) const
 {
 
-    nsAttrInfo info(nsStyledElement::GetAttrInfo(aNamespaceID, aName));
+    nsAttrInfo info(nsGenericElement::GetAttrInfo(aNamespaceID, aName));
     if (!info.mValue) {
         nsXULPrototypeAttribute *protoattr =
             FindPrototypeAttribute(aNamespaceID, aName);
@@ -2327,7 +2369,7 @@ nsresult
 nsXULElement::HideWindowChrome(PRBool aShouldHide)
 {
     nsIDocument* doc = GetCurrentDoc();
-    if (!doc || doc->GetRootElement() != this)
+    if (!doc || doc->GetRootContent() != this)
       return NS_ERROR_UNEXPECTED;
 
     // only top level chrome documents can hide the window chrome
@@ -2337,7 +2379,8 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
     nsIPresShell *shell = doc->GetPrimaryShell();
 
     if (shell) {
-        nsIFrame* frame = GetPrimaryFrame();
+        nsIContent* content = static_cast<nsIContent*>(this);
+        nsIFrame* frame = shell->GetPrimaryFrameFor(content);
 
         nsPresContext *presContext = shell->GetPresContext();
 
@@ -2355,10 +2398,13 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
     return NS_OK;
 }
 
-nsIWidget*
-nsXULElement::GetWindowWidget()
+void
+nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
 {
     nsIDocument* doc = GetCurrentDoc();
+    if (!doc || doc->GetRootContent() != this) {
+        return;
+    }
 
     // only top level chrome documents can set the titlebar color
     if (doc->IsRootDisplayDocument()) {
@@ -2367,27 +2413,10 @@ nsXULElement::GetWindowWidget()
         if (baseWindow) {
             nsCOMPtr<nsIWidget> mainWidget;
             baseWindow->GetMainWidget(getter_AddRefs(mainWidget));
-            return mainWidget;
+            if (mainWidget) {
+                mainWidget->SetWindowTitlebarColor(aColor, aActive);
+            }
         }
-    }
-    return nsnull;
-}
-
-void
-nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
-{
-    nsIWidget* mainWidget = GetWindowWidget();
-    if (mainWidget) {
-        mainWidget->SetWindowTitlebarColor(aColor, aActive);
-    }
-}
-
-void
-nsXULElement::SetDrawsInTitlebar(PRBool aState)
-{
-    nsIWidget* mainWidget = GetWindowWidget();
-    if (mainWidget) {
-        mainWidget->SetDrawsInTitlebar(aState);
     }
 }
 
@@ -2775,24 +2804,23 @@ nsXULPrototypeElement::SetAttrAt(PRUint32 aPos, const nsAString& aValue,
         mHasClassAttribute = PR_TRUE;
         // Compute the element's class list
         mAttributes[aPos].mValue.ParseAtomArray(aValue);
-
+        
         return NS_OK;
     }
     else if (mAttributes[aPos].mName.Equals(nsGkAtoms::style)) {
         mHasStyleAttribute = PR_TRUE;
         // Parse the element's 'style' attribute
         nsCOMPtr<nsICSSStyleRule> rule;
-
-        nsCSSParser parser;
+        nsICSSParser* parser = GetCSSParser();
         NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
 
         // XXX Get correct Base URI (need GetBaseURI on *prototype* element)
-        parser.ParseStyleAttribute(aValue, aDocumentURI, aDocumentURI,
-                                   // This is basically duplicating what
-                                   // nsINode::NodePrincipal() does
-                                   mNodeInfo->NodeInfoManager()->
-                                     DocumentPrincipal(),
-                                   getter_AddRefs(rule));
+        parser->ParseStyleAttribute(aValue, aDocumentURI, aDocumentURI,
+                                    // This is basically duplicating what
+                                    // nsINode::NodePrincipal() does
+                                    mNodeInfo->NodeInfoManager()->
+                                      DocumentPrincipal(),
+                                    getter_AddRefs(rule));
         if (rule) {
             mAttributes[aPos].mValue.SetTo(rule);
 
@@ -3101,10 +3129,10 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
     //
     // Compiling it using (for example) the first document's global
     // object would cause JS to keep a reference via the __proto__ or
-    // parent pointer to the first document's global. If that happened,
-    // our script object would reference the first document, and the
-    // first document would indirectly reference the prototype document
-    // because it keeps the prototype cache alive. Circularity!
+    // __parent__ pointer to the first document's global. If that
+    // happened, our script object would reference the first document,
+    // and the first document would indirectly reference the prototype
+    // document because it keeps the prototype cache alive. Circularity!
     nsresult rv;
 
     // Use the prototype document's special context

@@ -38,14 +38,13 @@
 #include "nsLayoutStylesheetCache.h"
 
 #include "nsAppDirectoryServiceDefs.h"
-#include "nsCSSLoader.h"
+#include "nsICSSLoader.h"
 #include "nsIFile.h"
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIXULRuntime.h"
-#include "nsCSSStyleSheet.h"
 
 NS_IMPL_ISUPPORTS1(nsLayoutStylesheetCache, nsIObserver)
 
@@ -72,7 +71,7 @@ nsLayoutStylesheetCache::Observe(nsISupports* aSubject,
   return NS_OK;
 }
 
-nsCSSStyleSheet*
+nsICSSStyleSheet*
 nsLayoutStylesheetCache::ScrollbarsSheet()
 {
   EnsureGlobal();
@@ -93,7 +92,7 @@ nsLayoutStylesheetCache::ScrollbarsSheet()
   return gStyleCache->mScrollbarsSheet;
 }
 
-nsCSSStyleSheet*
+nsICSSStyleSheet*
 nsLayoutStylesheetCache::FormsSheet()
 {
   EnsureGlobal();
@@ -115,7 +114,7 @@ nsLayoutStylesheetCache::FormsSheet()
   return gStyleCache->mFormsSheet;
 }
 
-nsCSSStyleSheet*
+nsICSSStyleSheet*
 nsLayoutStylesheetCache::UserContentSheet()
 {
   EnsureGlobal();
@@ -125,7 +124,7 @@ nsLayoutStylesheetCache::UserContentSheet()
   return gStyleCache->mUserContentSheet;
 }
 
-nsCSSStyleSheet*
+nsICSSStyleSheet*
 nsLayoutStylesheetCache::UserChromeSheet()
 {
   EnsureGlobal();
@@ -135,7 +134,7 @@ nsLayoutStylesheetCache::UserChromeSheet()
   return gStyleCache->mUserChromeSheet;
 }
 
-nsCSSStyleSheet*
+nsICSSStyleSheet*
 nsLayoutStylesheetCache::UASheet()
 {
   EnsureGlobal();
@@ -145,7 +144,7 @@ nsLayoutStylesheetCache::UASheet()
   return gStyleCache->mUASheet;
 }
 
-nsCSSStyleSheet*
+nsICSSStyleSheet*
 nsLayoutStylesheetCache::QuirkSheet()
 {
   EnsureGlobal();
@@ -165,7 +164,7 @@ nsLayoutStylesheetCache::Shutdown()
 nsLayoutStylesheetCache::nsLayoutStylesheetCache()
 {
   nsCOMPtr<nsIObserverService> obsSvc =
-    mozilla::services::GetObserverService();
+    do_GetService("@mozilla.org/observer-service;1");
   NS_ASSERTION(obsSvc, "No global observer service?");
 
   if (obsSvc) {
@@ -241,7 +240,7 @@ nsLayoutStylesheetCache::InitFromProfile()
 }
 
 void
-nsLayoutStylesheetCache::LoadSheetFile(nsIFile* aFile, nsRefPtr<nsCSSStyleSheet> &aSheet)
+nsLayoutStylesheetCache::LoadSheetFile(nsIFile* aFile, nsCOMPtr<nsICSSStyleSheet> &aSheet)
 {
   PRBool exists = PR_FALSE;
   aFile->Exists(&exists);
@@ -255,8 +254,7 @@ nsLayoutStylesheetCache::LoadSheetFile(nsIFile* aFile, nsRefPtr<nsCSSStyleSheet>
 }
 
 void
-nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI,
-                                   nsRefPtr<nsCSSStyleSheet> &aSheet,
+nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI, nsCOMPtr<nsICSSStyleSheet> &aSheet,
                                    PRBool aEnableUnsafeRules)
 {
   if (!aURI) {
@@ -264,19 +262,17 @@ nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI,
     return;
   }
 
-  if (!gCSSLoader) { 
-    gCSSLoader = new mozilla::css::Loader();
-    NS_IF_ADDREF(gCSSLoader);
-  }
+  if (!gCSSLoader)
+    NS_NewCSSLoader(&gCSSLoader);
 
   if (gCSSLoader) {
     gCSSLoader->LoadSheetSync(aURI, aEnableUnsafeRules, PR_TRUE,
                               getter_AddRefs(aSheet));
   }
-}
+}  
 
 nsLayoutStylesheetCache*
 nsLayoutStylesheetCache::gStyleCache = nsnull;
 
-mozilla::css::Loader*
+nsICSSLoader*
 nsLayoutStylesheetCache::gCSSLoader = nsnull;

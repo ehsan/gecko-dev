@@ -52,8 +52,6 @@
 #include "nsCOMPtr.h"
 #include "nsDisplayList.h"
 
-using namespace mozilla;
-
 struct nsTableCellReflowState : public nsHTMLReflowState
 {
   nsTableCellReflowState(nsPresContext*           aPresContext,
@@ -72,10 +70,8 @@ struct nsTableCellReflowState : public nsHTMLReflowState
 void nsTableCellReflowState::FixUp(const nsSize& aAvailSpace)
 {
   // fix the mComputed values during a pass 2 reflow since the cell can be a percentage base
-  NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aAvailSpace.width,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_ASSERTION(NS_UNCONSTRAINEDSIZE != aAvailSpace.width,
+               "unconstrained available width in reflow");
   if (NS_UNCONSTRAINEDSIZE != ComputedWidth()) {
     nscoord computedWidth =
       aAvailSpace.width - mComputedBorderPadding.LeftRight();
@@ -552,9 +548,10 @@ nsTableRowFrame::CalcHeight(const nsHTMLReflowState& aReflowState)
        kidFrame = kidFrame->GetNextSibling()) {
     nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
     if (cellFrame) {
+      nscoord availWidth = cellFrame->GetPriorAvailWidth();
       nsSize desSize = cellFrame->GetDesiredSize();
       if ((NS_UNCONSTRAINEDSIZE == aReflowState.availableHeight) && !GetPrevInFlow()) {
-        CalculateCellActualHeight(cellFrame, desSize.height);
+        CalculateCellActualSize(kidFrame, desSize.width, desSize.height, availWidth);
       }
       // height may have changed, adjust descent to absorb any excess difference
       nscoord ascent;
@@ -643,12 +640,15 @@ nsTableRowFrame::GetSkipSides() const
   return skip;
 }
 
-// Calculate the cell's actual height given its pass2  height.
-// Takes into account the specified height (in the style).
-// Modifies the desired height that is passed in.
+// Calculate the cell's actual size given its pass2 desired width and height.
+// Takes into account the specified height (in the style), and any special logic
+// needed for backwards compatibility.
+// Modifies the desired width and height that are passed in.
 nsresult
-nsTableRowFrame::CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
-                                           nscoord&          aDesiredHeight)
+nsTableRowFrame::CalculateCellActualSize(nsIFrame* aCellFrame,
+                                         nscoord&  aDesiredWidth,
+                                         nscoord&  aDesiredHeight,
+                                         nscoord   aAvailWidth)
 {
   nscoord specifiedHeight = 0;
   
@@ -659,7 +659,7 @@ nsTableRowFrame::CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
   if (!tableFrame)
     return NS_ERROR_NULL_POINTER;
   
-  PRInt32 rowSpan = tableFrame->GetEffectiveRowSpan(*aCellFrame);
+  PRInt32 rowSpan = tableFrame->GetEffectiveRowSpan((nsTableCellFrame&)*aCellFrame);
   
   switch (position->mHeight.GetUnit()) {
     case eStyleUnit_Coord:
@@ -681,6 +681,10 @@ nsTableRowFrame::CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
   // If the specified height is greater than the desired height, then use the specified height
   if (specifiedHeight > aDesiredHeight)
     aDesiredHeight = specifiedHeight;
+ 
+  if ((0 == aDesiredWidth) && (NS_UNCONSTRAINEDSIZE != aAvailWidth)) { // special Nav4 compatibility code for the width
+    aDesiredWidth = aAvailWidth;
+  } 
 
   return NS_OK;
 }
@@ -942,9 +946,11 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       
       if (NS_UNCONSTRAINEDSIZE == aReflowState.availableHeight) {
         if (!GetPrevInFlow()) {
-          // Calculate the cell's actual height given its pass2 height. This
-          // function takes into account the specified height (in the style)
-          CalculateCellActualHeight(cellFrame, desiredSize.height);
+          // Calculate the cell's actual size given its pass2 size. This function
+          // takes into account the specified height (in the style), and any special
+          // logic needed for backwards compatibility
+          CalculateCellActualSize(kidFrame, desiredSize.width, 
+                                  desiredSize.height, availCellWidth);
         }
         // height may have changed, adjust descent to absorb any excess difference
         nscoord ascent;
@@ -1351,23 +1357,27 @@ nsTableRowFrame::GetNextRow() const
   return nsnull;
 }
 
-NS_DECLARE_FRAME_PROPERTY(RowUnpaginatedHeightProperty, nsnull)
-
 void 
 nsTableRowFrame::SetUnpaginatedHeight(nsPresContext* aPresContext,
                                       nscoord        aValue)
 {
   NS_ASSERTION(!GetPrevInFlow(), "program error");
-  // Get the property
-  aPresContext->PropertyTable()->
-    Set(this, RowUnpaginatedHeightProperty(), NS_INT32_TO_PTR(aValue));
+  // Get the property 
+  nscoord* value = (nscoord*)nsTableFrame::GetProperty(this, nsGkAtoms::rowUnpaginatedHeightProperty, PR_TRUE);
+  if (value) {
+    *value = aValue;
+  }
 }
 
 nscoord
 nsTableRowFrame::GetUnpaginatedHeight(nsPresContext* aPresContext)
 {
-  FrameProperties props = GetFirstInFlow()->Properties();
-  return NS_PTR_TO_INT32(props.Get(RowUnpaginatedHeightProperty()));
+  // See if the property is set
+  nscoord* value = (nscoord*)nsTableFrame::GetProperty(GetFirstInFlow(), nsGkAtoms::rowUnpaginatedHeightProperty);
+  if (value) 
+    return *value;
+  else 
+    return 0;
 }
 
 void nsTableRowFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,

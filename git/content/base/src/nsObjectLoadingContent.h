@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 /*
- * A base class implementing nsIObjectLoadingContent for use by
+ * A base class implementING nsIObjectLoadingContent for use by
  * various content nodes that want to provide plugin/document/image
  * loading functionality (eg <embed>, <object>, <applet>, etc).
  */
@@ -52,7 +52,7 @@
 #include "nsIChannelEventSink.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIRunnable.h"
-#include "nsIFrame.h"
+#include "nsIChannelClassifier.h"
 
 class nsAsyncInstantiateEvent;
 class AutoNotifier;
@@ -60,12 +60,13 @@ class AutoFallback;
 class AutoSetInstantiatingToFalse;
 
 enum PluginSupportState {
-  ePluginUnsupported,  // The plugin is not supported (e.g. not installed)
-  ePluginDisabled,     // The plugin has been explicitly disabled by the user
+  ePluginUnsupported,  // The plugin is not supported (not installed, say)
+  ePluginDisabled,     // The plugin has been explicitly disabled by the
+                       // user.
   ePluginBlocklisted,  // The plugin is blocklisted and disabled
   ePluginOutdated,     // The plugin is considered outdated, but not disabled
-  ePluginOtherState,   // Something else (e.g. uninitialized or not a plugin)
-  ePluginCrashed
+  ePluginOtherState    // Something else (e.g. not a plugin at all as far
+                       // as we can tell).
 };
 
 /**
@@ -222,7 +223,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
 
     void Traverse(nsCycleCollectionTraversalCallback &cb);
 
-    void CreateStaticClone(nsObjectLoadingContent* aDest) const;
   private:
     /**
      * Check whether the given request represents a successful load.
@@ -328,6 +328,21 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     nsresult Instantiate(nsIObjectFrame* aFrame, const nsACString& aMIMEType, nsIURI* aURI);
 
     /**
+     * Check the channel load against the URI classifier service (if it
+     * exists).  The channel will be suspended until the classification is
+     * complete.
+     */
+    nsresult CheckClassifier(nsIChannel *aChannel);
+
+    /**
+     * Whether to treat this content as a plugin, even though we can't handle
+     * the type. This function impl should match the checks in the plugin host.
+     * aContentType is the MIME type we ended up with.
+     */
+    static PRBool ShouldShowDefaultPlugin(nsIContent* aContent,
+                                          const nsCString& aContentType);
+
+    /**
      * Get the plugin support state for the given content node and MIME type.
      * This is used for purposes of determining whether to fire PluginNotFound
      * events etc.  aContentType is the MIME type we ended up with.
@@ -387,6 +402,11 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     nsCOMPtr<nsIURI>            mURI;
 
     /**
+     * Suspends/resumes channels based on the URI classifier.
+     */
+    nsCOMPtr<nsIChannelClassifier> mClassifier;
+
+    /**
      * Type of the currently-loaded content.
      */
     ObjectType                  mType          : 16;
@@ -400,9 +420,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     PRPackedBool                mUserDisabled  : 1;
     PRPackedBool                mSuppressed    : 1;
     // A specific state that caused us to fallback
-    PluginSupportState          mFallbackReason;
-
-    nsWeakFrame                 mPrintFrame;
+    PluginSupportState          mPluginState;
 
     friend class nsAsyncInstantiateEvent;
 };

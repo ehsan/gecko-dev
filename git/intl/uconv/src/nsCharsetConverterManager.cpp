@@ -52,7 +52,7 @@
 #include "nsTArray.h"
 #include "nsStringEnumerator.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Services.h"
+#include "nsIProxyObjectManager.h"
 
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -64,14 +64,17 @@
 #include "nsNativeUConvService.h"
 #endif
 
+// Pattern of cached, commonly used, single byte decoder
+#define NS_1BYTE_CODER_PATTERN "ISO-8859"
+#define NS_1BYTE_CODER_PATTERN_LEN 8
+
 // Class nsCharsetConverterManager [implementation]
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsCharsetConverterManager,
                               nsICharsetConverterManager)
 
 nsCharsetConverterManager::nsCharsetConverterManager() 
-  : mDataBundle(NULL)
-  , mTitleBundle(NULL)
+  :mDataBundle(NULL), mTitleBundle(NULL)
 {
 #ifdef MOZ_USE_NATIVE_UCONV
   mNativeUC = do_GetService(NS_NATIVE_UCONV_SERVICE_CONTRACT_ID);
@@ -82,6 +85,13 @@ nsCharsetConverterManager::~nsCharsetConverterManager()
 {
   NS_IF_RELEASE(mDataBundle);
   NS_IF_RELEASE(mTitleBundle);
+}
+
+nsresult nsCharsetConverterManager::Init()
+{
+  if (!mDecoderHash.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
+  return NS_OK;
 }
 
 nsresult nsCharsetConverterManager::RegisterConverterManagerData()
@@ -112,10 +122,12 @@ nsresult nsCharsetConverterManager::LoadExtensibleBundle(
                                     const char* aCategory, 
                                     nsIStringBundle ** aResult)
 {
-  nsCOMPtr<nsIStringBundleService> sbServ =
-    mozilla::services::GetStringBundleService();
-  if (!sbServ)
-    return NS_ERROR_FAILURE;
+  nsresult rv = NS_OK;
+
+  nsCOMPtr<nsIStringBundleService> sbServ = 
+           do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   return sbServ->CreateExtensibleBundle(aCategory, aResult);
 }
@@ -252,8 +264,22 @@ nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc,
   NS_NAMED_LITERAL_CSTRING(contractbase, NS_UNICODEDECODER_CONTRACTID_BASE);
   nsDependentCString src(aSrc);
   
-  decoder = do_CreateInstance(PromiseFlatCString(contractbase + src).get(),
+  if (!strncmp(aSrc, NS_1BYTE_CODER_PATTERN, NS_1BYTE_CODER_PATTERN_LEN))
+  {
+    // Single byte decoders don't hold state. Optimize by using a service, and
+    // cache it in our hash to avoid repeated trips through the service manager.
+    if (!mDecoderHash.Get(aSrc, getter_AddRefs(decoder))) {
+      decoder = do_GetService(PromiseFlatCString(contractbase + src).get(),
                               &rv);
+      if (NS_SUCCEEDED(rv))
+        mDecoderHash.Put(aSrc, decoder);
+    }
+  }
+  else
+  {
+    decoder = do_CreateInstance(PromiseFlatCString(contractbase + src).get(),
+                                &rv);
+  }
   NS_ENSURE_SUCCESS(rv, NS_ERROR_UCONV_NOCONV);
 
   decoder.forget(aResult);
@@ -345,6 +371,18 @@ nsCharsetConverterManager::GetCharsetAlias(const char * aCharset,
   if (!aCharset)
     return NS_ERROR_NULL_POINTER;
 
+  // We must not use the charset alias from a background thread
+  if (!NS_IsMainThread()) {
+    nsCOMPtr<nsICharsetConverterManager> self;
+    nsresult rv =
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsICharsetConverterManager),
+                         this, NS_PROXY_SYNC | NS_PROXY_ALWAYS,
+                         getter_AddRefs(self));
+    NS_ENSURE_SUCCESS(rv, rv);
+    return self->GetCharsetAlias(aCharset, aResult);
+  }
+
   // We try to obtain the preferred name for this charset from the charset 
   // aliases. If we don't get it from there, we just use the original string
   nsDependentCString charset(aCharset);
@@ -432,10 +470,8 @@ nsCharsetConverterManager::GetCharsetLangGroupRaw(const char * aCharset,
   nsAutoString langGroup;
   rv = GetBundleValue(mDataBundle, aCharset, NS_LITERAL_STRING(".LangGroup"), langGroup);
 
-  if (NS_SUCCEEDED(rv)) {
-    ToLowerCase(langGroup); // use lowercase for all language atoms
+  if (NS_SUCCEEDED(rv))
     *aResult = NS_NewAtom(langGroup);
-  }
 
   return rv;
 }

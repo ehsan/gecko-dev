@@ -60,6 +60,10 @@ textbox {
   color: -moz-FieldText;
 }
 
+textbox[isempty="true"] {
+  color: GrayText;
+}
+
 html|*.textbox-input, 
 html|*.textbox-textarea {
   margin: 0px !important;
@@ -102,7 +106,11 @@ textbox.plain {
 /* ::::: search textbox ::::: */
 
 .textbox-search-icon {
-  list-style-image: url(moz-icon://stock/gtk-find?size=menu);
+  list-style-image: url(chrome://global/skin/icons/Search-glass.png);
+}
+
+.textbox-search-icon:-moz-locale-dir(rtl) {
+  -moz-transform: scaleX(-1);
 }
 
 .textbox-search-clear {

@@ -68,7 +68,7 @@ var syncObserver = {
       os.removeObserver(this, kSyncFinished);
       bs.removeObserver(bookmarksObserver, false);
 
-      do_test_finished();
+      finish_test();
     }
   }
 }

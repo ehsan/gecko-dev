@@ -102,7 +102,7 @@ protected:
   PRBool SetTextStyle();
 
   // helper to set the quotes of <ms>
-  void SetQuotes(PRBool aNotify);
+  void SetQuotes();
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

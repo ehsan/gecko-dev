@@ -49,7 +49,7 @@
 
 #include "nsCSSRule.h"
 #include "nsCSSProps.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 
 #include "nsCOMPtr.h"
 #include "nsIDOMCSSStyleSheet.h"
@@ -75,7 +75,7 @@
 
 #define IMPL_STYLE_RULE_INHERIT(_class, super) \
 NS_IMETHODIMP _class::GetStyleSheet(nsIStyleSheet*& aSheet) const { return super::GetStyleSheet(aSheet); }  \
-NS_IMETHODIMP _class::SetStyleSheet(nsCSSStyleSheet* aSheet) { return super::SetStyleSheet(aSheet); }  \
+NS_IMETHODIMP _class::SetStyleSheet(nsICSSStyleSheet* aSheet) { return super::SetStyleSheet(aSheet); }  \
 NS_IMETHODIMP _class::SetParentRule(nsICSSGroupRule* aRule) { return super::SetParentRule(aRule); }  \
 nsIDOMCSSRule* _class::GetDOMRuleWeak(nsresult *aResult) { *aResult = NS_OK; return this; }  \
 NS_IMETHODIMP _class::MapRuleInfoInto(nsRuleData* aRuleData) { return NS_OK; } 
@@ -119,14 +119,12 @@ CSSGroupRuleRuleListImpl::~CSSGroupRuleRuleListImpl()
 {
 }
 
-DOMCI_DATA(CSSGroupRuleRuleList, CSSGroupRuleRuleListImpl)
-
 // QueryInterface implementation for CSSGroupRuleRuleList
 NS_INTERFACE_MAP_BEGIN(CSSGroupRuleRuleListImpl)
   NS_INTERFACE_MAP_ENTRY(nsICSSRuleList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRuleList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSGroupRuleRuleList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSGroupRuleRuleList)
 NS_INTERFACE_MAP_END
 
 
@@ -237,8 +235,6 @@ CSSCharsetRuleImpl::~CSSCharsetRuleImpl(void)
 NS_IMPL_ADDREF_INHERITED(CSSCharsetRuleImpl, nsCSSRule)
 NS_IMPL_RELEASE_INHERITED(CSSCharsetRuleImpl, nsCSSRule)
 
-DOMCI_DATA(CSSCharsetRule, CSSCharsetRuleImpl)
-
 // QueryInterface implementation for CSSCharsetRuleImpl
 NS_INTERFACE_MAP_BEGIN(CSSCharsetRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsICSSRule)
@@ -246,7 +242,7 @@ NS_INTERFACE_MAP_BEGIN(CSSCharsetRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSCharsetRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsICSSRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSCharsetRule)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSCharsetRule)
 NS_INTERFACE_MAP_END
 
 IMPL_STYLE_RULE_INHERIT(CSSCharsetRuleImpl, nsCSSRule)
@@ -342,7 +338,10 @@ CSSCharsetRuleImpl::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
   NS_ENSURE_ARG_POINTER(aSheet);
 
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 
@@ -390,7 +389,7 @@ public:
   NS_IMETHOD SetMedia(const nsString& aMedia);
   NS_IMETHOD GetMedia(nsString& aMedia) const;
 
-  NS_IMETHOD SetSheet(nsCSSStyleSheet*);
+  NS_IMETHOD SetSheet(nsICSSStyleSheet*);
   
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE
@@ -401,7 +400,7 @@ public:
 protected:
   nsString  mURLSpec;
   nsRefPtr<nsMediaList> mMedia;
-  nsRefPtr<nsCSSStyleSheet> mChildSheet;
+  nsCOMPtr<nsICSSStyleSheet> mChildSheet;
 };
 
 CSSImportRuleImpl::CSSImportRuleImpl(nsMediaList* aMedia)
@@ -418,9 +417,10 @@ CSSImportRuleImpl::CSSImportRuleImpl(const CSSImportRuleImpl& aCopy)
   : nsCSSRule(aCopy),
     mURLSpec(aCopy.mURLSpec)
 {
-  nsRefPtr<nsCSSStyleSheet> sheet;
+  nsCOMPtr<nsICSSStyleSheet> sheet;
   if (aCopy.mChildSheet) {
-    sheet = aCopy.mChildSheet->Clone(nsnull, this, nsnull, nsnull);
+    aCopy.mChildSheet->Clone(nsnull, this, nsnull, nsnull,
+                             getter_AddRefs(sheet));
   }
   SetSheet(sheet);
   // SetSheet sets mMedia appropriately
@@ -436,8 +436,6 @@ CSSImportRuleImpl::~CSSImportRuleImpl(void)
 NS_IMPL_ADDREF_INHERITED(CSSImportRuleImpl, nsCSSRule)
 NS_IMPL_RELEASE_INHERITED(CSSImportRuleImpl, nsCSSRule)
 
-DOMCI_DATA(CSSImportRule, CSSImportRuleImpl)
-
 // QueryInterface implementation for CSSImportRuleImpl
 NS_INTERFACE_MAP_BEGIN(CSSImportRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsICSSImportRule)
@@ -446,7 +444,7 @@ NS_INTERFACE_MAP_BEGIN(CSSImportRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSImportRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsICSSImportRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSImportRule)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSImportRule)
 NS_INTERFACE_MAP_END
 
 IMPL_STYLE_RULE_INHERIT(CSSImportRuleImpl, nsCSSRule)
@@ -525,7 +523,7 @@ CSSImportRuleImpl::GetMedia(nsString& aMedia) const
 }
 
 NS_IMETHODIMP
-CSSImportRuleImpl::SetSheet(nsCSSStyleSheet* aSheet)
+CSSImportRuleImpl::SetSheet(nsICSSStyleSheet* aSheet)
 {
   nsresult rv;
   NS_ENSURE_ARG_POINTER(aSheet);
@@ -535,8 +533,10 @@ CSSImportRuleImpl::SetSheet(nsCSSStyleSheet* aSheet)
   aSheet->SetOwnerRule(this);
 
   // set our medialist to be the same as the sheet's medialist
+  nsCOMPtr<nsIDOMStyleSheet> sheet(do_QueryInterface(mChildSheet, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIDOMMediaList> mediaList;
-  rv = mChildSheet->GetMedia(getter_AddRefs(mediaList));
+  rv = sheet->GetMedia(getter_AddRefs(mediaList));
   NS_ENSURE_SUCCESS(rv, rv);
   mMedia = static_cast<nsMediaList*>(mediaList.get());
   
@@ -596,8 +596,10 @@ NS_IMETHODIMP
 CSSImportRuleImpl::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
   NS_ENSURE_ARG_POINTER(aSheet);
-
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 
@@ -634,9 +636,12 @@ NS_IMETHODIMP
 CSSImportRuleImpl::GetStyleSheet(nsIDOMCSSStyleSheet * *aStyleSheet)
 {
   NS_ENSURE_ARG_POINTER(aStyleSheet);
+  if (!mChildSheet) {
+    *aStyleSheet = nsnull;
+    return NS_OK;
+  }
 
-  NS_IF_ADDREF(*aStyleSheet = mChildSheet);
-  return NS_OK;
+  return CallQueryInterface(mChildSheet, aStyleSheet);
 }
 
 nsCSSGroupRule::nsCSSGroupRule()
@@ -687,13 +692,13 @@ IMPL_STYLE_RULE_INHERIT2(nsCSSGroupRule, nsCSSRule)
 static PRBool
 SetStyleSheetReference(nsICSSRule* aRule, void* aSheet)
 {
-  nsCSSStyleSheet* sheet = (nsCSSStyleSheet*)aSheet;
+  nsICSSStyleSheet* sheet = (nsICSSStyleSheet*)aSheet;
   aRule->SetStyleSheet(sheet);
   return PR_TRUE;
 }
 
 NS_IMETHODIMP
-nsCSSGroupRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
+nsCSSGroupRule::SetStyleSheet(nsICSSStyleSheet* aSheet)
 {
   mRules.EnumerateForwards(SetStyleSheetReference, aSheet);
   return nsCSSRule::SetStyleSheet(aSheet);
@@ -822,7 +827,10 @@ nsCSSGroupRule::AppendRulesToCssText(nsAString& aCssText)
 nsresult
 nsCSSGroupRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 
@@ -908,8 +916,6 @@ nsCSSMediaRule::~nsCSSMediaRule()
 NS_IMPL_ADDREF_INHERITED(nsCSSMediaRule, nsCSSRule)
 NS_IMPL_RELEASE_INHERITED(nsCSSMediaRule, nsCSSRule)
 
-DOMCI_DATA(CSSMediaRule, nsCSSMediaRule)
-
 // QueryInterface implementation for nsCSSMediaRule
 NS_INTERFACE_MAP_BEGIN(nsCSSMediaRule)
   NS_INTERFACE_MAP_ENTRY(nsICSSGroupRule)
@@ -918,11 +924,11 @@ NS_INTERFACE_MAP_BEGIN(nsCSSMediaRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSMediaRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsCSSGroupRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSMediaRule)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSMediaRule)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
-nsCSSMediaRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
+nsCSSMediaRule::SetStyleSheet(nsICSSStyleSheet* aSheet)
 {
   if (mMedia) {
     // Set to null so it knows it's leaving one sheet and joining another.
@@ -1080,8 +1086,6 @@ nsCSSDocumentRule::~nsCSSDocumentRule(void)
 NS_IMPL_ADDREF_INHERITED(nsCSSDocumentRule, nsCSSRule)
 NS_IMPL_RELEASE_INHERITED(nsCSSDocumentRule, nsCSSRule)
 
-DOMCI_DATA(CSSMozDocumentRule, nsCSSDocumentRule)
-
 // QueryInterface implementation for nsCSSDocumentRule
 NS_INTERFACE_MAP_BEGIN(nsCSSDocumentRule)
   NS_INTERFACE_MAP_ENTRY(nsICSSGroupRule)
@@ -1090,7 +1094,7 @@ NS_INTERFACE_MAP_BEGIN(nsCSSDocumentRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSMozDocumentRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsCSSGroupRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSMozDocumentRule)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSMozDocumentRule)
 NS_INTERFACE_MAP_END
 
 #ifdef DEBUG
@@ -1321,8 +1325,6 @@ CSSNameSpaceRuleImpl::~CSSNameSpaceRuleImpl(void)
 NS_IMPL_ADDREF_INHERITED(CSSNameSpaceRuleImpl, nsCSSRule)
 NS_IMPL_RELEASE_INHERITED(CSSNameSpaceRuleImpl, nsCSSRule)
 
-DOMCI_DATA(CSSNameSpaceRule, CSSNameSpaceRuleImpl)
-
 // QueryInterface implementation for CSSNameSpaceRuleImpl
 NS_INTERFACE_MAP_BEGIN(CSSNameSpaceRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsICSSNameSpaceRule)
@@ -1330,7 +1332,7 @@ NS_INTERFACE_MAP_BEGIN(CSSNameSpaceRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsICSSNameSpaceRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSNameSpaceRule)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSNameSpaceRule)
 NS_INTERFACE_MAP_END
 
 IMPL_STYLE_RULE_INHERIT(CSSNameSpaceRuleImpl, nsCSSRule)
@@ -1439,7 +1441,10 @@ CSSNameSpaceRuleImpl::GetCssText(nsAString& aCssText)
 {
   aCssText.AssignLiteral("@namespace ");
   if (mPrefix) {
-    aCssText.Append(nsDependentAtomString(mPrefix) + NS_LITERAL_STRING(" "));
+    nsString atomStr;
+    mPrefix->ToString(atomStr);
+    aCssText.Append(atomStr);
+    aCssText.AppendLiteral(" ");
   }
   aCssText.AppendLiteral("url(");
   nsStyleUtil::AppendEscapedCSSString(mURLSpec, aCssText);
@@ -1456,7 +1461,10 @@ CSSNameSpaceRuleImpl::SetCssText(const nsAString& aCssText)
 NS_IMETHODIMP
 CSSNameSpaceRuleImpl::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 
@@ -1585,13 +1593,11 @@ nsCSSFontFaceStyleDecl::Fields[] = {
     &nsCSSFontFaceStyleDecl::mUnicodeRange
 };
 
-DOMCI_DATA(CSSFontFaceStyleDecl, nsCSSFontFaceStyleDecl)
-
 // QueryInterface implementation for nsCSSFontFaceStyleDecl
 NS_INTERFACE_MAP_BEGIN(nsCSSFontFaceStyleDecl)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSFontFaceStyleDecl)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSFontFaceStyleDecl)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF_USING_AGGREGATOR(nsCSSFontFaceStyleDecl, ContainingRule())
@@ -1810,8 +1816,6 @@ nsCSSFontFaceRule::Clone(nsICSSRule*& aClone) const
 NS_IMPL_ADDREF_INHERITED(nsCSSFontFaceRule, nsCSSRule)
 NS_IMPL_RELEASE_INHERITED(nsCSSFontFaceRule, nsCSSRule)
 
-DOMCI_DATA(CSSFontFaceRule, nsCSSFontFaceRule)
-
 // QueryInterface implementation for nsCSSFontFaceRule
 NS_INTERFACE_MAP_BEGIN(nsCSSFontFaceRule)
   NS_INTERFACE_MAP_ENTRY(nsICSSRule)
@@ -1819,7 +1823,7 @@ NS_INTERFACE_MAP_BEGIN(nsCSSFontFaceRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSFontFaceRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsICSSRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSFontFaceRule)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSFontFaceRule)
 NS_INTERFACE_MAP_END
 
 IMPL_STYLE_RULE_INHERIT(nsCSSFontFaceRule, nsCSSRule)
@@ -1891,7 +1895,10 @@ nsCSSFontFaceRule::SetCssText(const nsAString& aCssText)
 NS_IMETHODIMP
 nsCSSFontFaceRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 

@@ -39,9 +39,7 @@
 
 #include "nsTextEquivUtils.h"
 
-#include "nsAccessibilityService.h"
 #include "nsAccessible.h"
-#include "nsAccUtils.h"
 
 #include "nsIDOMXULLabeledControlEl.h"
 
@@ -141,7 +139,7 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsIAccessible *aInitiatorAcc,
   gInitiatorAcc = aInitiatorAcc;
 
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(aContent));
-  nsIPresShell *shell = nsCoreUtils::GetPresShellFor(DOMNode);
+  nsCOMPtr<nsIPresShell> shell = nsCoreUtils::GetPresShellFor(DOMNode);
   if (!shell) {
     NS_ASSERTION(PR_TRUE, "There is no presshell!");
     gInitiatorAcc = nsnull;
@@ -151,16 +149,17 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsIAccessible *aInitiatorAcc,
   // If the given content is not visible or isn't accessible then go down
   // through the DOM subtree otherwise go down through accessible subtree and
   // calculate the flat string.
-  nsIFrame *frame = aContent->GetPrimaryFrame();
+  nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
   PRBool isVisible = frame && frame->GetStyleVisibility()->IsVisible();
 
-  nsresult rv = NS_ERROR_FAILURE;
+  nsresult rv;
   PRBool goThroughDOMSubtree = PR_TRUE;
 
   if (isVisible) {
-    nsAccessible *accessible =
-      GetAccService()->GetAccessibleInShell(DOMNode, shell);
-    if (accessible) {
+    nsCOMPtr<nsIAccessible> accessible;
+    rv = nsAccessNode::GetAccService()->
+      GetAccessibleInShell(DOMNode, shell, getter_AddRefs(accessible));
+    if (NS_SUCCEEDED(rv) && accessible) {
       rv = AppendFromAccessible(accessible, aString);
       goThroughDOMSubtree = PR_FALSE;
     }
@@ -182,10 +181,12 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
     nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(aContent));
     
     PRBool isHTMLBlock = PR_FALSE;
+    nsCOMPtr<nsIPresShell> shell = nsCoreUtils::GetPresShellFor(DOMNode);
+    NS_ENSURE_STATE(shell);
     
     nsIContent *parentContent = aContent->GetParent();
     if (parentContent) {
-      nsIFrame *frame = parentContent->GetPrimaryFrame();
+      nsIFrame *frame = shell->GetPrimaryFrameFor(parentContent);
       if (frame) {
         // If this text is inside a block level frame (as opposed to span
         // level), we need to add spaces around that block's text, so we don't
@@ -202,7 +203,7 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
     }
     
     if (aContent->TextLength() > 0) {
-      nsIFrame *frame = aContent->GetPrimaryFrame();
+      nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
       if (frame) {
         nsresult rv = frame->GetRenderedText(aString);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -236,14 +237,16 @@ nsresult
 nsTextEquivUtils::AppendFromAccessibleChildren(nsIAccessible *aAccessible,
                                                nsAString *aString)
 {
-  nsresult rv = NS_OK_NO_NAME_CLAUSE_HANDLED;
+  nsCOMPtr<nsIAccessible> accChild, accNextChild;
+  aAccessible->GetFirstChild(getter_AddRefs(accChild));
 
-  nsRefPtr<nsAccessible> accessible(do_QueryObject(aAccessible));
-  PRInt32 childCount = accessible->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *child = accessible->GetChildAt(childIdx);
-    rv = AppendFromAccessible(child, aString);
+  nsresult rv = NS_OK_NO_NAME_CLAUSE_HANDLED;
+  while (accChild) {
+    rv = AppendFromAccessible(accChild, aString);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    accChild->GetNextSibling(getter_AddRefs(accNextChild));
+    accChild.swap(accNextChild);
   }
 
   return rv;
@@ -333,7 +336,7 @@ nsTextEquivUtils::AppendFromValue(nsIAccessible *aAccessible,
       NS_OK : NS_OK_NO_NAME_CLAUSE_HANDLED;
   }
 
-  nsRefPtr<nsAccessible> acc = do_QueryObject(aAccessible);
+  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(aAccessible);
   nsCOMPtr<nsIDOMNode> node;
   acc->GetDOMNode(getter_AddRefs(node));
   NS_ENSURE_STATE(node);
@@ -560,7 +563,7 @@ PRUint32 nsTextEquivUtils::gRoleToNameRulesMap[] =
   eFromValue,        // ROLE_ENTRY
   eNoRule,           // ROLE_CAPTION
   eNoRule,           // ROLE_DOCUMENT_FRAME
-  eFromSubtreeIfRec, // ROLE_HEADING
+  eNoRule,           // ROLE_HEADING
   eNoRule,           // ROLE_PAGE
   eFromSubtreeIfRec, // ROLE_SECTION
   eNoRule,           // ROLE_REDUNDANT_OBJECT

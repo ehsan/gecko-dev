@@ -93,11 +93,7 @@ NS_IMETHODIMP InsertTextTxn::Init(nsIDOMCharacterData *aElement,
 NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("Do Insert Text element = %p\n",
-           static_cast<void*>(mElement.get()));
-  }
+  if (gNoisy) { printf("Do Insert Text element = %p\n", mElement.get()); }
 #endif
 
   NS_ASSERTION(mElement && mEditor, "bad state");
@@ -129,11 +125,7 @@ NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
 NS_IMETHODIMP InsertTextTxn::UndoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("Undo Insert Text element = %p\n",
-           static_cast<void*>(mElement.get()));
-  }
+  if (gNoisy) { printf("Undo Insert Text element = %p\n", mElement.get()); }
 #endif
 
   NS_ASSERTION(mElement && mEditor, "bad state");
@@ -164,11 +156,7 @@ NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMer
         mStringToInsert += otherData;
         *aDidMerge = PR_TRUE;
 #ifdef NS_DEBUG
-        if (gNoisy)
-        {
-          printf("InsertTextTxn assimilated %p\n",
-                 static_cast<void*>(aTransaction));
-        }
+        if (gNoisy) { printf("InsertTextTxn assimilated %p\n", aTransaction); }
 #endif
       }
       NS_RELEASE(otherInsTxn);

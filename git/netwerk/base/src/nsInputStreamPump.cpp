@@ -36,7 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIOService.h"
 #include "nsInputStreamPump.h"
 #include "nsIServiceManager.h"
 #include "nsIStreamTransportService.h"
@@ -45,6 +44,7 @@
 #include "nsITransport.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
+#include "nsNetSegmentUtils.h"
 #include "nsCOMPtr.h"
 #include "prlog.h"
 
@@ -138,10 +138,8 @@ nsInputStreamPump::PeekStream(PeekSegmentFun callback, void* closure)
     return rv;
 
   PeekData data(callback, closure);
-  return mAsyncStream->ReadSegments(CallPeekFunc,
-                                    &data,
-                                    nsIOService::gDefaultSegmentSize,
-                                    &dummy);
+  return mAsyncStream->ReadSegments(CallPeekFunc, &data,
+                                    NET_DEFAULT_SEGMENT_SIZE, &dummy);
 }
 
 nsresult
@@ -562,7 +560,7 @@ nsInputStreamPump::OnStateStop()
 {
     LOG(("  OnStateStop [this=%x status=%x]\n", this, mStatus));
 
-    // if an error occurred, we must be sure to pass the error onto the async
+    // if an error occured, we must be sure to pass the error onto the async
     // stream.  in some cases, this is redundant, but since close is idempotent,
     // this is OK.  otherwise, be sure to honor the "close-when-done" option.
 

@@ -159,8 +159,6 @@ nsresult nsMathMLmencloseFrame::AddNotation(const nsAString& aNotation)
     mNotationsToDraw |= NOTATION_VERTICALSTRIKE;
   } else if (aNotation.EqualsLiteral("horizontalstrike")) {
     mNotationsToDraw |= NOTATION_HORIZONTALSTRIKE;
-  } else if (aNotation.EqualsLiteral("madruwb")) {
-    mNotationsToDraw |= (NOTATION_RIGHT | NOTATION_BOTTOM);
   }
 
   return NS_OK;
@@ -376,7 +374,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsIRenderingContext& aRenderingContext,
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
   nsCOMPtr<nsIFontMetrics> fm;
   nscoord mEmHeight;
-  aRenderingContext.SetFont(GetStyleFont()->mFont,
+  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull,
                             PresContext()->GetUserFontSet());
   aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
   GetRuleThickness(aRenderingContext, fm, mRuleThickness);

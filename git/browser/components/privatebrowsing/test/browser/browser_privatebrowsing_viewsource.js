@@ -50,26 +50,29 @@ function test() {
   aboutBrowser.addEventListener("load", function () {
     aboutBrowser.removeEventListener("load", arguments.callee, true);
 
-    function observer(aSubject, aTopic, aData) {
-      if (aTopic != "domwindowopened")
-        return;
+    let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+             getService(Ci.nsIWindowWatcher);
+    let observer = {
+      observe: function(aSubject, aTopic, aData) {
+        if (aTopic == "domwindowopened") {
+          ww.unregisterNotification(this);
 
-      Services.ww.unregisterNotification(observer);
+          let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+          win.addEventListener("load", function() {
+            win.removeEventListener("load", arguments.callee, false);
 
-      let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
-      win.addEventListener("load", function () {
-        win.removeEventListener("load", arguments.callee, false);
-
-        let browser = win.gBrowser;
-        browser.addEventListener("load", function () {
-          browser.removeEventListener("load", arguments.callee, true);
-          
-          // view source window is loaded, proceed with the rest of the test
-          step1();
-        }, true);
-      }, false);
-    }
-    Services.ww.registerNotification(observer);
+            let browser = win.gBrowser;
+            browser.addEventListener("load", function() {
+              browser.removeEventListener("load", arguments.callee, true);
+              
+              // view source window is loaded, proceed with the rest of the test
+              step1();
+            }, true);
+          }, false);
+        }
+      }
+    };
+    ww.registerNotification(observer);
 
     openViewSource();
 
@@ -79,17 +82,19 @@ function test() {
     }
 
     function step1() {
-      function observer(aSubject, aTopic, aData) {
-        if (aTopic == "domwindowclosed") {
-          ok(true, "Entering the private browsing mode should close the view source window");
-          Services.ww.unregisterNotification(observer);
+      observer = {
+        observe: function(aSubject, aTopic, aData) {
+          if (aTopic == "domwindowclosed") {
+            ok(true, "Entering the private browsing mode should close the view source window");
+            ww.unregisterNotification(observer);
 
-          step2();
+            step2();
+          }
+          else if (aTopic == "domwindowopened")
+            ok(false, "Entering the private browsing mode should not open any view source window");
         }
-        else if (aTopic == "domwindowopened")
-          ok(false, "Entering the private browsing mode should not open any view source window");
-      }
-      Services.ww.registerNotification(observer);
+      };
+      ww.registerNotification(observer);
 
       gBrowser.addTabsProgressListener({
         onLocationChange: function() {},
@@ -97,6 +102,7 @@ function test() {
         onSecurityChange: function() {},
         onStatusChange: function() {},
         onRefreshAttempted: function() {},
+        onLinkIconAvailable: function() {},
         onStateChange: function(aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
           if (aStateFlags & (Ci.nsIWebProgressListener.STATE_STOP |
                              Ci.nsIWebProgressListener.STATE_IS_WINDOW)) {
@@ -118,26 +124,27 @@ function test() {
     }
 
     function step4() {
-      function observer(aSubject, aTopic, aData) {
-        if (aTopic != "domwindowopened")
-          return;
+      observer = {
+        observe: function(aSubject, aTopic, aData) {
+          if (aTopic == "domwindowopened") {
+            ww.unregisterNotification(this);
 
-        Services.ww.unregisterNotification(observer);
+            let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+            win.addEventListener("load", function() {
+              win.removeEventListener("load", arguments.callee, false);
 
-        let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
-        win.addEventListener("load", function () {
-          win.removeEventListener("load", arguments.callee, false);
-
-          let browser = win.gBrowser;
-          browser.addEventListener("load", function () {
-            browser.removeEventListener("load", arguments.callee, true);
-            
-            // view source window inside private browsing mode opened
-            step5();
-          }, true);
-        }, false);
-      }
-      Services.ww.registerNotification(observer);
+              let browser = win.gBrowser;
+              browser.addEventListener("load", function() {
+                browser.removeEventListener("load", arguments.callee, true);
+                
+                // view source window inside private browsing mode opened
+                step5();
+              }, true);
+            }, false);
+          }
+        }
+      };
+      ww.registerNotification(observer);
 
       openViewSource();
     }
@@ -145,37 +152,39 @@ function test() {
     function step5() {
       let events = 0;
 
-      function observer(aSubject, aTopic, aData) {
-        if (aTopic == "domwindowclosed") {
-          ok(true, "Leaving the private browsing mode should close the existing view source window");
-          if (++events == 2)
-            Services.ww.unregisterNotification(observer);
+      observer = {
+        observe: function(aSubject, aTopic, aData) {
+          if (aTopic == "domwindowclosed") {
+            ok(true, "Leaving the private browsing mode should close the existing view source window");
+            if (++events == 2)
+              ww.unregisterNotification(observer);
+          }
+          else if (aTopic == "domwindowopened") {
+            ok(true, "Leaving the private browsing mode should restore the previous view source window");
+            if (++events == 2)
+              ww.unregisterNotification(observer);
+
+            let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+            win.addEventListener("load", function() {
+              win.removeEventListener("load", arguments.callee, false);
+
+              let browser = win.gBrowser;
+              browser.addEventListener("load", function() {
+                browser.removeEventListener("load", arguments.callee, true);
+                
+                is(win.content.location.href, "view-source:about:",
+                  "The correct view source window should be restored");
+
+                // cleanup
+                win.close();
+                gBrowser.removeCurrentTab();
+                finish();
+              }, true);
+            }, false);
+          }
         }
-        else if (aTopic == "domwindowopened") {
-          ok(true, "Leaving the private browsing mode should restore the previous view source window");
-          if (++events == 2)
-            Services.ww.unregisterNotification(observer);
-
-          let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
-          win.addEventListener("load", function () {
-            win.removeEventListener("load", arguments.callee, false);
-
-            let browser = win.gBrowser;
-            browser.addEventListener("load", function () {
-              browser.removeEventListener("load", arguments.callee, true);
-              
-              is(win.content.location.href, "view-source:about:",
-                "The correct view source window should be restored");
-
-              // cleanup
-              win.close();
-              gBrowser.removeCurrentTab();
-              finish();
-            }, true);
-          }, false);
-        }
-      }
-      Services.ww.registerNotification(observer);
+      };
+      ww.registerNotification(observer);
 
       // exit private browsing mode
       pb.privateBrowsingEnabled = false;

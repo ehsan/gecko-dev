@@ -93,11 +93,7 @@ function onLoadViewSource()
 {
   viewSource(window.arguments[0]);
   document.commandDispatcher.focusedWindow = content;
-  gBrowser.droppedLinkHandler = function (event, url, name) {
-    viewSource(url)
-    event.preventDefault();
-  }
-
+      
   if (!isHistoryEnabled()) {
     // Disable the BACK and FORWARD commands and hide the related menu items.
     var viewSourceNavigation = document.getElementById("viewSourceNavigation");
@@ -126,7 +122,6 @@ function viewSource(url)
 
   gBrowser.addEventListener("pagehide", onUnloadContent, true);
   gBrowser.addEventListener("pageshow", onLoadContent, true);
-  gBrowser.addEventListener("command", onCommandContent, false);
 
   var loadFromURL = true;
 
@@ -237,7 +232,6 @@ function viewSource(url)
   }
 
   window.addEventListener("AppCommand", HandleAppCommandEvent, true);
-  window.addEventListener("MozSwipeGesture", HandleSwipeGesture, true);
   window.content.focus();
 }
 
@@ -276,63 +270,6 @@ function onUnloadContent()
   }
 }
 
-/**
- * Handle command events bubbling up from error page content
- */
-function onCommandContent(event) {
-  // Don't trust synthetic events
-  if (!event.isTrusted)
-    return;
-
-  var target = event.originalTarget;
-  var errorDoc = target.ownerDocument;
-  
-  var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
-                    .getService(Ci.nsIURLFormatter);
-
-  if (/^about:blocked/.test(errorDoc.documentURI)) {
-    // The event came from a button on a malware/phishing block page
-    // First check whether it's malware or phishing, so that we can
-    // use the right strings/links
-    var isMalware = /e=malwareBlocked/.test(errorDoc.documentURI);
-    
-    if (target == errorDoc.getElementById('getMeOutButton')) {
-      // Instead of loading some safe page, just close the window
-      window.close();
-    } else if (target == errorDoc.getElementById('reportButton')) {
-      // This is the "Why is this site blocked" button.  For malware,
-      // we can fetch a site-specific report, for phishing, we redirect
-      // to the generic page describing phishing protection.
-
-      if (isMalware) {
-        // Get the stop badware "why is this blocked" report url,
-        // append the current url, and go there.
-        try {
-          let reportURL = formatter.formatURLPref("browser.safebrowsing.malware.reportURL", true);
-          reportURL += errorDoc.location.href.slice(12);
-          openURL(reportURL);
-        } catch (e) {
-          Components.utils.reportError("Couldn't get malware report URL: " + e);
-        }
-      } else { // It's a phishing site, not malware
-        try {
-          var infoURL = formatter.formatURLPref("browser.safebrowsing.warning.infoURL", true);
-          openURL(infoURL);
-        } catch (e) {
-          Components.utils.reportError("Couldn't get phishing info URL: " + e);
-        }
-      }
-    } else if (target == errorDoc.getElementById('ignoreWarningButton')) {
-      // Allow users to override and continue through to the site,
-      // but add a notify bar as a reminder, so that they don't lose
-      // track after, e.g., tab switching.
-      gBrowser.loadURIWithFlags(content.location.href,
-                                Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CLASSIFIER,
-                                null, null, null);
-    }
-  }
-}
-
 function HandleAppCommandEvent(evt)
 {
   evt.stopPropagation();
@@ -342,24 +279,6 @@ function HandleAppCommandEvent(evt)
       break;
     case "Forward":
       BrowserForward();
-      break;
-  }
-}
-
-function HandleSwipeGesture(evt) {
-  evt.stopPropagation();
-  switch (evt.direction) {
-    case SimpleGestureEvent.DIRECTION_LEFT:
-      BrowserBack();
-      break;
-    case SimpleGestureEvent.DIRECTION_RIGHT:
-      BrowserForward();
-      break;
-    case SimpleGestureEvent.DIRECTION_UP:
-      goDoCommand("cmd_scrollTop");
-      break;
-    case SimpleGestureEvent.DIRECTION_DOWN:
-      goDoCommand("cmd_scrollBottom");
       break;
   }
 }
@@ -375,40 +294,38 @@ function ViewSourceReload()
                            Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE);
 }
 
+// Strips the |view-source:| for editPage()
+function ViewSourceEditPage()
+{
+  editPage(window.content.location.href.substring(12), window, false);
+}
+
 // Strips the |view-source:| for saveURL()
 function ViewSourceSavePage()
 {
   saveURL(window.content.location.href.substring(12), null, "SaveLinkTitle");
 }
 
-var PrintPreviewListener = {
-  getPrintPreviewBrowser: function () {
-    var browser = document.getElementById("ppBrowser");
-    if (!browser) {
-      browser = document.createElement("browser");
-      browser.setAttribute("id", "ppBrowser");
-      browser.setAttribute("flex", "1");
-      document.getElementById("appcontent").
-        insertBefore(browser, document.getElementById("FindToolbar"));
-    }
-    return browser;
-  },
-  getSourceBrowser: function () {
-    return gBrowser;
-  },
-  getNavToolbox: function () {
-    return document.getElementById("appcontent");
-  },
-  onEnter: function () {
-    var toolbox = document.getElementById("viewSource-toolbox");
-    toolbox.hidden = true;
-    gBrowser.collapsed = true;
-  },
-  onExit: function () {
-    document.getElementById("ppBrowser").collapsed = true;
-    gBrowser.collapsed = false;
-    document.getElementById("viewSource-toolbox").hidden = false;
-  }
+function onEnterPP()
+{
+  var toolbox = document.getElementById("viewSource-toolbox");
+  toolbox.hidden = true;
+}
+
+function onExitPP()
+{
+  var toolbox = document.getElementById("viewSource-toolbox");
+  toolbox.hidden = false;
+}
+
+function getPPBrowser() {
+  return gBrowser;
+}
+
+// printUtils.js uses this
+function getNavToolbox()
+{
+  return document.getElementById("appcontent");
 }
 
 function getWebNavigation()

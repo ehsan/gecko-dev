@@ -72,31 +72,15 @@ nsFrameList::Destroy()
 }
 
 void
-nsFrameList::DestroyFrom(nsIFrame* aDestructRoot)
-{
-  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
-
-  DestroyFramesFrom(aDestructRoot);
-  delete this;
-}
-
-void
 nsFrameList::DestroyFrames()
 {
-  while (nsIFrame* frame = RemoveFirstChild()) {
+  nsIFrame* next;
+  for (nsIFrame* frame = mFirstChild; frame; frame = next) {
+    next = frame->GetNextSibling();
     frame->Destroy();
+    mFirstChild = next;
   }
-  mLastChild = nsnull;
-}
 
-void
-nsFrameList::DestroyFramesFrom(nsIFrame* aDestructRoot)
-{
-  NS_PRECONDITION(aDestructRoot, "Missing destruct root");
-
-  while (nsIFrame* frame = RemoveFirstChild()) {
-    frame->DestroyFrom(aDestructRoot);
-  }
   mLastChild = nsnull;
 }
 
@@ -113,10 +97,7 @@ void
 nsFrameList::RemoveFrame(nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "null ptr");
-#ifdef DEBUG_FRAME_LIST
-  // ContainsFrame is O(N)
   NS_PRECONDITION(ContainsFrame(aFrame), "wrong list");
-#endif
 
   nsIFrame* nextFrame = aFrame->GetNextSibling();
   if (aFrame == mFirstChild) {
@@ -156,9 +137,7 @@ nsFrameList
 nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
 {
   NS_PRECONDITION(NotEmpty(), "illegal operation on empty list");
-#ifdef DEBUG_FRAME_LIST
   NS_PRECONDITION(ContainsFrame(aAfterFrame), "wrong list");
-#endif
 
   nsIFrame* tail = aAfterFrame->GetNextSibling();
   // if (!tail) return EmptyList();  -- worth optimizing this case?
@@ -168,15 +147,14 @@ nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
   return nsFrameList(tail, tail ? oldLastChild : nsnull);
 }
 
-nsIFrame*
+PRBool
 nsFrameList::RemoveFirstChild()
 {
   if (mFirstChild) {
-    nsIFrame* firstChild = mFirstChild;
-    RemoveFrame(firstChild);
-    return firstChild;
+    RemoveFrame(mFirstChild);
+    return PR_TRUE;
   }
-  return nsnull;
+  return PR_FALSE;
 }
 
 void
@@ -215,11 +193,8 @@ nsFrameList::InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
   NS_ASSERTION(!aPrevSibling ||
                aPrevSibling->GetParent() == aFrameList.FirstChild()->GetParent(),
                "prev sibling has different parent");
-#ifdef DEBUG_FRAME_LIST
-  // ContainsFrame is O(N)
   NS_ASSERTION(!aPrevSibling || ContainsFrame(aPrevSibling),
                "prev sibling is not on this list");
-#endif
 
   nsIFrame* firstNewFrame = aFrameList.FirstChild();
   nsIFrame* nextSibling;
@@ -238,7 +213,9 @@ nsFrameList::InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
     mLastChild = lastNewFrame;
   }
 
+#ifdef DEBUG
   VerifyList();
+#endif
 
   aFrameList.Clear();
   return Slice(*this, firstNewFrame, nextSibling);
@@ -360,6 +337,24 @@ nsFrameList::ContainsFrame(const nsIFrame* aFrame) const
   return PR_FALSE;
 }
 
+PRBool
+nsFrameList::ContainsFrameBefore(const nsIFrame* aFrame, const nsIFrame* aEnd) const
+{
+  NS_PRECONDITION(aFrame, "null ptr");
+
+  nsIFrame* frame = mFirstChild;
+  while (frame) {
+    if (frame == aEnd) {
+      return PR_FALSE;
+    }
+    if (frame == aFrame) {
+      return PR_TRUE;
+    }
+    frame = frame->GetNextSibling();
+  }
+  return PR_FALSE;
+}
+
 PRInt32
 nsFrameList::GetLength() const
 {
@@ -410,6 +405,28 @@ class CompareByContentOrderComparator
     return CompareByContentOrder(aA, aB) < 0;
   }
 };
+
+void
+nsFrameList::SortByContentOrder()
+{
+  if (IsEmpty())
+    return;
+
+  nsAutoTArray<nsIFrame*, 8> array;
+  nsIFrame* f;
+  for (f = mFirstChild; f; f = f->GetNextSibling()) {
+    array.AppendElement(f);
+  }
+  array.Sort(CompareByContentOrderComparator());
+  f = mFirstChild = array.ElementAt(0);
+  for (PRUint32 i = 1; i < array.Length(); ++i) {
+    nsIFrame* ff = array.ElementAt(i);
+    f->SetNextSibling(ff);
+    f = ff;
+  }
+  f->SetNextSibling(nsnull);
+  mLastChild = f;
+}
 
 void
 nsFrameList::ApplySetParent(nsIFrame* aParent) const
@@ -587,7 +604,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 }
 #endif
 
-#ifdef DEBUG_FRAME_LIST
+#ifdef DEBUG
 void
 nsFrameList::VerifyList() const
 {

@@ -65,7 +65,6 @@ class NS_STACK_CLASS nsSVGFilterInstance
 {
 public:
   float GetPrimitiveLength(nsSVGLength2 *aLength) const;
-  void ConvertLocation(float aValues[3]) const;
 
   nsSVGFilterInstance(nsIFrame *aTargetFrame,
                       nsSVGFilterPaintCallback *aPaintCallback,
@@ -185,7 +184,6 @@ private:
   nsIFrame*               mTargetFrame;
   nsSVGFilterPaintCallback* mPaintCallback;
   nsSVGFilterElement*     mFilterElement;
-  // Bounding box of the target element, in user space
   gfxRect                 mTargetBBox;
   gfxMatrix               mFilterSpaceToDeviceSpaceTransform;
   gfxRect                 mFilterRect;

@@ -60,7 +60,6 @@
 #include "nsITransferable.h"
 #include "nsIDragService.h"
 #include "nsIDOMNSUIEvent.h"
-#include "nsCopySupport.h"
 
 // Misc
 #include "nsEditorUtils.h"
@@ -256,9 +255,20 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
       if (srcdomdoc == destdomdoc)
       {
         // Within the same doc: delete if user doesn't want to copy
-        PRUint32 action;
-        dragSession->GetDragAction(&action);
-        deleteSelection = !(action & nsIDragService::DRAGDROP_ACTION_COPY);
+ 
+        // check if the user pressed the key to force a copy rather than a move
+        // if we run into problems here, we'll just assume the user doesn't want a copy
+        PRBool userWantsCopy = PR_FALSE;
+
+        nsCOMPtr<nsIDOMMouseEvent> mouseEvent ( do_QueryInterface(aDropEvent) );
+        if (mouseEvent)
+#if defined(XP_MAC) || defined(XP_MACOSX)
+          mouseEvent->GetAltKey(&userWantsCopy);
+#else
+          mouseEvent->GetCtrlKey(&userWantsCopy);
+#endif
+
+        deleteSelection = !userWantsCopy;
       }
       else
       {
@@ -410,11 +420,14 @@ NS_IMETHODIMP nsPlaintextEditor::DoDrag(nsIDOMEvent *aDragEvent)
 
 NS_IMETHODIMP nsPlaintextEditor::Paste(PRInt32 aSelectionType)
 {
-  if (!FireClipboardEvent(NS_PASTE))
-    return NS_OK;
+  ForceCompositionEnd();
+
+  PRBool preventDefault;
+  nsresult rv = FireClipboardEvent(NS_PASTE, &preventDefault);
+  if (NS_FAILED(rv) || preventDefault)
+    return rv;
 
   // Get Clipboard Service
-  nsresult rv;
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   if ( NS_FAILED(rv) )
     return rv;
@@ -442,24 +455,6 @@ NS_IMETHODIMP nsPlaintextEditor::Paste(PRInt32 aSelectionType)
   return rv;
 }
 
-NS_IMETHODIMP nsPlaintextEditor::PasteTransferable(nsITransferable *aTransferable)
-{
-  if (!FireClipboardEvent(NS_PASTE))
-    return NS_OK;
-
-  if (!IsModifiable())
-    return NS_OK;
-
-  // handle transferable hooks
-  nsCOMPtr<nsIDOMDocument> domdoc;
-  GetDocument(getter_AddRefs(domdoc));
-  if (!nsEditorHookUtils::DoInsertionHook(domdoc, nsnull, aTransferable))
-    return NS_OK;
-
-  // Beware! This may flush notifications via synchronous
-  // ScrollSelectionIntoView.
-  return InsertTextFromTransferable(aTransferable, nsnull, nsnull, PR_TRUE);
-}
 
 NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
 {
@@ -487,37 +482,6 @@ NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPa
   return NS_OK;
 }
 
-
-NS_IMETHODIMP nsPlaintextEditor::CanPasteTransferable(nsITransferable *aTransferable, PRBool *aCanPaste)
-{
-  NS_ENSURE_ARG_POINTER(aCanPaste);
-
-  // can't paste if readonly
-  if (!IsModifiable()) {
-    *aCanPaste = PR_FALSE;
-    return NS_OK;
-  }
-
-  // If |aTransferable| is null, assume that a paste will succeed.
-  if (!aTransferable) {
-    *aCanPaste = PR_TRUE;
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsISupports> data;
-  PRUint32 dataLen;
-  nsresult rv = aTransferable->GetTransferData(kUnicodeMime,
-                                               getter_AddRefs(data),
-                                               &dataLen);
-  if (NS_SUCCEEDED(rv) && data)
-    *aCanPaste = PR_TRUE;
-  else
-    *aCanPaste = PR_FALSE;
-  
-  return NS_OK;
-}
-
-
 nsresult
 nsPlaintextEditor::SetupDocEncoder(nsIDocumentEncoder **aDocEncoder)
 {
@@ -526,10 +490,16 @@ nsPlaintextEditor::SetupDocEncoder(nsIDocumentEncoder **aDocEncoder)
   if (NS_FAILED(rv)) return rv;
 
   // find out if we're a plaintext control or not
+  PRUint32 editorFlags = 0;
+  rv = GetFlags(&editorFlags);
+  if (NS_FAILED(rv)) return rv;
+
+  PRBool bIsPlainTextControl = ((editorFlags & eEditorPlaintextMask) != 0);
+
   // get correct mimeType and document encoder flags set
   nsAutoString mimeType;
   PRUint32 docEncoderFlags = 0;
-  if (IsPlaintextEditor())
+  if (bIsPlainTextControl)
   {
     docEncoderFlags |= nsIDocumentEncoder::OutputBodyOnly | nsIDocumentEncoder::OutputPreformatted;
     mimeType.AssignLiteral(kUnicodeMime);
@@ -587,7 +557,12 @@ nsPlaintextEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // find out if we're a plaintext control or not
-  if (IsPlaintextEditor())
+  PRUint32 editorFlags = 0;
+  rv = GetFlags(&editorFlags);
+  if (NS_FAILED(rv)) return rv;
+
+  PRBool bIsPlainTextControl = ((editorFlags & eEditorPlaintextMask) != 0);
+  if (bIsPlainTextControl)
   {
     // Add the unicode flavor to the transferable
     rv = trans->AddDataFlavor(kUnicodeMime);
@@ -608,7 +583,7 @@ nsPlaintextEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   // QI the data object an |nsISupports| so that when the transferable holds
   // onto it, it will addref the correct interface.
   nsCOMPtr<nsISupports> nsisupportsDataWrapper = do_QueryInterface(dataWrapper);
-  rv = trans->SetTransferData(IsPlaintextEditor() ? kUnicodeMime : kHTMLMime,
+  rv = trans->SetTransferData(bIsPlainTextControl ? kUnicodeMime : kHTMLMime,
                    nsisupportsDataWrapper, buffer.Length() * sizeof(PRUnichar));
   if (NS_FAILED(rv)) return rv;
 

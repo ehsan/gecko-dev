@@ -42,16 +42,6 @@
 
 class nsIPrintSettings;
 
-// Copy the print pages enum here because not all versions
-// have SELECTION, which we will use
-typedef enum
-{
-  _GTK_PRINT_PAGES_ALL,
-  _GTK_PRINT_PAGES_CURRENT,
-  _GTK_PRINT_PAGES_RANGES,
-  _GTK_PRINT_PAGES_SELECTION
-} _GtkPrintPages;
-
 class nsPrintDialogServiceGTK : public nsIPrintDialogService
 {
 public:
@@ -61,8 +51,7 @@ public:
   NS_DECL_ISUPPORTS
 
   NS_IMETHODIMP Init();
-  NS_IMETHODIMP Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
-                     nsIWebBrowserPrint *aWebBrowserPrint);
+  NS_IMETHODIMP Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings);
   NS_IMETHODIMP ShowPageSetup(nsIDOMWindow *aParent,
                               nsIPrintSettings *aSettings);
 };

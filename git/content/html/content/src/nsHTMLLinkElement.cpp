@@ -41,6 +41,7 @@
 #include "nsILink.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIDOMStyleSheet.h"
 #include "nsIStyleSheet.h"
 #include "nsIStyleSheetLinkingElement.h"
@@ -59,14 +60,10 @@
 #include "nsPIDOMWindow.h"
 #include "nsPLDOMEvent.h"
 
-#include "Link.h"
-using namespace mozilla::dom;
-
 class nsHTMLLinkElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLLinkElement,
                           public nsILink,
-                          public nsStyleLinkElement,
-                          public Link
+                          public nsStyleLinkElement
 {
 public:
   nsHTMLLinkElement(nsINodeInfo *aNodeInfo);
@@ -113,11 +110,10 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
+  virtual void SetLinkState(nsLinkState aState);
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual PRInt32 IntrinsicState() const;
 
 protected:
   virtual already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
@@ -125,6 +121,9 @@ protected:
                                  nsAString& aType,
                                  nsAString& aMedia,
                                  PRBool* aIsAlternate);
+ 
+  // The cached visited state
+  nsLinkState mLinkState;
 };
 
 
@@ -132,7 +131,8 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Link)
 
 
 nsHTMLLinkElement::nsHTMLLinkElement(nsINodeInfo *aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo)
+  : nsGenericHTMLElement(aNodeInfo),
+    mLinkState(eLinkState_Unknown)
 {
 }
 
@@ -145,16 +145,13 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLinkElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLLinkElement, nsHTMLLinkElement)
-
 // QueryInterface implementation for nsHTMLLinkElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLinkElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLLinkElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLLinkElement,
                                    nsIDOMHTMLLinkElement,
                                    nsIDOMLinkStyle,
                                    nsILink,
-                                   nsIStyleSheetLinkingElement,
-                                   Link)
+                                   nsIStyleSheetLinkingElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLinkElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLinkElement)
@@ -206,19 +203,18 @@ nsHTMLLinkElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers)
 {
-  Link::ResetLinkState(false);
-
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  void (nsHTMLLinkElement::*update)() = &nsHTMLLinkElement::UpdateStyleSheetInternal;
-  nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, update));
+  nsContentUtils::AddScriptRunner(
+    new nsRunnableMethod<nsHTMLLinkElement>(this,
+                                            &nsHTMLLinkElement::UpdateStyleSheetInternal));
 
   CreateAndDispatchEvent(aDocument, NS_LITERAL_STRING("DOMLinkAdded"));
 
-  return rv;
+  return rv;  
 }
 
 NS_IMETHODIMP
@@ -238,13 +234,16 @@ nsHTMLLinkElement::LinkRemoved()
 void
 nsHTMLLinkElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  // If this link is ever reinserted into a document, it might
-  // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false);
+  nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
+  if (oldDoc) {
+    GetCurrentDoc()->ForgetLink(this);
+    // If this link is ever reinserted into a document, it might
+    // be under a different xml:base, so forget the cached state now
+    mLinkState = eLinkState_Unknown;
+  }
 
   // Once we have XPCOMGC we shouldn't need to call UnbindFromTree during Unlink
   // and so this messy event dispatch can go away.
-  nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
   CreateAndDispatchEvent(oldDoc, NS_LITERAL_STRING("DOMLinkRemoved"));
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
   UpdateStyleSheetInternal(oldDoc);
@@ -272,12 +271,17 @@ nsHTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
                       strings, eIgnoreCase) != ATTR_VALUE_NO_MATCH)
     return;
 
-  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName, PR_TRUE,
-                                                  PR_TRUE);
+  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName, PR_TRUE);
   if (event) {
-    // Always run async in order to avoid running script when the content
-    // sink isn't expecting it.
-    event->PostDOMEvent();
+    // If we have script blockers on the stack then we want to run as soon as
+    // they are removed. Otherwise punt the runable to the event loop as we
+    // don't know when it will be safe to run script.  In particular, we might
+    // be in the middle of a pagehide right now, and firing this event at that
+    // point is not such a great idea.
+    if (nsContentUtils::IsSafeToRunScript())
+      event->PostDOMEvent();
+    else
+      event->RunDOMEventWhenSafe();
   }
 }
 
@@ -286,18 +290,19 @@ nsHTMLLinkElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify)
 {
-  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
-                                              aValue, aNotify);
-
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
   if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify);
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+        // The change to 'href' will cause style reresolution which will
+        // eventually recompute the link state and re-add this element
+        // to the link map if necessary.
+    }
+    SetLinkState(eLinkState_Unknown);
   }
 
+  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
+                                              aValue, aNotify);
   if (NS_SUCCEEDED(rv)) {
     PRBool dropSheet = PR_FALSE;
     if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::rel &&
@@ -322,6 +327,14 @@ nsresult
 nsHTMLLinkElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify)
 {
+  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+    }
+    SetLinkState(eLinkState_Unknown);
+  }
+
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
                                                 aNotify);
   if (NS_SUCCEEDED(rv)) {
@@ -331,15 +344,6 @@ nsHTMLLinkElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                               aAttribute == nsGkAtoms::title ||
                               aAttribute == nsGkAtoms::media ||
                               aAttribute == nsGkAtoms::type));
-  }
-
-  // The ordering of the parent class's UnsetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not unset until UnsetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;
@@ -375,7 +379,13 @@ nsHTMLLinkElement::GetLinkTarget(nsAString& aTarget)
 nsLinkState
 nsHTMLLinkElement::GetLinkState() const
 {
-  return Link::GetLinkState();
+  return mLinkState;
+}
+
+void
+nsHTMLLinkElement::SetLinkState(nsLinkState aState)
+{
+  mLinkState = aState;
 }
 
 already_AddRefed<nsIURI>
@@ -388,7 +398,7 @@ already_AddRefed<nsIURI>
 nsHTMLLinkElement::GetStyleSheetURL(PRBool* aIsInline)
 {
   *aIsInline = PR_FALSE;
-  return Link::GetURI();
+  return GetHrefURIForAnchors();
 }
 
 void
@@ -441,10 +451,4 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   aType.AssignLiteral("text/css");
 
   return;
-}
-
-PRInt32
-nsHTMLLinkElement::IntrinsicState() const
-{
-  return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();
 }

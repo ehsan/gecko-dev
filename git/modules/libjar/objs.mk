@@ -48,11 +48,11 @@ MODULES_LIBJAR_LCPPSRCS = \
 
 MODULES_LIBJAR_LEXPORTS = \
 		zipstruct.h \
-		nsZipArchive.h \
 		$(NULL)
 
 MODULES_LIBJAR_LXPIDLSRCS = \
 		nsIZipReader.idl \
+		nsIJAR.idl \
 		nsIJARChannel.idl \
 		nsIJARURI.idl \
 		nsIJARProtocolHandler.idl \

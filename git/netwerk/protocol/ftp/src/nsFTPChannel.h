@@ -63,6 +63,12 @@
 #include "nsIResumableChannel.h"
 #include "nsHashPropertyBag.h"
 
+#define FTP_COMMAND_CHANNEL_SEG_SIZE 64
+#define FTP_COMMAND_CHANNEL_SEG_COUNT 8
+
+#define FTP_DATA_CHANNEL_SEG_SIZE  (4*1024)
+#define FTP_DATA_CHANNEL_SEG_COUNT 8
+
 class nsFtpChannel : public nsBaseChannel,
                      public nsIFTPChannel,
                      public nsIUploadChannel,
@@ -79,7 +85,6 @@ public:
         : mProxyInfo(pi)
         , mStartPos(0)
         , mResumeRequested(PR_FALSE)
-        , mLastModifiedTime(0)
     {
         SetURI(uri);
     }
@@ -100,16 +105,6 @@ public:
     }
     void SetEntityID(const nsCSubstring &entityID) {
         mEntityID = entityID;
-    }
-
-    NS_IMETHODIMP GetLastModifiedTime(PRTime* lastModifiedTime) {
-        *lastModifiedTime = mLastModifiedTime;
-        return NS_OK;
-    }
-
-    NS_IMETHODIMP SetLastModifiedTime(PRTime lastModifiedTime) {
-        mLastModifiedTime = lastModifiedTime;
-        return NS_OK;
     }
 
     // Data stream to upload
@@ -134,7 +129,6 @@ private:
     PRUint64                  mStartPos;
     nsCString                 mEntityID;
     PRPackedBool              mResumeRequested;
-    PRTime                    mLastModifiedTime;
 };
 
 #endif /* nsFTPChannel_h___ */

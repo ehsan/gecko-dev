@@ -45,7 +45,6 @@ function test() {
   key = "Unique name: " + Math.random();
   value = "Unique value: " + Date.now();
   let tab = tabbrowser.addTab();
-  tab.linkedBrowser.stop();
   
   // test adding
   ok(test(function() ss.setTabValue(tab, key, value)), "store a tab value");
@@ -95,8 +94,7 @@ function test() {
       is(this.currentURI.spec, testURL, "correct tab was reopened");
       
       // clean up
-      if (gPrefService.prefHasUserValue("browser.sessionstore.max_tabs_undo"))
-        gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
+      gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
       tabbrowser.removeTab(tab);
       finish();
     }, true);

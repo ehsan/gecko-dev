@@ -52,23 +52,18 @@ interface nsIChannel;
  * list is changed, or a cookie is rejected:
  *
  * topic  : "cookie-changed"
- *          broadcast whenever the cookie list changes in some way. see
- *          explanation of data strings below.
- * subject: see below.
+ *          broadcast whenever the cookie list changes in some way. there
+ *          are four possible data strings for this notification; one
+ *          notification will be broadcast for each change, and will involve
+ *          a single cookie.
+ * subject: an nsICookie2 interface pointer representing the cookie object
+ *          that changed.
  * data   : "deleted"
- *          a cookie was deleted. the subject is an nsICookie2 representing
- *          the deleted cookie.
+ *          a cookie was deleted. the subject is the deleted cookie.
  *          "added"
- *          a cookie was added. the subject is an nsICookie2 representing
- *          the added cookie.
+ *          a cookie was added. the subject is the added cookie.
  *          "changed"
- *          a cookie was changed. the subject is an nsICookie2 representing
- *          the new cookie. (note that host, path, and name are invariant
- *          for a given cookie; other parameters may change.)
- *          "batch-deleted"
- *          a batch of cookies was deleted (for instance, as part of a purging
- *          operation). the subject is an nsIArray of nsICookie2's representing
- *          the deleted cookies.
+ *          a cookie was changed. the subject is the new cookie.
  *          "cleared"
  *          the entire cookie list was cleared. the subject is null.
  *          "reload"
@@ -89,15 +84,10 @@ interface nsICookieService : nsISupports
    *
    * @param aURI
    *        the URI of the document for which cookies are being queried.
-   *        file:// URI's (i.e. with an empty host) are allowed, but any other
-   *        scheme must have a non-empty host. A trailing dot in the host
-   *        is acceptable, and will be stripped.
    * @param aChannel
-   *        the channel used to load the document.  this parameter should not
-   *        be null, otherwise the cookies will not be returned if third-party
-   *        cookies have been disabled by the user. (the channel is used
-   *        to determine the originating URI of the document; if it is not
-   *        provided, the cookies will be assumed third-party.)
+   *        the channel used to load the document.  this parameter may be null,
+   *        but it is strongly recommended that a non-null value be provided to
+   *        ensure that the cookie privacy preferences are honored.
    *
    * @return the resulting cookie string
    */
@@ -111,18 +101,13 @@ interface nsICookieService : nsISupports
    *
    * @param aURI
    *        the URI of the document for which cookies are being queried.
-   *        file:// URI's (i.e. with an empty host) are allowed, but any other
-   *        scheme must have a non-empty host. A trailing dot in the host
-   *        is acceptable, and will be stripped.
    * @param aFirstURI
    *        the URI that the user originally typed in or clicked on to initiate
    *        the load of the document referenced by aURI.
    * @param aChannel
-   *        the channel used to load the document.  this parameter should not
-   *        be null, otherwise the cookies will not be returned if third-party
-   *        cookies have been disabled by the user. (the channel is used
-   *        to determine the originating URI of the document; if it is not
-   *        provided, the cookies will be assumed third-party.)
+   *        the channel used to load the document.  this parameter may be null,
+   *        but it is strongly recommended that a non-null value be provided to
+   *        ensure that the cookie privacy preferences are honored.
    *
    * @return the resulting cookie string
    */
@@ -133,19 +118,14 @@ interface nsICookieService : nsISupports
    *
    * @param aURI
    *        the URI of the document for which cookies are being set.
-   *        file:// URI's (i.e. with an empty host) are allowed, but any other
-   *        scheme must have a non-empty host. A trailing dot in the host
-   *        is acceptable, and will be stripped.
    * @param aPrompt
    *        the prompt to use for all user-level cookie notifications.
    * @param aCookie
    *        the cookie string to set.
    * @param aChannel
-   *        the channel used to load the document.  this parameter should not
-   *        be null, otherwise the cookies will not be set if third-party
-   *        cookies have been disabled by the user. (the channel is used
-   *        to determine the originating URI of the document; if it is not
-   *        provided, the cookies will be assumed third-party.)
+   *        the channel used to load the document.  this parameter may be null,
+   *        but it is strongly recommended that a non-null value be provided to
+   *        ensure that the cookie privacy preferences are honored.
    *
    * XXX should be able to allow null aPrompt, since nsIPrompt can be queryied
    * from aChannel.
@@ -160,9 +140,6 @@ interface nsICookieService : nsISupports
    *
    * @param aURI
    *        the URI of the document for which cookies are being set.
-   *        file:// URI's (i.e. with an empty host) are allowed, but any other
-   *        scheme must have a non-empty host. A trailing dot in the host
-   *        is acceptable, and will be stripped.
    * @param aFirstURI
    *        the URI that the user originally typed in or clicked on to initiate
    *        the load of the document referenced by aURI.
@@ -174,11 +151,9 @@ interface nsICookieService : nsISupports
    *        the expiry information of the cookie (the Date header from the HTTP
    *        response).
    * @param aChannel
-   *        the channel used to load the document.  this parameter should not
-   *        be null, otherwise the cookies will not be set if third-party
-   *        cookies have been disabled by the user. (the channel is used
-   *        to determine the originating URI of the document; if it is not
-   *        provided, the cookies will be assumed third-party.)
+   *        the channel used to load the document.  this parameter may be null,
+   *        but it is strongly recommended that a non-null value be provided to
+   *        ensure that the cookie privacy preferences are honored.
    */
   void setCookieStringFromHttp(in nsIURI aURI, in nsIURI aFirstURI, in nsIPrompt aPrompt, in string aCookie, in string aServerTime, in nsIChannel aChannel);
 };

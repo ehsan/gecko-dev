@@ -38,9 +38,6 @@
 
 #include "nsARIAGridAccessible.h"
 
-#include "nsAccIterator.h"
-
-#include "nsIMutableArray.h"
 #include "nsComponentManagerUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,13 +98,9 @@ nsARIAGridAccessible::GetColumnCount(PRInt32 *acolumnCount)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-  nsAccessible *row = rowIter.GetNext();
-
-  nsAccIterator cellIter(row, nsAccIterator::GetCell);
-  nsAccessible *cell = nsnull;
-
-  while ((cell = cellIter.GetNext()))
+  nsCOMPtr<nsIAccessible> row = GetNextRow();
+  nsCOMPtr<nsIAccessible> cell;
+  while ((cell = GetNextCellInRow(row, cell)))
     (*acolumnCount)++;
 
   return NS_OK;
@@ -122,8 +115,8 @@ nsARIAGridAccessible::GetRowCount(PRInt32 *arowCount)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-  while (rowIter.GetNext())
+  nsCOMPtr<nsIAccessible> row;
+  while ((row = GetNextRow(row)))
     (*arowCount)++;
 
   return NS_OK;
@@ -139,10 +132,10 @@ nsARIAGridAccessible::GetCellAt(PRInt32 aRowIndex, PRInt32 aColumnIndex,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible *row = GetRowAt(aRowIndex);
+  nsCOMPtr<nsIAccessible> row = GetRowAt(aRowIndex);
   NS_ENSURE_ARG(row);
 
-  nsAccessible *cell = GetCellInRowAt(row, aColumnIndex);
+  nsCOMPtr<nsIAccessible> cell = GetCellInRowAt(row, aColumnIndex);
   NS_ENSURE_ARG(cell);
 
   NS_ADDREF(*aAccessible = cell);
@@ -292,21 +285,20 @@ nsARIAGridAccessible::IsColumnSelected(PRInt32 aColumn, PRBool *aIsSelected)
 
   NS_ENSURE_ARG(IsValidColumn(aColumn));
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-  nsAccessible *row = rowIter.GetNext();
+  nsCOMPtr<nsIAccessible> row = GetNextRow();
   if (!row)
     return NS_OK;
 
   do {
     if (!nsAccUtils::IsARIASelected(row)) {
-      nsAccessible *cell = GetCellInRowAt(row, aColumn);
+      nsCOMPtr<nsIAccessible> cell = GetCellInRowAt(row, aColumn);
       if (!cell) // Do not fail due to wrong markup
         return NS_OK;
       
       if (!nsAccUtils::IsARIASelected(cell))
         return NS_OK;
     }
-  } while ((row = rowIter.GetNext()));
+  } while ((row = GetNextRow(row)));
 
   *aIsSelected = PR_TRUE;
   return NS_OK;
@@ -321,13 +313,12 @@ nsARIAGridAccessible::IsRowSelected(PRInt32 aRow, PRBool *aIsSelected)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible *row = GetRowAt(aRow);
+  nsCOMPtr<nsIAccessible> row = GetRowAt(aRow);
   NS_ENSURE_ARG(row);
 
   if (!nsAccUtils::IsARIASelected(row)) {
-    nsAccIterator cellIter(row, nsAccIterator::GetCell);
-    nsAccessible *cell = nsnull;
-    while ((cell = cellIter.GetNext())) {
+    nsCOMPtr<nsIAccessible> cell;
+    while ((cell = GetNextCellInRow(row, cell))) {
       if (!nsAccUtils::IsARIASelected(cell))
         return NS_OK;
     }
@@ -347,11 +338,11 @@ nsARIAGridAccessible::IsCellSelected(PRInt32 aRow, PRInt32 aColumn,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible *row = GetRowAt(aRow);
+  nsCOMPtr<nsIAccessible> row(GetRowAt(aRow));
   NS_ENSURE_ARG(row);
 
   if (!nsAccUtils::IsARIASelected(row)) {
-    nsAccessible *cell = GetCellInRowAt(row, aColumn);
+    nsCOMPtr<nsIAccessible> cell(GetCellInRowAt(row, aColumn));
     NS_ENSURE_ARG(cell);
 
     if (!nsAccUtils::IsARIASelected(cell))
@@ -373,20 +364,16 @@ nsARIAGridAccessible::GetSelectedCellCount(PRUint32* aCount)
 
   PRInt32 colCount = 0;
   GetColumnCount(&colCount);
-
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = nsnull;
-  while ((row = rowIter.GetNext())) {
+  
+  nsCOMPtr<nsIAccessible> row;
+  while ((row = GetNextRow(row))) {
     if (nsAccUtils::IsARIASelected(row)) {
       (*aCount) += colCount;
       continue;
     }
 
-    nsAccIterator cellIter(row, nsAccIterator::GetCell);
-    nsAccessible *cell = nsnull;
-
-    while ((cell = cellIter.GetNext())) {
+    nsCOMPtr<nsIAccessible> cell;
+    while ((cell = GetNextCellInRow(row, cell))) {
       if (nsAccUtils::IsARIASelected(cell))
         (*aCount)++;
     }
@@ -410,17 +397,14 @@ nsARIAGridAccessible::GetSelectedRowCount(PRUint32* aCount)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = nsnull;
-  while ((row = rowIter.GetNext())) {
+  nsCOMPtr<nsIAccessible> row;
+  while ((row = GetNextRow(row))) {
     if (nsAccUtils::IsARIASelected(row)) {
       (*aCount)++;
       continue;
     }
 
-    nsAccIterator cellIter(row, nsAccIterator::GetCell);
-    nsAccessible *cell = cellIter.GetNext();
+    nsCOMPtr<nsIAccessible> cell = GetNextCellInRow(row);
     if (!cell)
       continue;
 
@@ -430,7 +414,7 @@ nsARIAGridAccessible::GetSelectedRowCount(PRUint32* aCount)
         isRowSelected = PR_FALSE;
         break;
       }
-    } while ((cell = cellIter.GetNext()));
+    } while ((cell = GetNextCellInRow(row, cell)));
 
     if (isRowSelected)
       (*aCount)++;
@@ -453,21 +437,18 @@ nsARIAGridAccessible::GetSelectedCells(nsIArray **aCells)
     do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = nsnull;
-  while (row = rowIter.GetNext()) {
-    nsAccIterator cellIter(row, nsAccIterator::GetCell);
-    nsIAccessible *cell = nsnull;
-
+  nsCOMPtr<nsIAccessible> row;
+  while (row = GetNextRow(row)) {
     if (nsAccUtils::IsARIASelected(row)) {
-      while (cell = cellIter.GetNext())
+      nsCOMPtr<nsIAccessible> cell;
+      while (cell = GetNextCellInRow(row, cell))
         selCells->AppendElement(cell, PR_FALSE);
 
       continue;
     }
 
-    while (cell = cellIter.GetNext()) {
+    nsCOMPtr<nsIAccessible> cell;
+    while (cell = GetNextCellInRow(row, cell)) {
       if (nsAccUtils::IsARIASelected(cell))
         selCells->AppendElement(cell, PR_FALSE);
     }
@@ -497,10 +478,8 @@ nsARIAGridAccessible::GetSelectedCellIndices(PRUint32 *aCellsCount,
 
   nsTArray<PRInt32> selCells(rowCount * colCount);
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = nsnull;
-  for (PRInt32 rowIdx = 0; row = rowIter.GetNext(); rowIdx++) {
+  nsCOMPtr<nsIAccessible> row;
+  for (PRInt32 rowIdx = 0; row = GetNextRow(row); rowIdx++) {
     if (nsAccUtils::IsARIASelected(row)) {
       for (PRInt32 colIdx = 0; colIdx < colCount; colIdx++)
         selCells.AppendElement(rowIdx * colCount + colIdx);
@@ -508,10 +487,8 @@ nsARIAGridAccessible::GetSelectedCellIndices(PRUint32 *aCellsCount,
       continue;
     }
 
-    nsAccIterator cellIter(row, nsAccIterator::GetCell);
-    nsAccessible *cell = nsnull;
-
-    for (PRInt32 colIdx = 0; cell = cellIter.GetNext(); colIdx++) {
+    nsCOMPtr<nsIAccessible> cell;
+    for (PRInt32 colIdx = 0; cell = GetNextCellInRow(row, cell); colIdx++) {
       if (nsAccUtils::IsARIASelected(cell))
         selCells.AppendElement(rowIdx * colCount + colIdx);
     }
@@ -557,17 +534,14 @@ nsARIAGridAccessible::GetSelectedRowIndices(PRUint32 *arowCount,
 
   nsTArray<PRInt32> selRows(rowCount);
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = nsnull;
-  for (PRInt32 rowIdx = 0; row = rowIter.GetNext(); rowIdx++) {
+  nsCOMPtr<nsIAccessible> row;
+  for (PRInt32 rowIdx = 0; row = GetNextRow(row); rowIdx++) {
     if (nsAccUtils::IsARIASelected(row)) {
       selRows.AppendElement(rowIdx);
       continue;
     }
 
-    nsAccIterator cellIter(row, nsAccIterator::GetCell);
-    nsAccessible *cell = cellIter.GetNext();
+    nsCOMPtr<nsIAccessible> cell = GetNextCellInRow(row);
     if (!cell)
       continue;
 
@@ -577,7 +551,7 @@ nsARIAGridAccessible::GetSelectedRowIndices(PRUint32 *arowCount,
         isRowSelected = PR_FALSE;
         break;
       }
-    } while ((cell = cellIter.GetNext()));
+    } while ((cell = GetNextCellInRow(row, cell)));
 
     if (isRowSelected)
       selRows.AppendElement(rowIdx);
@@ -603,10 +577,8 @@ nsARIAGridAccessible::SelectRow(PRInt32 aRow)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = nsnull;
-  for (PRInt32 rowIdx = 0; row = rowIter.GetNext(); rowIdx++) {
+  nsCOMPtr<nsIAccessible> row;
+  for (PRInt32 rowIdx = 0; row = GetNextRow(row); rowIdx++) {
     nsresult rv = SetARIASelected(row, rowIdx == aRow);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -622,16 +594,14 @@ nsARIAGridAccessible::SelectColumn(PRInt32 aColumn)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = nsnull;
-  while ((row = rowIter.GetNext())) {
+  nsCOMPtr<nsIAccessible> row;
+  while ((row = GetNextRow(row))) {
     // Unselect all cells in the row.
     nsresult rv = SetARIASelected(row, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Select cell at the column index.
-    nsAccessible *cell = GetCellInRowAt(row, aColumn);
+    nsCOMPtr<nsIAccessible> cell = GetCellInRowAt(row, aColumn);
     if (cell) {
       rv = SetARIASelected(cell, PR_TRUE);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -647,7 +617,7 @@ nsARIAGridAccessible::UnselectRow(PRInt32 aRow)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible *row = GetRowAt(aRow);
+  nsCOMPtr<nsIAccessible> row = GetRowAt(aRow);
   NS_ENSURE_ARG(row);
 
   return SetARIASelected(row, PR_FALSE);
@@ -661,11 +631,9 @@ nsARIAGridAccessible::UnselectColumn(PRInt32 aColumn)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = nsnull;
-  while ((row = rowIter.GetNext())) {
-    nsAccessible *cell = GetCellInRowAt(row, aColumn);
+  nsCOMPtr<nsIAccessible> row;
+  while ((row = GetNextRow(row))) {
+    nsCOMPtr<nsIAccessible> cell = GetCellInRowAt(row, aColumn);
     if (cell) {
       nsresult rv = SetARIASelected(cell, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -725,39 +693,84 @@ nsARIAGridAccessible::IsValidRowNColumn(PRInt32 aRow, PRInt32 aColumn)
   return aColumn < colCount;
 }
 
-nsAccessible*
+already_AddRefed<nsIAccessible>
 nsARIAGridAccessible::GetRowAt(PRInt32 aRow)
 {
   PRInt32 rowIdx = aRow;
-
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-
-  nsAccessible *row = rowIter.GetNext();
-  while (rowIdx != 0 && (row = rowIter.GetNext()))
+  nsCOMPtr<nsIAccessible> row(GetNextRow());
+  while (rowIdx != 0 && (row = GetNextRow(row)))
     rowIdx--;
 
-  return row;
+  return row.forget();
 }
 
-nsAccessible*
-nsARIAGridAccessible::GetCellInRowAt(nsAccessible *aRow, PRInt32 aColumn)
+already_AddRefed<nsIAccessible>
+nsARIAGridAccessible::GetCellInRowAt(nsIAccessible *aRow, PRInt32 aColumn)
 {
   PRInt32 colIdx = aColumn;
-
-  nsAccIterator cellIter(aRow, nsAccIterator::GetCell);
-  nsAccessible *cell = cellIter.GetNext();
-  while (colIdx != 0 && (cell = cellIter.GetNext()))
+  nsCOMPtr<nsIAccessible> cell(GetNextCellInRow(aRow));
+  while (colIdx != 0 && (cell = GetNextCellInRow(aRow, cell)))
     colIdx--;
 
-  return cell;
+  return cell.forget();
+}
+
+already_AddRefed<nsIAccessible>
+nsARIAGridAccessible::GetNextRow(nsIAccessible *aRow)
+{
+  nsCOMPtr<nsIAccessible> nextRow, tmpAcc;
+  if (!aRow)
+    GetFirstChild(getter_AddRefs(nextRow));
+  else
+    aRow->GetNextSibling(getter_AddRefs(nextRow));
+
+  while (nextRow) {
+    if (nsAccUtils::Role(nextRow) == nsIAccessibleRole::ROLE_ROW)
+      return nextRow.forget();
+
+    nextRow->GetNextSibling(getter_AddRefs(tmpAcc));
+    tmpAcc.swap(nextRow);
+  }
+
+  return nsnull;
+}
+
+already_AddRefed<nsIAccessible>
+nsARIAGridAccessible::GetNextCellInRow(nsIAccessible *aRow, nsIAccessible *aCell)
+{
+  if (!aRow)
+    return nsnull;
+
+  nsCOMPtr<nsIAccessible> nextCell, tmpAcc;
+  if (!aCell)
+    aRow->GetFirstChild(getter_AddRefs(nextCell));
+  else
+    aCell->GetNextSibling(getter_AddRefs(nextCell));
+
+  while (nextCell) {
+    PRUint32 role = nsAccUtils::Role(nextCell);
+    if (role == nsIAccessibleRole::ROLE_GRID_CELL ||
+        role == nsIAccessibleRole::ROLE_ROWHEADER ||
+        role == nsIAccessibleRole::ROLE_COLUMNHEADER)
+      return nextCell.forget();
+
+    nextCell->GetNextSibling(getter_AddRefs(tmpAcc));
+    tmpAcc.swap(nextCell);
+  }
+
+  return nsnull;
 }
 
 nsresult
-nsARIAGridAccessible::SetARIASelected(nsAccessible *aAccessible,
+nsARIAGridAccessible::SetARIASelected(nsIAccessible *aAccessible,
                                       PRBool aIsSelected, PRBool aNotify)
 {
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aAccessible->GetDOMNode()));
-  NS_ENSURE_STATE(content);
+  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(aAccessible);
+  nsCOMPtr<nsIDOMNode> node;
+  acc->GetDOMNode(getter_AddRefs(node));
+  NS_ENSURE_STATE(node);
+
+  nsCOMPtr<nsIContent> content(do_QueryInterface(node));
 
   nsresult rv = NS_OK;
   if (aIsSelected)
@@ -784,10 +797,8 @@ nsARIAGridAccessible::SetARIASelected(nsAccessible *aAccessible,
   // If the given accessible is row that was unselected then remove
   // aria-selected from cell accessible.
   if (role == nsIAccessibleRole::ROLE_ROW) {
-    nsAccIterator cellIter(aAccessible, nsAccIterator::GetCell);
-    nsAccessible *cell = nsnull;
-
-    while ((cell = cellIter.GetNext())) {
+    nsCOMPtr<nsIAccessible> cell;
+    while ((cell = GetNextCellInRow(aAccessible, cell))) {
       rv = SetARIASelected(cell, PR_FALSE, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -800,16 +811,16 @@ nsARIAGridAccessible::SetARIASelected(nsAccessible *aAccessible,
   if (role == nsIAccessibleRole::ROLE_GRID_CELL ||
       role == nsIAccessibleRole::ROLE_ROWHEADER ||
       role == nsIAccessibleRole::ROLE_COLUMNHEADER) {
-    nsAccessible *row = aAccessible->GetParent();
+    nsCOMPtr<nsIAccessible> row;
+    aAccessible->GetParent(getter_AddRefs(row));
 
     if (nsAccUtils::Role(row) == nsIAccessibleRole::ROLE_ROW &&
         nsAccUtils::IsARIASelected(row)) {
       rv = SetARIASelected(row, PR_FALSE, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      nsAccIterator cellIter(row, nsAccIterator::GetCell);
-      nsAccessible *cell = nsnull;
-      while ((cell = cellIter.GetNext())) {
+      nsCOMPtr<nsIAccessible> cell;
+      while ((cell = GetNextCellInRow(row, cell))) {
         if (cell != aAccessible) {
           rv = SetARIASelected(cell, PR_TRUE, PR_FALSE);
           NS_ENSURE_SUCCESS(rv, rv);
@@ -833,8 +844,7 @@ nsARIAGridAccessible::GetSelectedColumnsArray(PRUint32 *acolumnCount,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccIterator rowIter(this, nsAccIterator::GetRow);
-  nsAccessible *row = rowIter.GetNext();
+  nsCOMPtr<nsIAccessible> row = GetNextRow();
   if (!row)
     return NS_OK;
 
@@ -855,17 +865,15 @@ nsARIAGridAccessible::GetSelectedColumnsArray(PRUint32 *acolumnCount,
       continue;
 
     PRInt32 colIdx = 0;
-
-    nsAccIterator cellIter(row, nsAccIterator::GetCell);
-    nsAccessible *cell = nsnull;
-    for (colIdx = 0; cell = cellIter.GetNext(); colIdx++) {
+    nsCOMPtr<nsIAccessible> cell;
+    for (colIdx = 0; cell = GetNextCellInRow(row, cell); colIdx++) {
       if (isColSelArray.SafeElementAt(colIdx, PR_FALSE) &&
           !nsAccUtils::IsARIASelected(cell)) {
         isColSelArray[colIdx] = PR_FALSE;
         selColCount--;
       }
     }
-  } while ((row = rowIter.GetNext()));
+  } while ((row = GetNextRow(row)));
 
   if (!selColCount)
     return NS_OK;
@@ -1089,7 +1097,7 @@ nsARIAGridCellAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
   if (nsAccUtils::Role(row) != nsIAccessibleRole::ROLE_ROW)
     return NS_OK;
 
-  nsRefPtr<nsAccessible> acc = do_QueryObject(row);
+  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(row);
   nsCOMPtr<nsIDOMNode> rowNode;
   acc->GetDOMNode(getter_AddRefs(rowNode));
   NS_ENSURE_STATE(rowNode);
@@ -1119,14 +1127,15 @@ nsARIAGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttrib
 
   // Expose "table-cell-index" attribute.
 
-  nsAccessible *thisRow = GetParent();
+  nsCOMPtr<nsIAccessible> thisRow;
+  GetParent(getter_AddRefs(thisRow));
   if (nsAccUtils::Role(thisRow) != nsIAccessibleRole::ROLE_ROW)
     return NS_OK;
 
   PRInt32 colIdx = 0, colCount = 0;
-  PRInt32 childCount = thisRow->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *child = thisRow->GetChildAt(childIdx);
+  nsCOMPtr<nsIAccessible> child, nextChild;
+  thisRow->GetFirstChild(getter_AddRefs(child));
+  while (child) {
     if (child == this)
       colIdx = colCount;
 
@@ -1135,22 +1144,25 @@ nsARIAGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttrib
         role == nsIAccessibleRole::ROLE_ROWHEADER ||
         role == nsIAccessibleRole::ROLE_COLUMNHEADER)
       colCount++;
+
+    child->GetNextSibling(getter_AddRefs(nextChild));
+    child.swap(nextChild);
   }
 
-  nsAccessible *table = thisRow->GetParent();
+  nsCOMPtr<nsIAccessible> table;
+  thisRow->GetParent(getter_AddRefs(table));
   if (nsAccUtils::Role(table) != nsIAccessibleRole::ROLE_TABLE &&
       nsAccUtils::Role(table) != nsIAccessibleRole::ROLE_TREE_TABLE)
     return NS_OK;
 
   PRInt32 rowIdx = 0;
-  childCount = table->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *child = table->GetChildAt(childIdx);
-    if (child == thisRow)
-      break;
-
+  table->GetFirstChild(getter_AddRefs(child));
+  while (child && child != thisRow) {
     if (nsAccUtils::Role(child) == nsIAccessibleRole::ROLE_ROW)
       rowIdx++;
+
+    child->GetNextSibling(getter_AddRefs(nextChild));
+    child.swap(nextChild);
   }
 
   PRInt32 idx = rowIdx * colCount + colIdx;

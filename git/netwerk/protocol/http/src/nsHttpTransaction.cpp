@@ -38,13 +38,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIOService.h"
 #include "nsHttpHandler.h"
 #include "nsHttpTransaction.h"
 #include "nsHttpConnection.h"
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsHttpChunkedDecoder.h"
+#include "nsNetSegmentUtils.h"
 #include "nsTransportUtils.h"
 #include "nsNetUtil.h"
 #include "nsProxyRelease.h"
@@ -60,8 +60,6 @@
 #include "nsComponentManagerUtils.h" // do_CreateInstance
 #include "nsServiceManagerUtils.h"   // do_GetService
 #include "nsIHttpActivityObserver.h"
-
-#include "mozilla/FunctionTimer.h"
 
 //-----------------------------------------------------------------------------
 
@@ -174,8 +172,6 @@ nsHttpTransaction::Init(PRUint8 caps,
                         nsITransportEventSink *eventsink,
                         nsIAsyncInputStream **responseBody)
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
 
     LOG(("nsHttpTransaction::Init [this=%x caps=%x]\n", this, caps));
@@ -184,32 +180,26 @@ nsHttpTransaction::Init(PRUint8 caps,
     NS_ASSERTION(requestHead, "ouch");
     NS_ASSERTION(target, "ouch");
 
+    // create transport event sink proxy that coalesces all events
+    rv = net_NewTransportEventSinkProxy(getter_AddRefs(mTransportSink),
+                                        eventsink, target, PR_TRUE);
+    if (NS_FAILED(rv)) return rv;
+
     mActivityDistributor = do_GetService(NS_HTTPACTIVITYDISTRIBUTOR_CONTRACTID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    PRBool activityDistributorActive;
-    rv = mActivityDistributor->GetIsActive(&activityDistributorActive);
-    if (NS_SUCCEEDED(rv) && activityDistributorActive) {
+    PRBool active;
+    rv = mActivityDistributor->GetIsActive(&active);
+    if (NS_SUCCEEDED(rv) && active) {
         // there are some observers registered at activity distributor, gather
         // nsISupports for the channel that called Init()
         mChannel = do_QueryInterface(eventsink);
         LOG(("nsHttpTransaction::Init() " \
              "mActivityDistributor is active " \
              "this=%x", this));
-    } else {
+    } else
         // there is no observer, so don't use it
-        activityDistributorActive = PR_FALSE;
         mActivityDistributor = nsnull;
-    }
-
-    // create transport event sink proxy. it coalesces all events if and only 
-    // if the activity observer is not active. when the observer is active
-    // we need not to coalesce any events to get all expected notifications
-    // of the transaction state, necessary for correct debugging and logging.
-    rv = net_NewTransportEventSinkProxy(getter_AddRefs(mTransportSink),
-                                        eventsink, target,
-                                        !activityDistributorActive);
-    if (NS_FAILED(rv)) return rv;
 
     NS_ADDREF(mConnInfo = cinfo);
     mCallbacks = callbacks;
@@ -295,7 +285,7 @@ nsHttpTransaction::Init(PRUint8 caps,
         // that we write data in the largest chunks possible.  this is actually
         // necessary to workaround some common server bugs (see bug 137155).
         rv = NS_NewBufferedInputStream(getter_AddRefs(mRequestStream), multi,
-                                       nsIOService::gDefaultSegmentSize);
+                                       NET_DEFAULT_SEGMENT_SIZE);
         if (NS_FAILED(rv)) return rv;
     }
     else
@@ -308,8 +298,8 @@ nsHttpTransaction::Init(PRUint8 caps,
     rv = NS_NewPipe2(getter_AddRefs(mPipeIn),
                      getter_AddRefs(mPipeOut),
                      PR_TRUE, PR_TRUE,
-                     nsIOService::gDefaultSegmentSize,
-                     nsIOService::gDefaultSegmentCount,
+                     NS_HTTP_SEGMENT_SIZE,
+                     NS_HTTP_SEGMENT_COUNT,
                      nsIOService::gBufferCache);
     if (NS_FAILED(rv)) return rv;
 

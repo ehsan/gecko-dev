@@ -8,8 +8,7 @@
 <body>
 <p id="display"></p>
 <div id="content" style="display: none">
-<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="120px" height="120px"
-     onload="this.pauseAnimations()">
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="120px" height="120px">
   <circle cx="-100" cy="20" r="15" fill="blue" id="circle"/>
 </svg>
 </div>
@@ -40,9 +39,7 @@ function removeAnim(anim) {
 }
 
 function main() {
-  ok(svg.animationsPaused(), "should be paused by <svg> load handler");
-  is(svg.getCurrentTime(), 0, "should be paused at 0 in <svg> load handler");
-
+  svg.pauseAnimations();
   var tests =
     [ testOffsetStartup,
       testMultipleBegins,

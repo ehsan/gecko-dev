@@ -54,7 +54,7 @@ public:
   friend nsIFrame* NS_NewAutoRepeatBoxFrame(nsIPresShell* aPresShell,
                                             nsStyleContext* aContext);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
@@ -77,12 +77,7 @@ protected:
     nsButtonBoxFrame(aPresShell, aContext) {}
   
   void StartRepeat() {
-    if (IsActivatedOnHover()) {
-      // No initial delay on hover.
-      nsRepeatService::GetInstance()->Start(Notify, this, 0);
-    } else {
-      nsRepeatService::GetInstance()->Start(Notify, this);
-    }
+    nsRepeatService::GetInstance()->Start(Notify, this);
   }
   void StopRepeat() {
     nsRepeatService::GetInstance()->Stop(Notify, this);
@@ -190,12 +185,12 @@ nsAutoRepeatBoxFrame::Notify()
 }
 
 void
-nsAutoRepeatBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsAutoRepeatBoxFrame::Destroy()
 {
   // Ensure our repeat service isn't going... it's possible that a scrollbar can disappear out
   // from under you while you're in the process of scrolling.
   StopRepeat();
-  nsButtonBoxFrame::DestroyFrom(aDestructRoot);
+  nsButtonBoxFrame::Destroy();
 }
 
 PRBool

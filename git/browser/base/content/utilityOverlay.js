@@ -22,7 +22,6 @@
 # Contributor(s):
 #   Alec Flett <alecf@netscape.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Gavin Sharp <gavin@gavinsharp.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,8 +37,10 @@
 #
 # ***** END LICENSE BLOCK *****
 
-// Services = object with smart getters for common XPCOM services
-Components.utils.import("resource://gre/modules/Services.jsm");
+/**
+ * Communicator Shared Utility Library
+ * for shared application glue for the Communicator suite of applications
+ **/
 
 var TAB_DROP_TYPE = "application/x-moz-tabbrowser-tab";
 
@@ -68,7 +69,9 @@ function goToggleToolbar( id, elementID )
 
 function getTopWin()
 {
-  return Services.wm.getMostRecentWindow("navigator:browser");
+  var windowManager = Components.classes['@mozilla.org/appshell/window-mediator;1']
+                                .getService(Components.interfaces.nsIWindowMediator);
+  return windowManager.getMostRecentWindow("navigator:browser");
 }
 
 function openTopWin( url )
@@ -76,10 +79,12 @@ function openTopWin( url )
   openUILink(url, {})
 }
 
-function getBoolPref(prefname, def)
+function getBoolPref ( prefname, def )
 {
-  try {
-    return Services.prefs.getBoolPref(prefname);
+  try { 
+    var pref = Components.classes["@mozilla.org/preferences-service;1"]
+                       .getService(Components.interfaces.nsIPrefBranch);
+    return pref.getBoolPref(prefname);
   }
   catch(er) {
     return def;
@@ -138,19 +143,24 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
   // Don't do anything special with right-mouse clicks.  They're probably clicks on context menu items.
 
 #ifdef XP_MACOSX
-  if (meta || (middle && middleUsesTabs))
+  if (meta || (middle && middleUsesTabs)) {
 #else
-  if (ctrl || (middle && middleUsesTabs))
+  if (ctrl || (middle && middleUsesTabs)) {
 #endif
-    return shift ? "tabshifted" : "tab";
-
-  if (alt)
+    if (shift)
+      return "tabshifted";
+    else
+      return "tab";
+  }
+  else if (alt) {
     return "save";
-
-  if (shift || (middle && !middleUsesTabs))
+  }
+  else if (shift || (middle && !middleUsesTabs)) {
     return "window";
-
-  return "current";
+  }
+  else {
+    return "current";
+  }
 }
 
 /* openUILinkIn opens a URL in a place specified by the parameter |where|.
@@ -162,33 +172,17 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
  *  "window"      new window
  *  "save"        save to disk (with no filename hint!)
  *
- * aAllowThirdPartyFixup controls whether third party services such as Google's
+ * allowThirdPartyFixup controls whether third party services such as Google's
  * I Feel Lucky are allowed to interpret this URL. This parameter may be
  * undefined, which is treated as false.
- *
- * Instead of aAllowThirdPartyFixup, you may also pass an object with any of
- * these properties:
- *   allowThirdPartyFixup (boolean)
- *   postData             (nsIInputStream)
- *   referrerURI          (nsIURI)
- *   relatedToCurrent     (boolean)
  */
-function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI) {
+function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
+{
   if (!where || !url)
     return;
 
-  var aRelatedToCurrent;
-  if (arguments.length == 3 &&
-      typeof arguments[2] == "object") {
-    let params = arguments[2];
-    aAllowThirdPartyFixup = params.allowThirdPartyFixup;
-    aPostData             = params.postData;
-    aReferrerURI          = params.referrerURI;
-    aRelatedToCurrent     = params.relatedToCurrent;
-  }
-
   if (where == "save") {
-    saveURL(url, null, null, true, null, aReferrerURI);
+    saveURL(url, null, null, true, null, referrerUrl);
     return;
   }
   const Cc = Components.classes;
@@ -204,15 +198,11 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
                createInstance(Ci.nsISupportsString);
     wuri.data = url;
 
-    var allowThirdPartyFixupSupports = Cc["@mozilla.org/supports-PRBool;1"].
-                                       createInstance(Ci.nsISupportsPRBool);
-    allowThirdPartyFixupSupports.data = aAllowThirdPartyFixup;
-
     sa.AppendElement(wuri);
     sa.AppendElement(null);
-    sa.AppendElement(aReferrerURI);
-    sa.AppendElement(aPostData);
-    sa.AppendElement(allowThirdPartyFixupSupports);
+    sa.AppendElement(referrerUrl);
+    sa.AppendElement(postData);
+    sa.AppendElement(allowThirdPartyFixup);
 
     var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
              getService(Ci.nsIWindowWatcher);
@@ -226,23 +216,22 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
     return;
   }
 
-  var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground");
+  var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground", false);
 
   switch (where) {
   case "current":
-    w.loadURI(url, aReferrerURI, aPostData, aAllowThirdPartyFixup);
+    w.loadURI(url, referrerUrl, postData, allowThirdPartyFixup);
     break;
   case "tabshifted":
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
-    let browser = w.gBrowser;
+    let browser = w.getBrowser();
     browser.loadOneTab(url, {
-                       referrerURI: aReferrerURI,
-                       postData: aPostData,
+                       referrerURI: referrerUrl,
+                       postData: postData,
                        inBackground: loadInBackground,
-                       allowThirdPartyFixup: aAllowThirdPartyFixup,
-                       relatedToCurrent: aRelatedToCurrent});
+                       allowThirdPartyFixup: allowThirdPartyFixup});
     break;
   }
 
@@ -370,35 +359,32 @@ function isBidiEnabled() {
       case "ur-":
       case "syr":
         rv = true;
-        Services.prefs.setBoolPref("bidi.browser.ui", true);
+        var pref = Components.classes["@mozilla.org/preferences-service;1"]
+                             .getService(Components.interfaces.nsIPrefBranch);
+        pref.setBoolPref("bidi.browser.ui", true);
     }
   } catch (e) {}
 
   return rv;
 }
 
-function openAboutDialog() {
-  var enumerator = Services.wm.getEnumerator("Browser:About");
-  while (enumerator.hasMoreElements()) {
-    let win = enumerator.getNext();
-#ifdef XP_WIN
-    if (win.opener != window)
-      continue;
-#endif
-    win.focus();
-    return;
-  }
-
+function openAboutDialog()
+{
 #ifdef XP_MACOSX
-  var features = "chrome,resizable=no,minimizable=no";
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Browser:About");
+  if (win)
+    win.focus();
+  else {
+    // XXXmano: define minimizable=no although it does nothing on OS X
+    // (see Bug 287162); remove this comment once Bug 287162 is fixed...
+    window.open("chrome://browser/content/aboutDialog.xul", "About",
+                "chrome, resizable=no, minimizable=no");
+  }
 #else
-#ifdef XP_WIN
-  var features = "chrome,centerscreen,dependent";
-#else
-  var features = "chrome,centerscreen";
+  window.openDialog("chrome://browser/content/aboutDialog.xul", "About", "centerscreen,chrome,resizable=no");
 #endif
-#endif
-  window.openDialog("chrome://browser/content/aboutDialog.xul", "", features);
 }
 
 function openPreferences(paneID, extraArgs)
@@ -406,7 +392,9 @@ function openPreferences(paneID, extraArgs)
   var instantApply = getBoolPref("browser.preferences.instantApply", false);
   var features = "chrome,titlebar,toolbar,centerscreen" + (instantApply ? ",dialog=no" : ",modal");
 
-  var win = Services.wm.getMostRecentWindow("Browser:Preferences");
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Browser:Preferences");
   if (win) {
     win.focus();
     if (paneID) {
@@ -493,9 +481,9 @@ function buildHelpMenu()
   // Disable the UI if the update enabled pref has been locked by the 
   // administrator or if we cannot update for some other reason
   var checkForUpdates = document.getElementById("checkForUpdates");
-  var canCheckForUpdates = updates.canCheckForUpdates;
-  checkForUpdates.setAttribute("disabled", !canCheckForUpdates);
-  if (!canCheckForUpdates)
+  var canUpdate = updates.canUpdate;
+  checkForUpdates.setAttribute("disabled", !canUpdate);
+  if (!canUpdate)
     return; 
 
   var strings = document.getElementById("bundle_browser");
@@ -585,7 +573,17 @@ function openNewTabWith(aURL, aDocument, aPostData, aEvent,
   if (aDocument)
     urlSecurityCheck(aURL, aDocument.nodePrincipal);
 
-  var loadInBackground = getBoolPref("browser.tabs.loadInBackground");
+  var prefSvc = Components.classes["@mozilla.org/preferences-service;1"]
+                          .getService(Components.interfaces.nsIPrefService);
+  prefSvc = prefSvc.getBranch(null);
+
+  // should we open it in a new tab?
+  var loadInBackground = true;
+  try {
+    loadInBackground = prefSvc.getBoolPref("browser.tabs.loadInBackground");
+  }
+  catch(ex) {
+  }
 
   if (aEvent && aEvent.shiftKey)
     loadInBackground = !loadInBackground;
@@ -676,9 +674,12 @@ function openHelpLink(aHelpTopic, aCalledFromModal) {
 }
 
 function openPrefsHelp() {
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                        .getService(Components.interfaces.nsIPrefBranch2);
+
   // non-instant apply prefwindows are usually modal, so we can't open in the topmost window, 
   // since its probably behind the window.
-  var instantApply = getBoolPref("browser.preferences.instantApply");
+  var instantApply = prefs.getBoolPref("browser.preferences.instantApply");
 
   var helpTopic = document.getElementsByTagName("prefwindow")[0].currentPane.helpTopic;
   openHelpLink(helpTopic, !instantApply);

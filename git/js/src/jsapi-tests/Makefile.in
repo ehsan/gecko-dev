@@ -48,22 +48,11 @@ PROGRAM         = jsapi-tests$(BIN_SUFFIX)
 CPPSRCS = \
   tests.cpp \
   selfTest.cpp \
-  testContexts.cpp \
-  testDebugger.cpp \
-  testDefineGetterSetterNonEnumerable.cpp \
-  testDefineProperty.cpp \
-  testExtendedEq.cpp \
-  testIntString.cpp \
-  testIsAboutToBeFinalized.cpp \
-  testLookup.cpp \
-  testNewObject.cpp \
-  testOps.cpp \
   testPropCache.cpp \
-  testTrap.cpp \
-  testSameValue.cpp \
-  testSeal.cpp \
   testXDR.cpp \
-  testSetPropertyWithNativeGetterStubSetter.cpp \
+  testIntString.cpp \
+  testSameValue.cpp \
+  testDefineGetterSetterNonEnumerable.cpp \
   $(NULL)
 
 DEFINES         += -DEXPORT_JS_API

@@ -196,7 +196,7 @@ NS_IMETHODIMP nsImageFrame::GetAccessible(nsIAccessible** aAccessible)
 #endif
 
 void
-nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsImageFrame::Destroy()
 {
   // Tell our image map, if there is one, to clean up
   // This causes the nsImageMap to unregister itself as
@@ -222,7 +222,7 @@ nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
   if (mDisplayingIcon)
     gIconLoad->RemoveIconObserver(this);
 
-  nsSplittableFrame::DestroyFrom(aDestructRoot);
+  nsSplittableFrame::Destroy();
 }
 
 
@@ -279,10 +279,8 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
   
   if (aImage) {
     nsIntSize imageSizeInPx;
-    if (NS_FAILED(aImage->GetWidth(&imageSizeInPx.width)) ||
-        NS_FAILED(aImage->GetHeight(&imageSizeInPx.height))) {
-      imageSizeInPx.SizeTo(0, 0);
-    }
+    aImage->GetWidth(&imageSizeInPx.width);
+    aImage->GetHeight(&imageSizeInPx.height);
     nsSize newSize(nsPresContext::CSSPixelsToAppUnits(imageSizeInPx.width),
                    nsPresContext::CSSPixelsToAppUnits(imageSizeInPx.height));
     if (mIntrinsicSize != newSize) {
@@ -1009,9 +1007,8 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
 
   // Paint the border
   nsRecessedBorder recessedBorder(borderEdgeWidth, PresContext());
-  nsCSSRendering::PaintBorderWithStyleBorder(PresContext(), aRenderingContext,
-                                             this, inner, inner,
-                                             recessedBorder, mStyleContext);
+  nsCSSRendering::PaintBorder(PresContext(), aRenderingContext, this, inner,
+                              inner, recessedBorder, mStyleContext);
 
   // Adjust the inner rect to account for the one pixel recessed border,
   // and a six pixel padding on each edge
@@ -1259,9 +1256,12 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   // XXX what on EARTH is this code for?
+  PRInt16 displaySelection = 0;
   nsresult result;
   nsPresContext* presContext = PresContext();
-  PRInt16 displaySelection = presContext->PresShell()->GetSelectionFlags();
+  result = presContext->PresShell()->GetSelectionFlags(&displaySelection);
+  if (NS_FAILED(result))
+    return result;
   if (!(displaySelection & nsISelectionDisplay::DISPLAY_IMAGES))
     return NS_OK;//no need to check the blue border, we cannot be drawn selected
 //insert hook here for image selection drawing
@@ -1416,16 +1416,6 @@ nsImageFrame::GetContentForEvent(nsPresContext* aPresContext,
     return f->GetContentForEvent(aPresContext, aEvent, aContent);
   }
 
-  // XXX We need to make this special check for area element's capturing the
-  // mouse due to bug 135040. Remove it once that's fixed.
-  nsIContent* capturingContent =
-    NS_IS_MOUSE_EVENT(aEvent) ? nsIPresShell::GetCapturingContent() : nsnull;
-  if (capturingContent && capturingContent->GetPrimaryFrame() == this) {
-    *aContent = capturingContent;
-    NS_IF_ADDREF(*aContent);
-    return NS_OK;
-  }
-
   nsImageMap* map;
   map = GetImageMap(aPresContext);
 
@@ -1531,7 +1521,7 @@ nsImageFrame::GetCursor(const nsPoint& aPoint,
       // specified will inherit the style from the image.
       nsRefPtr<nsStyleContext> areaStyle = 
         PresContext()->PresShell()->StyleSet()->
-          ResolveStyleFor(area->AsElement(), GetStyleContext());
+          ResolveStyleFor(area, GetStyleContext());
       if (areaStyle) {
         FillCursorInformationFromStyle(areaStyle->GetStyleUserInterface(),
                                        aCursor);
@@ -1671,7 +1661,6 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                        loadFlags,
                        nsnull,
                        nsnull,
-                       nsnull,      /* channel policy not needed */
                        aRequest);
 }
 
@@ -1757,7 +1746,8 @@ static const char kIconLoadPrefs[][40] = {
 
 nsImageFrame::IconLoad::IconLoad()
 {
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
 
   // register observers
   for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(kIconLoadPrefs); ++i)
@@ -1945,7 +1935,7 @@ IsInAutoWidthTableCellForQuirk(nsIFrame *aFrame)
     return PR_FALSE;
   // Check if the parent of the closest nsBlockFrame has auto width.
   nsBlockFrame *ancestor = nsLayoutUtils::FindNearestBlockAncestor(aFrame);
-  if (ancestor->GetStyleContext()->GetPseudo() == nsCSSAnonBoxes::cellContent) {
+  if (ancestor->GetStyleContext()->GetPseudoType() == nsCSSAnonBoxes::cellContent) {
     // Assume direct parent is a table cell frame.
     nsFrame *grandAncestor = static_cast<nsFrame*>(ancestor->GetParent());
     return grandAncestor &&

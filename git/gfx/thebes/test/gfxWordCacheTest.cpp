@@ -14,7 +14,7 @@
  *
  * The Original Code is Mozilla Corporation code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -159,7 +159,7 @@ main (int argc, char **argv) {
                            NS_FONT_STRETCH_NORMAL,
                            139,
                            10.0,
-                           NS_NewPermanentAtom(NS_LITERAL_STRING("en")),
+                           nsDependentCString("x-western"),
                            0.0,
                            PR_FALSE, PR_FALSE, PR_FALSE);
 

@@ -78,7 +78,7 @@
 
   <command id="cmd_savePage" oncommand="ViewSourceSavePage();"/>
   <command id="cmd_print" oncommand="PrintUtils.print();"/>
-  <command id="cmd_printpreview" oncommand="PrintUtils.printPreview(PrintPreviewListener);"/>
+  <command id="cmd_printpreview" oncommand="PrintUtils.printPreview(onEnterPP, onExitPP);"/>
   <command id="cmd_pagesetup" oncommand="PrintUtils.showPageSetup();"/>
   <command id="cmd_close" oncommand="window.close();"/>
   <commandset id="editMenuCommands"/>
@@ -233,7 +233,7 @@
     </menubar>  
   </toolbox>
 
-  <vbox id="appcontent" flex="1">
+  <vbox id="appcontent" flex="1" ondrop="contentAreaDNDObserver.drop(event);">
 
     <browser id="content" type="content-primary" name="content" src="about:blank" flex="1"
              context="viewSourceContextMenu" showcaret="true"/>

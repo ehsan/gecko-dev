@@ -86,43 +86,45 @@ public:
                          const nsAString& aAttrValue);
 
   /**
+   * Return values of group attributes ('level', 'setsize', 'posinset')
+   */
+  static void GetAccGroupAttrs(nsIPersistentProperties *aAttributes,
+                               PRInt32 *aLevel,
+                               PRInt32 *aPosInSet,
+                               PRInt32 *aSetSize);
+
+  /**
+   * Returns true if there are level, posinset and sizeset attributes.
+   */
+  static PRBool HasAccGroupAttrs(nsIPersistentProperties *aAttributes);
+
+  /**
    * Set group attributes ('level', 'setsize', 'posinset').
    */
   static void SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                               PRInt32 aLevel, PRInt32 aSetSize,
-                               PRInt32 aPosInSet);
+                               PRInt32 aLevel,
+                               PRInt32 aPosInSet,
+                               PRInt32 aSetSize);
 
   /**
-   * Get default value of the level for the given accessible.
+   * Set group attributes - 'level', 'setsize', 'posinset'.
+   *
+   * @param aNode - XUL element that implements
+   *                nsIDOMXULSelectControlItemElement interface
+   * @param aAttributes - attributes container
    */
-  static PRInt32 GetDefaultLevel(nsAccessible *aAcc);
+  static void SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
+                                                 nsIPersistentProperties *aAttributes);
 
   /**
-   * Return ARIA level value or the default one if ARIA is missed for the
-   * given accessible.
+   * Set group attributes - 'level', 'setsize', 'posinset'.
+   *
+   * @param  aNode        XUL element that implements
+   *                      nsIDOMXULContainerItemElement interface
+   * @param  aAttributes  attributes container
    */
-  static PRInt32 GetARIAOrDefaultLevel(nsIAccessible *aAcc);
-
-  /**
-   * Compute position in group (posinset) and group size (setsize) for
-   * nsIDOMXULSelectControlItemElement node.
-   */
-  static void GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
-                                                        PRInt32 *aPosInSet,
-                                                        PRInt32 *aSetSize);
-
-  /**
-   * Compute group position and group size (posinset and setsize) for
-   * nsIDOMXULContainerItemElement node.
-   */
-  static void GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
-                                                    PRInt32 *aPosInSet,
-                                                    PRInt32 *aSetSize);
-
-  /**
-   * Compute group level for nsIDOMXULContainerItemElement node.
-   */
-  static PRInt32 GetLevelForXULContainerItem(nsIDOMNode *aNode);
+  static void SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
+                                             nsIPersistentProperties *aAttributes);
 
   /**
    * Set container-foo live region attributes for the given node.
@@ -143,6 +145,12 @@ public:
    * Return PR_TRUE if the ARIA property is defined, otherwise PR_FALSE
    */
   static PRBool HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom);
+
+  /**
+   * Fire accessible event of the given type for the given accessible.
+   */
+  static nsresult FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
+                               PRBool aIsAsynch = PR_FALSE);
 
   /**
    * Return true if the given DOM node contains accessible children.
@@ -170,21 +178,6 @@ public:
      GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
                            nsIContent *aStartTreeItemContent,
                            nsIAccessible **aTreeItemParent);
-
-  /**
-   * Return single or multi selectable container for the given item.
-   *
-   * @param  aAccessible  [in] the item accessible
-   * @param  aState       [in] the state of the item accessible
-   */
-  static already_AddRefed<nsIAccessible>
-    GetSelectableContainer(nsIAccessible *aAccessible, PRUint32 aState);
-
-  /**
-   * Return multi selectable container for the given item.
-   */
-  static already_AddRefed<nsIAccessible>
-    GetMultiSelectableContainer(nsIDOMNode *aNode);
 
   /**
    * Return true if the DOM node of given accessible has aria-selected="true"
@@ -287,19 +280,6 @@ public:
   }
 
   /**
-   * Return the extended state for the given accessible.
-   */
-  static PRUint32 ExtendedState(nsIAccessible *aAcc)
-  {
-    PRUint32 state = 0;
-    PRUint32 extstate = 0;
-    if (aAcc)
-      aAcc->GetState(&state, &extstate);
-
-    return extstate;
-  }
-
-  /**
    * Get the ARIA attribute characteristics for a given ARIA attribute.
    * 
    * @param aAtom  ARIA attribute
@@ -319,12 +299,111 @@ public:
    */
   static PRBool GetLiveAttrValue(PRUint32 aRule, nsAString& aValue);
 
+  /**
+   * Query DestinationType from the given SourceType.
+   */
+  template<class DestinationType, class SourceType> static inline
+    already_AddRefed<DestinationType> QueryObject(SourceType *aObject)
+  {
+    DestinationType* object = nsnull;
+    if (aObject)
+      CallQueryInterface(aObject, &object);
+
+    return object;
+  }
+  template<class DestinationType, class SourceType> static inline
+    already_AddRefed<DestinationType> QueryObject(nsCOMPtr<SourceType>& aObject)
+  {
+    DestinationType* object = nsnull;
+    if (aObject)
+      CallQueryInterface(aObject, &object);
+
+    return object;
+  }
+
+  /**
+   * Query nsAccessNode from the given nsIAccessible.
+   */
+  static already_AddRefed<nsAccessNode>
+    QueryAccessNode(nsIAccessible *aAccessible)
+  {
+    nsAccessNode* accessNode = nsnull;
+    if (aAccessible)
+      CallQueryInterface(aAccessible, &accessNode);
+
+    return accessNode;
+  }
+
+  /**
+   * Query nsAccessNode from the given nsIAccessNode.
+   */
+  static already_AddRefed<nsAccessNode>
+    QueryAccessNode(nsIAccessNode *aAccessNode)
+  {
+    nsAccessNode* accessNode = nsnull;
+    if (aAccessNode)
+      CallQueryInterface(aAccessNode, &accessNode);
+    
+    return accessNode;
+  }
+
+  /**
+   * Query nsAccessNode from the given nsIAccessNode.
+   */
+  static already_AddRefed<nsAccessNode>
+    QueryAccessNode(nsIAccessibleDocument *aAccessibleDocument)
+  {
+    nsAccessNode* accessNode = nsnull;
+    if (aAccessibleDocument)
+      CallQueryInterface(aAccessibleDocument, &accessNode);
+    
+    return accessNode;
+  }
+
+  /**
+   * Query nsAccessible from the given nsIAccessible.
+   */
+  static already_AddRefed<nsAccessible>
+    QueryAccessible(nsIAccessible *aAccessible);
+
+  /**
+   * Query nsAccessible from the given nsIAccessNode.
+   */
+  static already_AddRefed<nsAccessible>
+    QueryAccessible(nsIAccessNode *aAccessNode);
+
+  /**
+   * Query nsHTMLTableAccessible from the given nsIAccessibleTable.
+   */
+  static already_AddRefed<nsHTMLTableAccessible>
+    QueryAccessibleTable(nsIAccessibleTable *aAccessibleTable);
+
+  /**
+   * Query nsDocAccessible from the given nsIAccessible.
+   */
+  static already_AddRefed<nsDocAccessible>
+    QueryAccessibleDocument(nsIAccessible *aAccessible);
+
+  /**
+   * Query nsDocAccessible from the given nsIAccessibleDocument.
+   */
+  static already_AddRefed<nsDocAccessible>
+    QueryAccessibleDocument(nsIAccessibleDocument *aAccessibleDocument);
+
+#ifdef MOZ_XUL
+  /**
+   * Query nsXULTreeAccessible from the given nsIAccessible.
+   */
+  static already_AddRefed<nsXULTreeAccessible>
+    QueryAccessibleTree(nsIAccessible *aAccessible);
+#endif
+
 #ifdef DEBUG_A11Y
   /**
    * Detect whether the given accessible object implements nsIAccessibleText,
    * when it is text or has text child node.
    */
-  static PRBool IsTextInterfaceSupportCorrect(nsAccessible *aAccessible);
+  static PRBool IsTextInterfaceSupportCorrect(nsIAccessible *aAccessible);
 #endif
 
   /**
@@ -338,9 +417,9 @@ public:
   }
 
   /**
-   * Return text length of the given accessible, return 0 on failure.
+   * Return text length of the given accessible, return -1 on failure.
    */
-  static PRUint32 TextLength(nsAccessible *aAccessible);
+  static PRInt32 TextLength(nsIAccessible *aAccessible);
 
   /**
    * Return true if the given accessible is embedded object.
@@ -374,6 +453,11 @@ public:
    * the document's accessible tree.
    */
   static PRBool IsNodeRelevant(nsIDOMNode *aNode);
+
+  /**
+   * Return multiselectable parent for the given selectable accessible if any.
+   */
+  static already_AddRefed<nsIAccessible> GetMultiSelectFor(nsIDOMNode *aNode);
 
   /**
    * Search hint enum constants. Used by GetHeaderCellsFor() method.

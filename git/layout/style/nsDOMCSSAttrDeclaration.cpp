@@ -42,14 +42,14 @@
 #include "nsIDocument.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsICSSStyleRule.h"
-#include "nsCSSLoader.h"
+#include "nsICSSLoader.h"
+#include "nsICSSParser.h"
 #include "nsIURI.h"
 #include "nsINameSpaceManager.h"
 #include "nsStyleConsts.h"
 #include "nsContentUtils.h"
 #include "nsIContent.h"
 #include "nsIPrincipal.h"
-#include "nsNodeUtils.h"
 
 nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(nsIContent *aContent
 #ifdef MOZ_SMIL
@@ -63,7 +63,7 @@ nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(nsIContent *aContent
 {
   MOZ_COUNT_CTOR(nsDOMCSSAttributeDeclaration);
 
-  NS_ASSERTION(aContent && aContent->IsElement(),
+  NS_ASSERTION(aContent && aContent->IsNodeOfType(nsINode::eELEMENT),
                "Inline style for non-element content?");
 }
 
@@ -72,7 +72,24 @@ nsDOMCSSAttributeDeclaration::~nsDOMCSSAttributeDeclaration()
   MOZ_COUNT_DTOR(nsDOMCSSAttributeDeclaration);
 }
 
-NS_IMPL_CYCLE_COLLECTION_1(nsDOMCSSAttributeDeclaration, mContent)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMCSSAttributeDeclaration)
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsDOMCSSAttributeDeclaration)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMCSSAttributeDeclaration)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMCSSAttributeDeclaration)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMCSSAttributeDeclaration)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN(nsDOMCSSAttributeDeclaration)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
@@ -103,27 +120,6 @@ nsDOMCSSAttributeDeclaration::DeclarationChanged()
     mIsSMILOverride ? mContent->SetSMILOverrideStyleRule(newRule, PR_TRUE) :
 #endif // MOZ_SMIL
     mContent->SetInlineStyleRule(newRule, PR_TRUE);
-}
-
-nsIDocument*
-nsDOMCSSAttributeDeclaration::DocToUpdate()
-{
-  // XXXbz this is a bit of a hack, especially doing it before the
-  // BeginUpdate(), but this is a good chokepoint where we know we
-  // plan to modify the CSSDeclaration, so need to notify
-  // AttributeWillChange if this is inline style.
-#ifdef MOZ_SMIL
-  if (!mIsSMILOverride)
-#endif
-  {
-    nsNodeUtils::AttributeWillChange(mContent, kNameSpaceID_None,
-                                     nsGkAtoms::style,
-                                     nsIDOMMutationEvent::MODIFICATION);
-  }
-  
-  // We need GetOwnerDoc() rather than GetCurrentDoc() because it might
-  // be the BeginUpdate call that inserts mContent into the document.
-  return mContent->GetOwnerDoc();
 }
 
 nsresult
@@ -182,7 +178,8 @@ nsresult
 nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(nsIURI** aSheetURI,
                                                        nsIURI** aBaseURI,
                                                        nsIPrincipal** aSheetPrincipal,
-                                                       mozilla::css::Loader** aCSSLoader)
+                                                       nsICSSLoader** aCSSLoader,
+                                                       nsICSSParser** aCSSParser)
 {
   NS_ASSERTION(mContent, "Something is severely broken -- there should be an nsIContent here!");
   // null out the out params since some of them may not get initialized below
@@ -190,6 +187,7 @@ nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(nsIURI** aSheetURI,
   *aBaseURI = nsnull;
   *aSheetPrincipal = nsnull;
   *aCSSLoader = nsnull;
+  *aCSSParser = nsnull;
 
   nsIDocument* doc = mContent->GetOwnerDoc();
   if (!doc) {
@@ -201,7 +199,16 @@ nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(nsIURI** aSheetURI,
   nsCOMPtr<nsIURI> sheetURI = doc->GetDocumentURI();
 
   NS_ADDREF(*aCSSLoader = doc->CSSLoader());
+  
+  nsresult rv = NS_OK;
 
+  // Note: parsers coming from a CSSLoader for a document already have
+  // the right case-sensitivity, quirkiness, etc.
+  rv = (*aCSSLoader)->GetParserFor(nsnull, aCSSParser);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  
   baseURI.swap(*aBaseURI);
   sheetURI.swap(*aSheetURI);
   NS_ADDREF(*aSheetPrincipal = mContent->NodePrincipal());

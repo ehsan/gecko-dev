@@ -74,10 +74,26 @@ function test() {
     ];
     logins.forEach(function (login) pwmgr.addLogin(login));
 
+    // Detect when the password manager window is opened
+    let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+             getService(Ci.nsIWindowWatcher);
+    let obs = {
+        observe: function(aSubject, aTopic, aData) {
+            // unregister ourself
+            ww.unregisterNotification(this);
+
+            let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+            win.addEventListener("focus", function() {
+                win.removeEventListener("focus", arguments.callee, true);
+                setTimeout(doTest, 0);
+            }, true);
+        }
+    };
+    ww.registerNotification(obs);
+
     // Open the password manager dialog
     const PWMGR_DLG = "chrome://passwordmgr/content/passwordManager.xul";
     let pwmgrdlg = window.openDialog(PWMGR_DLG, "Toolkit:PasswordManager", "");
-    SimpleTest.waitForFocus(doTest, pwmgrdlg);
 
     // the meat of the test
     function doTest() {
@@ -121,22 +137,32 @@ function test() {
 
             // only watch for a confirmation dialog every other time being called
             if (showMode) {
-                Services.ww.registerNotification(function (aSubject, aTopic, aData) {
-                    if (aTopic == "domwindowclosed")
-                        Services.ww.unregisterNotification(arguments.callee);
-                    else if (aTopic == "domwindowopened") {
-                        let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
-                        SimpleTest.waitForFocus(function() {
-                            EventUtils.synthesizeKey("VK_RETURN", {}, win)
-                        }, win);
+                let obs = {
+                    observe: function(aSubject, aTopic, aData) {
+                        if (aTopic == "domwindowclosed")
+                            ww.unregisterNotification(this);
+                        else if (aTopic == "domwindowopened") {
+                            let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+                            win.addEventListener("focus", function() {
+                                win.removeEventListener("focus", arguments.callee, true);
+                                setTimeout(function() {
+                                    EventUtils.synthesizeKey("VK_RETURN", {}, win)
+                                }, 0);
+                            }, true);
+                        }
                     }
-                });
+                };
+                ww.registerNotification(obs);
             }
 
-            Services.obs.addObserver(function (aSubject, aTopic, aData) {
-                if (aTopic == "passwordmgr-password-toggle-complete") {
-                    Services.obs.removeObserver(arguments.callee, aTopic, false);
-                    func();
+            let obsSvc = Cc["@mozilla.org/observer-service;1"].
+                         getService(Ci.nsIObserverService);
+            obsSvc.addObserver({
+                observe: function(aSubject, aTopic, aData) {
+                    if (aTopic == "passwordmgr-password-toggle-complete") {
+                        obsSvc.removeObserver(this, "passwordmgr-password-toggle-complete", false);
+                        func();
+                    }
                 }
             }, "passwordmgr-password-toggle-complete", false);
 
@@ -213,14 +239,9 @@ function test() {
 
         function lastStep() {
             // cleanup
-            Services.ww.registerNotification(function (aSubject, aTopic, aData) {
-                // unregister ourself
-                Services.ww.unregisterNotification(arguments.callee);
-
-                pwmgr.removeAllLogins();
-                finish();
-            });
             pwmgrdlg.close();
+            pwmgr.removeAllLogins();
+            finish();
         }
 
         step1();

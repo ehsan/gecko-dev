@@ -263,14 +263,13 @@ class nsFastLoadFileReader
 {
   public:
     nsFastLoadFileReader(nsIFile *aFile)
-        : mCurrentDocumentMapEntry(nsnull), mFile(aFile),
+        : mCurrentDocumentMapEntry(nsnull), mFile(aFile), mFd(nsnull),
           mFileLen(0), mFilePos(0), mFileMap(nsnull), mFileData(nsnull)
     {
         MOZ_COUNT_CTOR(nsFastLoadFileReader);
     }
 
     virtual ~nsFastLoadFileReader() {
-        Close();
         MOZ_COUNT_DTOR(nsFastLoadFileReader);
     }
 
@@ -396,6 +395,7 @@ class nsFastLoadFileReader
 
     friend class nsFastLoadFileUpdater;
     nsIFile *mFile;     // .mfasl file
+    PRFileDesc *mFd;    // OS file-descriptor
     PRUint32 mFileLen;  // length of file
     PRUint32 mFilePos;  // current position within file
     PRFileMap *mFileMap;// nspr datastructure for mmap

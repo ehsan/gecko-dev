@@ -223,8 +223,9 @@ public:
 
   NS_IMETHODIMP Run()
   {
-    return mListener->ValueChanged(nsDependentAtomString(mWhich),
-                                   mValue, mUserChanged);
+    nsAutoString which;
+    mWhich->ToString(which);
+    return mListener->ValueChanged(which, mValue, mUserChanged);
   }
 
   nsCOMPtr<nsISliderListener> mListener;
@@ -302,8 +303,10 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
           }
         }
 
+        nsAutoString currentStr;
+        currentStr.AppendInt(current);
         nsContentUtils::AddScriptRunner(
-          new nsSetAttrRunnable(scrollbar, nsGkAtoms::curpos, current));
+          new nsSetAttrRunnable(scrollbar, nsGkAtoms::curpos, currentStr));
       }
   }
 
@@ -452,11 +455,7 @@ nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
                                       nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
-
-  // If a web page calls event.preventDefault() we still want to
-  // scroll when scroll arrow is clicked. See bug 511075.
-  if (!mContent->IsInNativeAnonymousSubtree() &&
-      nsEventStatus_eConsumeNoDefault == *aEventStatus) {
+  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
     return NS_OK;
   }
 
@@ -819,10 +818,13 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
       mediator->PositionChanged(scrollbarFrame, GetCurrentPosition(scrollbar), aNewPos);
       // 'mediator' might be dangling now...
       UpdateAttribute(scrollbar, aNewPos, PR_FALSE, aIsSmooth);
-      nsIFrame* frame = content->GetPrimaryFrame();
-      if (frame && frame->GetType() == nsGkAtoms::sliderFrame) {
-        static_cast<nsSliderFrame*>(frame)->
-          CurrentPositionChanged(frame->PresContext(), aImmediateRedraw);
+      nsIPresShell* shell = context->GetPresShell();
+      if (shell) {
+        nsIFrame* frame = shell->GetPrimaryFrameFor(content);
+        if (frame && frame->GetType() == nsGkAtoms::sliderFrame) {
+          static_cast<nsSliderFrame*>(frame)->
+            CurrentPositionChanged(frame->PresContext(), aImmediateRedraw);
+        }
       }
       mUserChanged = PR_FALSE;
       return;
@@ -1061,7 +1063,7 @@ nsSliderFrame::HandleRelease(nsPresContext* aPresContext,
 }
 
 void
-nsSliderFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsSliderFrame::Destroy()
 {
   // tell our mediator if we have one we are gone.
   if (mMediator) {
@@ -1071,7 +1073,7 @@ nsSliderFrame::DestroyFrom(nsIFrame* aDestructRoot)
   StopRepeat();
 
   // call base class Destroy()
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }
 
 nsSize

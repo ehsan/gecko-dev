@@ -35,10 +35,9 @@
 # ***** END LICENSE BLOCK *****
 
 # Required Plugins:
-# AppAssocReg   http://nsis.sourceforge.net/Application_Association_Registration_plug-in
-# ApplicationID http://nsis.sourceforge.net/ApplicationID_plug-in
-# ShellLink     http://nsis.sourceforge.net/ShellLink_plug-in
-# UAC           http://nsis.sourceforge.net/UAC_plug-in
+# AppAssocReg http://nsis.sourceforge.net/Application_Association_Registration_plug-in
+# ShellLink   http://nsis.sourceforge.net/ShellLink_plug-in
+# UAC         http://nsis.sourceforge.net/UAC_plug-in
 
 ; Set verbosity to 3 (e.g. no script) to lessen the noise in the build logs
 !verbose 3
@@ -119,7 +118,6 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
 !insertmacro SetBrandNameVars
-!insertmacro UpdateShortcutAppModelIDs
 !insertmacro UnloadUAC
 !insertmacro WriteRegStr2
 !insertmacro WriteRegDWORD2
@@ -265,6 +263,7 @@ Section "-Application" APP_IDX
   ; parent directories will be removed.
   ${LogUninstall} "File: \components\compreg.dat"
   ${LogUninstall} "File: \components\xpti.dat"
+  ${LogUninstall} "File: \.autoreg"
   ${LogUninstall} "File: \active-update.xml"
   ${LogUninstall} "File: \install.log"
   ${LogUninstall} "File: \install_status.log"
@@ -428,10 +427,8 @@ Section "-Application" APP_IDX
       ${LogMsg} "Added Start Menu Directory: $SMPROGRAMS\$StartMenuDir"
     ${EndUnless}
     CreateShortCut "$SMPROGRAMS\$StartMenuDir\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-    ApplicationID::Set "$SMPROGRAMS\$StartMenuDir\${BrandFullName}.lnk" "${AppUserModelID}"
     ${LogMsg} "Added Shortcut: $SMPROGRAMS\$StartMenuDir\${BrandFullName}.lnk"
     CreateShortCut "$SMPROGRAMS\$StartMenuDir\${BrandFullName} ($(SAFE_MODE)).lnk" "$INSTDIR\${FileMainEXE}" "-safe-mode" "$INSTDIR\${FileMainEXE}" 0
-    ApplicationID::Set "$SMPROGRAMS\$StartMenuDir\${BrandFullName} ($(SAFE_MODE)).lnk" "${AppUserModelID}"
     ${LogMsg} "Added Shortcut: $SMPROGRAMS\$StartMenuDir\${BrandFullName} ($(SAFE_MODE)).lnk"
   ${EndIf}
 
@@ -439,7 +436,6 @@ Section "-Application" APP_IDX
 
   ${If} $AddDesktopSC == 1
     CreateShortCut "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-    ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "${AppUserModelID}"
     ${LogMsg} "Added Shortcut: $DESKTOP\${BrandFullName}.lnk"
   ${EndIf}
 
@@ -486,9 +482,6 @@ Section "-InstallEndCleanup"
   ${EndUnless}
 
   ${LogHeader} "Updating Uninstall Log With Previous Uninstall Log"
-
-  ; Win7 taskbar and start menu link maintenance
-  ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "${AppUserModelID}"
 
   ; Refresh desktop icons
   System::Call "shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)"
@@ -603,7 +596,6 @@ FunctionEnd
 
 Function AddQuickLaunchShortcut
   CreateShortCut "$QUICKLAUNCH\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-  ApplicationID::Set "$QUICKLAUNCH\${BrandFullName}.lnk" "${AppUserModelID}"
 FunctionEnd
 
 Function CheckExistingInstall

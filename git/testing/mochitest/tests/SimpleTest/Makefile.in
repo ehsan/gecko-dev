@@ -34,17 +34,16 @@
 # the terms of any one of the MPL, the GPL or the LGPL.
 #
 # ***** END LICENSE BLOCK *****
+
 DEPTH		= ../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
 relativesrcdir  = testing/mochitest/tests/SimpleTest
+
 include $(DEPTH)/config/autoconf.mk
-
-DIRS = tests \
-       $(NULL)
-
 include $(topsrcdir)/config/rules.mk
+
 _SIMPLETEST_FILES =	MozillaFileLogger.js \
 			quit.js \
 			SimpleTest.js \

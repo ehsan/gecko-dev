@@ -8,8 +8,6 @@ const nsIAccessibleStateChangeEvent =
   Components.interfaces.nsIAccessibleStateChangeEvent;
 const nsIAccessibleCaretMoveEvent =
   Components.interfaces.nsIAccessibleCaretMoveEvent;
-const nsIAccessibleTextChangeEvent =
-  Components.interfaces.nsIAccessibleTextChangeEvent;
 
 const nsIAccessibleStates = Components.interfaces.nsIAccessibleStates;
 const nsIAccessibleRole = Components.interfaces.nsIAccessibleRole;
@@ -24,7 +22,6 @@ const nsIAccessibleCoordinateType =
       Components.interfaces.nsIAccessibleCoordinateType;
 
 const nsIAccessibleDocument = Components.interfaces.nsIAccessibleDocument;
-const nsIAccessibleApplication = Components.interfaces.nsIAccessibleApplication;
 
 const nsIAccessibleText = Components.interfaces.nsIAccessibleText;
 const nsIAccessibleEditableText = Components.interfaces.nsIAccessibleEditableText;
@@ -75,7 +72,6 @@ const STATE_SELECTED = nsIAccessibleStates.STATE_SELECTED;
 const STATE_TRAVERSED = nsIAccessibleStates.STATE_TRAVERSED;
 const STATE_UNAVAILABLE = nsIAccessibleStates.STATE_UNAVAILABLE;
 
-const EXT_STATE_ACTIVE = nsIAccessibleStates.EXT_STATE_ACTIVE;
 const EXT_STATE_EDITABLE = nsIAccessibleStates.EXT_STATE_EDITABLE;
 const EXT_STATE_EXPANDABLE = nsIAccessibleStates.EXT_STATE_EXPANDABLE;
 const EXT_STATE_HORIZONTAL = nsIAccessibleStates.EXT_STATE_HORIZONTAL;
@@ -83,13 +79,11 @@ const EXT_STATE_MULTI_LINE = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
 const EXT_STATE_SINGLE_LINE = nsIAccessibleStates.EXT_STATE_SINGLE_LINE;
 const EXT_STATE_SUPPORTS_AUTOCOMPLETION = 
       nsIAccessibleStates.EXT_STATE_SUPPORTS_AUTOCOMPLETION;
-const EXT_STATE_VERTICAL = nsIAccessibleStates.EXT_STATE_VERTICAL;
 
 ////////////////////////////////////////////////////////////////////////////////
 // OS detect
 const MAC = (navigator.platform.indexOf("Mac") != -1)? true : false;
 const LINUX = (navigator.platform.indexOf("Linux") != -1)? true : false;
-const SOLARIS = (navigator.platform.indexOf("SunOS") != -1)? true : false;
 const WIN = (navigator.platform.indexOf("Win") != -1)? true : false;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,9 +114,9 @@ function addA11yLoadEvent(aFunc)
         if (state.value & STATE_BUSY)
           return waitForDocLoad();
 
-        window.setTimeout(aFunc, 150);
+        aFunc.call();
       },
-      0
+      200
     );
   }
 
@@ -130,7 +124,7 @@ function addA11yLoadEvent(aFunc)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Helpers for getting DOM node/accessible
+// Get DOM node/accesible helpers
 
 /**
  * Return the DOM node by identifier (may be accessible, DOM node or ID).
@@ -264,18 +258,16 @@ function isAccessible(aAccOrElmOrID, aInterfaces)
  */
 function getRootAccessible(aAccOrElmOrID)
 {
-  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document,
-                          [nsIAccessNode]);
-  return acc ? acc.rootDocument.QueryInterface(nsIAccessible) : null;
-}
+  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document);
+  while (acc) {
+    var parent = acc.parent;
+    if (parent && !parent.parent)
+      return acc;
 
-/**
- * Return application accessible.
- */
-function getApplicationAccessible()
-{
-  return gAccRetrieval.getApplicationAccessible().
-    QueryInterface(nsIAccessibleApplication);
+    acc = parent;
+  }
+
+  return null;
 }
 
 /**
@@ -364,12 +356,6 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
         try { parent = child.parent; } catch (e) {}
         is(parent, acc, "Wrong parent of " + prettyName(child));
 
-        // nsIAccessible::indexInParent
-        var indexInParent = -1;
-        try { indexInParent = child.indexInParent; } catch(e) {}
-        is(indexInParent, i,
-           "Wrong index in parent of " + prettyName(child));
-
         // nsIAccessible::nextSibling
         var expectedNextSibling = (i < childCount - 1) ?
           children.queryElementAt(i + 1, nsIAccessible) : null;
@@ -391,84 +377,6 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
       }
     }
   }
-}
-
-/**
- * Test accessible tree for defunct accessible.
- *
- * @param  aAcc       [in] the defunct accessible
- * @param  aNodeOrId  [in] the DOM node identifier for the defunct accessible
- */
-function testDefunctAccessible(aAcc, aNodeOrId)
-{
-  if (aNodeOrId)
-    ok(!isAccessible(aNodeOrId),
-       "Accessible for " + aNodeOrId + " wasn't properly shut down!");
-
-  var msg = " doesn't fail for shut down accessible " + prettyName(aNodeOrId) + "!";
-
-  // firstChild
-  var success = false;
-  try {
-    aAcc.firstChild;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE)
-  }
-  ok(success, "firstChild" + msg);
-
-  // lastChild
-  success = false;
-  try {
-    aAcc.lastChild;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE)
-  }
-  ok(success, "lastChild" + msg);
-
-  // childCount
-  success = false;
-  try {
-    aAcc.childCount;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE)
-  }
-  ok(success, "childCount" + msg);
-
-  // children
-  success = false;
-  try {
-    aAcc.children;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE)
-  }
-  ok(success, "children" + msg);
-
-  // nextSibling
-  success = false;
-  try {
-    aAcc.nextSibling;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE);
-  }
-  ok(success, "nextSibling" + msg);
-
-  // previousSibling
-  success = false;
-  try {
-    aAcc.previousSibling;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE);
-  }
-  ok(success, "previousSibling" + msg);
-
-  // parent
-  success = false;
-  try {
-    aAcc.parent;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE);
-  }
-  ok(success, "parent" + msg);
 }
 
 

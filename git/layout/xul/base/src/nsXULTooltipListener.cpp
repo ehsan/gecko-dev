@@ -44,6 +44,7 @@
 #include "nsIDOMXULElement.h"
 #include "nsIDocument.h"
 #include "nsGkAtoms.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIPopupBoxObject.h"
 #include "nsIServiceManager.h"
@@ -53,6 +54,7 @@
 #endif
 #include "nsGUIEvent.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsPresContext.h"
 #include "nsIScriptContext.h"
 #include "nsPIDOMWindow.h"
 #include "nsContentUtils.h"
@@ -381,7 +383,7 @@ nsXULTooltipListener::CheckTreeBodyMove(nsIDOMMouseEvent* aMouseEvent)
   nsCOMPtr<nsIBoxObject> bx;
   nsIDocument* doc = sourceNode->GetDocument();
   if (doc) {
-    nsCOMPtr<nsIDOMElement> docElement = do_QueryInterface(doc->GetRootElement());
+    nsCOMPtr<nsIDOMElement> docElement = do_QueryInterface(doc->GetRootContent());
     if (docElement) {
       doc->GetBoxObjectFor(docElement, getter_AddRefs(bx));
     }
@@ -694,7 +696,9 @@ nsXULTooltipListener::GetTooltipFor(nsIContent* aTarget, nsIContent** aTooltip)
   // Submenus can't be used as tooltips, see bug 288763.
   nsIContent* parent = tooltip->GetParent();
   if (parent) {
-    nsIFrame* frame = parent->GetPrimaryFrame();
+    nsIDocument* doc = parent->GetCurrentDoc();
+    nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
+    nsIFrame* frame = presShell ? presShell->GetPrimaryFrameFor(parent) : nsnull;
     if (frame && frame->GetType() == nsGkAtoms::menuFrame) {
       NS_WARNING("Menu cannot be used as a tooltip");
       return NS_ERROR_FAILURE;

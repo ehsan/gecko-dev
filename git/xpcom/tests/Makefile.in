@@ -70,20 +70,19 @@ CPPSRCS		= \
 		TestBlockingProcess.cpp \
 		TestQuickReturn.cpp \
 		TestArguments.cpp \
-		TestUnicodeArguments.cpp \
 		$(NULL)
 
-ifdef WRAP_STL_INCLUDES
-CPPSRCS += TestSTLWrappers.cpp
+ifndef MOZ_ENABLE_LIBXUL
+CPPSRCS += \
+		TestAtoms.cpp \
+		TestPermanentAtoms.cpp \
+		$(NULL)
 endif
 
 SIMPLE_PROGRAMS	:= $(CPPSRCS:.cpp=$(BIN_SUFFIX))
 
 CPP_UNIT_TESTS = \
-                 ShowAlignments.cpp \
-                 ShowSSEConfig.cpp \
                  TestAutoPtr.cpp \
-                 TestCOMArray.cpp \
                  TestCOMPtr.cpp \
                  TestCOMPtrEq.cpp \
                  TestFactory.cpp \
@@ -93,7 +92,6 @@ CPP_UNIT_TESTS = \
                  TestObserverArray.cpp \
                  TestObserverService.cpp \
                  TestPipe.cpp \
-                 TestRefPtr.cpp \
                  TestServMgr.cpp \
                  TestTextFormatter.cpp \
                  $(NULL)
@@ -106,7 +104,6 @@ CPP_UNIT_TESTS += \
                   TestEncoding.cpp \
                   TestExpirationTracker.cpp \
                   TestPipes.cpp \
-                  TestPriorityQueue.cpp \
                   TestProxies.cpp \
                   TestStorageStream.cpp \
                   TestStrings.cpp \
@@ -116,20 +113,19 @@ CPP_UNIT_TESTS += \
                   TestThreads.cpp \
                   TestTimeStamp.cpp \
                   TestXPIDLString.cpp \
-                  TestStaticAtoms.cpp \
-                  TestUTF.cpp \
-                  TestAtoms.cpp \
                   $(NULL)
 endif
 
 ifdef MOZ_DEBUG
-# FIXME bug 523392: TestDeadlockDetector doesn't like Windows
-# FIXME bug 523378: also fails on OS X
-ifneq (,$(filter-out WINNT WINCE Darwin,$(OS_ARCH)))
+# FIXME bug 456272: testing assertion failures is fragile,
+# and TestDeadlockDetector doesn't like Windows
+ifneq ($(OS_ARCH), WINNT)
+ifneq ($(OS_ARCH), WINCE)
 CPP_UNIT_TESTS += \
                   TestDeadlockDetector.cpp \
                   TestDeadlockDetectorScalability.cpp \
                   $(NULL)
+endif
 endif
 endif
 
@@ -151,6 +147,12 @@ LIBS += $(XPCOM_LIBS)
 ifeq ($(OS_ARCH)$(OS_RELEASE),FreeBSD2)
 LIBS		+= -lpcap
 endif
+
+ifdef SOLARIS_SUNPRO_CXX
+CXXFLAGS += -features=extensions -D__FUNCTION__=__func__
+endif
+
+ENABLE_CXX_EXCEPTIONS = 1
 
 XPCSHELL_TESTS = unit
 
@@ -190,33 +192,18 @@ endif
 
 abs_srcdir = $(shell cd $(srcdir) && pwd)
 
-ifdef WINCE
-DM_RM = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-utils.py delete
-DM_CP = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-utils.py copy
-
-RM_DIST = $(DM_RM)
-regOrderDir=\\tests\\regorder; # This is WinCe specific, adjust for other platforms
-DOCOPY=$(DM_CP)  $(srcdir)/regorder $(regOrderDir)
-else
-DIST_PATH = $(DIST)/bin/
-RM_DIST = rm -f
-regOrderDir="$(call getnativepath,$(abs_srcdir)/regorder)";
-DOCOPY=
-endif
 check::
 	@echo "Running XPIDL tests"
 	$(XPIDL_COMPILE) -m header $(srcdir)/TestScriptable.idl
-	@if grep Notscriptable TestScriptable.h | grep NS_SCRIPTABLE >/dev/null 2>&1 ; then \
+	@if grep Notscriptable TestScriptable.h | grep -q NS_SCRIPTABLE ; then \
 		echo "Nonscriptable object marked scriptable by xpidl"; \
 		exit 1; \
 	fi
-	@if test `grep 'NS_IMETHOD[^I].*Scriptable' TestScriptable.h | grep -v -c NS_SCRIPTABLE` -ne 0 ; then \
+	@if test $$( grep 'NS_IMETHOD[^I].*Scriptable' TestScriptable.h | grep -v -c NS_SCRIPTABLE ) != 0 ; then \
 		echo "Scriptable object marked nonscriptable by xpidl"; \
 		exit 1; \
 	fi
-	$(RM_DIST) $(DIST_PATH)components/compreg.dat; \
-	$(DOCOPY) \
+	rm -f $(DIST)/bin/components/compreg.dat; \
+	regOrderDir="$(call getnativepath,$(abs_srcdir)/regorder)";	\
 	XPCOM_DEBUG_BREAK=stack-and-abort $(RUN_TEST_PROGRAM) \
-	  $(DIST)/bin/TestRegistrationOrder$(BIN_SUFFIX) $(regOrderDir)
-
-GARBAGE += TestScriptable.h
+	  $(DIST)/bin/TestRegistrationOrder$(BIN_SUFFIX) "$$regOrderDir"

@@ -40,8 +40,8 @@
 
 #include "nsDOMCSSDeclaration.h"
 #include "nsIDOMCSSRule.h"
-#include "nsCSSParser.h"
-#include "nsCSSLoader.h"
+#include "nsICSSParser.h"
+#include "nsICSSLoader.h"
 #include "nsIStyleRule.h"
 #include "nsCSSDeclaration.h"
 #include "nsCSSProps.h"
@@ -51,15 +51,11 @@
 #include "nsIPrincipal.h"
 
 #include "nsContentUtils.h"
-#include "mozAutoDocUpdate.h"
 
-namespace css = mozilla::css;
 
 nsDOMCSSDeclaration::~nsDOMCSSDeclaration()
 {
 }
-
-DOMCI_DATA(CSSStyleDeclaration, nsDOMCSSDeclaration)
 
 NS_INTERFACE_TABLE_HEAD(nsDOMCSSDeclaration)
   NS_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsDOMCSSDeclaration)
@@ -70,11 +66,9 @@ NS_INTERFACE_TABLE_HEAD(nsDOMCSSDeclaration)
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMCSS2Properties,
                                     new CSS2PropertiesTearoff(this))
-  NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMSVGCSS2Properties,
-                                    new CSS2PropertiesTearoff(this))
   NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMNSCSS2Properties,
                                     new CSS2PropertiesTearoff(this))
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSStyleDeclaration)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSStyleDeclaration)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
@@ -105,7 +99,7 @@ nsDOMCSSDeclaration::SetPropertyValue(const nsCSSProperty aPropID,
     return RemoveProperty(aPropID);
   }
 
-  return ParsePropertyValue(aPropID, aValue, PR_FALSE);
+  return ParsePropertyValue(aPropID, aValue);
 }
 
 
@@ -208,24 +202,24 @@ nsDOMCSSDeclaration::SetProperty(const nsAString& aPropertyName,
   if (propID == eCSSProperty_UNKNOWN) {
     return NS_OK;
   }
-
+  
   if (aValue.IsEmpty()) {
     // If the new value of the property is an empty string we remove the
     // property.
-    // XXX this ignores the priority string, should it?
     return RemoveProperty(propID);
   }
 
   if (aPriority.IsEmpty()) {
-    return ParsePropertyValue(propID, aValue, PR_FALSE);
+    return ParsePropertyValue(propID, aValue);
   }
 
-  if (aPriority.EqualsLiteral("important")) {
-    return ParsePropertyValue(propID, aValue, PR_TRUE);
-  }
-
-  // XXX silent failure?
-  return NS_OK;
+  // ParsePropertyValue does not handle priorities correctly -- it's
+  // optimized for speed.  And the priority is not part of the
+  // property value anyway.... So we have to use the full-blown
+  // ParseDeclaration()
+  return ParseDeclaration(aPropertyName + NS_LITERAL_STRING(":") +
+                          aValue + NS_LITERAL_STRING("!") + aPriority,
+                          PR_TRUE, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -247,41 +241,37 @@ nsDOMCSSDeclaration::RemoveProperty(const nsAString& aPropertyName,
 
 nsresult
 nsDOMCSSDeclaration::ParsePropertyValue(const nsCSSProperty aPropID,
-                                        const nsAString& aPropValue,
-                                        PRBool aIsImportant)
+                                        const nsAString& aPropValue)
 {
   nsCSSDeclaration* decl;
   nsresult result = GetCSSDeclaration(&decl, PR_TRUE);
   if (!decl) {
     return result;
   }
-
-  nsRefPtr<css::Loader> cssLoader;
+  
+  nsCOMPtr<nsICSSLoader> cssLoader;
+  nsCOMPtr<nsICSSParser> cssParser;
   nsCOMPtr<nsIURI> baseURI, sheetURI;
   nsCOMPtr<nsIPrincipal> sheetPrincipal;
-
+  
   result = GetCSSParsingEnvironment(getter_AddRefs(sheetURI),
                                     getter_AddRefs(baseURI),
                                     getter_AddRefs(sheetPrincipal),
-                                    getter_AddRefs(cssLoader));
+                                    getter_AddRefs(cssLoader),
+                                    getter_AddRefs(cssParser));
   if (NS_FAILED(result)) {
     return result;
   }
 
-  // For nsDOMCSSAttributeDeclaration, DeclarationChanged will lead to
-  // Attribute setting code, which leads in turn to BeginUpdate.  We
-  // need to start the update now so that the old rule doesn't get used
-  // between when we mutate the declaration and when we set the new
-  // rule (see stack in bug 209575).
-  mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), PR_TRUE);
-
-  nsCSSParser cssParser(cssLoader);
   PRBool changed;
-  result = cssParser.ParseProperty(aPropID, aPropValue, sheetURI, baseURI,
-                                   sheetPrincipal, decl, &changed,
-                                   aIsImportant);
+  result = cssParser->ParseProperty(aPropID, aPropValue, sheetURI, baseURI,
+                                    sheetPrincipal, decl, &changed);
   if (NS_SUCCEEDED(result) && changed) {
     result = DeclarationChanged();
+  }
+
+  if (cssLoader) {
+    cssLoader->RecycleParser(cssParser);
   }
 
   return result;
@@ -298,36 +288,34 @@ nsDOMCSSDeclaration::ParseDeclaration(const nsAString& aDecl,
     return result;
   }
 
-  nsRefPtr<css::Loader> cssLoader;
+  nsCOMPtr<nsICSSLoader> cssLoader;
+  nsCOMPtr<nsICSSParser> cssParser;
   nsCOMPtr<nsIURI> baseURI, sheetURI;
   nsCOMPtr<nsIPrincipal> sheetPrincipal;
 
   result = GetCSSParsingEnvironment(getter_AddRefs(sheetURI),
                                     getter_AddRefs(baseURI),
                                     getter_AddRefs(sheetPrincipal),
-                                    getter_AddRefs(cssLoader));
+                                    getter_AddRefs(cssLoader),
+                                    getter_AddRefs(cssParser));
 
   if (NS_FAILED(result)) {
     return result;
   }
 
-  // For nsDOMCSSAttributeDeclaration, DeclarationChanged will lead to
-  // Attribute setting code, which leads in turn to BeginUpdate.  We
-  // need to start the update now so that the old rule doesn't get used
-  // between when we mutate the declaration and when we set the new
-  // rule (see stack in bug 209575).
-  mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), PR_TRUE);
-
-  nsCSSParser cssParser(cssLoader);
   PRBool changed;
-  result = cssParser.ParseAndAppendDeclaration(aDecl, sheetURI, baseURI,
-                                               sheetPrincipal, decl,
-                                               aParseOnlyOneDecl,
-                                               &changed,
-                                               aClearOldDecl);
-
+  result = cssParser->ParseAndAppendDeclaration(aDecl, sheetURI, baseURI,
+                                                sheetPrincipal, decl,
+                                                aParseOnlyOneDecl,
+                                                &changed,
+                                                aClearOldDecl);
+  
   if (NS_SUCCEEDED(result) && changed) {
     result = DeclarationChanged();
+  }
+
+  if (cssLoader) {
+    cssLoader->RecycleParser(cssParser);
   }
 
   return result;
@@ -341,13 +329,6 @@ nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
   if (!decl) {
     return rv;
   }
-
-  // For nsDOMCSSAttributeDeclaration, DeclarationChanged will lead to
-  // Attribute setting code, which leads in turn to BeginUpdate.  We
-  // need to start the update now so that the old rule doesn't get used
-  // between when we mutate the declaration and when we set the new
-  // rule (see stack in bug 209575).
-  mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), PR_TRUE);
 
   rv = decl->RemoveProperty(aPropID);
 
@@ -381,15 +362,13 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(CSS2PropertiesTearoff)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(CSS2PropertiesTearoff)
 
 NS_INTERFACE_TABLE_HEAD(CSS2PropertiesTearoff)
-  NS_INTERFACE_TABLE_INHERITED3(CSS2PropertiesTearoff,
+  NS_INTERFACE_TABLE_INHERITED2(CSS2PropertiesTearoff,
                                 nsIDOMCSS2Properties,
-                                nsIDOMSVGCSS2Properties,
                                 nsIDOMNSCSS2Properties)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(CSS2PropertiesTearoff)
 NS_INTERFACE_MAP_END_AGGREGATED(mOuter)
 
 // nsIDOMCSS2Properties
-// nsIDOMSVGCSS2Properties
 // nsIDOMNSCSS2Properties
 
 #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,   \

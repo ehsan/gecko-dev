@@ -35,8 +35,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsHTMLCanvasElement.h"
-
+#include "nsIDOMHTMLCanvasElement.h"
+#include "nsGenericHTMLElement.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
+#include "nsGkAtoms.h"
+#include "nsSize.h"
+#include "nsIFrame.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
+#include "nsDOMError.h"
+#include "nsNodeInfoManager.h"
 #include "plbase64.h"
 #include "nsNetUtil.h"
 #include "prmem.h"
@@ -45,15 +54,89 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 
-#include "nsFrameManager.h"
-#include "ImageLayers.h"
-#include "BasicLayers.h"
+#include "nsICanvasElement.h"
+#include "nsIRenderingContext.h"
+
+#include "nsICanvasRenderingContextInternal.h"
+
+#include "nsLayoutUtils.h"
 
 #define DEFAULT_CANVAS_WIDTH 300
 #define DEFAULT_CANVAS_HEIGHT 150
 
-using namespace mozilla;
-using namespace mozilla::layers;
+class nsHTMLCanvasElement : public nsGenericHTMLElement,
+                            public nsIDOMHTMLCanvasElement,
+                            public nsICanvasElement
+{
+public:
+  nsHTMLCanvasElement(nsINodeInfo *aNodeInfo);
+  virtual ~nsHTMLCanvasElement();
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
+
+  // nsIDOMHTMLCanvasElement
+  NS_DECL_NSIDOMHTMLCANVASELEMENT
+
+  // nsICanvasElement
+  NS_IMETHOD GetPrimaryCanvasFrame(nsIFrame **aFrame);
+  NS_IMETHOD GetSize(PRUint32 *width, PRUint32 *height);
+  NS_IMETHOD RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter);
+  virtual PRBool IsWriteOnly();
+  virtual void SetWriteOnly();
+  NS_IMETHOD InvalidateFrame ();
+  NS_IMETHOD InvalidateFrameSubrect (const gfxRect& damageRect);
+  virtual PRInt32 CountContexts();
+  virtual nsICanvasRenderingContextInternal *GetContextAtIndex (PRInt32 index);
+  virtual PRBool GetIsOpaque();
+
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
+  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
+  nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute, PRInt32 aModType) const;
+
+  // SetAttr override.  C++ is stupid, so have to override both
+  // overloaded methods.
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                   const nsAString& aValue, PRBool aNotify)
+  {
+    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
+  }
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                           nsIAtom* aPrefix, const nsAString& aValue,
+                           PRBool aNotify);
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+protected:
+  nsIntSize GetWidthHeight();
+
+  nsresult UpdateContext();
+  nsresult ToDataURLImpl(const nsAString& aMimeType,
+                         const nsAString& aEncoderOptions,
+                         nsAString& aDataURL);
+
+  nsString mCurrentContextId;
+  nsCOMPtr<nsICanvasRenderingContextInternal> mCurrentContext;
+  
+public:
+  // Record whether this canvas should be write-only or not.
+  // We set this when script paints an image from a different origin.
+  // We also transitively set it when script paints a canvas which
+  // is itself write-only.
+  PRPackedBool             mWriteOnly;
+};
 
 nsGenericHTMLElement*
 NS_NewHTMLCanvasElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
@@ -78,12 +161,10 @@ nsHTMLCanvasElement::~nsHTMLCanvasElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 
-DOMCI_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
-
 NS_INTERFACE_TABLE_HEAD(nsHTMLCanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLCanvasElement,
                                    nsIDOMHTMLCanvasElement,
-                                   nsICanvasElementExternal)
+                                   nsICanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLCanvasElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLCanvasElement)
@@ -137,24 +218,6 @@ nsHTMLCanvasElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   return rv;
 }
 
-nsresult
-nsHTMLCanvasElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    nsHTMLCanvasElement* dest = static_cast<nsHTMLCanvasElement*>(aDest);
-    nsCOMPtr<nsISupports> cxt;
-    dest->GetContext(NS_LITERAL_STRING("2d"), getter_AddRefs(cxt));
-    nsCOMPtr<nsIDOMCanvasRenderingContext2D> context2d = do_QueryInterface(cxt);
-    if (context2d) {
-      context2d->DrawImage(const_cast<nsHTMLCanvasElement*>(this),
-                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
-    }
-  }
-  return rv;
-}
-
 nsChangeHint
 nsHTMLCanvasElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
                                             PRInt32 aModType) const
@@ -172,15 +235,56 @@ nsHTMLCanvasElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
   return retval;
 }
 
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
+{
+  nsGenericHTMLElement::MapImageMarginAttributeInto(aAttributes, aData);
+  nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
+}
+
+nsMapRuleToAttributesFunc
+nsHTMLCanvasElement::GetAttributeMappingFunction() const
+{
+  return &MapAttributesIntoRule;
+}
+
+static const nsGenericElement::MappedAttributeEntry
+sImageMarginAttributeMap[] = {
+  { &nsGkAtoms::hspace },
+  { &nsGkAtoms::vspace },
+  { nsnull }
+};
+
+NS_IMETHODIMP_(PRBool)
+nsHTMLCanvasElement::IsAttributeMapped(const nsIAtom* aAttribute) const
+{
+  static const MappedAttributeEntry* const map[] = {
+    sCommonAttributeMap,
+    sImageMarginAttributeMap
+  };
+
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
+}
+
 PRBool
 nsHTMLCanvasElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)
 {
-  if (aNamespaceID == kNameSpaceID_None &&
-      (aAttribute == nsGkAtoms::width || aAttribute == nsGkAtoms::height)) {
-    return aResult.ParseIntWithBounds(aValue, 0);
+  if (aNamespaceID == kNameSpaceID_None)
+  {
+    if ((aAttribute == nsGkAtoms::width) ||
+        (aAttribute == nsGkAtoms::height))
+    {
+      return aResult.ParseIntWithBounds(aValue, 0);
+    }
+
+    if (ParseImageAttribute(aAttribute, aValue, aResult))
+    {
+      return PR_TRUE;
+    }
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -191,23 +295,66 @@ nsHTMLCanvasElement::ParseAttribute(PRInt32 aNamespaceID,
 // nsHTMLCanvasElement::toDataURL
 
 NS_IMETHODIMP
-nsHTMLCanvasElement::ToDataURL(const nsAString& aType, const nsAString& aParams,
-                               PRUint8 optional_argc, nsAString& aDataURL)
+nsHTMLCanvasElement::ToDataURL(nsAString& aDataURL)
 {
+  nsresult rv;
+
+  nsAXPCNativeCallContext *ncc = nsnull;
+  rv = nsContentUtils::XPConnect()->
+    GetCurrentNativeCallContext(&ncc);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!ncc)
+    return NS_ERROR_FAILURE;
+
+  JSContext *ctx = nsnull;
+
+  rv = ncc->GetJSContext(&ctx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRUint32 argc;
+  jsval *argv = nsnull;
+
+  ncc->GetArgc(&argc);
+  ncc->GetArgvPtr(&argv);
+
   // do a trust check if this is a write-only canvas
   // or if we're trying to use the 2-arg form
-  if ((mWriteOnly || optional_argc >= 2) &&
-      !nsContentUtils::IsCallerTrustedForRead()) {
+  if ((mWriteOnly || argc >= 2) && !nsContentUtils::IsCallerTrustedForRead()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsAutoString type(aType);
-
-  if (type.IsEmpty()) {
-    type.AssignLiteral("image/png");
+  // 0-arg case; convert to png
+  if (argc == 0) {
+    return ToDataURLImpl(NS_LITERAL_STRING("image/png"), EmptyString(), aDataURL);
   }
 
-  return ToDataURLImpl(type, aParams, aDataURL);
+  JSAutoRequest ar(ctx);
+
+  // 1-arg case; convert to given mime type
+  if (argc == 1) {
+    if (!JSVAL_IS_STRING(argv[0]))
+      return NS_ERROR_DOM_SYNTAX_ERR;
+    JSString *type = JS_ValueToString(ctx, argv[0]);
+    return ToDataURLImpl (nsDependentString(reinterpret_cast<PRUnichar*>((JS_GetStringChars(type)))),
+                          EmptyString(), aDataURL);
+  }
+
+  // 2-arg case; trusted only (checked above), convert to mime type with params
+  if (argc == 2) {
+    if (!JSVAL_IS_STRING(argv[0]) || !JSVAL_IS_STRING(argv[1]))
+      return NS_ERROR_DOM_SYNTAX_ERR;
+
+    JSString *type, *params;
+    type = JS_ValueToString(ctx, argv[0]);
+    params = JS_ValueToString(ctx, argv[1]);
+
+    return ToDataURLImpl (nsDependentString(reinterpret_cast<PRUnichar*>(JS_GetStringChars(type))),
+                          nsDependentString(reinterpret_cast<PRUnichar*>(JS_GetStringChars(params))),
+                          aDataURL);
+  }
+
+  return NS_ERROR_DOM_SYNTAX_ERR;
 }
 
 
@@ -358,16 +505,30 @@ nsHTMLCanvasElement::UpdateContext()
   return rv;
 }
 
-nsIFrame *
-nsHTMLCanvasElement::GetPrimaryCanvasFrame()
+NS_IMETHODIMP
+nsHTMLCanvasElement::GetPrimaryCanvasFrame(nsIFrame **aFrame)
 {
-  return GetPrimaryFrame(Flush_Frames);
+  *aFrame = GetPrimaryFrame(Flush_Frames);
+  return NS_OK;
 }
 
-nsIntSize
-nsHTMLCanvasElement::GetSize()
+NS_IMETHODIMP
+nsHTMLCanvasElement::GetSize(PRUint32 *width, PRUint32 *height)
 {
-  return GetWidthHeight();
+  nsIntSize sz = GetWidthHeight();
+  *width = sz.width;
+  *height = sz.height;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLCanvasElement::RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
+{
+  if (!mCurrentContext)
+    return NS_OK;
+
+  return mCurrentContext->Render(ctx, aFilter);
 }
 
 PRBool
@@ -382,23 +543,50 @@ nsHTMLCanvasElement::SetWriteOnly()
   mWriteOnly = PR_TRUE;
 }
 
-void
-nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
+NS_IMETHODIMP
+nsHTMLCanvasElement::InvalidateFrame()
 {
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) {
+    return NS_OK;
+  }
+
   // We don't need to flush anything here; if there's no frame or if
   // we plan to reframe we don't need to invalidate it anyway.
-  nsIFrame *frame = GetPrimaryFrame();
-  if (!frame)
-    return;
+  nsIFrame *frame = GetPrimaryFrameFor(this, doc);
+  if (frame) {
+    nsRect r = frame->GetRect();
+    r.x = r.y = 0;
+    frame->Invalidate(r);
+  }
 
-  if (damageRect) {
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLCanvasElement::InvalidateFrameSubrect(const gfxRect& damageRect)
+{
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) {
+    return NS_OK;
+  }
+
+  // We don't need to flush anything here; if there's no frame or if
+  // we plan to reframe we don't need to invalidate it anyway.
+  nsIFrame *frame = GetPrimaryFrameFor(this, doc);
+  if (frame) {
+    // Frame might be dirty, but we don't care about that; if the geometry
+    // changes the right invalidates will happen anyway.  Don't assert on our
+    // geometry getters.
+    nsAutoDisableGetUsedXAssertions noAssert;
+    
     nsRect contentArea(frame->GetContentRect());
     nsIntSize size = GetWidthHeight();
 
     // damageRect and size are in CSS pixels; contentArea is in appunits
     // We want a rect in appunits; so avoid doing pixels-to-appunits and
     // vice versa conversion here.
-    gfxRect realRect(*damageRect);
+    gfxRect realRect(damageRect);
     realRect.Scale(contentArea.width / gfxFloat(size.width),
                    contentArea.height / gfxFloat(size.height));
     realRect.RoundOut();
@@ -411,10 +599,9 @@ nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
     invalRect.MoveBy(contentArea.TopLeft() - frame->GetPosition());
 
     frame->Invalidate(invalRect);
-  } else {
-    nsRect r(frame->GetContentRect() - frame->GetPosition());
-    frame->Invalidate(r);
   }
+
+  return NS_OK;
 }
 
 PRInt32
@@ -439,37 +626,4 @@ PRBool
 nsHTMLCanvasElement::GetIsOpaque()
 {
   return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
-}
-
-already_AddRefed<CanvasLayer>
-nsHTMLCanvasElement::GetCanvasLayer(LayerManager *aManager)
-{
-  if (!mCurrentContext)
-    return nsnull;
-
-  return mCurrentContext->GetCanvasLayer(aManager);
-}
-
-void
-nsHTMLCanvasElement::MarkContextClean()
-{
-  if (!mCurrentContext)
-    return;
-
-  mCurrentContext->MarkContextClean();
-}
-
-NS_IMETHODIMP_(nsIntSize)
-nsHTMLCanvasElement::GetSizeExternal()
-{
-  return GetWidthHeight();
-}
-
-NS_IMETHODIMP
-nsHTMLCanvasElement::RenderContextsExternal(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter)
-{
-  if (!mCurrentContext)
-    return NS_OK;
-
-  return mCurrentContext->Render(aContext, aFilter);
 }

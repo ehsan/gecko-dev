@@ -68,7 +68,7 @@ function isPixel(ctx, x,y, r,g,b,a, d) {
        g-d <= pg && pg <= g+d &&
        b-d <= pb && pb <= b+d &&
        a-d <= pa && pa <= a+d,
-       "pixel "+pos+" of "+ctx.canvas.id+" is "+pr+","+pg+","+pb+","+pa+"; expected "+colour+" +/- "+d);
+       "pixel "+pos+" is "+pr+","+pg+","+pb+","+pa+"; expected "+colour+" +/- "+d);
 }
 
 function test_2d_clearRect_basic() {
@@ -2197,7 +2197,7 @@ ctx.globalCompositeOperation = 'copy';
 ctx.fillStyle = 'rgba(0, 0, 255, 0.75)';
 ctx.translate(0, 25);
 ctx.fillRect(0, 50, 100, 50);
-isPixel(ctx, 50,25, 0,0,0,0, 5);
+todo_isPixel(ctx, 50,25, 0,0,0,0, 5);
 
 
 }
@@ -2330,8 +2330,8 @@ ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
 ctx.fillRect(0, 0, 100, 50);
 ctx.globalCompositeOperation = 'copy';
 ctx.drawImage(document.getElementById('yellow_1.png'), 40, 40, 10, 10, 40, 50, 10, 10);
-isPixel(ctx, 15,15, 0,0,0,0, 5);
-isPixel(ctx, 50,25, 0,0,0,0, 5);
+todo_isPixel(ctx, 15,15, 0,0,0,0, 5);
+todo_isPixel(ctx, 50,25, 0,0,0,0, 5);
 
 
 }
@@ -2466,7 +2466,7 @@ ctx.fillRect(0, 0, 100, 50);
 ctx.globalCompositeOperation = 'copy';
 ctx.fillStyle = ctx.createPattern(document.getElementById('yellow_6.png'), 'no-repeat');
 ctx.fillRect(0, 50, 100, 50);
-isPixel(ctx, 50,25, 0,0,0,0, 5);
+todo_isPixel(ctx, 50,25, 0,0,0,0, 5);
 
 
 }
@@ -3649,20 +3649,18 @@ isPixel(ctx, 50,25, 0,255,0,255, 2);
 
 function test_2d_drawImage_wrongtype() {
 
-netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
 var canvas = document.getElementById('c127');
 var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.drawImage(undefined, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.result == Components.results.NS_ERROR_INVALID_ARG, "should throw NS_ERROR_INVALID_ARG");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(0, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.result == Components.results.NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL, "should throw NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.drawImage("", 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.result == Components.results.NS_ERROR_XPC_BAD_CONVERT_JS, "should throw NS_ERROR_XPC_BAD_CONVERT_JS");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.createElement('p'), 0, 0);
 } catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
@@ -3970,7 +3968,7 @@ var canvas = document.getElementById('c138');
 var ctx = canvas.getContext('2d');
 
 ctx.fillStyle = 'rgba(255,255,255,0.45)';
-ok(/^rgba\(255, 255, 255, 0\.4\d+\)$/.test(ctx.fillStyle), "ctx.fillStyle =~ /^rgba\\(255, 255, 255, 0\\.4\\d+\\)$/");
+ok(ctx.fillStyle =~ /^rgba\(255, 255, 255, 0\.4\d+\)$/, "ctx.fillStyle =~ /^rgba\\(255, 255, 255, 0\\.4\\d+\\)$/");
 
 
 }
@@ -5411,7 +5409,7 @@ var ctx = canvas.getContext('2d');
 
 ctx.fillStyle = '#f00';
 ctx.fillStyle = 'ThreeDDarkShadow';
-ok(/^#(?!(FF0000|ff0000|f00)$)/.test(ctx.fillStyle), "ctx.fillStyle =~ /^#(?!(FF0000|ff0000|f00)$)/"); // test that it's not red
+ok(ctx.fillStyle =~ /^#(?!(FF0000|ff0000|f00)$)/, "ctx.fillStyle =~ /^#(?!(FF0000|ff0000|f00)$)/"); // test that it's not red
 
 
 }
@@ -7354,8 +7352,8 @@ var _thrown_outer = false;
 
 var imgdata1 = ctx.createImageData(10.01, 10.99);
 var imgdata2 = ctx.getImageData(0, 0, 10.01, 10.99);
-is(imgdata1.width, imgdata2.width, "imgdata1.width == imgdata2.width");
-is(imgdata1.height, imgdata2.height, "imgdata1.height == imgdata2.height");
+ok(imgdata1.width == imgdata2.width, "imgdata1.width == imgdata2.width");
+ok(imgdata1.height == imgdata2.height, "imgdata1.height == imgdata2.height");
 
 
 }
@@ -7958,13 +7956,13 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 10, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 0, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 
 
 }
@@ -7986,31 +7984,31 @@ var imgdata = ctx.getImageData(0, 0, 10, 10);
 
 imgdata.data[0] = 100;
 imgdata.data[0] = 300;
-ok(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
+todo(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
 imgdata.data[0] = 100;
 imgdata.data[0] = -100;
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 imgdata.data[0] = 100;
 imgdata.data[0] = 200+Math.pow(2, 32);
-ok(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
+todo(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
 imgdata.data[0] = 100;
 imgdata.data[0] = -200-Math.pow(2, 32);
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 imgdata.data[0] = 100;
 imgdata.data[0] = Math.pow(10, 39);
-ok(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
+todo(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
 imgdata.data[0] = 100;
 imgdata.data[0] = -Math.pow(10, 39);
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 imgdata.data[0] = 100;
 imgdata.data[0] = -Infinity;
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 imgdata.data[0] = 100;
 imgdata.data[0] = Infinity;
-ok(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
+todo(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
 
 
 }
@@ -8052,10 +8050,10 @@ var ctx = canvas.getContext('2d');
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 imgdata.data[0] = 100;
 imgdata.data[0] = NaN;
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 imgdata.data[0] = 100;
 imgdata.data[0] = "cheese";
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 
 }
@@ -8101,13 +8099,13 @@ var d = imgdata.data;
 imgdata.width = 123;
 imgdata.height = 123;
 imgdata.data = [100,100,100,100];
-ok(imgdata.width === w, "imgdata.width === w");
-ok(imgdata.height === h, "imgdata.height === h");
-ok(imgdata.data === d, "imgdata.data === d");
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
-ok(imgdata.data[1] === 0, "imgdata.data[\""+(1)+"\"] === 0");
-ok(imgdata.data[2] === 0, "imgdata.data[\""+(2)+"\"] === 0");
-ok(imgdata.data[3] === 0, "imgdata.data[\""+(3)+"\"] === 0");
+todo(imgdata.width === w, "imgdata.width === w");
+todo(imgdata.height === h, "imgdata.height === h");
+todo(imgdata.data === d, "imgdata.data === d");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[1] === 0, "imgdata.data[\""+(1)+"\"] === 0");
+todo(imgdata.data[2] === 0, "imgdata.data[\""+(2)+"\"] === 0");
+todo(imgdata.data[3] === 0, "imgdata.data[\""+(3)+"\"] === 0");
 
 
 }
@@ -8127,27 +8125,27 @@ var ctx = canvas.getContext('2d');
 
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 imgdata.data[0] = 0.499;
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 imgdata.data[0] = 0.5;
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 imgdata.data[0] = 0.501;
-ok(imgdata.data[0] === 1, "imgdata.data[\""+(0)+"\"] === 1");
+todo(imgdata.data[0] === 1, "imgdata.data[\""+(0)+"\"] === 1");
 imgdata.data[0] = 1.499;
-ok(imgdata.data[0] === 1, "imgdata.data[\""+(0)+"\"] === 1");
+todo(imgdata.data[0] === 1, "imgdata.data[\""+(0)+"\"] === 1");
 imgdata.data[0] = 1.5;
-ok(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
+todo(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
 imgdata.data[0] = 1.501;
-ok(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
+todo(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
 imgdata.data[0] = 2.5;
-ok(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
+todo(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
 imgdata.data[0] = 3.5;
-ok(imgdata.data[0] === 4, "imgdata.data[\""+(0)+"\"] === 4");
+todo(imgdata.data[0] === 4, "imgdata.data[\""+(0)+"\"] === 4");
 imgdata.data[0] = 252.5;
-ok(imgdata.data[0] === 252, "imgdata.data[\""+(0)+"\"] === 252");
+todo(imgdata.data[0] === 252, "imgdata.data[\""+(0)+"\"] === 252");
 imgdata.data[0] = 253.5;
-ok(imgdata.data[0] === 254, "imgdata.data[\""+(0)+"\"] === 254");
+todo(imgdata.data[0] === 254, "imgdata.data[\""+(0)+"\"] === 254");
 imgdata.data[0] = 254.5;
-ok(imgdata.data[0] === 254, "imgdata.data[\""+(0)+"\"] === 254");
+todo(imgdata.data[0] === 254, "imgdata.data[\""+(0)+"\"] === 254");
 
 
 }
@@ -8190,13 +8188,13 @@ var ctx = canvas.getContext('2d');
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 imgdata.data[0] = 100;
 imgdata.data[0] = "110";
-ok(imgdata.data[0] === 110, "imgdata.data[\""+(0)+"\"] === 110");
+todo(imgdata.data[0] === 110, "imgdata.data[\""+(0)+"\"] === 110");
 imgdata.data[0] = 100;
 imgdata.data[0] = "0x78";
-ok(imgdata.data[0] === 120, "imgdata.data[\""+(0)+"\"] === 120");
+todo(imgdata.data[0] === 120, "imgdata.data[\""+(0)+"\"] === 120");
 imgdata.data[0] = 100;
 imgdata.data[0] = " +130e0 ";
-ok(imgdata.data[0] === 130, "imgdata.data[\""+(0)+"\"] === 130");
+todo(imgdata.data[0] === 130, "imgdata.data[\""+(0)+"\"] === 130");
 
 
 }
@@ -8217,7 +8215,7 @@ var ctx = canvas.getContext('2d');
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 imgdata.data[0] = 100;
 imgdata.data[0] = undefined;
-ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 
 }
@@ -8871,7 +8869,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.putImageData(null, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
 
 }
@@ -8986,10 +8984,10 @@ var _thrown = undefined; try {
 } catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.putImageData("cheese", 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(42, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
 
 }
@@ -20461,7 +20459,7 @@ var _thrown_outer = false;
 try {
 
 var data = canvas.toDataURL('image/png', 'another argument that should not raise an exception');
-ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
+ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
@@ -20488,7 +20486,7 @@ var _thrown_outer = false;
 try {
 
 var data = canvas.toDataURL('image/png', 'another argument that should not raise an exception', 'and another');
-ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
+ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
@@ -20516,7 +20514,7 @@ try {
 
 // More arguments that should not raise exceptions
 var data = canvas.toDataURL('image/png', null, null, null);
-ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
+ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
@@ -20580,7 +20578,7 @@ var canvas = document.getElementById('c668');
 var ctx = canvas.getContext('2d');
 
 var data = canvas.toDataURL();
-ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
+ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
 
 
 }
@@ -20602,7 +20600,7 @@ var _thrown_outer = false;
 try {
 
 var data = canvas.toDataURL('ImAgE/PnG');
-ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
+ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
@@ -20626,9 +20624,8 @@ var canvas = document.getElementById('c670');
 var ctx = canvas.getContext('2d');
 
 var canvas2 = document.createElement('canvas');
-
 var data = canvas2.toDataURL();
-ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
+ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
 
 
 }
@@ -20647,7 +20644,7 @@ var canvas = document.getElementById('c671');
 var ctx = canvas.getContext('2d');
 
 var data = canvas.toDataURL('image/png');
-ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
+ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
 
 
 }
@@ -20710,7 +20707,7 @@ var _thrown_outer = false;
 try {
 
 var data = canvas.toDataURL('image/example');
-ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
+ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
@@ -21066,7 +21063,7 @@ function runTests() {
  //test_2d_gradient_radial_touch3();
  
  /**
-  * These 19 tests receive special makefile treatment
+  * These 19 tests recieve special makefile treatment
   */
  //test_2d_composite_uncovered_image_destination_atop();
  //test_2d_composite_uncovered_image_destination_in();
@@ -21101,12 +21098,7 @@ function runTests() {
  //test_2d_composite_uncovered_pattern_source_out();
  
  //test_2d_path_rect_zero_6();	// This test is bogus according to the spec; see bug 407107
-
- // These tests are bogus according to the spec: shadows should not be 
- // drawn if shadowBlur, shadowOffsetX, and shadowOffsetY are all zero, whic
- // they are in these tests
- //test_2d_shadow_composite_3();
- //test_2d_shadow_composite_4();
+ 
  try {
   test_2d_canvas_readonly();
  } catch (e) {
@@ -23461,6 +23453,16 @@ function runTests() {
   test_2d_shadow_composite_2();
  } catch (e) {
   ok(false, "unexpected exception thrown in: test_2d_shadow_composite_2");
+ }
+ try {
+  test_2d_shadow_composite_3();
+ } catch (e) {
+  ok(false, "unexpected exception thrown in: test_2d_shadow_composite_3");
+ }
+ try {
+  test_2d_shadow_composite_4();
+ } catch (e) {
+  ok(false, "unexpected exception thrown in: test_2d_shadow_composite_4");
  }
  try {
   test_2d_shadow_gradient_alpha();

@@ -3,5 +3,3 @@ onclose = function() {
   xhr.open("POST", "closeOnGC_server.sjs", false);
   xhr.send();
 };
-
-postMessage("ready");

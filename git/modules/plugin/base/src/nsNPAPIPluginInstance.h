@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -48,10 +48,9 @@
 #include "nsPIDOMWindow.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsITimer.h"
-#include "mozilla/TimeStamp.h"
 
 #include "npfunctions.h"
-#include "mozilla/PluginLibrary.h"
+#include "prlink.h"
 
 class nsNPAPIPluginStreamListener;
 class nsPIDOMWindow;
@@ -76,9 +75,6 @@ public:
 
 class nsNPAPIPluginInstance : public nsIPluginInstance
 {
-private:
-  typedef mozilla::PluginLibrary PluginLibrary;
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCE
@@ -89,8 +85,6 @@ public:
   nsresult GetCallbacks(const NPPluginFuncs ** aCallbacks);
 
   NPError SetWindowless(PRBool aWindowless);
-
-  NPError SetWindowlessLocal(PRBool aWindowlessLocal);
 
   NPError SetTransparent(PRBool aTransparent);
 
@@ -106,26 +100,16 @@ public:
                            PRBool aCallNotify,
                            const char * aURL);
 
-  nsNPAPIPluginInstance(NPPluginFuncs* callbacks, PluginLibrary* aLibrary);
+  nsNPAPIPluginInstance(NPPluginFuncs* callbacks, PRLibrary* aLibrary);
 
   // Use Release() to destroy this
   virtual ~nsNPAPIPluginInstance();
 
-  // Indicates whether the plugin is running normally.
-  bool IsRunning() {
-    return RUNNING == mRunning;
-  }
+  // returns the state of mStarted
+  PRBool IsStarted();
 
-  // Indicates whether the plugin is running normally or being shut down
-  bool CanFireNotifications() {
-    return mRunning == RUNNING || mRunning == DESTROYING;
-  }
-
-  // return is only valid when the plugin is not running
-  mozilla::TimeStamp LastStopTime();
-
-  // cache this NPAPI plugin
-  nsresult SetCached(PRBool aCache);
+  // cache this NPAPI plugin like an XPCOM plugin
+  nsresult SetCached(PRBool aCache) { mCached = aCache; return NS_OK; }
 
   already_AddRefed<nsPIDOMWindow> GetDOMWindow();
 
@@ -159,27 +143,21 @@ protected:
 
 #ifdef XP_MACOSX
   NPDrawingModel mDrawingModel;
+  NPEventModel   mEventModel;
 #endif
-
-  enum {
-    NOT_STARTED,
-    RUNNING,
-    DESTROYING,
-    DESTROYED
-  } mRunning;
 
   // these are used to store the windowless properties
   // which the browser will later query
   PRPackedBool mWindowless;
-  PRPackedBool mWindowlessLocal;
   PRPackedBool mTransparent;
+  PRPackedBool mStarted;
   PRPackedBool mCached;
   PRPackedBool mWantsAllNetworkStreams;
 
 public:
   // True while creating the plugin, or calling NPP_SetWindow() on it.
   PRPackedBool mInPluginInitCall;
-  PluginLibrary* mLibrary;
+  PRLibrary* mLibrary;
   nsInstanceStream *mStreams;
 
 private:
@@ -195,10 +173,6 @@ private:
 
   // non-null during a HandleEvent call
   void* mCurrentPluginEvent;
-
-  // Timestamp for the last time this plugin was stopped.
-  // This is only valid when the plugin is actually stopped!
-  mozilla::TimeStamp mStopTime;
 };
 
 #endif // nsNPAPIPluginInstance_h_

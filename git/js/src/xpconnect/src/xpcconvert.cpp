@@ -153,7 +153,7 @@ XPCConvert::IsMethodReflectable(const XPTMethodDescriptor& info)
 JSBool
 XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
 {
-    JSClass* jsclass = obj->getClass();
+    JSClass* jsclass = STOBJ_GET_CLASS(obj);
     NS_ASSERTION(jsclass, "obj has no class");
     if(jsclass &&
        (jsclass->flags & JSCLASS_HAS_PRIVATE) &&
@@ -473,8 +473,8 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
 
 #ifdef DEBUG
                     JSObject* jsobj = JSVAL_TO_OBJECT(*d);
-                    if(jsobj && !jsobj->getParent())
-                        NS_ASSERTION(jsobj->getClass()->flags & JSCLASS_IS_GLOBAL,
+                    if(jsobj && !STOBJ_GET_PARENT(jsobj))
+                        NS_ASSERTION(STOBJ_GET_CLASS(jsobj)->flags & JSCLASS_IS_GLOBAL,
                                      "Why did we recreate this wrapper?");
 #endif
                 }
@@ -1185,7 +1185,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             }
         }
 
-        NS_ASSERTION(!flat || IS_WRAPPER_CLASS(flat->getClass()),
+        NS_ASSERTION(!flat || IS_WRAPPER_CLASS(STOBJ_GET_CLASS(flat)),
                      "What kind of wrapper is this?");
 
         nsresult rv;
@@ -1352,7 +1352,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
 
                         destObj =
                             XPCNativeWrapper::GetNewOrUsed(ccx, wrapper,
-                                                           scope, objPrincipal);
+                                                           objPrincipal);
                         triedWrapping = JS_TRUE;
                     }
                     else if (flags & JSFILENAME_SYSTEM)
@@ -1362,7 +1362,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                                "XPCSafeJSObjectWrapper\n");
 #endif
 
-                        if(XPCSafeJSObjectWrapper::WrapObject(ccx, scope, v, &v))
+                        if(XPC_SJOW_Construct(ccx, nsnull, 1, &v, &v))
                             destObj = JSVAL_TO_OBJECT(v);
                         triedWrapping = JS_TRUE;
                     }
@@ -1370,7 +1370,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                     {
                         // Reaching across scopes from content code. Wrap
                         // the new object in a XOW.
-                        if (XPCCrossOriginWrapper::WrapObject(ccx, scope, &v))
+                        if (XPC_XOW_WrapObject(ccx, scope, &v))
                             destObj = JSVAL_TO_OBJECT(v);
                         triedWrapping = JS_TRUE;
                     }
@@ -1384,10 +1384,9 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                         AUTO_MARK_JSVAL(ccx, &wrappedObjVal);
                         if(wrapper->NeedsChromeWrapper())
                         {
-                            using SystemOnlyWrapper::WrapObject;
-                            if(!WrapObject(ccx, xpcscope->GetGlobalJSObject(),
-                                           OBJECT_TO_JSVAL(destObj),
-                                           &wrappedObjVal))
+                            if(!XPC_SOW_WrapObject(ccx, xpcscope->GetGlobalJSObject(),
+                                                   OBJECT_TO_JSVAL(destObj),
+                                                   &wrappedObjVal))
                                 return JS_FALSE;
                         }
 
@@ -1397,11 +1396,11 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                 }
             }
 
-            const char *name = flat->getClass()->name;
+            const char *name = STOBJ_GET_CLASS(flat)->name;
             if(allowNativeWrapper &&
                !(flags & JSFILENAME_SYSTEM) &&
                !JS_IsSystemObject(ccx, flat) &&
-               XPCCrossOriginWrapper::ClassNeedsXOW(name))
+               XPC_XOW_ClassNeedsXOW(name))
             {
                 // From here on we might create new JSObjects, so we need to
                 // make sure that wrapper stays alive.
@@ -1409,10 +1408,10 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                     strongWrapper = wrapper;
 
                 AUTO_MARK_JSVAL(ccx, &v);
-                return XPCCrossOriginWrapper::WrapObject(ccx, scope, &v) &&
+                return XPC_XOW_WrapObject(ccx, scope, &v) &&
                        (!wrapper->NeedsChromeWrapper() ||
-                        SystemOnlyWrapper::WrapObject(ccx, xpcscope->GetGlobalJSObject(),
-                                                      v, &v)) &&
+                        XPC_SOW_WrapObject(ccx, xpcscope->GetGlobalJSObject(),
+                                           v, &v)) &&
                        CreateHolderIfNeeded(ccx, JSVAL_TO_OBJECT(v), d, dest);
             }
 
@@ -1420,12 +1419,10 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             if(allowNativeWrapper)
             {
                 if(wrapper->NeedsChromeWrapper())
-                    if(!SystemOnlyWrapper::WrapObject(ccx,
-                                                      xpcscope->GetGlobalJSObject(),
-                                                      v, d))
+                    if(!XPC_SOW_WrapObject(ccx, xpcscope->GetGlobalJSObject(), v, d))
                         return JS_FALSE;
                 if(wrapper->IsDoubleWrapper())
-                    if(!ChromeObjectWrapper::WrapObject(ccx, xpcscope->GetGlobalJSObject(), v, d))
+                    if(!XPC_COW_WrapObject(ccx, xpcscope->GetGlobalJSObject(), v, d))
                         return JS_FALSE;
             }
             if(dest)
@@ -1582,23 +1579,23 @@ XPCConvert::ConstructException(nsresult rv, const char* message,
 
 /********************************/
 
-class AutoExceptionRestorer
+class AutoExceptionRestorer : public JSAutoTempValueRooter
 {
 public:
     AutoExceptionRestorer(JSContext *cx, jsval v)
-        : mContext(cx), tvr(cx, v)
+        : JSAutoTempValueRooter(cx, v),
+          mVal(v)
     {
         JS_ClearPendingException(mContext);
     }
 
     ~AutoExceptionRestorer()
     {
-        JS_SetPendingException(mContext, tvr.value());
+        JS_SetPendingException(mContext, mVal);
     }
 
 private:
-    JSContext * const mContext;
-    js::AutoValueRooter tvr;
+    jsval mVal;
 };
 
 // static
@@ -2109,7 +2106,7 @@ XPCConvert::JSArray2Native(XPCCallContext& ccx, void** d, jsval s,
 #define POPULATE(_mode, _t)                                                  \
     PR_BEGIN_MACRO                                                           \
         cleanupMode = _mode;                                                 \
-        if (capacity > PR_UINT32_MAX / sizeof(_t) ||                         \
+        if (capacity > ~(size_t)0 / sizeof(_t) ||                            \
             nsnull == (array = nsMemory::Alloc(capacity * sizeof(_t))))      \
         {                                                                    \
             if(pErr)                                                         \

@@ -52,9 +52,9 @@
       onload="init();"
       onunload="SidebarUtils.clearURLFromStatusBar();">
 
-  <script type="application/javascript" 
+  <script type="application/x-javascript" 
           src="chrome://browser/content/bookmarks/sidebarUtils.js"/>
-  <script type="application/javascript" 
+  <script type="application/x-javascript" 
           src="chrome://browser/content/bookmarks/bookmarksPanel.js"/>
 
   <commandset id="placesCommands"/>
@@ -64,9 +64,8 @@
   <!-- Bookmarks and history tooltip -->
   <tooltip id="bhTooltip"/>
 
-  <hbox id="sidebar-search-container" align="center">
-    <label id="sidebar-search-label"
-           value="&search.label;" accesskey="&search.accesskey;" control="search-box"/>
+  <hbox align="center">
+    <label value="&search.label;" accesskey="&search.accesskey;" control="search-box"/>
     <textbox id="search-box" flex="1" type="search" class="compact"
              aria-controls="bookmarks-view"
              oncommand="searchBookmarks(this.value);"/>

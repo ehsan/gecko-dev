@@ -41,6 +41,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIEventStateManager.h"
@@ -72,9 +73,9 @@ public:
   NS_DECL_NSIDOMHTMLLEGENDELEMENT
 
   // nsIFormControl
-  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_LEGEND; }
+  NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_LEGEND; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
 
   NS_IMETHODIMP Focus();
@@ -106,13 +107,6 @@ public:
                              PRBool aNotify);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-protected:
-  /**
-   * Get the fieldset content element that contains this legend.
-   * Returns null if there is no fieldset containing this legend.
-   */
-  nsIContent* GetFieldSet();
 };
 
 
@@ -133,8 +127,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLegendElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLegendElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLLegendElement, nsHTMLLegendElement)
-
 // QueryInterface implementation for nsHTMLLegendElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLegendElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLLegendElement, nsIDOMHTMLLegendElement)
@@ -152,11 +144,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLLegendElement)
 NS_IMETHODIMP
 nsHTMLLegendElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
-  *aForm = nsnull;
-
-  nsCOMPtr<nsIFormControl> fieldsetControl = do_QueryInterface(GetFieldSet());
-
-  return fieldsetControl ? fieldsetControl->GetForm(aForm) : NS_OK;
+  return nsGenericHTMLFormElement::GetForm(aForm);
 }
 
 
@@ -173,18 +161,6 @@ static const nsAttrValue::EnumTable kAlignTable[] = {
   { 0 }
 };
 
-nsIContent*
-nsHTMLLegendElement::GetFieldSet()
-{
-  nsIContent* parent = GetParent();
-
-  if (parent && parent->IsHTML() && parent->Tag() == nsGkAtoms::fieldset) {
-    return parent;
-  }
-
-  return nsnull;
-}
-
 PRBool
 nsHTMLLegendElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
@@ -192,7 +168,7 @@ nsHTMLLegendElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::align && aNamespaceID == kNameSpaceID_None) {
-    return aResult.ParseEnumValue(aValue, kAlignTable, PR_FALSE);
+    return aResult.ParseEnumValue(aValue, kAlignTable);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -285,7 +261,7 @@ nsHTMLLegendElement::Focus()
     return NS_OK;
 
   PRInt32 tabIndex;
-  if (frame->IsFocusable(&tabIndex, PR_FALSE))
+  if (frame->IsFocusable(&tabIndex))
     return nsGenericHTMLElement::Focus();
 
   // If the legend isn't focusable, focus whatever is focusable following
@@ -308,7 +284,7 @@ nsHTMLLegendElement::PerformAccesskey(PRBool aKeyCausesActivation,
 }
 
 NS_IMETHODIMP
-nsHTMLLegendElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLLegendElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                        nsIContent* aSubmitElement)
 {
   return NS_OK;

@@ -94,9 +94,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=486990
                                                      .getBranch("dom.event.contextmenu.");
     try {
       if (allow) {
-        if (prefs.prefHasUserValue("enabled")) {
-          prefs.clearUserPref("enabled");
-        }
+        prefs.clearUserPref("enabled");
       } else {
         prefs.setBoolPref("enabled", allow);
       }

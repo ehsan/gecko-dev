@@ -46,7 +46,6 @@
 #include "nsIRunnable.h"
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 
 // This is needed on some systems to prevent collisions between the symbols
 // appearing in xpcom_core and xpcomglue.  It may be unnecessary in the future
@@ -99,32 +98,14 @@ NS_GetCurrentThread(nsIThread **result);
 extern NS_COM_GLUE NS_METHOD
 NS_GetMainThread(nsIThread **result);
 
-#if defined(MOZILLA_INTERNAL_API) && defined(XP_WIN)
-
-NS_COM bool NS_IsMainThread();
-
-#elif defined(MOZILLA_INTERNAL_API) && defined(NS_TLS)
-// This is defined in nsThreadManager.cpp and initialized to `true` for the
-// main thread by nsThreadManager::Init.
-extern NS_TLS bool gTLSIsMainThread;
-
-#ifdef MOZ_ENABLE_LIBXUL
-inline bool NS_IsMainThread()
-{
-  return gTLSIsMainThread;
-}
-#else
-NS_COM bool NS_IsMainThread();
-#endif
-#else
 /**
  * Test to see if the current thread is the main thread.
  *
  * @returns PR_TRUE if the current thread is the main thread, and PR_FALSE
  * otherwise.
  */
-extern NS_COM_GLUE bool NS_IsMainThread();
-#endif
+extern NS_COM_GLUE NS_METHOD_(PRBool)
+NS_IsMainThread();
 
 /**
  * Dispatch the given event to the current thread.
@@ -266,13 +247,27 @@ protected:
 // An event that can be used to call a method on a class.  The class type must
 // support reference counting. This event supports Revoke for use
 // with nsRevocableEventPtr.
-template <class ClassType,
-          typename ReturnType = void,
-          bool Owning = true>
+template <class ClassType, typename ReturnType = void>
 class nsRunnableMethod : public nsRunnable
 {
 public:
-  virtual void Revoke() = 0;
+  typedef ReturnType (ClassType::*Method)();
+
+  nsRunnableMethod(ClassType *obj, Method method)
+    : mObj(obj), mMethod(method) {
+    NS_ADDREF(mObj);
+  }
+
+  NS_IMETHOD Run() {
+    if (!mObj)
+      return NS_OK;
+    (mObj->*mMethod)();
+    return NS_OK;
+  }
+
+  void Revoke() {
+    NS_IF_RELEASE(mObj);
+  }
 
   // These ReturnTypeEnforcer classes set up a blacklist for return types that
   // we know are not safe. The default ReturnTypeEnforcer compiles just fine but
@@ -292,90 +287,93 @@ public:
 
   // Make sure this return type is safe.
   typedef typename ReturnTypeEnforcer<ReturnType>::ReturnTypeIsSafe check;
-};
 
-template <class ClassType, bool Owning>
-struct nsRunnableMethodReceiver {
-  ClassType *mObj;
-  nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) { NS_IF_ADDREF(mObj); }
- ~nsRunnableMethodReceiver() { Revoke(); }
-  void Revoke() { NS_IF_RELEASE(mObj); }
-};
+protected:
+  virtual ~nsRunnableMethod() {
+    NS_IF_RELEASE(mObj);
+  }
 
-template <class ClassType>
-struct nsRunnableMethodReceiver<ClassType, false> {
-  ClassType *mObj;
-  nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) {}
-  void Revoke() { mObj = nsnull; }
-};
-
-template <typename Method, bool Owning> struct nsRunnableMethodTraits;
-
-template <class C, typename R, bool Owning>
-struct nsRunnableMethodTraits<R (C::*)(), Owning> {
-  typedef C class_type;
-  typedef R return_type;
-  typedef nsRunnableMethod<C, R, Owning> base_type;
-};
-
-#ifdef HAVE_STDCALL
-template <class C, typename R, bool Owning>
-struct nsRunnableMethodTraits<R (__stdcall C::*)(), Owning> {
-  typedef C class_type;
-  typedef R return_type;
-  typedef nsRunnableMethod<C, R, Owning> base_type;
-};
-#endif
-
-template <typename Method, bool Owning>
-class nsRunnableMethodImpl
-  : public nsRunnableMethodTraits<Method, Owning>::base_type
-{
-  typedef typename nsRunnableMethodTraits<Method, Owning>::class_type ClassType;
-  nsRunnableMethodReceiver<ClassType, Owning> mReceiver;
+private:
+  ClassType* mObj;
   Method mMethod;
+};
 
+// Use this helper macro like so:
+//
+//   nsCOMPtr<nsIRunnable> event =
+//       NS_NEW_RUNNABLE_METHOD(MyClass, myObject, HandleEvent);
+//   NS_DispatchToCurrentThread(event);
+//
+// Constraints:
+//  - myObject must be of type MyClass
+//  - MyClass must defined AddRef and Release methods
+//
+// NOTE: Attempts to make this a template function caused VC6 to barf :-(
+//
+
+#define NS_NEW_RUNNABLE_METHOD(class_, obj_, method_) \
+    ns_new_runnable_method(obj_, &class_::method_)
+
+template<class ClassType, typename ReturnType>
+nsRunnableMethod<ClassType, ReturnType>*
+ns_new_runnable_method(ClassType* obj, ReturnType (ClassType::*method)())
+{
+  return new nsRunnableMethod<ClassType, ReturnType>(obj, method);
+}
+
+// An event that can be used to call a method on a class, but holds only
+// a raw pointer to the object on which the method will be called.  This
+// event supports Revoke for use with nsRevocableEventPtr and should
+// almost always be used with it.
+template <class ClassType, typename ReturnType = void>
+class nsNonOwningRunnableMethod : public nsRunnable
+{
 public:
-  nsRunnableMethodImpl(ClassType *obj,
-                       Method method)
-    : mReceiver(obj)
-    , mMethod(method)
-  {}
+  typedef ReturnType (ClassType::*Method)();
+
+  nsNonOwningRunnableMethod(ClassType *obj, Method method)
+    : mObj(obj), mMethod(method) {
+  }
 
   NS_IMETHOD Run() {
-    if (NS_LIKELY(mReceiver.mObj))
-      ((*mReceiver.mObj).*mMethod)();
+    if (!mObj)
+      return NS_OK;
+    (mObj->*mMethod)();
     return NS_OK;
   }
 
   void Revoke() {
-    mReceiver.Revoke();
+    mObj = nsnull;
   }
+
+  // These ReturnTypeEnforcer classes set up a blacklist for return types that
+  // we know are not safe. The default ReturnTypeEnforcer compiles just fine but
+  // already_AddRefed will not.
+  template <typename OtherReturnType>
+  class ReturnTypeEnforcer
+  {
+  public:
+    typedef int ReturnTypeIsSafe;
+  };
+
+  template <class T>
+  class ReturnTypeEnforcer<already_AddRefed<T> >
+  {
+    // No ReturnTypeIsSafe makes this illegal!
+  };
+
+  // Make sure this return type is safe.
+  typedef typename ReturnTypeEnforcer<ReturnType>::ReturnTypeIsSafe check;
+
+protected:
+  virtual ~nsNonOwningRunnableMethod() {
+  }
+
+private:
+  ClassType* mObj;
+  Method mMethod;
 };
 
-// Use this template function like so:
-//
-//   nsCOMPtr<nsIRunnable> event =
-//     NS_NewRunnableMethod(myObject, &MyClass::HandleEvent);
-//   NS_DispatchToCurrentThread(event);
-//
-// Statically enforced constraints:
-//  - myObject must be of (or implicitly convertible to) type MyClass
-//  - MyClass must defined AddRef and Release methods
-//
-template<typename PtrType, typename Method>
-typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewRunnableMethod(PtrType ptr, Method method)
-{
-  return new nsRunnableMethodImpl<Method, true>(ptr, method);
-}
-
-template<typename PtrType, typename Method>
-typename nsRunnableMethodTraits<Method, false>::base_type*
-NS_NewNonOwningRunnableMethod(PtrType ptr, Method method)
-{
-  return new nsRunnableMethodImpl<Method, false>(ptr, method);
-}
 
 #endif  // XPCOM_GLUE_AVOID_NSPR
 
@@ -436,10 +434,8 @@ public:
   }
 
   const nsRevocableEventPtr& operator=(T *event) {
-    if (mEvent != event) {
-      Revoke();
-      mEvent = event;
-    }
+    Revoke();
+    mEvent = event;
     return *this;
   }
 
@@ -465,7 +461,7 @@ private:
   nsRevocableEventPtr(const nsRevocableEventPtr&);
   nsRevocableEventPtr& operator=(const nsRevocableEventPtr&);
 
-  nsRefPtr<T> mEvent;
+  T *mEvent;
 };
 
 #endif  // nsThreadUtils_h__

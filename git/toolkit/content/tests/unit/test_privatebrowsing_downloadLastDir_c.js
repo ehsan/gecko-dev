@@ -69,7 +69,7 @@ if (!profileDir) {
       throw Cr.NS_ERROR_FAILURE;
     },
     QueryInterface: function(iid) {
-      if (iid.equals(Ci.nsIDirectoryServiceProvider) ||
+      if (iid.equals(Ci.nsIDirectoryProvider) ||
           iid.equals(Ci.nsISupports)) {
         return this;
       }
@@ -93,11 +93,9 @@ function run_test()
 
   loadUtilsScript();
 
-  let prefsService = Cc["@mozilla.org/preferences-service;1"].
-                     getService(Ci.nsIPrefService).
-                     QueryInterface(Ci.nsIPrefBranch);
-  prefsService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
-  let prefs = prefsService.getBranch("browser.download.");
+  let prefs = Cc["@mozilla.org/preferences-service;1"].
+              getService(Ci.nsIPrefService).
+              getBranch("browser.download.");
   let tmpDir = dirSvc.get("TmpD", Ci.nsILocalFile);
   function newDirectory() {
     let dir = tmpDir.clone();
@@ -108,7 +106,7 @@ function run_test()
   function newFileInDirectory(dir) {
     let file = dir.clone();
     file.append("testfile" + Math.floor(Math.random() * 10000));
-    file.createUnique(Ci.nsIFile.DIRECTORY_TYPE, 0600);
+    file.createUnique(Ci.nsIFile.DIRECTORY_FILE, 0600);
     return file;
   }
   let dir1 = newDirectory();
@@ -129,11 +127,12 @@ function run_test()
   };
   makeFilePicker = function() fp;
 
-  // Overwrite stringBundle to return an object masquerading as a string bundle
-  delete ContentAreaUtils.stringBundle;
-  ContentAreaUtils.stringBundle = {
-    GetStringFromName: function() ""
-  };
+  // Overwrite getStringBundle to return an object masquerading as an string bungle
+  getStringBundle = function() {
+    return {
+      GetStringFromName: function() ""
+    };
+  }
 
   // Overwrite validateFileName to validate everything
   validateFileName = function(foo) foo;
@@ -183,7 +182,6 @@ function run_test()
   do_check_eq(gDownloadLastDir.file.path, dir3.path);
 
   // cleanup
-  prefsService.clearUserPref("browser.privatebrowsing.keep_current_session");
   [dir1, dir2, dir3].forEach(function(dir) dir.remove(true));
   dirSvc.QueryInterface(Ci.nsIDirectoryService).unregisterProvider(provider);
 }

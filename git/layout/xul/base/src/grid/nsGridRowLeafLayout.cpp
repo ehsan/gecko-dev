@@ -131,7 +131,7 @@ nsGridRowLeafLayout::ChildAddedOrRemoved(nsIBox* aBox, nsBoxLayoutState& aState)
 }
 
 void
-nsGridRowLeafLayout::PopulateBoxSizes(nsIBox* aBox, nsBoxLayoutState& aState, nsBoxSize*& aBoxSizes, nscoord& aMinSize, nscoord& aMaxSize, PRInt32& aFlexes)
+nsGridRowLeafLayout::PopulateBoxSizes(nsIBox* aBox, nsBoxLayoutState& aState, nsBoxSize*& aBoxSizes, nsComputedBoxSize*& aComputedBoxSizes, nscoord& aMinSize, nscoord& aMaxSize, PRInt32& aFlexes)
 {
   PRInt32 index = 0;
   nsGrid* grid = GetGrid(aBox, &index);
@@ -244,7 +244,7 @@ nsGridRowLeafLayout::PopulateBoxSizes(nsIBox* aBox, nsBoxLayoutState& aState, ns
     aBoxSizes = start;
   }
 
-  nsSprocketLayout::PopulateBoxSizes(aBox, aState, aBoxSizes, aMinSize, aMaxSize, aFlexes);
+  nsSprocketLayout::PopulateBoxSizes(aBox, aState, aBoxSizes, aComputedBoxSizes, aMinSize, aMaxSize, aFlexes);
 }
 
 void
@@ -268,15 +268,11 @@ nsGridRowLeafLayout::ComputeChildSizes(nsIBox* aBox,
       nsIBox* scrollbox = nsGrid::GetScrollBox(parentBox);
       nsIScrollableFrame *scrollable = do_QueryFrame(scrollbox);
       if (scrollable) {
-        // Don't call GetActualScrollbarSizes here because it's not safe
-        // to call that while we're reflowing the contents of the scrollframe,
-        // which we are here.
-        nsMargin scrollbarSizes = scrollable->GetDesiredScrollbarSizes(&aState);
-        PRUint32 visible = scrollable->GetScrollbarVisibility();
+        nsMargin scrollbarSizes = scrollable->GetActualScrollbarSizes();
 
-        if (isHorizontal && (visible & nsIScrollableFrame::VERTICAL)) {
+        if (isHorizontal) {
           diff += scrollbarSizes.left + scrollbarSizes.right;
-        } else if (!isHorizontal && (visible & nsIScrollableFrame::HORIZONTAL)) {
+        } else {
           diff += scrollbarSizes.top + scrollbarSizes.bottom;
         }
       }

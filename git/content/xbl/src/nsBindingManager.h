@@ -109,11 +109,6 @@ public:
   nsresult GetContentListFor(nsIContent* aContent, nsIDOMNodeList** aResult);
 
   /**
-   * Non-COMy version of GetContentListFor.
-   */
-  nsINodeList* GetContentListFor(nsIContent* aContent);
-
-  /**
    * Set the insertion point children for the specified element.
    * The binding manager assumes ownership of aList.
    */
@@ -133,11 +128,6 @@ public:
    * returning a non-null list for nodes which have a binding attached.
    */
   nsresult GetAnonymousNodesFor(nsIContent* aContent, nsIDOMNodeList** aResult);
-
-  /**
-   * Same as above, but without the XPCOM goop
-   */
-  nsINodeList* GetAnonymousNodesFor(nsIContent* aContent);
 
   /**
    * Set the anonymous child content for the specified element.
@@ -172,7 +162,7 @@ public:
   // shouldn't be handing it out in our public API, since it's not useful to
   // anyone.
   nsIContent* GetInsertionPoint(nsIContent* aParent,
-                                const nsIContent* aChild, PRUint32* aIndex);
+                                nsIContent* aChild, PRUint32* aIndex);
 
   /**
    * Return the unfiltered insertion point for the specified parent
@@ -181,11 +171,6 @@ public:
    */
   nsIContent* GetSingleInsertionPoint(nsIContent* aParent, PRUint32* aIndex,
                                       PRBool* aMultipleInsertionPoints);
-
-  nsIContent* GetNestedInsertionPoint(nsIContent* aParent,
-                                      const nsIContent* aChild);
-  nsIContent* GetNestedSingleInsertionPoint(nsIContent* aParent,
-                                            PRBool* aMultipleInsertionPoints);
 
   nsresult AddLayeredBinding(nsIContent* aContent, nsIURI* aURL,
                              nsIPrincipal* aOriginPrincipal);
@@ -214,9 +199,6 @@ public:
   nsresult WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
                      RuleProcessorData* aData,
                      PRBool* aCutOffInheritance);
-
-  void WalkAllRules(nsIStyleRuleProcessor::EnumFunc aFunc,
-                    RuleProcessorData* aData);
   /**
    * Do any processing that needs to happen as a result of a change in
    * the characteristics of the medium, and return whether this rule
@@ -246,6 +228,10 @@ protected:
                                         PRBool* aIsAnonymousContentList);
   nsINodeList* GetAnonymousNodesInternal(nsIContent* aContent,
                                          PRBool* aIsAnonymousContentList);
+
+  nsIContent* GetNestedInsertionPoint(nsIContent* aParent, nsIContent* aChild);
+  nsIContent* GetNestedSingleInsertionPoint(nsIContent* aParent,
+                                            PRBool* aMultipleInsertionPoints);
 
   // Called by ContentAppended and ContentInserted to handle a single child
   // insertion.  aChild must not be null.  aContainer may be null.

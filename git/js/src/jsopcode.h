@@ -122,7 +122,7 @@ typedef enum JSOp {
 
 #define JOF_SHARPSLOT    (1U<<24) /* first immediate is uint16 stack slot no.
                                      that needs fixup when in global code (see
-                                     Compiler::compileScript) */
+                                     JSCompiler::compileScript) */
 
 /* Shorthands for type from format and type from opcode. */
 #define JOF_TYPE(fmt)   ((fmt) & JOF_TYPEMASK)
@@ -261,12 +261,6 @@ extern uintN            js_NumCodeSpecs;
 extern const char       *js_CodeName[];
 extern const char       js_EscapeMap[];
 
-/* Silence unreferenced formal parameter warnings */
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4100)
-#endif
-
 /*
  * Return a GC'ed string containing the chars in str, with any non-printing
  * chars or quotes (' or " as specified by the quote argument) escaped, and
@@ -279,16 +273,19 @@ js_QuoteString(JSContext *cx, JSString *str, jschar quote);
  * JSPrinter operations, for printf style message formatting.  The return
  * value from js_GetPrinterOutput() is the printer's cumulative output, in
  * a GC'ed string.
- *
- * strict is true if the context in which the output will appear has
- * already been marked as strict, thus indicating that nested
- * functions need not be re-marked with a strict directive.  It should
- * be false in the outermost printer.
  */
 
+#ifdef JS_ARENAMETER
+# define JS_NEW_PRINTER(cx, name, fun, indent, pretty)                        \
+    js_NewPrinter(cx, name, fun, indent, pretty)
+#else
+# define JS_NEW_PRINTER(cx, name, fun, indent, pretty)                        \
+    js_NewPrinter(cx, fun, indent, pretty)
+#endif
+
 extern JSPrinter *
-js_NewPrinter(JSContext *cx, const char *name, JSFunction *fun,
-              uintN indent, JSBool pretty, JSBool grouped, JSBool strict);
+JS_NEW_PRINTER(JSContext *cx, const char *name, JSFunction *fun,
+               uintN indent, JSBool pretty);
 
 extern void
 js_DestroyPrinter(JSPrinter *jp);
@@ -431,20 +428,6 @@ extern JSBool
 js_DecompileFunction(JSPrinter *jp);
 
 /*
- * Some C++ compilers treat the language linkage (extern "C" vs.
- * extern "C++") as part of function (and thus pointer-to-function)
- * types. The use of this typedef (defined in "C") ensures that
- * js_DecompileToString's definition (in "C++") gets matched up with
- * this declaration.
- */
-typedef JSBool (* JSDecompilerPtr)(JSPrinter *);
-
-extern JSString *
-js_DecompileToString(JSContext *cx, const char *name, JSFunction *fun,
-                     uintN indent, JSBool pretty, JSBool grouped, JSBool strict,
-                     JSDecompilerPtr decompiler);
-
-/*
  * Find the source expression that resulted in v, and return a newly allocated
  * C-string containing it.  Fall back on v's string conversion (fallback) if we
  * can't find the bytecode that generated and pushed v on the operand stack.
@@ -469,10 +452,6 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
  */
 extern uintN
 js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 JS_END_EXTERN_C
 

@@ -5,7 +5,7 @@
 /*    FreeType API for checking patented TrueType bytecode instructions    */
 /*    (body).                                                              */
 /*                                                                         */
-/*  Copyright 2007, 2008, 2010 by David Turner.                            */
+/*  Copyright 2007 by David Turner.                                        */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
 /*  modified, and distributed under the terms of the FreeType project      */
@@ -103,7 +103,6 @@
     }
 
   Exit:
-    FT_UNUSED( error );
     FT_FRAME_EXIT();
     return result;
   }
@@ -114,7 +113,7 @@
                               FT_ULong  tag )
   {
     FT_Stream              stream = face->stream;
-    FT_Error               error  = FT_Err_Ok;
+    FT_Error               error;
     FT_Service_SFNT_Table  service;
     FT_Bool                result = FALSE;
 
@@ -123,19 +122,15 @@
 
     if ( service )
     {
-      FT_UInt   i = 0;
-      FT_ULong  tag_i = 0, offset_i = 0, length_i = 0;
+      FT_ULong  offset, size;
 
 
-      for ( i = 0; !error && tag_i != tag ; i++ )
-        error = service->table_info( face, i,
-                                     &tag_i, &offset_i, &length_i );
-
-      if ( error                      ||
-           FT_STREAM_SEEK( offset_i ) )
+      error = service->table_info( face, tag, &offset, &size );
+      if ( error                    ||
+           FT_STREAM_SEEK( offset ) )
         goto Exit;
 
-      result = _tt_check_patents_in_range( stream, length_i );
+      result = _tt_check_patents_in_range( stream, size );
     }
 
   Exit:
@@ -265,7 +260,7 @@
   FT_Face_SetUnpatentedHinting( FT_Face  face,
                                 FT_Bool  value )
   {
-    FT_Bool  result = FALSE;
+    FT_Bool  result = 0;
 
 
 #if defined( TT_CONFIG_OPTION_UNPATENTED_HINTING ) && \

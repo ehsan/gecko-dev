@@ -66,9 +66,6 @@ var gAdvancedPane = {
     this.updateModeItems();
 #endif
     this.updateOfflineApps();
-#ifdef MOZ_CRASHREPORTER
-    this.initSubmitCrashes();
-#endif
   },
 
   /**
@@ -141,35 +138,6 @@ var gAdvancedPane = {
     var checkbox = document.getElementById("checkSpelling");
     return checkbox.checked ? (this._storedSpellCheck == 2 ? 2 : 1) : 0;
   },
-
-  /**
-   *
-   */
-  initSubmitCrashes: function ()
-  {
-    var checkbox = document.getElementById("submitCrashesBox");
-    try {
-      var cr = Components.classes["@mozilla.org/toolkit/crash-reporter;1"].
-               getService(Components.interfaces.nsICrashReporter);
-      checkbox.checked = cr.submitReports;
-    } catch (e) {
-      checkbox.style.display = "none";
-    }
-  },
-
-  /**
-   *
-   */
-  updateSubmitCrashes: function ()
-  {
-    var checkbox = document.getElementById("submitCrashesBox");
-    try {
-      var cr = Components.classes["@mozilla.org/toolkit/crash-reporter;1"].
-               getService(Components.interfaces.nsICrashReporter);
-      cr.submitReports = checkbox.checked;
-    } catch (e) { }
-  },
-
 
   // NETWORK TAB
 
@@ -251,9 +219,9 @@ var gAdvancedPane = {
   {
     var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
                        getService(Components.interfaces.nsIApplicationCacheService);
-    if (!groups)
-      groups = cacheService.getGroups();
-
+    if (!groups) {
+      groups = cacheService.getGroups({});
+    }
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
 
@@ -288,7 +256,7 @@ var gAdvancedPane = {
 
     var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
                        getService(Components.interfaces.nsIApplicationCacheService);
-    var groups = cacheService.getGroups();
+    var groups = cacheService.getGroups({});
 
     var bundle = document.getElementById("bundlePreferences");
 
@@ -348,7 +316,7 @@ var gAdvancedPane = {
                        getService(Components.interfaces.nsIApplicationCacheService);
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
-    var groups = cacheService.getGroups();
+    var groups = cacheService.getGroups({});
     for (var i = 0; i < groups.length; i++) {
         var uri = ios.newURI(groups[i], null, null);
         if (uri.asciiHost == host) {
@@ -440,7 +408,7 @@ var gAdvancedPane = {
     var enabledPref = document.getElementById("app.update.enabled");
     var enableAppUpdate = document.getElementById("enableAppUpdate");
 
-    enableAppUpdate.disabled = !aus.canCheckForUpdates || enabledPref.locked;
+    enableAppUpdate.disabled = !aus.canUpdate || enabledPref.locked;
   },
 
   /**

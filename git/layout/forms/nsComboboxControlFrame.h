@@ -63,14 +63,15 @@
 #include "nsIRollupListener.h"
 #include "nsPresState.h"
 #include "nsCSSFrameConstructor.h"
+#include "nsIScrollableViewProvider.h"
 #include "nsIStatefulFrame.h"
-#include "nsIScrollableFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsThreadUtils.h"
 
 class nsIView;
 class nsStyleContext;
 class nsIListControlFrame;
+class nsIScrollableView;
 class nsComboboxDisplayFrame;
 
 /**
@@ -85,6 +86,7 @@ class nsComboboxControlFrame : public nsBlockFrame,
                                public nsIAnonymousContentCreator,
                                public nsISelectControlFrame,
                                public nsIRollupListener,
+                               public nsIScrollableViewProvider,
                                public nsIStatefulFrame
 {
 public:
@@ -96,10 +98,10 @@ public:
 
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
+  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
   virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
 
 #ifdef ACCESSIBILITY
@@ -136,14 +138,10 @@ public:
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
-  virtual nsIScrollableFrame* GetScrollTargetFrame() {
-    return do_QueryFrame(mDropdownFrame);
-  }
-
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
@@ -188,6 +186,7 @@ public:
   // nsISelectControlFrame
   NS_IMETHOD AddOption(PRInt32 index);
   NS_IMETHOD RemoveOption(PRInt32 index);
+  NS_IMETHOD GetOptionSelected(PRInt32 aIndex, PRBool* aValue);
   NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
   NS_IMETHOD OnOptionSelected(PRInt32 aIndex, PRBool aSelected);
   NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
@@ -211,6 +210,9 @@ public:
    */
   NS_IMETHOD ShouldRollupOnMouseActivate(PRBool *aShouldRollup)
     { *aShouldRollup = PR_FALSE; return NS_OK;}
+
+  // nsIScrollableViewProvider
+  virtual nsIScrollableView* GetScrollableView();
 
   //nsIStatefulFrame
   NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState);
@@ -265,6 +267,7 @@ protected:
   nsIFrame*                mDisplayFrame;            // frame to display selection
   nsIFrame*                mButtonFrame;             // button frame
   nsIFrame*                mDropdownFrame;           // dropdown list frame
+  nsIFrame*                mTextFrame;               // display area frame
   nsIListControlFrame *    mListControlFrame;        // ListControl Interface for the dropdown frame
 
   // The width of our display area.  Used by that frame's reflow to

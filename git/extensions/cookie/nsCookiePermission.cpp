@@ -189,8 +189,7 @@ nsCookiePermission::SetAccess(nsIURI         *aURI,
   //       the permission codes used by nsIPermissionManager.
   //       this is nice because it avoids conversion code.
   //
-  return mPermMgr->Add(aURI, kPermissionType, aAccess,
-                       nsIPermissionManager::EXPIRE_NEVER, 0);
+  return mPermMgr->Add(aURI, kPermissionType, aAccess);
 }
 
 NS_IMETHODIMP
@@ -362,16 +361,13 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       if (rememberDecision) {
         switch (*aResult) {
           case nsICookiePromptService::DENY_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::DENY_ACTION,
-                          nsIPermissionManager::EXPIRE_NEVER, 0);
+            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::DENY_ACTION);
             break;
           case nsICookiePromptService::ACCEPT_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::ALLOW_ACTION,
-                          nsIPermissionManager::EXPIRE_NEVER, 0);
+            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::ALLOW_ACTION);
             break;
           case nsICookiePromptService::ACCEPT_SESSION_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, nsICookiePermission::ACCESS_SESSION,
-                          nsIPermissionManager::EXPIRE_NEVER, 0);
+            mPermMgr->Add(aURI, kPermissionType, nsICookiePermission::ACCESS_SESSION);
             break;
           default:
             break;

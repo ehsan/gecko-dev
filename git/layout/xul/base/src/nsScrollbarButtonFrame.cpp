@@ -74,11 +74,7 @@ nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext,
                                     nsEventStatus* aEventStatus)
 {  
   NS_ENSURE_ARG_POINTER(aEventStatus);
-
-  // If a web page calls event.preventDefault() we still want to
-  // scroll when scroll arrow is clicked. See bug 511075.
-  if (!mContent->IsInNativeAnonymousSubtree() &&
-      nsEventStatus_eConsumeNoDefault == *aEventStatus) {
+  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
     return NS_OK;
   }
 
@@ -319,10 +315,10 @@ nsScrollbarButtonFrame::GetParentWithTag(nsIAtom* toFind, nsIFrame* start,
 }
 
 void
-nsScrollbarButtonFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsScrollbarButtonFrame::Destroy()
 {
   // Ensure our repeat service isn't going... it's possible that a scrollbar can disappear out
   // from under you while you're in the process of scrolling.
   StopRepeat();
-  nsButtonBoxFrame::DestroyFrom(aDestructRoot);
+  nsButtonBoxFrame::Destroy();
 }

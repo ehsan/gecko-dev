@@ -306,19 +306,17 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 #ifndef WINCE
     case WM_MOUSEACTIVATE: {
       // If a child window of this plug-in is already focused,
-      // don't focus the parent to avoid focus dance. We'll 
-      // receive a follow up WM_SETFOCUS which will notify
-      // the appropriate window anyway.
+      // don't focus the parent to avoid focus dance.
+      // The following WM_SETFOCUS message will give the focus
+      // to the appropriate window anyway.
       HWND focusedWnd = ::GetFocus();
       if (!::IsChild((HWND)win->window, focusedWnd)) {
-        // Notify the dom / focus manager the plugin has focus when one of
-        // it's child windows receives it. OOPP specific - this code is
-        // critical in notifying the dom of focus changes when the plugin
-        // window in the child process receives focus via a mouse click.
-        // WM_MOUSEACTIVATE is sent by nsWindow via a custom window event
-        // sent from PluginInstanceParent in response to focus events sent
-        // from the child. (bug 540052) Note, this gui event could also be
-        // sent directly from widget.
+        // This seems to be the only way we're
+        // notified when a child window that doesn't have this handler proc
+        // (read as: windows created by plugins like Adobe Acrobat)
+        // has been activated via clicking.
+        // should be handled here because some plugins won't forward
+        // messages to original WinProc.
         nsCOMPtr<nsIWidget> widget;
         win->GetPluginWidget(getter_AddRefs(widget));
         if (widget) {
@@ -544,20 +542,6 @@ nsresult nsPluginNativeWindowWin::SubclassAndAssociateWindow()
   if (PluginWndProc == currentWndProc)
     return NS_OK;
 
-  LONG style = GetWindowLongPtr(hWnd, GWL_STYLE);
-#ifdef MOZ_IPC
-  // Out of process plugins must not have the WS_CLIPCHILDREN style set on their
-  // parent windows or else synchronous paints (via UpdateWindow() and others)
-  // will cause deadlocks.
-  if (::GetPropW(hWnd, L"PluginInstanceParentProperty"))
-    style &= ~WS_CLIPCHILDREN;
-  else
-    style |= WS_CLIPCHILDREN;
-#else
-  style |= WS_CLIPCHILDREN;
-#endif
-  SetWindowLongPtr(hWnd, GWL_STYLE, style);
-
   mPluginWinProc = SubclassWindow(hWnd, (LONG_PTR)PluginWndProc);
   if (!mPluginWinProc)
     return NS_ERROR_FAILURE;
@@ -587,10 +571,6 @@ nsresult nsPluginNativeWindowWin::UndoSubclassAndAssociateWindow()
     WNDPROC currentWndProc = (WNDPROC)::GetWindowLongPtr(hWnd, GWLP_WNDPROC);
     if (currentWndProc == PluginWndProc)
       SubclassWindow(hWnd, (LONG_PTR)mPluginWinProc);
-
-    LONG style = GetWindowLongPtr(hWnd, GWL_STYLE);
-    style &= ~WS_CLIPCHILDREN;
-    SetWindowLongPtr(hWnd, GWL_STYLE, style);
   }
 
   return NS_OK;

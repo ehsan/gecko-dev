@@ -52,7 +52,7 @@ interface nsIPrincipal;
  * @version 0.1
  * @see imagelib2
  */
-[scriptable, uuid(ebde51c9-cc11-4b6a-99c3-d7f568c7481b)]
+[scriptable, uuid(a297d3fa-5e0c-4e59-9f30-a01c9d4f3f8b)]
 interface imgIRequest : nsIRequest
 {
   /**
@@ -86,7 +86,7 @@ interface imgIRequest : nsIRequest
    * STATUS_LOAD_COMPLETE: The data has been fully loaded
    * to memory, but not necessarily fully decoded.
    *
-   * STATUS_ERROR: An error occurred loading the image.
+   * STATUS_ERROR: An error occured loading the image.
    *
    * STATUS_FRAME_COMPLETE: The first frame has been
    * completely decoded.
@@ -173,11 +173,5 @@ interface imgIRequest : nsIRequest
    */
   void unlockImage();
 
-  /**
-   * If this request is for an animated image, the method creates a new
-   * request which contains the current frame of the image.
-   * Otherwise returns the same request.
-   */
-  imgIRequest getStaticRequest();
 };
 

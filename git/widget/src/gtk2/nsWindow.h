@@ -65,10 +65,13 @@
 #endif /* MOZ_X11 */
 
 #ifdef ACCESSIBILITY
-#include "nsAccessible.h"
+#include "nsIAccessNode.h"
+#include "nsIAccessible.h"
 #endif
 
-#include "nsGtkIMModule.h"
+#ifdef USE_XIM
+#include "pldhash.h"
+#endif
 
 #ifdef MOZ_LOGGING
 
@@ -80,11 +83,13 @@
 
 extern PRLogModuleInfo *gWidgetLog;
 extern PRLogModuleInfo *gWidgetFocusLog;
+extern PRLogModuleInfo *gWidgetIMLog;
 extern PRLogModuleInfo *gWidgetDragLog;
 extern PRLogModuleInfo *gWidgetDrawLog;
 
 #define LOG(args) PR_LOG(gWidgetLog, 4, args)
 #define LOGFOCUS(args) PR_LOG(gWidgetFocusLog, 4, args)
+#define LOGIM(args) PR_LOG(gWidgetIMLog, 4, args)
 #define LOGDRAG(args) PR_LOG(gWidgetDragLog, 4, args)
 #define LOGDRAW(args) PR_LOG(gWidgetDrawLog, 4, args)
 
@@ -92,6 +97,7 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 
 #define LOG(args)
 #define LOGFOCUS(args)
+#define LOGIM(args)
 #define LOGDRAG(args)
 #define LOGDRAW(args)
 
@@ -183,7 +189,6 @@ public:
     NS_IMETHOD         EnableDragDrop(PRBool aEnable);
     NS_IMETHOD         CaptureMouse(PRBool aCapture);
     NS_IMETHOD         CaptureRollupEvents(nsIRollupListener *aListener,
-                                           nsIMenuRollup *aMenuRollup,
                                            PRBool aDoCapture,
                                            PRBool aConsumeRollupEvent);
     NS_IMETHOD         GetAttention(PRInt32 aCycleCount);
@@ -268,8 +273,7 @@ public:
                                     PRBool  aRepaint);
 
     virtual void       NativeShow  (PRBool  aAction);
-    void               SetHasMappedToplevel(PRBool aState);
-    nsIntSize          GetSafeWindowSize(nsIntSize aSize);
+    virtual nsIntSize  GetSafeWindowSize(nsIntSize aSize);
 
     void               EnsureGrabs  (void);
     void               GrabPointer  (void);
@@ -290,35 +294,99 @@ public:
 
     void               ThemeChanged(void);
 
-    void CheckNeedDragLeaveEnter(nsWindow* aInnerMostWidget,
-                                 nsIDragService* aDragService,
-                                 GdkDragContext *aDragContext,
-                                 nscoord aX, nscoord aY);
-
 #ifdef MOZ_X11
     Window             mOldFocusWindow;
 #endif /* MOZ_X11 */
 
-    static guint32     sLastButtonPressTime;
-    static guint32     sLastButtonReleaseTime;
+    static guint32     mLastButtonPressTime;
+    static guint32     mLastButtonReleaseTime;
 
     NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 
-    MozContainer*      GetMozContainer() { return mContainer; }
-    GdkWindow*         GetGdkWindow() { return mGdkWindow; }
-    PRBool             IsDestroyed() { return mIsDestroyed; }
+#ifdef USE_XIM
+    void               IMEInitData       (void);
+    void               IMEReleaseData    (void);
+    void               IMEDestroyContext (void);
+    void               IMESetFocus       (void);
+    void               IMELoseFocus      (void);
+    void               IMEComposeStart   (void);
+    void               IMEComposeText    (const PRUnichar *aText,
+                                          const PRInt32 aLen,
+                                          const gchar *aPreeditString,
+                                          const gint aCursorPos,
+                                          const PangoAttrList *aFeedback);
+    void               IMEComposeEnd     (void);
+    GtkIMContext*      IMEGetContext     (void);
+    // "Enabled" means the users can use all IMEs.
+    // I.e., the focus is in the normal editors.
+    PRBool             IMEIsEnabledState (void);
+    // "Editable" means the users can input characters. They may be not able to
+    // use IMEs but they can use dead keys.
+    // I.e., the forcus is in the normal editors or the password editors or
+    // the |ime-mode: disabled;| editors.
+    PRBool             IMEIsEditableState(void);
+    nsWindow*          IMEComposingWindow(void);
+    void               IMECreateContext  (void);
+    PRBool             IMEFilterEvent    (GdkEventKey *aEvent);
+    void               IMESetCursorPosition(const nsTextEventReply& aReply);
 
-    // If this dispatched the keydown event actually, this returns TRUE,
-    // otherwise, FALSE.
-    PRBool             DispatchKeyDownEvent(GdkEventKey *aEvent,
-                                            PRBool *aIsCancelled);
+    /*
+     *  |mIMEData| has all IME data for the window and its children widgets.
+     *  Only stand-alone windows and child windows embedded in non-Mozilla GTK
+     *  containers own IME contexts.
+     *  But this is referred from all children after the widget gets focus.
+     *  The children refers to its owning window's object.
+     */
+    struct nsIMEData {
+        // Actual context. This is used for handling the user's input.
+        GtkIMContext       *mContext;
+        // mSimpleContext is used for the password field and
+        // the |ime-mode: disabled;| editors. These editors disable IME.
+        // But dead keys should work. Fortunately, the simple IM context of
+        // GTK2 support only them.
+        GtkIMContext       *mSimpleContext;
+        // mDummyContext is a dummy context and will be used in IMESetFocus()
+        // when mEnabled is false. This mDummyContext IM state is always
+        // "off", so it works to switch conversion mode to OFF on IM status
+        // window.
+        GtkIMContext       *mDummyContext;
+        // This mComposingWindow is set in IMEComposeStart(), when user starts
+        // composition, then unset in IMEComposeEnd() when user ends the
+        // composition. We will keep the widget where the actual composition is
+        // started. During the composition, we may get some events like
+        // ResetInputStateInternal() and CancelIMECompositionInternal() by
+        // changing input focus, we will use the original widget of
+        // mComposingWindow to commit or reset the composition.
+        nsWindow           *mComposingWindow;
+        // Owner of this struct.
+        // The owner window must release the contexts at destroying.
+        nsWindow           *mOwner;
+        // The reference counter. When this will be zero by the decrement,
+        // the decrementer must free the instance.
+        PRUint32           mRefCount;
+        // IME enabled state in this window.
+        PRUint32           mEnabled;
+        nsIMEData(nsWindow* aOwner) {
+            mContext         = nsnull;
+            mSimpleContext   = nsnull;
+            mDummyContext    = nsnull;
+            mComposingWindow = nsnull;
+            mOwner           = aOwner;
+            mRefCount        = 1;
+            mEnabled         = nsIWidget::IME_STATUS_ENABLED;
+        }
+    };
+    nsIMEData          *mIMEData;
 
     NS_IMETHOD ResetInputState();
+    NS_IMETHOD SetIMEOpenState(PRBool aState);
+    NS_IMETHOD GetIMEOpenState(PRBool* aState);
     NS_IMETHOD SetIMEEnabled(PRUint32 aState);
     NS_IMETHOD GetIMEEnabled(PRUint32* aState);
     NS_IMETHOD CancelIMEComposition();
-    NS_IMETHOD OnIMEFocusChange(PRBool aFocus);
     NS_IMETHOD GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
+
+#endif
 
    void                ResizeTransparencyBitmap(PRInt32 aNewWidth, PRInt32 aNewHeight);
    void                ApplyTransparencyBitmap();
@@ -363,7 +431,7 @@ protected:
     PRPackedBool        mPlaced;
 
 private:
-    void               DestroyChildWindows();
+    PRBool             CanBeSeen();
     void               GetToplevelWidget(GtkWidget **aWidget);
     GtkWidget         *GetMozContainerWidget();
     nsWindow          *GetContainerWindow();
@@ -373,8 +441,7 @@ private:
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
-                                           PRBool aIntersectWithExisting);
+    nsresult           SetWindowClipRegion(const nsTArray<nsIntRect>& aRects);
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;
@@ -382,8 +449,10 @@ private:
 
     GtkWindowGroup     *mWindowGroup;
 
-    PRUint32            mHasMappedToplevel : 1,
-                        mIsFullyObscured : 1,
+    PRUint32            mContainerGotFocus : 1,
+                        mContainerLostFocus : 1,
+                        mContainerBlockFocus : 1,
+                        mIsVisible : 1,
                         mRetryPointerGrab : 1,
                         mRetryKeyboardGrab : 1;
     GtkWindow          *mTransientParent;
@@ -404,37 +473,12 @@ private:
 #endif
 
 #ifdef ACCESSIBILITY
-    nsRefPtr<nsAccessible> mRootAccessible;
-
-    /**
-     * Request to create the accessible for this window if it is top level.
-     */
+    nsCOMPtr<nsIAccessible> mRootAccessible;
     void                CreateRootAccessible();
-
-    /**
-     * Generate the NS_GETACCESSIBLE event to get accessible for this window
-     * and return it.
-     */
-    nsAccessible       *DispatchAccessibleEvent();
-
-    /**
-     * Dispatch accessible event for the top level window accessible.
-     *
-     * @param  aEventType  [in] the accessible event type to dispatch
-     */
-    void                DispatchEventToRootAccessible(PRUint32 aEventType);
-
-    /**
-     * Dispatch accessible window activate event for the top level window
-     * accessible.
-     */
+    void                GetRootAccessible(nsIAccessible** aAccessible);
     void                DispatchActivateEventAccessible();
-
-    /**
-     * Dispatch accessible window deactivate event for the top level window
-     * accessible.
-     */
     void                DispatchDeactivateEventAccessible();
+    NS_IMETHOD_(PRBool) DispatchAccessibleEvent(nsIAccessible** aAccessible);
 #endif
 
     // The cursor cache
@@ -451,7 +495,8 @@ private:
     // this is the last window that had a drag event happen on it.
     static nsWindow    *mLastDragMotionWindow;
     void   InitDragEvent         (nsDragEvent &aEvent);
-    void   UpdateDragStatus      (GdkDragContext *aDragContext,
+    void   UpdateDragStatus      (nsDragEvent &aEvent,
+                                  GdkDragContext *aDragContext,
                                   nsIDragService *aDragService);
 
     // this is everything we need to be able to fire motion events
@@ -515,22 +560,6 @@ private:
         *flag &= ~mask;
     }
 
-    void DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent);
-
-    /**
-     * |mIMModule| takes all IME related stuff.
-     *
-     * This is owned by the top-level nsWindow or the topmost child
-     * nsWindow embedded in a non-Gecko widget.
-     *
-     * The instance is created when the top level widget is created.  And when
-     * the widget is destroyed, it's released.  All child windows refer its
-     * ancestor widget's instance.  So, one set of IM contexts is created for
-     * all windows in a hierarchy.  If the children are released after the top
-     * level window is released, the children still have a valid pointer,
-     * however, IME doesn't work at that time.
-     */
-    nsRefPtr<nsGtkIMModule> mIMModule;
 };
 
 class nsChildWindow : public nsWindow {

@@ -37,7 +37,6 @@
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
 #include "nsSVGFilterElement.h"
-#include "nsSVGEffects.h"
 
 nsSVGElement::LengthInfo nsSVGFilterElement::sLengthInfo[4] =
 {
@@ -78,13 +77,11 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Filter)
 NS_IMPL_ADDREF_INHERITED(nsSVGFilterElement,nsSVGFilterElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGFilterElement,nsSVGFilterElementBase)
 
-DOMCI_DATA(SVGFilterElement, nsSVGFilterElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGFilterElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGFilterElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGFilterElement,
                            nsIDOMSVGURIReference)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFilterElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFilterElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFilterElementBase)
 
 //----------------------------------------------------------------------
@@ -238,24 +235,4 @@ nsSVGFilterElement::GetStringInfo()
 {
   return StringAttributesInfo(mStringAttributes, sStringInfo,
                               NS_ARRAY_LENGTH(sStringInfo));
-}
-
-void
-nsSVGFilterElement::DidAnimateLength(PRUint8 aAttrEnum)
-{
-  // nsSVGFilterFrame does not implement a useful AttributeChanged
-  nsIFrame* frame = GetPrimaryFrame();
-  if (frame) {
-    nsSVGEffects::InvalidateRenderingObservers(frame);
-  }
-}
-
-void
-nsSVGFilterElement::DidAnimateEnum(PRUint8 aAttrEnum)
-{
-  // nsSVGFilterFrame does not implement a useful AttributeChanged
-  nsIFrame* frame = GetPrimaryFrame();
-  if (frame) {
-    nsSVGEffects::InvalidateRenderingObservers(frame);
-  }
 }

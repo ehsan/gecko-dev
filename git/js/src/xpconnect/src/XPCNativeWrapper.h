@@ -42,56 +42,49 @@
 
 class nsIPrincipal;
 
-namespace XPCNativeWrapper {
+class XPCNativeWrapper
+{
+public:
+  static PRBool AttachNewConstructorObject(XPCCallContext &ccx,
+                                           JSObject *aGlobalObject);
 
-namespace internal {
-  extern JSExtendedClass NW_NoCall_Class;
-  extern JSExtendedClass NW_Call_Class;
-}
+  static JSObject *GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
+                                nsIPrincipal *aObjectPrincipal);
+  static JSBool CreateExplicitWrapper(JSContext *cx, XPCWrappedNative *wrapper,
+                                      JSBool deep, jsval *rval);
 
-PRBool
-AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject);
+  static PRBool IsNativeWrapperClass(JSClass *clazz)
+  {
+    return clazz == &sXPC_NW_JSClass.base;
+  }
 
-JSObject *
-GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
-             JSObject *scope, nsIPrincipal *aObjectPrincipal);
+  static PRBool IsNativeWrapper(JSObject *obj)
+  {
+    return STOBJ_GET_CLASS(obj) == &sXPC_NW_JSClass.base;
+  }
+
+  static JSBool GetWrappedNative(JSContext *cx, JSObject *obj,
+                                 XPCWrappedNative **aWrappedNative);
+
+  // NB: Use the following carefully.
+  static XPCWrappedNative *SafeGetWrappedNative(JSObject *obj)
+  {
+      return static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
+  }
+
+
+  static JSClass *GetJSClass()
+  {
+    return &sXPC_NW_JSClass.base;
+  }
+
+  static void ClearWrappedNativeScopes(JSContext* cx,
+                                       XPCWrappedNative* wrapper);
+
+protected:
+  static JSExtendedClass sXPC_NW_JSClass;
+};
+
 JSBool
-CreateExplicitWrapper(JSContext *cx, XPCWrappedNative *wrapper, JSBool deep,
-                      jsval *rval);
-
-inline PRBool
-IsNativeWrapperClass(JSClass *clazz)
-{
-  return clazz == &internal::NW_NoCall_Class.base ||
-         clazz == &internal::NW_Call_Class.base;
-}
-
-inline PRBool
-IsNativeWrapper(JSObject *obj)
-{
-  return IsNativeWrapperClass(obj->getClass());
-}
-
-JSBool
-GetWrappedNative(JSContext *cx, JSObject *obj,
-                 XPCWrappedNative **aWrappedNative);
-
-// NB: Use the following carefully.
-inline XPCWrappedNative *
-SafeGetWrappedNative(JSObject *obj)
-{
-  return static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
-}
-
-inline JSClass *
-GetJSClass(bool call)
-{
-  return call
-    ? &internal::NW_Call_Class.base
-    : &internal::NW_NoCall_Class.base;
-}
-
-void
-ClearWrappedNativeScopes(JSContext* cx, XPCWrappedNative* wrapper);
-
-}
+XPC_XOW_WrapObject(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                   jsval *rval);

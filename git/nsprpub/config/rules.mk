@@ -112,7 +112,7 @@ ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
 # Win95 and OS/2 require library names conforming to the 8.3 rule.
 # other platforms do not.
 #
-ifeq (,$(filter-out WIN95 WINCE WINMO OS2,$(OS_TARGET)))
+ifeq (,$(filter-out WIN95 WINCE OS2,$(OS_TARGET)))
 LIBRARY		= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION)_s.$(LIB_SUFFIX)
 SHARED_LIBRARY	= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION).$(DLL_SUFFIX)
 IMPORT_LIBRARY	= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION).$(LIB_SUFFIX)
@@ -141,7 +141,7 @@ endif
 ifndef TARGETS
 ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
 TARGETS		= $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY)
-ifdef MOZ_DEBUG_SYMBOLS
+ifndef BUILD_OPT
 ifdef MSC_VER
 ifneq (,$(filter-out 1100 1200,$(MSC_VER)))
 TARGETS		+= $(SHARED_LIB_PDB)
@@ -172,13 +172,18 @@ ifndef RELEASE_LIBS_DEST
 RELEASE_LIBS_DEST	= $(RELEASE_LIB_DIR)
 endif
 
-define MAKE_IN_DIR
-	$(MAKE) -C $(dir) $@
-
-endef # do not remove the blank line!
-
 ifdef DIRS
-LOOP_OVER_DIRS = $(foreach dir,$(DIRS),$(MAKE_IN_DIR))
+LOOP_OVER_DIRS		=					\
+	@for d in $(DIRS); do					\
+		if test -d $$d; then				\
+			set -e;					\
+			echo "cd $$d; $(MAKE) $@";		\
+			$(MAKE) -C $$d $@;			\
+			set +e;					\
+		else						\
+			echo "Skipping non-directory $$d...";	\
+		fi;						\
+	done
 endif
 
 ################################################################################
@@ -305,7 +310,7 @@ $(IMPORT_LIBRARY): $(MAPFILE)
 	rm -f $@
 	$(IMPLIB) $@ $(MAPFILE)
 else
-ifeq (,$(filter-out WIN95 WINCE WINMO,$(OS_TARGET)))
+ifeq (,$(filter-out WIN95 WINCE,$(OS_TARGET)))
 $(IMPORT_LIBRARY): $(SHARED_LIBRARY)
 endif
 endif
@@ -382,8 +387,9 @@ NEED_ABSOLUTE_PATH = 1
 endif
 
 ifdef NEED_ABSOLUTE_PATH
+PWD := $(shell pwd)
 # The quotes allow absolute paths to contain spaces.
-pr_abspath = "$(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))"
+pr_abspath = "$(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(PWD)/$(1)))"
 endif
 
 $(OBJDIR)/%.$(OBJ_SUFFIX): %.cpp

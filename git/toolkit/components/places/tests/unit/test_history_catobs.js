@@ -13,7 +13,7 @@
  *
  * The Original Code is Places unit test code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -77,5 +77,5 @@ function run_test() {
               hs.TRANSITION_TYPED, false, 0);
 
   do_test_pending();
-  do_timeout(1000, verify);
+  do_timeout(1000, "verify();");
 }

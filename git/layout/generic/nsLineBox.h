@@ -431,8 +431,12 @@ public:
     return mBounds.height;
   }
 
-  static void DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
-                             nsIFrame* aDestructRoot);
+  static void DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines);
+
+  // search from beginning to end
+  // XXX Should switch to API below
+  static nsLineBox* FindLineContaining(nsLineList& aLines, nsIFrame* aFrame,
+                                       PRInt32* aFrameIndexInLine);
 
   // search from end to beginning of [aBegin, aEnd)
   // Returns PR_TRUE if it found the line and PR_FALSE if not.
@@ -1540,6 +1544,7 @@ public:
                      nsRect& aLineBounds,
                      PRUint32* aLineFlags);
   virtual PRInt32 FindLineContaining(nsIFrame* aFrame);
+  virtual PRInt32 FindLineAt(nscoord aY);
   NS_IMETHOD FindFrameAt(PRInt32 aLineNumber,
                          nscoord aX,
                          nsIFrame** aFrameFound,

@@ -79,6 +79,7 @@ function run_test()
           getService(Ci.nsIPrefBranch);
 
   // We're going to clear this at the end, so it better have the default value now.
+  do_check_false(prefs.prefHasUserValue("browser.history_expire_days"));
   do_check_false(prefs.prefHasUserValue("browser.formfill.expire_days"));
 
 
@@ -142,8 +143,13 @@ function run_test()
   // ===== 4 =====
   testnum++;
 
-  // Set formfill pref to 30 days.
-  prefs.setIntPref("browser.formfill.expire_days", 30);
+  // Set formfill pref to 30 days for SeaMonkey and Thunderbird as they
+  // both include a default value of 180 days whereas other apps fall back
+  // to using the history_expire_days value.
+  if ("nsIMsgFolder" in Ci)
+    prefs.setIntPref("browser.formfill.expire_days", 30);
+  // Set pref to 30 days and expire.
+  prefs.setIntPref("browser.history_expire_days", 30);
   do_check_true(fh.entryExists("179DaysOld", "foo"));
   do_check_true(fh.entryExists("bar", "31days"));
   do_check_true(fh.entryExists("bar", "29days"));
@@ -163,6 +169,7 @@ function run_test()
   // Set override pref to 10 days and expire. This expires a large batch of
   // entries, and should trigger a VACCUM to reduce file size.
   prefs.setIntPref("browser.formfill.expire_days", 10);
+  prefs.setIntPref("browser.history_expire_days", 1);
 
   do_check_true(fh.entryExists("bar", "29days"));
   do_check_true(fh.entryExists("9DaysOld", "foo"));
@@ -188,7 +195,7 @@ function run_test()
       throw "FAILED in test #" + testnum + " -- " + e;
   } finally {
       // Make sure we always reset prefs.
-      if (prefs.prefHasUserValue("browser.formfill.expire_days"))
-        prefs.clearUserPref("browser.formfill.expire_days");
+      prefs.clearUserPref("browser.history_expire_days");
+      prefs.clearUserPref("browser.formfill.expire_days");
   }
 }

@@ -40,7 +40,6 @@
 #include "gfxPlatform.h"
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGFilterElement.h"
-#include "nsLayoutUtils.h"
 
 static double Square(double aX)
 {
@@ -67,17 +66,6 @@ nsSVGFilterInstance::GetPrimitiveLength(nsSVGLength2 *aLength) const
     return value *
       sqrt(Square(mFilterSpaceSize.width) + Square(mFilterSpaceSize.height)) /
       sqrt(Square(mFilterRect.Width()) + Square(mFilterRect.Height()));
-  }
-}
-
-void
-nsSVGFilterInstance::ConvertLocation(float aValues[3]) const
-{
-  if (mPrimitiveUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    aValues[0] *= mTargetBBox.Width();
-    aValues[1] *= mTargetBBox.Height();
-    aValues[2] *= nsSVGUtils::ComputeNormalizedHypotenuse(
-                    mTargetBBox.Width(), mTargetBBox.Height());
   }
 }
 
@@ -165,7 +153,7 @@ nsSVGFilterInstance::BuildSources()
   gfxRect sourceBounds = UserSpaceToFilterSpace(mTargetBBox);
   sourceBounds.RoundOut();
   // Detect possible float->int overflow
-  if (NS_FAILED(nsLayoutUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
+  if (NS_FAILED(nsSVGUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
     return NS_ERROR_FAILURE;
 
   mSourceColorAlpha.mResultBoundingBox = sourceBoundsInt;
@@ -356,7 +344,7 @@ nsSVGFilterInstance::BuildSourceImages()
     r = m.TransformBounds(r);
     r.RoundOut();
     nsIntRect dirty;
-    nsresult rv = nsLayoutUtils::GfxRectToIntRect(r, &dirty);
+    nsresult rv = nsSVGUtils::GfxRectToIntRect(r, &dirty);
     if (NS_FAILED(rv))
       return rv;
 

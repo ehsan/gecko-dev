@@ -50,8 +50,7 @@ function getVisibleMenuItems(aMenu) {
 
         if (item.nodeName == "menuitem") {
             ok(item.id, "child menuitem #" + i + " has an ID");
-            ok(item.label.length, "menuitem " + item.id + " has a label");
-            ok(key, "menuitem " + item.id + " has an access key");
+            ok(key, "menuitem has an access key");
             if (accessKeys[key])
                 ok(false, "menuitem " + item.id + " has same accesskey as " + accessKeys[key]);
             else
@@ -140,7 +139,7 @@ function runTest(testNum) {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   ok(true, "Starting test #" + testNum);
 
-  switch (testNum) {
+  switch(testNum) {
     case 1:
         // Invoke context menu for next test.
         openContextMenuFor(text);
@@ -211,8 +210,7 @@ function runTest(testNum) {
                           "context-saveimage",            true,
                           "context-sendimage",            true,
                           "context-setDesktopBackground", true,
-                          "context-blockimage",           true,
-                          "context-viewimageinfo",        true]);
+                          "context-blockimage",           true]);
         closeContextMenu();
         openContextMenuFor(canvas); // Invoke context menu for next test.
         break;
@@ -244,7 +242,7 @@ function runTest(testNum) {
         break;
 
     case 9:
-        // Context menu for a video (with an INVALID media source)
+        // Context menu for a video (with a INVALID media source)
         checkContextMenu(["context-media-play",         false,
                           "context-media-mute",         false,
                           "context-media-showcontrols", false,
@@ -260,7 +258,7 @@ function runTest(testNum) {
         break;
 
     case 10:
-        // Context menu for a video (with an INVALID media source)
+        // Context menu for a video (with a INVALID media source)
         checkContextMenu(["context-media-play",         false,
                           "context-media-mute",         false,
                           "context-media-showcontrols", false,

@@ -39,6 +39,7 @@
 
 #include "nsFormFillController.h"
 
+#include "nsStorageFormHistory.h"
 #include "nsIFormAutoComplete.h"
 #include "nsIAutoCompleteSimpleResult.h"
 #include "nsString.h"
@@ -57,7 +58,6 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNSHTMLInputElement.h"
-#include "nsIFormControl.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
@@ -604,6 +604,9 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
   nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(target);
   if (!input)
     return NS_OK;
+    
+    nsAutoString type;
+    input->GetType(type);
 
     PRBool isReadOnly = PR_FALSE;
     input->GetReadOnly(&isReadOnly);
@@ -616,10 +619,9 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
     if (mPwmgrInputs.Get(input, &dummy))
         isPwmgrInput = PR_TRUE;
 
-    nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(input);
-    if (formControl && formControl->IsSingleLineTextControl(PR_TRUE) &&
-        !isReadOnly &&
+    if (type.LowerCaseEqualsLiteral("text") && !isReadOnly &&
         (!autocomplete.LowerCaseEqualsLiteral("off") || isPwmgrInput)) {
+
       nsCOMPtr<nsIDOMHTMLFormElement> form;
       input->GetForm(getter_AddRefs(form));
       if (form)
@@ -775,6 +777,16 @@ nsFormFillController::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
 
   if (mController && mFocusedInput)
     mController->HandleEndComposition();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::HandleQueryComposition(nsIDOMEvent* aCompositionEvent)
+{
+  // Drop untrusted events from content
+  if (!IsEventTrusted(aCompositionEvent))
+    return NS_OK;
 
   return NS_OK;
 }
@@ -1209,10 +1221,19 @@ nsFormFillController::IsEventTrusted(nsIDOMEvent *aEvent)
   return isTrusted;
 }
 
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsFormHistory, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormFillController)
+#ifdef MOZ_MORKREADER
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormHistoryImporter)
+#endif
 
 static const nsModuleComponentInfo components[] =
 {
+  { "HTML Form History",
+    NS_FORMHISTORY_CID, 
+    NS_FORMHISTORY_CONTRACTID,
+    nsFormHistoryConstructor },
+
   { "HTML Form Fill Controller",
     NS_FORMFILLCONTROLLER_CID, 
     "@mozilla.org/satchel/form-fill-controller;1",
@@ -1222,6 +1243,13 @@ static const nsModuleComponentInfo components[] =
     NS_FORMFILLCONTROLLER_CID, 
     NS_FORMHISTORYAUTOCOMPLETE_CONTRACTID,
     nsFormFillControllerConstructor },
+
+#ifdef MOZ_MORKREADER
+  { "Form History Importer",
+    NS_FORMHISTORYIMPORTER_CID,
+    NS_FORMHISTORYIMPORTER_CONTRACTID,
+    nsFormHistoryImporterConstructor },
+#endif
 };
 
 NS_IMPL_NSGETMODULE(satchel, components)

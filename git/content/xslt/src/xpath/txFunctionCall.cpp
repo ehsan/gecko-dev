@@ -52,19 +52,15 @@
 /*
  * Evaluates the given Expression and converts its result to a number.
  */
-// static
-nsresult
-FunctionCall::evaluateToNumber(Expr* aExpr, txIEvalContext* aContext,
-                               double* aResult)
+double FunctionCall::evaluateToNumber(Expr* aExpr, txIEvalContext* aContext)
 {
     NS_ASSERTION(aExpr, "missing expression");
     nsRefPtr<txAExprResult> exprResult;
     nsresult rv = aExpr->evaluate(aContext, getter_AddRefs(exprResult));
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv))
+        return Double::NaN;
 
-    *aResult = exprResult->numberValue();
-
-    return NS_OK;
+    return exprResult->numberValue();
 }
 
 /*
@@ -146,15 +142,15 @@ void
 FunctionCall::toString(nsAString& aDest)
 {
     nsCOMPtr<nsIAtom> functionNameAtom;
-    if (NS_FAILED(getNameAtom(getter_AddRefs(functionNameAtom)))) {
+    nsAutoString functionName;
+    if (NS_FAILED(getNameAtom(getter_AddRefs(functionNameAtom))) ||
+        NS_FAILED(functionNameAtom->ToString(functionName))) {
         NS_ERROR("Can't get function name.");
         return;
     }
 
-
-
-    aDest.Append(nsDependentAtomString(functionNameAtom) +
-                 NS_LITERAL_STRING("("));
+    aDest.Append(functionName);
+    aDest.Append(PRUnichar('('));
     for (PRUint32 i = 0; i < mParams.Length(); ++i) {
         if (i != 0) {
             aDest.Append(PRUnichar(','));

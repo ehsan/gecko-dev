@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Embedded resource forks accessor (body).                             */
 /*                                                                         */
-/*  Copyright 2004, 2005, 2006, 2007, 2008, 2009 by                        */
+/*  Copyright 2004, 2005, 2006, 2007 by                                    */
 /*  Masatake YAMATO and Redhat K.K.                                        */
 /*                                                                         */
 /*  FT_Raccess_Get_HeaderInfo() and raccess_guess_darwin_hfsplus() are     */
@@ -399,10 +399,7 @@
                               char      **result_file_name,
                               FT_Long    *result_offset )
   {
-    FT_Int32  magic = ( 0x00 << 24 ) |
-                      ( 0x05 << 16 ) |
-                      ( 0x16 <<  8 ) |
-                        0x07;
+    FT_Int32  magic = ( 0x00 << 24 | 0x05 << 16 | 0x16 << 8 | 0x07 );
 
 
     *result_file_name = NULL;
@@ -421,10 +418,7 @@
                               char      **result_file_name,
                               FT_Long    *result_offset )
   {
-    FT_Int32  magic = ( 0x00 << 24 ) |
-                      ( 0x05 << 16 ) |
-                      ( 0x16 <<  8 ) |
-                        0x00;
+    FT_Int32  magic = (0x00 << 24 | 0x05 << 16 | 0x16 << 8 | 0x00);
 
 
     *result_file_name = NULL;
@@ -709,12 +703,8 @@
         return FT_Err_Ok;
       }
       else
-      {
-        error = FT_Stream_Skip( stream, 4 + 4 );    /* offset + length */
-        if ( error )
-          return error;
+        FT_Stream_Skip( stream, 4 + 4 );    /* offset + length */
       }
-    }
 
     return FT_Err_Unknown_File_Format;
   }
@@ -752,9 +742,9 @@
                           const char  *insertion )
   {
     char*        new_name;
-    const char*  tmp;
+    char*        tmp;
     const char*  slash;
-    size_t       new_length;
+    unsigned     new_length;
     FT_Error     error = FT_Err_Ok;
 
     FT_UNUSED( error );

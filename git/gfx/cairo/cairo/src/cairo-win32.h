@@ -65,9 +65,6 @@ cairo_win32_surface_create_with_dib (cairo_format_t format,
 cairo_public HDC
 cairo_win32_surface_get_dc (cairo_surface_t *surface);
 
-cairo_public HDC
-cairo_win32_get_dc_with_clip (cairo_t *cr);
-
 cairo_public cairo_surface_t *
 cairo_win32_surface_get_image (cairo_surface_t *surface);
 
@@ -111,72 +108,6 @@ cairo_win32_scaled_font_get_device_to_logical (cairo_scaled_font_t *scaled_font,
 					       cairo_matrix_t *device_to_logical);
 
 #endif /* CAIRO_HAS_WIN32_FONT */
-
-#if CAIRO_HAS_DWRITE_FONT
-
-/*
- * Win32 DirectWrite font support
- */
-cairo_public cairo_font_face_t *
-cairo_dwrite_font_face_create_for_dwrite_fontface(void *dwrite_font, void *dwrite_font_face);
-
-#endif /* CAIRO_HAS_DWRITE_FONT */
-
-#if CAIRO_HAS_D2D_SURFACE
-
-/**
- * Create a D2D surface for an HWND
- *
- * \param wnd Handle for the window
- * \return New cairo surface
- */
-cairo_public cairo_surface_t *
-cairo_d2d_surface_create_for_hwnd(HWND wnd);
-
-/**
- * Create a D2D surface of a certain size.
- *
- * \param format Cairo format of the surface
- * \param width Width of the surface
- * \param height Height of the surface
- * \return New cairo surface
- */
-cairo_public cairo_surface_t *
-cairo_d2d_surface_create(cairo_format_t format,
-                         int width,
-                         int height);
-
-/**
- * Present the backbuffer for a surface create for an HWND. This needs
- * to be called when the owner of the original window surface wants to
- * actually present the executed drawing operations to the screen.
- *
- * \param surface D2D surface.
- */
-void cairo_d2d_present_backbuffer(cairo_surface_t *surface);
-
-/**
- * Scroll the surface, this only moves the surface graphics, it does not
- * actually scroll child windows or anything like that. Nor does it invalidate
- * that area of the window.
- *
- * \param surface The d2d surface this operation should apply to.
- * \param x The x delta for the movement
- * \param y The y delta for the movement
- * \param clip The clip rectangle, the is the 'part' of the surface that needs
- * scrolling.
- */
-void cairo_d2d_scroll(cairo_surface_t *surface, int x, int y, cairo_rectangle_t *clip);
-
-/**
- * Verify if D2D surfaces are actually supported. This will confirm the needed
- * hardware is available.
- *
- * \return True if the support is available. If false surface creation will
- * return error surfaces.
- */
-cairo_bool_t cairo_d2d_has_support();
-#endif
 
 CAIRO_END_DECLS
 

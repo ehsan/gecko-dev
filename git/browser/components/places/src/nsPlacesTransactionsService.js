@@ -41,24 +41,21 @@
 let Ci = Components.interfaces;
 let Cc = Components.classes;
 let Cr = Components.results;
-let Cu = Components.utils;
 
 const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
+const GUID_ANNO = "placesInternal/GUID";
 
 const CLASS_ID = Components.ID("c0844a84-5a12-4808-80a8-809cb002bb4f");
 const CONTRACT_ID = "@mozilla.org/browser/placesTransactionsService;1";
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "Services", function() {
-  Cu.import("resource://gre/modules/Services.jsm");
-  return Services;
-});
-
-XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
-  Cu.import("resource://gre/modules/PlacesUtils.jsm");
-  return PlacesUtils;
+__defineGetter__("PlacesUtils", function() {
+  delete this.PlacesUtils
+  var tmpScope = {};
+  Components.utils.import("resource://gre/modules/utils.js", tmpScope);
+  return this.PlacesUtils = tmpScope.PlacesUtils;
 });
 
 // The minimum amount of transactions we should tell our observers to begin
@@ -66,7 +63,6 @@ XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
 const MIN_TRANSACTIONS_FOR_BATCH = 5;
 
 function placesTransactionsService() {
-  Services.obs.addObserver(this, PlacesUtils.TOPIC_SHUTDOWN, false);
   this.mTransactionManager = Cc["@mozilla.org/transactionmanager;1"].
                              createInstance(Ci.nsITransactionManager);
 }
@@ -76,19 +72,8 @@ placesTransactionsService.prototype = {
   classID: CLASS_ID,
   contractID: CONTRACT_ID,
 
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsIPlacesTransactionsService,
-    Ci.nsITransactionManager,
-    Ci.nsIObserver,
-  ]),
-
-  // nsIObserver
-  observe: function PlacesTxn_observe(aSubject, aTopic, aData) {
-    if (aTopic == PlacesUtils.TOPIC_SHUTDOWN) {
-      Services.obs.removeObserver(this, PlacesUtils.TOPIC_SHUTDOWN);
-      delete this.mTransactionManager;
-    }
-  },
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIPlacesTransactionsService,
+                                         Ci.nsITransactionManager]),
 
   aggregateTransactions:
   function placesTxn_aggregateTransactions(aName, aTransactions) {
@@ -243,7 +228,9 @@ placesTransactionsService.prototype = {
   // Update commands in the undo group of the active window
   // commands in inactive windows will are updated on-focus
   _updateCommands: function placesTxn__updateCommands() {
-    var win = Services.wm.getMostRecentWindow(null);
+    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+             getService(Ci.nsIWindowMediator);
+    var win = wm.getMostRecentWindow(null);
     if (win)
       win.updateCommands("undo");
   },
@@ -458,7 +445,7 @@ placesCreateFolderTransactions.prototype = {
     }
 
     // If a GUID exists for this item, preserve it before removing the item.
-    if (PlacesUtils.annotations.itemHasAnnotation(this._id, PlacesUtils.GUID_ANNO))
+    if (PlacesUtils.annotations.itemHasAnnotation(this._id, GUID_ANNO))
       this._GUID = PlacesUtils.bookmarks.getItemGUID(this._id);
 
     // Remove item only after all child transactions have been reverted.
@@ -516,7 +503,7 @@ placesCreateItemTransactions.prototype = {
     }
 
     // If a GUID exists for this item, preserve it before removing the item.
-    if (PlacesUtils.annotations.itemHasAnnotation(this._id, PlacesUtils.GUID_ANNO))
+    if (PlacesUtils.annotations.itemHasAnnotation(this._id, GUID_ANNO))
       this._GUID = PlacesUtils.bookmarks.getItemGUID(this._id);
 
     // Remove item only after all child transactions have been reverted.
@@ -547,7 +534,7 @@ placesCreateSeparatorTransactions.prototype = {
 
   undoTransaction: function PCST_undoTransaction() {
     // If a GUID exists for this item, preserve it before removing the item.
-    if (PlacesUtils.annotations.itemHasAnnotation(this._id, PlacesUtils.GUID_ANNO))
+    if (PlacesUtils.annotations.itemHasAnnotation(this._id, GUID_ANNO))
       this._GUID = PlacesUtils.bookmarks.getItemGUID(this._id);
 
     PlacesUtils.bookmarks.removeItem(this._id);
@@ -585,7 +572,7 @@ placesCreateLivemarkTransactions.prototype = {
 
   undoTransaction: function PCLT_undoTransaction() {
     // If a GUID exists for this item, preserve it before removing the item.
-    if (PlacesUtils.annotations.itemHasAnnotation(this._id, PlacesUtils.GUID_ANNO))
+    if (PlacesUtils.annotations.itemHasAnnotation(this._id, GUID_ANNO))
       this._GUID = PlacesUtils.bookmarks.getItemGUID(this._id);
 
     PlacesUtils.bookmarks.removeItem(this._id);
@@ -704,7 +691,7 @@ placesRemoveItemTransaction.prototype = {
         // children, see getMostRecentBookmarkForURI) for the bookmark's url,
         // remove the url from tag containers as well.
         if (PlacesUtils.getMostRecentBookmarkForURI(this._uri) == -1) {
-          this._tags = PlacesUtils.tagging.getTagsForURI(this._uri);
+          this._tags = PlacesUtils.tagging.getTagsForURI(this._uri, {});
           PlacesUtils.tagging.untagURI(this._uri, this._tags);
         }
       }
@@ -789,7 +776,7 @@ placesEditBookmarkURITransactions.prototype = {
     this._oldURI = PlacesUtils.bookmarks.getBookmarkURI(this._id);
     PlacesUtils.bookmarks.changeBookmarkURI(this._id, this._newURI);
     // move tags from old URI to new URI
-    this._tags = PlacesUtils.tagging.getTagsForURI(this._oldURI);
+    this._tags = PlacesUtils.tagging.getTagsForURI(this._oldURI, {});
     if (this._tags.length != 0) {
       // only untag the old URI if this is the only bookmark
       if (PlacesUtils.getBookmarksForURI(this._oldURI, {}).length == 0)
@@ -1147,7 +1134,7 @@ placesTagURITransaction.prototype = {
   undoTransaction: function PTU_undoTransaction() {
     if (this._unfiledItemId != -1) {
       // If a GUID exists for this item, preserve it before removing the item.
-      if (PlacesUtils.annotations.itemHasAnnotation(this._unfiledItemId, PlacesUtils.GUID_ANNO)) {
+      if (PlacesUtils.annotations.itemHasAnnotation(this._unfiledItemId, GUID_ANNO)) {
         this._GUID = PlacesUtils.bookmarks.getItemGUID(this._unfiledItemId);
       }
       PlacesUtils.bookmarks.removeItem(this._unfiledItemId);
@@ -1170,7 +1157,7 @@ function placesUntagURITransaction(aURI, aTags) {
     }
   }
   else
-    this._tags = PlacesUtils.tagging.getTagsForURI(this._uri);
+    this._tags = PlacesUtils.tagging.getTagsForURI(this._uri, {});
 
   this.redoTransaction = this.doTransaction;
 }

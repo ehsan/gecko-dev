@@ -25,7 +25,6 @@ package nu.validator.htmlparser.impl;
 import nu.validator.htmlparser.annotation.Literal;
 import nu.validator.htmlparser.annotation.Local;
 import nu.validator.htmlparser.annotation.NoLength;
-import nu.validator.htmlparser.common.Interner;
 
 public final class Portability {
 
@@ -35,7 +34,7 @@ public final class Portability {
      * Allocates a new local name object. In C++, the refcount must be set up in such a way that 
      * calling <code>releaseLocal</code> on the return value balances the refcount set by this method.
      */
-    public static @Local String newLocalNameFromBuffer(@NoLength char[] buf, int offset, int length, Interner interner) {
+    public static @Local String newLocalNameFromBuffer(@NoLength char[] buf, int offset, int length) {
         return new String(buf, offset, length).intern();
     }
 
@@ -51,10 +50,6 @@ public final class Portability {
         return literal;
     }
     
-    public static String newStringFromString(String string) {
-        return string;
-    }
-    
     // XXX get rid of this
     public static char[] newCharArrayFromLocal(@Local String local) {
         return local.toCharArray();
@@ -62,10 +57,6 @@ public final class Portability {
 
     public static char[] newCharArrayFromString(String string) {
         return string.toCharArray();
-    }
-    
-    public static @Local String newLocalFromLocal(@Local String local, Interner interner) {
-        return local;
     }
     
     // Deallocation methods
@@ -94,9 +85,6 @@ public final class Portability {
         // No-op in Java
     }    
     
-    // [NOCPP[
-    // These are no longer used in Gecko. Need to decide what to do about these in the long term.    
-    
     public static void retainElement(Object elt) {
         // No-op in Java
     }
@@ -104,8 +92,6 @@ public final class Portability {
     public static void releaseElement(Object elt) {
         // No-op in Java
     }
-    
-    // ]NOCPP]
     
     // Comparison methods
     
@@ -168,7 +154,7 @@ public final class Portability {
     }
 
     public static char[] isIndexPrompt() {
-        return "This is a searchable index. Enter search keywords: ".toCharArray();
+        return "This is a searchable index. Insert your search keywords here: ".toCharArray();
     }
 
     public static void delete(Object o) {

@@ -38,6 +38,7 @@
 #include "nsContainerFrame.h"
 #include "nsCSSRendering.h"
 #include "nsIDocument.h"
+#include "nsPresContext.h"
 #include "nsPageFrame.h"
 #include "nsIRenderingContext.h"
 #include "nsGUIEvent.h"
@@ -62,7 +63,7 @@ class nsDocElementBoxFrame : public nsBoxFrame,
                              public nsIAnonymousContentCreator
 {
 public:
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   friend nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
                                   nsStyleContext* aContext);
@@ -75,7 +76,6 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
@@ -104,11 +104,11 @@ NS_NewDocElementBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsDocElementBoxFrame)
 
 void
-nsDocElementBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsDocElementBoxFrame::Destroy()
 {
   nsContentUtils::DestroyAnonymousContent(&mPopupgroupContent);
   nsContentUtils::DestroyAnonymousContent(&mTooltipContent);
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }
 
 nsresult
@@ -148,13 +148,6 @@ nsDocElementBoxFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
-}
-
-void
-nsDocElementBoxFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
-{
-  aElements.MaybeAppendElement(mPopupgroupContent);
-  aElements.MaybeAppendElement(mTooltipContent);
 }
 
 NS_QUERYFRAME_HEAD(nsDocElementBoxFrame)

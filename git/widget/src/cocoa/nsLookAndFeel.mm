@@ -41,6 +41,7 @@
 #include "nsIServiceManager.h"
 #include "nsNativeThemeColors.h"
 
+#import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 
 nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()
@@ -261,8 +262,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       aColor = NS_RGB(0xA3,0xA3,0xA3);
       break;          
     case eColor__moz_mac_menutextdisable:
-      aColor = nsToolkit::OnSnowLeopardOrLater() ?
-                 NS_RGB(0x88,0x88,0x88) : NS_RGB(0x98,0x98,0x98);
+      aColor = GetColorFromNSColor([NSColor disabledControlTextColor]);
       break;      
     case eColor__moz_mac_menutextselect:
       aColor = GetColorFromNSColor([NSColor selectedMenuItemTextColor]);
@@ -466,9 +466,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     {
       aMetric = [[NSUserDefaults standardUserDefaults] boolForKey:@"AppleScrollerPagingBehavior"];
     }
-      break;
-    case eMetric_ChosenMenuItemsShouldBlink:
-      aMetric = 1;
       break;
     case eMetric_IMERawInputUnderlineStyle:
     case eMetric_IMEConvertedTextUnderlineStyle:

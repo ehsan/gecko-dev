@@ -51,6 +51,7 @@ class nsIContent;
 class imgIRequest;
 class nsMenuObjectX;
 
+#import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 
 class nsMenuItemIconX : public imgIDecoderObserver
@@ -88,7 +89,6 @@ protected:
   nsCOMPtr<nsIContent>  mContent;
   nsCOMPtr<imgIRequest> mIconRequest;
   nsMenuObjectX*        mMenuObject; // [weak]
-  nsIntRect             mImageRegionRect;
   PRPackedBool          mLoadedIcon;
   PRPackedBool          mSetIcon;
   NSMenuItem*           mNativeMenuItem; // [weak]

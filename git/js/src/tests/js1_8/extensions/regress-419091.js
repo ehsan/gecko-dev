@@ -59,11 +59,6 @@ function test()
   }
   else
   {
-    if (typeof gczeal == 'undefined')
-    {
-      gczeal = (function () {});
-    }
-
     gczeal(2);
 
     function f() {

@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -34,22 +34,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function browserWindowsCount() {
-  let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
-  while (e.hasMoreElements()) {
-    if (!e.getNext().closed)
-      ++count;
-  }
-  return count;
-}
-
 function test() {
   /** Test for Bug 484108 **/
-  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
-
-  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
-  waitForExplicitFinish();
 
   // builds the tests state based on a few parameters
   function buildTestState(num, selected) {
@@ -79,6 +65,10 @@ function test() {
     return expected;
   }
 
+  // test setup
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+  waitForExplicitFinish();
+
   // the number of tests we're running
   let numTests = 4;
   let completedTests = 0;
@@ -102,7 +92,7 @@ function test() {
       handleSSTabRestoring: function (aEvent) {
         let tab = aEvent.originalTarget;
         let tabbrowser = this.window.gBrowser;
-        let currentIndex = Array.indexOf(tabbrowser.tabs, tab);
+        let currentIndex = Array.indexOf(tabbrowser.mTabs, tab);
         this.actualOrder.push(currentIndex);
 
         if (this.actualOrder.length < this.state.windows[0].tabs.length)
@@ -121,7 +111,6 @@ function test() {
         if (++completedTests == numTests) {
           this.window.removeEventListener("load", this, false);
           this.window.removeEventListener("SSTabRestoring", this, false);
-          is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
           finish();
         }
       },

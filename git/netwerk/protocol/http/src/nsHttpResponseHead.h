@@ -56,6 +56,7 @@ public:
                          , mContentLength(LL_MAXUINT)
                          , mCacheControlNoStore(PR_FALSE)
                          , mCacheControlNoCache(PR_FALSE)
+                         , mCacheControlPublic(PR_FALSE)
                          , mPragmaNoCache(PR_FALSE) {}
    ~nsHttpResponseHead() 
     {
@@ -71,6 +72,7 @@ public:
     const nsAFlatCString &ContentCharset() { return mContentCharset; }
     PRBool                NoStore()        { return mCacheControlNoStore; }
     PRBool                NoCache()        { return (mCacheControlNoCache || mPragmaNoCache); }
+    PRBool                CacheControlPublic() { return mCacheControlPublic; }
     /**
      * Full length of the entity. For byte-range requests, this may be larger
      * than ContentLength(), which will only represent the requested part of the
@@ -101,10 +103,10 @@ public:
     nsresult Parse(char *block);
 
     // parse the status line. line must be null terminated.
-    void     ParseStatusLine(const char *line);
+    void     ParseStatusLine(char *line);
 
     // parse a header line. line must be null terminated. parsing is destructive.
-    void     ParseHeaderLine(const char *line);
+    void     ParseHeaderLine(char *line);
 
     // cache validation support methods
     nsresult ComputeFreshnessLifetime(PRUint32 *);
@@ -148,6 +150,7 @@ private:
     nsCString         mContentCharset;
     PRPackedBool      mCacheControlNoStore;
     PRPackedBool      mCacheControlNoCache;
+    PRPackedBool      mCacheControlPublic;
     PRPackedBool      mPragmaNoCache;
 };
 

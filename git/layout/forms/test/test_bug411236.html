@@ -34,9 +34,7 @@ function setOrRestoreTabFocus(newValue) {
   var prefs = Components.classes[prefSvcContractID].getService(prefSvcIID)
                                                    .getBranch("accessibility.");
   if (!newValue) {
-    try {
-      prefs.clearUserPref("tabfocus");
-    } catch(ex) {}
+    prefs.clearUserPref("tabfocus");
   } else {
     prefs.setIntPref("tabfocus", newValue);
   }
@@ -89,7 +87,7 @@ function do_test() {
 }
 
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(do_test);
+addLoadEvent(test);
 
 </script>
 </pre>

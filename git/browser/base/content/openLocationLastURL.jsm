@@ -53,21 +53,13 @@ let observer = {
     throw Components.results.NS_NOINTERFACE;
   },
   observe: function (aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "private-browsing":
-        gOpenLocationLastURLData = "";
-        break;
-      case "browser:purge-session-history":
-        gOpenLocationLastURL.reset();
-        break;
-    }
+    gOpenLocationLastURLData = "";
   }
 };
 
-let os = Components.classes["@mozilla.org/observer-service;1"]
-                   .getService(Components.interfaces.nsIObserverService);
-os.addObserver(observer, "private-browsing", true);
-os.addObserver(observer, "browser:purge-session-history", true);
+Components.classes["@mozilla.org/observer-service;1"]
+          .getService(Components.interfaces.nsIObserverService)
+          .addObserver(observer, "private-browsing", true);
 
 let gOpenLocationLastURLData = "";
 let gOpenLocationLastURL = {
@@ -96,8 +88,7 @@ let gOpenLocationLastURL = {
     }
   },
   reset: function() {
-    if (prefSvc.prefHasUserValue(LAST_URL_PREF))
-        prefSvc.clearUserPref(LAST_URL_PREF);
+    prefSvc.clearUserPref(LAST_URL_PREF);
     gOpenLocationLastURLData = "";
   }
 };

@@ -35,13 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsCaretAccessible.h"
-
+// NOTE: alphabetically ordered
 #include "nsAccessibilityService.h"
-#include "nsAccUtils.h"
-#include "nsCoreUtils.h"
+#include "nsCaretAccessible.h"
 #include "nsIAccessibleEvent.h"
-
 #include "nsCaret.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLAnchorElement.h"
@@ -53,6 +50,7 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelection2.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIViewManager.h"
 
 class nsIWidget;
 
@@ -271,7 +269,7 @@ nsCaretAccessible::NormalSelectionChanged(nsIDOMDocument *aDoc,
   mLastCaretOffset = caretOffset;
   mLastTextAccessible = textAcc;
 
-  nsRefPtr<nsAccEvent> event =
+  nsCOMPtr<nsIAccessibleEvent> event =
     new nsAccCaretMoveEvent(textNode);
   NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
@@ -294,12 +292,12 @@ nsCaretAccessible::SpellcheckSelectionChanged(nsIDOMDocument *aDoc,
 
   nsCOMPtr<nsIAccessible> acc(do_QueryInterface(textAcc));
 
-  nsRefPtr<nsAccEvent> event =
+  nsCOMPtr<nsIAccessibleEvent> event =
     new nsAccEvent(nsIAccessibleEvent::EVENT_TEXT_ATTRIBUTE_CHANGED,
                    acc, nsnull);
+  NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
-  nsEventShell::FireEvent(event);
-  return NS_OK;
+  return mRootAccessible->FireAccessibleEvent(event);
 }
 
 nsIntRect
@@ -321,34 +319,41 @@ nsCaretAccessible::GetCaretRect(nsIWidget **aOutWidget)
   lastAccessNode->GetDOMNode(getter_AddRefs(lastNodeWithCaret));
   NS_ENSURE_TRUE(lastNodeWithCaret, caretRect);
 
-  nsIPresShell *presShell =
+  nsCOMPtr<nsIPresShell> presShell =
     nsCoreUtils::GetPresShellFor(lastNodeWithCaret);
   NS_ENSURE_TRUE(presShell, caretRect);
 
-  nsRefPtr<nsCaret> caret = presShell->GetCaret();
+  nsRefPtr<nsCaret> caret;
+  presShell->GetCaret(getter_AddRefs(caret));
   NS_ENSURE_TRUE(caret, caretRect);
 
+  PRBool isCollapsed;
+  nsIView *view;
   nsCOMPtr<nsISelection> caretSelection(do_QueryReferent(mLastUsedSelection));
   NS_ENSURE_TRUE(caretSelection, caretRect);
   
+  nsRect rect;
+  caret->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates, caretSelection,
+                             &rect, &isCollapsed, &view);
+  if (!view || rect.IsEmpty()) {
+    return nsIntRect(); // Return empty rect
+  }
+
   PRBool isVisible;
   caret->GetCaretVisible(&isVisible);
   if (!isVisible) {
     return nsIntRect();  // Return empty rect
   }
-
-  nsRect rect;
-  nsIFrame* frame = caret->GetGeometry(caretSelection, &rect);
-  if (!frame || rect.IsEmpty()) {
-    return nsIntRect(); // Return empty rect
-  }
-
-  nsPoint offset;
-  *aOutWidget = frame->GetWindowOffset(offset);
+  nsPoint offsetFromWidget;
+  *aOutWidget = view->GetNearestWidget(&offsetFromWidget);
   NS_ENSURE_TRUE(*aOutWidget, nsIntRect());
-  rect.MoveBy(offset);
 
-  caretRect = rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
+  nsPresContext *presContext = presShell->GetPresContext();
+  NS_ENSURE_TRUE(presContext, nsIntRect());
+
+  rect += offsetFromWidget;
+  caretRect = rect.ToOutsidePixels(presContext->AppUnitsPerDevPixel());
+
   caretRect.MoveBy((*aOutWidget)->WidgetToScreenOffset());
 
   // Correct for character size, so that caret always matches the size of the character
@@ -371,7 +376,7 @@ nsCaretAccessible::GetSelectionControllerForNode(nsIDOMNode *aNode)
   if (!aNode)
     return nsnull;
 
-  nsIPresShell *presShell = nsCoreUtils::GetPresShellFor(aNode);
+  nsCOMPtr<nsIPresShell> presShell = nsCoreUtils::GetPresShellFor(aNode);
   if (!presShell)
     return nsnull;
 
@@ -384,7 +389,7 @@ nsCaretAccessible::GetSelectionControllerForNode(nsIDOMNode *aNode)
   if (!content)
     return nsnull;
 
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
   if (!frame)
     return nsnull;
 

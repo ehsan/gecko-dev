@@ -60,12 +60,8 @@
 #include "nsHtml5UTF16Buffer.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5StreamParser.h"
-#include "nsHtml5AtomTable.h"
-#include "nsWeakReference.h"
 
-class nsHtml5Parser : public nsIParser,
-                      public nsSupportsWeakReference
-{
+class nsHtml5Parser : public nsIParser {
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -82,9 +78,9 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD_(void) SetContentSink(nsIContentSink* aSink);
 
     /**
-     * Returns the tree op executor for backwards compat.
+     * Returns |this| for backwards compat.
      */
-    NS_IMETHOD_(nsIContentSink*) GetContentSink();
+    NS_IMETHOD_(nsIContentSink*) GetContentSink(void);
 
     /**
      * Always returns "view" for backwards compat.
@@ -141,9 +137,15 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
 
     /**
-     * Don't call. For interface compat only.
+     * Unblocks parser and calls ContinueInterruptedParsing()
      */
-    NS_IMETHOD ContinueInterruptedParsing();
+    NS_IMETHOD        ContinueParsing();
+
+    /**
+     * If scripts are not executing, maybe flushes tree builder and parses
+     * until suspension.
+     */
+    NS_IMETHOD        ContinueInterruptedParsing();
 
     /**
      * Blocks the parser.
@@ -156,7 +158,7 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD_(void) UnblockParser();
 
     /**
-     * Query whether the parser is enabled (i.e. not blocked) or not.
+     * Query whether the parser is enabled or not.
      */
     NS_IMETHOD_(PRBool) IsParserEnabled();
 
@@ -201,7 +203,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Stops the parser prematurely
      */
-    NS_IMETHOD Terminate();
+    NS_IMETHOD        Terminate(void);
 
     /**
      * Don't call. For interface backwards compat only.
@@ -229,12 +231,12 @@ class nsHtml5Parser : public nsIParser,
                              PRBool aQuirks);
 
     /**
-     * Don't call. For interface compat only.
+     * Calls ParseUntilSuspend()
      */
-    NS_IMETHOD BuildModel();
+    NS_IMETHOD BuildModel(void);
 
     /**
-     * Don't call. For interface compat only.
+     *  Removes continue parsing events
      */
     NS_IMETHODIMP CancelParsingEvents();
 
@@ -247,34 +249,13 @@ class nsHtml5Parser : public nsIParser,
      * True in fragment mode and during synchronous document.write
      */
     virtual PRBool CanInterrupt();
-
-    /**
-     * True if the insertion point (per HTML5) is defined.
-     */
-    virtual PRBool IsInsertionPointDefined();
-
-    /**
-     * Call immediately before starting to evaluate a parser-inserted script.
-     */
-    virtual void BeginEvaluatingParserInsertedScript();
-
-    /**
-     * Call immediately after having evaluated a parser-inserted script.
-     */
-    virtual void EndEvaluatingParserInsertedScript();
-
-    /**
-     * Marks the HTML5 parser as not a script-created parser: Prepares the 
-     * parser to be able to read a stream.
-     */
-    virtual void MarkAsNotScriptCreated();
-
-    /**
-     * True if this is a script-created HTML5 parser.
-     */
-    virtual PRBool IsScriptCreated();
-
+    
     /* End nsIParser  */
+
+    /**
+     *  Fired when the continue parse event is triggered.
+     */
+    void HandleParserContinueEvent(class nsHtml5ParserContinueEvent *);
 
     // Not from an external interface
     // Non-inherited methods
@@ -289,33 +270,30 @@ class nsHtml5Parser : public nsIParser,
                         nsISupports* aContainer,
                         nsIChannel* aChannel);
 
+    /**
+     * Request event loop spin as soon as the tokenizer returns
+     */
+    void Suspend();
+        
     inline nsHtml5Tokenizer* GetTokenizer() {
       return mTokenizer;
     }
 
-    void InitializeDocWriteParserState(nsAHtml5TreeBuilderState* aState, PRInt32 aLine);
-
-    void DropStreamParser() {
-      if (mStreamParser) {
-        mStreamParser->DropTimer();
-        mStreamParser = nsnull;
-      }
-    }
-    
-    void StartTokenizer(PRBool aScriptingEnabled);
-    
-    void ContinueAfterFailedCharsetSwitch();
-
-    nsHtml5StreamParser* GetStreamParser() {
-      return mStreamParser;
-    }
-
     /**
-     * Parse until pending data is exhausted or a script blocks the parser
+     * Posts a continue event if there isn't one already
      */
-    void ParseUntilBlocked();
+    void MaybePostContinueEvent();
+    
+    void DropStreamParser() {
+      mStreamParser = nsnull;
+    }
 
   private:
+
+    /**
+     * Parse until pending data is exhausted or tree builder suspends
+     */
+    void ParseUntilSuspend();
 
     // State variables
 
@@ -333,25 +311,23 @@ class nsHtml5Parser : public nsIParser,
      * The parser is blocking on a script
      */
     PRBool                        mBlocked;
-    
-    /**
-     * The number of parser-inserted script currently being evaluated.
-     */
-    PRInt32                       mParserInsertedScriptsBeingEvaluated;
 
     /**
-     * True if document.close() has been called.
+     * The event loop will spin ASAP
      */
-    PRBool                        mDocumentClosed;
+    PRBool                        mSuspending;
+
+    // script execution
 
     // Gecko integration
     void*                         mRootContextKey;
+    nsIRunnable*                  mContinueEvent;  // weak ref
 
     // Portable parser objects
     /**
      * The first buffer in the pending UTF-16 buffer queue
      */
-    nsRefPtr<nsHtml5UTF16Buffer>  mFirstBuffer;
+    nsHtml5UTF16Buffer*           mFirstBuffer; // manually managed strong ref
 
     /**
      * The last buffer in the pending UTF-16 buffer queue
@@ -362,7 +338,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * The tree operation executor
      */
-    nsRefPtr<nsHtml5TreeOpExecutor>     mExecutor;
+    nsRefPtr<nsHtml5TreeOpExecutor> mExecutor;
 
     /**
      * The HTML5 tree builder
@@ -377,22 +353,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * The stream parser.
      */
-    nsRefPtr<nsHtml5StreamParser>       mStreamParser;
-
-    /**
-     *
-     */
-    PRInt32                             mRootContextLineNumber;
-    
-    /**
-     * Whether it's OK to transfer parsing back to the stream parser
-     */
-    PRBool                              mReturnToStreamParserPermitted;
-
-    /**
-     * The scoped atom table
-     */
-    nsHtml5AtomTable                    mAtomTable;
+    nsRefPtr<nsHtml5StreamParser> mStreamParser;
 
 };
 #endif

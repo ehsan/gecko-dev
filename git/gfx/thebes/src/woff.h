@@ -14,7 +14,7 @@
  *
  * The Original Code is WOFF font packaging code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -48,7 +48,6 @@ typedef int            int32_t;
 typedef unsigned char  uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int   uint32_t;
-typedef unsigned __int64  uint64_t;
 #else
 #include <inttypes.h>
 #endif

@@ -47,13 +47,7 @@ nsStreamListenerTee::OnStartRequest(nsIRequest *request,
                                     nsISupports *context)
 {
     NS_ENSURE_TRUE(mListener, NS_ERROR_NOT_INITIALIZED);
-    nsresult rv1 = mListener->OnStartRequest(request, context);
-    nsresult rv2 = NS_OK;
-    if (mObserver)
-        rv2 = mObserver->OnStartRequest(request, context);
-  
-    // Preserve NS_SUCCESS_XXX in rv1 in case mObserver didn't throw
-    return (NS_FAILED(rv2) && NS_SUCCEEDED(rv1)) ? rv2 : rv1;
+    return mListener->OnStartRequest(request, context);
 }
 
 NS_IMETHODIMP
@@ -68,11 +62,7 @@ nsStreamListenerTee::OnStopRequest(nsIRequest *request,
         mInputTee = 0;
     }
     mSink = 0;
-    nsresult rv = mListener->OnStopRequest(request, context, status);
-    if (mObserver)
-        mObserver->OnStopRequest(request, context, status);
-    mObserver = 0;
-    return rv;
+    return mListener->OnStopRequest(request, context, status);
 }
 
 NS_IMETHODIMP
@@ -89,11 +79,7 @@ nsStreamListenerTee::OnDataAvailable(nsIRequest *request,
     nsresult rv;
 
     if (!mInputTee) {
-        if (mEventTarget)
-            rv = NS_NewInputStreamTeeAsync(getter_AddRefs(tee), input,
-                                           mSink, mEventTarget);
-        else
-            rv = NS_NewInputStreamTee(getter_AddRefs(tee), input, mSink);
+        rv = NS_NewInputStreamTee(getter_AddRefs(tee), input, mSink);
         if (NS_FAILED(rv)) return rv;
 
         mInputTee = do_QueryInterface(tee, &rv);
@@ -113,24 +99,9 @@ nsStreamListenerTee::OnDataAvailable(nsIRequest *request,
 
 NS_IMETHODIMP
 nsStreamListenerTee::Init(nsIStreamListener *listener,
-                          nsIOutputStream *sink,
-                          nsIRequestObserver *requestObserver)
+                          nsIOutputStream *sink)
 {
-    NS_ENSURE_ARG_POINTER(listener);
-    NS_ENSURE_ARG_POINTER(sink);
     mListener = listener;
     mSink = sink;
-    mObserver = requestObserver;
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsStreamListenerTee::InitAsync(nsIStreamListener *listener,
-                               nsIEventTarget *eventTarget,
-                               nsIOutputStream *sink,
-                               nsIRequestObserver *requestObserver)
-{
-    NS_ENSURE_ARG_POINTER(eventTarget);
-    mEventTarget = eventTarget;
-    return Init(listener, sink, requestObserver);
 }

@@ -62,8 +62,7 @@ protected:
     nsCOMPtr<nsINode> mRoot;
     PRUint32 mWhatToShow;
     nsCOMPtr<nsIDOMNodeFilter> mFilter;
-    PRPackedBool mExpandEntityReferences;
-    PRPackedBool mInAcceptNode;
+    PRBool mExpandEntityReferences;
 
     /*
      * Tests if and how a node should be filtered. Uses mWhatToShow and

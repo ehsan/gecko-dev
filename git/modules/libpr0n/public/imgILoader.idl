@@ -48,7 +48,6 @@ interface nsIStreamListener;
 interface nsIURI;
 
 interface nsISimpleEnumerator;
-interface nsIChannelPolicy;
 
 #include "nsIRequest.idl" // for nsLoadFlags
 
@@ -59,7 +58,7 @@ interface nsIChannelPolicy;
  * @version 0.3
  * @see imagelib2
  */
-[scriptable, uuid(7b776f98-3faf-40f9-b352-3283a884cb98)]
+[scriptable, uuid(d2f50c69-1064-4ce3-a92d-01dc5f5b4842)]
 interface imgILoader : nsISupports
 {
   /**
@@ -90,8 +89,7 @@ interface imgILoader : nsISupports
                         in nsISupports aCX,
                         in nsLoadFlags aLoadFlags,
                         in nsISupports cacheKey,
-                        in imgIRequest aRequest,
-                        in nsIChannelPolicy channelPolicy);
+                        in imgIRequest aRequest);
 
   /**
    * Start the load and decode of an image.

@@ -46,6 +46,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
 #include "nsIDOMText.h"
@@ -59,6 +60,7 @@
 // Notify/query select frame for selected state
 #include "nsIFormControlFrame.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsNodeInfoManager.h"
@@ -118,8 +120,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
-
 protected:
   /**
    * Get the select content element that contains this option, this
@@ -177,8 +177,6 @@ nsHTMLOptionElement::~nsHTMLOptionElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLOptionElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLOptionElement, nsGenericElement)
 
-
-DOMCI_DATA(HTMLOptionElement, nsHTMLOptionElement)
 
 // QueryInterface implementation for nsHTMLOptionElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionElement)
@@ -530,18 +528,3 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
 
   return result;
 }
-
-nsresult
-nsHTMLOptionElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    PRBool selected = PR_FALSE;
-    const_cast<nsHTMLOptionElement*>(this)->GetSelected(&selected);
-    static_cast<nsHTMLOptionElement*>(aDest)->SetSelected(selected);
-  }
-  return NS_OK;
-}
-

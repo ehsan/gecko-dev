@@ -55,7 +55,6 @@ button {
   -moz-border-left-colors: transparent ThreeDHighlight ThreeDLightShadow;
   background-color: ThreeDFace;
   color: ButtonText;
-  text-shadow: none;
 }
 
 .button-box {
@@ -80,7 +79,7 @@ button:focus {
   -moz-border-left-colors: ThreeDDarkShadow ThreeDHighlight transparent;
 }
 
-button:-moz-focusring > .button-box {
+button:focus > .button-box {
   border: 1px dotted ThreeDDarkShadow;
 }
 
@@ -180,5 +179,7 @@ button[type="disclosure"] {
 }
 
 button[type="disclosure"][open="true"] {
-  list-style-image: url("chrome://global/skin/tree/twisty-open.png");
+  list-style-image: url("chrome://global/skin/tree/twisty-open.png"); 
 }
+
+

@@ -74,17 +74,13 @@ XPIDLSRCS	= \
 		nsIURIFixup.idl			\
 		nsIEditorDocShell.idl		\
 		nsIWebPageDescriptor.idl	\
+		nsIURIClassifier.idl		\
+		nsIChannelClassifier.idl	\
 		nsIDownloadHistory.idl          \
 		nsILoadContext.idl              \
 		$(NULL)
 
 EXPORTS		= nsDocShellLoadTypes.h
-
-EXPORTS_NAMESPACES = mozilla
-
-EXPORTS_mozilla = \
-  IHistory.h \
-  $(NULL)
 
 CPPSRCS		= \
 		nsDocShell.cpp		\
@@ -107,6 +103,4 @@ FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 
-LOCAL_INCLUDES += -I$(srcdir)/../shistory/src \
-		-I$(srcdir)/../../layout/base \
-		$(NULL)
+LOCAL_INCLUDES += -I$(srcdir)/../shistory/src

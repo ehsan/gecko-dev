@@ -298,8 +298,6 @@ NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 NS_IMPL_ADDREF_INHERITED(nsXULTreeBuilder, nsXULTemplateBuilder)
 NS_IMPL_RELEASE_INHERITED(nsXULTreeBuilder, nsXULTemplateBuilder)
 
-DOMCI_DATA(XULTreeBuilder, nsXULTreeBuilder)
-
 NS_INTERFACE_MAP_BEGIN(nsXULTreeBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIXULTreeBuilder)
   NS_INTERFACE_MAP_ENTRY(nsITreeView)
@@ -1680,10 +1678,6 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
 
                 ++count;
             }
-
-            if (mFlags & eLoggingEnabled)
-                OutputMatchToLog(resultid, newmatch, PR_TRUE);
-
         }
 
         if (prevmatch) {
@@ -1708,9 +1702,12 @@ nsXULTreeBuilder::CloseContainer(PRInt32 aIndex)
 
     nsTreeRows::iterator iter = mRows[aIndex];
 
-    if (iter->mSubtree)
-        RemoveMatchesFor(*iter->mSubtree);
+    nsTreeRows::Subtree& subtree = *(iter->mSubtree);
 
+    RemoveMatchesFor(subtree);
+
+    // Update the view
+    iter = mRows[aIndex];
 
     PRInt32 count = mRows.GetSubtreeSizeFor(iter);
     mRows.RemoveSubtreeFor(iter);

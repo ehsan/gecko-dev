@@ -76,14 +76,11 @@ class nsAudioStream
   // Write sound data to the audio hardware.  aBuf is an array of samples in
   // the format specified by mFormat of length aCount.  aCount should be
   // evenly divisible by the number of channels in this audio stream.
-  // When aBlocking is PR_TRUE, we'll block until the write has completed,
-  // otherwise we'll buffer any data we can't write immediately, and write
-  // it in a later call.
-  void Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking);
+  void Write(const void* aBuf, PRUint32 aCount);
 
   // Return the number of sound samples that can be written to the audio device
   // without blocking.
-  PRUint32 Available();
+  PRInt32 Available();
 
   // Set the current volume of the audio playback. This is a value from
   // 0 (meaning muted) to 1 (meaning full volume).
@@ -98,12 +95,9 @@ class nsAudioStream
   // Resume audio playback
   void Resume();
 
-  // Return the position in milliseconds of the sample being played by the
+  // Return the position in seconds of the sample being played by the
   // audio hardware.
-  PRInt64 GetPosition();
-
-  // Returns PR_TRUE when the audio stream is paused.
-  PRBool IsPaused() { return mPaused; }
+  float GetPosition();
 
  private:
   double mVolume;
@@ -118,8 +112,5 @@ class nsAudioStream
   // backend, the remaining samples are stored in this variable. They
   // will be written on the next Write() request.
   nsTArray<short> mBufferOverflow;
-
-  // PR_TRUE if this audio stream is paused.
-  PRPackedBool mPaused;
 };
 #endif

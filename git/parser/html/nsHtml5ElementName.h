@@ -30,7 +30,6 @@
 
 #include "prtypes.h"
 #include "nsIAtom.h"
-#include "nsHtml5AtomTable.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
@@ -43,8 +42,6 @@
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
-#include "nsAHtml5TreeBuilderState.h"
-#include "nsHtml5Macros.h"
 
 class nsHtml5StreamParser;
 
@@ -68,7 +65,7 @@ class nsHtml5ElementName
     PRBool special;
     PRBool scoping;
     PRBool fosterParenting;
-    static nsHtml5ElementName* elementNameByBuffer(jArray<PRUnichar,PRInt32> buf, PRInt32 offset, PRInt32 length, nsHtml5AtomTable* interner);
+    static nsHtml5ElementName* elementNameByBuffer(jArray<PRUnichar,PRInt32> buf, PRInt32 offset, PRInt32 length);
   private:
     static PRInt32 bufToHash(jArray<PRUnichar,PRInt32> buf, PRInt32 len);
     nsHtml5ElementName(nsIAtom* name, nsIAtom* camelCaseName, PRInt32 group, PRBool special, PRBool scoping, PRBool fosterParenting);
@@ -77,7 +74,6 @@ class nsHtml5ElementName
   public:
     virtual void release();
     ~nsHtml5ElementName();
-    virtual nsHtml5ElementName* cloneElementName(nsHtml5AtomTable* interner);
     static nsHtml5ElementName* ELT_A;
     static nsHtml5ElementName* ELT_B;
     static nsHtml5ElementName* ELT_G;
@@ -278,6 +274,7 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_CANVAS;
     static nsHtml5ElementName* ELT_DIVIDE;
     static nsHtml5ElementName* ELT_DEGREE;
+    static nsHtml5ElementName* ELT_DIALOG;
     static nsHtml5ElementName* ELT_DOMAIN;
     static nsHtml5ElementName* ELT_EXISTS;
     static nsHtml5ElementName* ELT_FETILE;
@@ -285,7 +282,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_FORALL;
     static nsHtml5ElementName* ELT_FILTER;
     static nsHtml5ElementName* ELT_FOOTER;
-    static nsHtml5ElementName* ELT_HGROUP;
     static nsHtml5ElementName* ELT_HEADER;
     static nsHtml5ElementName* ELT_IFRAME;
     static nsHtml5ElementName* ELT_KEYGEN;
@@ -425,6 +421,7 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_SOLIDCOLOR;
     static nsHtml5ElementName* ELT_ALTGLYPHDEF;
     static nsHtml5ElementName* ELT_DETERMINANT;
+    static nsHtml5ElementName* ELT_EVENTSOURCE;
     static nsHtml5ElementName* ELT_FEMERGENODE;
     static nsHtml5ElementName* ELT_FECOMPOSITE;
     static nsHtml5ElementName* ELT_FESPOTLIGHT;
@@ -678,6 +675,7 @@ nsHtml5ElementName* nsHtml5ElementName::ELT_CURSOR = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_CANVAS = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_DIVIDE = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_DEGREE = nsnull;
+nsHtml5ElementName* nsHtml5ElementName::ELT_DIALOG = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_DOMAIN = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_EXISTS = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_FETILE = nsnull;
@@ -685,7 +683,6 @@ nsHtml5ElementName* nsHtml5ElementName::ELT_FIGURE = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_FORALL = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_FILTER = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_FOOTER = nsnull;
-nsHtml5ElementName* nsHtml5ElementName::ELT_HGROUP = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_HEADER = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_IFRAME = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_KEYGEN = nsnull;
@@ -825,6 +822,7 @@ nsHtml5ElementName* nsHtml5ElementName::ELT_NOTANUMBER = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_SOLIDCOLOR = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_ALTGLYPHDEF = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_DETERMINANT = nsnull;
+nsHtml5ElementName* nsHtml5ElementName::ELT_EVENTSOURCE = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_FEMERGENODE = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_FECOMPOSITE = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_FESPOTLIGHT = nsnull;

@@ -41,7 +41,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=263683
 -->
 
 <head>
-  <title>Test for Bug 263683</title>
+  <title>Test for Bug 263683</head>
   <script type="application/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="application/javascript"
           src="/tests/SimpleTest/SimpleTest.js"></script>
@@ -152,10 +152,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=263683
         var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                               .getService(Components.interfaces.nsIPrefBranch);
  
-        if (prefs.prefHasUserValue(prefNameFG))
-          prefs.clearUserPref(prefNameFG);
-        if (prefs.prefHasUserValue(prefNameBG))
-          prefs.clearUserPref(prefNameBG);
+        prefs.clearUserPref(prefNameFG);
+        prefs.clearUserPref(prefNameBG);
 
         if (userSetFG)
           prefs.setCharPref(prefNameFG, userValueFG);

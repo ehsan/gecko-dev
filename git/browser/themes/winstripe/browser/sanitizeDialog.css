@@ -59,8 +59,8 @@
   margin: 0;
 }
 
-.expander-up > .button-box,
-.expander-down > .button-box {
+.expander-up > hbox,
+.expander-down > hbox {
   padding: 0;
 }
 

@@ -1,5 +1,8 @@
 <!ENTITY  updateWizard.title              "Software Update">
 
+<!ENTITY  window.width                    "36em">
+<!ENTITY  window.macWidth                 "39em">
+
 <!ENTITY  checking.title                  "Checking for Updates">
 <!ENTITY  updateCheck.label               "Looking for newer versions of &brandShortName;…">
 
@@ -41,7 +44,7 @@
 
 <!ENTITY  incompatibleList.title          "Incompatible Add-ons Found">
 
-<!ENTITY  downloadPage.title              "Downloading &brandShortName;">
+<!ENTITY  downloading.title               "Downloading Update">
 <!ENTITY  downloading.intro               "Downloading the update…">
 <!ENTITY  connecting.label                "Connecting to the update server…">
 <!ENTITY  verificationFailedText.label    "&brandShortName; was unable to verify the integrity of the 

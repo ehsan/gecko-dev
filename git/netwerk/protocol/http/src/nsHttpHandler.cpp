@@ -86,15 +86,13 @@
 #endif
 
 #if defined(XP_MACOSX)
-#include <CoreServices/CoreServices.h>
+#include <Carbon/Carbon.h>
 #endif
 
 #if defined(XP_OS2)
 #define INCL_DOSMISC
 #include <os2.h>
 #endif
-
-#include "mozilla/FunctionTimer.h"
 
 #ifdef DEBUG
 // defined by the socket transport service while active
@@ -121,8 +119,6 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define UA_PREF(_pref) UA_PREF_PREFIX _pref
 #define HTTP_PREF(_pref) HTTP_PREF_PREFIX _pref
 #define BROWSER_PREF(_pref) BROWSER_PREF_PREFIX _pref
-
-#define NS_HTTP_PROTOCOL_FLAGS (URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP | URI_LOADABLE_BY_ANYONE)
 
 //-----------------------------------------------------------------------------
 
@@ -213,8 +209,6 @@ nsHttpHandler::~nsHttpHandler()
 nsresult
 nsHttpHandler::Init()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
 
     LOG(("nsHttpHandler::Init\n"));
@@ -252,7 +246,6 @@ nsHttpHandler::Init()
     LOG(("> app-version = %s\n", mAppVersion.get()));
     LOG(("> platform = %s\n", mPlatform.get()));
     LOG(("> oscpu = %s\n", mOscpu.get()));
-    LOG(("> device = %s\n", mDeviceType.get()));
     LOG(("> security = %s\n", mSecurity.get()));
     LOG(("> language = %s\n", mLanguage.get()));
     LOG(("> misc = %s\n", mMisc.get()));
@@ -274,14 +267,6 @@ nsHttpHandler::Init()
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
-    rv = NS_NewThread(getter_AddRefs(mCacheWriteThread));
-    if (NS_FAILED(rv)) {
-        mCacheWriteThread = nsnull;
-        LOG(("Failed creating cache-write thread - writes will be synchronous"));
-    } else {
-        LOG(("Created cache-write thread = %p", mCacheWriteThread.get()));
-    }
-
     nsCOMPtr<nsIXULAppInfo> appInfo =
         do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo)
@@ -295,13 +280,12 @@ nsHttpHandler::Init()
                                   static_cast<nsISupports*>(static_cast<void*>(this)),
                                   NS_HTTP_STARTUP_TOPIC);    
     
-    mObserverService = mozilla::services::GetObserverService();
+    mObserverService = do_GetService("@mozilla.org/observer-service;1");
     if (mObserverService) {
         mObserverService->AddObserver(this, "profile-change-net-teardown", PR_TRUE);
         mObserverService->AddObserver(this, "profile-change-net-restore", PR_TRUE);
         mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
         mObserverService->AddObserver(this, "net:clear-active-logins", PR_TRUE);
-        mObserverService->AddObserver(this, "xpcom-shutdown-threads", PR_TRUE);
     }
  
     StartPruneDeadConnectionsTimer();
@@ -311,8 +295,6 @@ nsHttpHandler::Init()
 nsresult
 nsHttpHandler::InitConnectionMgr()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
 
     if (!mConnMgr) {
@@ -532,32 +514,6 @@ nsHttpHandler::OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
     return rv;
 }
 
-/* static */ nsresult
-nsHttpHandler::GenerateHostPort(const nsCString& host, PRInt32 port,
-                                nsCString& hostLine)
-{
-    if (strchr(host.get(), ':')) {
-        // host is an IPv6 address literal and must be encapsulated in []'s
-        hostLine.Assign('[');
-        // scope id is not needed for Host header.
-        int scopeIdPos = host.FindChar('%');
-        if (scopeIdPos == kNotFound)
-            hostLine.Append(host);
-        else if (scopeIdPos > 0)
-            hostLine.Append(Substring(host, 0, scopeIdPos));
-        else
-          return NS_ERROR_MALFORMED_URI;
-        hostLine.Append(']');
-    }
-    else
-        hostLine.Assign(host);
-    if (port != -1) {
-        hostLine.Append(':');
-        hostLine.AppendInt(port);
-    }
-    return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // nsHttpHandler <private>
 //-----------------------------------------------------------------------------
@@ -597,7 +553,6 @@ nsHttpHandler::BuildUserAgent()
                            mPlatform.Length() + 
                            mSecurity.Length() +
                            mOscpu.Length() +
-                           mDeviceType.Length() +
                            mLanguage.Length() +
                            mMisc.Length() +
                            mProduct.Length() +
@@ -666,21 +621,14 @@ nsHttpHandler::BuildUserAgent()
         mUserAgent += mExtraUA;
 }
 
-#ifdef XP_WIN
-typedef BOOL (WINAPI *IsWow64ProcessP) (HANDLE, PBOOL);
-
-#define WNT_BASE "Windows NT %ld.%ld"
-#define W64_PREFIX "; Win64"
-#endif
-
 void
 nsHttpHandler::InitUserAgentComponents()
 {
 
       // Gather platform.
     mPlatform.AssignLiteral(
-#if defined(ANDROID)
-    "Android"
+#if defined(MOZ_WIDGET_PHOTON)
+    "Photon"
 #elif defined(XP_OS2)
     "OS/2"
 #elif defined(XP_WIN)
@@ -713,26 +661,12 @@ nsHttpHandler::InitUserAgentComponents()
 #elif defined(WINCE) || defined(XP_WIN)
     OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
     if (GetVersionEx(&info)) {
-        const char *format;
-#ifdef WINCE
-        format = "WindowsCE %ld.%ld";
-#elif defined _M_IA64
-        format = WNT_BASE W64_PREFIX "; IA64";
-#elif defined _M_X64 || defined _M_AMD64
-        format = WNT_BASE W64_PREFIX "; x64";
+        char *buf = PR_smprintf(
+#if defined(WINCE)
+                                "WindowsCE %ld.%ld",
 #else
-        BOOL isWow64 = FALSE;
-        IsWow64ProcessP fnIsWow64Process = (IsWow64ProcessP)
-          GetProcAddress(GetModuleHandleW(L"kernel32"), "IsWow64Process");
-        if (fnIsWow64Process &&
-            !fnIsWow64Process(GetCurrentProcess(), &isWow64)) {
-            isWow64 = FALSE;
-        }
-        format = isWow64
-          ? WNT_BASE "; WOW64"
-          : WNT_BASE;
+                                "Windows NT %ld.%ld",
 #endif
-        char *buf = PR_smprintf(format,
                                 info.dwMajorVersion,
                                 info.dwMinorVersion);
         if (buf) {
@@ -786,14 +720,6 @@ nsHttpHandler::InitUserAgentComponents()
         mOscpu.Assign(buf);
     }
 #endif
-
-    nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
-    NS_ASSERTION(infoService, "Could not find a system info service");
-
-    nsCString deviceType;
-    nsresult rv = infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"), deviceType);
-    if (NS_SUCCEEDED(rv))
-        mDeviceType = deviceType;
 
     mUserAgentIsDirty = PR_TRUE;
 }
@@ -1477,7 +1403,8 @@ nsHttpHandler::GetDefaultPort(PRInt32 *result)
 NS_IMETHODIMP
 nsHttpHandler::GetProtocolFlags(PRUint32 *result)
 {
-    *result = NS_HTTP_PROTOCOL_FLAGS;
+    *result = URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP |
+        URI_LOADABLE_BY_ANYONE;
     return NS_OK;
 }
 
@@ -1711,13 +1638,6 @@ nsHttpHandler::GetOscpu(nsACString &value)
 }
 
 NS_IMETHODIMP
-nsHttpHandler::GetDeviceType(nsACString &value)
-{
-    value = mDeviceType;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsHttpHandler::GetLanguage(nsACString &value)
 {
     value = mLanguage;
@@ -1797,18 +1717,6 @@ nsHttpHandler::Observe(nsISupports *subject,
     else if (strcmp(topic, "net:clear-active-logins") == 0) {
         mAuthCache.ClearAll();
     }
-    else if (strcmp(topic, "xpcom-shutdown-threads") == 0) {
-        // Shutdown the cache write thread. This must be done after shutting down
-        // the cache service, because the (memory) cache entries' storage streams
-        // get released on the thread on which they were first written to, which
-        // is this thread.
-        if (mCacheWriteThread) {
-            LOG(("  shutting down cache-write thread...\n"));
-            mCacheWriteThread->Shutdown();
-            LOG(("  cache-write thread shutdown complete\n"));
-            mCacheWriteThread = nsnull;
-        }
-    }
 
     return NS_OK;
 }
@@ -1849,8 +1757,7 @@ nsHttpsHandler::GetDefaultPort(PRInt32 *aPort)
 NS_IMETHODIMP
 nsHttpsHandler::GetProtocolFlags(PRUint32 *aProtocolFlags)
 {
-    *aProtocolFlags = NS_HTTP_PROTOCOL_FLAGS;
-    return NS_OK;
+    return gHttpHandler->GetProtocolFlags(aProtocolFlags);
 }
 
 NS_IMETHODIMP
@@ -1865,9 +1772,6 @@ nsHttpsHandler::NewURI(const nsACString &aSpec,
 NS_IMETHODIMP
 nsHttpsHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
-    NS_ABORT_IF_FALSE(gHttpHandler, "Should have a HTTP handler by now.");
-    if (!gHttpHandler)
-      return NS_ERROR_UNEXPECTED;
     return gHttpHandler->NewChannel(aURI, _retval);
 }
 

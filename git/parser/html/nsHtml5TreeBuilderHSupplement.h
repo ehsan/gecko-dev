@@ -35,57 +35,38 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#define NS_HTML5_TREE_BUILDER_HANDLE_ARRAY_LENGTH 512
-
   private:
 
-    nsTArray<nsHtml5TreeOperation>         mOpQueue;
-    nsTArray<nsHtml5SpeculativeLoad>       mSpeculativeLoadQueue;
-    nsAHtml5TreeOpSink*                    mOpSink;
-    nsAutoArrayPtr<nsIContent*>            mHandles;
-    PRInt32                                mHandlesUsed;
-    nsTArray<nsAutoArrayPtr<nsIContent*> > mOldHandles;
-    nsHtml5TreeOpStage*                    mSpeculativeLoadStage;
-    PRBool                                 mCurrentHtmlScriptIsAsyncOrDefer;
+    nsTArray<nsHtml5TreeOperation>       mOpQueue;
+    nsHtml5TreeOpExecutor*               mExecutor;
 #ifdef DEBUG
-    PRBool                                 mActive;
+    PRBool                               mActive;
 #endif
+
+  public:
+
+    nsHtml5TreeBuilder(nsHtml5TreeOpExecutor* aExec);
+
+    ~nsHtml5TreeBuilder();
+
+    void DoUnlink();
+
+    void DoTraverse(nsCycleCollectionTraversalCallback &cb);
 
     // DocumentModeHandler
     /**
      * Tree builder uses this to report quirkiness of the document
      */
     void documentMode(nsHtml5DocumentMode m);
-
-    nsIContent** AllocateContentHandle();
     
-  public:
-
-    nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink,
-                       nsHtml5TreeOpStage* aStage);
-
-    ~nsHtml5TreeBuilder();
-    
-    PRBool IsDiscretionaryFlushSafe();
-
-    PRBool HasScript();
-    
-    void SetOpSink(nsAHtml5TreeOpSink* aOpSink) {
-      mOpSink = aOpSink;
-    }
-
-    void ClearOps() {
-      mOpQueue.Clear();
+    inline PRUint32 GetOpQueueLength() {
+      return mOpQueue.Length();
     }
     
-    PRBool Flush();
+    inline void SwapQueue(nsTArray<nsHtml5TreeOperation>& aOtherQueue) {
+      mOpQueue.SwapElements(aOtherQueue);
+    }
     
-    void FlushLoads();
-
-    void SetDocumentCharset(nsACString& aCharset, PRInt32 aCharsetSource);
-
-    void StreamEnded();
-
-    void NeedsCharsetSwitchTo(const nsACString& aEncoding);
-
-    void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
+    inline void ReqSuspension() {
+      requestSuspension();
+    }

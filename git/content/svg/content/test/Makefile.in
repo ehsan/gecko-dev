@@ -63,18 +63,13 @@ _TEST_FILES = \
 		test_pointer-events.xhtml \
 		test_scientific.html \
 		scientific-helper.svg \
-		test_SVGStyleElement.xhtml \
 		test_switch.xhtml \
 		switch-helper.svg \
 		test_text.html \
 		text-helper.svg \
-		test_transform.xhtml \
-		test_valueAsString.xhtml \
 		test_valueLeaks.xhtml \
 		viewport-helper.svg \
 		test_viewport.html \
-		zoom-helper.svg \
-		test_zoom.xhtml \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

@@ -45,6 +45,7 @@
 #include "imgContainer.h"
 
 #include "imgILoader.h"
+#include "ImageErrors.h"
 #include "ImageLogging.h"
 
 #include "netCore.h"
@@ -68,8 +69,6 @@
 #include "nsString.h"
 #include "nsXPIDLString.h"
 #include "plstr.h" // PL_strcasestr(...)
-#include "nsNetUtil.h"
-#include "nsIProtocolHandler.h"
 
 static PRBool gDecodeOnDraw = PR_FALSE;
 static PRBool gDiscardable = PR_FALSE;
@@ -192,15 +191,11 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBoo
    */
 
   if (aNotify) {
-    // The "real" OnStopDecode - fix this with bug 505385.
-    if (!(mState & stateDecodeStopped)) {
-      proxy->OnStopContainer(mImage);
-    }
-
     // make sure that observer gets an OnStopDecode message sent to it
     if (!(mState & stateRequestStopped)) {
       proxy->OnStopDecode(aStatus, nsnull);
     }
+
   }
 
   // make sure that observer gets an OnStopRequest message sent to it
@@ -260,8 +255,6 @@ nsresult imgRequest::NotifyProxyListener(imgRequestProxy *proxy)
 {
   nsCOMPtr<imgIRequest> kungFuDeathGrip(proxy);
 
-  // Keep these notifications in sync with imgContainerRequest::Clone!
-
   // OnStartRequest
   if (mState & stateRequestStarted)
     proxy->OnStartRequest(nsnull, nsnull);
@@ -301,11 +294,8 @@ nsresult imgRequest::NotifyProxyListener(imgRequestProxy *proxy)
     mImage->ResetAnimation();
   }
 
-  // The "real" OnStopDecode - Fix this with bug 505385.
-  if (mState & stateDecodeStopped)
-    proxy->OnStopContainer(mImage);
-
   if (mState & stateRequestStopped) {
+    proxy->OnStopContainer(mImage);
     proxy->OnStopDecode(GetResultFromImageStatus(mImageStatus), nsnull);
     proxy->OnStopRequest(nsnull, nsnull,
                          GetResultFromImageStatus(mImageStatus),
@@ -313,6 +303,18 @@ nsresult imgRequest::NotifyProxyListener(imgRequestProxy *proxy)
   }
 
   return NS_OK;
+}
+
+nsresult imgRequest::GetResultFromImageStatus(PRUint32 aStatus) const
+{
+  nsresult rv = NS_OK;
+
+  if (aStatus & imgIRequest::STATUS_ERROR)
+    rv = NS_IMAGELIB_ERROR_FAILURE;
+  else if (aStatus & imgIRequest::STATUS_LOAD_COMPLETE)
+    rv = NS_IMAGELIB_SUCCESS_LOAD_FINISHED;
+
+  return rv;
 }
 
 void imgRequest::Cancel(nsresult aStatus)
@@ -660,10 +662,6 @@ NS_IMETHODIMP imgRequest::OnStopContainer(imgIRequest *request,
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStopContainer");
 
-  // XXXbholley - This should be moved into OnStopDecode when we fix bug
-  // 505385.
-  mState |= stateDecodeStopped;
-
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
     iter.GetNext()->OnStopContainer(image);
@@ -686,9 +684,6 @@ NS_IMETHODIMP imgRequest::OnStopDecode(imgIRequest *aRequest,
   // If we were successful, set STATUS_DECODE_COMPLETE
   if (NS_SUCCEEDED(aStatus))
     mImageStatus |= imgIRequest::STATUS_DECODE_COMPLETE;
-  // If we weren't, clear all success status bits and set error.
-  else
-    mImageStatus = imgIRequest::STATUS_ERROR;
 
   // ImgContainer and everything below it is completely correct and
   // bulletproof about its handling of decoder notifications.
@@ -716,7 +711,7 @@ NS_IMETHODIMP imgRequest::OnStopRequest(imgIRequest *aRequest,
 NS_IMETHODIMP imgRequest::OnDiscard(imgIRequest *aRequest)
 {
   // Clear the state bits we no longer deserve.
-  PRUint32 stateBitsToClear = stateDecodeStarted | stateDecodeStopped;
+  PRUint32 stateBitsToClear = stateDecodeStarted;
   mState &= ~stateBitsToClear;
 
   // Clear the status bits we no longer deserve.
@@ -766,7 +761,6 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
     mImageStatus &= ~imgIRequest::STATUS_FRAME_COMPLETE;
     mState &= ~stateRequestStarted;
     mState &= ~stateDecodeStarted;
-    mState &= ~stateDecodeStopped;
     mState &= ~stateRequestStopped;
   }
 
@@ -1201,18 +1195,6 @@ imgRequest::OnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel, PR
   if (mKeyURI)
     mKeyURI->GetSpec(oldspec);
   LOG_MSG_WITH_PARAM(gImgLog, "imgRequest::OnChannelRedirect", "old", oldspec.get());
-
-  // make sure we have a protocol that returns data rather than opens
-  // an external application, e.g. mailto:
-  nsCOMPtr<nsIURI> uri;
-  newChannel->GetURI(getter_AddRefs(uri));
-  PRBool doesNotReturnData = PR_FALSE;
-  rv = NS_URIChainHasFlags(uri, nsIProtocolHandler::URI_DOES_NOT_RETURN_DATA,
-                           &doesNotReturnData);
-  if (NS_FAILED(rv))
-    return rv;
-  if (doesNotReturnData)
-    return NS_ERROR_ABORT;
 
   nsCOMPtr<nsIURI> newURI;
   newChannel->GetOriginalURI(getter_AddRefs(newURI));

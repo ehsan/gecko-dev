@@ -117,7 +117,7 @@ function SetPrefs(aSet)
   const kPrefName = "ui.cursor_snapping.always_enabled";
   if (aSet) {
     prefSvc.setBoolPref(kPrefName, true);
-  } else if (prefSvc.prefHasUserValue(kPrefName)) {
+  } else {
     prefSvc.clearUserPref(kPrefName);
   }
 }

@@ -44,6 +44,7 @@
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleHyperText.h"
 #include "nsIAccessibleEditableText.h"
+#include "nsAccessibleEventData.h"
 #include "nsTextAttrs.h"
 
 #include "nsFrameSelection.h"
@@ -82,10 +83,10 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_HYPERTEXTACCESSIBLE_IMPL_CID)
 
   // nsAccessible
-  virtual PRInt32 GetLevelInternal();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  void CacheChildren();
 
   // Convert content offset to rendered text offset  
   static nsresult ContentToRenderedOffset(nsIFrame *aFrame, PRInt32 aContentOffset,
@@ -108,6 +109,10 @@ public:
     *                      if >=0 and aNode is not text, this represents a child node offset
     * @param aResultOffset - the character offset into the current
     *                        nsHyperTextAccessible
+    * @param aFinalAccessible [optional] - returns the accessible child which
+    *                                      contained the offset, if it is within
+    *                                      the current nsHyperTextAccessible,
+    *                                      otherwise it is set to nsnull.
     * @param aIsEndOffset - if PR_TRUE, then then this offset is not inclusive. The character
     *                       indicated by the offset returned is at [offset - 1]. This means
     *                       if the passed-in offset is really in a descendant, then the offset returned
@@ -115,15 +120,11 @@ public:
     *                       If PR_FALSE, then the offset is inclusive. The character indicated
     *                       by the offset returned is at [offset]. If the passed-in offset in inside a
     *                       descendant, then the returned offset will be on the relevant embedded object char.
-    *
-    * @return               the accessible child which contained the offset, if
-    *                       it is within the current nsHyperTextAccessible,
-    *                       otherwise nsnull
     */
-  nsAccessible *DOMPointToHypertextOffset(nsIDOMNode *aNode,
-                                          PRInt32 aNodeOffset,
-                                          PRInt32 *aHypertextOffset,
-                                          PRBool aIsEndOffset = PR_FALSE);
+  nsresult DOMPointToHypertextOffset(nsIDOMNode* aNode, PRInt32 aNodeOffset,
+                                     PRInt32 *aHypertextOffset,
+                                     nsIAccessible **aFinalAccessible = nsnull,
+                                     PRBool aIsEndOffset = PR_FALSE);
 
   /**
    * Turn a hypertext offsets into DOM point.
@@ -154,9 +155,6 @@ public:
                                       PRInt32 *aEndOffset);
 
 protected:
-
-  // nsHyperTextAccessible
-
   /*
    * This does the work for nsIAccessibleText::GetText[At|Before|After]Offset
    * @param aType, eGetBefore, eGetAt, eGetAfter
@@ -219,8 +217,8 @@ protected:
                           nsAString *aText = nsnull,
                           nsIFrame **aEndFrame = nsnull,
                           nsIntRect *aBoundsRect = nsnull,
-                          nsAccessible **aStartAcc = nsnull,
-                          nsAccessible **aEndAcc = nsnull);
+                          nsIAccessible **aStartAcc = nsnull,
+                          nsIAccessible **aEndAcc = nsnull);
 
   nsIntRect GetBoundsForString(nsIFrame *aFrame, PRUint32 aStartRenderedOffset, PRUint32 aEndRenderedOffset);
 
@@ -251,18 +249,6 @@ protected:
    * @return 1-based index for the line number with the caret
    */
   PRInt32 GetCaretLineNumber();
-
-  /**
-   * Return an accessible at the given hypertext offset.
-   *
-   * @param  aOffset       [out] the given hypertext offset
-   * @param  aAccIdx       [out] child index of returned accessible
-   * @param  aStartOffset  [out] start hypertext offset of returned accessible
-   * @param  aEndOffset    [out] end hypertext offset of returned accessible
-   */
-  nsAccessible *GetAccessibleAtOffset(PRInt32 aOffset, PRInt32 *aAccIdx,
-                                      PRInt32 *aStartOffset,
-                                      PRInt32 *aEndOffset);
 
   // Helpers
   nsresult GetDOMPointByFrameOffset(nsIFrame *aFrame, PRInt32 aOffset,

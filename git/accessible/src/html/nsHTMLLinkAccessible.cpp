@@ -39,8 +39,6 @@
 
 #include "nsHTMLLinkAccessible.h"
 
-#include "nsCoreUtils.h"
-
 #include "nsILink.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +87,8 @@ nsHTMLLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     // This is a either named anchor (a link with also a name attribute) or
     // it doesn't have any attributes. Check if 'click' event handler is
     // registered, otherwise bail out.
-    PRBool isOnclick = nsCoreUtils::HasClickListener(content);
+    PRBool isOnclick = nsCoreUtils::HasListener(content,
+                                                NS_LITERAL_STRING("click"));
     if (!isOnclick)
       return NS_OK;
   }
@@ -161,8 +160,8 @@ nsHTMLLinkAccessible::DoAction(PRUint8 aIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  DoCommand();
-  return NS_OK;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  return DoCommand(content);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -56,10 +56,10 @@
 #include "nsIPrefService.h"
 #include "nsIURI.h"
 #include "nsIContentViewer.h"
+#include "nsIPrefBranch2.h"
 #include "nsICacheService.h"
 #include "nsIObserverService.h"
 #include "prclist.h"
-#include "mozilla/Services.h"
 
 // For calculating max history entries and max cachable contentviewers
 #include "nspr.h"
@@ -109,10 +109,13 @@ nsSHistoryObserver::Observe(nsISupports *aSubject, const char *aTopic,
 {
   if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     nsCOMPtr<nsIPrefBranch> prefs = do_QueryInterface(aSubject);
-    if (prefs) {
-      nsSHistory::UpdatePrefs(prefs);
-      nsSHistory::EvictGlobalContentViewer();
+    prefs->GetIntPref(PREF_SHISTORY_MAX_TOTAL_VIEWERS,
+                      &nsSHistory::sHistoryMaxTotalViewers);
+    if (nsSHistory::sHistoryMaxTotalViewers < 0) {
+      nsSHistory::sHistoryMaxTotalViewers = nsSHistory::CalcMaxTotalViewers();
     }
+
+    nsSHistory::EvictGlobalContentViewer();
   } else if (!strcmp(aTopic, NS_CACHESERVICE_EMPTYCACHE_TOPIC_ID) ||
              !strcmp(aTopic, "memory-pressure")) {
     nsSHistory::EvictAllContentViewersGlobally();
@@ -212,20 +215,6 @@ nsSHistory::CalcMaxTotalViewers()
 }
 
 // static
-void
-nsSHistory::UpdatePrefs(nsIPrefBranch *aPrefBranch)
-{
-  aPrefBranch->GetIntPref(PREF_SHISTORY_SIZE, &gHistoryMaxSize);
-  aPrefBranch->GetIntPref(PREF_SHISTORY_MAX_TOTAL_VIEWERS,
-                          &sHistoryMaxTotalViewers);
-  // If the pref is negative, that means we calculate how many viewers
-  // we think we should cache, based on total memory
-  if (sHistoryMaxTotalViewers < 0) {
-    sHistoryMaxTotalViewers = CalcMaxTotalViewers();
-  }
-}
-
-// static
 nsresult
 nsSHistory::Startup()
 {
@@ -234,7 +223,7 @@ nsSHistory::Startup()
     nsCOMPtr<nsIPrefBranch> sesHBranch;
     prefs->GetBranch(nsnull, getter_AddRefs(sesHBranch));
     if (sesHBranch) {
-      UpdatePrefs(sesHBranch);
+      sesHBranch->GetIntPref(PREF_SHISTORY_SIZE, &gHistoryMaxSize);
     }
 
     // The goal of this is to unbreak users who have inadvertently set their
@@ -252,18 +241,19 @@ nsSHistory::Startup()
     
     // Allow the user to override the max total number of cached viewers,
     // but keep the per SHistory cached viewer limit constant
-    nsCOMPtr<nsIPrefBranch2> branch = do_QueryInterface(sesHBranch);
+    nsCOMPtr<nsIPrefBranch2> branch = do_QueryInterface(prefs);
     if (branch) {
+      branch->GetIntPref(PREF_SHISTORY_MAX_TOTAL_VIEWERS,
+                         &sHistoryMaxTotalViewers);
       nsSHistoryObserver* obs = new nsSHistoryObserver();
       if (!obs) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      branch->AddObserver(PREF_SHISTORY_SIZE, obs, PR_FALSE);
       branch->AddObserver(PREF_SHISTORY_MAX_TOTAL_VIEWERS,
                           obs, PR_FALSE);
 
       nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
       if (obsSvc) {
         // Observe empty-cache notifications so tahat clearing the disk/memory
         // cache will also evict all content viewers.
@@ -274,6 +264,11 @@ nsSHistory::Startup()
         obsSvc->AddObserver(obs, "memory-pressure", PR_FALSE);
       }
     }
+  }
+  // If the pref is negative, that means we calculate how many viewers
+  // we think we should cache, based on total memory
+  if (sHistoryMaxTotalViewers < 0) {
+    sHistoryMaxTotalViewers = CalcMaxTotalViewers();
   }
 
   // Initialize the global list of all SHistory objects
@@ -483,7 +478,7 @@ nsSHistory::PrintHistory()
     nsCOMPtr<nsILayoutHistoryState> layoutHistoryState;
     nsCOMPtr<nsIURI>  uri;
     nsXPIDLString title;
-
+              
     entry->GetLayoutHistoryState(getter_AddRefs(layoutHistoryState));
     nsCOMPtr<nsIHistoryEntry> hEntry(do_QueryInterface(entry));
     if (hEntry) {
@@ -497,12 +492,11 @@ nsSHistory::PrintHistory()
      uri->GetSpec(url);
 
     printf("**** SH Transaction #%d, Entry = %x\n", index, entry.get());
-    printf("\t\t URL = %s\n", url.get());
-
+    printf("\t\t URL = %s\n", url);
     printf("\t\t Title = %s\n", NS_LossyConvertUTF16toASCII(title).get());
-    printf("\t\t layout History Data = %x\n", layoutHistoryState.get());
+    printf("\t\t layout History Data = %x\n", layoutHistoryState);
 #endif
-
+      
     nsCOMPtr<nsISHTransaction> next;
     rv = txn->GetNext(getter_AddRefs(next));
     if (NS_SUCCEEDED(rv) && next) {
@@ -556,7 +550,7 @@ nsSHistory::PurgeHistory(PRInt32 aEntries)
   if (mLength <= 0 || aEntries <= 0)
     return NS_ERROR_FAILURE;
 
-  aEntries = NS_MIN(aEntries, mLength);
+  aEntries = PR_MIN(aEntries, mLength);
   
   PRBool purgeHistory = PR_TRUE;
   // Notify the listener about the history purge
@@ -818,13 +812,13 @@ nsSHistory::EvictWindowContentViewers(PRInt32 aFromIndex, PRInt32 aToIndex)
     if (endIndex <= 0) {
       return;
     }
-    startIndex = NS_MAX(0, aFromIndex - gHistoryMaxViewers);
+    startIndex = PR_MAX(0, aFromIndex - gHistoryMaxViewers);
   } else { // going backward
     startIndex = aToIndex + gHistoryMaxViewers + 1;
     if (startIndex >= mLength) {
       return;
     }
-    endIndex = NS_MIN(mLength, aFromIndex + gHistoryMaxViewers + 1);
+    endIndex = PR_MIN(mLength, aFromIndex + gHistoryMaxViewers + 1);
   }
 
 #ifdef DEBUG
@@ -842,8 +836,8 @@ nsSHistory::EvictWindowContentViewers(PRInt32 aFromIndex, PRInt32 aToIndex)
       nsCOMPtr<nsISHEntry> ownerEntry;
       entry->GetAnyContentViewer(getter_AddRefs(ownerEntry),
                                  getter_AddRefs(viewer));
-      NS_WARN_IF_FALSE(!viewer,
-                       "ContentViewer exists outside gHistoryMaxViewer range");
+      NS_ASSERTION(!viewer,
+                   "ContentViewer exists outside gHistoryMaxViewer range");
     }
 
     nsISHTransaction *temp = trans;
@@ -870,7 +864,7 @@ nsSHistory::EvictContentViewersInRange(PRInt32 aStart, PRInt32 aEnd)
     if (viewer) {
       NS_ASSERTION(ownerEntry,
                    "ContentViewer exists but its SHEntry is null");
-#ifdef DEBUG_PAGE_CACHE
+#ifdef DEBUG_PAGE_CACHE 
       nsCOMPtr<nsIURI> uri;
       ownerEntry->GetURI(getter_AddRefs(uri));
       nsCAutoString spec;
@@ -918,8 +912,8 @@ nsSHistory::EvictGlobalContentViewer()
       // viewer.  There could be up to gHistoryMaxViewers content viewers,
       // but we don't know whether they are before or after the mIndex position
       // in the SHEntry list.  Just check both sides, to be safe.
-      PRInt32 startIndex = NS_MAX(0, shist->mIndex - gHistoryMaxViewers);
-      PRInt32 endIndex = NS_MIN(shist->mLength - 1,
+      PRInt32 startIndex = PR_MAX(0, shist->mIndex - gHistoryMaxViewers);
+      PRInt32 endIndex = PR_MIN(shist->mLength - 1,
                                 shist->mIndex + gHistoryMaxViewers);
       nsCOMPtr<nsISHTransaction> trans;
       shist->GetTransactionAtIndex(startIndex, getter_AddRefs(trans));
@@ -1011,8 +1005,8 @@ nsSHistory::EvictGlobalContentViewer()
 NS_IMETHODIMP
 nsSHistory::EvictExpiredContentViewerForEntry(nsISHEntry *aEntry)
 {
-  PRInt32 startIndex = NS_MAX(0, mIndex - gHistoryMaxViewers);
-  PRInt32 endIndex = NS_MIN(mLength - 1,
+  PRInt32 startIndex = PR_MAX(0, mIndex - gHistoryMaxViewers);
+  PRInt32 endIndex = PR_MIN(mLength - 1,
                             mIndex + gHistoryMaxViewers);
   nsCOMPtr<nsISHTransaction> trans;
   GetTransactionAtIndex(startIndex, getter_AddRefs(trans));
@@ -1155,23 +1149,23 @@ nsSHistory::LoadEntry(PRInt32 aIndex, long aLoadType, PRUint32 aHistCmd)
   mRequestedIndex = aIndex;
 
   nsCOMPtr<nsISHEntry> prevEntry;
-  GetEntryAtIndex(mIndex, PR_FALSE, getter_AddRefs(prevEntry));
-
-  nsCOMPtr<nsISHEntry> nextEntry;
+  GetEntryAtIndex(mIndex, PR_FALSE, getter_AddRefs(prevEntry));  
+   
+  nsCOMPtr<nsISHEntry> nextEntry;   
   GetEntryAtIndex(mRequestedIndex, PR_FALSE, getter_AddRefs(nextEntry));
   nsCOMPtr<nsIHistoryEntry> nHEntry(do_QueryInterface(nextEntry));
-  if (!nextEntry || !prevEntry || !nHEntry) {
+  if (!nextEntry || !prevEntry || !nHEntry) {    
     mRequestedIndex = -1;
     return NS_ERROR_FAILURE;
   }
-
+  
   // Send appropriate listener notifications
   PRBool canNavigate = PR_TRUE;
   // Get the uri for the entry we are about to visit
   nsCOMPtr<nsIURI> nextURI;
   nHEntry->GetURI(getter_AddRefs(nextURI));
-
-  if(mListener) {
+ 
+  if(mListener) {    
     nsCOMPtr<nsISHistoryListener> listener(do_QueryReferent(mListener));
     if (listener) {
       if (aHistCmd == HIST_CMD_BACK) {
@@ -1228,6 +1222,7 @@ nsSHistory::LoadEntry(PRInt32 aIndex, long aLoadType, PRUint32 aHistCmd)
     else
       docShell = mRootDocShell;
     }
+  
 
   if (!docShell) {
     // we did not successfully go to the proper index.
@@ -1239,6 +1234,8 @@ nsSHistory::LoadEntry(PRInt32 aIndex, long aLoadType, PRUint32 aHistCmd)
   // Start the load on the appropriate docshell
   return InitiateLoad(nextEntry, docShell, aLoadType);
 }
+
+
 
 nsresult
 nsSHistory::CompareFrames(nsISHEntry * aPrevEntry, nsISHEntry * aNextEntry, nsIDocShell * aParent, long aLoadType, PRBool * aIsFrameFound)

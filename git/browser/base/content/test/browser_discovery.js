@@ -1,16 +1,19 @@
-var currentHandler;
+var gBrowserHandler;
 var browser;
 
 function doc() browser.contentDocument;
 
 function setHandlerFunc(aResultFunc) {
-  if (currentHandler)
-    gBrowser.removeEventListener("DOMLinkAdded", currentHandler, false);
-  gBrowser.addEventListener("DOMLinkAdded", aResultFunc, false);
-  currentHandler = aResultFunc;
+  DOMLinkHandler.handleEvent = function (event) {
+    gBrowserHandler.call(DOMLinkHandler, event);
+    aResultFunc();
+  }
 }
 
 function test() {
+  gBrowserHandler = DOMLinkHandler.handleEvent;
+  ok(gBrowserHandler, "found browser handler");
+
   waitForExplicitFinish();
 
   gBrowser.selectedTab = gBrowser.addTab();
@@ -117,7 +120,10 @@ function runMultipleEnginesTestAndFinalize() {
   is(browser.engines[0].uri, "http://first.mozilla.com/search.xml", "first engine wins");
 
   gBrowser.removeCurrentTab();
-  gBrowser.removeEventListener("DOMLinkAdded", currentHandler, false);
+
+  // Reset the default link handler
+  DOMLinkHandler.handleEvent = gBrowserHandler;
+
   finish();
 }
 

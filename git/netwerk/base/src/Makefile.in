@@ -55,7 +55,6 @@ CPPSRCS		= \
 		nsBaseChannel.cpp \
 		nsBaseContentStream.cpp \
 		nsBufferedStreams.cpp \
-		nsChannelClassifier.cpp \
 		nsDirectoryIndexStream.cpp \
 		nsDownloader.cpp \
 		nsFileStreams.cpp \
@@ -93,11 +92,6 @@ CPPSRCS		= \
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 	CPPSRCS += nsURLHelperOS2.cpp
 else
-ifdef MOZ_ENABLE_LIBCONIC
-	CPPSRCS += nsAutodialMaemo.cpp
-	CPPSRCS += nsNativeConnectionHelper.cpp
-	LOCAL_INCLUDES += -I$(srcdir)/../../system/maemo
-endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 	CPPSRCS += nsURLHelperWin.cpp
 	CPPSRCS += nsNativeConnectionHelper.cpp
@@ -130,7 +124,3 @@ FORCE_STATIC_LIB = 1
 include $(topsrcdir)/config/rules.mk
 
 DEFINES += -DIMPL_NS_NET
-
-ifdef MOZ_ENABLE_LIBCONIC
-	OS_INCLUDES += $(GLIB_CFLAGS) $(LIBCONIC_CFLAGS)
-endif

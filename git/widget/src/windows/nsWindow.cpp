@@ -33,7 +33,7 @@
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   Dainis Jonitis <Dainis_Jonitis@swh-t.lv>
  *   Christian Biesinger <cbiesinger@web.de>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Ningjie Chen <chenn@email.uc.edu>
  *   Jim Mathies <jmathies@mozilla.com>
  *   Kyle Huey <me@kylehuey.com>
@@ -104,10 +104,6 @@
  **************************************************************
  **************************************************************/
 
-#ifdef MOZ_IPC
-#include "mozilla/ipc/RPCChannel.h"
-#endif
-
 #include "nsWindow.h"
 
 #include <windows.h>
@@ -125,7 +121,6 @@
 #include "nsIDOMNSUIEvent.h"
 #include "nsITheme.h"
 #include "nsIPrefBranch.h"
-#include "nsIPrefBranch2.h"
 #include "nsIPrefService.h"
 #include "nsIObserverService.h"
 #include "nsIScreenManager.h"
@@ -141,6 +136,7 @@
 #include "nsIFontMetrics.h"
 #include "nsIFontEnumerator.h"
 #include "nsIDeviceContext.h"
+#include "nsIdleService.h"
 #include "nsGUIEvent.h"
 #include "nsFont.h"
 #include "nsRect.h"
@@ -155,7 +151,6 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsString.h"
-#include "mozilla/Services.h"
 
 #if defined(WINCE)
 #include "nsWindowCE.h"
@@ -166,14 +161,9 @@
 #endif
 
 #include "nsWindowGfx.h"
-#include "gfxWindowsPlatform.h"
-#include "Layers.h"
-#ifndef WINCE
-#include "LayerManagerD3D9.h"
-#include "LayerManagerOGL.h"
-#endif
 
 #if !defined(WINCE)
+#include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
 #include "nsKeyboardLayout.h"
 #include "nsNativeDragTarget.h"
@@ -189,6 +179,9 @@
 #if !defined(WINABLEAPI)
 #include <winable.h>
 #endif // !defined(WINABLEAPI)
+#include "nsIAccessible.h"
+#include "nsIAccessibleDocument.h"
+#include "nsIAccessNode.h"
 #endif // defined(ACCESSIBILITY)
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
@@ -208,13 +201,9 @@
 
 #include "nsWindowDefs.h"
 
-#include "mozilla/FunctionTimer.h"
-
 #ifdef WINCE_WINDOWS_MOBILE
 #include "nsGfxCIID.h"
 #endif
-
-#include "mozilla/FunctionTimer.h"
 
 /**************************************************************
  **************************************************************
@@ -259,7 +248,6 @@ UINT            nsWindow::sHookTimerId            = 0;
 
 // Rollup Listener
 nsIRollupListener* nsWindow::sRollupListener      = nsnull;
-nsIMenuRollup*  nsWindow::sMenuRollup             = nsnull;
 nsIWidget*      nsWindow::sRollupWidget           = nsnull;
 PRBool          nsWindow::sRollupConsumeEvent     = PR_FALSE;
 
@@ -284,13 +272,6 @@ HINSTANCE       nsWindow::sAccLib                 = 0;
 LPFNLRESULTFROMOBJECT 
                 nsWindow::sLresultFromObject      = 0;
 #endif // ACCESSIBILITY
-
-#ifdef MOZ_IPC
-// Used in OOPP plugin focus processing.
-const PRUnichar* kOOPPPluginFocusEventId   = L"OOPP Plugin Focus Widget Event";
-PRUint32        nsWindow::sOOPPPluginFocusEvent   =
-                  RegisterWindowMessageW(kOOPPPluginFocusEventId);
-#endif
 
 /**************************************************************
  *
@@ -321,6 +302,25 @@ HTCApiNavOpen    gHTCApiNavOpen = nsnull;
 HTCApiNavSetMode gHTCApiNavSetMode = nsnull;
 static PRBool    gCheckForHTCApi = PR_FALSE;
 #endif
+
+// The last user input event time in microseconds. If
+// there are any pending native toolkit input events
+// it returns the current time. The value is compatible
+// with PR_IntervalToMicroseconds(PR_IntervalNow()).
+#if !defined(WINCE)
+static PRUint32 gLastInputEventTime               = 0;
+#else
+PRUint32        gLastInputEventTime               = 0;
+#endif
+
+static void UpdateLastInputEventTime() {
+  gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
+  nsCOMPtr<nsIIdleService> idleService = do_GetService("@mozilla.org/widget/idleservice;1");
+  nsIdleService* is = static_cast<nsIdleService*>(idleService.get());
+  if (is)
+    is->IdleTimeWasModified();
+}
+
 
 // Global user preference for disabling native theme. Used
 // in NativeWindowTheme.
@@ -365,8 +365,10 @@ nsWindow::nsWindow() : nsBaseWidget()
   mNativeDragTarget     = nsnull;
   mInDtor               = PR_FALSE;
   mIsVisible            = PR_FALSE;
+  mHas3DBorder          = PR_FALSE;
   mIsInMouseCapture     = PR_FALSE;
   mIsTopWidgetWindow    = PR_FALSE;
+  mInScrollProcessing   = PR_FALSE;
   mUnicodeWidget        = PR_TRUE;
   mWindowType           = eWindowType_child;
   mBorderStyle          = eBorderStyle_default;
@@ -382,17 +384,20 @@ nsWindow::nsWindow() : nsBaseWidget()
   mLastKeyboardLayout   = 0;
   mBlurSuppressLevel    = 0;
   mIMEEnabled           = nsIWidget::IME_STATUS_ENABLED;
+  mLeadByte             = '\0';
 #ifdef MOZ_XUL
   mTransparentSurface   = nsnull;
   mMemoryDC             = nsnull;
   mTransparencyMode     = eTransparencyOpaque;
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  memset(&mGlassMargins, 0, sizeof mGlassMargins);
-#endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 #endif
   mBackground           = ::GetSysColor(COLOR_BTNFACE);
   mBrush                = ::CreateSolidBrush(NSRGB_2_COLOREF(mBackground));
   mForeground           = ::GetSysColor(COLOR_WINDOWTEXT);
+
+#ifdef WINCE_WINDOWS_MOBILE
+  mInvalidatedRegion = do_CreateInstance(kRegionCID);
+  mInvalidatedRegion->Init();
+#endif
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   mTaskbarPreview = nsnull;
@@ -427,7 +432,8 @@ nsWindow::nsWindow() : nsBaseWidget()
 #endif
   } // !sInstanceCount
 
-  mIdleService = nsnull;
+  // Set gLastInputEventTime to some valid number
+  gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
 
   sInstanceCount++;
 }
@@ -523,12 +529,10 @@ nsWindow::Create(nsIWidget *aParent,
              aAppShell, aToolkit, aInitData);
 
   HWND parent;
-  if (aParent) { // has a nsIWidget parent
-    parent = aParent ? (HWND)aParent->GetNativeData(NS_NATIVE_WINDOW) : NULL;
-    mParent = aParent;
+  if (nsnull != aParent) { // has a nsIWidget parent
+    parent = ((aParent) ? (HWND)aParent->GetNativeData(NS_NATIVE_WINDOW) : nsnull);
   } else { // has a nsNative parent
     parent = (HWND)aNativeParent;
-    mParent = aNativeParent ? GetNSWindowPtr((HWND)aNativeParent) : nsnull;
   }
 
   if (nsnull != aInitData) {
@@ -539,10 +543,6 @@ nsWindow::Create(nsIWidget *aParent,
 
   DWORD style = WindowStyle();
   DWORD extendedStyle = WindowExStyle();
-
-  if (aInitData->mRTL) {
-    extendedStyle |= WS_EX_LAYOUTRTL | WS_EX_NOINHERITLAYOUT;
-  }
 
   if (mWindowType == eWindowType_popup) {
     // if a parent was specified, don't use WS_EX_TOPMOST so that the popup
@@ -565,6 +565,8 @@ nsWindow::Create(nsIWidget *aParent,
       style |= WS_CLIPSIBLINGS;
     }
   }
+
+  mHas3DBorder = (extendedStyle & WS_EX_CLIENTEDGE) > 0;
 
   mWnd = ::CreateWindowExW(extendedStyle,
                            aInitData && aInitData->mDropShadow ?
@@ -650,12 +652,6 @@ NS_METHOD nsWindow::Destroy()
 
   // During the destruction of all of our children, make sure we don't get deleted.
   nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
-
-  /**
-   * On windows the LayerManagerOGL destructor wants the widget to be around for
-   * cleanup. It also would like to have the HWND intact, so we NULL it here.
-   */
-  mLayerManager = NULL;
 
   // The DestroyWindow function destroys the specified window. The function sends WM_DESTROY
   // and WM_NCDESTROY messages to the window to deactivate it and remove the keyboard focus
@@ -985,8 +981,6 @@ BOOL nsWindow::SetNSWindowPtr(HWND aWnd, nsWindow * ptr)
 // Get and set parent widgets
 NS_IMETHODIMP nsWindow::SetParent(nsIWidget *aNewParent)
 {
-  mParent = aNewParent;
-
   if (aNewParent) {
     nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
 
@@ -1095,18 +1089,6 @@ NS_METHOD nsWindow::Show(PRBool bState)
   }
 #endif
 
-#ifdef NS_FUNCTION_TIMER
-  static bool firstShow = true;
-  if (firstShow &&
-      (mWindowType == eWindowType_toplevel ||
-       mWindowType == eWindowType_dialog ||
-       mWindowType == eWindowType_popup))
-  {
-    firstShow = false;
-    mozilla::FunctionTimer::LogMessage("@ First toplevel/dialog/popup showing");
-  }
-#endif
-
   PRBool wasVisible = mIsVisible;
   // Set the status now so that anyone asking during ShowWindow or
   // SetWindowPos would get the correct answer.
@@ -1184,13 +1166,6 @@ NS_METHOD nsWindow::Show(PRBool bState)
           ::SetWindowPos(mWnd, HWND_TOP, 0, 0, 0, 0, flags);
         }
       }
-
-#ifndef WINCE
-      if (!wasVisible && (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog)) {
-        // when a toplevel window or dialog is shown, initialize the UI state
-        ::SendMessageW(mWnd, WM_CHANGEUISTATE, MAKEWPARAM(UIS_INITIALIZE, UISF_HIDEFOCUS | UISF_HIDEACCEL), 0);
-      }
-#endif
     } else {
       if (mWindowType != eWindowType_dialog) {
         ::ShowWindow(mWnd, SW_HIDE);
@@ -1258,13 +1233,11 @@ void nsWindow::SetThemeRegion()
     HRGN hRgn = nsnull;
     RECT rect = {0,0,mBounds.width,mBounds.height};
     
-    HDC dc = ::GetDC(mWnd);
-    nsUXThemeData::getThemeBackgroundRegion(nsUXThemeData::GetTheme(eUXTooltip), dc, TTP_STANDARD, TS_NORMAL, &rect, &hRgn);
+    nsUXThemeData::getThemeBackgroundRegion(nsUXThemeData::GetTheme(eUXTooltip), GetDC(mWnd), TTP_STANDARD, TS_NORMAL, &rect, &hRgn);
     if (hRgn) {
       if (!SetWindowRgn(mWnd, hRgn, false)) // do not delete or alter hRgn if accepted.
         DeleteObject(hRgn);
     }
-    ::ReleaseDC(mWnd, dc);
   }
 #endif
 }
@@ -1281,10 +1254,6 @@ void nsWindow::SetThemeRegion()
 // Move this component
 NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
 {
-  if (mWindowType == eWindowType_toplevel ||
-      mWindowType == eWindowType_dialog) {
-    SetSizeMode(nsSizeMode_Normal);
-  }
   // Check to see if window needs to be moved first
   // to avoid a costly call to SetWindowPos. This check
   // can not be moved to the calling code in nsView, because
@@ -1523,17 +1492,28 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
       case nsSizeMode_Maximized :
         mode = SW_MAXIMIZE;
         break;
-
       case nsSizeMode_Minimized :
-        // Using SW_SHOWMINIMIZED prevents the working set from being trimmed but
-        // keeps the window active in the tray. So after the window is minimized,
-        // windows will fire WM_WINDOWPOSCHANGED (OnWindowPosChanged) at which point
-        // we will do some additional processing to get the active window set right.
-        // If sTrimOnMinimize is set, we let windows handle minimization normally
-        // using SW_MINIMIZE.
         mode = sTrimOnMinimize ? SW_MINIMIZE : SW_SHOWMINIMIZED;
-        break;
+        if (!sTrimOnMinimize) {
+          // Find the next window that is enabled, visible, and not minimized.
+          HWND hwndBelow = ::GetNextWindow(mWnd, GW_HWNDNEXT);
+          while (hwndBelow && (!::IsWindowEnabled(hwndBelow) || !::IsWindowVisible(hwndBelow) ||
+                               ::IsIconic(hwndBelow))) {
+            hwndBelow = ::GetNextWindow(hwndBelow, GW_HWNDNEXT);
+          }
 
+          // Push ourselves to the bottom of the stack, then activate the
+          // next window.
+          ::SetWindowPos(mWnd, HWND_BOTTOM, 0, 0, 0, 0,
+                         SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
+          if (hwndBelow)
+            ::SetForegroundWindow(hwndBelow);
+
+          // Play the minimize sound while we're here, since that is also
+          // forgotten when we use SW_SHOWMINIMIZED.
+          ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
+        }
+        break;
       default :
         mode = SW_RESTORE;
     }
@@ -1661,12 +1641,6 @@ NS_METHOD nsWindow::IsEnabled(PRBool *aState)
 NS_METHOD nsWindow::SetFocus(PRBool aRaise)
 {
   if (mWnd) {
-#ifdef WINSTATE_DEBUG_OUTPUT
-    if (mWnd == GetTopLevelHWND(mWnd))
-      printf("*** SetFocus: [  top] raise=%d\n", aRaise);
-    else
-      printf("*** SetFocus: [child] raise=%d\n", aRaise);
-#endif
     // Uniconify, if necessary
     HWND toplevelWnd = GetTopLevelHWND(mWnd);
     if (aRaise && ::IsIconic(toplevelWnd)) {
@@ -2032,84 +2006,6 @@ void nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
 {
   GetTopLevelWindow(PR_TRUE)->SetWindowTranslucencyInner(aMode);
 }
-
-namespace {
-  BOOL CALLBACK AddClientAreaToRegion(HWND hWnd, LPARAM lParam) {
-    nsIntRegion *region = reinterpret_cast<nsIntRegion*>(lParam);
-
-    RECT clientRect;
-    ::GetWindowRect(hWnd, &clientRect);
-    nsIntRect clientArea(clientRect.left, clientRect.top,
-                         clientRect.right - clientRect.left,
-                         clientRect.bottom - clientRect.top);
-    region->Or(*region, clientArea);
-    return TRUE;
-  }
-}
-
-void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
-                                               const nsIntRegion &aPossiblyTransparentRegion) {
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  if (mTransparencyMode != eTransparencyGlass)
-    return;
-
-  HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
-  nsWindow* topWindow = GetNSWindowPtr(hWnd);
-
-  if (GetParent())
-    return;
-
-  mPossiblyTransparentRegion.Sub(mPossiblyTransparentRegion, aDirtyRegion);
-  mPossiblyTransparentRegion.Or(mPossiblyTransparentRegion, aPossiblyTransparentRegion);
-
-  nsIntRegion childWindowRegion;
-
-  ::EnumChildWindows(mWnd, AddClientAreaToRegion, reinterpret_cast<LPARAM>(&childWindowRegion));
-  RECT r;
-  ::GetWindowRect(mWnd, &r);
-
-  childWindowRegion.MoveBy(-r.left, -r.top);
-
-  nsIntRect clientBounds;
-  topWindow->GetClientBounds(clientBounds);
-  nsIntRegion opaqueRegion;
-  opaqueRegion.Sub(clientBounds, mPossiblyTransparentRegion);
-  opaqueRegion.Or(opaqueRegion, childWindowRegion);
-  // Sometimes child windows overlap our bounds
-  opaqueRegion.And(opaqueRegion, clientBounds);
-  MARGINS margins = { 0, 0, 0, 0 };
-  DWORD_PTR dwStyle = ::GetWindowLongPtrW(hWnd, GWL_STYLE);
-  // If there is no opaque region or hidechrome=true then full glass
-  if (opaqueRegion.IsEmpty() || !(dwStyle & WS_CAPTION)) {
-    margins.cxLeftWidth = -1;
-  } else {
-    // Find the largest rectangle and use that to calculate the inset
-    nsIntRect largest = opaqueRegion.GetLargestRectangle();
-    margins.cxLeftWidth = largest.x;
-    margins.cxRightWidth = clientBounds.width - largest.XMost();
-    margins.cyTopHeight = largest.y;
-    margins.cyBottomHeight = clientBounds.height - largest.YMost();
-  }
-  if (memcmp(&mGlassMargins, &margins, sizeof mGlassMargins)) {
-    mGlassMargins = margins;
-    UpdateGlass();
-  }
-#endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-}
-
-void nsWindow::UpdateGlass() {
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
-  DWMNCRENDERINGPOLICY policy = DWMNCRP_USEWINDOWSTYLE;
-  if(eTransparencyGlass == mTransparencyMode) {
-    policy = DWMNCRP_ENABLED;
-  }
-  if(nsUXThemeData::CheckForCompositor()) {
-    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &mGlassMargins);
-    nsUXThemeData::dwmSetWindowAttributePtr(hWnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof policy);
-  }
-#endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-}
 #endif
 
 /**************************************************************
@@ -2186,7 +2082,12 @@ NS_METHOD nsWindow::Invalidate(PRBool aIsSynchronous)
                          nsCAutoString("noname"),
                          (PRInt32) mWnd);
 #endif // WIDGET_DEBUG_OUTPUT
-
+#ifdef WINCE_WINDOWS_MOBILE
+    // We need to keep track of our own invalidated region for Windows CE
+    RECT r;
+    GetClientRect(mWnd, &r);
+    AddRECTToRegion(r, mInvalidatedRegion);
+#endif
     VERIFY(::InvalidateRect(mWnd, NULL, FALSE));
 
     if (aIsSynchronous) {
@@ -2217,6 +2118,10 @@ NS_METHOD nsWindow::Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous)
     rect.right  = aRect.x + aRect.width;
     rect.bottom = aRect.y + aRect.height;
 
+#ifdef WINCE_WINDOWS_MOBILE
+    // We need to keep track of our own invalidated region for Windows CE
+    AddRECTToRegion(rect, mInvalidatedRegion);
+#endif
     VERIFY(::InvalidateRect(mWnd, &rect, FALSE));
 
     if (aIsSynchronous) {
@@ -2233,45 +2138,20 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
   RECT rc;
   if (aFullScreen) {
     SetForegroundWindow(mWnd);
-    if (nsWindowCE::sMenuBarShown) {
-      SIPINFO sipInfo;
-      memset(&sipInfo, 0, sizeof(SIPINFO));
-      sipInfo.cbSize = sizeof(SIPINFO);
-      if (SipGetInfo(&sipInfo))
-        SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), 
-                sipInfo.rcVisibleDesktop.bottom);
-      else
-        SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), 
-                GetSystemMetrics(SM_CYSCREEN));
-      RECT menuBarRect;
-      if (GetWindowRect(nsWindowCE::sSoftKeyMenuBarHandle, &menuBarRect) && 
-          menuBarRect.top < rc.bottom)
-        rc.bottom = menuBarRect.top;
-      SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_SHOWSIPBUTTON);
-    } else {
-      
-      SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON);
-      SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
-    }
+    SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON);
+    SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
   }
   else {
     SHFullScreen(mWnd, SHFS_SHOWTASKBAR | SHFS_SHOWSTARTICON);
     SystemParametersInfo(SPI_GETWORKAREA, 0, &rc, FALSE);
   }
+  MoveWindow(mWnd, rc.left, rc.top, rc.right-rc.left, rc.bottom-rc.top, TRUE);
 
   if (aFullScreen)
     mSizeMode = nsSizeMode_Fullscreen;
-
-  // nsBaseWidget hides the chrome and resizes the window, replicate that here
-  HideWindowChrome(aFullScreen);
-  Resize(rc.left, rc.top, rc.right-rc.left, rc.bottom-rc.top, PR_TRUE);
-
-  return NS_OK;
-
-#else
+#endif
 
   return nsBaseWidget::MakeFullScreen(aFullScreen);
-#endif
 }
 
 /**************************************************************
@@ -2344,29 +2224,6 @@ HasDescendantWindowOutsideRect(DWORD aThisThreadID, HWND aWnd,
   return PR_FALSE;
 }
 
-static void
-InvalidateRgnInWindowSubtree(HWND aWnd, HRGN aRgn, HRGN aTmpRgn)
-{
-  RECT clientRect;
-  ::GetClientRect(aWnd, &clientRect);
-  ::SetRectRgn(aTmpRgn, clientRect.left, clientRect.top,
-               clientRect.right, clientRect.bottom);
-  if (::CombineRgn(aTmpRgn, aTmpRgn, aRgn, RGN_AND) == NULLREGION) {
-    return;
-  }
-
-  ::InvalidateRgn(aWnd, aTmpRgn, FALSE);
-
-  for (HWND child = ::GetWindow(aWnd, GW_CHILD); child;
-       child = ::GetWindow(child, GW_HWNDNEXT)) {
-    POINT pt = { 0, 0 };
-    ::MapWindowPoints(child, aWnd, &pt, 1);
-    ::OffsetRgn(aRgn, -pt.x, -pt.y);
-    InvalidateRgnInWindowSubtree(child, aRgn, aTmpRgn);
-    ::OffsetRgn(aRgn, pt.x, pt.y);
-  }
-}
-
 void
 nsWindow::Scroll(const nsIntPoint& aDelta,
                  const nsTArray<nsIntRect>& aDestRects,
@@ -2391,26 +2248,14 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     w->SetWindowClipRegion(configuration.mClipRegion, PR_TRUE);
   }
 
-  // Create temporary regions
-  HRGN updateRgn = ::CreateRectRgn(0, 0, 0, 0);
-  if (!updateRgn) {
-    // OOM?
-    return;
-  }
-  HRGN destRgn = ::CreateRectRgn(0, 0, 0, 0);
-  if (!destRgn) {
-    // OOM?
-    ::DeleteObject((HGDIOBJ)updateRgn);
-    return;
-  }
-
   DWORD ourThreadID = GetWindowThreadProcessId(mWnd, NULL);
 
-  for (BlitRectIter iter(aDelta, aDestRects); !iter.IsDone(); ++iter) {
-    const nsIntRect& destRect = iter.Rect();
+  for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
     nsIntRect affectedRect;
-    affectedRect.UnionRect(destRect, destRect - aDelta);
-    UINT flags = SW_SCROLLCHILDREN;
+    affectedRect.UnionRect(aDestRects[i], aDestRects[i] - aDelta);
+    // We pass SW_INVALIDATE because areas that get scrolled into view
+    // from offscreen (but inside the scroll area) need to be repainted.
+    UINT flags = SW_SCROLLCHILDREN | SW_INVALIDATE;
     // Now check if any of our children would be affected by
     // SW_SCROLLCHILDREN but not supposed to scroll.
     for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
@@ -2421,8 +2266,8 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
         if (entry) {
           // It's supposed to be scrolled, so we can still use
           // SW_SCROLLCHILDREN. But don't allow SW_SCROLLCHILDREN to be
-          // used on it again by a later rectangle; we don't want it to
-          // move twice!
+          // used on it again by a later rectangle in aDestRects, we
+          // don't want it to move twice!
           scrolledWidgets.RawRemoveEntry(entry);
 
           nsIntPoint screenOffset = WidgetToScreenOffset();
@@ -2453,11 +2298,22 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
       }
     }
 
-    if (flags & SW_SCROLLCHILDREN 
-#ifdef CAIRO_HAS_D2D_SURFACE
-        && !mD2DWindowSurface
-#endif
-        ) {
+    if (flags & SW_SCROLLCHILDREN) {
+      for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
+        const Configuration& configuration = aConfigurations[i];
+        nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
+        // Widgets that will be scrolled by SW_SCROLLCHILDREN but which
+        // will be partly visible outside the scroll area after scrolling
+        // must be invalidated, because SW_SCROLLCHILDREN doesn't
+        // update parts of widgets outside the area it scrolled, even
+        // if it moved them.
+        if (w->mBounds.Intersects(affectedRect) &&
+            !ClipRegionContainedInRect(configuration.mClipRegion,
+                                       affectedRect - (w->mBounds.TopLeft() + aDelta))) {
+          w->Invalidate(PR_FALSE);
+        }
+      }
+
       // ScrollWindowEx will send WM_MOVE to each moved window to tell it
       // its new position. Unfortunately those messages don't reach our
       // WM_MOVE handler for some plugins, so we have to update their
@@ -2472,68 +2328,8 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     }
 
     RECT clip = { affectedRect.x, affectedRect.y, affectedRect.XMost(), affectedRect.YMost() };
-#ifdef CAIRO_HAS_D2D_SURFACE
-    if (mD2DWindowSurface) {
-      mD2DWindowSurface->Scroll(aDelta, affectedRect);
-
-      for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-        const Configuration& configuration = aConfigurations[i];
-        nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-        w->Invalidate(PR_FALSE);
-      }
-
-      ::GetUpdateRgn(mWnd, updateRgn, FALSE);
-      ::OffsetRgn(updateRgn, aDelta.x, aDelta.y);
-
-      if (gfxPlatform::GetDPI() != 96 &&
-          aDelta.y < 0 &&
-          clip.bottom == (mBounds.y + mBounds.height)) {
-        // XXX - bug 548935 - we can at high DPI settings scroll an undrawn
-        // row of pixels into view. This row should be invalidated to make
-        // sure it contains the correct content.
-        HRGN scrollRgn = ::CreateRectRgn(clip.left,
-                                         clip.bottom + aDelta.y - 1,
-                                         clip.right,
-                                         clip.bottom + aDelta.y);
-        ::CombineRgn(updateRgn, updateRgn, scrollRgn, RGN_OR);
-        ::DeleteObject((HGDIOBJ)scrollRgn);
-      }
-    } else {
-#endif
-      ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, updateRgn, NULL, flags);
-#ifdef CAIRO_HAS_D2D_SURFACE
-    }
-#endif
-    ::SetRectRgn(destRgn, destRect.x, destRect.y, destRect.XMost(), destRect.YMost());
-    ::CombineRgn(updateRgn, updateRgn, destRgn, RGN_AND);
-    if (flags & SW_SCROLLCHILDREN) {
-      for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
-           w = static_cast<nsWindow*>(w->GetNextSibling())) {
-        if ((w->mBounds - aDelta).Intersects(affectedRect)) {
-          // Widgets that have been scrolled by SW_SCROLLCHILDREN but which
-          // were, or are, partly outside the scroll area must be invalidated
-          // because SW_SCROLLCHILDREN doesn't update parts of widgets outside
-          // the area it scrolled, even if it moved them.
-          nsAutoTArray<nsIntRect,1> clipRegion;
-          w->GetWindowClipRegion(&clipRegion);
-          if (!ClipRegionContainedInRect(clipRegion,
-                                         destRect - w->mBounds.TopLeft()) ||
-              !ClipRegionContainedInRect(clipRegion,
-                                         destRect - (w->mBounds.TopLeft() - aDelta))) {
-            ::SetRectRgn(destRgn, w->mBounds.x, w->mBounds.y, w->mBounds.XMost(), w->mBounds.YMost());
-            ::CombineRgn(updateRgn, updateRgn, destRgn, RGN_OR);
-          }
-        }
-      }
-
-      InvalidateRgnInWindowSubtree(mWnd, updateRgn, destRgn);
-    } else {
-      ::InvalidateRgn(mWnd, updateRgn, FALSE);
-    }
+    ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, NULL, NULL, flags);
   }
-
-  ::DeleteObject((HGDIOBJ)updateRgn);
-  ::DeleteObject((HGDIOBJ)destRgn);
 
   // Now make sure all children actually get positioned, sized and clipped
   // correctly. If SW_SCROLLCHILDREN already moved widgets to their correct
@@ -2716,8 +2512,6 @@ nsIntPoint nsWindow::WidgetToScreenOffset()
 #if !defined(WINCE) // implemented in nsWindowCE.cpp
 NS_METHOD nsWindow::EnableDragDrop(PRBool aEnable)
 {
-  NS_ASSERTION(mWnd, "nsWindow::EnableDragDrop() called after Destroy()");
-
   nsresult rv = NS_ERROR_FAILURE;
   if (aEnable) {
     if (nsnull == mNativeDragTarget) {
@@ -2737,7 +2531,7 @@ NS_METHOD nsWindow::EnableDragDrop(PRBool aEnable)
       if (S_OK == ::CoLockObjectExternal((LPUNKNOWN)mNativeDragTarget, FALSE, TRUE)) {
         rv = NS_OK;
       }
-      mNativeDragTarget->DragCancel();
+      mNativeDragTarget->mDragCancelled = PR_TRUE;
       NS_RELEASE(mNativeDragTarget);
     }
   }
@@ -2782,7 +2576,6 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
  **************************************************************/
 
 NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
-                                            nsIMenuRollup * aMenuRollup,
                                             PRBool aDoCapture,
                                             PRBool aConsumeRollupEvent)
 {
@@ -2792,11 +2585,10 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
        assure that remains true. */
     NS_ASSERTION(!sRollupWidget, "rollup widget reassigned before release");
     sRollupConsumeEvent = aConsumeRollupEvent;
+    NS_IF_RELEASE(sRollupListener);
     NS_IF_RELEASE(sRollupWidget);
-    NS_IF_RELEASE(sMenuRollup);
     sRollupListener = aListener;
-    sMenuRollup = aMenuRollup;
-    NS_IF_ADDREF(aMenuRollup);
+    NS_ADDREF(aListener);
     sRollupWidget = this;
     NS_ADDREF(this);
 
@@ -2808,8 +2600,7 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
 #endif
     
   } else {
-    sRollupListener = nsnull;
-    NS_IF_RELEASE(sMenuRollup);
+    NS_IF_RELEASE(sRollupListener);
     NS_IF_RELEASE(sRollupWidget);
     
 #ifndef WINCE
@@ -2909,65 +2700,6 @@ nsWindow::HasPendingInputEvent()
 
 /**************************************************************
  *
- * SECTION: nsIWidget::GetLayerManager
- *
- * Get the layer manager associated with this widget.
- *
- **************************************************************/
-
-mozilla::layers::LayerManager*
-nsWindow::GetLayerManager()
-{
-  nsWindow *topWindow = GetNSWindowPtr(GetTopLevelHWND(mWnd, PR_TRUE));
-
-  if (!topWindow) {
-    return nsBaseWidget::GetLayerManager();
-  }
-
-  if (topWindow->GetAcceleratedRendering() != mUseAcceleratedRendering) {
-    mLayerManager = NULL;
-    mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
-  }
-
-#ifndef WINCE
-  if (!mLayerManager) {
-    if (mUseAcceleratedRendering) {
-      nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
-      PRBool allowAcceleration = PR_TRUE;
-      PRBool preferOpenGL = PR_FALSE;
-      if (prefs) {
-        prefs->GetBoolPref("mozilla.widget.accelerated-layers",
-                           &allowAcceleration);
-        prefs->GetBoolPref("mozilla.layers.prefer-opengl",
-                           &preferOpenGL);
-      }
-      
-      if (allowAcceleration) {
-        if (preferOpenGL) {
-          nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
-            new mozilla::layers::LayerManagerOGL(this);
-          if (layerManager->Initialize()) {
-            mLayerManager = layerManager;
-          }
-        }
-        if (!mLayerManager) {
-          nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
-            new mozilla::layers::LayerManagerD3D9(this);
-          if (layerManager->Initialize()) {
-            mLayerManager = layerManager;
-          }
-        }
-      }
-    }
-  }
-#endif
-
-  return nsBaseWidget::GetLayerManager();
-}
-
-/**************************************************************
- *
  * SECTION: nsIWidget::GetThebesSurface
  *
  * Get the Thebes surface associated with this widget.
@@ -2976,24 +2708,10 @@ nsWindow::GetLayerManager()
 
 gfxASurface *nsWindow::GetThebesSurface()
 {
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if (mD2DWindowSurface) {
-    return mD2DWindowSurface;
-  }
-#endif
   if (mPaintDC)
     return (new gfxWindowsSurface(mPaintDC));
 
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-      gfxWindowsPlatform::RENDER_DIRECT2D) {
-    return (new gfxD2DSurface(mWnd));
-  } else {
-#endif
-    return (new gfxWindowsSurface(mWnd));
-#ifdef CAIRO_HAS_D2D_SURFACE
-  }
-#endif
+  return (new gfxWindowsSurface(mWnd));
 }
 
 /**************************************************************
@@ -3068,18 +2786,16 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   // on the document of SystemParametersInfo in MSDN.
   const PRInt32 kSystemDefaultScrollingSpeed = 3;
 
-  PRInt32 absOriginDelta = PR_ABS(aOriginalDelta);
-
   // Compute the simple overridden speed.
-  PRInt32 absComputedOverriddenDelta;
+  PRInt32 computedOverriddenDelta;
   nsresult rv =
-    nsBaseWidget::OverrideSystemMouseScrollSpeed(absOriginDelta, aIsHorizontal,
-                                                 absComputedOverriddenDelta);
+    nsBaseWidget::OverrideSystemMouseScrollSpeed(aOriginalDelta, aIsHorizontal,
+                                                 computedOverriddenDelta);
   NS_ENSURE_SUCCESS(rv, rv);
 
   aOverriddenDelta = aOriginalDelta;
 
-  if (absComputedOverriddenDelta == absOriginDelta) {
+  if (computedOverriddenDelta == aOriginalDelta) {
     // We don't override now.
     return NS_OK;
   }
@@ -3113,23 +2829,14 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   // driver might accelerate the scrolling speed already.  If so, we shouldn't
   // override the scrolling speed for preventing the unexpected high speed
   // scrolling.
-  PRInt32 absDeltaLimit;
+  PRInt32 deltaLimit;
   rv =
     nsBaseWidget::OverrideSystemMouseScrollSpeed(kSystemDefaultScrollingSpeed,
-                                                 aIsHorizontal, absDeltaLimit);
+                                                 aIsHorizontal, deltaLimit);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // If the given delta is larger than our computed limitation value, the delta
-  // was accelerated by the mouse driver.  So, we should do nothing here.
-  if (absDeltaLimit <= absOriginDelta) {
-    return NS_OK;
-  }
+  aOverriddenDelta = PR_MIN(computedOverriddenDelta, deltaLimit);
 
-  absComputedOverriddenDelta =
-    PR_MIN(absComputedOverriddenDelta, absDeltaLimit);
-
-  aOverriddenDelta = (aOriginalDelta > 0) ? absComputedOverriddenDelta :
-                                            -absComputedOverriddenDelta;
   return NS_OK;
 }
 
@@ -3261,8 +2968,6 @@ PRBool nsWindow::DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
                    const nsModifierKeyState &aModKeyState,
                    PRUint32 aFlags)
 {
-  UserActivity();
-
   nsKeyEvent event(PR_TRUE, aEventType, this);
   nsIntPoint point(0, 0);
 
@@ -3303,7 +3008,7 @@ PRBool nsWindow::DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
     pluginEvent.event = aMsg->message;
     pluginEvent.wParam = aMsg->wParam;
     pluginEvent.lParam = aMsg->lParam;
-    event.pluginEvent = (void *)&pluginEvent;
+    event.nativeMsg = (void *)&pluginEvent;
   }
 
   PRBool result = DispatchWindowEvent(&event);
@@ -3356,8 +3061,9 @@ BOOL CALLBACK nsWindow::DispatchStarvedPaints(HWND aWnd, LPARAM aMsg)
     // its one of our windows so check to see if it has a
     // invalidated rect. If it does. Dispatch a synchronous
     // paint.
-    if (GetUpdateRect(aWnd, NULL, FALSE))
+    if (GetUpdateRect(aWnd, NULL, FALSE)) {
       VERIFY(::UpdateWindow(aWnd));
+    }
   }
   return TRUE;
 }
@@ -3370,11 +3076,7 @@ BOOL CALLBACK nsWindow::DispatchStarvedPaints(HWND aWnd, LPARAM aMsg)
 // nsIWidget managed windows.
 void nsWindow::DispatchPendingEvents()
 {
-  if (mPainting) {
-    NS_WARNING("We were asked to dispatch pending events during painting, "
-               "denying since that's unsafe.");
-    return;
-  }
+  UpdateLastInputEventTime();
 
   // We need to ensure that reflow events do not get starved.
   // At the same time, we don't want to recurse through here
@@ -3415,7 +3117,7 @@ PRBool nsWindow::DispatchPluginEvent(const MSG &aMsg)
   pluginEvent.event = aMsg.message;
   pluginEvent.wParam = aMsg.wParam;
   pluginEvent.lParam = aMsg.lParam;
-  event.pluginEvent = (void *)&pluginEvent;
+  event.nativeMsg = (void *)&pluginEvent;
   return DispatchWindowEvent(&event);
 }
 
@@ -3430,11 +3132,9 @@ void nsWindow::RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
 // Deal with all sort of mouse event
 PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
                                     LPARAM lParam, PRBool aIsContextMenuKey,
-                                    PRInt16 aButton, PRUint16 aInputSource)
+                                    PRInt16 aButton)
 {
   PRBool result = PR_FALSE;
-
-  UserActivity();
 
   if (!mEventCallback) {
     return result;
@@ -3460,7 +3160,6 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
   event.isMeta    = PR_FALSE;
   event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   event.button    = aButton;
-  event.inputSource = aInputSource;
 
   nsIntPoint mpScreen = eventPoint + WidgetToScreenOffset();
 
@@ -3587,9 +3286,6 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     case NS_MOUSE_MOVE:
       pluginEvent.event = WM_MOUSEMOVE;
       break;
-    case NS_MOUSE_EXIT:
-      pluginEvent.event = WM_MOUSELEAVE;
-      break;
     default:
       pluginEvent.event = WM_NULL;
       break;
@@ -3598,7 +3294,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
   pluginEvent.wParam = wParam;     // plugins NEED raw OS event flags!
   pluginEvent.lParam = lParam;
 
-  event.pluginEvent = (void *)&pluginEvent;
+  event.nativeMsg = (void *)&pluginEvent;
 
   // call the event callback
   if (nsnull != mEventCallback) {
@@ -3617,14 +3313,12 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
         if (sCurrentWindow == NULL || sCurrentWindow != this) {
           if ((nsnull != sCurrentWindow) && (!sCurrentWindow->mInDtor)) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
-            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_EXIT, wParam, pos, PR_FALSE, 
-                                               nsMouseEvent::eLeftButton, aInputSource);
+            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_EXIT, wParam, pos);
           }
           sCurrentWindow = this;
           if (!mInDtor) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
-            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_ENTER, wParam, pos, PR_FALSE,
-                                               nsMouseEvent::eLeftButton, aInputSource);
+            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_ENTER, wParam, pos);
           }
         }
       }
@@ -3650,24 +3344,32 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
 
 // Deal with accessibile event
 #ifdef ACCESSIBILITY
-nsAccessible*
-nsWindow::DispatchAccessibleEvent(PRUint32 aEventType)
+PRBool nsWindow::DispatchAccessibleEvent(PRUint32 aEventType, nsIAccessible** aAcc, nsIntPoint* aPoint)
 {
+  PRBool result = PR_FALSE;
+
   if (nsnull == mEventCallback) {
-    return nsnull;
+    return result;
   }
 
+  *aAcc = nsnull;
+
   nsAccessibleEvent event(PR_TRUE, aEventType, this);
-  InitEvent(event, nsnull);
+  InitEvent(event, aPoint);
 
   event.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
   event.isControl = IS_VK_DOWN(NS_VK_CONTROL);
   event.isMeta    = PR_FALSE;
   event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
+  event.accessible = nsnull;
 
-  DispatchWindowEvent(&event);
+  result = DispatchWindowEvent(&event);
 
-  return event.mAccessible;
+  // if the event returned an accesssible get it.
+  if (event.accessible)
+    *aAcc = event.accessible;
+
+  return result;
 }
 #endif
 
@@ -3677,23 +3379,10 @@ PRBool nsWindow::DispatchFocusToTopLevelWindow(PRUint32 aEventType)
     sJustGotActivate = PR_FALSE;
   sJustGotDeactivate = PR_FALSE;
 
-  // retrive the toplevel window or dialog
-  HWND curWnd = mWnd;
-  HWND toplevelWnd = NULL;
-  while (curWnd) {
-    toplevelWnd = curWnd;
-
-    nsWindow *win = GetNSWindowPtr(curWnd);
-    if (win) {
-      nsWindowType wintype;
-      win->GetWindowType(wintype);
-      if (wintype == eWindowType_toplevel || wintype == eWindowType_dialog)
-        break;
-    }
-
-    curWnd = ::GetParent(curWnd); // Parent or owner (if has no parent)
-  }
-
+  // clear the flags, and retrieve the toplevel window. This way, it doesn't
+  // mattter what child widget received the focus event and it will always be
+  // fired at the toplevel window.
+  HWND toplevelWnd = GetTopLevelHWND(mWnd);
   if (toplevelWnd) {
     nsWindow *win = GetNSWindowPtr(toplevelWnd);
     if (win)
@@ -3732,7 +3421,7 @@ PRBool nsWindow::DispatchFocus(PRUint32 aEventType)
         break;
     }
 
-    event.pluginEvent = (void *)&pluginEvent;
+    event.nativeMsg = (void *)&pluginEvent;
 
     return DispatchWindowEvent(&event);
   }
@@ -3793,113 +3482,6 @@ PRBool nsWindow::ConvertStatus(nsEventStatus aStatus)
 }
 
 /**************************************************************
- *
- * SECTION: IPC
- *
- * IPC related helpers.
- *
- **************************************************************/
-
-#ifdef MOZ_IPC
-
-// static
-bool
-nsWindow::IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult)
-{
-  switch(aMsg) {
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
-    case WM_ENABLE:
-    case WM_WINDOWPOSCHANGING:
-    case WM_WINDOWPOSCHANGED:
-    case WM_PARENTNOTIFY:
-    case WM_ACTIVATEAPP:
-    case WM_NCACTIVATE:
-    case WM_ACTIVATE:
-    case WM_CHILDACTIVATE:
-    case WM_IME_SETCONTEXT:
-    case WM_IME_NOTIFY:
-    case WM_SHOWWINDOW:
-    case WM_CANCELMODE:
-    case WM_MOUSEACTIVATE:
-    case WM_CONTEXTMENU:
-      aResult = 0;
-    return true;
-
-    case WM_SETTINGCHANGE:
-    case WM_SETCURSOR:
-    return false;
-  }
-
-#ifdef DEBUG
-  char szBuf[200];
-  sprintf(szBuf,
-    "An unhandled ISMEX_SEND message was received during spin loop! (%X)", aMsg);
-  NS_WARNING(szBuf);
-#endif
-
-  return false;
-}
-
-void
-nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
-{
-  NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
-               "Failed to prevent a nonqueued message from running!");
-
-  // Modal UI being displayed in windowless plugins.
-  if (mozilla::ipc::RPCChannel::IsSpinLoopActive() &&
-      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-    LRESULT res;
-    if (IsAsyncResponseEvent(msg, res)) {
-      ReplyMessage(res);
-    }
-    return;
-  }
-
-  // Handle certain sync plugin events sent to the parent which
-  // trigger ipc calls that result in deadlocks.
-
-  DWORD dwResult = 0;
-  PRBool handled = PR_FALSE;
-
-  switch(msg) {
-    // Windowless flash sending WM_ACTIVATE events to the main window
-    // via calls to ShowWindow.
-    case WM_ACTIVATE:
-      if (lParam != 0 && LOWORD(wParam) == WA_ACTIVE &&
-          IsWindow((HWND)lParam))
-        handled = PR_TRUE;
-    break;
-    // Wheel events forwarded from the child.
-    case WM_MOUSEWHEEL:
-    case WM_MOUSEHWHEEL:
-    case WM_HSCROLL:
-    case WM_VSCROLL:
-    // Plugins taking or losing focus triggering focus app messages.
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
-    // Windowed plugins that pass sys key events to defwndproc generate
-    // WM_SYSCOMMAND events to the main window.
-    case WM_SYSCOMMAND:
-    // Windowed plugins that fire context menu selection events to parent
-    // windows.
-    case WM_CONTEXTMENU:
-    // IME events fired as a result of synchronous focus changes
-    case WM_IME_SETCONTEXT:
-      handled = PR_TRUE;
-    break;
-  }
-
-  if (handled &&
-      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-    ReplyMessage(dwResult);
-  }
-}
-
-#endif // MOZ_IPC
-
-/**************************************************************
  **************************************************************
  **
  ** BLOCK: Native events
@@ -3922,25 +3504,16 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
 // The WndProc procedure for all nsWindows in this toolkit
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-  NS_TIME_FUNCTION_MIN_FMT(5.0, "%s (line %d) (hWnd: %p, msg: %p, wParam: %p, lParam: %p",
-                           MOZ_FUNCTION_NAME, __LINE__, hWnd, msg,
-                           wParam, lParam);
-
-  // Get the window which caused the event and ask it to process the message
-  nsWindow *someWindow = GetNSWindowPtr(hWnd);
-
-#ifdef MOZ_IPC
-  if (someWindow)
-    someWindow->IPCWindowProcHandler(msg, wParam, lParam);
-#endif
-
   // create this here so that we store the last rolled up popup until after
   // the event has been processed.
   nsAutoRollup autoRollup;
 
   LRESULT popupHandlingResult;
-  if (DealWithPopups(hWnd, msg, wParam, lParam, &popupHandlingResult))
+  if ( DealWithPopups(hWnd, msg, wParam, lParam, &popupHandlingResult) )
     return popupHandlingResult;
+
+  // Get the window which caused the event and ask it to process the message
+  nsWindow *someWindow = GetNSWindowPtr(hWnd);
 
   // XXX This fixes 50208 and we are leaving 51174 open to further investigate
   // why we are hitting this assert
@@ -3956,16 +3529,25 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   if (!someWindow->mInDtor) // not if we're in the destructor!
     kungFuDeathGrip = do_QueryInterface((nsBaseWidget*)someWindow);
 
-  // Call ProcessMessage
-  LRESULT retValue;
-  if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
-    return retValue;
+  // Re-direct a tab change message destined for its parent window to the
+  // the actual window which generated the event.
+  if (msg == WM_NOTIFY) {
+    LPNMHDR pnmh = (LPNMHDR) lParam;
+    if (pnmh->code == TCN_SELCHANGE) {
+      someWindow = GetNSWindowPtr(pnmh->hwndFrom);
+    }
   }
 
-  LRESULT res = ::CallWindowProcW(someWindow->GetPrevWindowProc(),
-                                  hWnd, msg, wParam, lParam);
+  // Call ProcessMessage
+  if (nsnull != someWindow) {
+    LRESULT retValue;
+    if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
+      return retValue;
+    }
+  }
 
-  return res;
+  return ::CallWindowProcW(someWindow->GetPrevWindowProc(),
+                           hWnd, msg, wParam, lParam);
 }
 
 // The main windows message processing method for plugins.
@@ -4052,13 +3634,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   // (Large blocks of code should be broken out into OnEvent handlers.)
   if (mWindowHook.Notify(mWnd, msg, wParam, lParam, aRetValue))
     return PR_TRUE;
-
-#if defined(EVENT_DEBUG_OUTPUT)
-  // First param shows all events, second param indicates whether
-  // to show mouse move events. See nsWindowDbg for details.
-  PrintEvent(msg, SHOW_REPEAT_EVENTS, SHOW_MOUSEMOVE_EVENTS);
-#endif
-
+  
   PRBool eatMessage;
   if (nsIMM32Handler::ProcessMessage(this, msg, wParam, lParam, aRetValue,
                                      eatMessage)) {
@@ -4079,7 +3655,30 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
   static PRBool getWheelInfo = PR_TRUE;
 
+#if defined(EVENT_DEBUG_OUTPUT)
+  // First param shows all events, second param indicates whether
+  // to show mouse move events. See nsWindowDbg for details.
+  PrintEvent(msg, SHOW_REPEAT_EVENTS, SHOW_MOUSEMOVE_EVENTS);
+#endif
+
   switch (msg) {
+    case WM_COMMAND:
+    {
+      WORD wNotifyCode = HIWORD(wParam); // notification code
+      if ((CBN_SELENDOK == wNotifyCode) || (CBN_SELENDCANCEL == wNotifyCode)) { // Combo box change
+        nsGUIEvent event(PR_TRUE, NS_CONTROL_CHANGE, this);
+        nsIntPoint point(0,0);
+        InitEvent(event, &point); // this add ref's event.widget
+        result = DispatchWindowEvent(&event);
+      } else if (wNotifyCode == 0) { // Menu selection
+        nsMenuEvent event(PR_TRUE, NS_MENU_SELECTED, this);
+        event.mCommand = LOWORD(wParam);
+        InitEvent(event);
+        result = DispatchWindowEvent(&event);
+      }
+    }
+    break;
+
 #ifndef WINCE
     // WM_QUERYENDSESSION must be handled by all windows.
     // Otherwise Windows thinks the window can just be killed at will.
@@ -4089,7 +3688,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         // Ask if it's ok to quit, and store the answer until we
         // get WM_ENDSESSION signaling the round is complete.
         nsCOMPtr<nsIObserverService> obsServ =
-          mozilla::services::GetObserverService();
+          do_GetService("@mozilla.org/observer-service;1");
         nsCOMPtr<nsISupportsPRBool> cancelQuit =
           do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID);
         cancelQuit->SetData(PR_FALSE);
@@ -4102,20 +3701,16 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       *aRetValue = sCanQuit ? TRUE : FALSE;
       result = PR_TRUE;
       break;
-#endif
 
-#ifndef WINCE
     case WM_ENDSESSION:
-#endif
-    case MOZ_WM_APP_QUIT:
-      if (msg == MOZ_WM_APP_QUIT || (wParam == TRUE && sCanQuit == TRI_TRUE))
+      if (wParam == TRUE && sCanQuit == TRI_TRUE)
       {
         // Let's fake a shutdown sequence without actually closing windows etc.
         // to avoid Windows killing us in the middle. A proper shutdown would
         // require having a chance to pump some messages. Unfortunately
         // Windows won't let us do that. Bug 212316.
         nsCOMPtr<nsIObserverService> obsServ =
-          mozilla::services::GetObserverService();
+          do_GetService("@mozilla.org/observer-service;1");
         NS_NAMED_LITERAL_STRING(context, "shutdown-persist");
         obsServ->NotifyObservers(nsnull, "quit-application-granted", nsnull);
         obsServ->NotifyObservers(nsnull, "quit-application-forced", nsnull);
@@ -4130,7 +3725,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = PR_TRUE;
       break;
 
-#ifndef WINCE
     case WM_DISPLAYCHANGE:
       DispatchStandardEvent(NS_DISPLAYCHANGED);
       break;
@@ -4292,6 +3886,11 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       }
       break;
 
+    case WM_GETDLGCODE:
+      *aRetValue = DLGC_WANTALLKEYS;
+      result = PR_TRUE;
+      break;
+
     case WM_MOUSEMOVE:
     {
 #ifdef WINCE_WINDOWS_MOBILE
@@ -4311,8 +3910,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         userMovedMouse = PR_TRUE;
       }
 
-      result = DispatchMouseEvent(NS_MOUSE_MOVE, wParam, lParam,
-                                  PR_FALSE, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+      result = DispatchMouseEvent(NS_MOUSE_MOVE, wParam, lParam);
       if (userMovedMouse) {
         DispatchPendingEvents();
       }
@@ -4333,7 +3931,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       SetTimer(mWnd, KILL_PRIORITY_ID, 2000 /* 2 seconds */, NULL);
 #endif
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam,
-                                  PR_FALSE, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+                                  PR_FALSE, nsMouseEvent::eLeftButton);
       DispatchPendingEvents();
     }
     break;
@@ -4341,7 +3939,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_LBUTTONUP:
     {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam,
-                                  PR_FALSE, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+                                  PR_FALSE, nsMouseEvent::eLeftButton);
       DispatchPendingEvents();
 
 #ifdef WINCE_WINDOWS_MOBILE
@@ -4362,8 +3960,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // Synthesize an event position because we don't get one from
       // WM_MOUSELEAVE.
       LPARAM pos = lParamToClient(::GetMessagePos());
-      DispatchMouseEvent(NS_MOUSE_EXIT, mouseState, pos, PR_FALSE,
-                         nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+      DispatchMouseEvent(NS_MOUSE_EXIT, mouseState, pos);
     }
     break;
 #endif
@@ -4383,55 +3980,54 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       {
         pos = lParamToClient(lParam);
       }
-
       result = DispatchMouseEvent(NS_CONTEXTMENU, wParam, pos, contextMenukey,
                                   contextMenukey ?
                                     nsMouseEvent::eLeftButton :
-                                    nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+                                    nsMouseEvent::eRightButton);
     }
     break;
 
     case WM_LBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eLeftButton);
       break;
 
     case WM_MBUTTONDOWN:
     {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eMiddleButton);
       DispatchPendingEvents();
     }
     break;
 
     case WM_MBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eMiddleButton);
       DispatchPendingEvents();
       break;
 
     case WM_MBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eMiddleButton);
       break;
 
     case WM_RBUTTONDOWN:
     {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eRightButton);
       DispatchPendingEvents();
     }
     break;
 
     case WM_RBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eRightButton);
       DispatchPendingEvents();
       break;
 
     case WM_RBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eRightButton);
       break;
 
     case WM_APPCOMMAND:
@@ -4459,8 +4055,32 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
     case WM_HSCROLL:
     case WM_VSCROLL:
-      *aRetValue = 0;
-      result = OnScroll(msg, wParam, lParam);
+      // check for the incoming nsWindow handle to be null in which case
+      // we assume the message is coming from a horizontal scrollbar inside
+      // a listbox and we don't bother processing it (well, we don't have to)
+      if (lParam) {
+        nsWindow* scrollbar = GetNSWindowPtr((HWND)lParam);
+
+        if (scrollbar) {
+          result = scrollbar->OnScroll(msg, wParam, lParam);
+        }
+      }
+      break;
+
+    case WM_CTLCOLORLISTBOX:
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORBTN:
+    //case WM_CTLCOLORSCROLLBAR: //XXX causes the scrollbar to be drawn incorrectly
+    case WM_CTLCOLORSTATIC:
+      if (lParam) {
+        nsWindow* control = GetNSWindowPtr((HWND)lParam);
+          if (control) {
+            control->SetUpForPaint((HDC)wParam);
+            *aRetValue = (LPARAM)control->OnControlColor();
+          }
+      }
+
+      result = PR_TRUE;
       break;
 
     // The WM_ACTIVATE event is fired when a window is raised or lowered,
@@ -4475,8 +4095,8 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
 #if defined(WINCE_HAVE_SOFTKB)
         if (mIsTopWidgetWindow && sSoftKeyboardState)
-          nsWindowCE::ToggleSoftKB(mWnd, fActive);
-        if (nsWindowCE::sShowSIPButton == TRI_FALSE && WA_INACTIVE != fActive) {
+          nsWindowCE::ToggleSoftKB(fActive);
+        if (nsWindowCE::sShowSIPButton != TRI_TRUE && WA_INACTIVE != fActive) {
           HWND hWndSIPB = FindWindowW(L"MS_SIPBUTTON", NULL ); 
           if (hWndSIPB)
             ShowWindow(hWndSIPB, SW_HIDE);
@@ -4573,7 +4193,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #ifdef ACCESSIBILITY
       if (nsWindow::sIsAccessibilityOn) {
         // Create it for the first time so that it can start firing events
-        nsAccessible *rootAccessible = GetRootAccessible();
+        nsCOMPtr<nsIAccessible> rootAccessible = GetRootAccessible();
       }
 #endif
 
@@ -4614,9 +4234,10 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       getWheelInfo = PR_TRUE;
 #else
       switch (wParam) {
+        case SPI_SIPMOVE:
         case SPI_SETSIPINFO:
         case SPI_SETCURRENTIM:
-          nsWindowCE::OnSoftKbSettingsChange(mWnd);
+          nsWindowCE::NotifySoftKbObservers();
           break;
         case SETTINGCHANGE_RESET:
           if (mWindowType == eWindowType_invisible) {
@@ -4658,7 +4279,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     {
       *aRetValue = 0;
       if (lParam == OBJID_CLIENT) { // oleacc.dll will be loaded dynamically
-        nsAccessible *rootAccessible = GetRootAccessible(); // Held by a11y cache
+        nsCOMPtr<nsIAccessible> rootAccessible = GetRootAccessible(); // Held by a11y cache
         if (rootAccessible) {
           IAccessible *msaaAccessible = NULL;
           rootAccessible->GetNativeInterface((void**)&msaaAccessible); // does an addref
@@ -4708,31 +4329,13 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   case WM_DWMCOMPOSITIONCHANGED:
     BroadcastMsg(mWnd, WM_DWMCOMPOSITIONCHANGED);
     DispatchStandardEvent(NS_THEMECHANGED);
-    UpdateGlass();
+    if (nsUXThemeData::CheckForCompositor() && mTransparencyMode == eTransparencyGlass) {
+      MARGINS margins = { -1, -1, -1, -1 };
+      nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(mWnd, &margins);
+    }
     Invalidate(PR_FALSE);
     break;
 #endif
-
-  case WM_UPDATEUISTATE:
-  {
-    // If the UI state has changed, fire an event so the UI updates the
-    // keyboard cues based on the system setting and how the window was
-    // opened. For example, a dialog opened via a keyboard press on a button
-    // should enable cues, whereas the same dialog opened via a mouse click of
-    // the button should not.
-    PRInt32 action = LOWORD(wParam);
-    if (action == UIS_SET || action == UIS_CLEAR) {
-      nsUIStateChangeEvent event(PR_TRUE, NS_UISTATECHANGED, this);
-      PRInt32 flags = HIWORD(wParam);
-      if (flags & UISF_HIDEACCEL)
-        event.showAccelerators = (action == UIS_SET) ? UIStateChangeType_Clear : UIStateChangeType_Set;
-      if (flags & UISF_HIDEFOCUS)
-        event.showFocusRings = (action == UIS_SET) ? UIStateChangeType_Clear : UIStateChangeType_Set;
-      DispatchWindowEvent(&event);
-    }
-
-    break;
-  }
 
   /* Gesture support events */
   case WM_TABLET_QUERYSYSTEMGESTURESTATUS:
@@ -4890,15 +4493,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       if (msg == nsAppShell::GetTaskbarButtonCreatedMessage())
         SetHasTaskbarIconBeenCreated();
 #endif
-#ifdef MOZ_IPC
-      if (msg == sOOPPPluginFocusEvent) {
-        // With OOPP, the plugin window exists in another process and is a child of
-        // this window. This window is a placeholder plugin window for the dom. We
-        // receive this event when the child window receives focus. (sent from
-        // PluginInstanceParent.cpp)
-        ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
-      }
-#endif
     }
     break;
   }
@@ -4983,10 +4577,11 @@ void nsWindow::GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 #ifndef WINCE
 void nsWindow::PostSleepWakeNotification(const char* aNotification)
 {
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1");
   if (observerService)
+  {
     observerService->NotifyObservers(nsnull, aNotification, nsnull);
+  }
 }
 #endif
 
@@ -5031,7 +4626,7 @@ LRESULT nsWindow::ProcessKeyUpMessage(const MSG &aMsg, PRBool *aEventDispatched)
   }
 
   if (!nsIMM32Handler::IsComposing(this) &&
-      (aMsg.message != WM_KEYUP || aMsg.wParam != VK_MENU)) {
+      (aMsg.message != WM_KEYUP || aMsg.message != VK_MENU)) {
     // Ignore VK_MENU if it's not a system key release, so that the menu bar does not trigger
     // This helps avoid triggering the menu bar for ALT key accelerators used in
     // assistive technologies such as Window-Eyes and ZoomText, and when using Alt+Tab
@@ -5172,29 +4767,6 @@ nsWindow::SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
 #endif
 }
 
-nsresult
-nsWindow::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
-                                     PRUint32 aNativeMessage,
-                                     PRUint32 aModifierFlags)
-{
-#ifndef WINCE // I don't think WINCE supports SendInput
-  RECT r;
-  ::GetWindowRect(mWnd, &r);
-  ::SetCursorPos(r.left + aPoint.x, r.top + aPoint.y);
-
-  INPUT input;
-  memset(&input, 0, sizeof(input));
-
-  input.type = INPUT_MOUSE;
-  input.mi.dwFlags = aNativeMessage;
-  ::SendInput(1, &input, sizeof(INPUT));
-
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-}
-
 /**************************************************************
  *
  * SECTION: OnXXX message handlers
@@ -5217,96 +4789,23 @@ BOOL nsWindow::OnInputLangChange(HKL aHKL)
   return PR_FALSE;   // always pass to child window
 }
 
-#if !defined(WINCE) // implemented in nsWindowCE.cpp
 void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
 {
   if (wp == nsnull)
     return;
 
-#ifdef WINSTATE_DEBUG_OUTPUT
-  if (mWnd == GetTopLevelHWND(mWnd))
-    printf("*** OnWindowPosChanged: [  top] ");
-  else
-    printf("*** OnWindowPosChanged: [child] ");
-  printf("WINDOWPOS flags:");
-  if (wp->flags & SWP_FRAMECHANGED)
-    printf("SWP_FRAMECHANGED ");
-  if (wp->flags & SWP_SHOWWINDOW)
-    printf("SWP_SHOWWINDOW ");
-  if (wp->flags & SWP_NOSIZE)
-    printf("SWP_NOSIZE ");
-  if (wp->flags & SWP_HIDEWINDOW)
-    printf("SWP_HIDEWINDOW ");
-  printf("\n");
-#endif
-
-  // Handle window size mode changes
-  if (wp->flags & SWP_FRAMECHANGED) {
-    nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
-
-    WINDOWPLACEMENT pl;
-    pl.length = sizeof(pl);
-    ::GetWindowPlacement(mWnd, &pl);
-
-    if (pl.showCmd == SW_SHOWMAXIMIZED)
-      event.mSizeMode = nsSizeMode_Maximized;
-    else if (pl.showCmd == SW_SHOWMINIMIZED)
-      event.mSizeMode = nsSizeMode_Minimized;
-    else
-      event.mSizeMode = nsSizeMode_Normal;
-
-    // Windows has just changed the size mode of this window. The following
-    // NS_SIZEMODE event will trigger a call into SetSizeMode where we will
-    // set the min/max window state again or for nsSizeMode_Normal, call
-    // SetWindow with a parameter of SW_RESTORE. There's no need however as
-    // this window's mode has already changed. Updating mSizeMode here
-    // insures the SetSizeMode call is a no-op. Addresses a bug on Win7 related
-    // to window docking. (bug 489258)
-    mSizeMode = event.mSizeMode;
-
-    // If !sTrimOnMinimize, we minimize windows using SW_SHOWMINIMIZED (See
-    // SetSizeMode for internal calls, and WM_SYSCOMMAND for external). This
-    // prevents the working set from being trimmed but keeps the window active.
-    // After the window is minimized, we need to do some touch up work on the
-    // active window. (bugs 76831 & 499816)
-    if (!sTrimOnMinimize && nsSizeMode_Minimized == event.mSizeMode)
-      ActivateOtherWindowHelper(mWnd);
-
-#ifdef WINSTATE_DEBUG_OUTPUT
-    switch (mSizeMode) {
-      case nsSizeMode_Normal:
-          printf("*** mSizeMode: nsSizeMode_Normal\n");
-        break;
-      case nsSizeMode_Minimized:
-          printf("*** mSizeMode: nsSizeMode_Minimized\n");
-        break;
-      case nsSizeMode_Maximized:
-          printf("*** mSizeMode: nsSizeMode_Maximized\n");
-        break;
-      default:
-          printf("*** mSizeMode: ??????\n");
-        break;
-    };
-#endif
-
-    InitEvent(event);
-
-    result = DispatchWindowEvent(&event);
-
-    // Skip window size change events below on minimization.
-    if (mSizeMode == nsSizeMode_Minimized)
-      return;
-  }
-
-  // Handle window size changes
+  // We only care about a resize, so filter out things like z-order
+  // changes. Note: there's a WM_MOVE handler above which is why we're
+  // not handling them here...
   if (0 == (wp->flags & SWP_NOSIZE)) {
+    // XXX Why are we using the client size area? If the size notification
+    // is for the client area then the origin should be (0,0) and not
+    // the window origin in screen coordinates...
     RECT r;
-    PRInt32 newWidth, newHeight;
-
     ::GetWindowRect(mWnd, &r);
-
-    newWidth  = r.right - r.left;
-    newHeight = r.bottom - r.top;
+    PRInt32 newWidth, newHeight;
+    newWidth = PRInt32(r.right - r.left);
+    newHeight = PRInt32(r.bottom - r.top);
     nsIntRect rect(wp->x, wp->y, newWidth, newHeight);
 
 #ifdef MOZ_XUL
@@ -5318,79 +4817,88 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
     {
       RECT drect;
 
-      // getting wider
-      drect.left   = wp->x + mLastSize.width;
-      drect.top    = wp->y;
-      drect.right  = drect.left + (newWidth - mLastSize.width);
+      //getting wider
+      drect.left = wp->x + mLastSize.width;
+      drect.top = wp->y;
+      drect.right = drect.left + (newWidth - mLastSize.width);
       drect.bottom = drect.top + newHeight;
 
       ::RedrawWindow(mWnd, &drect, NULL,
-                     RDW_INVALIDATE |
-                     RDW_NOERASE |
-                     RDW_NOINTERNALPAINT |
-                     RDW_ERASENOW |
-                     RDW_ALLCHILDREN);
+                     RDW_INVALIDATE | RDW_NOERASE | RDW_NOINTERNALPAINT | RDW_ERASENOW | RDW_ALLCHILDREN);
     }
     if (newHeight > mLastSize.height)
     {
       RECT drect;
 
-      // getting taller
-      drect.left   = wp->x;
-      drect.top    = wp->y + mLastSize.height;
-      drect.right  = drect.left + newWidth;
+      //getting taller
+      drect.left = wp->x;
+      drect.top = wp->y + mLastSize.height;
+      drect.right = drect.left + newWidth;
       drect.bottom = drect.top + (newHeight - mLastSize.height);
 
       ::RedrawWindow(mWnd, &drect, NULL,
-                     RDW_INVALIDATE |
-                     RDW_NOERASE |
-                     RDW_NOINTERNALPAINT |
-                     RDW_ERASENOW |
-                     RDW_ALLCHILDREN);
+                     RDW_INVALIDATE | RDW_NOERASE | RDW_NOINTERNALPAINT | RDW_ERASENOW | RDW_ALLCHILDREN);
     }
 
-    mBounds.width    = newWidth;
-    mBounds.height   = newHeight;
-    mLastSize.width  = newWidth;
+    mBounds.width  = newWidth;
+    mBounds.height = newHeight;
+    mLastSize.width = newWidth;
     mLastSize.height = newHeight;
 
-#ifdef WINSTATE_DEBUG_OUTPUT
-    printf("*** Resize window: %d x %d x %d x %d\n", wp->x, wp->y, newWidth, newHeight);
-#endif
-
-    // Recalculate the width and height based on the client area for gecko events.
-    if (::GetClientRect(mWnd, &r)) {
-      rect.width  = r.right - r.left;
-      rect.height = r.bottom - r.top;
+    // If we're being minimized, don't send the resize event to Gecko because
+    // it will cause the scrollbar in the content area to go away and we'll
+    // forget the scroll position of the page.  Note that we need to check the
+    // toplevel window, because child windows seem to go to 0x0 on minimize.
+    HWND toplevelWnd = GetTopLevelHWND(mWnd);
+    if (mWnd == toplevelWnd && IsIconic(toplevelWnd)) {
+      result = PR_FALSE;
+      return;
     }
-    
-    // Send a gecko resize event
+
+    // recalculate the width and height
+    // this time based on the client area
+    if (::GetClientRect(mWnd, &r)) {
+      rect.width  = PRInt32(r.right - r.left);
+      rect.height = PRInt32(r.bottom - r.top);
+    }
     result = OnResize(rect);
   }
-}
 
-// static
-void nsWindow::ActivateOtherWindowHelper(HWND aWnd)
-{
-  // Find the next window that is enabled, visible, and not minimized.
-  HWND hwndBelow = ::GetNextWindow(aWnd, GW_HWNDNEXT);
-  while (hwndBelow && (!::IsWindowEnabled(hwndBelow) || !::IsWindowVisible(hwndBelow) ||
-                       ::IsIconic(hwndBelow))) {
-    hwndBelow = ::GetNextWindow(hwndBelow, GW_HWNDNEXT);
+  // handle size mode changes - (the framechanged message seems a handy
+  // place to hook in, because it happens early enough (WM_SIZE is too
+  // late) and because in testing it seems an accurate harbinger of an
+  // impending min/max/restore change (WM_NCCALCSIZE would also work,
+  // but it's also sent when merely resizing.))
+  if (wp->flags & SWP_FRAMECHANGED && ::IsWindowVisible(mWnd)) {
+    nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
+#ifndef WINCE
+    WINDOWPLACEMENT pl;
+    pl.length = sizeof(pl);
+    ::GetWindowPlacement(mWnd, &pl);
+
+    if (pl.showCmd == SW_SHOWMAXIMIZED)
+      event.mSizeMode = nsSizeMode_Maximized;
+    else if (pl.showCmd == SW_SHOWMINIMIZED)
+      event.mSizeMode = nsSizeMode_Minimized;
+    else
+      event.mSizeMode = nsSizeMode_Normal;
+#else
+    event.mSizeMode = mSizeMode;
+#endif
+    // Windows has just changed the size mode of this window. The following
+    // NS_SIZEMODE event will trigger a call into SetSizeMode where we will
+    // set the min/max window state again or for nsSizeMode_Normal, call
+    // SetWindow with a parameter of SW_RESTORE. There's no need however as
+    // this window's mode has already changed. Updating mSizeMode here
+    // insures the SetSizeMode call is a no-op. Addresses a bug on Win7 related
+    // to window docking. (bug 489258)
+    mSizeMode = event.mSizeMode;
+
+    InitEvent(event);
+
+    result = DispatchWindowEvent(&event);
   }
-
-  // Push ourselves to the bottom of the stack, then activate the
-  // next window.
-  ::SetWindowPos(aWnd, HWND_BOTTOM, 0, 0, 0, 0,
-                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
-  if (hwndBelow)
-    ::SetForegroundWindow(hwndBelow);
-
-  // Play the minimize sound while we're here, since that is also
-  // forgotten when we use SW_SHOWMINIMIZED.
-  ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
 }
-#endif // !defined(WINCE)
 
 #if !defined(WINCE)
 void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
@@ -5436,19 +4944,6 @@ void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
 }
 #endif
 
-void nsWindow::UserActivity()
-{
-  // Check if we have the idle service, if not we try to get it.
-  if (!mIdleService) {
-    mIdleService = do_GetService("@mozilla.org/widget/idleservice;1");
-  }
-
-  // Check that we now have the idle service.
-  if (mIdleService) {
-    mIdleService->ResetIdleTimeOut();
-  }
-}
-
 // Gesture event processing. Handles WM_GESTURE events.
 #if !defined(WINCE)
 PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
@@ -5468,7 +4963,6 @@ PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
     event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
     event.button    = 0;
     event.time      = ::GetMessageTime();
-    event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_TOUCH;
 
     PRBool endFeedback = PR_TRUE;
 
@@ -5509,7 +5003,6 @@ PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
   event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   event.button    = 0;
   event.time      = ::GetMessageTime();
-  event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_TOUCH;
 
   nsEventStatus status;
   DispatchEvent(&event, status);
@@ -5524,18 +5017,6 @@ PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
 }
 #endif // !defined(WINCE)
 
-#if !defined(WINCE)
-PRUint16 nsWindow::GetMouseInputSource()
-{
-  PRUint16 inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE;
-  LPARAM lParamExtraInfo = ::GetMessageExtraInfo();
-  if ((lParamExtraInfo & TABLET_INK_SIGNATURE) == TABLET_INK_CHECK) {
-    inputSource = (lParamExtraInfo & TABLET_INK_TOUCH) ?
-                  nsIDOMNSMouseEvent::MOZ_SOURCE_TOUCH : nsIDOMNSMouseEvent::MOZ_SOURCE_PEN;
-  }
-  return inputSource;
-}
-#endif
 /*
  * OnMouseWheel - mouse wheele event processing. This was originally embedded
  * within the message case block. If returning true result should be returned
@@ -5597,9 +5078,8 @@ PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& ge
 
   // The mousewheel event will be dispatched to the toplevel
   // window.  We need to give it to the child window
-  PRBool quit;
-  if (!HandleScrollingPlugins(msg, wParam, lParam, result, aRetValue, quit))
-    return quit; // return immediately if its not our window
+  if (!HandleScrollingPlugins(msg, wParam, lParam, result))
+    return result; // return immediately if its not our window
 
   // We should cancel the surplus delta if the current window is not
   // same as previous.
@@ -5637,18 +5117,8 @@ PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& ge
     }
   }
 
-  if (!scrollEvent.delta) {
-    // We store the wheel delta, and it will be used next wheel message, so,
-    // we consume this message actually.  We shouldn't call next wndproc.
-    result = PR_TRUE;
+  if (!scrollEvent.delta)
     return PR_FALSE; // break
-  }
-
-#ifdef MOZ_IPC
-  // The event may go to a plug-in which already dispatched this message.
-  // Then, the event can cause deadlock.  We should unlock the sender here.
-  ::ReplyMessage(isVertical ? 0 : TRUE);
-#endif
 
   scrollEvent.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
   scrollEvent.isControl = IS_VK_DOWN(NS_VK_CONTROL);
@@ -6232,7 +5702,6 @@ void nsWindow::OnDestroy()
   // XXX Windows will take care of this in the proper order, and SetParent(nsnull)'s
   // remove child on the parent already took place in nsBaseWidget's Destroy call above.
   //SetParent(nsnull);
-  mParent = nsnull;
 
   // We have to destroy the native drag target before we null out our window pointer.
   EnableDragDrop(PR_FALSE);
@@ -6242,7 +5711,7 @@ void nsWindow::OnDestroy()
   if ( this == sRollupWidget ) {
     if ( sRollupListener )
       sRollupListener->Rollup(nsnull, nsnull);
-    CaptureRollupEvents(nsnull, nsnull, PR_FALSE, PR_TRUE);
+    CaptureRollupEvents(nsnull, PR_FALSE, PR_TRUE);
   }
 
   // If IME is disabled, restore it.
@@ -6287,11 +5756,6 @@ void nsWindow::OnDestroy()
     SetupTranslucentWindowMemoryBitmap(eTransparencyOpaque);
 #endif
 
-#if defined(WINCE_HAVE_SOFTKB)
-  // Revert the changes made for the software keyboard settings
-  nsWindowCE::ResetSoftKB(mWnd);
-#endif
-
   // Clear the main HWND.
   mWnd = NULL;
 }
@@ -6313,12 +5777,6 @@ PRBool nsWindow::OnMove(PRInt32 aX, PRInt32 aY)
 // Send a resize message to the listener
 PRBool nsWindow::OnResize(nsIntRect &aWindowRect)
 {
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if (mD2DWindowSurface) {
-    mD2DWindowSurface = NULL;
-    Invalidate(PR_FALSE);
-  }
-#endif
   // call the event callback
   if (mEventCallback) {
     nsSizeEvent event(PR_TRUE, NS_SIZE, this);
@@ -6352,44 +5810,19 @@ void nsWindow::OnSettingsChange(WPARAM wParam, LPARAM lParam)
     nsWindowGfx::OnSettingsChangeGfx(wParam);
 }
 
-static PRBool IsOurProcessWindow(HWND aHWND)
-{
-  DWORD processId = 0;
-  ::GetWindowThreadProcessId(aHWND, &processId);
-  return processId == ::GetCurrentProcessId();
-}
-
-static HWND FindOurProcessWindow(HWND aHWND)
-{
-  for (HWND wnd = ::GetParent(aHWND); wnd; wnd = ::GetParent(wnd)) {
-    if (IsOurProcessWindow(wnd)) {
-      return wnd;
-    }
-  }
-  return nsnull;
-}
-
 // Scrolling helper function for handling plugins.  
 // Return value indicates whether the calling function should handle this
-// aHandled indicates whether this was handled at all
-// aQuitProcessing tells whether or not to continue processing the message
+// result indicates whether this was handled at all
 PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
-                                        LPARAM aLParam, PRBool& aHandled,
-                                        LRESULT* aRetValue,
-                                        PRBool& aQuitProcessing)
+                                        LPARAM aLParam, PRBool& aHandled)
 {
   // The scroll event will be dispatched to the toplevel
   // window.  We need to give it to the child window
-  aQuitProcessing = PR_FALSE; // default is to not stop processing
+  aHandled = PR_FALSE; // default is to have not handled
   POINT point;
   DWORD dwPoints = ::GetMessagePos();
   point.x = GET_X_LPARAM(dwPoints);
   point.y = GET_Y_LPARAM(dwPoints);
-
-  static PRBool sIsProcessing = PR_FALSE;
-  if (sIsProcessing) {
-    return PR_TRUE;  // the caller should handle this.
-  }
 
   static PRBool sMayBeUsingLogitechMouse = PR_FALSE;
   if (aMsg == WM_MOUSEHWHEEL) {
@@ -6425,34 +5858,17 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
 
   if (!destWnd) {
     // No window is under the pointer
-    return PR_FALSE; // break, but continue processing
+    return PR_FALSE; // break
   }
-
-  nsWindow* destWindow;
-
-  // We don't handle the message if the found window belongs to another
-  // process's top window.  If it belongs window, that is a plug-in's window.
-  // Then, we need to send the message to the plug-in window.
-  if (!IsOurProcessWindow(destWnd)) {
-    HWND ourPluginWnd = FindOurProcessWindow(destWnd);
-    if (!ourPluginWnd) {
-      // Somebody elses window
-      return PR_FALSE; // break, but continue processing
-    }
-    destWindow = GetNSWindowPtr(ourPluginWnd);
-  } else {
-    destWindow = GetNSWindowPtr(destWnd);
+  // We don't care about windows belonging to other processes.
+  DWORD processId = 0;
+  GetWindowThreadProcessId(destWnd, &processId);
+  if (processId != GetCurrentProcessId())
+  {
+    // Somebody elses window
+    return PR_FALSE; // break
   }
-
-  if (destWindow == this && mWindowType == eWindowType_plugin) {
-    // If this is plug-in window, the message came from the plug-in window.
-    // Then, the message should be processed on the parent window.
-    destWindow = static_cast<nsWindow*>(GetParent());
-    NS_ENSURE_TRUE(destWindow, PR_FALSE); // break, but continue processing
-    destWnd = destWindow->mWnd;
-    NS_ENSURE_TRUE(destWnd, PR_FALSE); // break, but continue processing
-  }
-
+  nsWindow* destWindow = GetNSWindowPtr(destWnd);
   if (!destWindow || destWindow->mWindowType == eWindowType_plugin) {
     // Some other app, or a plugin window.
     // Windows directs scrolling messages to the focused window.
@@ -6472,25 +5888,21 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
         // message themselves, some will forward directly back to us, while 
         // others will call DefWndProc, which itself still forwards back to us.
         // So if we have sent it once, we need to handle it ourself.
-
-#ifdef MOZ_IPC
-        // XXX The message shouldn't come from the plugin window at here.
-        // But the message might come from it due to some bugs.  If it happens,
-        // SendMessage causes deadlock.  For safety, we should unlock the
-        // sender here.
-        ::ReplyMessage(aMsg == WM_MOUSEHWHEEL ? TRUE : 0);
-#endif
-
-        // First time we have seen this message.
-        // Call the child - either it will consume it, or
-        // it will wind it's way back to us,triggering the destWnd case above
-        // either way,when the call returns,we are all done with the message,
-        sIsProcessing = PR_TRUE;
-        ::SendMessageW(destWnd, aMsg, aWParam, aLParam);
-        sIsProcessing = PR_FALSE;
-        aHandled = PR_TRUE;
-        aQuitProcessing = PR_TRUE;
-        return PR_FALSE; // break, and stop processing
+        if (mInScrollProcessing) {
+          destWnd = parentWnd;
+          destWindow = parentWindow;
+        } else {
+          // First time we have seen this message.
+          // Call the child - either it will consume it, or
+          // it will wind it's way back to us,triggering the destWnd case above
+          // either way,when the call returns,we are all done with the message,
+          mInScrollProcessing = PR_TRUE;
+          if (0 == ::SendMessageW(destWnd, aMsg, aWParam, aLParam))
+            aHandled = PR_TRUE;
+          destWnd = nsnull;
+          mInScrollProcessing = PR_FALSE;
+        }
+        return PR_FALSE; // break; // stop parent search
       }
       parentWnd = ::GetParent(parentWnd);
     } // while parentWnd
@@ -6499,11 +5911,10 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
     return PR_FALSE;
   if (destWnd != mWnd) {
     if (destWindow) {
-      sIsProcessing = PR_TRUE;
-      aHandled = destWindow->ProcessMessage(aMsg, aWParam, aLParam, aRetValue);
-      sIsProcessing = PR_FALSE;
-      aQuitProcessing = PR_TRUE;
-      return PR_FALSE; // break, and stop processing
+      LRESULT aRetValue;
+      destWindow->ProcessMessage(aMsg, aWParam, aLParam, &aRetValue);
+      aHandled = PR_TRUE;
+      return PR_FALSE; // return result immediately
     }
   #ifdef DEBUG
     else
@@ -6515,28 +5926,14 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
 
 PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
 {
-  static PRInt8 sMouseWheelEmulation = -1;
-  if (sMouseWheelEmulation < 0) {
-    nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(prefs, PR_FALSE);
-    nsCOMPtr<nsIPrefBranch> prefBranch;
-    prefs->GetBranch(0, getter_AddRefs(prefBranch));
-    NS_ENSURE_TRUE(prefBranch, PR_FALSE);
-    PRBool emulate;
-    nsresult rv =
-      prefBranch->GetBoolPref("mousewheel.emulate_at_wm_scroll", &emulate);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
-    sMouseWheelEmulation = PRInt8(emulate);
-  }
-
-  if (aLParam || sMouseWheelEmulation) {
+  if (aLParam)
+  {
     // Scroll message generated by Thinkpad Trackpoint Driver or similar
     // Treat as a mousewheel message and scroll appropriately
-    PRBool quit, result;
-    LRESULT retVal;
 
-    if (!HandleScrollingPlugins(aMsg, aWParam, aLParam, result, &retVal, quit))
-      return quit;  // Return if it's not our message or has been dispatched
+    PRBool result;
+    if (!HandleScrollingPlugins(aMsg, aWParam, aLParam, result))
+      return result;  // Return if it's not our message or has been dispatched
 
     nsMouseScrollEvent scrollevent(PR_TRUE, NS_MOUSE_SCROLL, this);
     scrollevent.scrollFlags = (aMsg == WM_VSCROLL) 
@@ -6557,11 +5954,6 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
       default:
         return PR_FALSE;
     }
-#ifdef MOZ_IPC
-    // The event may go to a plug-in which already dispatched this message.
-    // Then, the event can cause deadlock.  We should unlock the sender here.
-    ::ReplyMessage(0);
-#endif
     scrollevent.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
     scrollevent.isControl = IS_VK_DOWN(NS_VK_CONTROL);
     scrollevent.isMeta    = PR_FALSE;
@@ -6573,48 +5965,25 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
     }
     return PR_TRUE;
   }
-
   // Scroll message generated by external application
-  nsContentCommandEvent command(PR_TRUE, NS_CONTENT_COMMAND_SCROLL, this);
+  // XXX Handle by scrolling the window in the desired manner (Bug 315727)
+  return PR_FALSE;
+}
 
-  command.mScroll.mIsHorizontal = (aMsg == WM_HSCROLL);
-
-  switch (LOWORD(aWParam))
-  {
-    case SB_LINEUP:   // SB_LINELEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Line;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_LINEDOWN: // SB_LINERIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Line;
-      command.mScroll.mAmount = 1;
-      break;
-    case SB_PAGEUP:   // SB_PAGELEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Page;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_PAGEDOWN: // SB_PAGERIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Page;
-      command.mScroll.mAmount = 1;
-      break;
-    case SB_TOP:      // SB_LEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Whole;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_BOTTOM:   // SB_RIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Whole;
-      command.mScroll.mAmount = 1;
-      break;
-    default:
-      return PR_FALSE;
-  }
-  DispatchWindowEvent(&command);
-  return PR_TRUE;
+// Return the brush used to paint the background of this control
+HBRUSH nsWindow::OnControlColor()
+{
+  return mBrush;
 }
 
 // Can be overriden. Controls auto-erase of background.
 PRBool nsWindow::AutoErase(HDC dc)
 {
+#ifdef WINCE_WINDOWS_MOBILE
+  RECT wrect;
+  GetClipBox(dc, &wrect);
+  AddRECTToRegion(wrect, mInvalidatedRegion);
+#endif
   return PR_FALSE;
 }
 
@@ -6697,7 +6066,7 @@ NS_IMETHODIMP nsWindow::SetIMEEnabled(PRUint32 aState)
 
 #if defined(WINCE_HAVE_SOFTKB)
   sSoftKeyboardState = (aState != nsIWidget::IME_STATUS_DISABLED);
-  nsWindowCE::ToggleSoftKB(mWnd, sSoftKeyboardState);
+  nsWindowCE::ToggleSoftKB(sSoftKeyboardState);
 #endif
 
   if (!enable != !mOldIMC)
@@ -6771,38 +6140,15 @@ nsWindow::OnIMESelectionChange(void)
 #endif //NS_ENABLE_TSF
 
 #ifdef ACCESSIBILITY
-nsAccessible*
-nsWindow::GetRootAccessible()
+already_AddRefed<nsIAccessible> nsWindow::GetRootAccessible()
 {
-  // We want the ability to forcibly disable a11y on windows, because
-  // some non-a11y-related components attempt to bring it up.  See bug
-  // 538530 for details; we have a pref here that allows it to be disabled
-  // for performance and testing resons.
-  //
-  // This pref is checked only once, and the browser needs a restart to
-  // pick up any changes.
-  static int accForceDisable = -1;
-
-  if (accForceDisable == -1) {
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    PRBool b = PR_FALSE;
-    nsresult rv = prefs->GetBoolPref("accessibility.win32.force_disabled", &b);
-    if (NS_SUCCEEDED(rv) && b) {
-      accForceDisable = 1;
-    } else {
-      accForceDisable = 0;
-    }
-  }
-
-  // If the pref was true, return null here, disabling a11y.
-  if (accForceDisable)
-      return nsnull;
-
   nsWindow::sIsAccessibilityOn = TRUE;
 
   if (mInDtor || mOnDestroyCalled || mWindowType == eWindowType_invisible) {
     return nsnull;
   }
+
+  nsIAccessible *rootAccessible = nsnull;
 
   // If accessibility is turned on, we create this even before it is requested
   // when the window gets focused. We need it to be created early so it can 
@@ -6817,19 +6163,18 @@ nsWindow::GetRootAccessible()
       // Loop through windows and find the first one with accessibility info
       accessibleWindow = GetNSWindowPtr(accessibleWnd);
       if (accessibleWindow) {
-        nsAccessible *rootAccessible =
-          accessibleWindow->DispatchAccessibleEvent(NS_GETACCESSIBLE);
+        accessibleWindow->DispatchAccessibleEvent(NS_GETACCESSIBLE, &rootAccessible);
         if (rootAccessible) {
-          // Success, one of the child windows was active.
-          return rootAccessible;
+          break;  // Success, one of the child windows was active
         }
       }
       accessibleWnd = ::GetNextWindow(accessibleWnd, GW_HWNDNEXT);
     }
-    return nsnull;
   }
-
-  return DispatchAccessibleEvent(NS_GETACCESSIBLE);
+  else {
+    DispatchAccessibleEvent(NS_GETACCESSIBLE, &rootAccessible);
+  }
+  return rootAccessible;
 }
 
 STDMETHODIMP_(LRESULT)
@@ -6906,19 +6251,25 @@ void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
     exStyle &= ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
   }
 
-  if (topWindow->mIsVisible)
-    style |= WS_VISIBLE;
-
   VERIFY_WINDOW_STYLE(style);
   ::SetWindowLongPtrW(hWnd, GWL_STYLE, style);
   ::SetWindowLongPtrW(hWnd, GWL_EXSTYLE, exStyle);
 
-  if (mTransparencyMode == eTransparencyGlass)
-    memset(&mGlassMargins, 0, sizeof mGlassMargins);
   mTransparencyMode = aMode;
 
   SetupTranslucentWindowMemoryBitmap(aMode);
-  UpdateGlass();
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+   MARGINS margins = { 0, 0, 0, 0 };
+  DWMNCRENDERINGPOLICY policy = DWMNCRP_USEWINDOWSTYLE;
+  if(eTransparencyGlass == aMode) {
+     margins.cxLeftWidth = -1;
+    policy = DWMNCRP_ENABLED;
+  }
+  if(nsUXThemeData::sHaveCompositor) {
+    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &margins);
+    nsUXThemeData::dwmSetWindowAttributePtr(hWnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof policy);
+  }
+#endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 #endif // #ifndef WINCE
 }
 
@@ -7245,14 +6596,15 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
       // want to rollup if the click is in a parent menu of the current submenu.
       PRUint32 popupsToRollup = PR_UINT32_MAX;
       if (rollup) {
-        if ( sMenuRollup ) {
+        nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(sRollupListener) );
+        if ( menuRollup ) {
           nsAutoTArray<nsIWidget*, 5> widgetChain;
-          PRUint32 sameTypeCount = sMenuRollup->GetSubmenuWidgetChain(&widgetChain);
+          PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
           for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) {
             nsIWidget* widget = widgetChain[i];
             if ( nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)widget) ) {
-              // don't roll up if the mouse event occurred within a menu of the
-              // same type. If the mouse event occurred in a menu higher than
+              // don't roll up if the mouse event occured within a menu of the
+              // same type. If the mouse event occured in a menu higher than
               // that, roll up, but pass the number of popups to Rollup so
               // that only those of the same type close up.
               if (i < sameTypeCount) {
@@ -7480,10 +6832,7 @@ void nsWindow::InitTrackPointHack()
   PRInt32 lHackValue;
   long lResult;
   const WCHAR wstrKeys[][40] = {L"Software\\Lenovo\\TrackPoint",
-                                L"Software\\Lenovo\\UltraNav",
-                                L"Software\\Alps\\Apoint\\TrackPoint",
-                                L"Software\\Synaptics\\SynTPEnh\\UltraNavUSB",
-                                L"Software\\Synaptics\\SynTPEnh\\UltraNavPS2"};    
+                                L"Software\\Lenovo\\UltraNav"};    
   // If anything fails turn the hack off
   sTrackPointHack = false;
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
@@ -7499,7 +6848,7 @@ void nsWindow::InitTrackPointHack()
         break;
       // -1 means autodetect
       case -1:
-        for(int i = 0; i < NS_ARRAY_LENGTH(wstrKeys); i++) {
+        for(int i = 0; i < 2; i++) {
           HKEY hKey;
           lResult = ::RegOpenKeyExW(HKEY_CURRENT_USER, (LPCWSTR)&wstrKeys[i],
                                     0, KEY_READ, &hKey);
@@ -7551,7 +6900,7 @@ LPARAM nsWindow::lParamToClient(LPARAM lParam)
 
 // Deal with all sort of mouse event
 PRBool ChildWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam, LPARAM lParam,
-                                       PRBool aIsContextMenuKey, PRInt16 aButton, PRUint16 aInputSource)
+                                       PRBool aIsContextMenuKey, PRInt16 aButton)
 {
   PRBool result = PR_FALSE;
 
@@ -7579,7 +6928,7 @@ PRBool ChildWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam, LPARA
   } // switch
 
   return nsWindow::DispatchMouseEvent(aEventType, wParam, lParam,
-                                      aIsContextMenuKey, aButton, aInputSource);
+                                      aIsContextMenuKey, aButton);
 }
 
 // return the style for a child nsWindow

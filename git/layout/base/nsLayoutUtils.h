@@ -45,6 +45,7 @@ class nsIFormControlFrame;
 class nsPresContext;
 class nsIContent;
 class nsIAtom;
+class nsIScrollableView;
 class nsIScrollableFrame;
 class nsIDOMEvent;
 class nsRegion;
@@ -63,9 +64,9 @@ class nsClientRectList;
 #include "nsIPrincipal.h"
 #include "gfxPattern.h"
 #include "imgIContainer.h"
-#include "nsCSSPseudoElements.h"
 
 class nsBlockFrame;
+class nsTextFragment;
 
 /**
  * nsLayoutUtils is a namespace class used for various helper
@@ -75,17 +76,10 @@ class nsBlockFrame;
 class nsLayoutUtils
 {
 public:
-
-  /**
-   * Uses heuristics to figure out the appropriate child list name
-   * for aChildFrame.
-   */
-  static nsIAtom* GetChildListNameFor(nsIFrame* aChildFrame);
-
   /**
    * GetBeforeFrame returns the outermost :before frame of the given frame, if
    * one exists.  This is typically O(1).  The frame passed in must be
-   * the first-in-flow.
+   * the first-in-flow.   
    *
    * @param aFrame the frame whose :before is wanted
    * @return the :before frame or nsnull if there isn't one
@@ -103,7 +97,7 @@ public:
    */
   static nsIFrame* GetAfterFrame(nsIFrame* aFrame);
 
-  /**
+  /** 
    * Given a frame, search up the frame tree until we find an
    * ancestor that (or the frame itself) is of type aFrameType, if any.
    *
@@ -114,7 +108,7 @@ public:
    */
   static nsIFrame* GetClosestFrameOfType(nsIFrame* aFrame, nsIAtom* aFrameType);
 
-  /**
+  /** 
    * Given a frame, search up the frame tree until we find an
    * ancestor that (or the frame itself) is a "Page" frame, if any.
    *
@@ -126,14 +120,6 @@ public:
   {
     return GetClosestFrameOfType(aFrame, nsGkAtoms::pageFrame);
   }
-
-  /**
-   * Given a frame which is the primary frame for an element,
-   * return the frame that has the non-psuedoelement style context for
-   * the content.
-   * This is aPrimaryFrame itself except for tableOuter frames.
-   */
-  static nsIFrame* GetStyleFrame(nsIFrame* aPrimaryFrame);
 
   /**
    * IsGeneratedContentFor returns PR_TRUE if aFrame is the outermost
@@ -155,7 +141,7 @@ public:
   /**
    * CompareTreePosition determines whether aContent1 comes before or
    * after aContent2 in a preorder traversal of the content tree.
-   *
+   * 
    * @param aCommonAncestor either null, or a common ancestor of
    *                        aContent1 and aContent2.  Actually this is
    *                        only a hint; if it's not an ancestor of
@@ -193,7 +179,7 @@ public:
    * basically the same ordering as DoCompareTreePosition(nsIContent*) except
    * that it handles anonymous content properly and there are subtleties with
    * continuations.
-   *
+   * 
    * @param aCommonAncestor either null, or a common ancestor of
    *                        aContent1 and aContent2.  Actually this is
    *                        only a hint; if it's not an ancestor of
@@ -254,7 +240,7 @@ public:
    */
   static nsIFrame* GetCrossDocParentFrame(const nsIFrame* aFrame,
                                           nsPoint* aCrossDocOffset = nsnull);
-
+  
   /**
    * IsProperAncestorFrame checks whether aAncestorFrame is an ancestor
    * of aFrame and not equal to aFrame.
@@ -294,38 +280,37 @@ public:
     */
   static nsIFrame* GetFrameFor(nsIView *aView)
   { return static_cast<nsIFrame*>(aView->GetClientData()); }
+  
+  /**
+    * GetScrollableFrameFor returns the scrollable frame for a scrollable view
+    * @param aScrollableView is the scrollable view to return the 
+    *        scrollable frame for.
+    * @return the scrollable frame for the scrollable view
+    */
+  static nsIScrollableFrame* GetScrollableFrameFor(nsIScrollableView *aScrollableView);
 
   /**
     * GetScrollableFrameFor returns the scrollable frame for a scrolled frame
     */
   static nsIScrollableFrame* GetScrollableFrameFor(nsIFrame *aScrolledFrame);
 
-  /**
-   * GetNearestScrollableFrameForDirection locates the first ancestor of
-   * aFrame (or aFrame itself) that is scrollable with overflow:scroll or
-   * overflow:auto in the given direction and where either the scrollbar for
-   * that direction is visible or the frame can be scrolled by some
-   * positive amount in that direction.
-   * The search extends across document boundaries.
-   *
-   * @param  aFrame the frame to start with
-   * @param  aDirection Whether it's for horizontal or vertical scrolling.
-   * @return the nearest scrollable frame or nsnull if not found
-   */
-  enum Direction { eHorizontal, eVertical };
-  static nsIScrollableFrame* GetNearestScrollableFrameForDirection(nsIFrame* aFrame,
-                                                                   Direction aDirection);
+  static nsPresContext::ScrollbarStyles
+    ScrollbarStylesOfView(nsIScrollableView *aScrollableView);
 
   /**
-   * GetNearestScrollableFrame locates the first ancestor of aFrame
-   * (or aFrame itself) that is scrollable with overflow:scroll or
-   * overflow:auto in some direction.
-   * The search extends across document boundaries.
+   * GetNearestScrollingView locates the first ancestor of aView (or
+   * aView itself) that is scrollable.  It does *not* count an
+   * 'overflow' style of 'hidden' as scrollable, even though a scrolling
+   * view is present.  Thus, the direction of the scroll is needed as
+   * an argument.
    *
-   * @param  aFrame the frame to start with
-   * @return the nearest scrollable frame or nsnull if not found
+   * @param  aView the view we're looking at
+   * @param  aDirection Whether it's for horizontal or vertical scrolling.
+   * @return the nearest scrollable view or nsnull if not found
    */
-  static nsIScrollableFrame* GetNearestScrollableFrame(nsIFrame* aFrame);
+  enum Direction { eHorizontal, eVertical, eEither };
+  static nsIScrollableView* GetNearestScrollingView(nsIView* aView,
+                                                    Direction aDirection);
 
   /**
    * HasPseudoStyle returns PR_TRUE if aContent (whose primary style
@@ -334,31 +319,31 @@ public:
    *
    * @param aContent the content node we're looking at
    * @param aStyleContext aContent's style context
-   * @param aPseudoElement the id of the pseudo style we care about
+   * @param aPseudoElement the name of the pseudo style we care about
    * @param aPresContext the presentation context
    * @return whether aContent has aPseudoElement style attached to it
    */
   static PRBool HasPseudoStyle(nsIContent* aContent,
                                nsStyleContext* aStyleContext,
-                               nsCSSPseudoElements::Type aPseudoElement,
+                               nsIAtom* aPseudoElement,
                                nsPresContext* aPresContext)
   {
     NS_PRECONDITION(aPresContext, "Must have a prescontext");
+    NS_PRECONDITION(aPseudoElement, "Must have a pseudo name");
 
     nsRefPtr<nsStyleContext> pseudoContext;
     if (aContent) {
       pseudoContext = aPresContext->StyleSet()->
-        ProbePseudoElementStyle(aContent->AsElement(), aPseudoElement,
-                                aStyleContext);
+        ProbePseudoStyleFor(aContent, aPseudoElement, aStyleContext);
     }
     return pseudoContext != nsnull;
   }
 
   /**
    * If this frame is a placeholder for a float, then return the float,
-   * otherwise return nsnull.  aPlaceholder must be a placeholder frame.
+   * otherwise return nsnull.
    */
-  static nsIFrame* GetFloatFromPlaceholder(nsIFrame* aPlaceholder);
+  static nsIFrame* GetFloatFromPlaceholder(nsIFrame* aPossiblePlaceholder);
 
   // Combine aNewBreakType with aOrigBreakType, but limit the break types
   // to NS_STYLE_CLEAR_LEFT, RIGHT, LEFT_AND_RIGHT.
@@ -388,13 +373,22 @@ public:
   static nsPoint GetEventCoordinatesRelativeTo(const nsEvent* aEvent,
                                                nsIFrame* aFrame);
 
-  /**
-   * Get the popup frame of a given native mouse event.
-   * @param aEvent  the event.
-   * @return        Null, if there is no popup frame at the point, otherwise,
-   *                returns top-most popup frame at the point.
+/**
+   * Get the coordinates of a given native mouse event, relative to the nearest 
+   * view for a given frame.
+   * The "nearest view" is the view returned by nsFrame::GetOffsetFromView.
+   * XXX this is extremely BOGUS because "nearest view" is a mess; every
+   * use of this method is really a bug!
+   * @param aEvent the event
+   * @param aFrame the frame to make coordinates relative to
+   * @param aView  view to which returned coordinates are relative 
+   * @return the point, or (NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE) if
+   * for some reason the coordinates for the mouse are not known (e.g.,
+   * the event is not a GUI event).
    */
-  static nsIFrame* GetPopupFrameForEventCoordinates(const nsEvent* aEvent);
+  static nsPoint GetEventCoordinatesForNearestView(nsEvent* aEvent,
+                                                   nsIFrame* aFrame,
+                                                   nsIView** aView = nsnull);
 
 /**
    * Translate from widget coordinates to the view's coordinates
@@ -404,7 +398,7 @@ public:
    * @param aView  view to which returned coordinates are relative
    * @return the point in the view's coordinates
    */
-  static nsPoint TranslateWidgetToView(nsPresContext* aPresContext,
+  static nsPoint TranslateWidgetToView(nsPresContext* aPresContext, 
                                        nsIWidget* aWidget, nsIntPoint aPt,
                                        nsIView* aView);
 
@@ -435,22 +429,6 @@ public:
   static nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                     PRBool aShouldIgnoreSuppression = PR_FALSE,
                                     PRBool aIgnoreRootScrollFrame = PR_FALSE);
-
-  /**
-   * Given aFrame, the root frame of a stacking context, find all descendant
-   * frames under the area of a rectangle that receives a mouse event,
-   * or nsnull if there is no such frame.
-   * @param aRect the rect, relative to the frame origin
-   * @param aOutFrames an array to add all the frames found
-   * @param aShouldIgnoreSuppression a boolean to control if the display
-   * list builder should ignore paint suppression or not
-   * @param aIgnoreRootScrollFrame whether or not the display list builder
-   * should ignore the root scroll frame.
-   */
-  static nsresult GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
-                                   nsTArray<nsIFrame*> &aOutFrames,
-                                   PRBool aShouldIgnoreSuppression = PR_FALSE,
-                                   PRBool aIgnoreRootScrollFrame = PR_FALSE);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed
@@ -499,53 +477,25 @@ public:
    */
   static nsRect RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor);
 
-  /**
-   * If aIn can be represented exactly using an nsIntRect (i.e.
-   * integer-aligned edges and coordinates in the PRInt32 range) then we
-   * set aOut to that rectangle, otherwise return failure.
-   */
-  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
 
   enum {
     PAINT_IN_TRANSFORM = 0x01,
-    PAINT_SYNC_DECODE_IMAGES = 0x02,
-    PAINT_WIDGET_LAYERS = 0x04
+    PAINT_SYNC_DECODE_IMAGES = 0x02
   };
 
   /**
    * Given aFrame, the root frame of a stacking context, paint it and its
-   * descendants to aRenderingContext.
+   * descendants to aRenderingContext. 
    * @param aRenderingContext a rendering context translated so that (0,0)
    * is the origin of aFrame; for best results, (0,0) should transform
-   * to pixel-aligned coordinates. This can be null, in which case
-   * aFrame must be a "display root" (root frame for a root document,
-   * or the root of a popup) with an associated widget and we draw using
-   * the layer manager for the frame's widget.
+   * to pixel-aligned coordinates
    * @param aDirtyRegion the region that must be painted, in the coordinates
    * of aFrame
    * @param aBackstop paint the dirty area with this color before drawing
    * the actual content; pass NS_RGBA(0,0,0,0) to draw no background
    * @param aFlags if PAINT_IN_TRANSFORM is set, then we assume
    * this is inside a transform or SVG foreignObject. If
-   * PAINT_SYNC_DECODE_IMAGES is set, we force synchronous decode on all
-   * images. If PAINT_WIDGET_LAYERS is set, aFrame must be a display root,
-   * and we will use the frame's widget's layer manager to paint
-   * even if aRenderingContext is non-null. This is useful if you want
-   * to force rendering to use the widget's layer manager for testing
-   * or speed. PAINT_WIDGET_LAYERS must be set if aRenderingContext is null.
-   *
-   * So there are three possible behaviours:
-   * 1) PAINT_WIDGET_LAYERS is set and aRenderingContext is null; we paint
-   * by calling BeginTransaction on the widget's layer manager
-   * 2) PAINT_WIDGET_LAYERS is set and aRenderingContext is non-null; we
-   * paint by calling BeginTransactionWithTarget on the widget's layer
-   * maanger
-   * 3) PAINT_WIDGET_LAYERS is not set and aRenderingContext is non-null;
-   * we paint by construct a BasicLayerManager and calling
-   * BeginTransactionWithTarget on it. This is desirable if we're doing
-   * something like drawWindow in a mode where what gets rendered doesn't
-   * necessarily correspond to what's visible in the window; we don't
-   * want to mess up the widget's layer tree.
+   * PAINT_SYNC_DECODE_IMAGES is set, we force synchronous decode on all images.
    */
   static nsresult PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
                              const nsRegion& aDirtyRegion, nscolor aBackstop,
@@ -561,22 +511,22 @@ public:
    * repainted after doing the blit
    * @param aBlitRegion output: a subregion of aUpdateRect that should
    * be repainted by blitting
-   *
+   * 
    * If the caller does a bitblt copy of aBlitRegion-aPt to aBlitRegion,
    * and then repaints aRepaintRegion, then the area aUpdateRect will be
    * correctly up to date. aBlitRegion and aRepaintRegion do not intersect
    * and are both contained within aUpdateRect.
-   *
+   * 
    * Frame geometry must have already been adjusted for the scroll/copy
    * operation before this function is called.
-   *
+   * 
    * Conceptually it works by computing a display list in the before-state
    * and a display list in the after-state and analyzing them to find the
    * differences. In practice it is only feasible to build a display list
    * in the after-state (plus building two display lists would be less
    * efficient), so we use some unfortunately tricky techniques to get by
    * with just the after-list.
-   *
+   * 
    * We compute the "visible moving area", a region that contains all
    * moving content that is visible, either before or after scrolling,
    * intersected with aUpdateRect.
@@ -589,9 +539,9 @@ public:
    * frames that will not move (translated by aDelta)
    * c) any visible areas of the after-move display list corresponding to
    * frames that did not move
-   *
+   * 
    * aBlitRegion is the visible moving area minus aRepaintRegion.
-   *
+   * 
    * We may return a larger region for aRepaintRegion and/or aBlitRegion
    * if computing the above regions precisely is too expensive.  (However,
    * they will never intersect, since the regions that may be computed
@@ -615,7 +565,7 @@ public:
    * It also keeps track of the part of the string that has already been measured
    * so it doesn't have to keep measuring the same text over and over
    *
-   * @param "aBaseWidth" contains the width in twips of the portion
+   * @param "aBaseWidth" contains the width in twips of the portion 
    * of the text that has already been measured, and aBaseInx contains
    * the index of the text that has already been measured.
    *
@@ -623,13 +573,13 @@ public:
    * before the cursor aIndex contains the index of the text where the cursor falls
    */
   static PRBool
-  BinarySearchForPosition(nsIRenderingContext* acx,
+  BinarySearchForPosition(nsIRenderingContext* acx, 
                           const PRUnichar* aText,
                           PRInt32    aBaseWidth,
                           PRInt32    aBaseInx,
-                          PRInt32    aStartInx,
-                          PRInt32    aEndInx,
-                          PRInt32    aCursorPos,
+                          PRInt32    aStartInx, 
+                          PRInt32    aEndInx, 
+                          PRInt32    aCursorPos, 
                           PRInt32&   aIndex,
                           PRInt32&   aTextWidth);
 
@@ -721,7 +671,7 @@ public:
    * of aParent.
    */
   static nsIFrame* FindChildContainingDescendant(nsIFrame* aParent, nsIFrame* aDescendantFrame);
-
+  
   /**
    * Find the nearest ancestor that's a block
    */
@@ -738,13 +688,27 @@ public:
    * an nsBlockFrame.
    */
   static nsBlockFrame* GetAsBlock(nsIFrame* aFrame);
-
+  
   /**
    * If aFrame is an out of flow frame, return its placeholder, otherwise
    * return its parent.
    */
   static nsIFrame* GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
                                              nsIFrame* aFrame);
+
+  /**
+   * Find the closest common ancestor of aFrame1 and aFrame2, following
+   * out of flow frames to their placeholders instead of their parents. Returns
+   * nsnull if the frames are in different frame trees.
+   * 
+   * @param aKnownCommonAncestorHint a frame that is believed to be on the
+   * ancestor chain of both aFrame1 and aFrame2. If null, or a frame that is
+   * not in fact on both ancestor chains, then this function will still return
+   * the correct result, but it will be slower.
+   */
+  static nsIFrame*
+  GetClosestCommonAncestorViaPlaceholders(nsIFrame* aFrame1, nsIFrame* aFrame2,
+                                          nsIFrame* aKnownCommonAncestorHint);
 
   /**
    * Get a frame's next-in-flow, or, if it doesn't have one, its special sibling.
@@ -758,7 +722,7 @@ public:
    */
   static nsIFrame*
   GetFirstContinuationOrSpecialSibling(nsIFrame *aFrame);
-
+  
   /**
    * Check whether aFrame is a part of the scrollbar or scrollcorner of
    * the root content.
@@ -1034,7 +998,7 @@ public:
    * given side.
    */
   static PRBool HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
-                                       mozilla::css::Side aSide);
+                                       PRUint8 aSide);
 
   /**
    * Determine if a widget is likely to require transparency or translucency.
@@ -1048,18 +1012,6 @@ public:
    */
   static nsTransparencyMode GetFrameTransparency(nsIFrame* aBackgroundFrame,
                                                  nsIFrame* aCSSRootFrame);
-
-  /**
-   * A frame is a popup if it has its own floating window. Menus, panels
-   * and combobox dropdowns are popups.
-   */
-  static PRBool IsPopup(nsIFrame* aFrame);
-
-  /**
-   * Find the nearest "display root". This is the nearest enclosing
-   * popup frame or the root prescontext's root frame.
-   */
-  static nsIFrame* GetDisplayRootFrame(nsIFrame* aFrame);
 
   /**
    * Get textrun construction flags determined by a given style; in particular
@@ -1098,23 +1050,35 @@ public:
   static PRBool IsReallyFixedPos(nsIFrame* aFrame);
 
   /**
-   * Return true if aFrame is in an {ib} split and is NOT one of the
-   * continuations of the first inline in it.
+   * Indicates if the nsIFrame::GetUsedXXX assertions in nsFrame.cpp should
+   * disabled.
    */
-  static PRBool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
+  static PRBool sDisableGetUsedXAssertions;
+
+  /**
+   * Returns the text fragment, which aFrame should use for printing.
+   * @param aFrame The nsIFrame object, which uses text fragment data.
+   */
+  static nsTextFragment* GetTextFragmentForPrinting(const nsIFrame* aFrame);
+
+  /**
+   * Return whether aFrame is an inline frame in the first part of an {ib}
+   * split.
+   */
+  static PRBool FrameIsInFirstPartOfIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->GetFirstContinuation()->
-        Properties().Get(nsIFrame::IBSplitSpecialPrevSibling());
+      !aFrame->GetFirstContinuation()->
+        GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
   }
 
   /**
-   * Return true if aFrame is in an {ib} split and is NOT one of the
-   * continuations of the last inline in it.
+   * Return whether aFrame is an inline frame in the last part of an {ib}
+   * split.
    */
-  static PRBool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
+  static PRBool FrameIsInLastPartOfIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->GetFirstContinuation()->
-        Properties().Get(nsIFrame::IBSplitSpecialSibling());
+      !aFrame->GetFirstContinuation()->
+        GetProperty(nsGkAtoms::IBSplitSpecialSibling);
   }
 
   /**
@@ -1158,29 +1122,23 @@ public:
 
   static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,
                                                      PRUint32 aSurfaceFlags = 0);
+};
 
-  /**
-   * When the document is editable by contenteditable attribute of its root
-   * content or body content.
-   *
-   * Be aware, this returns NULL if it's in designMode.
-   *
-   * For example:
-   *
-   *  <html contenteditable="true"><body></body></html>
-   *    returns the <html>.
-   *
-   *  <html><body contenteditable="true"></body></html>
-   *  <body contenteditable="true"></body>
-   *    With these cases, this returns the <body>.
-   *    NOTE: The latter case isn't created normally, however, it can be
-   *          created by script with XHTML.
-   *
-   *  <body><p contenteditable="true"></p></body>
-   *    returns NULL because <body> isn't editable.
-   */
-  static nsIContent*
-    GetEditableRootContentByContentEditable(nsIDocument* aDocument);
+class nsAutoDisableGetUsedXAssertions
+{
+public:
+  nsAutoDisableGetUsedXAssertions()
+    : mOldValue(nsLayoutUtils::sDisableGetUsedXAssertions)
+  {
+    nsLayoutUtils::sDisableGetUsedXAssertions = PR_TRUE;
+  }
+  ~nsAutoDisableGetUsedXAssertions()
+  {
+    nsLayoutUtils::sDisableGetUsedXAssertions = mOldValue;
+  }
+
+private:
+  PRBool mOldValue;
 };
 
 class nsSetAttrRunnable : public nsRunnable
@@ -1188,8 +1146,6 @@ class nsSetAttrRunnable : public nsRunnable
 public:
   nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
                     const nsAString& aValue);
-  nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
-                    PRInt32 aValue);
 
   NS_DECL_NSIRUNNABLE
 

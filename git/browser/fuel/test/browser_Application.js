@@ -1,3 +1,6 @@
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+
 // This listens for the next opened window and checks it is of the right url.
 // opencallback is called when the new window is fully loaded
 // closecallback is called when the window is closed
@@ -6,7 +9,9 @@ function WindowOpenListener(url, opencallback, closecallback) {
   this.opencallback = opencallback;
   this.closecallback = closecallback;
 
-  Services.wm.addListener(this);
+  var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+           getService(Ci.nsIWindowMediator);
+  wm.addListener(this);
 }
 
 WindowOpenListener.prototype = {
@@ -42,7 +47,9 @@ WindowOpenListener.prototype = {
     if (this.window != window)
       return;
 
-    Services.wm.removeListener(this);
+    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+             getService(Ci.nsIWindowMediator);
+    wm.removeListener(this);
     this.opencallback = null;
     this.window = null;
     this.domwindow = null;

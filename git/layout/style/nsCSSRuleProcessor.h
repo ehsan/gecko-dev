@@ -53,7 +53,6 @@
 
 struct RuleCascadeData;
 struct nsCSSSelectorList;
-struct CascadeEnumData;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style
@@ -68,9 +67,8 @@ struct CascadeEnumData;
 
 class nsCSSRuleProcessor: public nsIStyleRuleProcessor {
 public:
-  typedef nsTArray<nsRefPtr<nsCSSStyleSheet> > sheet_array_type;
-
-  nsCSSRuleProcessor(const sheet_array_type& aSheets, PRUint8 aSheetType);
+  nsCSSRuleProcessor(const nsCOMArray<nsICSSStyleSheet>& aSheets, 
+                     PRUint8 aSheetType);
   virtual ~nsCSSRuleProcessor();
 
   NS_DECL_ISUPPORTS
@@ -78,17 +76,13 @@ public:
 public:
   nsresult ClearRuleCascades();
 
-  static nsresult Startup();
-  static void Shutdown();
+  static void Startup();
   static void FreeSystemMetrics();
-  static PRBool HasSystemMetric(nsIAtom* aMetric);
 
   /*
    * Returns true if the given RuleProcessorData matches one of the
    * selectors in aSelectorList.  Note that this method will assume
-   * the matching is not for styling purposes.  aSelectorList must not
-   * include any pseudo-element selectors.  aSelectorList is allowed
-   * to be null; in this case PR_FALSE will be returned.
+   * the matching is not for styling purposes.
    */
   static PRBool SelectorListMatches(RuleProcessorData& aData,
                                     nsCSSSelectorList* aSelectorList);
@@ -96,20 +90,13 @@ public:
   // nsIStyleRuleProcessor
   NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
 
-  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(PseudoRuleProcessorData* aData);
 
-  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
+  NS_IMETHOD HasStateDependentStyle(StateRuleProcessorData* aData,
+                                    nsReStyleHint* aResult);
 
-#ifdef MOZ_XUL
-  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
-#endif
-
-  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
-
-  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
-
-  virtual nsRestyleHint
-    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
+  NS_IMETHOD HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
+                                        nsReStyleHint* aResult);
 
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
                                    PRBool* aRulesChanged);
@@ -127,13 +114,13 @@ public:
 #endif
 
 private:
-  static PRBool CascadeSheet(nsCSSStyleSheet* aSheet, CascadeEnumData* aData);
+  static PRBool CascadeSheetEnumFunc(nsICSSStyleSheet* aSheet, void* aData);
 
   RuleCascadeData* GetRuleCascade(nsPresContext* aPresContext);
   void RefreshRuleCascade(nsPresContext* aPresContext);
 
   // The sheet order here is the same as in nsStyleSet::mSheets
-  sheet_array_type mSheets;
+  nsCOMArray<nsICSSStyleSheet> mSheets;
 
   // active first, then cached (most recent first)
   RuleCascadeData* mRuleCascades;

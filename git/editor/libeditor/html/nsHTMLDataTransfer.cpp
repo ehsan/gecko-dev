@@ -43,6 +43,8 @@
 #include "nsHTMLEditUtils.h"
 #include "nsWSRunObject.h"
 
+#include "nsEditorEventListeners.h"
+
 #include "nsIDOMText.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
@@ -62,6 +64,8 @@
 #include "nsISelectionController.h"
 #include "nsIFileChannel.h"
 
+#include "nsICSSLoader.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIDocumentObserver.h"
 #include "nsIDocumentStateListener.h"
 
@@ -1102,8 +1106,7 @@ NS_IMETHODIMP nsHTMLEditor::PrepareHTMLTransferable(nsITransferable **aTransfera
   {
     // Create the desired DataFlavor for the type of data
     // we want to get out of the transferable
-    // This should only happen in html editors, not plaintext
-    if (!IsPlaintextEditor())
+    if ((mFlags & eEditorPlaintextMask) == 0)  // This should only happen in html editors, not plaintext
     {
       if (!aHavePrivFlavor) 
       {
@@ -1727,7 +1730,12 @@ nsHTMLEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   nsAutoString buffer, parents, info;
 
   // find out if we're a plaintext control or not
-  if (!IsPlaintextEditor())
+  PRUint32 editorFlags = 0;
+  rv = GetFlags(&editorFlags);
+  if (NS_FAILED(rv)) return rv;
+
+  PRBool bIsPlainTextControl = ((editorFlags & eEditorPlaintextMask) != 0);
+  if (!bIsPlainTextControl)
   {
     // encode the selection as html with contextual info
     rv = docEncoder->EncodeToStringWithContext(parents, info, buffer);
@@ -1755,7 +1763,7 @@ nsHTMLEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1");
   NS_ENSURE_TRUE(trans, NS_ERROR_FAILURE);
 
-  if (IsPlaintextEditor())
+  if (bIsPlainTextControl)
   {
     // Add the unicode flavor to the transferable
     rv = trans->AddDataFlavor(kUnicodeMime);
@@ -1842,11 +1850,14 @@ PRBool nsHTMLEditor::HavePrivateHTMLFlavor(nsIClipboard *aClipboard)
 
 NS_IMETHODIMP nsHTMLEditor::Paste(PRInt32 aSelectionType)
 {
-  if (!FireClipboardEvent(NS_PASTE))
-    return NS_OK;
+  ForceCompositionEnd();
+
+  PRBool preventDefault;
+  nsresult rv = FireClipboardEvent(NS_PASTE, &preventDefault);
+  if (NS_FAILED(rv) || preventDefault)
+    return rv;
 
   // Get Clipboard Service
-  nsresult rv;
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   if (NS_FAILED(rv))
     return rv;
@@ -1922,24 +1933,6 @@ NS_IMETHODIMP nsHTMLEditor::Paste(PRInt32 aSelectionType)
   return rv;
 }
 
-NS_IMETHODIMP nsHTMLEditor::PasteTransferable(nsITransferable *aTransferable)
-{
-  if (!FireClipboardEvent(NS_PASTE))
-    return NS_OK;
-
-  // handle transferable hooks
-  nsCOMPtr<nsIDOMDocument> domdoc;
-  GetDocument(getter_AddRefs(domdoc));
-  if (!nsEditorHookUtils::DoInsertionHook(domdoc, nsnull, aTransferable))
-    return NS_OK;
-
-  // Beware! This may flush notifications via synchronous
-  // ScrollSelectionIntoView.
-  nsAutoString contextStr, infoStr;
-  return InsertFromTransferable(aTransferable, nsnull, contextStr, infoStr,
-                                nsnull, 0, PR_TRUE);
-}
-
 // 
 // HTML PasteNoFormatting. Ignore any HTML styles and formating in paste source
 //
@@ -1974,14 +1967,6 @@ NS_IMETHODIMP nsHTMLEditor::PasteNoFormatting(PRInt32 aSelectionType)
 }
 
 
-// The following arrays contain the MIME types that we can paste. The arrays
-// are used by CanPaste() and CanPasteTransferable() below.
-
-static const char* textEditorFlavors[] = { kUnicodeMime };
-static const char* textHtmlEditorFlavors[] = { kUnicodeMime, kHTMLMime,
-                                               kJPEGImageMime, kPNGImageMime,
-                                               kGIFImageMime };
-
 NS_IMETHODIMP nsHTMLEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
 {
   NS_ENSURE_ARG_POINTER(aCanPaste);
@@ -1994,11 +1979,19 @@ NS_IMETHODIMP nsHTMLEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
   nsresult rv;
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   if (NS_FAILED(rv)) return rv;
+  
+  // the flavors that we can deal with (preferred order selectable for k*ImageMime)
+  const char* textEditorFlavors[] = { kUnicodeMime };
+  const char* textHtmlEditorFlavors[] = { kUnicodeMime, kHTMLMime,
+                                          kJPEGImageMime, kPNGImageMime, kGIFImageMime };
 
+  PRUint32 editorFlags;
+  GetFlags(&editorFlags);
+  
   PRBool haveFlavors;
 
   // Use the flavors depending on the current editor mask
-  if (IsPlaintextEditor())
+  if ((editorFlags & eEditorPlaintextMask))
     rv = clipboard->HasDataMatchingFlavors(textEditorFlavors,
                                            NS_ARRAY_LENGTH(textEditorFlavors),
                                            aSelectionType, &haveFlavors);
@@ -2013,58 +2006,13 @@ NS_IMETHODIMP nsHTMLEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLEditor::CanPasteTransferable(nsITransferable *aTransferable, PRBool *aCanPaste)
-{
-  NS_ENSURE_ARG_POINTER(aCanPaste);
-
-  // can't paste if readonly
-  if (!IsModifiable()) {
-    *aCanPaste = PR_FALSE;
-    return NS_OK;
-  }
-
-  // If |aTransferable| is null, assume that a paste will succeed.
-  if (!aTransferable) {
-    *aCanPaste = PR_TRUE;
-    return NS_OK;
-  }
-
-  // Peek in |aTransferable| to see if it contains a supported MIME type.
-
-  // Use the flavors depending on the current editor mask
-  const char ** flavors;
-  unsigned length;
-  if (IsPlaintextEditor()) {
-    flavors = textEditorFlavors;
-    length = NS_ARRAY_LENGTH(textEditorFlavors);
-  } else {
-    flavors = textHtmlEditorFlavors;
-    length = NS_ARRAY_LENGTH(textHtmlEditorFlavors);
-  }
-
-  for (unsigned int i = 0; i < length; i++, flavors++) {
-    nsCOMPtr<nsISupports> data;
-    PRUint32 dataLen;
-    nsresult rv = aTransferable->GetTransferData(*flavors,
-                                                 getter_AddRefs(data),
-                                                 &dataLen);
-    if (NS_SUCCEEDED(rv) && data) {
-      *aCanPaste = PR_TRUE;
-      return NS_OK;
-    }
-  }
-  
-  *aCanPaste = PR_FALSE;
-  return NS_OK;
-}
-
 
 // 
 // HTML PasteAsQuotation: Paste in a blockquote type=cite
 //
 NS_IMETHODIMP nsHTMLEditor::PasteAsQuotation(PRInt32 aSelectionType)
 {
-  if (IsPlaintextEditor())
+  if (mFlags & eEditorPlaintextMask)
     return PasteAsPlaintextQuotation(aSelectionType);
 
   nsAutoString citation;
@@ -2270,7 +2218,7 @@ nsHTMLEditor::InsertTextWithQuotations(const nsAString &aStringToInsert)
 NS_IMETHODIMP nsHTMLEditor::InsertAsQuotation(const nsAString & aQuotedText,
                                               nsIDOMNode **aNodeInserted)
 {
-  if (IsPlaintextEditor())
+  if (mFlags & eEditorPlaintextMask)
     return InsertAsPlaintextQuotation(aQuotedText, PR_TRUE, aNodeInserted);
 
   nsAutoString citation;
@@ -2405,7 +2353,7 @@ nsHTMLEditor::InsertAsCitedQuotation(const nsAString & aQuotedText,
                                      nsIDOMNode **aNodeInserted)
 {
   // Don't let anyone insert html into a "plaintext" editor:
-  if (IsPlaintextEditor())
+  if (mFlags & eEditorPlaintextMask)
   {
     NS_ASSERTION(!aInsertHTML, "InsertAsCitedQuotation: trying to insert html into plaintext editor");
     return InsertAsPlaintextQuotation(aQuotedText, PR_TRUE, aNodeInserted);

@@ -41,7 +41,6 @@
  * objects such as floats and absolutely positioned elements
  */
 
-#include "nsLayoutUtils.h"
 #include "nsPlaceholderFrame.h"
 #include "nsLineLayout.h"
 #include "nsIContent.h"
@@ -52,10 +51,9 @@
 #include "nsDisplayList.h"
 
 nsIFrame*
-NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
-                       nsFrameState aTypeBit)
+NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsPlaceholderFrame(aContext, aTypeBit);
+  return new (aPresShell) nsPlaceholderFrame(aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsPlaceholderFrame)
@@ -127,27 +125,20 @@ nsPlaceholderFrame::Reflow(nsPresContext*          aPresContext,
 }
 
 void
-nsPlaceholderFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsPlaceholderFrame::Destroy()
 {
   nsIPresShell* shell = PresContext()->GetPresShell();
-  nsIFrame* oof = mOutOfFlowFrame;
-  if (oof) {
-    // Unregister out-of-flow frame
-    shell->FrameManager()->UnregisterPlaceholderFrame(this);
-    mOutOfFlowFrame = nsnull;
-    // If aDestructRoot is not an ancestor of the out-of-flow frame,
-    // then call RemoveFrame on it here.
-    // Also destroy it here if it's a popup frame. (Bug 96291)
-    if (shell->FrameManager() &&
-        ((GetStateBits() & PLACEHOLDER_FOR_FLOAT) ||
-         !nsLayoutUtils::IsProperAncestorFrame(aDestructRoot, oof))) {
-      nsIAtom* listName = nsLayoutUtils::GetChildListNameFor(oof);
-      shell->FrameManager()->RemoveFrame(listName, oof);
+  if (shell && mOutOfFlowFrame) {
+    if (shell->FrameManager()->GetPlaceholderFrameFor(mOutOfFlowFrame)) {
+      NS_ERROR("Placeholder relationship should have been torn down; see "
+               "comments in nsPlaceholderFrame.h.  Unregistering ourselves, "
+               "but this might cause our out-of-flow to be unable to destroy "
+               "itself properly.  Not that it could anyway, with us dead.");
+      shell->FrameManager()->UnregisterPlaceholderFrame(this);
     }
-    // else oof will be destroyed by its parent
   }
 
-  nsFrame::DestroyFrom(aDestructRoot);
+  nsFrame::Destroy();
 }
 
 nsIAtom*
@@ -249,9 +240,6 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   if (nsnull != nextInFlow) {
     fprintf(out, " next-in-flow=%p", static_cast<void*>(nextInFlow));
-  }
-  if (nsnull != mContent) {
-    fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   }
   if (mOutOfFlowFrame) {
     fprintf(out, " outOfFlowFrame=");

@@ -299,7 +299,7 @@ txKeyHash::init()
  * Adds a match/use pair.
  * @param aMatch  match-pattern
  * @param aUse    use-expression
- * @return PR_FALSE if an error occurred, PR_TRUE otherwise
+ * @return PR_FALSE if an error occured, PR_TRUE otherwise
  */
 PRBool txXSLKey::addKey(nsAutoPtr<txPattern> aMatch, nsAutoPtr<Expr> aUse)
 {
@@ -398,9 +398,9 @@ nsresult txXSLKey::testNode(const txXPathNode& aNode,
             nsRefPtr<txAExprResult> exprResult;
             rv = mKeys[currKey].useExpr->evaluate(evalContext,
                                                   getter_AddRefs(exprResult));
+            NS_ENSURE_SUCCESS(rv, rv);
 
             delete aEs.popEvalContext();
-            NS_ENSURE_SUCCESS(rv, rv);
 
             if (exprResult->getResultType() == txAExprResult::NODESET) {
                 txNodeSet* res = static_cast<txNodeSet*>

@@ -99,7 +99,7 @@ var timenonjit = f(false);
 var timejit = f(true);
 
 expect = true;
-actual = timejit < timenonjit;
+actual = timejit < timenonjit/2;
 
 print('time nonjit: ' + timenonjit + ', time    jit: ' + timejit);
 

@@ -25,7 +25,6 @@
  *   Andrew Smith
  *   Federico Mena-Quintero <federico@novell.com>
  *   Bobby Holley <bobbyholley@gmail.com>
- *   Glenn Randers-Pehrson <glennrp@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -62,25 +61,15 @@
 
 static void PNGAPI info_callback(png_structp png_ptr, png_infop info_ptr);
 static void PNGAPI row_callback(png_structp png_ptr, png_bytep new_row,
-                                png_uint_32 row_num, int pass);
-#ifdef PNG_APNG_SUPPORTED
-static void PNGAPI frame_info_callback(png_structp png_ptr,
-                                       png_uint_32 frame_num);
-#endif
+                           png_uint_32 row_num, int pass);
+static void PNGAPI frame_info_callback(png_structp png_ptr, png_uint_32 frame_num);
 static void PNGAPI end_callback(png_structp png_ptr, png_infop info_ptr);
-static void PNGAPI error_callback(png_structp png_ptr,
-                                  png_const_charp error_msg);
-static void PNGAPI warning_callback(png_structp png_ptr,
-                                    png_const_charp warning_msg);
-#if defined(PNG_USER_MEM_SUPPORTED) && !defined(PNG_SET_CHUNK_MALLOC_LIMIT_SUPPORTED)
-static png_voidp PNGAPI malloc_callback(png_structp png_ptr,
-                                        png_alloc_size_t size);
-#endif
+static void PNGAPI error_callback(png_structp png_ptr, png_const_charp error_msg);
+static void PNGAPI warning_callback(png_structp png_ptr, png_const_charp warning_msg);
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gPNGLog = PR_NewLogModule("PNGDecoder");
-static PRLogModuleInfo *gPNGDecoderAccountingLog =
-                        PR_NewLogModule("PNGDecoderAccounting");
+static PRLogModuleInfo *gPNGDecoderAccountingLog = PR_NewLogModule("PNGDecoderAccounting");
 #endif
 
 /* limit image dimensions (bug #251381) */
@@ -127,7 +116,7 @@ nsPNGDecoder::~nsPNGDecoder()
 }
 
 // CreateFrame() is used for both simple and animated images
-void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
+void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset, 
                                PRInt32 width, PRInt32 height,
                                gfxASurface::gfxImageFormat format)
 {
@@ -135,17 +124,15 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
   nsresult rv = mImage->AppendFrame(x_offset, y_offset, width, height, format,
                                     &mImageData, &imageDataLength);
   if (NS_FAILED(rv))
-    longjmp(png_jmpbuf(mPNG), 5); // NS_ERROR_OUT_OF_MEMORY
+    longjmp(mPNG->jmpbuf, 5); // NS_ERROR_OUT_OF_MEMORY
 
   mFrameRect.x = x_offset;
   mFrameRect.y = y_offset;
   mFrameRect.width = width;
   mFrameRect.height = height;
 
-#ifdef PNG_APNG_SUPPORTED
   if (png_get_valid(mPNG, mInfo, PNG_INFO_acTL))
     SetAnimFrameInfo();
-#endif
 
   PRUint32 numFrames = 0;
   mImage->GetNumFrames(&numFrames);
@@ -154,15 +141,13 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
     mObserver->OnStartFrame(nsnull, numFrames - 1);
 
   PR_LOG(gPNGDecoderAccountingLog, PR_LOG_DEBUG,
-         ("PNGDecoderAccounting: nsPNGDecoder::CreateFrame -- created "
-          "image frame with %dx%d pixels in container %p",
+         ("PNGDecoderAccounting: nsPNGDecoder::CreateFrame -- created image frame with %dx%d pixels in container %p",
           width, height,
           mImage.get ()));
 
   mFrameHasNoAlpha = PR_TRUE;
 }
 
-#ifdef PNG_APNG_SUPPORTED
 // set timeout and frame disposal method for the current frame
 void nsPNGDecoder::SetAnimFrameInfo()
 {
@@ -171,7 +156,7 @@ void nsPNGDecoder::SetAnimFrameInfo()
   png_byte dispose_op;
   png_byte blend_op;
   PRInt32 timeout; /* in milliseconds */
-
+  
   delay_num = png_get_next_frame_delay_num(mPNG, mInfo);
   delay_den = png_get_next_frame_delay_den(mPNG, mInfo);
   dispose_op = png_get_next_frame_dispose_op(mPNG, mInfo);
@@ -182,40 +167,35 @@ void nsPNGDecoder::SetAnimFrameInfo()
   } else {
     if (delay_den == 0)
       delay_den = 100; // so says the APNG spec
-
+    
     // Need to cast delay_num to float to have a proper division and
     // the result to int to avoid compiler warning
     timeout = static_cast<PRInt32>
-              (static_cast<PRFloat64>(delay_num) * 1000 / delay_den);
+                         (static_cast<PRFloat64>(delay_num) * 1000 / delay_den);
   }
 
   PRUint32 numFrames = 0;
   mImage->GetNumFrames(&numFrames);
 
   mImage->SetFrameTimeout(numFrames - 1, timeout);
-
+  
   if (dispose_op == PNG_DISPOSE_OP_PREVIOUS)
-      mImage->SetFrameDisposalMethod(numFrames - 1,
-                                     imgIContainer::kDisposeRestorePrevious);
+      mImage->SetFrameDisposalMethod(numFrames - 1, imgIContainer::kDisposeRestorePrevious);
   else if (dispose_op == PNG_DISPOSE_OP_BACKGROUND)
-      mImage->SetFrameDisposalMethod(numFrames - 1,
-                                     imgIContainer::kDisposeClear);
+      mImage->SetFrameDisposalMethod(numFrames - 1, imgIContainer::kDisposeClear);
   else
-      mImage->SetFrameDisposalMethod(numFrames - 1,
-                                     imgIContainer::kDisposeKeep);
-
+      mImage->SetFrameDisposalMethod(numFrames - 1, imgIContainer::kDisposeKeep);
+  
   if (blend_op == PNG_BLEND_OP_SOURCE)
       mImage->SetFrameBlendMethod(numFrames - 1, imgIContainer::kBlendSource);
   /*else // 'over' is the default
       mImage->SetFrameBlendMethod(numFrames - 1, imgIContainer::kBlendOver); */
 }
-#endif
 
 // set timeout and frame disposal method for the current frame
 void nsPNGDecoder::EndImageFrame()
 {
-  PRUint32 numFrames = 1;
-#ifdef PNG_APNG_SUPPORTED
+  PRUint32 numFrames = 0;
   mImage->GetNumFrames(&numFrames);
 
   // We can't use mPNG->num_frames_read as it may be one ahead.
@@ -231,10 +211,8 @@ void nsPNGDecoder::EndImageFrame()
     PRUint32 curFrame;
     mImage->GetCurrentFrameIndex(&curFrame);
     if (mObserver)
-      mObserver->OnDataAvailable(nsnull, curFrame == numFrames - 1,
-                                 &mFrameRect);
+      mObserver->OnDataAvailable(nsnull, curFrame == numFrames - 1, &mFrameRect);
   }
-#endif
 
   mImage->EndFrameDecode(numFrames - 1);
   if (mObserver)
@@ -244,14 +222,14 @@ void nsPNGDecoder::EndImageFrame()
 
 /** imgIDecoder methods **/
 
-/* void init (in imgIContainer aImage,
+/* void init (in imgIContainer aImage, 
               imgIDecoderObserver aObserver,
               unsigned long aFlags); */
 NS_IMETHODIMP nsPNGDecoder::Init(imgIContainer *aImage,
                                  imgIDecoderObserver *aObserver,
                                  PRUint32 aFlags)
 {
-#ifdef PNG_HANDLE_AS_UNKNOWN_SUPPORTED
+#if defined(PNG_UNKNOWN_CHUNKS_SUPPORTED)
   static png_byte color_chunks[]=
        { 99,  72,  82,  77, '\0',   /* cHRM */
         105,  67,  67,  80, '\0'};  /* iCCP */
@@ -291,22 +269,11 @@ NS_IMETHODIMP nsPNGDecoder::Init(imgIContainer *aImage,
   /* Initialize the container's source image header. */
   /* Always decode to 24 bit pixdepth */
 
-#if defined(PNG_USER_MEM_SUPPORTED) && !defined(PNG_SET_CHUNK_MALLOC_LIMIT_SUPPORTED)
-  if (gfxPlatform::GetCMSMode() != eCMSMode_Off) {
-    mPNG = png_create_read_struct_2(PNG_LIBPNG_VER_STRING,
-                                    NULL,
-                                    error_callback,
-                                    warning_callback,
-                                    NULL,
-                                    malloc_callback,
-                                    NULL);
-  } else
-#endif
-    mPNG = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-                                  NULL, error_callback,
-                                  warning_callback);
-  if (!mPNG)
+  mPNG = png_create_read_struct(PNG_LIBPNG_VER_STRING, 
+                                NULL, error_callback, warning_callback);
+  if (!mPNG) {
     return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   mInfo = png_create_info_struct(mPNG);
   if (!mInfo) {
@@ -314,27 +281,13 @@ NS_IMETHODIMP nsPNGDecoder::Init(imgIContainer *aImage,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-#ifdef PNG_HANDLE_AS_UNKNOWN_SUPPORTED
+#if defined(PNG_UNKNOWN_CHUNKS_SUPPORTED)
   /* Ignore unused chunks */
-  if (gfxPlatform::GetCMSMode() == eCMSMode_Off)
+  if (gfxPlatform::GetCMSMode() == eCMSMode_Off) {
     png_set_keep_unknown_chunks(mPNG, 1, color_chunks, 2);
-
+  }
   png_set_keep_unknown_chunks(mPNG, 1, unused_chunks,
      (int)sizeof(unused_chunks)/5);   
-#endif
-
-#ifndef MOZPNGCONF_H
-# if defined(PNG_WRITE_SUPPORTED)
-  if (gfxPlatform::GetCMSMode() != eCMSMode_Off) {
-    /* Increase speed of decompressing large iCCP chunks (default buffer
-       size is 8192) */
-    png_set_compression_buffer_size(mPNG, (png_size_t)32768L);
-  }
-
-#   if defined PNG_SET_CHUNK_MALLOC_LIMIT_SUPPORTED
-       png_set_user_chunk_malloc_max(mPNG, 4000000L);
-#   endif
-# endif
 #endif
 
   /* use this as libpng "progressive pointer" (retrieve in callbacks) */
@@ -368,8 +321,9 @@ NS_IMETHODIMP nsPNGDecoder::Flush()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsPNGDecoder::Write(const char *aBuffer, PRUint32 aCount)
+// We make this a method to get the benefit of the 'this' parameter
+NS_METHOD
+nsPNGDecoder::ProcessData(unsigned char* aBuffer, PRUint32 aCount)
 {
   // We use gotos, so we need to declare variables here
   nsresult rv;
@@ -388,8 +342,7 @@ nsPNGDecoder::Write(const char *aBuffer, PRUint32 aCount)
       return NS_OK;
 
     // Read data into our header buffer
-    PRUint32 bytesToRead = PR_MIN(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
-                                  mHeaderBytesRead);
+    PRUint32 bytesToRead = PR_MIN(aCount, BYTES_NEEDED_FOR_DIMENSIONS - mHeaderBytesRead);
     memcpy(mHeaderBuf + mHeaderBytesRead, aBuffer, bytesToRead);
     mHeaderBytesRead += bytesToRead;
 
@@ -423,13 +376,13 @@ nsPNGDecoder::Write(const char *aBuffer, PRUint32 aCount)
   else {
 
     // libpng uses setjmp/longjmp for error handling - set the buffer
-    if (setjmp(png_jmpbuf(mPNG))) {
+    if (setjmp(mPNG->jmpbuf)) {
       png_destroy_read_struct(&mPNG, &mInfo, NULL);
       goto error;
     }
 
     // Pass the data off to libpng
-    png_process_data(mPNG, mInfo, (unsigned char *)aBuffer, aCount);
+    png_process_data(mPNG, mInfo, aBuffer, aCount);
 
   }
 
@@ -462,7 +415,44 @@ nsPNGDecoder::NotifyDone(PRBool aSuccess)
   mNotifiedDone = PR_TRUE;
 }
 
-// Sets up gamma pre-correction in libpng before our callback gets called.
+static NS_METHOD ReadDataOut(nsIInputStream* in,
+                             void* closure,
+                             const char* fromRawSegment,
+                             PRUint32 toOffset,
+                             PRUint32 count,
+                             PRUint32 *writeCount)
+{
+  // Grab the decoder
+  NS_ENSURE_ARG_POINTER(closure);
+  nsPNGDecoder *decoder = static_cast<nsPNGDecoder*>(closure);
+
+  // We always read everything
+  *writeCount = count;
+
+  // Twiddle the types, then process the data
+  char *unConst = const_cast<char *>(fromRawSegment);
+  unsigned char *buffer = reinterpret_cast<unsigned char *>(unConst);
+  return decoder->ProcessData(buffer, count);
+}
+
+
+/* writeFrom (in nsIInputStream inStr, in unsigned long count); */
+NS_IMETHODIMP nsPNGDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count)
+{
+  NS_ASSERTION(inStr, "Got a null input stream!");
+
+  // Decode, watching for errors
+  nsresult rv = NS_OK;
+  PRUint32 ignored;
+  if (!mError)
+    rv = inStr->ReadSegments(ReadDataOut, this, count, &ignored);
+  if (mError || NS_FAILED(rv))
+    rv = NS_ERROR_FAILURE;
+
+  return rv;
+}
+
+// Sets up gamma pre-correction in libpng before our callback gets called. 
 // We need to do this if we don't end up with a CMS profile.
 static void
 PNGDoGammaCorrection(png_structp png_ptr, png_infop info_ptr)
@@ -528,18 +518,16 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
 
     if (profile) {
       int fileIntent;
-      png_set_gray_to_rgb(png_ptr);
+      png_set_gray_to_rgb(png_ptr); 
       png_get_sRGB(png_ptr, info_ptr, &fileIntent);
-      PRUint32 map[] = { QCMS_INTENT_PERCEPTUAL,
-                         QCMS_INTENT_RELATIVE_COLORIMETRIC,
-                         QCMS_INTENT_SATURATION,
-                         QCMS_INTENT_ABSOLUTE_COLORIMETRIC };
+      PRUint32 map[] = { QCMS_INTENT_PERCEPTUAL, QCMS_INTENT_RELATIVE_COLORIMETRIC,
+                         QCMS_INTENT_SATURATION, QCMS_INTENT_ABSOLUTE_COLORIMETRIC };
       *intent = map[fileIntent];
     }
   }
 
   // Check gAMA/cHRM chunks
-  if (!profile &&
+  if (!profile && 
        png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) &&
        png_get_valid(png_ptr, info_ptr, PNG_INFO_cHRM)) {
     qcms_CIE_xyYTRIPLE primaries;
@@ -557,8 +545,7 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
 
     png_get_gAMA(png_ptr, info_ptr, &gammaOfFile);
 
-    profile = qcms_profile_create_rgb_with_gamma(whitePoint, primaries,
-                                                 1.0/gammaOfFile);
+    profile = qcms_profile_create_rgb_with_gamma(whitePoint, primaries, 1/gammaOfFile);
 
     if (profile)
       png_set_gray_to_rgb(png_ptr);
@@ -594,24 +581,22 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
   png_bytep trans = NULL;
   int num_trans = 0;
 
-  nsPNGDecoder *decoder =
-               static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
+  nsPNGDecoder *decoder = static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
   nsresult rv;
 
   /* always decode to 24-bit RGB or 32-bit RGBA  */
   png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type,
                &interlace_type, &compression_type, &filter_type);
-
+  
   /* Are we too big? */
   if (width > MOZ_PNG_MAX_DIMENSION || height > MOZ_PNG_MAX_DIMENSION)
-    longjmp(png_jmpbuf(decoder->mPNG), 1);
+    longjmp(decoder->mPNG->jmpbuf, 1);
 
   // Set the size and notify that the container is set up
   rv = decoder->mImage->SetSize(width, height);
-
-  if (NS_FAILED(rv))
-    longjmp(png_jmpbuf(decoder->mPNG), 5); // NS_ERROR_UNEXPECTED
-
+  if (NS_FAILED(rv)) {
+    longjmp(decoder->mPNG->jmpbuf, 5); // NS_ERROR_UNEXPECTED
+  }
   if (decoder->mObserver)
     decoder->mObserver->OnStartContainer(nsnull, decoder->mImage);
 
@@ -635,20 +620,19 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
        ((int)trans_values->red > sample_max ||
        (int)trans_values->green > sample_max ||
        (int)trans_values->blue > sample_max)))
-      {
-        /* clear the tRNS valid flag and release tRNS memory */
-        png_free_data(png_ptr, info_ptr, PNG_FREE_TRNS, 0);
-      }
+       {
+         /* clear the tRNS valid flag and release tRNS memory */
+         png_free_data(png_ptr, info_ptr, PNG_FREE_TRNS, 0);
+       }
     else
-      png_set_expand(png_ptr);
+       png_set_expand(png_ptr);
   }
 
   if (bit_depth == 16)
     png_set_strip_16(png_ptr);
 
   qcms_data_type inType;
-  PRUint32 intent = -1;
-  PRUint32 pIntent;
+  PRUint32 intent, pIntent;
   if (gfxPlatform::GetCMSMode() != eCMSMode_Off) {
     intent = gfxPlatform::GetRenderingIntent();
     decoder->mInProfile = PNGGetColorProfile(png_ptr, info_ptr,
@@ -666,10 +650,10 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
       outType = QCMS_DATA_RGB_8;
 
     decoder->mTransform = qcms_transform_create(decoder->mInProfile,
-                                           inType,
-                                           gfxPlatform::GetCMSOutputProfile(),
-                                           outType,
-                                           (qcms_intent)intent);
+                                             inType,
+                                             gfxPlatform::GetCMSOutputProfile(),
+                                             outType,
+                                             (qcms_intent)intent);
   } else {
     png_set_gray_to_rgb(png_ptr);
     PNGDoGammaCorrection(png_ptr, info_ptr);
@@ -721,64 +705,40 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
   else if (channels == 2 || channels == 4)
     decoder->format = gfxASurface::ImageFormatARGB32;
 
-#ifdef PNG_APNG_SUPPORTED
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL))
     png_set_progressive_frame_fn(png_ptr, frame_info_callback, NULL);
-
+  
   if (png_get_first_frame_is_hidden(png_ptr, info_ptr)) {
     decoder->mFrameIsHidden = PR_TRUE;
   } else {
-#endif
     decoder->CreateFrame(0, 0, width, height, decoder->format);
-#ifdef PNG_APNG_SUPPORTED
   }
-#endif
-
+  
   if (decoder->mTransform &&
       (channels <= 2 || interlace_type == PNG_INTERLACE_ADAM7)) {
     PRUint32 bpp[] = { 0, 3, 4, 3, 4 };
     decoder->mCMSLine =
       (PRUint8 *)nsMemory::Alloc(bpp[channels] * width);
     if (!decoder->mCMSLine) {
-      longjmp(png_jmpbuf(decoder->mPNG), 5); // NS_ERROR_OUT_OF_MEMORY
+      longjmp(decoder->mPNG->jmpbuf, 5); // NS_ERROR_OUT_OF_MEMORY
     }
   }
 
   if (interlace_type == PNG_INTERLACE_ADAM7) {
     if (height < PR_INT32_MAX / (width * channels))
-      decoder->interlacebuf = (PRUint8 *)nsMemory::Alloc(channels *
-                                                         width * height);
+      decoder->interlacebuf = (PRUint8 *)nsMemory::Alloc(channels * width * height);
     if (!decoder->interlacebuf) {
-      longjmp(png_jmpbuf(decoder->mPNG), 5); // NS_ERROR_OUT_OF_MEMORY
+      longjmp(decoder->mPNG->jmpbuf, 5); // NS_ERROR_OUT_OF_MEMORY
     }
   }
-
-#if defined PNG_SET_CHUNK_MALLOC_LIMIT_SUPPORTED
-  /* Revert to the default memory limit */
-       png_set_user_chunk_malloc_max(decoder->mPNG, PNG_USER_CHUNK_MALLOC_MAX);
-#endif
-#if defined(PNG_USER_MEM_SUPPORTED) && !defined(PNG_SET_CHUNK_MALLOC_LIMIT_SUPPORTED)
-  /* Revert to the default memory allocator */
-  if (gfxPlatform::GetCMSMode() != eCMSMode_Off)
-     png_set_mem_fn(decoder->mPNG, NULL, NULL, NULL);
-#endif
-
-#ifndef MOZPNGCONF_H
-/* Revert to the default zlib buffer size */
-# if defined(PNG_WRITE_SUPPORTED)
-  if (gfxPlatform::GetCMSMode() != eCMSMode_Off) {
-    png_set_compression_buffer_size(decoder->mPNG, (png_size_t)8192);
-  }
-# endif
-#endif
-
+  
   /* Reject any ancillary chunk after IDAT with a bad CRC (bug #397593).
    * It would be better to show the default frame (if one has already been
    * successfully decoded) before bailing, but it's simpler to just bail
    * out with an error message.
    */
   png_set_crc_action(png_ptr, NULL, PNG_CRC_ERROR_QUIT);
-
+  
   return;
 }
 
@@ -813,9 +773,8 @@ row_callback(png_structp png_ptr, png_bytep new_row,
    * to pass the current row, and the function will combine the
    * old row and the new row.
    */
-  nsPNGDecoder *decoder =
-               static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
-
+  nsPNGDecoder *decoder = static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
+  
   // skip this frame
   if (decoder->mFrameIsHidden)
     return;
@@ -836,8 +795,7 @@ row_callback(png_structp png_ptr, png_bytep new_row,
 
     if (decoder->mTransform) {
       if (decoder->mCMSLine) {
-        qcms_transform_data(decoder->mTransform, line, decoder->mCMSLine,
-                            iwidth);
+        qcms_transform_data(decoder->mTransform, line, decoder->mCMSLine, iwidth);
         /* copy alpha over */
         PRUint32 channels = decoder->mChannels;
         if (channels == 2 || channels == 4) {
@@ -859,7 +817,7 @@ row_callback(png_structp png_ptr, png_bytep new_row,
         // copy as bytes until source pointer is 32-bit-aligned
         for (; (NS_PTR_TO_UINT32(line) & 0x3) && idx; --idx) {
           *cptr32++ = GFX_PACKED_PIXEL(0xFF, line[0], line[1], line[2]);
-          line += 3;
+          line += 3; 
         }
 
         // copy pixels in blocks of 4
@@ -909,8 +867,7 @@ row_callback(png_structp png_ptr, png_bytep new_row,
       PRUint32 curFrame;
       decoder->mImage->GetCurrentFrameIndex(&curFrame);
       if (decoder->mObserver)
-        decoder->mObserver->OnDataAvailable(nsnull,
-                                            curFrame == numFrames - 1, &r);
+        decoder->mObserver->OnDataAvailable(nsnull, curFrame == numFrames - 1, &r);
     }
   }
 }
@@ -919,26 +876,23 @@ row_callback(png_structp png_ptr, png_bytep new_row,
 void
 frame_info_callback(png_structp png_ptr, png_uint_32 frame_num)
 {
-#ifdef PNG_APNG_SUPPORTED
   png_uint_32 x_offset, y_offset;
   PRInt32 width, height;
-
-  nsPNGDecoder *decoder =
-               static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
-
+  
+  nsPNGDecoder *decoder = static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
+  
   // old frame is done
   if (!decoder->mFrameIsHidden)
     decoder->EndImageFrame();
-
+  
   decoder->mFrameIsHidden = PR_FALSE;
-
+  
   x_offset = png_get_next_frame_x_offset(png_ptr, decoder->mInfo);
   y_offset = png_get_next_frame_y_offset(png_ptr, decoder->mInfo);
   width = png_get_next_frame_width(png_ptr, decoder->mInfo);
   height = png_get_next_frame_height(png_ptr, decoder->mInfo);
-
+  
   decoder->CreateFrame(x_offset, y_offset, width, height, decoder->format);
-#endif
 }
 
 void
@@ -956,18 +910,15 @@ end_callback(png_structp png_ptr, png_infop info_ptr)
    * marks the image as finished.
    */
 
-  nsPNGDecoder *decoder =
-               static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
+  nsPNGDecoder *decoder = static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
 
   // We shouldn't get here if we've hit an error
   NS_ABORT_IF_FALSE(!decoder->mError, "Finishing up PNG but hit error!");
-
-#ifdef PNG_APNG_SUPPORTED
+  
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL)) {
     PRInt32 num_plays = png_get_num_plays(png_ptr, info_ptr);
     decoder->mImage->SetLoopCount(num_plays - 1);
   }
-#endif
 
   // Send final notifications
   decoder->NotifyDone(/* aSuccess = */ PR_TRUE);
@@ -978,7 +929,7 @@ void
 error_callback(png_structp png_ptr, png_const_charp error_msg)
 {
   PR_LOG(gPNGLog, PR_LOG_ERROR, ("libpng error: %s\n", error_msg));
-  longjmp(png_jmpbuf(png_ptr), 1);
+  longjmp(png_ptr->jmpbuf, 1);
 }
 
 
@@ -987,44 +938,3 @@ warning_callback(png_structp png_ptr, png_const_charp warning_msg)
 {
   PR_LOG(gPNGLog, PR_LOG_WARNING, ("libpng warning: %s\n", warning_msg));
 }
-
-#if defined(PNG_USER_MEM_SUPPORTED) && !defined(PNG_SET_CHUNK_MALLOC_LIMIT_SUPPORTED)
-/* Replacement libpng memory allocator that has a 4MB limit */
-png_voidp malloc_callback(png_structp png_ptr, png_alloc_size_t size) {
-
-  png_voidp ret;
-
-  if (png_ptr == NULL || size == 0)
-    return (png_voidp) (NULL);
-
-#ifdef PNG_MAX_MALLOC_64K
-  if (size > (png_uint_32)65536L) {
-         return NULL;
-  }
-#endif
-  if (size > (png_uint_32)4000000L) {
-         return NULL;
-  }
-#if defined(__TURBOC__) && !defined(__FLAT__)
-   if (size != (unsigned long)size)
-      ret = NULL;
-   else
-      ret = farmalloc(size);
-#else
-#  if defined(_MSC_VER) && defined(MAXSEG_64K)
-   if (size != (unsigned long)size)
-      ret = NULL;
-   else
-      ret = halloc(size, 1);
-#  else
-   if (size != (size_t)size)
-      ret = NULL;
-   else
-      ret = malloc((size_t)size);
-#  endif
-#endif
-
-   return (ret);
-}
-#endif /* PNG_USER_MEM_SUPPORTED */
-

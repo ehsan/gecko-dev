@@ -315,8 +315,8 @@ CSS_PROP_BORDER(
     mBorderRadius.mTopLeft,
     eCSSType_ValuePair,
     nsnull,
-    offsetof(nsStyleBorder, mBorderRadius),
-    eStyleAnimType_Corner_TopLeft)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     -moz-border-radius-topright,
     _moz_border_radius_topRight,
@@ -326,8 +326,8 @@ CSS_PROP_BORDER(
     mBorderRadius.mTopRight,
     eCSSType_ValuePair,
     nsnull,
-    offsetof(nsStyleBorder, mBorderRadius),
-    eStyleAnimType_Corner_TopRight)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     -moz-border-radius-bottomright,
     _moz_border_radius_bottomRight,
@@ -337,8 +337,8 @@ CSS_PROP_BORDER(
     mBorderRadius.mBottomRight,
     eCSSType_ValuePair,
     nsnull,
-    offsetof(nsStyleBorder, mBorderRadius),
-    eStyleAnimType_Corner_BottomRight)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     -moz-border-radius-bottomleft,
     _moz_border_radius_bottomLeft,
@@ -348,8 +348,8 @@ CSS_PROP_BORDER(
     mBorderRadius.mBottomLeft,
     eCSSType_ValuePair,
     nsnull,
-    offsetof(nsStyleBorder, mBorderRadius),
-    eStyleAnimType_Corner_BottomLeft)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SHORTHAND(
     -moz-outline-radius,
     _moz_outline_radius,
@@ -364,8 +364,8 @@ CSS_PROP_OUTLINE(
     mOutlineRadius.mTopLeft,
     eCSSType_ValuePair,
     nsnull,
-    offsetof(nsStyleOutline, mOutlineRadius),
-    eStyleAnimType_Corner_TopLeft)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_OUTLINE(
     -moz-outline-radius-topright,
     _moz_outline_radius_topRight,
@@ -375,8 +375,8 @@ CSS_PROP_OUTLINE(
     mOutlineRadius.mTopRight,
     eCSSType_ValuePair,
     nsnull,
-    offsetof(nsStyleOutline, mOutlineRadius),
-    eStyleAnimType_Corner_TopRight)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_OUTLINE(
     -moz-outline-radius-bottomright,
     _moz_outline_radius_bottomRight,
@@ -386,8 +386,8 @@ CSS_PROP_OUTLINE(
     mOutlineRadius.mBottomRight,
     eCSSType_ValuePair,
     nsnull,
-    offsetof(nsStyleOutline, mOutlineRadius),
-    eStyleAnimType_Corner_BottomRight)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_OUTLINE(
     -moz-outline-radius-bottomleft,
     _moz_outline_radius_bottomLeft,
@@ -397,8 +397,8 @@ CSS_PROP_OUTLINE(
     mOutlineRadius.mBottomLeft,
     eCSSType_ValuePair,
     nsnull,
-    offsetof(nsStyleOutline, mOutlineRadius),
-    eStyleAnimType_Corner_BottomLeft)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_TEXT(
     -moz-tab-size,
     _moz_tab_size,
@@ -479,8 +479,7 @@ CSS_PROP_BACKGROUND(
     BackgroundImage,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
-        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
-        CSS_PROPERTY_START_IMAGE_LOADS,
+        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Color,
     mBackImage,
     eCSSType_ValueList,
@@ -521,7 +520,7 @@ CSS_PROP_BACKGROUND(
     eCSSType_ValuePairList,
     kBackgroundPositionKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
     background-repeat,
     background_repeat,
@@ -545,7 +544,7 @@ CSS_PROP_BACKGROUND(
     eCSSType_ValuePairList,
     kBackgroundSizeKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_DISPLAY(
     -moz-binding,
     binding,
@@ -692,9 +691,7 @@ CSS_PROP_BORDER(
     -moz-border-image,
     border_image,
     MozBorderImage,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_START_IMAGE_LOADS |
-        CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderImage,
     eCSSType_Value,
@@ -717,8 +714,7 @@ CSS_PROP_BORDER(
     border_left_color_value,
     X,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColor.mLeft,
     eCSSType_Value,
@@ -774,8 +770,7 @@ CSS_PROP_BORDER(
     border-left-style-value,
     border_left_style_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStyle.mLeft,
     eCSSType_Value,
@@ -817,8 +812,7 @@ CSS_PROP_BORDER(
     border-left-width-value,
     border_left_width_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderWidth.mLeft,
     eCSSType_Value,
@@ -866,8 +860,7 @@ CSS_PROP_BORDER(
     border_right_color_value,
     X,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColor.mRight,
     eCSSType_Value,
@@ -923,8 +916,7 @@ CSS_PROP_BORDER(
     border-right-style-value,
     border_right_style_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStyle.mRight,
     eCSSType_Value,
@@ -966,8 +958,7 @@ CSS_PROP_BORDER(
     border-right-width-value,
     border_right_width_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderWidth.mRight,
     eCSSType_Value,
@@ -1009,7 +1000,7 @@ CSS_PROP_TABLEBORDER(
     eCSSType_ValuePair,
     nsnull,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom) // XXX bug 3935
+    eStyleAnimType_None) // XXX bug 3935
 CSS_PROP_SHORTHAND(
     -moz-border-start,
     border_start,
@@ -1152,8 +1143,8 @@ CSS_PROP_BORDER(
     mBoxShadow,
     eCSSType_ValueList,
     kBoxShadowTypeKTable,
-    offsetof(nsStyleBorder, mBoxShadow),
-    eStyleAnimType_Shadow)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_POSITION(
     -moz-box-sizing,
     box_sizing,
@@ -1196,8 +1187,8 @@ CSS_PROP_DISPLAY(
     mClip,
     eCSSType_Rect,
     nsnull,
-    offsetof(nsStyleDisplay, mClip),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_COLOR(
     color,
     color,
@@ -1219,8 +1210,8 @@ CSS_PROP_COLUMN(
     mColumnCount,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleColumn, mColumnCount),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_COLUMN(
     -moz-column-width,
     _moz_column_width,
@@ -1257,8 +1248,8 @@ CSS_PROP_COLUMN(
     mColumnRuleColor,
     eCSSType_Value,
     nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    offsetof(nsStyleColumn, mColumnRuleColor),
+    eStyleAnimType_Color)
 CSS_PROP_COLUMN(
     -moz-column-rule-style,
     _moz_column_rule_style,
@@ -1280,12 +1271,12 @@ CSS_PROP_COLUMN(
     eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_CONTENT(
     content,
     content,
     Content,
-    CSS_PROPERTY_START_IMAGE_LOADS,
+    0,
     Content,
     mContent,
     eCSSType_ValueList,
@@ -1341,9 +1332,7 @@ CSS_PROP_USERINTERFACE(
     cursor,
     cursor,
     Cursor,
-    CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
-        CSS_PROPERTY_START_IMAGE_LOADS |
-        CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0,
+    CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     UserInterface,
     mCursor,
     eCSSType_ValueList,
@@ -1370,8 +1359,8 @@ CSS_PROP_DISPLAY(
     mDisplay,
     eCSSType_Value,
     kDisplayKTable,
-    offsetof(nsStyleDisplay, mDisplay),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_BACKENDONLY(
     elevation,
     elevation,
@@ -1463,8 +1452,8 @@ CSS_PROP_FONT(
     mStretch,
     eCSSType_Value,
     kFontStretchKTable,
-    offsetof(nsStyleFont, mFont.stretch),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_FONT(
     font-style,
     font_style,
@@ -1474,8 +1463,8 @@ CSS_PROP_FONT(
     mStyle,
     eCSSType_Value,
     kFontStyleKTable,
-    offsetof(nsStyleFont, mFont.style),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_FONT(
     font-variant,
     font_variant,
@@ -1485,8 +1474,8 @@ CSS_PROP_FONT(
     mVariant,
     eCSSType_Value,
     kFontVariantKTable,
-    offsetof(nsStyleFont, mFont.variant),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_FONT(
     font-weight,
     font_weight,
@@ -1496,8 +1485,8 @@ CSS_PROP_FONT(
     mWeight,
     eCSSType_Value,
     kFontWeightKTable,
-    offsetof(nsStyleFont, mFont.weight),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_UIRESET(
     -moz-force-broken-image-icon,
     force_broken_image_icon,
@@ -1529,8 +1518,8 @@ CSS_PROP_LIST(
     mImageRegion,
     eCSSType_Rect,
     nsnull,
-    offsetof(nsStyleList, mImageRegion),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_UIRESET(
     ime-mode,
     ime_mode,
@@ -1584,7 +1573,7 @@ CSS_PROP_LIST(
     list-style-image,
     list_style_image,
     ListStyleImage,
-    CSS_PROPERTY_START_IMAGE_LOADS,
+    0,
     List,
     mImage,
     eCSSType_Value,
@@ -1657,8 +1646,7 @@ CSS_PROP_MARGIN(
     margin-left-value,
     margin_left_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mMargin.mLeft,
     eCSSType_Value,
@@ -1700,8 +1688,7 @@ CSS_PROP_MARGIN(
     margin-right-value,
     margin_right_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mMargin.mRight,
     eCSSType_Value,
@@ -1966,8 +1953,7 @@ CSS_PROP_PADDING(
     padding-left-value,
     padding_left_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mPadding.mLeft,
     eCSSType_Value,
@@ -2009,8 +1995,7 @@ CSS_PROP_PADDING(
     padding-right-value,
     padding_right_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mPadding.mRight,
     eCSSType_Value,
@@ -2161,8 +2146,8 @@ CSS_PROP_VISIBILITY(
     mPointerEvents,
     eCSSType_Value,
     kPointerEventsKTable,
-    offsetof(nsStyleVisibility, mPointerEvents),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_DISPLAY(
     position,
     position,
@@ -2183,17 +2168,6 @@ CSS_PROP_QUOTES(
     mQuotes,
     eCSSType_ValuePairList,
     nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_DISPLAY(
-    -moz-resize,
-    resize,
-    MozResize,
-    0,
-    Display,
-    mResize,
-    eCSSType_Value,
-    kResizeKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKENDONLY(
@@ -2310,8 +2284,8 @@ CSS_PROP_TEXTRESET(
     mDecoration,
     eCSSType_Value,
     kTextDecorationKTable,
-    offsetof(nsStyleTextReset, mTextDecoration),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_TEXT(
     text-indent,
     text_indent,
@@ -2334,8 +2308,8 @@ CSS_PROP_TEXT(
     mTextShadow,
     eCSSType_ValueList,
     nsnull,
-    offsetof(nsStyleText, mTextShadow),
-    eStyleAnimType_Shadow)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_TEXT(
     text-transform,
     text_transform,
@@ -2368,7 +2342,7 @@ CSS_PROP_DISPLAY(
     eCSSType_ValuePair,
     kBackgroundPositionKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_POSITION(
     top,
     top,
@@ -2507,8 +2481,8 @@ CSS_PROP_VISIBILITY(
     mVisibility,
     eCSSType_Value,
     kVisibilityKTable,
-    offsetof(nsStyleVisibility, mVisible),
-    eStyleAnimType_EnumU8)  // reflow for collapse
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)  // reflow for collapse
 CSS_PROP_BACKENDONLY(
     voice-family,
     voice_family,
@@ -2600,8 +2574,9 @@ CSS_PROP_POSITION(
     mZIndex,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStylePosition, mZIndex),
-    eStyleAnimType_Coord)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+
 CSS_PROP_XUL(
     -moz-box-align,
     box_align,
@@ -2633,8 +2608,8 @@ CSS_PROP_XUL(
     mBoxFlex,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleXUL, mBoxFlex),
-    eStyleAnimType_float) // XXX bug 3935
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None) // XXX bug 3935
 CSS_PROP_XUL(
     -moz-box-orient,
     box_orient,
@@ -2718,6 +2693,10 @@ CSS_PROP_FONT(
 #endif
 #endif
 
+#ifdef MOZ_SVG
+// XXX treat SVG's CSS Properties as internal for now.
+// Do we want to create an nsIDOMSVGCSS2Properties interface?
+#ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_SVGRESET(
     clip-path,
     clip_path,
@@ -2738,8 +2717,8 @@ CSS_PROP_SVG(
     mClipRule,
     eCSSType_Value,
     kFillRuleKTable,
-    offsetof(nsStyleSVG, mClipRule),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     color-interpolation,
     color_interpolation,
@@ -2749,8 +2728,8 @@ CSS_PROP_SVG(
     mColorInterpolation,
     eCSSType_Value,
     kColorInterpolationKTable,
-    offsetof(nsStyleSVG, mColorInterpolation),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     color-interpolation-filters,
     color_interpolation_filters,
@@ -2760,8 +2739,8 @@ CSS_PROP_SVG(
     mColorInterpolationFilters,
     eCSSType_Value,
     kColorInterpolationKTable,
-    offsetof(nsStyleSVG, mColorInterpolationFilters),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVGRESET(
     dominant-baseline,
     dominant_baseline,
@@ -2771,8 +2750,8 @@ CSS_PROP_SVGRESET(
     mDominantBaseline,
     eCSSType_Value,
     kDominantBaselineKTable,
-    offsetof(nsStyleSVGReset, mDominantBaseline),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     fill,
     fill,
@@ -2804,8 +2783,8 @@ CSS_PROP_SVG(
     mFillRule,
     eCSSType_Value,
     kFillRuleKTable,
-    offsetof(nsStyleSVG, mFillRule),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVGRESET(
     filter,
     filter,
@@ -2848,8 +2827,8 @@ CSS_PROP_SVG(
     mImageRendering,
     eCSSType_Value,
     kImageRenderingKTable,
-    offsetof(nsStyleSVG, mImageRendering),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVGRESET(
     lighting-color,
     lighting_color,
@@ -2919,8 +2898,8 @@ CSS_PROP_SVG(
     mShapeRendering,
     eCSSType_Value,
     kShapeRenderingKTable,
-    offsetof(nsStyleSVG, mShapeRendering),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVGRESET(
     stop-color,
     stop_color,
@@ -2963,8 +2942,8 @@ CSS_PROP_SVG(
     mStrokeDasharray,
     eCSSType_ValueList,
     nsnull,
-    CSS_PROP_NO_OFFSET, /* property stored in 2 separate members */
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     stroke-dashoffset,
     stroke_dashoffset,
@@ -2985,8 +2964,8 @@ CSS_PROP_SVG(
     mStrokeLinecap,
     eCSSType_Value,
     kStrokeLinecapKTable,
-    offsetof(nsStyleSVG, mStrokeLinecap),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     stroke-linejoin,
     stroke_linejoin,
@@ -2996,8 +2975,8 @@ CSS_PROP_SVG(
     mStrokeLinejoin,
     eCSSType_Value,
     kStrokeLinejoinKTable,
-    offsetof(nsStyleSVG, mStrokeLinejoin),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     stroke-miterlimit,
     stroke_miterlimit,
@@ -3040,8 +3019,8 @@ CSS_PROP_SVG(
     mTextAnchor,
     eCSSType_Value,
     kTextAnchorKTable,
-    offsetof(nsStyleSVG, mTextAnchor),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     text-rendering,
     text_rendering,
@@ -3051,8 +3030,10 @@ CSS_PROP_SVG(
     mTextRendering,
     eCSSType_Value,
     kTextRenderingKTable,
-    offsetof(nsStyleSVG, mTextRendering),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+#endif /* !defined (CSS_PROP_LIST_EXCLUDE_INTERNAL) */
+#endif
 
 // Callers that want information on the properties that are in
 // the style structs but not in the nsCSS* structs should define
@@ -3068,6 +3049,28 @@ CSS_PROP_VISIBILITY(
     0,
     Display,
     mLang,
+    eCSSType_Value,
+    nsnull,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_TABLE(
+    X,
+    X,
+    X,
+    0,
+    Table,
+    mFrame,
+    eCSSType_Value,
+    nsnull,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_TABLE(
+    X,
+    X,
+    X,
+    0,
+    Table,
+    mRules,
     eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,

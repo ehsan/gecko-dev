@@ -79,7 +79,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGTranslatePoint::DOMVal)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPoint)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPoint)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPoint)
 NS_INTERFACE_MAP_END
 
 nsresult
@@ -152,42 +152,41 @@ nsSVGElement::EnumInfo nsSVGSVGElement::sEnumInfo[1] =
   }
 };
 
-NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(SVG)
+// From NS_IMPL_NS_NEW_SVG_ELEMENT but with aFromParser
+nsresult
+NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
+                    PRBool aFromParser)
+{
+  nsSVGSVGElement *it = new nsSVGSVGElement(aNodeInfo, aFromParser);
+  if (!it)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ADDREF(it);
+
+  nsresult rv = it->Init();
+
+  if (NS_FAILED(rv)) {
+    NS_RELEASE(it);
+    return rv;
+  }
+
+  *aResult = it;
+
+  return rv;
+}
 
 //----------------------------------------------------------------------
 // nsISupports methods
 
-#ifdef MOZ_SMIL
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsSVGSVGElement)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGSVGElement,
-                                                nsSVGSVGElementBase)
-  if (tmp->mTimedDocumentRoot) {
-    tmp->mTimedDocumentRoot->Unlink();
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGSVGElement,
-                                                  nsSVGSVGElementBase)
-  if (tmp->mTimedDocumentRoot) {
-    tmp->mTimedDocumentRoot->Traverse(&cb);
-  }
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-#endif // MOZ_SMIL
-
 NS_IMPL_ADDREF_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 
-DOMCI_DATA(SVGSVGElement, nsSVGSVGElement)
-
-#ifdef MOZ_SMIL
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGSVGElement)
-#else
 NS_INTERFACE_TABLE_HEAD(nsSVGSVGElement)
-#endif
   NS_NODE_INTERFACE_TABLE7(nsSVGSVGElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGSVGElement,
                            nsIDOMSVGFitToViewBox, nsIDOMSVGLocatable,
                            nsIDOMSVGZoomAndPan)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGSVGElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGSVGElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 
 //----------------------------------------------------------------------
@@ -875,7 +874,7 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
     if (presShell && IsRoot()) {
-      PRBool scaling = (mPreviousScale != mCurrentScale);
+      PRBool scaling = (s != mCurrentScale);
       nsEventStatus status = nsEventStatus_eIgnore;
       nsGUIEvent event(PR_TRUE, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
       event.eventStructType = scaling ? NS_SVGZOOM_EVENT : NS_SVG_EVENT;
@@ -1002,8 +1001,7 @@ nsSVGSVGElement::GetViewBoxTransform()
     return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
-  return nsSVGUtils::GetViewBoxTransform(this,
-                                         viewportWidth, viewportHeight,
+  return nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
                                          viewBox.x, viewBox.y,
                                          viewBox.width, viewBox.height,
                                          mPreserveAspectRatio);
@@ -1093,18 +1091,26 @@ nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
 void
 nsSVGSVGElement::InvalidateTransformNotifyFrame()
 {
-  nsIFrame* frame = GetPrimaryFrame();
-  nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
-  if (svgframe) {
-    svgframe->NotifyViewportChange();
-  }
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) return;
+  nsIPresShell* presShell = doc->GetPrimaryShell();
+  if (!presShell) return;
+
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
+  if (frame) {
+    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
+    if (svgframe) {
+      svgframe->NotifyViewportChange();
+    }
 #ifdef DEBUG
-  else if (frame) {
-    // Uh oh -- we have a primary frame, but it failed the do_QueryFrame to the
-    // expected type!
-    NS_WARNING("wrong frame type");
-  }
+    else {
+      // XXX we get here during nsSVGOuterSVGFrame::Init() since that
+      // function is called before the presshell association between us
+      // and our frame is established.
+      NS_WARNING("wrong frame type");
+    }
 #endif
+  }
 }
 
 //----------------------------------------------------------------------
@@ -1130,8 +1136,8 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     }
   }
 
-  w = NS_MAX(w, 0.0f);
-  h = NS_MAX(h, 0.0f);
+  w = PR_MAX(w, 0.0f);
+  h = PR_MAX(h, 0.0f);
 
   switch (aCtxType) {
   case nsSVGUtils::X:
@@ -1214,14 +1220,6 @@ nsSVGSVGElement::DidChangeViewBox(PRBool aDoSetAttr)
   InvalidateTransformNotifyFrame();
 }
 
-void
-nsSVGSVGElement::DidAnimateViewBox()
-{
-  nsSVGSVGElementBase::DidAnimateViewBox();
-  
-  InvalidateTransformNotifyFrame();
-}
-
 nsSVGViewBox *
 nsSVGSVGElement::GetViewBox()
 {
@@ -1232,14 +1230,6 @@ void
 nsSVGSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
 {
   nsSVGSVGElementBase::DidChangePreserveAspectRatio(aDoSetAttr);
-
-  InvalidateTransformNotifyFrame();
-}
-
-void
-nsSVGSVGElement::DidAnimatePreserveAspectRatio()
-{
-  nsSVGSVGElementBase::DidAnimatePreserveAspectRatio();
 
   InvalidateTransformNotifyFrame();
 }

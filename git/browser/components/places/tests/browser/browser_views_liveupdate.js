@@ -50,9 +50,8 @@ function test() {
   ok(PlacesUIUtils, "PlacesUIUtils in context");
 
   // Open bookmarks menu.
-  var popup = document.getElementById("bookmarksMenuPopup");
-  ok(popup, "Menu popup element exists");
-  fakeOpenPopup(popup);
+  var menu = document.getElementById("bookmarksMenu");
+  menu.open = true;
 
   // Open bookmarks sidebar.
   var sidebar = document.getElementById("sidebar");
@@ -65,18 +64,6 @@ function test() {
 }
 
 /**
- * Simulates popup opening causing it to populate.
- * We cannot just use menu.open, since it would not work on Mac due to native menubar.
- */
-function fakeOpenPopup(aPopup) {
-  var popupEvent = document.createEvent("MouseEvent");
-  popupEvent.initMouseEvent("popupshowing", true, true, window, 0,
-                            0, 0, 0, 0, false, false, false, false,
-                            0, null);
-  aPopup.dispatchEvent(popupEvent);  
-}
-
-/**
  * Adds bookmarks observer, and executes a bunch of bookmarks operations.
  */
 function startTest() {
@@ -86,14 +73,12 @@ function startTest() {
   var addedBookmarks = [];
 
   // MENU
-  info("*** Acting on menu bookmarks");
+  ok(true, "*** Acting on menu bookmarks");
   var id = bs.insertBookmark(bs.bookmarksMenuFolder,
                              PlacesUtils._uri("http://bm1.mozilla.org/"),
                              bs.DEFAULT_INDEX,
                              "bm1");
   addedBookmarks.push(id);
-  // Test live update of title.
-  bs.setItemTitle(id, "bm1_edited");
   id = bs.insertBookmark(bs.bookmarksMenuFolder,
                          PlacesUtils._uri("place:"),
                          bs.DEFAULT_INDEX,
@@ -113,14 +98,12 @@ function startTest() {
   bs.moveItem(id, bs.bookmarksMenuFolder, 0);
 
   // TOOLBAR
-  info("*** Acting on toolbar bookmarks");
+  ok(true, "*** Acting on toolbar bookmarks");
   id = bs.insertBookmark(bs.toolbarFolder,
                          PlacesUtils._uri("http://tb1.mozilla.org/"),
                          bs.DEFAULT_INDEX,
                          "tb1");
   addedBookmarks.push(id);
-  // Test live update of title.
-  bs.setItemTitle(id, "tb1_edited");
   id = bs.insertBookmark(bs.toolbarFolder,
                          PlacesUtils._uri("place:"),
                          bs.DEFAULT_INDEX,
@@ -140,14 +123,12 @@ function startTest() {
   bs.moveItem(id, bs.toolbarFolder, 0);
 
   // UNSORTED
-  info("*** Acting on unsorted bookmarks");
+  ok(true, "*** Acting on unsorted bookmarks");
   id = bs.insertBookmark(bs.unfiledBookmarksFolder,
                          PlacesUtils._uri("http://ub1.mozilla.org/"),
                          bs.DEFAULT_INDEX,
                          "ub1");
   addedBookmarks.push(id);
-  // Test live update of title.
-  bs.setItemTitle(id, "ub1_edited");
   id = bs.insertBookmark(bs.unfiledBookmarksFolder,
                          PlacesUtils._uri("place:"),
                          bs.DEFAULT_INDEX,
@@ -184,6 +165,10 @@ function startTest() {
  * Restores browser state and calls finish.
  */
 function finishTest() {
+  // Close bookmarks menu.
+  var menu = document.getElementById("bookmarksMenu");
+  menu.open = false;
+
   // Close bookmarks sidebar.
   toggleSidebar("viewBookmarksSidebar", false);
 
@@ -206,11 +191,13 @@ var bookmarksObserver = {
   onItemAdded: function PSB_onItemAdded(aItemId, aFolderId, aIndex,
                                         aItemType) {
     var views = getViewsForFolder(aFolderId);
-    ok(views.length > 0, "Found affected views (" + views.length + "): " + views);
+    ok(views.length > 0, "Found affected views: " + views);
 
     // Check that item has been added in the correct position.
     for (var i = 0; i < views.length; i++) {
-      var [node, index] = searchItemInView(aItemId, views[i]);
+      var node = null;
+      var index = null;
+      [node, index] = searchItemInView(aItemId, views[i]);
       isnot(node, null, "Found new Places node in " + views[i]);
       is(index, aIndex, "Node is at index " + index);
     }
@@ -219,7 +206,7 @@ var bookmarksObserver = {
   onItemRemoved: function PSB_onItemRemoved(aItemId, aFolder, aIndex,
                                             aItemType) {
     var views = getViewsForFolder(aFolderId);
-    ok(views.length > 0, "Found affected views (" + views.length + "): " + views);
+    ok(views.length > 0, "Found affected views: " + views);
     // Check that item has been removed.
     for (var i = 0; i < views.length; i++) {
       var node = null;
@@ -250,21 +237,7 @@ var bookmarksObserver = {
   onEndUpdateBatch: function PSB_onEndUpdateBatch() {},
   onBeforeItemRemoved: function PSB_onBeforeItemRemoved(aItemId) {},
   onItemVisited: function() {},
-
-  onItemChanged: function PSB_onItemChanged(aItemId, aProperty, aIsAnnotationProperty, aValue) {
-    if (aProperty !== "title")
-      return;
-
-    var views = getViewsForFolder(PlacesUtils.bookmarks.getFolderIdForItem(aItemId));
-    ok(views.length > 0, "Found affected views (" + views.length + "): " + views);
-
-    // Check that item has been moved in the correct position.
-    for (var i = 0; i < views.length; i++) {
-      var [node, index] = searchItemInView(aItemId, views[i]);
-      isnot(node, null, "Found new Places node in " + views[i]);
-      is(node.title, aValue, "Node has correct title: " + aValue);
-    }
-  }
+  onItemChanged: function PSB_onItemChanged() {}
 };
 
 /**
@@ -277,6 +250,8 @@ var bookmarksObserver = {
  * @returns [node, index] or [null, null] if not found.
  */
 function searchItemInView(aItemId, aView) {
+  var node = null;
+  var index = null;
   switch (aView) {
   case "toolbar":
     return getNodeForToolbarItem(aItemId);
@@ -297,7 +272,7 @@ function searchItemInView(aItemId, aView) {
  * @returns [node, index] or [null, null] if not found.
  */
 function getNodeForToolbarItem(aItemId) {
-  var toolbar = document.getElementById("PlacesToolbarItems");
+  var toolbar = document.getElementById("bookmarksBarContent");
 
   function findNode(aContainer) {
     var children = aContainer.childNodes;
@@ -305,17 +280,17 @@ function getNodeForToolbarItem(aItemId) {
       var child = children[i];
 
       // Is this a Places node?
-      if (!child._placesNode) {
+      if (!child.node) {
         staticNodes++;
         continue;
       }
 
-      if (child._placesNode.itemId == aItemId)
-        return [child._placesNode, i - staticNodes];
+      if (child.node.itemId == aItemId)
+        return [child.node, i - staticNodes];
 
       // Don't search in queries, they could contain our item in a
       // different position.  Search only folders
-      if (PlacesUtils.nodeIsFolder(child._placesNode)) {
+      if (PlacesUtils.nodeIsFolder(child.node)) {
         var popup = child.lastChild;
         popup.showPopup(popup);
         var foundNode = findNode(popup);
@@ -346,21 +321,23 @@ function getNodeForMenuItem(aItemId) {
       var child = children[i];
 
       // Is this a Places node?
-      if (!child._placesNode) {
+      if (!child.node) {
         staticNodes++;
         continue;
       }
 
-      if (child._placesNode.itemId == aItemId)
-        return [child._placesNode, i - staticNodes];
+      if (child.node.itemId == aItemId)
+        return [child.node, i - staticNodes];
 
       // Don't search in queries, they could contain our item in a
       // different position.  Search only folders
-      if (PlacesUtils.nodeIsFolder(child._placesNode)) {
+      if (PlacesUtils.nodeIsFolder(child.node)) {
         var popup = child.lastChild;
-        fakeOpenPopup(popup);
+        // XXX Why is this needed on Linux and Mac?
+        popup.showPopup(popup);
+        child.open = true;
         var foundNode = findNode(popup);
-
+        popup.hidePopup();
         child.open = false;
         if (foundNode[0] != null)
           return foundNode;
@@ -380,6 +357,7 @@ function getNodeForMenuItem(aItemId) {
  * @returns [node, index] or [null, null] if not found.
  */
 function getNodeForSidebarItem(aItemId) {
+  ok(true, "getNodeForSidebar");
   var sidebar = document.getElementById("sidebar");
   var tree = sidebar.contentDocument.getElementById("bookmarks-view");
 
@@ -448,6 +426,9 @@ function getViewsForFolder(aFolderId) {
       return ["toolbar", "sidebar"]
       break;
     case PlacesUtils.bookmarksMenuFolderId:
+      // XXX Skip menu tests on Mac, due to native menubar.
+      if (navigator.platform.toLowerCase().indexOf("mac") != -1)
+        return ["sidebar"];
       return ["menu", "sidebar"]
       break;
     case PlacesUtils.unfiledBookmarksFolderId:

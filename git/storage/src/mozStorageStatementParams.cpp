@@ -88,10 +88,8 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
   if (JSVAL_IS_INT(aId)) {
     int idx = JSVAL_TO_INT(aId);
 
-    nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
-    NS_ENSURE_TRUE(variant, NS_ERROR_UNEXPECTED);
-    nsresult rv = mStatement->BindByIndex(idx, variant);
-    NS_ENSURE_SUCCESS(rv, rv);
+    PRBool res = bindJSValue(aCtx, mStatement, idx, *_vp);
+    NS_ENSURE_TRUE(res, NS_ERROR_UNEXPECTED);
   }
   else if (JSVAL_IS_STRING(aId)) {
     JSString *str = JSVAL_TO_STRING(aId);
@@ -100,10 +98,12 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
                                ::JS_GetStringLength(str));
 
     // check to see if there's a parameter with this name
-    nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
-    NS_ENSURE_TRUE(variant, NS_ERROR_UNEXPECTED);
-    nsresult rv = mStatement->BindByName(name, variant);
+    PRUint32 index;
+    nsresult rv = mStatement->GetParameterIndex(name, &index);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    PRBool res = bindJSValue(aCtx, mStatement, index, *_vp);
+    NS_ENSURE_TRUE(res, NS_ERROR_UNEXPECTED);
   }
   else {
     return NS_ERROR_INVALID_ARG;
@@ -194,19 +194,15 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
   // because we want to allow the prototype chain to be checked for the
   // property.
 
-  bool resolved = false;
-  PRBool ok = PR_TRUE;
+  PRUint32 idx;
+
   if (JSVAL_IS_INT(aId)) {
-    PRUint32 idx = JSVAL_TO_INT(aId);
+    idx = JSVAL_TO_INT(aId);
 
     // Ensure that our index is within range.  We do not care about the
     // prototype chain being checked here.
     if (idx >= mParamCount)
       return NS_ERROR_INVALID_ARG;
-
-    ok = ::JS_DefineElement(aCtx, aScopeObj, idx, JSVAL_VOID, nsnull,
-                            nsnull, 0);
-    resolved = true;
   }
   else if (JSVAL_IS_STRING(aId)) {
     JSString *str = JSVAL_TO_STRING(aId);
@@ -217,17 +213,25 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
     // the rest of the prototype chain be checked.
     NS_ConvertUTF16toUTF8 name(reinterpret_cast<const PRUnichar *>(nameChars),
                                nameLength);
-    PRUint32 idx;
     nsresult rv = mStatement->GetParameterIndex(name, &idx);
-    if (NS_SUCCEEDED(rv)) {
-      ok = ::JS_DefineUCProperty(aCtx, aScopeObj, nameChars, nameLength,
-                                 JSVAL_VOID, nsnull, nsnull, 0);
-      resolved = true;
+    if (NS_FAILED(rv)) {
+      *_objp = NULL;
+      return NS_OK;
     }
+
+    *_retval = ::JS_DefineUCProperty(aCtx, aScopeObj, nameChars, nameLength,
+                                     JSVAL_VOID, nsnull, nsnull, 0);
+    NS_ENSURE_TRUE(*_retval, NS_OK);
+  }
+  else {
+    // We do not handle other types.
+    return NS_OK;
   }
 
-  *_retval = ok;
-  *_objp = resolved && ok ? aScopeObj : nsnull;
+  *_retval = ::JS_DefineElement(aCtx, aScopeObj, idx, JSVAL_VOID, nsnull,
+                                nsnull, 0);
+  if (*_retval)
+    *_objp = aScopeObj;
   return NS_OK;
 }
 

@@ -54,7 +54,6 @@
 
 #include "plstr.h"
 #include "nsCRT.h"
-#include "mozilla/Services.h"
 
 #include "prefapi_private_data.h"
 
@@ -68,7 +67,6 @@ struct PrefCallbackData {
   nsPrefBranch     *pBranch;
   nsIObserver      *pObserver;
   nsIWeakReference *pWeakRef;
-  char pDomain[1];
 };
 
 
@@ -90,8 +88,8 @@ nsPrefBranch::nsPrefBranch(const char *aPrefRoot, PRBool aDefaultBranch)
   mPrefRootLength = mPrefRoot.Length();
   mIsDefault = aDefaultBranch;
 
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> observerService = 
+           do_GetService("@mozilla.org/observer-service;1");
   if (observerService) {
     ++mRefCnt;    // Our refcnt must be > 0 when we call this, or we'll get deleted!
     // add weak so we don't have to clean up at shutdown
@@ -593,7 +591,7 @@ NS_IMETHODIMP nsPrefBranch::AddObserver(const char *aDomain, nsIObserver *aObser
       return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  pCallback = (PrefCallbackData *)NS_Alloc(sizeof(PrefCallbackData) + strlen(aDomain));
+  pCallback = (PrefCallbackData *)nsMemory::Alloc(sizeof(PrefCallbackData));
   if (nsnull == pCallback)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -615,8 +613,8 @@ NS_IMETHODIMP nsPrefBranch::AddObserver(const char *aDomain, nsIObserver *aObser
     NS_ADDREF(pCallback->pObserver);
   }
 
-  strcpy(pCallback->pDomain, aDomain);
   mObservers->AppendElement(pCallback);
+  mObserverDomains.AppendElement(nsCString(aDomain));
 
   // We must pass a fully qualified preference name to the callback
   pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
@@ -646,24 +644,28 @@ NS_IMETHODIMP nsPrefBranch::RemoveObserver(const char *aDomain, nsIObserver *aOb
 
   for (i = 0; i < count; i++) {
     pCallback = (PrefCallbackData *)mObservers->ElementAt(i);
-    if (pCallback &&
-        pCallback->pObserver == aObserver &&
-        !strcmp(pCallback->pDomain, aDomain)) {
-      // We must pass a fully qualified preference name to remove the callback
-      pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
-      rv = PREF_UnregisterCallback(pref, NotifyObserver, pCallback);
-      if (NS_SUCCEEDED(rv)) {
-        // Remove this observer from our array so that nobody else can remove
-        // what we're trying to remove ourselves right now.
-        mObservers->RemoveElementAt(i);
-        if (pCallback->pWeakRef) {
-          NS_RELEASE(pCallback->pWeakRef);
-        } else {
-          NS_RELEASE(pCallback->pObserver);
+    if (pCallback) {
+      if (pCallback->pObserver == aObserver) {
+        domain = mObserverDomains[i];
+        if (domain.Equals(aDomain)) {
+          // We must pass a fully qualified preference name to remove the callback
+          pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
+          rv = PREF_UnregisterCallback(pref, NotifyObserver, pCallback);
+          if (NS_SUCCEEDED(rv)) {
+            // Remove this observer from our array so that nobody else can remove
+            // what we're trying to remove ourselves right now.
+            mObservers->RemoveElementAt(i);
+            mObserverDomains.RemoveElementAt(i);
+            if (pCallback->pWeakRef) {
+              NS_RELEASE(pCallback->pWeakRef);
+            } else {
+              NS_RELEASE(pCallback->pObserver);
+            }
+            nsMemory::Free(pCallback);
+          }
+          return rv;
         }
-        NS_Free(pCallback);
       }
-      return rv;
     }
   }
 
@@ -693,7 +695,7 @@ static nsresult NotifyObserver(const char *newpref, void *data)
     observer = do_QueryReferent(pData->pWeakRef);
     if (!observer) {
       // this weak referenced observer went away, remove them from the list
-      pData->pBranch->RemoveObserver(pData->pDomain, pData->pObserver);
+      pData->pBranch->RemoveObserver(newpref, pData->pObserver);
       return NS_OK;
     }
   } else {
@@ -723,8 +725,9 @@ void nsPrefBranch::freeObserverList(void)
       for (i = 0; i < count; ++i) {
         pCallback = (PrefCallbackData *)mObservers->ElementAt(i);
         if (pCallback) {
+          domain = mObserverDomains[i];
           // We must pass a fully qualified preference name to remove the callback
-          pref = getPrefName(pCallback->pDomain);
+          pref = getPrefName(domain.get()); // can't fail because domain must be valid
           // Remove this observer from our array so that nobody else can remove
           // what we're trying to remove right now.
           mObservers->ReplaceElementAt(nsnull, i);
@@ -737,6 +740,9 @@ void nsPrefBranch::freeObserverList(void)
           nsMemory::Free(pCallback);
         }
       }
+
+      // now empty the observer domains array in bulk
+      mObserverDomains.Clear();
     }
     delete mObservers;
     mObservers = 0;
@@ -753,11 +759,11 @@ nsresult nsPrefBranch::GetDefaultFromPropertiesFile(const char *aPrefName, PRUni
   rv = PREF_CopyCharPref(aPrefName, getter_Copies(propertyFileURL), PR_TRUE);
   if (NS_FAILED(rv))
     return rv;
-
+    
   nsCOMPtr<nsIStringBundleService> bundleService =
-    mozilla::services::GetStringBundleService();
-  if (!bundleService)
-    return NS_ERROR_FAILURE;
+      do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   nsCOMPtr<nsIStringBundle> bundle;
   rv = bundleService->CreateBundle(propertyFileURL,

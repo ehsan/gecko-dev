@@ -98,12 +98,7 @@ NS_IMETHODIMP DeleteElementTxn::Init(nsIEditor *aEditor,
 NS_IMETHODIMP DeleteElementTxn::DoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("%p Do Delete Element element = %p\n",
-           static_cast<void*>(this),
-           static_cast<void*>(mElement.get()));
-  }
+  if (gNoisy) { printf("%p Do Delete Element element = %p\n", this, mElement.get()); }
 #endif
 
   if (!mElement) return NS_ERROR_NOT_INITIALIZED;
@@ -149,13 +144,7 @@ NS_IMETHODIMP DeleteElementTxn::DoTransaction(void)
 NS_IMETHODIMP DeleteElementTxn::UndoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("%p Undo Delete Element element = %p, parent = %p\n",
-           static_cast<void*>(this),
-           static_cast<void*>(mElement.get()),
-           static_cast<void*>(mParent.get()));
-  }
+  if (gNoisy) { printf("%p Undo Delete Element element = %p, parent = %p\n", this, mElement.get(), mParent.get()); }
 #endif
 
   if (!mParent) { return NS_OK; } // this is a legal state, the txn is a no-op
@@ -192,13 +181,7 @@ NS_IMETHODIMP DeleteElementTxn::UndoTransaction(void)
 NS_IMETHODIMP DeleteElementTxn::RedoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("%p Redo Delete Element element = %p, parent = %p\n",
-           static_cast<void*>(this),
-           static_cast<void*>(mElement.get()),
-           static_cast<void*>(mParent.get()));
-  }
+  if (gNoisy) { printf("%p Redo Delete Element element = %p, parent = %p\n", this, mElement.get(), mParent.get()); }
 #endif
 
   if (!mParent) { return NS_OK; } // this is a legal state, the txn is a no-op

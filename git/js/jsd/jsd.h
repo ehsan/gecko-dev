@@ -51,7 +51,7 @@
 
 /*
 * These can be controled by the makefile, but this allows a place to set
-* the values always used in the mozilla client, but perhaps done differently
+* the values always used in the mozilla client, but perhaps done differnetly
 * in other embeddings.
 */
 #ifdef MOZILLA_CLIENT
@@ -346,12 +346,6 @@ jsd_DebuggerOn(void);
 
 extern void
 jsd_DebuggerOff(JSDContext* jsdc);
-
-extern void
-jsd_DebuggerPause(JSDContext* jsdc, JSBool forceAllHooksOff);
-
-extern void
-jsd_DebuggerUnpause(JSDContext* jsdc);
 
 extern void
 jsd_SetUserCallbacks(JSRuntime* jsrt, JSD_UserCallbacks* callbacks, void* user);
@@ -1040,9 +1034,6 @@ jsd_InitObjectManager(JSDContext* jsdc);
 
 extern void
 jsd_DestroyObjectManager(JSDContext* jsdc);
-
-extern void
-jsd_DestroyObjects(JSDContext* jsdc);
 
 extern void
 jsd_ObjectHook(JSContext *cx, JSObject *obj, JSBool isNew, void *closure);

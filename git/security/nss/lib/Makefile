@@ -58,19 +58,13 @@ include $(CORE_DEPTH)/coreconf/config.mk
 # (4) Include "local" platform-dependent assignments (OPTIONAL).      #
 #######################################################################
 
-ifndef USE_SYSTEM_ZLIB
-ZLIB_SRCDIR = zlib  # Add the zlib directory to DIRS.
+ifeq ($(OS_TARGET), WINCE)
+DIRS := $(filter-out fortcrypt,$(DIRS))
 endif
 
 ifndef MOZILLA_CLIENT
 ifndef NSS_USE_SYSTEM_SQLITE
-SQLITE_SRCDIR = sqlite  # Add the sqlite directory to DIRS.
-endif
-endif
-
-ifndef MOZILLA_CLIENT
-ifeq ($(OS_ARCH),Linux)
-SYSINIT_SRCDIR = sysinit  # Add the sysinit directory to DIRS.
+DIRS := sqlite $(DIRS)
 endif
 endif
 

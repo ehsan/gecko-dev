@@ -105,7 +105,7 @@ public:
     nsIIDNService *IDNConverter()            { return mIDNConverter; }
     PRUint32       PhishyUserPassLength()    { return mPhishyUserPassLength; }
     
-    PRBool         IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
+    PRBool         CanCacheAllSSLContent()   { return mEnablePersistentHttpsCaching; }
 
     PRBool         PromptTempRedirect()      { return mPromptTempRedirect; }
 
@@ -203,14 +203,6 @@ public:
     {
         NotifyObservers(chan, NS_HTTP_ON_EXAMINE_CACHED_RESPONSE_TOPIC);
     }
-
-    // Generates the host:port string for use in the Host: header as well as the
-    // CONNECT line for proxies. This handles IPv6 literals correctly.
-    static nsresult GenerateHostPort(const nsCString& host, PRInt32 port,
-                                     nsCString& hostLine);
-
-    // The thread used to implement async cache-writes
-    nsCOMPtr<nsIThread> mCacheWriteThread;
 private:
 
     //
@@ -293,7 +285,6 @@ private:
     nsXPIDLCString mAppVersion;
     nsCString      mPlatform;
     nsCString      mOscpu;
-    nsCString      mDeviceType;
     nsXPIDLCString mSecurity;
     nsCString      mLanguage;
     nsCString      mMisc;

@@ -54,9 +54,11 @@
 #include "nsTArray.h"
 #include "nsIAtom.h"
 
+// 506527cc-d832-420b-ba3a-80c05aa105f4
 #define NS_IPARSER_IID \
-{ 0x3db442c2, 0x8a4d, 0x4ce4, \
-{ 0x86, 0x58, 0x48, 0xee, 0x55, 0x4b, 0xbb, 0xd4 } }
+{ 0x506527cc, 0xd832, 0x420b, \
+  { 0xba, 0x3a, 0x80, 0xc0, 0x5a, 0xa1, 0x05, 0xf4 } }
+
 
 // {41421C60-310A-11d4-816F-000064657374}
 #define NS_IDEBUG_DUMP_CONTENT_IID \
@@ -206,6 +208,9 @@ class nsIParser : public nsISupports {
      *  (which may or may not be a proxy for the NGLayout content model).
      ************************************************************************/
     
+    // Call this method to resume the parser from the blocked state.
+    NS_IMETHOD ContinueParsing() = 0;
+
     // Call this method to resume the parser from an unblocked state.
     // This can happen, for example, if parsing was interrupted and then the
     // consumer needed to restart the parser without waiting for more data.
@@ -295,31 +300,6 @@ class nsIParser : public nsISupports {
      * parsing for example document.write or innerHTML.
      */
     virtual PRBool CanInterrupt() = 0;
-
-    /**
-     * True if the insertion point (per HTML5) is defined.
-     */
-    virtual PRBool IsInsertionPointDefined() = 0;
-
-    /**
-     * Call immediately before starting to evaluate a parser-inserted script.
-     */
-    virtual void BeginEvaluatingParserInsertedScript() = 0;
-
-    /**
-     * Call immediately after having evaluated a parser-inserted script.
-     */
-    virtual void EndEvaluatingParserInsertedScript() = 0;
-
-    /**
-     * Marks the HTML5 parser as not a script-created parser.
-     */
-    virtual void MarkAsNotScriptCreated() = 0;
-
-    /**
-     * True if this is a script-created HTML5 parser.
-     */
-    virtual PRBool IsScriptCreated() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIParser, NS_IPARSER_IID)
@@ -397,6 +377,28 @@ const PRUnichar  kQuestionMark     = '?';
 const PRUnichar  kLeftSquareBracket  = '[';
 const PRUnichar  kRightSquareBracket = ']';
 const PRUnichar kNullCh           = '\0';
+
+// XXXbz these type defines should really just go away....  Until they
+// do, changes here should be reflected in nsContentDLF.cpp
+#define kHTMLTextContentType  "text/html"
+#define kXMLTextContentType   "text/xml"
+#define kXMLApplicationContentType "application/xml"
+#define kXHTMLApplicationContentType "application/xhtml+xml"
+#define kXULTextContentType   "application/vnd.mozilla.xul+xml"
+#define kRDFTextContentType   "text/rdf"
+#define kRDFApplicationContentType "application/rdf+xml"
+#define kXIFTextContentType   "text/xif"
+#define kPlainTextContentType "text/plain"
+#define kViewSourceCommand    "view-source"
+#define kViewFragmentCommand  "view-fragment"
+#define kTextCSSContentType   "text/css"
+#define kApplicationJSContentType "application/javascript"
+#define kApplicationXJSContentType "application/x-javascript"
+#define kTextECMAScriptContentType "text/ecmascript"
+#define kApplicationECMAScriptContentType "application/ecmascript"
+#define kTextJSContentType    "text/javascript"
+#define kSGMLTextContentType   "text/sgml"
+#define kSVGTextContentType   "image/svg+xml"
 
 #define NS_IPARSER_FLAG_UNKNOWN_MODE         0x00000000
 #define NS_IPARSER_FLAG_QUIRKS_MODE          0x00000002

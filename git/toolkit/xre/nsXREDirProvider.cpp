@@ -64,8 +64,6 @@
 #include "nsArrayEnumerator.h"
 #include "nsEnumeratorUtils.h"
 #include "nsReadableUtils.h"
-#include "mozilla/Services.h"
-#include "mozilla/Omnijar.h"
 
 #include <stdlib.h>
 
@@ -121,7 +119,6 @@ nsXREDirProvider::Initialize(nsIFile *aXULAppDir,
                              nsILocalFile *aGREDir,
                              nsIDirectoryServiceProvider* aAppProvider)
 {
-  NS_ENSURE_ARG(aXULAppDir);
   NS_ENSURE_ARG(aGREDir);
 
   mAppProvider = aAppProvider;
@@ -704,16 +701,10 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
   else if (!strcmp(aProperty, NS_CHROME_MANIFESTS_FILE_LIST)) {
     nsCOMArray<nsIFile> manifests;
 
-#ifdef MOZ_OMNIJAR
-    if (!mozilla::OmnijarPath()) {
-#endif
-        nsCOMPtr<nsIFile> manifest;
-        mGREDir->Clone(getter_AddRefs(manifest));
-        manifest->AppendNative(NS_LITERAL_CSTRING("chrome"));
-        manifests.AppendObject(manifest);
-#ifdef MOZ_OMNIJAR
-    }
-#endif
+    nsCOMPtr<nsIFile> manifest;
+    mGREDir->Clone(getter_AddRefs(manifest));
+    manifest->AppendNative(NS_LITERAL_CSTRING("chrome"));
+    manifests.AppendObject(manifest);
 
     PRBool eq;
     if (NS_SUCCEEDED(mXULAppDir->Equals(mGREDir, &eq)) && !eq) {
@@ -808,8 +799,8 @@ NS_IMETHODIMP
 nsXREDirProvider::DoStartup()
 {
   if (!mProfileNotified) {
-    nsCOMPtr<nsIObserverService> obsSvc =
-      mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obsSvc
+      (do_GetService("@mozilla.org/observer-service;1"));
     if (!obsSvc) return NS_ERROR_FAILURE;
 
     mProfileNotified = PR_TRUE;
@@ -822,8 +813,6 @@ nsXREDirProvider::DoStartup()
     // should also be created at this time.
     (void)NS_CreateServicesFromCategory("profile-after-change", nsnull,
                                         "profile-after-change");
-
-    obsSvc->NotifyObservers(nsnull, "profile-initial-state", nsnull);
   }
   return NS_OK;
 }
@@ -858,15 +847,15 @@ void
 nsXREDirProvider::DoShutdown()
 {
   if (mProfileNotified) {
-    nsCOMPtr<nsIObserverService> obsSvc =
-      mozilla::services::GetObserverService();
-    NS_ASSERTION(obsSvc, "No observer service?");
-    if (obsSvc) {
+    nsCOMPtr<nsIObserverService> obssvc
+      (do_GetService("@mozilla.org/observer-service;1"));
+    NS_ASSERTION(obssvc, "No observer service?");
+    if (obssvc) {
       nsCOMPtr<nsIProfileChangeStatus> cs = new ProfileChangeStatusImpl();
       static const PRUnichar kShutdownPersist[] =
         {'s','h','u','t','d','o','w','n','-','p','e','r','s','i','s','t','\0'};
-      obsSvc->NotifyObservers(cs, "profile-change-net-teardown", kShutdownPersist);
-      obsSvc->NotifyObservers(cs, "profile-change-teardown", kShutdownPersist);
+      obssvc->NotifyObservers(cs, "profile-change-net-teardown", kShutdownPersist);
+      obssvc->NotifyObservers(cs, "profile-change-teardown", kShutdownPersist);
 
       // Phase 2c: Now that things are torn down, force JS GC so that things which depend on
       // resources which are about to go away in "profile-before-change" are destroyed first.
@@ -881,7 +870,7 @@ nsXREDirProvider::DoShutdown()
       }
 
       // Phase 3: Notify observers of a profile change
-      obsSvc->NotifyObservers(cs, "profile-before-change", kShutdownPersist);
+      obssvc->NotifyObservers(cs, "profile-before-change", kShutdownPersist);
     }
     mProfileNotified = PR_FALSE;
   }
@@ -1248,6 +1237,9 @@ nsXREDirProvider::GetSystemExtensionsDirectory(nsILocalFile** aFile)
                              getter_AddRefs(localDir));
   NS_ENSURE_SUCCESS(rv, rv);
 #endif
+
+  rv = EnsureDirectoryExists(localDir);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ADDREF(*aFile = localDir);
   return NS_OK;

@@ -58,22 +58,132 @@
 #include "nsWeakReference.h"
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
-#include "nsTObserverArray.h"
-#include "nsITimer.h"
-#include "nsPluginTags.h"
 
 class nsNPAPIPlugin;
 class nsIComponentManager;
 class nsIFile;
 class nsIChannel;
+class nsPluginHost;
 
-#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
-#define MAC_CARBON_PLUGINS
-#endif
+// Remember that flags are written out to pluginreg.dat, be careful
+// changing their meaning.
+#define NS_PLUGIN_FLAG_ENABLED      0x0001    // is this plugin enabled?
+// no longer used                   0x0002    // reuse only if regenerating pluginreg.dat
+#define NS_PLUGIN_FLAG_FROMCACHE    0x0004    // this plugintag info was loaded from cache
+#define NS_PLUGIN_FLAG_UNWANTED     0x0008    // this is an unwanted plugin
+#define NS_PLUGIN_FLAG_BLOCKLISTED  0x0010    // this is a blocklisted plugin
+
+// A linked-list of plugin information that is used for instantiating plugins
+// and reflecting plugin information into JavaScript.
+class nsPluginTag : public nsIPluginTag
+{
+public:
+  enum nsRegisterType {
+    ePluginRegister,
+    ePluginUnregister
+  };
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIPLUGINTAG
+
+  nsPluginTag(nsPluginTag* aPluginTag);
+  nsPluginTag(nsPluginInfo* aPluginInfo);
+  nsPluginTag(const char* aName,
+              const char* aDescription,
+              const char* aFileName,
+              const char* aFullPath,
+              const char* aVersion,
+              const char* const* aMimeTypes,
+              const char* const* aMimeDescriptions,
+              const char* const* aExtensions,
+              PRInt32 aVariants,
+              PRInt64 aLastModifiedTime = 0,
+              PRBool aCanUnload = PR_TRUE,
+              PRBool aArgsAreUTF8 = PR_FALSE);
+  ~nsPluginTag();
+
+  void SetHost(nsPluginHost * aHost);
+  void TryUnloadPlugin();
+  void Mark(PRUint32 mask);
+  void UnMark(PRUint32 mask);
+  PRBool HasFlag(PRUint32 flag);
+  PRUint32 Flags();
+  PRBool Equals(nsPluginTag* aPluginTag);
+  PRBool IsEnabled();
+  void RegisterWithCategoryManager(PRBool aOverrideInternalTypes,
+                                   nsRegisterType aType = ePluginRegister);
+
+  nsRefPtr<nsPluginTag> mNext;
+  nsPluginHost *mPluginHost;
+  nsCString     mName; // UTF-8
+  nsCString     mDescription; // UTF-8
+  PRInt32       mVariants;
+  char          **mMimeTypeArray;
+  nsTArray<nsCString> mMimeDescriptionArray; // UTF-8
+  char          **mExtensionsArray;
+  PRLibrary     *mLibrary;
+  nsIPlugin     *mEntryPoint;
+  PRPackedBool  mCanUnloadLibrary;
+  PRPackedBool  mXPConnected;
+  PRPackedBool  mIsJavaPlugin;
+  PRPackedBool  mIsNPRuntimeEnabledJavaPlugin;
+  nsCString     mFileName; // UTF-8
+  nsCString     mFullPath; // UTF-8
+  nsCString     mVersion;  // UTF-8
+  PRInt64       mLastModifiedTime;
+private:
+  PRUint32      mFlags;
+
+  nsresult EnsureMembersAreUTF8();
+};
+
+struct nsPluginInstanceTag
+{
+  nsPluginInstanceTag*   mNext;
+  char*                  mURL;
+  nsRefPtr<nsPluginTag>  mPluginTag;
+  nsIPluginInstance*     mInstance;
+  PRTime                 mllStopTime;
+  PRPackedBool           mStopped;
+  PRPackedBool           mDefaultPlugin;
+  PRPackedBool           mXPConnected;
+  // Array holding all opened stream listeners for this entry
+  nsCOMPtr <nsISupportsArray> mStreams; 
+
+  nsPluginInstanceTag(nsPluginTag* aPluginTag,
+                      nsIPluginInstance* aInstance, 
+                      const char * url,
+                      PRBool aDefaultPlugin);
+  ~nsPluginInstanceTag();
+
+  void setStopped(PRBool stopped);
+};
+
+class nsPluginInstanceTagList
+{
+public:
+  nsPluginInstanceTag *mFirst;
+  nsPluginInstanceTag *mLast;
+  PRInt32 mCount;
+
+  nsPluginInstanceTagList();
+  ~nsPluginInstanceTagList();
+
+  void shutdown();
+  PRBool add(nsPluginInstanceTag *plugin);
+  PRBool remove(nsPluginInstanceTag *plugin);
+  nsPluginInstanceTag *find(nsIPluginInstance *instance);
+  nsPluginInstanceTag *find(const char *mimetype);
+  nsPluginInstanceTag *findStopped(const char *url);
+  PRUint32 getStoppedCount();
+  nsPluginInstanceTag *findOldestStopped();
+  void removeAllStopped();
+  void stopRunning(nsISupportsArray *aReloadDocs, nsPluginTag *aPluginTag);
+  PRBool IsLastInstance(nsPluginInstanceTag *plugin);
+};
 
 class nsPluginHost : public nsIPluginHost,
                      public nsIObserver,
-                     public nsITimerCallback,
                      public nsSupportsWeakReference
 {
 public:
@@ -81,13 +191,13 @@ public:
   virtual ~nsPluginHost();
 
   static nsPluginHost* GetInst();
+  static const char *GetPluginName(nsIPluginInstance *aPluginInstance);
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGINHOST
   NS_DECL_NSIOBSERVER
-  NS_DECL_NSITIMERCALLBACK
 
   NS_IMETHOD
   GetURL(nsISupports* pluginInst, 
@@ -116,7 +226,9 @@ public:
   NewPluginURLStream(const nsString& aURL, 
                      nsIPluginInstance *aInstance, 
                      nsIPluginStreamListener *aListener,
-                     nsIInputStream *aPostStream = nsnull,
+                     const char *aPostData = nsnull, 
+                     PRBool isFile = PR_FALSE,
+                     PRUint32 aPostDataLen = 0, 
                      const char *aHeadersData = nsnull, 
                      PRUint32 aHeadersDataLen = 0);
 
@@ -154,31 +266,6 @@ public:
 
   static nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
 
-  static nsresult PostPluginUnloadEvent(PRLibrary* aLibrary);
-
-  void AddIdleTimeTarget(nsIPluginInstanceOwner* objectFrame, PRBool isVisible);
-  void RemoveIdleTimeTarget(nsIPluginInstanceOwner* objectFrame);
-
-#ifdef MOZ_IPC
-  void PluginCrashed(nsNPAPIPlugin* plugin,
-                     const nsAString& pluginDumpID,
-                     const nsAString& browserDumpID);
-#endif
-
-  nsPluginInstanceTag *FindInstanceTag(nsIPluginInstance *instance);
-  nsPluginInstanceTag *FindInstanceTag(const char *mimetype);
-  nsPluginInstanceTag *FindStoppedInstanceTag(const char * url);
-  nsPluginInstanceTag *FindOldestStoppedInstanceTag();
-  PRUint32 StoppedInstanceTagCount();
-
-  void StopRunningInstances(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
-
-  nsTArray< nsAutoPtr<nsPluginInstanceTag> > *InstanceTagArray();
-
-  // Return the tag for |aLibrary| if found, nsnull if not.
-  nsPluginTag*
-  FindTagForLibrary(PRLibrary* aLibrary);
-
 private:
   nsresult
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
@@ -192,7 +279,7 @@ private:
   NewEmbeddedPluginStream(nsIURI* aURL, nsIPluginInstanceOwner *aOwner, nsIPluginInstance* aInstance);
 
   nsresult
-  NewFullPagePluginStream(nsIStreamListener *&aStreamListener, nsIURI* aURI, nsIPluginInstance *aInstance);
+  NewFullPagePluginStream(nsIStreamListener *&aStreamListener, nsIPluginInstance *aInstance);
 
   // Return an nsPluginTag for this type, if any.  If aCheckEnabled is
   // true, only enabled plugins will be returned.
@@ -202,17 +289,16 @@ private:
   nsPluginTag*
   FindPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
 
-  // Return the tag for |aPlugin| if found, nsnull if not.
-  nsPluginTag*
-  FindTagForPlugin(nsIPlugin* aPlugin);
-
   nsresult
   FindStoppedPluginForURL(nsIURI* aURL, nsIPluginInstanceOwner *aOwner);
 
   nsresult
+  SetUpDefaultPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
+
+  nsresult
   AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
                           nsIPluginInstance* aInstance,
-                          nsIURI* aURL);
+                          nsIURI* aURL, PRBool aDefaultPlugin);
 
   nsresult
   FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsChanged);
@@ -255,9 +341,8 @@ private:
 
   // calls PostPluginUnloadEvent for each library in mUnusedLibraries
   void UnloadUnusedLibraries();
-
-  void OnPluginInstanceDestroyed(nsPluginTag* aPluginTag);
-
+  
+  char *mPluginPath;
   nsRefPtr<nsPluginTag> mPlugins;
   nsRefPtr<nsPluginTag> mCachedPlugins;
   PRPackedBool mPluginsLoaded;
@@ -267,11 +352,13 @@ private:
   // set by pref plugin.override_internal_types
   PRPackedBool mOverrideInternalTypes;
 
-  // set by pref plugin.disable
-  PRPackedBool mPluginsDisabled;
+  // set by pref plugin.allow_alien_star_handler
+  PRPackedBool mAllowAlienStarHandler;
 
-  nsTArray< nsAutoPtr<nsPluginInstanceTag> > mInstanceTags;
+  // set by pref plugin.default_plugin_disabled
+  PRPackedBool mDefaultPluginDisabled;
 
+  nsPluginInstanceTagList mPluginInstanceTagList;
   nsTArray<PRLibrary*> mUnusedLibraries;
 
   nsCOMPtr<nsIFile> mPluginRegFile;
@@ -287,13 +374,6 @@ private:
   // We need to hold a global ptr to ourselves because we register for
   // two different CIDs for some reason...
   static nsPluginHost* sInst;
-
-#ifdef MAC_CARBON_PLUGINS
-  nsCOMPtr<nsITimer> mVisiblePluginTimer;
-  nsTObserverArray<nsIPluginInstanceOwner*> mVisibleTimerTargets;
-  nsCOMPtr<nsITimer> mHiddenPluginTimer;
-  nsTObserverArray<nsIPluginInstanceOwner*> mHiddenTimerTargets;
-#endif
 };
 
 class NS_STACK_CLASS PluginDestructionGuard : protected PRCList

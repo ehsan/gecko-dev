@@ -10,7 +10,14 @@ var gTabMoveCount = 0;
 var gPageLoadCount = 0;
 
 function test() {
-  waitForExplicitFinish();
+  waitForExplicitFinish();      
+
+  if (Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager).activeWindow !=
+      window) {
+    setTimeout(test, 0);
+    window.focus();
+    return;
+  }
 
   var windows = Application.windows;
   ok(windows, "Check access to browser windows");
@@ -49,11 +56,11 @@ function test() {
     is(gPageA.uri.spec, "chrome://mochikit/content/browser/browser/fuel/test/ContentA.html", "Checking 'BrowserTab.uri' after opening");
     is(gPageB.uri.spec, "chrome://mochikit/content/browser/browser/fuel/test/ContentB.html", "Checking 'BrowserTab.uri' after opening");
 
-    // check event
-    is(gTabOpenCount, 2, "Checking event handler for tab open");
     // check cached values from TabOpen event
     is(gPageA.uri.spec, gTabOpenPageA.uri.spec, "Checking first browser tab open is equal to page A");
     is(gPageB.uri.spec, gTabOpenPageB.uri.spec, "Checking second browser tab open is equal to page B");
+    // check event
+    is(gTabOpenCount, 2, "Checking event handler for tab open");
 
     // test document access
     var test1 = gPageA.document.getElementById("test1");
@@ -70,7 +77,8 @@ function test() {
     // check event
     is(gTabMoveCount, 1, "Checking event handler for tab move");
 
-    gBrowser.addProgressListener({
+    let browser = gBrowser.getBrowserAtIndex(gPageB.index);
+    browser.addProgressListener({
       onStateChange: function (webProgress, request, stateFlags, status) {
         info("onStateChange: " + stateFlags);
 
@@ -78,14 +86,18 @@ function test() {
                          Ci.nsIWebProgressListener.STATE_IS_NETWORK +
                          Ci.nsIWebProgressListener.STATE_STOP;
         if ((stateFlags & complete) == complete) {
-          gBrowser.removeProgressListener(this);
+          browser.removeProgressListener(this);
           onPageBLoadComplete();
         }
       },
+
       onLocationChange: function () 0,
       onProgressChange: function () 0,
       onStatusChange: function () 0,
-      onSecurityChange: function () 0
+      onSecurityChange: function () 0,
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsISupportsWeakReference,
+                                             Ci.nsIWebProgressListener,
+                                             Ci.nsISupports])
     });
 
     // test loading new content with a frame into a tab

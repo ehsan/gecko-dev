@@ -39,7 +39,6 @@
 #define nsHtml5Module_h__
 
 #include "nsIParser.h"
-#include "nsIThread.h"
 
 class nsHtml5Module
 {
@@ -48,15 +47,11 @@ class nsHtml5Module
     static void ReleaseStatics();
     static already_AddRefed<nsIParser> NewHtml5Parser();
     static nsresult Initialize(nsIParser* aParser, nsIDocument* aDoc, nsIURI* aURI, nsISupports* aContainer, nsIChannel* aChannel);
-    static nsIThread* GetStreamParserThread();
     static PRBool sEnabled;
-    static PRBool sOffMainThread;
-  private:
 #ifdef DEBUG
+  private:
     static PRBool sNsHtml5ModuleInitialized;
 #endif
-    static nsIThread* sStreamParserThread;
-    static nsIThread* sMainThread;
 };
 
 #endif // nsHtml5Module_h__

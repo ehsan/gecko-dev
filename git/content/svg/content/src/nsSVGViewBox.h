@@ -52,9 +52,6 @@ struct nsSVGViewBoxRect
   nsSVGViewBoxRect() : x(0), y(0), width(0), height(0) {}
   nsSVGViewBoxRect(float aX, float aY, float aWidth, float aHeight) :
     x(aX), y(aY), width(aWidth), height(aHeight) {}
-  nsSVGViewBoxRect(const nsSVGViewBoxRect& rhs) :
-    x(rhs.x), y(rhs.y), width(rhs.width), height(rhs.height) {}
-  PRBool operator==(const nsSVGViewBoxRect& aOther) const;
 };
 
 class nsSVGViewBox
@@ -64,7 +61,7 @@ public:
 
   void Init();
 
-  // Used by element to tell if viewBox is defined
+  // Used by element to tell if viewbox is defined
   PRBool IsValid() const
     { return (mHasBaseVal || mAnimVal); }
 
@@ -73,10 +70,7 @@ public:
   void SetBaseValue(float aX, float aY, float aWidth, float aHeight,
                     nsSVGElement *aSVGElement, PRBool aDoSetAttr);
 
-  const nsSVGViewBoxRect& GetAnimValue() const
-    { return mAnimVal ? *mAnimVal : mBaseVal; }
-  void SetAnimValue(float aX, float aY, float aWidth, float aHeight,
-                    nsSVGElement *aSVGElement);
+  const nsSVGViewBoxRect& GetAnimValue() const;
 
   nsresult SetBaseValueString(const nsAString& aValue,
                               nsSVGElement *aSVGElement,
@@ -85,11 +79,7 @@ public:
 
   nsresult ToDOMAnimatedRect(nsIDOMSVGAnimatedRect **aResult,
                              nsSVGElement *aSVGElement);
-#ifdef MOZ_SMIL
-  // Returns a new nsISMILAttr object that the caller must delete
-  nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
-#endif // MOZ_SMIL
-  
+
 private:
 
   nsSVGViewBoxRect mBaseVal;
@@ -133,40 +123,14 @@ private:
     nsSVGViewBox* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
 
-    // Script may have modified animation parameters or timeline -- DOM getters
-    // need to flush any resample requests to reflect these modifications.
     NS_IMETHOD GetX(float *aX)
-    {
-#ifdef MOZ_SMIL
-      mSVGElement->FlushAnimations();
-#endif
-      *aX = mVal->GetAnimValue().x;
-      return NS_OK;
-    }
+      { *aX = mVal->GetAnimValue().x; return NS_OK; }
     NS_IMETHOD GetY(float *aY)
-    {
-#ifdef MOZ_SMIL
-      mSVGElement->FlushAnimations();
-#endif
-      *aY = mVal->GetAnimValue().y;
-      return NS_OK;
-    }
+      { *aY = mVal->GetAnimValue().y; return NS_OK; }
     NS_IMETHOD GetWidth(float *aWidth)
-    {
-#ifdef MOZ_SMIL
-      mSVGElement->FlushAnimations();
-#endif
-      *aWidth = mVal->GetAnimValue().width;
-      return NS_OK;
-    }
+      { *aWidth = mVal->GetAnimValue().width; return NS_OK; }
     NS_IMETHOD GetHeight(float *aHeight)
-    {
-#ifdef MOZ_SMIL
-      mSVGElement->FlushAnimations();
-#endif
-      *aHeight = mVal->GetAnimValue().height;
-      return NS_OK;
-    }
+      { *aHeight = mVal->GetAnimValue().height; return NS_OK; }
 
     NS_IMETHOD SetX(float aX)
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
@@ -178,7 +142,6 @@ private:
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
   };
 
-public:
   struct DOMAnimatedRect : public nsIDOMSVGAnimatedRect
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -193,30 +156,6 @@ public:
     NS_IMETHOD GetBaseVal(nsIDOMSVGRect **aResult);
     NS_IMETHOD GetAnimVal(nsIDOMSVGRect **aResult);
   };
-
-#ifdef MOZ_SMIL
-  struct SMILViewBox : public nsISMILAttr
-  {
-  public:
-    SMILViewBox(nsSVGViewBox* aVal, nsSVGElement* aSVGElement)
-      : mVal(aVal), mSVGElement(aSVGElement) {}
-
-    // These will stay alive because a nsISMILAttr only lives as long
-    // as the Compositing step, and DOM elements don't get a chance to
-    // die during that.
-    nsSVGViewBox* mVal;
-    nsSVGElement* mSVGElement;
-
-    // nsISMILAttr methods
-    virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const nsISMILAnimationElement* aSrcElement,
-                                     nsSMILValue& aValue,
-                                     PRBool& aCanCache) const;
-    virtual nsSMILValue GetBaseValue() const;
-    virtual void ClearAnimValue();
-    virtual nsresult SetAnimValue(const nsSMILValue& aValue);
-  };
-#endif // MOZ_SMIL
 };
 
 #endif // __NS_SVGVIEWBOX_H__

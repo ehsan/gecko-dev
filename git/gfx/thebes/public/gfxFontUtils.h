@@ -85,7 +85,7 @@ public:
                 mBlocks[i] = new Block(*block);
         }
     }
-    PRBool test(PRUint32 aIndex) const {
+    PRBool test(PRUint32 aIndex) {
         NS_ASSERTION(mBlocks.DebugGetHeader(), "mHdr is null, this is bad");
         PRUint32 blockIndex = aIndex/BLOCK_SIZE_BITS;
         if (blockIndex >= mBlocks.Length())
@@ -169,13 +169,6 @@ public:
             mBlocks[blockIndex] = block;
         }
         block->mBits[(aIndex>>3) & (BLOCK_SIZE - 1)] |= 1 << (aIndex & 0x7);
-    }
-
-    void set(PRUint32 aIndex, PRBool aValue) {
-        if (aValue)
-            set(aIndex);
-        else
-            clear(aIndex);
     }
 
     void SetRange(PRUint32 aStart, PRUint32 aEnd) {
@@ -350,13 +343,6 @@ struct AutoSwap_PRUint64 {
     PRUint64  value;
 };
 
-struct AutoSwap_PRUint24 {
-    operator PRUint32() const { return value[0] << 16 | value[1] << 8 | value[2]; }
-private:
-    AutoSwap_PRUint24() { }
-    PRUint8  value[3];
-};
-
 #pragma pack()
 
 } // namespace mozilla
@@ -460,13 +446,13 @@ public:
     };
 
     // for reading big-endian font data on either big or little-endian platforms
-
+    
     static inline PRUint16
     ReadShortAt(const PRUint8 *aBuf, PRUint32 aIndex)
     {
         return (aBuf[aIndex] << 8) | aBuf[aIndex + 1];
     }
-
+    
     static inline PRUint16
     ReadShortAt16(const PRUint16 *aBuf, PRUint32 aIndex)
     {
@@ -474,51 +460,25 @@ public:
         PRUint32 index = aIndex << 1;
         return (buf[index] << 8) | buf[index+1];
     }
-
-    static inline PRUint32
-    ReadUint24At(const PRUint8 *aBuf, PRUint32 aIndex)
-    {
-        return ((aBuf[aIndex] << 16) | (aBuf[aIndex + 1] << 8) |
-                (aBuf[aIndex + 2]));
-    }
-
+    
     static inline PRUint32
     ReadLongAt(const PRUint8 *aBuf, PRUint32 aIndex)
     {
         return ((aBuf[aIndex] << 24) | (aBuf[aIndex + 1] << 16) | 
                 (aBuf[aIndex + 2] << 8) | (aBuf[aIndex + 3]));
     }
-
+    
     static nsresult
     ReadCMAPTableFormat12(PRUint8 *aBuf, PRUint32 aLength, 
                           gfxSparseBitSet& aCharacterMap);
-
+    
     static nsresult 
     ReadCMAPTableFormat4(PRUint8 *aBuf, PRUint32 aLength, 
                          gfxSparseBitSet& aCharacterMap);
 
     static nsresult
-    ReadCMAPTableFormat14(PRUint8 *aBuf, PRUint32 aLength, 
-                          PRUint8*& aTable);
-
-    static PRUint32
-    FindPreferredSubtable(PRUint8 *aBuf, PRUint32 aBufLength,
-                          PRUint32 *aTableOffset, PRUint32 *aUVSTableOffset,
-                          PRBool *aSymbolEncoding);
-
-    static nsresult
     ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCharacterMap,
-             PRUint32& aUVSOffset,
              PRPackedBool& aUnicodeFont, PRPackedBool& aSymbolFont);
-
-    static PRUint32
-    MapCharToGlyphFormat4(const PRUint8 *aBuf, PRUnichar aCh);
-
-    static PRUint16
-    MapUVSToGlyphFormat14(const PRUint8 *aBuf, PRUint32 aCh, PRUint32 aVS);
-
-    static PRUint32
-    MapCharToGlyph(PRUint8 *aBuf, PRUint32 aBufLength, PRUnichar aCh);
 
 #ifdef XP_WIN
 
@@ -572,61 +532,14 @@ public:
                    PRUint32 aPlatformCode, PRUint32 aScriptCode,
                    PRUint32 aLangCode, nsAString& dest);
 
-    static inline bool IsJoinCauser(PRUint32 ch) {
-        return (ch == 0x200D);
-    }
-
-    enum {
-        kUnicodeVS1 = 0xFE00,
-        kUnicodeVS16 = 0xFE0F,
-        kUnicodeVS17 = 0xE0100,
-        kUnicodeVS256 = 0xE01EF
-    };
-
-    static inline bool IsVarSelector(PRUint32 ch) {
-        return (ch >= kUnicodeVS1 && ch <= kUnicodeVS16) ||
-               (ch >= kUnicodeVS17 && ch <= kUnicodeVS256);
+    static inline bool IsJoiner(PRUint32 ch) {
+        return (ch == 0x200C ||
+                ch == 0x200D ||
+                ch == 0x2060);
     }
 
     static inline bool IsInvalid(PRUint32 ch) {
         return (ch == 0xFFFD);
-    }
-
-    // Font code may want to know if there is the potential for bidi behavior
-    // to be triggered by any of the characters in a text run; this can be
-    // used to test that possibility.
-    enum {
-        kUnicodeBidiScriptsStart = 0x0590,
-        kUnicodeBidiScriptsEnd = 0x08FF,
-        kUnicodeBidiPresentationStart = 0xFB1D,
-        kUnicodeBidiPresentationEnd = 0xFEFC,
-        kUnicodeFirstHighSurrogateBlock = 0xD800,
-        kUnicodeRLM = 0x200F,
-        kUnicodeRLE = 0x202B,
-        kUnicodeRLO = 0x202E
-    };
-
-    static inline PRBool PotentialRTLChar(PRUnichar aCh) {
-        if (aCh >= kUnicodeBidiScriptsStart && aCh <= kUnicodeBidiScriptsEnd)
-            // bidi scripts Hebrew, Arabic, Syriac, Thaana, N'Ko are all encoded together
-            return PR_TRUE;
-
-        if (aCh == kUnicodeRLM || aCh == kUnicodeRLE || aCh == kUnicodeRLO)
-            // directional controls that trigger bidi layout
-            return PR_TRUE;
-
-        if (aCh >= kUnicodeBidiPresentationStart &&
-            aCh <= kUnicodeBidiPresentationEnd)
-            // presentation forms of Arabic and Hebrew letters
-            return PR_TRUE;
-
-        if ((aCh & 0xFF00) == kUnicodeFirstHighSurrogateBlock)
-            // surrogate that could be part of a bidi supplementary char
-            // (Cypriot, Aramaic, Phoenecian, etc)
-            return PR_TRUE;
-
-        // otherwise we know this char cannot trigger bidi reordering
-        return PR_FALSE;
     }
 
     static PRUint8 CharRangeBit(PRUint32 ch);

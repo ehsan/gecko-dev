@@ -90,11 +90,11 @@ protected:
   public:
     SourceReference(nsSVGRenderingObserver* aContainer) : mContainer(aContainer) {}
   protected:
-    virtual void ElementChanged(Element* aFrom, Element* aTo) {
+    virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
       if (aFrom) {
         aFrom->RemoveMutationObserver(mContainer);
       }
-      nsReferencedElement::ElementChanged(aFrom, aTo);
+      nsReferencedElement::ContentChanged(aFrom, aTo);
       if (aTo) {
         aTo->AddMutationObserver(mContainer);
       }
@@ -174,13 +174,12 @@ protected:
 /**
  * A manager for one-shot nsSVGRenderingObserver tracking.
  * nsSVGRenderingObservers can be added or removed. They are not strongly
- * referenced so an observer must be removed before it dies.
+ * referenced so an observer must be removed before it before it dies.
  * When InvalidateAll is called, all outstanding references get
  * InvalidateViaReferencedFrame()
  * called on them and the list is cleared. The intent is that
  * the observer will force repainting of whatever part of the document
- * is needed, and then at paint time the observer will do a clean lookup
- * of the referenced frame and [re-]add itself to the frame's observer list.
+ * is needed, and then at paint time the observer will be re-added.
  * 
  * InvalidateAll must be called before this object is destroyed, i.e.
  * before the referenced frame is destroyed. This should normally happen
@@ -203,11 +202,6 @@ public:
   { mObservers.PutEntry(aObserver); }
   void Remove(nsSVGRenderingObserver* aObserver)
   { mObservers.RemoveEntry(aObserver); }
-
-  /**
-   * Drop all our observers, and notify them that we have changed and dropped
-   * our reference to them.
-   */
   void InvalidateAll();
 
 private:
@@ -216,23 +210,6 @@ private:
 
 class nsSVGEffects {
 public:
-  typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
-
-  static void DestroySupports(void* aPropertyValue)
-  {
-    (static_cast<nsISupports*>(aPropertyValue))->Release();
-  }
-
-  NS_DECLARE_FRAME_PROPERTY(FilterProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(MaskProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(ClipPathProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(MarkerBeginProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(MarkerMiddleProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(MarkerEndProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(FillProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(StrokeProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(HrefProperty, DestroySupports)
-
   struct EffectProperties {
     nsSVGFilterProperty*   mFilter;
     nsSVGPaintingProperty* mMask;
@@ -296,24 +273,13 @@ public:
    */
   static void RemoveRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aObserver);
   /**
-   * This can be called on any first-continuation frame. We invalidate aFrame's
-   * observers, if any, or else walk up to the nearest observable SVG parent
-   * frame with observers and invalidate them instead.
-   *
-   * Note that this method is very different to e.g.
-   * nsNodeUtils::AttributeChanged which walks up the content node tree (not
-   * the frame tree) all the way to the root node (not stopping if it
-   * encounters a non-container SVG node) invalidating all mutation observers
-   * (not just nsSVGRenderingObservers) on all nodes along the way (not just
-   * the first node it finds with observers). In other words, by doing all the
-   * things in parentheses in the preceding sentence, this method uses
-   * knowledge about our implementation and what can be affected by SVG effects
-   * to make invalidation relatively lightweight when an SVG effect changes.
+   * This can be called on any first-continuation frame. We walk up to
+   * the nearest observable frame and invalidate its observers.
    */
   static void InvalidateRenderingObservers(nsIFrame *aFrame);
   /**
-   * This can be called on any frame. Only direct observers of this frame, if
-   * any, are invalidated.
+   * This can be called on any frame. Direct observers
+   * of this frame are all invalidated.
    */
   static void InvalidateDirectRenderingObservers(nsIFrame *aFrame);
 
@@ -321,20 +287,17 @@ public:
    * Get an nsSVGMarkerProperty for the frame, creating a fresh one if necessary
    */
   static nsSVGMarkerProperty *
-  GetMarkerProperty(nsIURI *aURI, nsIFrame *aFrame,
-                    const FramePropertyDescriptor *aProperty);
+  GetMarkerProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp);
   /**
    * Get an nsSVGTextPathProperty for the frame, creating a fresh one if necessary
    */
   static nsSVGTextPathProperty *
-  GetTextPathProperty(nsIURI *aURI, nsIFrame *aFrame,
-                      const FramePropertyDescriptor *aProperty);
+  GetTextPathProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp);
   /**
    * Get an nsSVGPaintingProperty for the frame, creating a fresh one if necessary
    */
   static nsSVGPaintingProperty *
-  GetPaintingProperty(nsIURI *aURI, nsIFrame *aFrame,
-                      const FramePropertyDescriptor *aProperty);
+  GetPaintingProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp);
 };
 
 #endif /*NSSVGEFFECTS_H_*/

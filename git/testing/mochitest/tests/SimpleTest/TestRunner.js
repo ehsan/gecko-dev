@@ -20,12 +20,11 @@ TestRunner.maxTimeouts = 4; // halt testing after too many timeouts
 **/
 TestRunner._numTimeouts = 0;
 TestRunner._currentTestStartTime = new Date().valueOf();
-TestRunner._timeoutFactor = 1;
 
 TestRunner._checkForHangs = function() {
   if (TestRunner._currentTest < TestRunner._urls.length) {
     var runtime = new Date().valueOf() - TestRunner._currentTestStartTime;
-    if (runtime >= TestRunner.timeout * TestRunner._timeoutFactor) {
+    if (runtime >= TestRunner.timeout) {
       var frameWindow = $('testframe').contentWindow.wrappedJSObject ||
                           $('testframe').contentWindow;
       frameWindow.SimpleTest.ok(false, "Test timed out.");
@@ -49,10 +48,6 @@ TestRunner._checkForHangs = function() {
 
     TestRunner.deferred = callLater(30, TestRunner._checkForHangs);
   }
-}
-
-TestRunner.requestLongerTimeout = function(factor) {
-    TestRunner._timeoutFactor = factor;
 }
 
 /**
@@ -139,7 +134,6 @@ TestRunner.runNextTest = function() {
         $("current-test-path").innerHTML = url;
 
         TestRunner._currentTestStartTime = new Date().valueOf();
-        TestRunner._timeoutFactor = 1;
 
         if (TestRunner.logEnabled)
             TestRunner.logger.log("Running " + url + "...");
@@ -180,12 +174,12 @@ TestRunner.runNextTest = function() {
 /**
  * This stub is called by SimpleTest when a test is finished.
 **/
-TestRunner.testFinished = function(tests) {
+TestRunner.testFinished = function(doc) {
     if (TestRunner.logEnabled)
         TestRunner.logger.debug("SimpleTest finished " +
                                 TestRunner._urls[TestRunner._currentTest]);
 
-    TestRunner.updateUI(tests);
+    TestRunner.updateUI();
     TestRunner._currentTest++;
     TestRunner.runNextTest();
 };
@@ -193,25 +187,23 @@ TestRunner.testFinished = function(tests) {
 /**
  * Get the results.
  */
-TestRunner.countResults = function(tests) {
-  var nOK = 0;
-  var nNotOK = 0;
-  var nTodo = 0;
-  for (var i = 0; i < tests.length; ++i) {
-    var test = tests[i];
-    if (test.todo && !test.result) {
-      nTodo++;
-    } else if (test.result && !test.todo) {
-      nOK++;
-    } else {
-      nNotOK++;
-    }
-  }
+TestRunner.countResults = function(doc) {
+  var nOK = withDocument(doc,
+     partial(getElementsByTagAndClassName, 'div', 'test_ok')
+  ).length;
+  var nNotOK = withDocument(doc,
+     partial(getElementsByTagAndClassName, 'div', 'test_not_ok')
+  ).length;
+  var nTodo = withDocument(doc,
+     partial(getElementsByTagAndClassName, 'div', 'test_todo')
+  ).length;
   return {"OK": nOK, "notOK": nNotOK, "todo": nTodo};
 }
 
-TestRunner.updateUI = function(tests) {
-  var results = TestRunner.countResults(tests);
+TestRunner.updateUI = function() {
+  var testFrame = $('testframe');
+  var results = TestRunner.countResults(testFrame.contentDocument ||
+                                        testFrame.contentWindow.document);
   var passCount = parseInt($("pass-count").innerHTML) + results.OK;
   var failCount = parseInt($("fail-count").innerHTML) + results.notOK;
   var todoCount = parseInt($("todo-count").innerHTML) + results.todo;

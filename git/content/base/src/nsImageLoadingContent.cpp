@@ -58,8 +58,8 @@
 #include "imgILoader.h"
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
-#include "nsPLDOMEvent.h"
 
+#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
 #include "nsGUIEvent.h"
@@ -306,7 +306,9 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
     // to be suppressed for reasons other than the initial paint delay (for
     // example - being in the bfcache), but we probably aren't loading images in
     // those situations.
-    if (shell->IsPaintingSuppressed())
+    PRBool isSuppressed = PR_FALSE;
+    nsresult rv = shell->IsPaintingSuppressed(&isSuppressed);
+    if (NS_SUCCEEDED(rv) && isSuppressed)
       doRequestDecode = PR_TRUE;
 
     // If we're requesting a decode, do it
@@ -432,7 +434,7 @@ nsImageLoadingContent::RemoveObserver(imgIDecoderObserver* aObserver)
   }
 #ifdef DEBUG
   else {
-    NS_WARNING("Asked to remove nonexistent observer");
+    NS_WARNING("Asked to remove non-existent observer");
   }
 #endif
   return NS_OK;
@@ -598,8 +600,6 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
                                  nsLoadFlags aLoadFlags)
 {
   if (!mLoadingEnabled) {
-    // XXX Why fire an error here? seems like the callers to SetLoadingEnabled
-    // don't want/need it.
     FireEvent(NS_LITERAL_STRING("error"));
     return NS_OK;
   }
@@ -882,6 +882,58 @@ nsImageLoadingContent::StringToURI(const nsAString& aSpec,
                    nsContentUtils::GetIOService());
 }
 
+
+/**
+ * Class used to dispatch events
+ */
+
+class nsImageLoadingContent::Event : public nsRunnable
+{
+public:
+  Event(nsPresContext* aPresContext, nsImageLoadingContent* aContent,
+             const nsAString& aMessage, nsIDocument* aDocument)
+    : mPresContext(aPresContext),
+      mContent(aContent),
+      mMessage(aMessage),
+      mDocument(aDocument)
+  {
+  }
+  ~Event()
+  {
+    mDocument->UnblockOnload(PR_TRUE);
+  }
+
+  NS_IMETHOD Run();
+  
+  nsCOMPtr<nsPresContext> mPresContext;
+  nsRefPtr<nsImageLoadingContent> mContent;
+  nsString mMessage;
+  // Need to hold on to the document in case our event outlives document
+  // teardown... Wantto be able to get back to the document even if the
+  // prescontext and content can't.
+  nsCOMPtr<nsIDocument> mDocument;
+};
+
+NS_IMETHODIMP
+nsImageLoadingContent::Event::Run()
+{
+  PRUint32 eventMsg;
+
+  if (mMessage.EqualsLiteral("load")) {
+    eventMsg = NS_LOAD;
+  } else {
+    eventMsg = NS_LOAD_ERROR;
+  }
+
+  nsCOMPtr<nsIContent> ourContent = do_QueryInterface(mContent);
+
+  nsEvent event(PR_TRUE, eventMsg);
+  event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+  nsEventDispatcher::Dispatch(ourContent, mPresContext, &event);
+
+  return NS_OK;
+}
+
 nsresult
 nsImageLoadingContent::FireEvent(const nsAString& aEventType)
 {
@@ -889,13 +941,27 @@ nsImageLoadingContent::FireEvent(const nsAString& aEventType)
   // loops in cases when onLoad handlers reset the src and the new src is in
   // cache.
 
-  nsCOMPtr<nsINode> thisNode = do_QueryInterface(this);
+  nsCOMPtr<nsIDocument> document = GetOurDocument();
+  if (!document) {
+    // no use to fire events if there is no document....
+    return NS_OK;
+  }                                                                             
 
-  nsRefPtr<nsPLDOMEvent> event =
-    new nsLoadBlockingPLDOMEvent(thisNode, aEventType, PR_FALSE, PR_FALSE);
-  event->PostDOMEvent();
+  // We should not be getting called from off the UI thread...
+  NS_ASSERTION(NS_IsMainThread(), "should be on the main thread");
+
+  nsIPresShell *shell = document->GetPrimaryShell();
+  nsPresContext *presContext = shell ? shell->GetPresContext() : nsnull;
+
+  nsCOMPtr<nsIRunnable> evt =
+      new nsImageLoadingContent::Event(presContext, this, aEventType, document);
+  NS_ENSURE_TRUE(evt, NS_ERROR_OUT_OF_MEMORY);
+
+  // Block onload for our event.  Since we unblock in the event destructor, we
+  // want to block now, even if posting will fail.
+  document->BlockOnload();
   
-  return NS_OK;
+  return NS_DispatchToCurrentThread(evt);
 }
 
 void
@@ -919,19 +985,3 @@ nsImageLoadingContent::SetBlockingOnload(PRBool aBlocking)
     mBlockingOnload = aBlocking;
   }
 }
-
-void
-nsImageLoadingContent::CreateStaticImageClone(nsImageLoadingContent* aDest) const
-{
-  aDest->mCurrentRequest = nsContentUtils::GetStaticRequest(mCurrentRequest);
-  aDest->mForcedImageState = mForcedImageState;
-  aDest->mImageBlockingStatus = mImageBlockingStatus;
-  aDest->mLoadingEnabled = mLoadingEnabled;
-  aDest->mStartingLoad = mStartingLoad;
-  aDest->mIsImageStateForced = mIsImageStateForced;
-  aDest->mLoading = mLoading;
-  aDest->mBroken = mBroken;
-  aDest->mUserDisabled = mUserDisabled;
-  aDest->mSuppressed = mSuppressed;
-}
-

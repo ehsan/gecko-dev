@@ -5,13 +5,11 @@
 <window onload="runTests()"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 <iframe height="200" width="600"></iframe>
-<iframe height="200" width="600"></iframe>
 <script type="application/javascript">
 <![CDATA[
 var is = window.opener.wrappedJSObject.is;
 var isnot = window.opener.wrappedJSObject.isnot;
 var ok = window.opener.wrappedJSObject.ok;
-var todo = window.opener.wrappedJSObject.todo;
 var SimpleTest = window.opener.wrappedJSObject.SimpleTest;
 var gWbp;
 var ctx1;
@@ -19,7 +17,7 @@ var ctx2;
 var counter = 0;
 
 function printpreview() {
-  gWbp = window.frames[1].QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+  gWbp = window.frames[0].QueryInterface(Components.interfaces.nsIInterfaceRequestor)
              .getInterface(Components.interfaces.nsIWebBrowserPrint);
   var listener = {
     onLocationChange: function(webProgress, request, location) { },
@@ -40,13 +38,13 @@ function printpreview() {
                             .getService(Components.interfaces.nsIPrefBranch);
   prefs.setBoolPref('print.show_print_progress', false);
   //XXX I would have thought this would work, instead I'm forced to use prefs service
-  gWbp.globalPrintSettings.showPrintProgress = false;
-  gWbp.printPreview(gWbp.globalPrintSettings, window.frames[0], listener);
+  gWbp.globalPrintSettings.showPrintProgress = false; 
+  gWbp.printPreview(gWbp.globalPrintSettings, null, listener);
   prefs.clearUserPref('print.show_print_progress');
 }
 
 function exitprintpreview() {
-  window.frames[1].QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+  window.frames[0].QueryInterface(Components.interfaces.nsIInterfaceRequestor)
    .getInterface(Components.interfaces.nsIWebBrowserPrint).exitPrintPreview(); 
 }
 
@@ -56,12 +54,12 @@ function runTests()
                                .getService(Components.interfaces.nsIPrintSettingsService);
 
   try {
-    Components.classes["@mozilla.org/gfx/printerenumerator;1"]
-              .getService(Components.interfaces.nsIPrinterEnumerator);
+     var printerEnumerator = Components.classes["@mozilla.org/gfx/printerenumerator;1"]
+                             .getService(Components.interfaces.nsIPrinterEnumerator);
   } catch(e) {
-    todo(false, "Test skipped on MacOSX, as the print preview code doesn't work there");
-    SimpleTest.finish();
-    return;
+     //don't try to test on Mac, since the print preview code doesn't work there
+     SimpleTest.finish();
+     return;
   }
 
   if (printService.defaultPrinterName != '') {
@@ -106,8 +104,11 @@ function startTest1() {
   window.frames[0].document.body.firstChild.innerHTML = "Print preview";
 
   printpreview();
-  ctx1.drawWindow(window.frames[1], 0, 0, 300, 300, "rgb(256,256,256)");
+  ctx1.drawWindow(window.frames[0], 0, 0, 300, 300, "rgb(256,256,256)");
   window.frames[0].document.body.firstChild.innerHTML = "Galley presentation";
+  window.frames[0].document.body.firstChild.innerHTML +=
+    "<div style='color: red;'>This is not for print preview!</div>";
+  window.frames[0].document.body.firstChild.lastChild.firstChild.data += " Really!";
 
   // Add some elements.
   addHTMLContent(window.frames[0].document.body.lastChild);
@@ -120,9 +121,11 @@ function startTest1() {
 }
 
 function finalizeTest1() {
-  ctx2.drawWindow(window.frames[1], 0, 0, 300, 300, "rgb(256,256,256)");
+  ctx2.drawWindow(window.frames[0], 0, 0, 300, 300, "rgb(256,256,256)");
   exitprintpreview();
   ok(compareCanvases(), "Canvas should be the same!");
+  is(window.frames[0].document.body.firstChild.nextSibling.textContent, "0 timers", "Timers shouldn't have run yet!");
+  is(window.frames[0].counter, 0, "Timers shouldn't have run yet!");
   counter = window.frames[0].counter;
   // This timeout is needed so that we can check that timers do run after
   // print preview.
@@ -182,7 +185,8 @@ function runTest3() {
     return;
   }
 
-  setTimeout(runTest4, 0)
+  SimpleTest.finish();
+  window.close();
 }
 
 function compareFormElementPrint(el1, el2, equals) {
@@ -190,33 +194,18 @@ function compareFormElementPrint(el1, el2, equals) {
   window.frames[0].document.body.firstChild.value =
     window.frames[0].document.body.firstChild.getAttribute('value');
   printpreview();
-  ctx1.drawWindow(window.frames[1], 0, 0, 300, 300, "rgb(256,256,256)");
+  ctx1.drawWindow(window.frames[0], 0, 0, 300, 300, "rgb(256,256,256)");
   exitprintpreview();
   window.frames[0].document.body.innerHTML = el2;
   window.frames[0].document.body.firstChild.value =
     window.frames[0].document.body.firstChild.getAttribute('value');
   printpreview();
-  ctx2.drawWindow(window.frames[1], 0, 0, 300, 300, "rgb(256,256,256)");
+  ctx2.drawWindow(window.frames[0], 0, 0, 300, 300, "rgb(256,256,256)");
   exitprintpreview();
   is(compareCanvases(), equals,
      "Comparing print preview didn't succeed [" + el1 + " : " + el2 + "]");
   setTimeout(runTest3, 100);
 }
-
-// This is a crash test for bug 539060.
-function runTest4() {
-  window.frames[0].document.body.innerHTML =
-    "<iframe style='display: none;' src='data:text/html,<iframe>'></iframe>";
-  setTimeout(runTest4end, 500);
-}
-
-function runTest4end() {
-  printpreview();
-  exitprintpreview();
-  SimpleTest.finish();
-  window.close();
-}
-
 ]]></script>
 <table style="border: 1px solid black;" xmlns="http://www.w3.org/1999/xhtml">
 <tr><th>Print preview canvas 1</th><th>Print preview canvas 2</th></tr>

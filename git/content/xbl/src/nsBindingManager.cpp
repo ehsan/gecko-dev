@@ -52,7 +52,6 @@
 #include "nsIContent.h"
 #include "nsIDOMElement.h"
 #include "nsIDocument.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsContentUtils.h"
 #include "nsIPresShell.h"
 #include "nsIXMLContentSink.h"
@@ -64,6 +63,10 @@
 #include "nsXBLPrototypeBinding.h"
 #include "nsIXBLDocumentInfo.h"
 #include "nsXBLInsertionPoint.h"
+
+#include "nsIStyleSheet.h"
+#include "nsHTMLStyleSheet.h"
+#include "nsIHTMLCSSStyleSheet.h"
 
 #include "nsIStyleRuleProcessor.h"
 #include "nsRuleProcessorData.h"
@@ -143,14 +146,11 @@ NS_INTERFACE_TABLE_HEAD(nsAnonymousContentList)
     NS_INTERFACE_TABLE_ENTRY(nsAnonymousContentList, nsAnonymousContentList)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NodeList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsAnonymousContentList)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsAnonymousContentList)
-  tmp->mElements->Clear();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsAnonymousContentList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsAnonymousContentList)
   {
     PRInt32 i, count = tmp->mElements->Length();
@@ -503,9 +503,13 @@ RemoveInsertionParentForNodeList(nsIDOMNodeList* aList, nsIContent* aParent)
 void
 nsBindingManager::RemoveInsertionParent(nsIContent* aParent)
 {
-  RemoveInsertionParentForNodeList(GetContentListFor(aParent), aParent);
+  nsCOMPtr<nsIDOMNodeList> contentlist;
+  GetContentListFor(aParent, getter_AddRefs(contentlist));
+  RemoveInsertionParentForNodeList(contentlist, aParent);
 
-  RemoveInsertionParentForNodeList(GetAnonymousNodesFor(aParent), aParent);
+  nsCOMPtr<nsIDOMNodeList> anonnodes;
+  GetAnonymousNodesFor(aParent, getter_AddRefs(anonnodes));
+  RemoveInsertionParentForNodeList(anonnodes, aParent);
 
   if (mInsertionParentTable.ops) {
     PL_DHashTableEnumerate(&mInsertionParentTable, RemoveInsertionParentCB,
@@ -683,26 +687,21 @@ nsBindingManager::ResolveTag(nsIContent* aContent, PRInt32* aNameSpaceID)
 
 nsresult
 nsBindingManager::GetContentListFor(nsIContent* aContent, nsIDOMNodeList** aResult)
-{
-  NS_IF_ADDREF(*aResult = GetContentListFor(aContent));
-  return NS_OK;
-}
-
-nsINodeList*
-nsBindingManager::GetContentListFor(nsIContent* aContent)
 { 
-  nsINodeList* result = nsnull;
-
+  *aResult = nsnull;
+  
   if (mContentListTable.ops) {
-    result = static_cast<nsAnonymousContentList*>
-      (LookupObject(mContentListTable, aContent));
+    *aResult = static_cast<nsAnonymousContentList*>
+                          (LookupObject(mContentListTable, aContent));
+    NS_IF_ADDREF(*aResult);
+  }
+  
+  if (!*aResult) {
+    nsCOMPtr<nsIDOMNode> node(do_QueryInterface(aContent));
+    node->GetChildNodes(aResult);
   }
 
-  if (!result) {
-    result = aContent->GetChildNodesList();
-  }
-
-  return result;
+  return NS_OK;
 }
 
 nsresult
@@ -760,13 +759,6 @@ nsBindingManager::GetAnonymousNodesFor(nsIContent* aContent,
   PRBool dummy;
   NS_IF_ADDREF(*aResult = GetAnonymousNodesInternal(aContent, &dummy));
   return NS_OK;
-}
-
-nsINodeList*
-nsBindingManager::GetAnonymousNodesFor(nsIContent* aContent)
-{
-  PRBool dummy;
-  return GetAnonymousNodesInternal(aContent, &dummy);
 }
 
 nsresult
@@ -833,8 +825,7 @@ nsBindingManager::GetXBLChildNodesFor(nsIContent* aContent)
 }
 
 nsIContent*
-nsBindingManager::GetInsertionPoint(nsIContent* aParent,
-                                    const nsIContent* aChild,
+nsBindingManager::GetInsertionPoint(nsIContent* aParent, nsIContent* aChild,
                                     PRUint32* aIndex)
 {
   nsXBLBinding *binding = GetBinding(aParent);
@@ -892,7 +883,12 @@ nsBindingManager::RemoveLayeredBinding(nsIContent* aContent, nsIURI* aURL)
   NS_ENSURE_FALSE(binding->GetBaseBinding(), NS_ERROR_FAILURE);
 
   // Make sure that the binding has the URI that is requested to be removed
-  if (!binding->PrototypeBinding()->CompareBindingURI(aURL)) {
+  nsIURI* bindingUri = binding->PrototypeBinding()->BindingURI();
+  
+  PRBool equalUri;
+  nsresult rv = aURL->Equals(bindingUri, &equalUri);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!equalUri) {
     return NS_OK;
   }
 
@@ -972,7 +968,7 @@ void
 nsBindingManager::PostProcessAttachedQueueEvent()
 {
   mProcessAttachedQueueEvent =
-    NS_NewRunnableMethod(this, &nsBindingManager::DoProcessAttachedQueue);
+    NS_NEW_RUNNABLE_METHOD(nsBindingManager, this, DoProcessAttachedQueue);
   nsresult rv = NS_DispatchToCurrentThread(mProcessAttachedQueueEvent);
   if (NS_SUCCEEDED(rv) && mDocument) {
     mDocument->BlockOnload();
@@ -1010,8 +1006,6 @@ nsBindingManager::ProcessAttachedQueue(PRUint32 aSkipSize)
 {
   if (mProcessingAttachedStack || mAttachedStack.Length() <= aSkipSize)
     return;
-
-  NS_TIME_FUNCTION;
 
   mProcessingAttachedStack = PR_TRUE;
 
@@ -1283,11 +1277,12 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
 {
   *aCutOffInheritance = PR_FALSE;
   
-  NS_ASSERTION(aData->mElement, "How did that happen?");
+  if (!aData->mContent)
+    return NS_OK;
 
   // Walk the binding scope chain, starting with the binding attached to our
   // content, up till we run out of scopes or we get cut off.
-  nsIContent *content = aData->mElement;
+  nsIContent *content = aData->mContent;
   
   do {
     nsXBLBinding *binding = GetBinding(content);
@@ -1296,7 +1291,7 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
       binding->WalkRules(aFunc, aData);
       // If we're not looking at our original content, allow the binding to cut
       // off style inheritance
-      if (content != aData->mElement) {
+      if (content != aData->mContent) {
         if (!binding->InheritsStyle()) {
           // Go no further; we're not inheriting style from anything above here
           break;
@@ -1340,39 +1335,6 @@ EnumRuleProcessors(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
   return PL_DHASH_NEXT;
 }
 
-struct WalkAllRulesData {
-  nsIStyleRuleProcessor::EnumFunc mFunc;
-  RuleProcessorData* mData;
-};
-
-static PLDHashOperator
-EnumWalkAllRules(nsVoidPtrHashKey *aKey, void* aClosure)
-{
-  nsIStyleRuleProcessor *ruleProcessor =
-    static_cast<nsIStyleRuleProcessor*>(const_cast<void*>(aKey->GetKey()));
-  WalkAllRulesData *data = static_cast<WalkAllRulesData*>(aClosure);
-
-  (*(data->mFunc))(ruleProcessor, data->mData);
-
-  return PL_DHASH_NEXT;
-}
-
-void
-nsBindingManager::WalkAllRules(nsIStyleRuleProcessor::EnumFunc aFunc,
-                               RuleProcessorData* aData)
-{
-  if (!mBindingTable.IsInitialized())
-    return;
-
-  RuleProcessorSet set;
-  mBindingTable.EnumerateRead(EnumRuleProcessors, &set);
-  if (!set.IsInitialized())
-    return;
-
-  WalkAllRulesData data = { aFunc, aData };
-  set.EnumerateEntries(EnumWalkAllRules, &data);
-}
-
 struct MediumFeaturesChangedData {
   nsPresContext *mPresContext;
   PRBool *mRulesChanged;
@@ -1412,8 +1374,7 @@ nsBindingManager::MediumFeaturesChanged(nsPresContext* aPresContext,
 }
 
 nsIContent*
-nsBindingManager::GetNestedInsertionPoint(nsIContent* aParent,
-                                          const nsIContent* aChild)
+nsBindingManager::GetNestedInsertionPoint(nsIContent* aParent, nsIContent* aChild)
 {
   // Check to see if the content is anonymous.
   if (aChild->GetBindingParent() == aParent)
@@ -1525,7 +1486,6 @@ nsBindingManager::FindInsertionPointAndIndex(nsIContent* aContainer,
 void
 nsBindingManager::ContentAppended(nsIDocument* aDocument,
                                   nsIContent* aContainer,
-                                  nsIContent* aFirstNewContent,
                                   PRInt32     aNewIndexInContainer)
 {
   if (aNewIndexInContainer != -1 &&
@@ -1586,11 +1546,6 @@ RemoveChildFromInsertionPoint(nsAnonymousContentList* aInsertionPointList,
   // when we've hit it, but just trying to remove from all the pseudo or
   // non-pseudo insertion points, depending on the value of
   // aRemoveFromPseudoPoints, should work.
-
-  // XXXbz nsXBLInsertionPoint::RemoveChild could return whether it
-  // removed something.  Wouldn't that let us short-circuit the walk?
-  // Or can a child be in multiple insertion points?  I wouldn't think
-  // so...
   PRInt32 count = aInsertionPointList->GetInsertionPointCount();
   for (PRInt32 i = 0; i < count; i++) {
     nsXBLInsertionPoint* point =
@@ -1625,21 +1580,6 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
                                       aChild,
                                       PR_FALSE);
         SetInsertionParent(aChild, nsnull);
-      }
-
-      // Also remove from the list in mContentListTable, if any.
-      if (mContentListTable.ops) {
-        nsCOMPtr<nsIDOMNodeList> otherNodeList =
-          static_cast<nsAnonymousContentList*>
-                     (LookupObject(mContentListTable, point));
-        if (otherNodeList && otherNodeList != nodeList) {
-          // otherNodeList is always anonymous
-          RemoveChildFromInsertionPoint(static_cast<nsAnonymousContentList*>
-                                        (static_cast<nsIDOMNodeList*>
-                                                    (otherNodeList)),
-                                        aChild,
-                                        PR_FALSE);
-        }
       }
     }
 
@@ -1698,8 +1638,7 @@ nsBindingManager::Traverse(nsIContent *aContent,
     cb.NoteXPCOMChild(value);
   }
 
-  // XXXbz how exactly would NODE_MAY_BE_IN_BINDING_MNGR end up on non-elements?
-  if (!aContent->IsElement()) {
+  if (!aContent->IsNodeOfType(nsINode::eELEMENT)) {
     return;
   }
 

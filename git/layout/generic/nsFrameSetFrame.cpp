@@ -55,6 +55,7 @@
 #include "nsIViewManager.h"
 #include "nsWidgetsCID.h"
 #include "nsGkAtoms.h"
+#include "nsIScrollableView.h"
 #include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
@@ -67,6 +68,7 @@
 #include "nsIServiceManager.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsINameSpaceManager.h"
+#include "nsCSSPseudoElements.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
@@ -93,6 +95,16 @@ nsFramesetDrag::nsFramesetDrag()
   UnSet();
 }
 
+nsFramesetDrag::nsFramesetDrag(PRBool               aVertical, 
+                               PRInt32              aIndex, 
+                               PRInt32              aChange, 
+                               nsHTMLFramesetFrame* aSource) 
+{
+  mVertical = aVertical;
+  mIndex    = aIndex;
+  mChange   = aChange; 
+  mSource   = aSource;
+}
 void nsFramesetDrag::Reset(PRBool               aVertical, 
                            PRInt32              aIndex, 
                            PRInt32              aChange, 
@@ -273,7 +285,7 @@ nsHTMLFramesetFrame::FrameResizePrefCallback(const char* aPref, void* aClosure)
     nsNodeUtils::AttributeChanged(frame->GetContent(),
                                   kNameSpaceID_None,
                                   nsGkAtoms::frameborder,
-                                  nsIDOMMutationEvent::MODIFICATION);
+                                  nsIDOMMutationEvent::MODIFICATION, 0);
   }
 
   return 0;
@@ -355,15 +367,9 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
 
   for (PRUint32 childX = 0; childX < numChildren; childX++) {
     if (mChildCount == numCells) { // we have more <frame> or <frameset> than cells
-      // Clear the lazy bits in the remaining children.
-      for (PRUint32 i = childX; i < numChildren; i++) {
-        mContent->GetChildAt(i)->UnsetFlags(NODE_DESCENDANTS_NEED_FRAMES |
-                                            NODE_NEEDS_FRAME);
-      }
       break;
     }
     nsIContent *child = mContent->GetChildAt(childX);
-    child->UnsetFlags(NODE_DESCENDANTS_NEED_FRAMES | NODE_NEEDS_FRAME);
 
     // IMPORTANT: This must match the conditions in
     // nsCSSFrameConstructor::ContentAppended/Inserted/Removed    
@@ -375,8 +381,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
       nsRefPtr<nsStyleContext> kidSC;
       nsresult result;
 
-      kidSC = shell->StyleSet()->ResolveStyleFor(child->AsElement(),
-                                                 mStyleContext);
+      kidSC = shell->StyleSet()->ResolveStyleFor(child, mStyleContext);
       if (tag == nsGkAtoms::frameset) {
         frame = NS_NewHTMLFramesetFrame(shell, kidSC);
         if (NS_UNLIKELY(!frame))
@@ -410,7 +415,6 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
         mChildFrameborder[mChildCount] = GetFrameBorder(child);
         mChildBorderColors[mChildCount].Set(GetBorderColor(child));
       }
-      child->SetPrimaryFrame(frame);
       
       if (NS_FAILED(result))
         return result;
@@ -426,7 +430,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
   for (int blankX = mChildCount; blankX < numCells; blankX++) {
     nsRefPtr<nsStyleContext> pseudoStyleContext;
     pseudoStyleContext = shell->StyleSet()->
-      ResolveAnonymousBoxStyle(nsCSSAnonBoxes::framesetBlank, mStyleContext);
+      ResolvePseudoStyleFor(nsnull, nsCSSAnonBoxes::framesetBlank, mStyleContext);
     if (!pseudoStyleContext) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1038,9 +1042,9 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
       if (firstTime) { // create horizontal border
 
         nsRefPtr<nsStyleContext> pseudoStyleContext;
-        pseudoStyleContext = styleSet->
-          ResolveAnonymousBoxStyle(nsCSSAnonBoxes::horizontalFramesetBorder,
-                                   mStyleContext);
+        pseudoStyleContext = styleSet->ResolvePseudoStyleFor(mContent,
+                                                             nsCSSPseudoElements::horizontalFramesetBorder,
+                                                             mStyleContext);
 
         borderFrame = new (shell) nsHTMLFramesetBorderFrame(pseudoStyleContext,
                                                             borderWidth,
@@ -1074,9 +1078,9 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
           if (firstTime) { // create vertical border
             
             nsRefPtr<nsStyleContext> pseudoStyleContext;
-            pseudoStyleContext = styleSet->
-              ResolveAnonymousBoxStyle(nsCSSAnonBoxes::verticalFramesetBorder,
-                                       mStyleContext);
+            pseudoStyleContext = styleSet->ResolvePseudoStyleFor(mContent,
+                                                                 nsCSSPseudoElements::verticalFramesetBorder,
+                                                                 mStyleContext);
 
             borderFrame = new (shell) nsHTMLFramesetBorderFrame(pseudoStyleContext, 
                                                                 borderWidth,
@@ -1632,10 +1636,8 @@ public:
 
   // REVIEW: see old GetFrameForPoint
   // Receives events in its bounds
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
-    aOutFrames->AppendElement(mFrame);
-  }
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return mFrame; }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("FramesetBorder")

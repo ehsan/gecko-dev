@@ -55,7 +55,6 @@ nsDOMDragEvent::nsDOMDragEvent(nsPresContext* aPresContext,
     mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
-    static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
 }
 
@@ -71,11 +70,9 @@ nsDOMDragEvent::~nsDOMDragEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMDragEvent, nsDOMMouseEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMDragEvent, nsDOMMouseEvent)
 
-DOMCI_DATA(DragEvent, nsDOMDragEvent)
-
 NS_INTERFACE_MAP_BEGIN(nsDOMDragEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDragEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DragEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DragEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMMouseEvent)
 
 NS_IMETHODIMP
@@ -101,6 +98,21 @@ nsDOMDragEvent::InitDragEvent(const nsAString & aType,
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMDragEvent::InitDragEventNS(const nsAString & aNamespaceURIArg,
+                                const nsAString & aType,
+                                PRBool aCanBubble, PRBool aCancelable,
+                                nsIDOMAbstractView* aView, PRInt32 aDetail,
+                                PRInt32 aScreenX, PRInt32 aScreenY,
+                                PRInt32 aClientX, PRInt32 aClientY, 
+                                PRBool aCtrlKey, PRBool aAltKey, PRBool aShiftKey,
+                                PRBool aMetaKey, PRUint16 aButton,
+                                nsIDOMEventTarget *aRelatedTarget,
+                                nsIDOMDataTransfer* aDataTransfer)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP

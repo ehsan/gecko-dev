@@ -70,12 +70,13 @@ public:
   nsPNGDecoder();
   virtual ~nsPNGDecoder();
 
-  void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
-                   PRInt32 width, PRInt32 height,
+  void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset, 
+                   PRInt32 width, PRInt32 height, 
                    gfxASurface::gfxImageFormat format);
   void SetAnimFrameInfo();
-
+  
   void EndImageFrame();
+  NS_METHOD ProcessData(unsigned char* aBuffer, PRUint32 aCount);
   void NotifyDone(PRBool aSuccess);
 
 public:

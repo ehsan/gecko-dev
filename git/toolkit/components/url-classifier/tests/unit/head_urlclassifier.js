@@ -130,7 +130,7 @@ function doErrorUpdate(tables, success, failure) {
     },
 
     updateUrlRequested: function(url) { },
-    streamFinished: function(status) { },
+    streamCompleted: function() { },
     updateError: function(errorCode) { success(errorCode); },
     updateSuccess: function(requestedTimeout) { failure(requestedTimeout); }
   };
@@ -188,7 +188,7 @@ checkUrls: function(urls, expected, cb)
     } else {
       cb();
     }
-  };
+  }
   doLookup();
 },
 

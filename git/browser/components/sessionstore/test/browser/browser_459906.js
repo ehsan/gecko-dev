@@ -36,57 +36,53 @@
 
 function test() {
   /** Test for Bug 459906 **/
-
+  
   waitForExplicitFinish();
-
-  let testURL = "http://mochi.test:8888/browser/" +
+  
+  let testURL = "http://localhost:8888/browser/" +
     "browser/components/sessionstore/test/browser/browser_459906_sample.html";
   let uniqueValue = "<b>Unique:</b> " + Date.now();
-
+  
   var frameCount = 0;
   let tab = gBrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     // wait for all frames to load completely
     if (frameCount++ < 2)
       return;
-    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-
+    this.removeEventListener("load", arguments.callee, true);
+    
     let iframes = tab.linkedBrowser.contentWindow.frames;
     iframes[1].document.body.innerHTML = uniqueValue;
-
+    
     frameCount = 0;
     let tab2 = gBrowser.duplicateTab(tab);
     tab2.linkedBrowser.addEventListener("load", function(aEvent) {
       // wait for all frames to load (and reload!) completely
       if (frameCount++ < 2)
         return;
-      tab2.linkedBrowser.removeEventListener("load", arguments.callee, true);
+      this.removeEventListener("load", arguments.callee, true);
 
+      let maxWait = Date.now() + 1000;
       executeSoon(function() {
         let iframes = tab2.linkedBrowser.contentWindow.frames;
-        if (iframes[1].document.body.innerHTML !== uniqueValue) {
-          // Poll again the value, since we can't ensure to run
-          // after SessionStore has injected innerHTML value.
-          // See bug 521802.
-          info("Polling for innerHTML value");
-          setTimeout(arguments.callee, 100);
+        if (iframes[1].document.body.innerHTML != uniqueValue && Date.now() < maxWait) {
+          executeSoon(arguments.callee);
           return;
         }
-
         is(iframes[1].document.body.innerHTML, uniqueValue,
            "rich textarea's content correctly duplicated");
-
+        
         let innerDomain = null;
         try {
           innerDomain = iframes[0].document.domain;
         }
         catch (ex) { /* throws for chrome: documents */ }
-        is(innerDomain, "mochi.test", "XSS exploit prevented!");
-
+        is(innerDomain, "localhost", "XSS exploit prevented!");
+        
         // clean up
         gBrowser.removeTab(tab2);
         gBrowser.removeTab(tab);
-
+        
         finish();
       });
     }, true);

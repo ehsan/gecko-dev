@@ -85,8 +85,6 @@ pageInfoTreeView.prototype = {
   {
     this.rows = this.data.push(row);
     this.rowCountChanged(this.rows - 1, 1);
-    if (this.selection.count == 0 && this.rowCount && !gImageElement)
-      this.selection.select(0);
   },
 
   rowCountChanged: function(index, count)
@@ -148,7 +146,6 @@ pageInfoTreeView.prototype = {
 // mmm, yummy. global variables.
 var gWindow = null;
 var gDocument = null;
-var gImageElement = null;
 
 // column number to help using the data array
 const COL_IMAGE_ADDRESS = 0;
@@ -168,19 +165,13 @@ const COPYCOL_IMAGE = COL_IMAGE_ADDRESS;
 var gMetaView = new pageInfoTreeView(COPYCOL_META_CONTENT);
 var gImageView = new pageInfoTreeView(COPYCOL_IMAGE);
 
-
-var atomSvc = Components.classes["@mozilla.org/atom-service;1"]
-                        .getService(Components.interfaces.nsIAtomService);
-gImageView._ltrAtom = atomSvc.getAtom("ltr");
-gImageView._brokenAtom = atomSvc.getAtom("broken");
-
 gImageView.getCellProperties = function(row, col, props) {
+  var aserv = Components.classes[ATOM_CONTRACTID]
+                        .getService(Components.interfaces.nsIAtomService);
+
   if (gImageView.data[row][COL_IMAGE_SIZE] == gStrings.unknown &&
       !/^https:/.test(gImageView.data[row][COL_IMAGE_ADDRESS]))
-    props.AppendElement(this._brokenAtom);
-
-  if (col.element.id == "image-address")
-    props.AppendElement(this._ltrAtom);
+    props.AppendElement(aserv.getAtom("broken"));
 };
 
 var gImageHash = { };
@@ -284,17 +275,17 @@ function onLoadPageInfo()
   gStrings.mediaEmbed = gBundle.getString("mediaEmbed");
   gStrings.mediaLink = gBundle.getString("mediaLink");
   gStrings.mediaInput = gBundle.getString("mediaInput");
-#ifdef MOZ_MEDIA
-  gStrings.mediaVideo = gBundle.getString("mediaVideo");
-  gStrings.mediaAudio = gBundle.getString("mediaAudio");
-#endif
 
-  var args = "arguments" in window &&
-             window.arguments.length >= 1 &&
-             window.arguments[0];
-
-  if (!args || !args.doc) {
-    gWindow = window.opener.content;
+  if ("arguments" in window && window.arguments.length >= 1 &&
+       window.arguments[0] && window.arguments[0].doc) {
+    gDocument = window.arguments[0].doc;
+    gWindow = gDocument.defaultView;
+  }
+  else {
+    if ("gBrowser" in window.opener)
+      gWindow = window.opener.gBrowser.contentWindow;
+    else
+      gWindow = window.opener.frames[0];
     gDocument = gWindow.document;
   }
 
@@ -302,8 +293,19 @@ function onLoadPageInfo()
   var imageTree = document.getElementById("imagetree");
   imageTree.view = gImageView;
 
+  // build the content
+  loadPageInfo();
+
   /* Select the requested tab, if the name is specified */
-  loadTab(args);
+  var initialTab = "generalTab";
+  if ("arguments" in window && window.arguments.length >= 1 &&
+       window.arguments[0] && window.arguments[0].initialTab)
+    initialTab = window.arguments[0].initialTab;
+  var radioGroup = document.getElementById("viewGroup");
+  initialTab = document.getElementById(initialTab) || document.getElementById("generalTab");
+  radioGroup.selectedItem = initialTab;
+  radioGroup.selectedItem.doCommand();
+  radioGroup.focus();
   Components.classes["@mozilla.org/observer-service;1"]
             .getService(Components.interfaces.nsIObserverService)
             .notifyObservers(window, "page-info-dialog-loaded", null);
@@ -330,7 +332,7 @@ function loadPageInfo()
   onLoadRegistry.forEach(function(func) { func(); });
 }
 
-function resetPageInfo(args)
+function resetPageInfo()
 {
   /* Reset Meta tags part */
   gMetaView.clear();
@@ -354,8 +356,8 @@ function resetPageInfo(args)
   /* Call registered overlay reset functions */
   onResetRegistry.forEach(function(func) { func(); });
 
-  /* Rebuild the data */
-  loadTab(args);
+  /* And let's rebuild the data */
+  loadPageInfo();
 }
 
 function onUnloadPageInfo()
@@ -391,26 +393,6 @@ function showTab(id)
   var deck  = document.getElementById("mainDeck");
   var pagel = document.getElementById(id + "Panel");
   deck.selectedPanel = pagel;
-}
-
-function loadTab(args)
-{
-  if (args && args.doc) {
-    gDocument = args.doc;
-    gWindow = gDocument.defaultView;
-  }
-
-  gImageElement = args && args.imageElement;
-
-  /* Load the page info */
-  loadPageInfo();
-
-  var initialTab = (args && args.initialTab) || "generalTab";
-  var radioGroup = document.getElementById("viewGroup");
-  initialTab = document.getElementById(initialTab) || document.getElementById("generalTab");
-  radioGroup.selectedItem = initialTab;
-  radioGroup.selectedItem.doCommand();
-  radioGroup.focus();
 }
 
 function onClickMore()
@@ -541,7 +523,6 @@ function processFrames()
     var iterator = doc.createTreeWalker(doc, NodeFilter.SHOW_ELEMENT, grabAll, true);
     gFrameList.shift();
     setTimeout(doGrab, 16, iterator);
-    onFinished.push(selectImage);
   }
   else
     onFinished.forEach(function(func) { func(); });
@@ -556,6 +537,14 @@ function doGrab(iterator)
     }
 
   setTimeout(doGrab, 16, iterator);
+}
+
+function ensureSelection(view)
+{
+  // only select something if nothing is currently selected
+  // and if there's anything to select
+  if (view.selection.count == 0 && view.rowCount)
+    view.selection.select(0);
 }
 
 function addImage(url, type, alt, elem, isBg)
@@ -602,8 +591,6 @@ function addImage(url, type, alt, elem, isBg)
   else {
     var i = gImageHash[url][type][alt];
     gImageView.data[i][COL_IMAGE_COUNT]++;
-    if (elem == gImageElement)
-      gImageView.data[i][COL_IMAGE_NODE] = elem;
   }
 }
 
@@ -630,14 +617,6 @@ function grabAll(elem)
       var href = makeURLAbsolute(elem.baseURI, elem.href.baseVal);
       addImage(href, gStrings.mediaImg, "", elem, false);
     } catch (e) { }
-  }
-#endif
-#ifdef MOZ_MEDIA
-  else if (elem instanceof HTMLVideoElement) {
-    addImage(elem.currentSrc, gStrings.mediaVideo, "", elem, false);
-  }
-  else if (elem instanceof HTMLAudioElement) {
-    addImage(elem.currentSrc, gStrings.mediaAudio, "", elem, false);
   }
 #endif
   else if (elem instanceof HTMLLinkElement) {
@@ -831,7 +810,6 @@ function makePreview(row)
   var item = getSelectedImage(imageTree);
   var url = gImageView.data[row][COL_IMAGE_ADDRESS];
   var isBG = gImageView.data[row][COL_IMAGE_BG];
-  var isAudio = false;
 
   setItemValue("imageurltext", url);
 
@@ -933,8 +911,8 @@ function makePreview(row)
   if (/^data:/.test(url) && /^image\//.test(mimeType))
     isProtocolAllowed = true;
 
-  var newImage = new Image;
-  newImage.id = "thepreviewimage";
+  var newImage = new Image();
+  newImage.setAttribute("id", "thepreviewimage");
   var physWidth = 0, physHeight = 0;
   var width = 0, height = 0;
 
@@ -975,33 +953,6 @@ function makePreview(row)
     document.getElementById("theimagecontainer").collapsed = false
     document.getElementById("brokenimagecontainer").collapsed = true;
   }
-#ifdef MOZ_MEDIA
-  else if (item instanceof HTMLVideoElement && isProtocolAllowed) {
-    newImage = document.createElementNS("http://www.w3.org/1999/xhtml", "video");
-    newImage.id = "thepreviewimage";
-    newImage.mozLoadFrom(item);
-    newImage.controls = true;
-    physWidth = item.videoWidth;
-    physHeight = item.videoHeight;
-    width = item.width != -1 ? item.width : physWidth;
-    height = item.height != -1 ? item.height : physHeight;
-    newImage.width = width;
-    newImage.height = height;
-
-    document.getElementById("theimagecontainer").collapsed = false;
-    document.getElementById("brokenimagecontainer").collapsed = true;
-  }
-  else if (item instanceof HTMLAudioElement && isProtocolAllowed) {
-    newImage = new Audio;
-    newImage.id = "thepreviewimage";
-    newImage.src = url;
-    newImage.controls = true;
-    isAudio = true;
-
-    document.getElementById("theimagecontainer").collapsed = false;
-    document.getElementById("brokenimagecontainer").collapsed = true;
-  }
-#endif
   else {
     // fallback image for protocols not allowed (e.g., data: or javascript:)
     // or elements not [yet] handled (e.g., object, embed).
@@ -1010,7 +961,7 @@ function makePreview(row)
   }
 
   var imageSize = "";
-  if (url && !isAudio) {
+  if (url) {
     if (width != physWidth || height != physHeight) {
       imageSize = gBundle.getFormattedString("mediaDimensionsScaled",
                                              [formatNumber(physWidth),
@@ -1217,20 +1168,4 @@ function doSelectAll()
 
   if (elem && "treeBoxObject" in elem)
     elem.view.selection.selectAll();
-}
-
-function selectImage() {
-  if (!gImageElement)
-    return;
-
-  var tree = document.getElementById("imagetree");
-  for (var i = 0; i < tree.view.rowCount; i++) {
-    if (gImageElement == gImageView.data[i][COL_IMAGE_NODE] &&
-        !gImageView.data[i][COL_IMAGE_BG]) {
-      tree.view.selection.select(i);
-      tree.treeBoxObject.ensureRowIsVisible(i);
-      tree.focus();
-      return;
-    }
-  }
 }

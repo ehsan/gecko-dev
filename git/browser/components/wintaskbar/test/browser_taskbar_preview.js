@@ -11,15 +11,13 @@ function test() {
   if (!isWin7OrHigher)
     return;
 
-  const ENABLE_PREF_NAME = "browser.taskbar.previews.enable";
-
   let temp = {};
   Cu.import("resource://gre/modules/WindowsPreviewPerTab.jsm", temp);
   let AeroPeek = temp.AeroPeek;
 
   waitForExplicitFinish();
 
-  gPrefService.setBoolPref(ENABLE_PREF_NAME, true);
+  gPrefService.setBoolPref("aeropeek.enable", true);
 
   is(1, AeroPeek.windows.length, "Got the expected number of windows");
 
@@ -34,25 +32,25 @@ function test() {
   for each (let preview in AeroPeek.previews)
     ok(preview.visible, "Preview is shown as expected");
 
-  gPrefService.setBoolPref(ENABLE_PREF_NAME, false);
+  gPrefService.setBoolPref("aeropeek.enable", false);
   checkPreviews(4, "Previews are unchanged when disabling");
 
   for each (let preview in AeroPeek.previews)
     ok(!preview.visible, "Preview is not shown as expected after disabling");
 
-  gPrefService.setBoolPref(ENABLE_PREF_NAME, true);
+  gPrefService.setBoolPref("aeropeek.enable", true);
   checkPreviews(4, "Previews are unchanged when re-enabling");
   for each (let preview in AeroPeek.previews)
     ok(preview.visible, "Preview is shown as expected after re-enabling");
 
   [1,2,3,4].forEach(function (idx) {
-    gBrowser.selectedTab = gBrowser.tabs[idx];
+    gBrowser.selectedTab = gBrowser.mTabs[idx];
     ok(checkSelectedTab(), "Current tab is correctly selected");
   });
 
   let currentSelectedTab = gBrowser.selectedTab;
   for each (let idx in [1,2,3,4]) {
-    let preview = getPreviewForTab(gBrowser.tabs[0]);
+    let preview = getPreviewForTab(gBrowser.mTabs[0]);
     let canvas = createThumbnailSurface(preview);
     let ctx = canvas.getContext("2d");
     preview.controller.drawThumbnail(ctx, canvas.width, canvas.height);
@@ -66,11 +64,11 @@ function test() {
   // Close #4
   getPreviewForTab(gBrowser.selectedTab).controller.onClose();
   checkPreviews(3, "Expected number of previews after closing selected tab via controller");
-  ok(gBrowser.tabs.length == 3, "Successfully closed a tab");
+  ok(gBrowser.mTabs.length == 3, "Successfully closed a tab");
 
   // Select #1
-  ok(getPreviewForTab(gBrowser.tabs[0]).controller.onActivate(), "Activation was accepted");
-  ok(gBrowser.tabs[0] == gBrowser.selectedTab, "Correct tab was selected");
+  ok(getPreviewForTab(gBrowser.mTabs[0]).controller.onActivate(), "Activation was accepted");
+  ok(gBrowser.mTabs[0] == gBrowser.selectedTab, "Correct tab was selected");
   checkSelectedTab();
 
   // Remove #3 (non active)
@@ -88,21 +86,20 @@ function test() {
   checkSelectedTab();
 
   // Change selection
-  gBrowser.selectedTab = gBrowser.tabs[0];
+  gBrowser.selectedTab = gBrowser.mTabs[0];
   checkSelectedTab();
   // Close nonselected tab via controller
-  getPreviewForTab(gBrowser.tabs[1]).controller.onClose();
+  getPreviewForTab(gBrowser.mTabs[1]).controller.onClose();
   checkPreviews(1);
 
-  if (gPrefService.prefHasUserValue(ENABLE_PREF_NAME))
-    gPrefService.clearUserPref(ENABLE_PREF_NAME);
+  gPrefService.clearUserPref("aeropeek.enable");
 
   finish();
 
   function checkPreviews(aPreviews, msg) {
     let nPreviews = AeroPeek.previews.length;
-    is(aPreviews, gBrowser.tabs.length, "Browser has expected number of tabs");
-    is(nPreviews, gBrowser.tabs.length, "Browser has one preview per tab");
+    is(aPreviews, gBrowser.mTabs.length, "Browser has expected number of tabs");
+    is(nPreviews, gBrowser.mTabs.length, "Browser has one preview per tab");
     is(nPreviews, aPreviews, msg || "Got expected number of previews");
   }
 
@@ -113,7 +110,7 @@ function test() {
     getPreviewForTab(gBrowser.selectedTab).active;
 
   function isTabSelected(idx)
-    gBrowser.selectedTab == gBrowser.tabs[idx];
+    gBrowser.selectedTab == gBrowser.mTabs[idx];
 
   function createThumbnailSurface(p) {
     let thumbnailWidth = 200,

@@ -40,18 +40,13 @@
 #define __nsAccessibilityService_h__
 
 #include "nsIAccessibilityService.h"
-
-#include "a11yGeneric.h"
-#include "nsCoreUtils.h"
-
 #include "nsCOMArray.h"
 #include "nsIObserver.h"
+#include "nsITimer.h"
 #include "nsIWebProgress.h"
 #include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
 
-class nsAccessNode;
-class nsAccessible;
 class nsIFrame;
 class nsIWeakReference;
 class nsIDOMNode;
@@ -72,79 +67,9 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIACCESSIBLERETRIEVAL
+  NS_DECL_NSIACCESSIBILITYSERVICE
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIWEBPROGRESSLISTENER
-
-  // nsIAccessibilityService
-  virtual nsAccessible* GetAccessibleInShell(nsIDOMNode *aNode,
-                                             nsIPresShell *aPresShell);
-
-  virtual nsresult CreateOuterDocAccessible(nsIDOMNode *aNode,
-                                            nsIAccessible **aAccessible);
-  virtual nsresult CreateHTML4ButtonAccessible(nsIFrame *aFrame,
-                                               nsIAccessible **aAccessible);
-  virtual nsresult CreateHyperTextAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLBRAccessible(nsIFrame *aFrame,
-                                          nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLButtonAccessible(nsIFrame *aFrame,
-                                              nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLLIAccessible(nsIFrame *aFrame,
-                                          nsIFrame *aBulletFrame,
-                                          const nsAString& aBulletText,
-                                          nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLCheckboxAccessible(nsIFrame *aFrame,
-                                                nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLComboboxAccessible(nsIDOMNode *aNode,
-                                                nsIWeakReference *aPresShell,
-                                                nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLGenericAccessible(nsIFrame *aFrame,
-                                               nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLGroupboxAccessible(nsIFrame *aFrame,
-                                                nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLHRAccessible(nsIFrame *aFrame,
-                                          nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLImageAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLLabelAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLListboxAccessible(nsIDOMNode *aNode,
-                                               nsIWeakReference *aPresShell,
-                                               nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLMediaAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLObjectFrameAccessible(nsObjectFrame *aFrame,
-                                                   nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLRadioButtonAccessible(nsIFrame *aFrame,
-                                                   nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLSelectOptionAccessible(nsIDOMNode *aNode,
-                                                    nsIAccessible *aAccParent,
-                                                    nsIWeakReference *aPresShell,
-                                                    nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLTableAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLTableCellAccessible(nsIFrame *aFrame,
-                                                 nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLTextAccessible(nsIFrame *aFrame,
-                                            nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLTextFieldAccessible(nsIFrame *aFrame,
-                                                 nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLCaptionAccessible(nsIFrame *aFrame,
-                                               nsIAccessible **aAccessible);
-
-  virtual nsresult AddNativeRootAccessible(void *aAtkAccessible,
-                                           nsIAccessible **aAccessible);
-  virtual nsresult RemoveNativeRootAccessible(nsIAccessible *aRootAccessible);
-
-  virtual nsresult InvalidateSubtreeFor(nsIPresShell *aPresShell,
-                                        nsIContent *aContent,
-                                        PRUint32 aChangeType);
-
-  virtual void NotifyOfAnchorJumpTo(nsIContent *aTarget);
-
-  virtual nsresult FireAccessibleEvent(PRUint32 aEvent, nsIAccessible *aTarget);
-
-  // nsAccessibiltiyService
 
   /**
    * Return presentation shell for the given node.
@@ -155,56 +80,19 @@ public:
                                    nsIWeakReference **weakShell);
 
   /**
+   * Return accessibility service (static instance of this class).
+   */
+  static nsresult GetAccessibilityService(nsIAccessibilityService** aResult);
+
+  /**
+   * Return cached accessibility service.
+   */
+  static nsIAccessibilityService* GetAccessibilityService();
+
+  /**
    * Indicates whether accessibility service was shutdown.
    */
   static PRBool gIsShutdown;
-
-  /**
-   * Return an accessible for the given DOM node.
-   *
-   * @param  aNode       [in] the given node
-   * @param  aPresShell  [in] the pres shell of the node
-   * @param  aWeakShell  [in] the weak shell for the pres shell
-   * @param  aIsHidden   [out, optional] indicates whether the node's frame is
-   *                       hidden
-   */
-  already_AddRefed<nsAccessible>
-    GetAccessible(nsIDOMNode *aNode, nsIPresShell *aPresShell,
-                  nsIWeakReference *aWeakShell, PRBool *aIsHidden = nsnull);
-
-  /**
-   * Return an accessible for the given DOM node.
-   */
-  nsAccessible *GetAccessible(nsIDOMNode *aNode);
-
-  /**
-   * Return an accessible for a DOM node in the given pres shell.
-   * 
-   * @param aNode       [in] the given node.
-   * @param aPresShell  [in] the presentation shell of the given node.
-   */
-  nsAccessible *GetAccessibleInWeakShell(nsIDOMNode *aNode,
-                                         nsIWeakReference *aPresShell);
-
-  /**
-   * Return the first accessible parent of a DOM node.
-   *
-   * @param aDOMNode    [in] the DOM node to get an accessible for
-   * @param aCanCreate  [in] specifies if accessible can be created if it didn't
-   *                     exist
-   */
-  nsAccessible *GetContainerAccessible(nsIDOMNode *aNode, PRBool aCanCreate);
-
-  /**
-   * Return an access node for the DOM node in the given presentation shell if
-   * the access node already exists, otherwise null.
-   *
-   * @param  aNode       [in] the DOM node to get an access node for
-   * @param  aPresShell  [in] the presentation shell which contains layout info
-   *                       for the DOM node
-   */
-  nsAccessNode* GetCachedAccessNode(nsIDOMNode *aNode,
-                                    nsIWeakReference *aShell);
 
 private:
   /**
@@ -223,55 +111,38 @@ private:
    * Initialize an accessible and cache it. The method should be called for
    * every created accessible.
    *
-   * @param  aAccessible    [in] accessible to initialize.
-   * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nsnull
-   *                          if none
-   *
-   * @return true if the accessible was initialized, otherwise false
+   * @param aAccessibleIn - accessible to initialize.
+   * @param aAcccessibleOut - set to the same thing as aAccessibleIn, unless there was
+   *                          an error initializing the accessible, in which case
+   *                          it is set to nsnull
+   * @param aRoleMapEntry - The role map entry role the ARIA role or nsnull if none
    */
-  PRBool InitAccessible(nsAccessible *aAccessible,
-                        nsRoleMapEntry *aRoleMapEntry);
+  nsresult InitAccessible(nsIAccessible *aAccessibleIn, nsIAccessible **aAccessibleOut,
+                          nsRoleMapEntry *aRoleMapEntry = nsnull);
 
   /**
-   * Return accessible for HTML area element associated with an image map.
-   */
-  already_AddRefed<nsAccessible>
-    GetAreaAccessible(nsIFrame *aImageFrame, nsIDOMNode *aAreaNode,
-                      nsIWeakReference *aWeakShell);
-
-  /**
-   * Create accessible for the element implementing nsIAccessibleProvider
+   * Return accessible object for elements implementing nsIAccessibleProvider
    * interface.
+   *
+   * @param aNode - DOM node that accessible is returned for.
    */
-  already_AddRefed<nsAccessible>
-    CreateAccessibleByType(nsIDOMNode *aNode, nsIWeakReference *aWeakShell);
+  nsresult GetAccessibleByType(nsIDOMNode *aNode, nsIAccessible **aAccessible);
 
   /**
-   * Create document or root accessible.
+   * Return accessible object if parent is a deck frame.
+   *
+   * @param aNode - DOMNode that accessible is returned for.
    */
-  already_AddRefed<nsAccessible>
-    CreateDocOrRootAccessible(nsIPresShell *aShell, nsIDocument *aDocument);
-
-  /**
-   * Create accessible for HTML node by tag name.
-   */
-  already_AddRefed<nsAccessible>
-    CreateHTMLAccessibleByMarkup(nsIFrame *aFrame, nsIWeakReference *aWeakShell,
-                                 nsIDOMNode *aNode);
-
-  /**
-   * Create accessible if parent is a deck frame.
-   */
-  already_AddRefed<nsAccessible>
-    CreateAccessibleForDeckChild(nsIFrame *aFrame, nsIDOMNode *aNode,
-                                 nsIWeakReference *aWeakShell);
+  nsresult GetAccessibleForDeckChildren(nsIDOMNode *aNode,
+                                        nsIAccessible **aAccessible);
 
 #ifdef MOZ_XUL
   /**
    * Create accessible for XUL tree element.
    */
-  already_AddRefed<nsAccessible>
-    CreateAccessibleForXULTree(nsIDOMNode *aNode, nsIWeakReference *aWeakShell);
+  nsresult GetAccessibleForXULTree(nsIDOMNode *aNode,
+                                   nsIWeakReference *aWeakShell,
+                                   nsIAccessible **aAccessible);
 #endif
   
   static nsAccessibilityService *gAccessibilityService;
@@ -281,38 +152,16 @@ private:
    * A universal ARIA property is one that can be defined on any element even if there is no role.
    *
    * @param aContent The content node to test
+   * @param aWeakShell  A weak reference to the pres shell
    * @return PR_TRUE if there is a universal ARIA property set on the node
    */
-  PRBool HasUniversalAriaProperty(nsIContent *aContent);
+  PRBool HasUniversalAriaProperty(nsIContent *aContent, nsIWeakReference *aWeakShell);
 
-  /**
-   *  Process the internal doc load event.
-   *
-   *  @param  aWebProgress  [in] the nsIWebProgress object for the load event
-   *  @param  aEventType    [in] the type of load event, one of:
-   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START,
-   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE,
-   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED
-   */
-  void ProcessDocLoadEvent(nsIWebProgress *aWebProgress, PRUint32 aEventType);
-
-  friend nsAccessibilityService* GetAccService();
-
-  friend nsresult  NS_GetAccessibilityService(nsIAccessibilityService** aResult);
-
-  
-  NS_DECL_RUNNABLEMETHOD_ARG2(nsAccessibilityService, ProcessDocLoadEvent,
-                              nsCOMPtr<nsIWebProgress>, PRUint32)
+  static void StartLoadCallback(nsITimer *aTimer, void *aClosure);
+  static void EndLoadCallback(nsITimer *aTimer, void *aClosure);
+  static void FailedLoadCallback(nsITimer *aTimer, void *aClosure);
+  nsCOMArray<nsITimer> mLoadTimers;
 };
-
-/**
- * Return the accessibility service instance. (Handy global function)
- */
-inline nsAccessibilityService*
-GetAccService()
-{
-  return nsAccessibilityService::gAccessibilityService;
-}
 
 /**
  * Map nsIAccessibleRole constants to strings. Used by
@@ -440,8 +289,7 @@ static const char kRoleNames[][20] = {
   "listbox rich option", //ROLE_RICH_OPTION
   "listbox",             //ROLE_LISTBOX
   "flat equation",       //ROLE_FLAT_EQUATION  
-  "gridcell",            //ROLE_GRID_CELL
-  "embedded object"      //ROLE_EMBEDDED_OBJECT
+  "gridcell"             //ROLE_GRID_CELL
 };
 
 /**

@@ -44,9 +44,9 @@
 #include "nsXULMenuAccessible.h"
 
 /**
- * An individual tab, xul:tab element.
+ * An individual tab, xul:tab element
  */
-class nsXULTabAccessible : public nsAccessibleWrap
+class nsXULTabAccessible : public nsLeafAccessible
 {
 public:
   enum { eAction_Switch = 0 };
@@ -61,15 +61,27 @@ public:
                                nsIAccessibleRelation **aRelation);
 
   // nsAccessible
-  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                          PRInt32 *aSetSize);
+  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
+/** 
+  * Contains a tabs object and a tabPanels object. A complete
+  *    entity with relationships between tabs and content to
+  *    be displayed in the tabpanels object
+  */
+class nsXULTabBoxAccessible : public nsAccessibleWrap
+{
+public:
+  nsXULTabBoxAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+};
 
 /**
- * A container of tab objects, xul:tabs element.
+ * A container of tab obejcts, xul:tabs element.
  */
 class nsXULTabsAccessible : public nsXULSelectableAccessible
 {
@@ -85,29 +97,11 @@ public:
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
-
-/** 
- * A container of tab panels, xul:tabpanels element.
- */
-class nsXULTabpanelsAccessible : public nsAccessibleWrap
-{
-public:
-  nsXULTabpanelsAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-};
-
-
 /**
  * A tabpanel object, child elements of xul:tabpanels element. Note,the object
  * is created from nsAccessibilityService::GetAccessibleForDeckChildren()
  * method and we do not use nsIAccessibleProvider interface here because
  * all children of xul:tabpanels element acts as xul:tabpanel element.
- *
- * XXX: we need to move the class logic into generic class since
- * for example we do not create instance of this class for XUL textbox used as
- * a tabpanel.
  */
 class nsXULTabpanelAccessible : public nsAccessibleWrap
 {

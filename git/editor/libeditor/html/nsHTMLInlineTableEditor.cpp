@@ -125,9 +125,7 @@ nsHTMLEditor::HideInlineTableEditingUI()
 
   // get the presshell's document observer interface.
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  // We allow the pres shell to be null; when it is, we presume there
-  // are no document observers to notify, but we still want to
-  // UnbindFromTree.
+  if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
   // get the root content node.
 
@@ -213,20 +211,16 @@ void
 nsHTMLEditor::AddMouseClickListener(nsIDOMElement * aElement)
 {
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aElement));
-  if (evtTarget) {
-    evtTarget->AddEventListener(NS_LITERAL_STRING("click"),
-                                mEventListener, PR_TRUE);
-  }
+  if (evtTarget)
+    evtTarget->AddEventListener(NS_LITERAL_STRING("click"), mMouseListenerP, PR_TRUE);
 }
 
 void
 nsHTMLEditor::RemoveMouseClickListener(nsIDOMElement * aElement)
 {
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aElement));
-  if (evtTarget) {
-    evtTarget->RemoveEventListener(NS_LITERAL_STRING("click"),
-                                   mEventListener, PR_TRUE);
-  }
+  if (evtTarget)
+    evtTarget->RemoveEventListener(NS_LITERAL_STRING("click"), mMouseListenerP, PR_TRUE);
 }
 
 NS_IMETHODIMP

@@ -39,11 +39,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Explicitly set the default version.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=522760#c11
+// Spidermonkey shell now defaults to 1.8, so set the basic version to
+// 1.5 for backwards compatibility.
+
 if (typeof version != 'undefined')
 {
-  version(0);
+  version(150);
 }
 
 var STATUS = "STATUS: ";
@@ -107,6 +108,38 @@ function startTest() {
 
   if ( BUGNUMBER ) {
     print ("BUGNUMBER: " + BUGNUMBER );
+  }
+  if ( typeof version != 'function') {
+    return;
+  }
+
+  // JavaScript 1.3 is supposed to be compliant ecma version 1.0
+  if ( VERSION == "ECMA_1" ) {
+    version ( "130" );
+  }
+  else if ( VERSION == "JS_1.8"  || gTestsuite == 'js1_8') {
+    version ( "180" );
+  }
+  else if ( VERSION == "JS_1.7"  || gTestsuite == 'js1_7') {
+    version ( "170" );
+  }
+  else if ( VERSION == "JS_1.6"  || gTestsuite == 'js1_6') {
+    version ( "160" );
+  }
+  else if ( VERSION == "JS_1.5"  || gTestsuite == 'js1_5') {
+    version ( "150" );
+  }
+  else if ( VERSION == "JS_1.4"  || gTestsuite == 'js1_4') {
+    version ( "140" );
+  }
+  else if ( VERSION == "JS_1.3"  || gTestsuite == 'js1_3') {
+    version ( "130" );
+  }
+  else if ( VERSION == "JS_1.2"  || gTestsuite == 'js1_2') {
+    version ( "120" );
+  }
+  else if ( VERSION  == "JS_1.1" || gTestsuite == 'js1_1') {
+    version ( "110" );
   }
 }
 
@@ -650,12 +683,11 @@ function optionsInit() {
 function optionsClear() {
        
   // turn off current settings
-  // except jit.
   var optionNames = options().split(',');
   for (var i = 0; i < optionNames.length; i++)
   {
     var optionName = optionNames[i];
-    if (optionName && optionName != "jit")
+    if (optionName)
     {
       options(optionName);
     }
@@ -830,18 +862,6 @@ function getFailedCases() {
     }
   }
 }
-
-var JSTest = {
-  waitForExplicitFinish: function () {
-    gDelayTestDriverEnd = true;
-  },
-
-  testFinished: function () {
-    gDelayTestDriverEnd = false;
-    jsTestDriverEnd();
-    quit();
-  }
-};
 
 function jsTestDriverEnd()
 {

@@ -46,8 +46,8 @@
 #include "nsStyleLinkElement.h"
 
 #include "nsIContent.h"
-#include "nsCSSLoader.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSLoader.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIDocument.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMNode.h"
@@ -77,13 +77,13 @@ nsStyleLinkElement::~nsStyleLinkElement()
 NS_IMETHODIMP 
 nsStyleLinkElement::SetStyleSheet(nsIStyleSheet* aStyleSheet)
 {
-  nsRefPtr<nsCSSStyleSheet> cssSheet = do_QueryObject(mStyleSheet);
+  nsCOMPtr<nsICSSStyleSheet> cssSheet = do_QueryInterface(mStyleSheet);
   if (cssSheet) {
     cssSheet->SetOwningNode(nsnull);
   }
 
   mStyleSheet = aStyleSheet;
-  cssSheet = do_QueryObject(mStyleSheet);
+  cssSheet = do_QueryInterface(mStyleSheet);
   if (cssSheet) {
     nsCOMPtr<nsIDOMNode> node;
     CallQueryInterface(this,
@@ -240,15 +240,24 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
 
   nsCOMPtr<nsIDocument> doc = thisContent->GetDocument();
 
-  if (!doc || !doc->CSSLoader()->GetEnabled()) {
+  if (!doc) {
+    return NS_OK;
+  }
+
+  PRBool enabled = PR_FALSE;
+  doc->CSSLoader()->GetEnabled(&enabled);
+  if (!enabled) {
     return NS_OK;
   }
 
   PRBool isInline;
+  
   nsCOMPtr<nsIURI> uri = GetStyleSheetURL(&isInline);
 
   if (!aForceUpdate && mStyleSheet && !isInline && uri) {
-    nsIURI* oldURI = mStyleSheet->GetSheetURI();
+    nsCOMPtr<nsIURI> oldURI;
+
+    mStyleSheet->GetSheetURI(getter_AddRefs(oldURI));
     if (oldURI) {
       PRBool equal;
       nsresult rv = oldURI->Equals(uri, &equal);

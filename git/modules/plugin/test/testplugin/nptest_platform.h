@@ -120,18 +120,4 @@ int32_t pluginGetClipRegionRectEdge(InstanceData* instanceData,
  */
 void pluginDoInternalConsistencyCheck(InstanceData* instanceData, std::string& error);
 
-/**
- * Get the current clipboard item as text.  If the clipboard item
- * isn't text, the returned value is undefined.
- */
-std::string pluginGetClipboardText(InstanceData* instanceData);
-
-/**
- * Crash while in a nested event loop.  The goal is to catch the
- * browser processing the XPCOM event generated from the plugin's
- * crash while other plugin code is still on the stack. 
- * See https://bugzilla.mozilla.org/show_bug.cgi?id=550026.
- */
-bool pluginCrashInNestedLoop(InstanceData* instanceData);
-
 #endif // nptest_platform_h_

@@ -202,10 +202,10 @@ function search(aFolderId, aSearchStr, aExpectedScopeButtonId) {
     // getFolders() on a History query returns an empty array, so no use
     // comparing against aFolderId in that case.
     if (aFolderId !== PlacesUIUtils.leftPaneQueries["History"]) {
-      // contentTree.place should be equal to contentTree.result.root.uri,
+      // contentTree.place should be equal to contentTree.getResult().root.uri,
       // but it's not until bug 476952 is fixed.
-      var query = queryStringToQuery(contentTree.result.root.uri);
-      is(query.getFolders()[0], aFolderId,
+      var query = queryStringToQuery(contentTree.getResult().root.uri);
+      is(query.getFolders({}, {})[0], aFolderId,
          "Content tree's folder should be what was selected in the left pane");
     }
   }
@@ -215,7 +215,7 @@ function search(aFolderId, aSearchStr, aExpectedScopeButtonId) {
   var searchBox = doc.getElementById("searchFilter");
   searchBox.value = aSearchStr;
   libraryWin.PlacesSearchBox.search(searchBox.value);
-  query = queryStringToQuery(contentTree.result.root.uri);
+  query = queryStringToQuery(contentTree.getResult().root.uri);
   if (aSearchStr) {
     is(query.searchTerms, aSearchStr,
        "Content tree's searchTerms should be text in search box");
@@ -300,16 +300,18 @@ function test() {
   var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
            getService(Ci.nsIWindowWatcher);
 
-  function windowObserver(aSubject, aTopic, aData) {
-    if (aTopic != "domwindowopened")
-      return;
-    ww.unregisterNotification(windowObserver);
-    var win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-    win.addEventListener("load", function onLoad(event) {
-      win.removeEventListener("load", onLoad, false);
-      executeSoon(function () testHelper(win));
-    }, false);
-  }
+  var windowObserver = {
+    observe: function(aSubject, aTopic, aData) {
+      if (aTopic === "domwindowopened") {
+        ww.unregisterNotification(this);
+        var win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+        win.addEventListener("load", function onLoad(event) {
+          win.removeEventListener("load", onLoad, false);
+          executeSoon(function () testHelper(win));
+        }, false);
+      }
+    }
+  };
 
   ww.registerNotification(windowObserver);
   ww.openWindow(null,

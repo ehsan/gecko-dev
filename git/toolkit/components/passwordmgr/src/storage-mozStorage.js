@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -40,15 +40,13 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cr = Components.results;
 
-const DB_VERSION = 4; // The database schema version
+const DB_VERSION = 3; // The database schema version
 
 const ENCTYPE_BASE64 = 0;
 const ENCTYPE_SDR = 1;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 function LoginManagerStorage_mozStorage() { };
 
@@ -59,18 +57,42 @@ LoginManagerStorage_mozStorage.prototype = {
     classID : Components.ID("{8c2023b9-175c-477e-9761-44ae7b549756}"),
     QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage]),
 
-    __crypto : null,  // nsILoginManagerCrypto service
-    get _crypto() {
-        if (!this.__crypto)
-            this.__crypto = Cc["@mozilla.org/login-manager/crypto/SDR;1"].
-                            getService(Ci.nsILoginManagerCrypto);
-        return this.__crypto;
+    __logService : null, // Console logging service, used for debugging.
+    get _logService() {
+        if (!this.__logService)
+            this.__logService = Cc["@mozilla.org/consoleservice;1"].
+                                getService(Ci.nsIConsoleService);
+        return this.__logService;
+    },
+
+    __decoderRing : null,  // nsSecretDecoderRing service
+    get _decoderRing() {
+        if (!this.__decoderRing)
+            this.__decoderRing = Cc["@mozilla.org/security/sdr;1"].
+                                 getService(Ci.nsISecretDecoderRing);
+        return this.__decoderRing;
+    },
+
+    __utfConverter : null, // UCS2 <--> UTF8 string conversion
+    get _utfConverter() {
+        if (!this.__utfConverter) {
+            this.__utfConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+                                  createInstance(Ci.nsIScriptableUnicodeConverter);
+            this.__utfConverter.charset = "UTF-8";
+        }
+        return this.__utfConverter;
+    },
+
+    _utfConverterReset : function() {
+        this.__utfConverter = null;
     },
 
     __profileDir: null,  // nsIFile for the user's profile dir
     get _profileDir() {
         if (!this.__profileDir)
-            this.__profileDir = Services.dirsvc.get("ProfD", Ci.nsIFile);
+            this.__profileDir = Cc["@mozilla.org/file/directory_service;1"].
+                                getService(Ci.nsIProperties).
+                                get("ProfD", Ci.nsIFile);
         return this.__profileDir;
     },
 
@@ -90,27 +112,30 @@ LoginManagerStorage_mozStorage.prototype = {
         return this.__uuidService;
     },
 
+    __observerService : null,
+    get _observerService() {
+        if (!this.__observerService)
+            this.__observerService = Cc["@mozilla.org/observer-service;1"].
+                                     getService(Ci.nsIObserverService);
+        return this.__observerService;
+    },
+
 
     // The current database schema.
     _dbSchema: {
         tables: {
-            moz_logins:         "id                  INTEGER PRIMARY KEY," +
-                                "hostname            TEXT NOT NULL,"       +
-                                "httpRealm           TEXT,"                +
-                                "formSubmitURL       TEXT,"                +
-                                "usernameField       TEXT NOT NULL,"       +
-                                "passwordField       TEXT NOT NULL,"       +
-                                "encryptedUsername   TEXT NOT NULL,"       +
-                                "encryptedPassword   TEXT NOT NULL,"       +
-                                "guid                TEXT,"                +
-                                "encType             INTEGER,"             +
-                                "timeCreated         INTEGER,"             +
-                                "timeLastUsed        INTEGER,"             +
-                                "timePasswordChanged INTEGER,"             +
-                                "timesUsed           INTEGER",
-            // Changes must be reflected in this._dbAreExpectedColumnsPresent(),
-            // this._searchLogins(), and this.modifyLogin().
-
+            moz_logins:         "id                 INTEGER PRIMARY KEY," +
+                                "hostname           TEXT NOT NULL,"       +
+                                "httpRealm          TEXT,"                +
+                                "formSubmitURL      TEXT,"                +
+                                "usernameField      TEXT NOT NULL,"       +
+                                "passwordField      TEXT NOT NULL,"       +
+                                "encryptedUsername  TEXT NOT NULL,"       +
+                                "encryptedPassword  TEXT NOT NULL,"       +
+                                "guid               TEXT,"                +
+                                "encType            INTEGER",
+            // Changes must be reflected in this._dbAreExpectedColumnsPresent
+            //                          and this._searchLogins
             moz_disabledHosts:  "id                 INTEGER PRIMARY KEY," +
                                 "hostname           TEXT UNIQUE ON CONFLICT REPLACE",
         },
@@ -156,7 +181,7 @@ LoginManagerStorage_mozStorage.prototype = {
         if (!this._debug)
             return;
         dump("PwMgr mozStorage: " + message + "\n");
-        Services.console.logStringMessage("PwMgr mozStorage: " + message);
+        this._logService.logStringMessage("PwMgr mozStorage: " + message);
     },
 
 
@@ -187,8 +212,23 @@ LoginManagerStorage_mozStorage.prototype = {
         this._dbStmts = [];
 
         // Connect to the correct preferences branch.
-        this._prefBranch = Services.prefs.getBranch("signon.");
+        this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                           getService(Ci.nsIPrefService);
+        this._prefBranch = this._prefBranch.getBranch("signon.");
+        this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
+
         this._debug = this._prefBranch.getBoolPref("debug");
+
+        // Check to see if the internal PKCS#11 token has been initialized.
+        // If not, set a blank password.
+        let tokenDB = Cc["@mozilla.org/security/pk11tokendb;1"].
+                      getService(Ci.nsIPK11TokenDB);
+
+        let token = tokenDB.getInternalKeyToken();
+        if (token.needsUserInit) {
+            this.log("Initializing key3.db with default blank password.");
+            token.initPassword("");
+        }
 
         let isFirstRun;
         try {
@@ -236,15 +276,19 @@ LoginManagerStorage_mozStorage.prototype = {
      * Private function wrapping core addLogin functionality.
      */
     _addLogin : function (login, isEncrypted) {
-        let encUsername, encPassword;
+        let userCanceled, encUsername, encPassword;
 
         // Throws if there are bogus values.
         this._checkLoginValues(login);
 
-        if (isEncrypted)
+        if (isEncrypted) {
             [encUsername, encPassword] = [login.username, login.password];
-        else
-            [encUsername, encPassword] = this._encryptLogin(login);
+        } else {
+            // Get the encrypted value of the username and password.
+            [encUsername, encPassword, userCanceled] = this._encryptLogin(login);
+            if (userCanceled)
+                throw "User canceled master password entry, login not added.";
+        }
 
         // Clone the login, so we don't modify the caller's object.
         let loginClone = login.clone();
@@ -264,42 +308,25 @@ LoginManagerStorage_mozStorage.prototype = {
             (encUsername.charAt(0) == '~' || encPassword.charAt(0) == '~'))
             encType = ENCTYPE_BASE64;
 
-        // Set timestamps
-        let currentTime = Date.now();
-        if (!loginClone.timeCreated)
-            loginClone.timeCreated = currentTime;
-        if (!loginClone.timeLastUsed)
-            loginClone.timeLastUsed = currentTime;
-        if (!loginClone.timePasswordChanged)
-            loginClone.timePasswordChanged = currentTime;
-        if (!loginClone.timesUsed)
-            loginClone.timesUsed = 1;
-
         let query =
             "INSERT INTO moz_logins " +
             "(hostname, httpRealm, formSubmitURL, usernameField, " +
              "passwordField, encryptedUsername, encryptedPassword, " +
-             "guid, encType, timeCreated, timeLastUsed, timePasswordChanged, " +
-             "timesUsed) " +
+             "guid, encType) " +
             "VALUES (:hostname, :httpRealm, :formSubmitURL, :usernameField, " +
                     ":passwordField, :encryptedUsername, :encryptedPassword, " +
-                    ":guid, :encType, :timeCreated, :timeLastUsed, " +
-                    ":timePasswordChanged, :timesUsed)";
+                    ":guid, :encType)";
 
         let params = {
-            hostname:            loginClone.hostname,
-            httpRealm:           loginClone.httpRealm,
-            formSubmitURL:       loginClone.formSubmitURL,
-            usernameField:       loginClone.usernameField,
-            passwordField:       loginClone.passwordField,
-            encryptedUsername:   encUsername,
-            encryptedPassword:   encPassword,
-            guid:                loginClone.guid,
-            encType:             encType,
-            timeCreated:         loginClone.timeCreated,
-            timeLastUsed:        loginClone.timeLastUsed,
-            timePasswordChanged: loginClone.timePasswordChanged,
-            timesUsed:           loginClone.timesUsed
+            hostname:          loginClone.hostname,
+            httpRealm:         loginClone.httpRealm,
+            formSubmitURL:     loginClone.formSubmitURL,
+            usernameField:     loginClone.usernameField,
+            passwordField:     loginClone.passwordField,
+            encryptedUsername: encUsername,
+            encryptedPassword: encPassword,
+            guid:              loginClone.guid,
+            encType:           encType
         };
 
         let stmt;
@@ -366,32 +393,10 @@ LoginManagerStorage_mozStorage.prototype = {
                           newLoginData.username, newLoginData.password,
                           newLoginData.usernameField, newLoginData.passwordField);
             newLogin.QueryInterface(Ci.nsILoginMetaInfo);
-
-            // Automatically update metainfo when password is changed.
-            if (newLogin.password != oldLogin.password)
-                newLogin.timePasswordChanged = Date.now();
         } else if (newLoginData instanceof Ci.nsIPropertyBag) {
-            function _bagHasProperty(aPropName) {
-                try {
-                    newLoginData.getProperty(aPropName);
-                    return true;
-                } catch (e) {
-                    return false;
-                }
-            }
-
             // Clone the existing login, along with all its properties.
             newLogin = oldStoredLogin.clone();
             newLogin.QueryInterface(Ci.nsILoginMetaInfo);
-
-            // Automatically update metainfo when password is changed.
-            // (Done before the main property updates, lest the caller be
-            // explicitly updating both .password and .timePasswordChanged)
-            if (_bagHasProperty("password")) {
-                let newPassword = newLoginData.getProperty("password");
-                if (newPassword != oldLogin.password)
-                    newLogin.timePasswordChanged = Date.now();
-            }
 
             let propEnum = newLoginData.enumerator;
             while (propEnum.hasMoreElements()) {
@@ -405,20 +410,14 @@ LoginManagerStorage_mozStorage.prototype = {
                     case "password":
                     case "usernameField":
                     case "passwordField":
-                    // nsILoginMetaInfo properties...
-                    case "guid":
-                    case "timeCreated":
-                    case "timeLastUsed":
-                    case "timePasswordChanged":
-                    case "timesUsed":
                         newLogin[prop.name] = prop.value;
-                        if (prop.name == "guid" && !this._isGuidUnique(newLogin.guid))
-                            throw "specified GUID already exists";
                         break;
 
-                    // Fake property, allows easy incrementing.
-                    case "timesUsedIncrement":
-                        newLogin.timesUsed += prop.value;
+                    // nsILoginMetaInfo properties...
+                    case "guid":
+                        newLogin.guid = prop.value;
+                        if (!this._isGuidUnique(newLogin.guid))
+                            throw "specified GUID already exists";
                         break;
 
                     // Fail if caller requests setting an unknown property.
@@ -434,7 +433,9 @@ LoginManagerStorage_mozStorage.prototype = {
         this._checkLoginValues(newLogin);
 
         // Get the encrypted value of the username and password.
-        let [encUsername, encPassword] = this._encryptLogin(newLogin);
+        let [encUsername, encPassword, userCanceled] = this._encryptLogin(newLogin);
+        if (userCanceled)
+            throw "User canceled master password entry, login not modified.";
 
         let query =
             "UPDATE moz_logins " +
@@ -446,28 +447,20 @@ LoginManagerStorage_mozStorage.prototype = {
                 "encryptedUsername = :encryptedUsername, " +
                 "encryptedPassword = :encryptedPassword, " +
                 "guid = :guid, " +
-                "encType = :encType, " +
-                "timeCreated = :timeCreated, " +
-                "timeLastUsed = :timeLastUsed, " +
-                "timePasswordChanged = :timePasswordChanged, " +
-                "timesUsed = :timesUsed " +
+                "encType = :encType " +
             "WHERE id = :id";
 
         let params = {
-            id:                  idToModify,
-            hostname:            newLogin.hostname,
-            httpRealm:           newLogin.httpRealm,
-            formSubmitURL:       newLogin.formSubmitURL,
-            usernameField:       newLogin.usernameField,
-            passwordField:       newLogin.passwordField,
-            encryptedUsername:   encUsername,
-            encryptedPassword:   encPassword,
-            guid:                newLogin.guid,
-            encType:             ENCTYPE_SDR,
-            timeCreated:         newLogin.timeCreated,
-            timeLastUsed:        newLogin.timeLastUsed,
-            timePasswordChanged: newLogin.timePasswordChanged,
-            timesUsed:           newLogin.timesUsed
+            id:                idToModify,
+            hostname:          newLogin.hostname,
+            httpRealm:         newLogin.httpRealm,
+            formSubmitURL:     newLogin.formSubmitURL,
+            usernameField:     newLogin.usernameField,
+            passwordField:     newLogin.passwordField,
+            encryptedUsername: encUsername,
+            encryptedPassword: encPassword,
+            guid:              newLogin.guid,
+            encType:           ENCTYPE_SDR
         };
 
         let stmt;
@@ -491,14 +484,17 @@ LoginManagerStorage_mozStorage.prototype = {
      * Returns an array of nsILoginInfo.
      */
     getAllLogins : function (count) {
+        let userCanceled;
         let [logins, ids] = this._searchLogins({});
 
         // decrypt entries for caller.
-        logins = this._decryptLogins(logins);
+        [logins, userCanceled] = this._decryptLogins(logins);
+
+        if (userCanceled)
+            throw "User canceled Master Password entry";
 
         this.log("_getAllLogins: returning " + logins.length + " logins.");
-        if (count)
-            count.value = logins.length; // needed for XPCOM
+        count.value = logins.length; // needed for XPCOM
         return logins;
     },
 
@@ -512,7 +508,7 @@ LoginManagerStorage_mozStorage.prototype = {
      * obtained with SQL and the mozStorage APIs.
      */
     getAllEncryptedLogins : function (count) {
-        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
     },
 
 
@@ -535,8 +531,12 @@ LoginManagerStorage_mozStorage.prototype = {
 
         let [logins, ids] = this._searchLogins(realMatchData);
 
+        let userCanceled;
         // Decrypt entries found for the caller.
-        logins = this._decryptLogins(logins);
+        [logins, userCanceled] = this._decryptLogins(logins);
+
+        if (userCanceled)
+        throw "User canceled Master Password entry";
 
         count.value = logins.length; // needed for XPCOM
         return logins;
@@ -576,10 +576,6 @@ LoginManagerStorage_mozStorage.prototype = {
                 case "encryptedPassword":
                 case "guid":
                 case "encType":
-                case "timeCreated":
-                case "timeLastUsed":
-                case "timePasswordChanged":
-                case "timesUsed":
                     if (value == null) {
                         conditions.push(field + " isnull");
                     } else {
@@ -616,10 +612,6 @@ LoginManagerStorage_mozStorage.prototype = {
                 // set nsILoginMetaInfo values
                 login.QueryInterface(Ci.nsILoginMetaInfo);
                 login.guid = stmt.row.guid;
-                login.timeCreated = stmt.row.timeCreated;
-                login.timeLastUsed = stmt.row.timeLastUsed;
-                login.timePasswordChanged = stmt.row.timePasswordChanged;
-                login.timesUsed = stmt.row.timesUsed;
                 logins.push(login);
                 ids.push(stmt.row.id);
             }
@@ -669,8 +661,7 @@ LoginManagerStorage_mozStorage.prototype = {
         let disabledHosts = this._queryDisabledHosts(null);
 
         this.log("_getAllDisabledHosts: returning " + disabledHosts.length + " disabled hosts.");
-        if (count)
-            count.value = disabledHosts.length; // needed for XPCOM
+        count.value = disabledHosts.length; // needed for XPCOM
         return disabledHosts;
     },
 
@@ -723,6 +714,7 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     findLogins : function (count, hostname, formSubmitURL, httpRealm) {
+        let userCanceled;
         let loginData = {
             hostname: hostname,
             formSubmitURL: formSubmitURL,
@@ -735,7 +727,13 @@ LoginManagerStorage_mozStorage.prototype = {
         let [logins, ids] = this._searchLogins(matchData);
 
         // Decrypt entries found for the caller.
-        logins = this._decryptLogins(logins);
+        [logins, userCanceled] = this._decryptLogins(logins);
+
+        // We want to throw in this case, so that the Login Manager
+        // knows to stop processing forms on the page so the user isn't
+        // prompted multiple times.
+        if (userCanceled)
+            throw "User canceled Master Password entry";
 
         this.log("_findLogins: returning " + logins.length + " logins");
         count.value = logins.length; // needed for XPCOM
@@ -792,7 +790,7 @@ LoginManagerStorage_mozStorage.prototype = {
                          createInstance(Ci.nsISupportsString);
             dataObject.data = data;
         }
-        Services.obs.notifyObservers(dataObject, "passwordmgr-storage-changed", changeType);
+        this._observerService.notifyObservers(dataObject, "passwordmgr-storage-changed", changeType);
     },
 
 
@@ -818,7 +816,11 @@ LoginManagerStorage_mozStorage.prototype = {
         // at a time, lest _decryptLogins return fewer entries and screw up
         // indices between the two.
         for (let i = 0; i < logins.length; i++) {
-            let [decryptedLogin] = this._decryptLogins([logins[i]]);
+            let [[decryptedLogin], userCanceled] =
+                        this._decryptLogins([logins[i]]);
+
+            if (userCanceled)
+                throw "User canceled master password entry.";
 
             if (!decryptedLogin || !decryptedLogin.equals(login))
                 continue;
@@ -1009,7 +1011,7 @@ LoginManagerStorage_mozStorage.prototype = {
                 legacy.init();
 
             // Import logins and disabledHosts
-            let logins = legacy.getAllEncryptedLogins();
+            let logins = legacy.getAllEncryptedLogins({});
 
             // Wrap in a transaction for better performance.
             this._dbConnection.beginTransaction();
@@ -1020,7 +1022,7 @@ LoginManagerStorage_mozStorage.prototype = {
                     this.log("_importLegacySignons failed to add login: " + e);
                 }
             }
-            let disabledHosts = legacy.getAllDisabledHosts();
+            let disabledHosts = legacy.getAllDisabledHosts({});
             for each (let hostname in disabledHosts)
                 this.setLoginSavingEnabled(hostname, false);
             this._dbConnection.commitTransaction();
@@ -1066,13 +1068,20 @@ LoginManagerStorage_mozStorage.prototype = {
      * (in which case no encrypted values are returned).
      */
     _encryptLogin : function (login) {
-        let encUsername = this._crypto.encrypt(login.username);
-        let encPassword = this._crypto.encrypt(login.password);
+        let encUsername, encPassword, userCanceled;
+        [encUsername, userCanceled] = this._encrypt(login.username);
+        if (userCanceled)
+            return [null, null, true];
+
+        [encPassword, userCanceled] = this._encrypt(login.password);
+        // Probably can't hit this case, but for completeness...
+        if (userCanceled)
+            return [null, null, true];
 
         if (!this._base64checked)
             this._reencryptBase64Logins();
 
-        return [encUsername, encPassword];
+        return [encUsername, encPassword, false];
     },
 
 
@@ -1090,26 +1099,37 @@ LoginManagerStorage_mozStorage.prototype = {
      * instead of entering their master password)
      */
     _decryptLogins : function (logins) {
-        let result = [];
+        let result = [], userCanceled = false;
 
         for each (let login in logins) {
-            try {
-                login.username = this._crypto.decrypt(login.username);
-                login.password = this._crypto.decrypt(login.password);
-            } catch (e) {
-                // If decryption failed (corrupt entry?), just skip it.
-                // Rethrow other errors (like canceling entry of a master pw)
-                if (e.result == Cr.NS_ERROR_FAILURE)
-                    continue;
-                throw e;
-            }
+            let decryptedUsername, decryptedPassword;
+
+            [decryptedUsername, userCanceled] = this._decrypt(login.username);
+
+            if (userCanceled)
+                break;
+
+            [decryptedPassword, userCanceled] = this._decrypt(login.password);
+
+            // Probably can't hit this case, but for completeness...
+            if (userCanceled)
+                break;
+
+            // If decryption failed (corrupt entry?) skip it.
+            // Note that we allow password-only logins, so username can be "".
+            if (decryptedUsername == null || !decryptedPassword)
+                continue;
+
+            login.username = decryptedUsername;
+            login.password = decryptedPassword;
+
             result.push(login);
         }
 
-        if (!this._base64checked)
+        if (!this._base64checked && !userCanceled)
             this._reencryptBase64Logins();
 
-        return result;
+        return [result, userCanceled];
     },
 
 
@@ -1134,17 +1154,16 @@ LoginManagerStorage_mozStorage.prototype = {
             if (!logins.length)
                 return;
 
-            try {
-                logins = this._decryptLogins(logins);
-            } catch (e) {
-                // User might have canceled master password entry, just ignore.
+            let userCancelled;
+            [logins, userCanceled] = this._decryptLogins(logins);
+            if (userCanceled)
                 return;
-            }
 
             let encUsername, encPassword, stmt;
             for each (let login in logins) {
-                [encUsername, encPassword] = this._encryptLogin(login);
-
+                [encUsername, encPassword, userCanceled] = this._encryptLogin(login);
+                if (userCanceled)
+                    throw "User canceled master password entry, login not modified.";
                 let query =
                     "UPDATE moz_logins " +
                     "SET encryptedUsername = :encryptedUsername, " +
@@ -1172,6 +1191,86 @@ LoginManagerStorage_mozStorage.prototype = {
         } finally {
             this._dbConnection.commitTransaction();
         }
+    },
+
+
+    /*
+     * _encrypt
+     *
+     * Encrypts the specified string, using the SecretDecoderRing.
+     *
+     * Returns [cipherText, userCanceled] where:
+     *  cipherText   -- the encrypted string, or null if it failed.
+     *  userCanceled -- if the encryption failed, this is true if the
+     *                  user selected Cancel when prompted to enter their
+     *                  Master Password. The caller should bail out, and not
+     *                  not request that more things be encrypted (which
+     *                  results in prompting the user for a Master Password
+     *                  over and over.)
+     */
+    _encrypt : function (plainText) {
+        let cipherText = null, userCanceled = false;
+
+        try {
+            let plainOctet = this._utfConverter.ConvertFromUnicode(plainText);
+            plainOctet += this._utfConverter.Finish();
+            cipherText = this._decoderRing.encryptString(plainOctet);
+        } catch (e) {
+            this.log("Failed to encrypt string. (" + e.name + ")");
+            // If the user clicks Cancel, we get NS_ERROR_FAILURE.
+            // (unlike decrypting, which gets NS_ERROR_NOT_AVAILABLE).
+            if (e.result == Components.results.NS_ERROR_FAILURE)
+                userCanceled = true;
+        }
+
+        return [cipherText, userCanceled];
+    },
+
+
+    /*
+     * _decrypt
+     *
+     * Decrypts the specified string, using the SecretDecoderRing.
+     *
+     * Returns [plainText, userCanceled] where:
+     *  plainText    -- the decrypted string, or null if it failed.
+     *  userCanceled -- if the decryption failed, this is true if the
+     *                  user selected Cancel when prompted to enter their
+     *                  Master Password. The caller should bail out, and not
+     *                  not request that more things be decrypted (which
+     *                  results in prompting the user for a Master Password
+     *                  over and over.)
+     */
+    _decrypt : function (cipherText) {
+        let plainText = null, userCanceled = false;
+
+        try {
+            let plainOctet;
+            if (cipherText.charAt(0) == '~') {
+                // The old Wallet file format obscured entries by
+                // base64-encoding them. These entries are signaled by a
+                // leading '~' character.
+                plainOctet = atob(cipherText.substring(1));
+            } else {
+                plainOctet = this._decoderRing.decryptString(cipherText);
+            }
+            plainText = this._utfConverter.ConvertToUnicode(plainOctet);
+        } catch (e) {
+            this.log("Failed to decrypt string: " + cipherText +
+                " (" + e.name + ")");
+
+            // In the unlikely event the converter threw, reset it.
+            this._utfConverterReset();
+
+            // If the user clicks Cancel, we get NS_ERROR_NOT_AVAILABLE.
+            // If the cipherText is bad / wrong key, we get NS_ERROR_FAILURE
+            // Wrong passwords are handled by the decoderRing reprompting;
+            // we get no notification.
+            if (e.result == Components.results.NS_ERROR_NOT_AVAILABLE)
+                userCanceled = true;
+        }
+
+        return [plainText, userCanceled];
     },
 
 
@@ -1222,7 +1321,7 @@ LoginManagerStorage_mozStorage.prototype = {
             } else if (version != DB_VERSION) {
                 this._dbMigrate(version);
             }
-        } catch (e if e.result == Cr.NS_ERROR_FILE_CORRUPTED) {
+        } catch (e if e.result == Components.results.NS_ERROR_FILE_CORRUPTED) {
             // Database is corrupted, so we backup the database, then throw
             // causing initialization to fail and a new db to be created next use
             this._dbCleanup(true);
@@ -1276,7 +1375,7 @@ LoginManagerStorage_mozStorage.prototype = {
 
             if (!this._dbAreExpectedColumnsPresent())
                 throw Components.Exception("DB is missing expected columns",
-                                           Cr.NS_ERROR_FILE_CORRUPTED);
+                                           Components.results.NS_ERROR_FILE_CORRUPTED);
 
             // Change the stored version to the current version. If the user
             // runs the newer code again, it will see the lower version number
@@ -1313,14 +1412,25 @@ LoginManagerStorage_mozStorage.prototype = {
      * Version 2 adds a GUID column. Existing logins are assigned a random GUID.
      */
     _dbMigrateToVersion2 : function () {
-        // Check to see if GUID column already exists, add if needed
-        let query;
-        if (!this._dbColumnExists("guid")) {
-            query = "ALTER TABLE moz_logins ADD COLUMN guid TEXT";
-            this._dbConnection.executeSimpleSQL(query);
+        // Check to see if GUID column already exists.
+        let exists = true;
+        try { 
+            let stmt = this._dbConnection.createStatement(
+                           "SELECT guid FROM moz_logins");
+            // (no need to execute statement, if it compiled we're good)
+            stmt.finalize();
+        } catch (e) {
+            exists = false;
+        }
 
-            query = "CREATE INDEX IF NOT EXISTS moz_logins_guid_index ON moz_logins (guid)";
-            this._dbConnection.executeSimpleSQL(query);
+        // Add the new column and index only if needed.
+        if (!exists) {
+            this._dbConnection.executeSimpleSQL(
+                "ALTER TABLE moz_logins ADD COLUMN guid TEXT");
+
+            this._dbConnection.executeSimpleSQL(
+                "CREATE INDEX IF NOT EXISTS " +
+                    "moz_logins_guid_index ON moz_logins (guid)");
         }
 
         // Get a list of IDs for existing logins
@@ -1365,9 +1475,20 @@ LoginManagerStorage_mozStorage.prototype = {
      * Version 3 adds a encType column.
      */
     _dbMigrateToVersion3 : function () {
-        // Check to see if encType column already exists, add if needed
-        let query;
-        if (!this._dbColumnExists("encType")) {
+        // Check to see if encType column already exists.
+        let exists = true;
+        let query = "SELECT encType FROM moz_logins";
+        let stmt;
+        try { 
+            stmt = this._dbConnection.createStatement(query);
+            // (no need to execute statement, if it compiled we're good)
+            stmt.finalize();
+        } catch (e) {
+            exists = false;
+        }
+
+        // Add the new column and index only if needed.
+        if (!exists) {
             query = "ALTER TABLE moz_logins ADD COLUMN encType INTEGER";
             this._dbConnection.executeSimpleSQL(query);
 
@@ -1416,59 +1537,6 @@ LoginManagerStorage_mozStorage.prototype = {
 
 
     /*
-     * _dbMigrateToVersion4
-     *
-     * Version 4 adds timeCreated, timeLastUsed, timePasswordChanged,
-     * and timesUsed columns
-     */
-    _dbMigrateToVersion4 : function () {
-        let query;
-        // Add the new columns, if needed.
-        for each (let column in ["timeCreated", "timeLastUsed", "timePasswordChanged", "timesUsed"]) {
-            if (!this._dbColumnExists(column)) {
-                query = "ALTER TABLE moz_logins ADD COLUMN " + column + " INTEGER";
-                this._dbConnection.executeSimpleSQL(query);
-            }
-        }
-
-        // Get a list of IDs for existing logins.
-        let ids = [];
-        query = "SELECT id FROM moz_logins WHERE timeCreated isnull OR " +
-                "timeLastUsed isnull OR timePasswordChanged isnull OR timesUsed isnull";
-        try {
-            stmt = this._dbCreateStatement(query);
-            while (stmt.executeStep())
-                ids.push(stmt.row.id);
-        } catch (e) {
-            this.log("Failed getting IDs: " + e);
-            throw e;
-        } finally {
-            stmt.reset();
-        }
-
-        // Initialize logins with current time.
-        query = "UPDATE moz_logins SET timeCreated = :initTime, timeLastUsed = :initTime, " +
-                "timePasswordChanged = :initTime, timesUsed = 1 WHERE id = :id";
-        let params = {
-            id:       null,
-            initTime: Date.now()
-        };
-        for each (let id in ids) {
-            params.id = id;
-            try {
-                stmt = this._dbCreateStatement(query, params);
-                stmt.execute();
-            } catch (e) {
-                this.log("Failed setting timestamps: " + e);
-                throw e;
-            } finally {
-                stmt.reset();
-            }
-        }
-    },
-
-
-    /*
      * _dbAreExpectedColumnsPresent
      *
      * Sanity check to ensure that the columns this version of the code expects
@@ -1485,11 +1553,7 @@ LoginManagerStorage_mozStorage.prototype = {
                        "encryptedUsername, " +
                        "encryptedPassword, " +
                        "guid, " +
-                       "encType, " +
-                       "timeCreated, " +
-                       "timeLastUsed, " +
-                       "timePasswordChanged, " +
-                       "timesUsed " +
+                       "encType " +
                     "FROM moz_logins";
         try { 
             let stmt = this._dbConnection.createStatement(query);
@@ -1513,24 +1577,6 @@ LoginManagerStorage_mozStorage.prototype = {
 
         this.log("verified that expected columns are present in DB.");
         return true;
-    },
-
-
-    /*
-     * _dbColumnExists
-     *
-     * Checks to see if the named column already exists.
-     */
-    _dbColumnExists : function (columnName) {
-        let query = "SELECT " + columnName + " FROM moz_logins";
-        try {
-            let stmt = this._dbConnection.createStatement(query);
-            // (no need to execute statement, if it compiled we're good)
-            stmt.finalize();
-            return true;
-        } catch (e) {
-            return false;
-        }
     },
 
 

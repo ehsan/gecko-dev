@@ -72,10 +72,9 @@ typedef enum JSVersion {
     JSVERSION_1_6     = 160,
     JSVERSION_1_7     = 170,
     JSVERSION_1_8     = 180,
-    JSVERSION_ECMA_5  = 185,
     JSVERSION_DEFAULT = 0,
     JSVERSION_UNKNOWN = -1,
-    JSVERSION_LATEST  = JSVERSION_ECMA_5
+    JSVERSION_LATEST  = JSVERSION_1_8
 } JSVersion;
 
 #define JSVERSION_IS_ECMA(version) \
@@ -261,12 +260,6 @@ typedef JSBool
 (* JSConvertOp)(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
 /*
- * Delegate typeof to an object so it can cloak a primitive or another object.
- */
-typedef JSType
-(* JSTypeOfOp)(JSContext *cx, JSObject *obj);
-
-/*
  * Finalize obj, which the garbage collector has determined to be unreachable
  * from other live objects or from GC roots.  Obviously, finalizers must never
  * store a reference to obj.
@@ -381,7 +374,7 @@ extern JSMarkOp js_WrongTypeForClassTracer;
 #endif
 
 /*
- * Tracer callback, called for each traceable thing directly referenced by a
+ * Tracer callback, called for each traceable thing directly refrenced by a
  * particular object or runtime structure. It is the callback responsibility
  * to ensure the traversal of the full object graph via calling eventually
  * JS_TraceChildren on the passed thing. In this case the callback must be
@@ -399,8 +392,10 @@ typedef void
  * DEBUG only callback that JSTraceOp implementation can provide to return
  * a string describing the reference traced with JS_CallTracer.
  */
+#ifdef DEBUG
 typedef void
 (* JSTraceNamePrinter)(JSTracer *trc, char *buf, size_t bufsize);
+#endif
 
 /*
  * The optional JSClass.reserveSlots hook allows a class to make computed
@@ -583,13 +578,6 @@ typedef JSBool
  */
 typedef JSPrincipals *
 (* JSObjectPrincipalsFinder)(JSContext *cx, JSObject *obj);
-
-/*
- * Used to check if a CSP instance wants to disable eval() and friends.
- * See js_CheckCSPPermitsJSAction() in jsobj.
- */
-typedef JSBool
-(* JSCSPEvalChecker)(JSContext *cx);
 
 JS_END_EXTERN_C
 

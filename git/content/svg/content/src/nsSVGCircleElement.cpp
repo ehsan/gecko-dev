@@ -92,12 +92,10 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Circle)
 NS_IMPL_ADDREF_INHERITED(nsSVGCircleElement,nsSVGCircleElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGCircleElement,nsSVGCircleElementBase)
 
-DOMCI_DATA(SVGCircleElement, nsSVGCircleElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGCircleElement)
   NS_NODE_INTERFACE_TABLE4(nsSVGCircleElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGCircleElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGCircleElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGCircleElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGCircleElementBase)
 
 //----------------------------------------------------------------------

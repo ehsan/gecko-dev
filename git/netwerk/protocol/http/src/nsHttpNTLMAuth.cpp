@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Darin Fisher <darin@meer.net>
- *   Jim Mathies <jmathies@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -55,7 +54,6 @@
 
 static const char kAllowProxies[] = "network.automatic-ntlm-auth.allow-proxies";
 static const char kTrustedURIs[]  = "network.automatic-ntlm-auth.trusted-uris";
-static const char kForceGeneric[] = "network.auth.force-generic-ntlm";
 
 // XXX MatchesBaseURI and TestPref are duplicated in nsHttpNegotiateAuth.cpp,
 // but since that file lives in a separate library we cannot directly share it.
@@ -171,48 +169,37 @@ TestPref(nsIURI *uri, const char *pref)
     return PR_FALSE;
 }
 
-// Check to see if we should use our generic (internal) NTLM auth module.
 static PRBool
-ForceGenericNTLM()
+CanUseSysNTLM(nsIHttpChannel *channel, PRBool isProxyAuth)
 {
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (!prefs)
-        return PR_FALSE;
-    PRBool flag = PR_FALSE;
+    // check prefs
 
-    if (NS_FAILED(prefs->GetBoolPref(kForceGeneric, &flag)))
-        flag = PR_FALSE;
-
-    LOG(("Force use of generic ntlm auth module: %d\n", flag));
-    return flag;
-}
-
-// Check to see if we should use default credentials for this host or proxy.
-static PRBool
-CanUseDefaultCredentials(nsIHttpChannel *channel, PRBool isProxyAuth)
-{
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
         return PR_FALSE;
 
+    PRBool val;
     if (isProxyAuth) {
-        PRBool val;
         if (NS_FAILED(prefs->GetBoolPref(kAllowProxies, &val)))
             val = PR_FALSE;
-        LOG(("Default credentials allowed for proxy: %d\n", val));
+        LOG(("sys-ntlm allowed for proxy: %d\n", val));
         return val;
     }
+    else {
+        nsCOMPtr<nsIURI> uri;
+        channel->GetURI(getter_AddRefs(uri));
+        if (uri && TestPref(uri, kTrustedURIs)) {
+            LOG(("sys-ntlm allowed for host\n"));
+            return PR_TRUE;
+        }
+    }
 
-    nsCOMPtr<nsIURI> uri;
-    channel->GetURI(getter_AddRefs(uri));
-    PRBool isTrustedHost = (uri && TestPref(uri, kTrustedURIs));
-    LOG(("Default credentials allowed for host: %d\n", isTrustedHost));
-    return isTrustedHost;
+    return PR_FALSE;
 }
 
 // Dummy class for session state object.  This class doesn't hold any data.
-// Instead we use its existence as a flag.  See ChallengeReceived.
-class nsNTLMSessionState : public nsISupports
+// Instead we use its existance as a flag.  See ChallengeReceived.
+class nsNTLMSessionState : public nsISupports 
 {
 public:
     NS_DECL_ISUPPORTS
@@ -234,58 +221,40 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpChannel *channel,
     LOG(("nsHttpNTLMAuth::ChallengeReceived [ss=%p cs=%p]\n",
          *sessionState, *continuationState));
 
-    // NOTE: we don't define any session state, but we do use the pointer.
+    // NOTE: we don't define any session state
 
     *identityInvalid = PR_FALSE;
-
-    // Start a new auth sequence if the challenge is exactly "NTLM".
-    // If native NTLM auth apis are available and enabled through prefs,
-    // try to use them.
+    // start new auth sequence if challenge is exactly "NTLM"
     if (PL_strcasecmp(challenge, "NTLM") == 0) {
         nsCOMPtr<nsISupports> module;
+        //
+        // our session state is non-null to indicate that we've flagged
+        // this auth domain as not accepting the system's default login.
+        //
+        PRBool trySysNTLM = (*sessionState == nsnull);
 
-        // Check to see if we should default to our generic NTLM auth module
-        // through UseGenericNTLM. (We use native auth by default if the
-        // system provides it.) If *sessionState is non-null, we failed to
-        // instantiate a native NTLM module the last time, so skip trying again.
-        PRBool forceGeneric = ForceGenericNTLM();
-        if (!forceGeneric && !*sessionState) {
-            // Check for approved default credentials hosts and proxies. If 
-            // *continuationState is non-null, the last authentication attempt
-            // failed so skip default credential use.
-            if (!*continuationState && CanUseDefaultCredentials(channel, isProxyAuth)) {
-                // Try logging in with the user's default credentials. If
-                // successful, |identityInvalid| is false, which will trigger
-                // a default credentials attempt once we return.
-                module = do_CreateInstance(NS_AUTH_MODULE_CONTRACTID_PREFIX "sys-ntlm");
-            }
-#ifdef XP_WIN
-            else {
-                // Try to use native NTLM and prompt the user for their domain,
-                // username, and password. (only supported by windows nsAuthSSPI module.)
-                // Note, for servers that use LMv1 a weak hash of the user's password
-                // will be sent. We rely on windows internal apis to decide whether
-                // we should support this older, less secure version of the protocol.
-                module = do_CreateInstance(NS_AUTH_MODULE_CONTRACTID_PREFIX "sys-ntlm");
-                *identityInvalid = PR_TRUE;
-            }
-#endif // XP_WIN
+        //
+        // we may have access to a built-in SSPI library,
+        // which could be used to authenticate the user without prompting.
+        // 
+        // if the continuationState is null, then we may want to try using
+        // the SSPI NTLM module.  however, we need to take care to only use
+        // that module when speaking to a trusted host.  because the SSPI
+        // may send a weak LMv1 hash of the user's password, we cannot just
+        // send it to any server.
+        //
+        if (trySysNTLM && !*continuationState && CanUseSysNTLM(channel, isProxyAuth)) {
+            module = do_CreateInstance(NS_AUTH_MODULE_CONTRACTID_PREFIX "sys-ntlm");
 #ifdef PR_LOGGING
             if (!module)
-                LOG(("Native sys-ntlm auth module not found.\n"));
+                LOG(("failed to load sys-ntlm module\n"));
 #endif
         }
 
-#ifdef XP_WIN
-        // On windows, never fall back unless the user has specifically requested so.
-        if (!forceGeneric && !module)
-            return NS_ERROR_UNEXPECTED;
-#endif
-
-        // If no native support was available. Fall back on our internal NTLM implementation.
+        // it's possible that there is no ntlm-sspi auth module...
         if (!module) {
             if (!*sessionState) {
-                // Remember the fact that we cannot use the "sys-ntlm" module,
+                // remember the fact that we cannot use the "sys-ntlm" module,
                 // so we don't ever bother trying again for this auth domain.
                 *sessionState = new nsNTLMSessionState();
                 if (!*sessionState)
@@ -293,23 +262,18 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpChannel *channel,
                 NS_ADDREF(*sessionState);
             }
 
-            // Use our internal NTLM implementation. Note, this is less secure,
-            // see bug 520607 for details.
-            LOG(("Trying to fall back on internal ntlm auth.\n"));
             module = do_CreateInstance(NS_AUTH_MODULE_CONTRACTID_PREFIX "ntlm");
 
-            // Prompt user for domain, username, and password.
+            // prompt user for domain, username, and password...
             *identityInvalid = PR_TRUE;
         }
 
-        // If this fails, then it means that we cannot do NTLM auth.
-        if (!module) {
-            LOG(("No ntlm auth modules available.\n"));
+        // if this fails, then it means that we cannot do NTLM auth.
+        if (!module)
             return NS_ERROR_UNEXPECTED;
-        }
 
-        // A non-null continuation state implies that we failed to authenticate.
-        // Blow away the old authentication state, and use the new one.
+        // non-null continuation state implies that we failed to authenticate.
+        // blow away the old authentication state, and use the new one.
         module.swap(*continuationState);
     }
     return NS_OK;
@@ -324,21 +288,12 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpChannel  *httpChannel,
                                     const PRUnichar *pass,
                                     nsISupports    **sessionState,
                                     nsISupports    **continuationState,
-                                    PRUint32       *aFlags,
                                     char           **creds)
 
 {
     LOG(("nsHttpNTLMAuth::GenerateCredentials\n"));
 
     *creds = nsnull;
-    *aFlags = 0;
-
-    // if user or password is empty, ChallengeReceived returned
-    // identityInvalid = PR_FALSE, that means we are using default user
-    // credentials; see  nsAuthSSPI::Init method for explanation of this 
-    // condition
-    if (!user || !pass)
-        *aFlags = USING_INTERNAL_IDENTITY;
 
     nsresult rv;
     nsCOMPtr<nsIAuthModule> module = do_QueryInterface(*continuationState, &rv);
@@ -349,19 +304,8 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpChannel  *httpChannel,
 
     // initial challenge
     if (PL_strcasecmp(challenge, "NTLM") == 0) {
-        // NTLM service name format is 'HTTP@host' for both http and https
-        nsCOMPtr<nsIURI> uri;
-        rv = httpChannel->GetURI(getter_AddRefs(uri));
-        if (NS_FAILED(rv))
-            return rv;
-        nsCAutoString serviceName, host;
-        rv = uri->GetAsciiHost(host);
-        if (NS_FAILED(rv))
-            return rv;
-        serviceName.AppendLiteral("HTTP@");
-        serviceName.Append(host);
         // initialize auth module
-        rv = module->Init(serviceName.get(), nsIAuthModule::REQ_DEFAULT, domain, user, pass);
+        rv = module->Init(nsnull, nsIAuthModule::REQ_DEFAULT, domain, user, pass);
         if (NS_FAILED(rv))
             return rv;
 
@@ -377,15 +321,15 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpChannel  *httpChannel,
         challenge += 5;
         len -= 5;
 
-        // strip off any padding (see bug 230351)
-        while (challenge[len - 1] == '=')
-          len--;
-
         // decode into the input secbuffer
         inBufLen = (len * 3)/4;      // sufficient size (see plbase64.h)
         inBuf = nsMemory::Alloc(inBufLen);
         if (!inBuf)
             return NS_ERROR_OUT_OF_MEMORY;
+
+        // strip off any padding (see bug 230351)
+        while (challenge[len - 1] == '=')
+          len--;
 
         if (PL_Base64Decode(challenge, len, (char *) inBuf) == nsnull) {
             nsMemory::Free(inBuf);

@@ -45,7 +45,6 @@
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 #include "nsIPrincipal.h"
-#include "nsMathUtils.h"
 
 // Paint forcing
 #include "prenv.h"
@@ -99,7 +98,8 @@ nsCSSValue::nsCSSValue(const nsString& aValue, nsCSSUnit aUnit)
 nsCSSValue::nsCSSValue(nsCSSValue::Array* aValue, nsCSSUnit aUnit)
   : mUnit(aUnit)
 {
-  NS_ASSERTION(UnitHasArrayValue(), "bad unit");
+  NS_ASSERTION(eCSSUnit_Array <= aUnit && aUnit <= eCSSUnit_Function,
+               "bad unit");
   mValue.mArray = aValue;
   mValue.mArray->AddRef();
 }
@@ -144,7 +144,7 @@ nsCSSValue::nsCSSValue(const nsCSSValue& aCopy)
   else if (eCSSUnit_Color == mUnit) {
     mValue.mColor = aCopy.mValue.mColor;
   }
-  else if (UnitHasArrayValue()) {
+  else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Function) {
     mValue.mArray = aCopy.mValue.mArray;
     mValue.mArray->AddRef();
   }
@@ -190,7 +190,7 @@ PRBool nsCSSValue::operator==(const nsCSSValue& aOther) const
     else if (eCSSUnit_Color == mUnit) {
       return mValue.mColor == aOther.mValue.mColor;
     }
-    else if (UnitHasArrayValue()) {
+    else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Function) {
       return *mValue.mArray == *aOther.mValue.mArray;
     }
     else if (eCSSUnit_URL == mUnit) {
@@ -207,21 +207,6 @@ PRBool nsCSSValue::operator==(const nsCSSValue& aOther) const
     }
   }
   return PR_FALSE;
-}
-
-double nsCSSValue::GetAngleValueInRadians() const
-{
-  double angle = GetFloatValue();
-
-  switch (GetUnit()) {
-  case eCSSUnit_Radian: return angle;
-  case eCSSUnit_Degree: return angle * M_PI / 180.0;
-  case eCSSUnit_Grad:   return angle * M_PI / 200.0;
-
-  default:
-    NS_NOTREACHED("unrecognized angular unit");
-    return 0.0;
-  }
 }
 
 imgIRequest* nsCSSValue::GetImageValue() const
@@ -260,7 +245,7 @@ void nsCSSValue::DoReset()
 {
   if (UnitHasStringValue()) {
     mValue.mString->Release();
-  } else if (UnitHasArrayValue()) {
+  } else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Function) {
     mValue.mArray->Release();
   } else if (eCSSUnit_URL == mUnit) {
     mValue.mURL->Release();
@@ -327,9 +312,10 @@ void nsCSSValue::SetColorValue(nscolor aValue)
 
 void nsCSSValue::SetArrayValue(nsCSSValue::Array* aValue, nsCSSUnit aUnit)
 {
+  NS_ASSERTION(eCSSUnit_Array <= aUnit && aUnit <= eCSSUnit_Function,
+               "bad unit");
   Reset();
   mUnit = aUnit;
-  NS_ASSERTION(UnitHasArrayValue(), "bad unit");
   mValue.mArray = aValue;
   mValue.mArray->AddRef();
 }
@@ -410,6 +396,12 @@ void nsCSSValue::SetDummyInheritValue()
 {
   Reset();
   mUnit = eCSSUnit_DummyInherit;
+}
+
+void nsCSSValue::SetRectIsAutoValue()
+{
+  Reset();
+  mUnit = eCSSUnit_RectIsAuto;
 }
 
 void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
@@ -498,7 +490,8 @@ nsCSSValue::URL::URL(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
   : mURI(aURI),
     mString(aString),
     mReferrer(aReferrer),
-    mOriginPrincipal(aOriginPrincipal)
+    mOriginPrincipal(aOriginPrincipal),
+    mRefCnt(0)
 {
   NS_PRECONDITION(aOriginPrincipal, "Must have an origin principal");
   mString->AddRef();
@@ -557,17 +550,18 @@ nsCSSValue::Image::~Image()
 {
 }
 
-nsCSSValueGradientStop::nsCSSValueGradientStop()
-  : mLocation(eCSSUnit_None),
-    mColor(eCSSUnit_Null)
-{
+nsCSSValueGradientStop::nsCSSValueGradientStop(const nsCSSValue& aLocation,
+                                               const nsCSSValue& aColor)
+  : mLocation(aLocation),
+    mColor(aColor)
+{ 
   MOZ_COUNT_CTOR(nsCSSValueGradientStop);
 }
 
 nsCSSValueGradientStop::nsCSSValueGradientStop(const nsCSSValueGradientStop& aOther)
   : mLocation(aOther.mLocation),
     mColor(aOther.mColor)
-{
+{ 
   MOZ_COUNT_CTOR(nsCSSValueGradientStop);
 }
 
@@ -576,14 +570,16 @@ nsCSSValueGradientStop::~nsCSSValueGradientStop()
   MOZ_COUNT_DTOR(nsCSSValueGradientStop);
 }
 
-nsCSSValueGradient::nsCSSValueGradient(PRBool aIsRadial,
-                                       PRBool aIsRepeating)
+nsCSSValueGradient::nsCSSValueGradient(PRBool aIsRadial, const nsCSSValue& aStartX,
+           const nsCSSValue& aStartY, const nsCSSValue& aStartRadius, const nsCSSValue& aEndX,
+           const nsCSSValue& aEndY, const nsCSSValue& aEndRadius)
   : mIsRadial(aIsRadial),
-    mIsRepeating(aIsRepeating),
-    mBgPosX(eCSSUnit_None),
-    mBgPosY(eCSSUnit_None),
-    mAngle(eCSSUnit_None),
-    mRadialShape(eCSSUnit_None),
-    mRadialSize(eCSSUnit_None)
-{
+    mStartX(aStartX),
+    mStartY(aStartY),
+    mEndX(aEndX),
+    mEndY(aEndY),
+    mStartRadius(aStartRadius),
+    mEndRadius(aEndRadius),
+    mRefCnt(0)
+{ 
 }

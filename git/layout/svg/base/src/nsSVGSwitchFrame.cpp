@@ -167,14 +167,7 @@ nsSVGSwitchFrame::UpdateCoveredRegion()
 {
   static_cast<nsSVGSwitchElement*>(mContent)->UpdateActiveChild();
 
-  nsIFrame *kid = GetActiveChildFrame();
-  if (kid) {
-    nsISVGChildFrame* child = do_QueryFrame(kid);
-    if (child) {
-      child->UpdateCoveredRegion();
-    }
-  }
-  return NS_OK;
+  return nsSVGSwitchFrameBase::UpdateCoveredRegion();
 }
 
 NS_IMETHODIMP

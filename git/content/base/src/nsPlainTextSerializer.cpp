@@ -290,7 +290,7 @@ nsPlainTextSerializer::Initialize(nsAString* aOutString,
 }
 
 NS_IMETHODIMP 
-nsPlainTextSerializer::AppendText(nsIContent* aText,
+nsPlainTextSerializer::AppendText(nsIDOMText* aText, 
                                   PRInt32 aStartOffset,
                                   PRInt32 aEndOffset, 
                                   nsAString& aStr)
@@ -309,7 +309,7 @@ nsPlainTextSerializer::AppendText(nsIContent* aText,
   PRInt32 length = 0;
   nsAutoString textstr;
 
-  nsIContent* content = aText;
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aText);
   const nsTextFragment* frag;
   if (!content || !(frag = content->GetText())) {
     return NS_ERROR_FAILURE;
@@ -372,7 +372,7 @@ nsPlainTextSerializer::AppendText(nsIContent* aText,
 }
 
 NS_IMETHODIMP
-nsPlainTextSerializer::AppendCDATASection(nsIContent* aCDATASection,
+nsPlainTextSerializer::AppendCDATASection(nsIDOMCDATASection* aCDATASection,
                                           PRInt32 aStartOffset,
                                           PRInt32 aEndOffset,
                                           nsAString& aStr)
@@ -381,13 +381,14 @@ nsPlainTextSerializer::AppendCDATASection(nsIContent* aCDATASection,
 }
 
 NS_IMETHODIMP
-nsPlainTextSerializer::AppendElementStart(nsIContent *aElement,
-                                          nsIContent *aOriginalElement,
+nsPlainTextSerializer::AppendElementStart(nsIDOMElement *aElement,
+                                          nsIDOMElement *aOriginalElement,
                                           nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
 
-  mContent = aElement;
+  mContent = do_QueryInterface(aElement);
+  if (!mContent) return NS_ERROR_FAILURE;
 
   nsresult rv;
   PRInt32 id = GetIdForContent(mContent);
@@ -414,12 +415,13 @@ nsPlainTextSerializer::AppendElementStart(nsIContent *aElement,
 } 
  
 NS_IMETHODIMP 
-nsPlainTextSerializer::AppendElementEnd(nsIContent *aElement,
+nsPlainTextSerializer::AppendElementEnd(nsIDOMElement *aElement,
                                         nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
 
-  mContent = aElement;
+  mContent = do_QueryInterface(aElement);
+  if (!mContent) return NS_ERROR_FAILURE;
 
   nsresult rv;
   PRInt32 id = GetIdForContent(mContent);
@@ -454,8 +456,8 @@ nsPlainTextSerializer::Flush(nsAString& aStr)
 }
 
 NS_IMETHODIMP
-nsPlainTextSerializer::AppendDocumentStart(nsIDocument *aDocument,
-                                           nsAString& aStr)
+nsPlainTextSerializer::AppendDocumentStart(nsIDOMDocument *aDocument,
+                                             nsAString& aStr)
 {
   return NS_OK;
 }
@@ -1384,7 +1386,7 @@ nsPlainTextSerializer::AddToLine(const PRUnichar * aLineFragment,
         // try to find another place to break
         goodSpace=(prefixwidth>mWrapColumn+1)?1:mWrapColumn-prefixwidth+1;
         if (mLineBreaker) {
-          if ((PRUint32)goodSpace < mCurrentLine.Length())
+          if (goodSpace < mCurrentLine.Length())
             goodSpace = mLineBreaker->Next(mCurrentLine.get(), 
                                            mCurrentLine.Length(), goodSpace);
           if (goodSpace == NS_LINEBREAKER_NEED_MORE_TEXT)
@@ -1411,10 +1413,8 @@ nsPlainTextSerializer::AddToLine(const PRUnichar * aLineFragment,
         else {
           mCurrentLine.Right(restOfLine, linelength-goodSpace);
         }
-        // if breaker was U+0020, it has to consider for delsp=yes support
-        PRBool breakBySpace = mCurrentLine.CharAt(goodSpace) == ' ';
         mCurrentLine.Truncate(goodSpace); 
-        EndLine(PR_TRUE, breakBySpace);
+        EndLine(PR_TRUE);
         mCurrentLine.Truncate();
         // Space stuff new line?
         if(mFlags & nsIDocumentEncoder::OutputFormatFlowed) {
@@ -1452,7 +1452,7 @@ nsPlainTextSerializer::AddToLine(const PRUnichar * aLineFragment,
  * preformatted.
  */
 void
-nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak, PRBool aBreakBySpace)
+nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak)
 {
   PRUint32 currentlinelength = mCurrentLine.Length();
 
@@ -1484,13 +1484,7 @@ nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak, PRBool aBreakBySpace)
     // Add the soft part of the soft linebreak (RFC 2646 4.1)
     // We only do this when there is no indentation since format=flowed
     // lines and indentation doesn't work well together.
-
-    // If breaker character is ASCII space with RFC 3676 support (delsp=yes),
-    // add twice space.
-    if (mFlags & nsIDocumentEncoder::OutputFormatDelSp && aBreakBySpace)
-      mCurrentLine.Append(NS_LITERAL_STRING("  "));
-    else
-      mCurrentLine.Append(PRUnichar(' '));
+    mCurrentLine.Append(PRUnichar(' '));
   }
 
   if(aSoftlinebreak) {
@@ -1824,7 +1818,8 @@ nsPlainTextSerializer::GetAttributeValue(const nsIParserNode* aNode,
     }
   }
   else if (aNode) {
-    nsDependentAtomString name(aName); 
+    nsAutoString name; 
+    aName->ToString(name);
 
     PRInt32 count = aNode->GetAttributeCount();
     for (PRInt32 i=0;i<count;i++) {

@@ -71,7 +71,9 @@
 #include "nsDataHashtable.h"
 #include "nsIThreadPool.h"
 #include "nsXPCOMCIDInternal.h"
-#include "nsMimeTypes.h"
+#include "nsICSSStyleSheet.h"
+#include "nsICSSLoaderObserver.h"
+#include "nsICSSLoader.h"
 
 #ifdef MOZ_VIEW_SOURCE
 #include "nsViewSourceHTML.h"
@@ -292,6 +294,21 @@ private:
   PRBool mTerminated;
 };
 
+/**
+ * Used if we need to pass an nsICSSLoaderObserver as parameter,
+ * but don't really need its services
+ */
+class nsDummyCSSLoaderObserver : public nsICSSLoaderObserver {
+public:
+  NS_IMETHOD
+  StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate, nsresult aStatus) {
+      return NS_OK;
+  }
+  NS_DECL_ISUPPORTS
+};
+
+NS_IMPL_ISUPPORTS1(nsDummyCSSLoaderObserver, nsICSSLoaderObserver)
+
 class nsPreloadURIs : public nsIRunnable {
 public:
   nsPreloadURIs(nsAutoTArray<nsSpeculativeScriptThread::PrefetchEntry, 5> &aURIs,
@@ -338,7 +355,7 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
   // parsing off the main thread, this is hard to emulate. For now, just load
   // the URIs using the document's base URI at the potential cost of being
   // wrong and having to re-load a given relative URI later.
-  nsIURI *base = doc->GetDocBaseURI();
+  nsIURI *base = doc->GetBaseURI();
   const nsCString &charset = doc->GetDocumentCharacterSet();
   nsSpeculativeScriptThread::PreloadedType &alreadyPreloaded =
     aScriptThread->GetPreloadedURIs();
@@ -368,9 +385,13 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
       case nsSpeculativeScriptThread::IMAGE:
         doc->MaybePreLoadImage(uri);
         break;
-      case nsSpeculativeScriptThread::STYLESHEET:
-        doc->PreloadStyle(uri, pe.charset);
+      case nsSpeculativeScriptThread::STYLESHEET: {
+        nsCOMPtr<nsICSSLoaderObserver> obs = new nsDummyCSSLoaderObserver();
+        doc->CSSLoader()->LoadSheet(uri, doc->NodePrincipal(),
+                                    NS_LossyConvertUTF16toASCII(pe.charset),
+                                    obs);
         break;
+      }
       case nsSpeculativeScriptThread::NONE:
         NS_NOTREACHED("Uninitialized preload entry?");
         break;
@@ -482,7 +503,7 @@ nsSpeculativeScriptThread::StartParsing(nsParser *aParser)
       // We consumed more the last time we tried speculatively parsing than we
       // did the last time we actually parsed.
       PRUint32 distance = Distance(start, end);
-      start.advance(NS_MIN(mNumConsumed - context->mNumConsumed, distance));
+      start.advance(PR_MIN(mNumConsumed - context->mNumConsumed, distance));
     }
 
     if (start == end) {
@@ -822,8 +843,6 @@ nsParser::Initialize(PRBool aConstructor)
   mFlags = NS_PARSER_FLAG_OBSERVERS_ENABLED |
            NS_PARSER_FLAG_PARSER_ENABLED |
            NS_PARSER_FLAG_CAN_TOKENIZE;
-
-  mProcessingNetworkData = PR_FALSE;
 }
 
 void
@@ -941,9 +960,9 @@ NS_IMETHODIMP_(void)
 nsParser::SetCommand(const char* aCommand)
 {
   mCommandStr.Assign(aCommand);
-  if (mCommandStr.Equals("view-source")) {
+  if (mCommandStr.Equals(kViewSourceCommand)) {
     mCommand = eViewSource;
-  } else if (mCommandStr.Equals("view-fragment")) {
+  } else if (mCommandStr.Equals(kViewFragmentCommand)) {
     mCommand = eViewFragment;
   } else {
     mCommand = eViewNormal;
@@ -1412,15 +1431,15 @@ static void
 DetermineParseMode(const nsString& aBuffer, nsDTDMode& aParseMode,
                    eParserDocType& aDocType, const nsACString& aMimeType)
 {
-  if (aMimeType.EqualsLiteral(TEXT_HTML)) {
+  if (aMimeType.EqualsLiteral(kHTMLTextContentType)) {
     DetermineHTMLParseMode(aBuffer, aParseMode, aDocType);
-  } else if (aMimeType.EqualsLiteral(TEXT_PLAIN) ||
-             aMimeType.EqualsLiteral(TEXT_CSS) ||
-             aMimeType.EqualsLiteral(APPLICATION_JAVASCRIPT) ||
-             aMimeType.EqualsLiteral(APPLICATION_XJAVASCRIPT) ||
-             aMimeType.EqualsLiteral(TEXT_ECMASCRIPT) ||
-             aMimeType.EqualsLiteral(APPLICATION_ECMASCRIPT) ||
-             aMimeType.EqualsLiteral(TEXT_JAVASCRIPT)) {
+  } else if (aMimeType.EqualsLiteral(kPlainTextContentType) ||
+             aMimeType.EqualsLiteral(kTextCSSContentType) ||
+             aMimeType.EqualsLiteral(kApplicationJSContentType) ||
+             aMimeType.EqualsLiteral(kApplicationXJSContentType) ||
+             aMimeType.EqualsLiteral(kTextECMAScriptContentType) ||
+             aMimeType.EqualsLiteral(kApplicationECMAScriptContentType) ||
+             aMimeType.EqualsLiteral(kTextJSContentType)) {
     aDocType = ePlainText;
     aParseMode = eDTDMode_quirks;
   } else { // Some form of XML
@@ -1598,11 +1617,6 @@ nsParser::DidBuildModel(nsresult anErrorCode)
 
       //Ref. to bug 61462.
       mParserContext->mRequest = 0;
-
-      if (mSpeculativeScriptThread) {
-        mSpeculativeScriptThread->Terminate();
-        mSpeculativeScriptThread = nsnull;
-      }
     }
   }
 
@@ -1761,12 +1775,25 @@ nsParser::Terminate(void)
 }
 
 NS_IMETHODIMP
+nsParser::ContinueParsing()
+{
+  if (mFlags & NS_PARSER_FLAG_PARSER_ENABLED) {
+    NS_WARNING("Trying to continue parsing on a unblocked parser.");
+    return NS_OK;
+  }
+
+  mFlags |= NS_PARSER_FLAG_PARSER_ENABLED;
+
+  return ContinueInterruptedParsing();
+}
+
+NS_IMETHODIMP
 nsParser::ContinueInterruptedParsing()
 {
   // If there are scripts executing, then the content sink is jumping the gun
   // (probably due to a synchronous XMLHttpRequest) and will re-enable us
   // later, see bug 460706.
-  if (!IsOkToProcessNetworkData()) {
+  if (IsScriptExecuting()) {
     return NS_OK;
   }
 
@@ -1790,12 +1817,10 @@ nsParser::ContinueInterruptedParsing()
   PRBool isFinalChunk = mParserContext &&
                         mParserContext->mStreamListenerState == eOnStop;
 
-  mProcessingNetworkData = PR_TRUE;
   if (mSink) {
     mSink->WillParse();
   }
   result = ResumeParse(PR_TRUE, isFinalChunk); // Ref. bug 57999
-  mProcessingNetworkData = PR_FALSE;
 
   if (result != NS_OK) {
     result=mInternalState;
@@ -1858,8 +1883,7 @@ void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
   mFlags &= ~NS_PARSER_FLAG_PENDING_CONTINUE_EVENT;
   mContinueEvent = nsnull;
 
-  NS_ASSERTION(IsOkToProcessNetworkData(),
-               "Interrupted in the middle of a script?");
+  NS_ASSERTION(!IsScriptExecuting(), "Interrupted in the middle of a script?");
   ContinueInterruptedParsing();
 }
 
@@ -1896,33 +1920,6 @@ PRBool
 nsParser::CanInterrupt()
 {
   return (mFlags & NS_PARSER_FLAG_CAN_INTERRUPT) != 0;
-}
-
-PRBool
-nsParser::IsInsertionPointDefined()
-{
-  return PR_TRUE;
-}
-
-void
-nsParser::BeginEvaluatingParserInsertedScript()
-{
-}
-
-void
-nsParser::EndEvaluatingParserInsertedScript()
-{
-}
-
-void
-nsParser::MarkAsNotScriptCreated()
-{
-}
-
-PRBool
-nsParser::IsScriptCreated()
-{
-  return PR_FALSE;
 }
 
 void
@@ -2693,14 +2690,14 @@ nsParser::DetectMetaTag(const char* aBytes,
 
   // XXX Only look inside HTML documents for now. For XML
   // documents we should be looking inside the XMLDecl.
-  if (!mParserContext->mMimeType.EqualsLiteral(TEXT_HTML)) {
+  if (!mParserContext->mMimeType.EqualsLiteral(kHTMLTextContentType)) {
     return PR_FALSE;
   }
 
   // Fast and loose parsing to determine if we have a complete
   // META tag in this block, looking upto 2k into it.
   const nsASingleFragmentCString& str =
-      Substring(aBytes, aBytes + NS_MIN(aLen, 2048));
+      Substring(aBytes, aBytes + PR_MIN(aLen, 2048));
   // XXXldb Should be const_char_iterator when FindInReadable supports it.
   nsACString::const_iterator begin, end;
 
@@ -2945,14 +2942,12 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
 
     // Don't bother to start parsing until we've seen some
     // non-whitespace data
-    if (IsOkToProcessNetworkData() &&
+    if (!IsScriptExecuting() &&
         theContext->mScanner->FirstNonWhitespacePosition() >= 0) {
-      mProcessingNetworkData = PR_TRUE;
       if (mSink) {
         mSink->WillParse();
       }
       rv = ResumeParse();
-      mProcessingNetworkData = PR_FALSE;
     }
   } else {
     rv = NS_ERROR_UNEXPECTED;
@@ -2992,13 +2987,11 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
   if (mParserFilter)
     mParserFilter->Finish();
 
-  if (IsOkToProcessNetworkData() && NS_SUCCEEDED(rv)) {
-    mProcessingNetworkData = PR_TRUE;
+  if (!IsScriptExecuting() && NS_SUCCEEDED(rv)) {
     if (mSink) {
       mSink->WillParse();
     }
     rv = ResumeParse(PR_TRUE, PR_TRUE);
-    mProcessingNetworkData = PR_FALSE;
   }
 
   // If the parser isn't enabled, we don't finish parsing till

@@ -44,6 +44,7 @@
 #include "nsSplittableFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIImageFrame.h"
 #include "nsIIOService.h"
 #include "nsIObserver.h"
@@ -61,7 +62,6 @@ struct nsHTMLReflowState;
 struct nsHTMLReflowMetrics;
 struct nsSize;
 class nsDisplayImage;
-class nsPresContext;
 
 class nsImageFrame;
 
@@ -100,7 +100,7 @@ public:
 
   NS_DECL_QUERYFRAME
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
@@ -314,7 +314,8 @@ private:
     NS_DECL_IMGIDECODEROBSERVER
 
     void AddIconObserver(nsImageFrame *frame) {
-        NS_ABORT_IF_FALSE(!mIconObservers.Contains(frame),
+        NS_ABORT_IF_FALSE(mIconObservers.IndexOf(frame) ==
+                          nsTArray<nsImageFrame*>::NoIndex,
                           "Observer shouldn't aleady be in array");
         mIconObservers.AppendElement(frame);
     }

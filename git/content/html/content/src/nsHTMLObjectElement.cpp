@@ -47,7 +47,7 @@
 #include "nsIDOMGetSVGDocument.h"
 #endif
 #include "nsIDOMHTMLObjectElement.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsIObjectFrame.h"
 #include "nsIPluginInstance.h"
 
@@ -97,13 +97,13 @@ public:
   virtual PRUint32 GetDesiredIMEState();
 
   // Overriden nsIFormControl methods
-  NS_IMETHOD_(PRUint32) GetType() const
+  NS_IMETHOD_(PRInt32) GetType() const
   {
     return NS_FORM_OBJECT;
   }
 
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission *aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission *aFormSubmission,
                                nsIContent *aSubmitElement);
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
@@ -122,8 +122,6 @@ public:
   virtual PRUint32 GetCapabilities() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
 
@@ -185,8 +183,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 
-DOMCI_DATA(HTMLObjectElement, nsHTMLObjectElement)
-
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLObjectElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLObjectElement)
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, nsIDOMHTMLObjectElement)
@@ -229,8 +225,9 @@ nsHTMLObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    void (nsHTMLObjectElement::*start)() = &nsHTMLObjectElement::StartObjectLoad;
-    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, start));
+    nsContentUtils::AddScriptRunner(
+      new nsRunnableMethod<nsHTMLObjectElement>(this,
+                                                &nsHTMLObjectElement::StartObjectLoad));
   }
 
   return NS_OK;
@@ -317,7 +314,7 @@ nsHTMLObjectElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLObjectElement::SubmitNamesValues(nsFormSubmission *aFormSubmission,
+nsHTMLObjectElement::SubmitNamesValues(nsIFormSubmission *aFormSubmission,
                                        nsIContent *aSubmitElement)
 {
   nsAutoString name;
@@ -345,7 +342,7 @@ nsHTMLObjectElement::SubmitNamesValues(nsFormSubmission *aFormSubmission,
   nsresult rv = pi->GetFormValue(value);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return aFormSubmission->AddNameValuePair(name, value);
+  return aFormSubmission->AddNameValuePair(this, name, value);
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Align, align)
@@ -360,7 +357,7 @@ NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Height, height)
 NS_IMPL_INT_ATTR(nsHTMLObjectElement, Hspace, hspace)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Name, name)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Standby, standby)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLObjectElement, TabIndex, tabindex, 0)
+NS_IMPL_INT_ATTR(nsHTMLObjectElement, TabIndex, tabindex)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, UseMap, usemap)
 NS_IMPL_INT_ATTR(nsHTMLObjectElement, Vspace, vspace)
@@ -480,17 +477,4 @@ nsHTMLObjectElement::DestroyContent()
 {
   RemovedFromDocument();
   nsGenericHTMLFormElement::DestroyContent();
-}
-
-nsresult
-nsHTMLObjectElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  nsresult rv = nsGenericHTMLFormElement::CopyInnerTo(aDest);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    CreateStaticClone(static_cast<nsHTMLObjectElement*>(aDest));
-  }
-
-  return rv;
 }

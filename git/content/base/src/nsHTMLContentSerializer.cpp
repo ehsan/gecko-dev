@@ -68,6 +68,10 @@
 #include "nsLWBrkCIID.h"
 #include "nsIScriptElement.h"
 #include "nsAttrName.h"
+#include "nsHtml5Module.h"
+#include "nsIHTMLDocument.h"
+
+static const char kMozStr[] = "moz";
 
 static const PRInt32 kLongLineLen = 128;
 
@@ -92,7 +96,7 @@ nsHTMLContentSerializer::~nsHTMLContentSerializer()
 
 
 NS_IMETHODIMP
-nsHTMLContentSerializer::AppendDocumentStart(nsIDocument *aDocument,
+nsHTMLContentSerializer::AppendDocumentStart(nsIDOMDocument *aDocument,
                                              nsAString& aStr)
 {
   return NS_OK;
@@ -100,7 +104,7 @@ nsHTMLContentSerializer::AppendDocumentStart(nsIDocument *aDocument,
 
 void 
 nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
-                                                 nsIContent *aOriginalElement,
+                                                 nsIDOMElement *aOriginalElement,
                                                  nsAString& aTagPrefix,
                                                  const nsAString& aTagNamespaceURI,
                                                  nsIAtom* aTagName,
@@ -111,19 +115,43 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
     return;
 
   nsresult rv;
-  nsAutoString valueStr;
+  nsAutoString nameStr, valueStr;
   NS_NAMED_LITERAL_STRING(_mozStr, "_moz");
 
-  for (PRInt32 index = count; index > 0;) {
-    --index;
+  // HTML5 parser stored them in the order they were parsed so we want to
+  // loop forward in that case.
+  nsIDocument* doc = aContent->GetOwnerDocument();
+  PRBool loopForward = PR_FALSE;
+  if (!doc || doc->IsHTML()) {
+    nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(doc));
+    if (htmlDoc) {
+      loopForward = nsHtml5Module::sEnabled;
+    }
+  }
+  PRInt32 index, limit, step;
+  if (loopForward) {
+    index = 0;
+    limit = count;
+    step = 1;
+  }
+  else {
+    // Loop backward over the attributes, since the order they are stored in is
+    // the opposite of the order they were parsed in (see bug 213347 for reason).
+    index = count - 1;
+    limit = -1;
+    step = -1;
+  }
+  
+  for (; index != limit; index += step) {
     const nsAttrName* name = aContent->GetAttrNameAt(index);
     PRInt32 namespaceID = name->NamespaceID();
     nsIAtom* attrName = name->LocalName();
 
     // Filter out any attribute starting with [-|_]moz
-    nsDependentAtomString attrNameStr(attrName);
-    if (StringBeginsWith(attrNameStr, NS_LITERAL_STRING("_moz")) ||
-        StringBeginsWith(attrNameStr, NS_LITERAL_STRING("-moz"))) {
+    const char* sharedName;
+    attrName->GetUTF8String(&sharedName);
+    if ((('_' == *sharedName) || ('-' == *sharedName)) &&
+        !nsCRT::strncmp(sharedName+1, kMozStr, PRUint32(sizeof(kMozStr)-1))) {
       continue;
     }
     aContent->GetAttr(namespaceID, attrName, valueStr);
@@ -179,7 +207,7 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
       }
     }
 
-    nsDependentAtomString nameStr(attrName);
+    attrName->ToString(nameStr);
 
     // Expand shorthand attribute.
     if (IsShorthandAttr(attrName, aTagName) && valueStr.IsEmpty()) {
@@ -190,13 +218,14 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
 }
 
 NS_IMETHODIMP
-nsHTMLContentSerializer::AppendElementStart(nsIContent *aElement,
-                                            nsIContent *aOriginalElement,
+nsHTMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
+                                            nsIDOMElement *aOriginalElement,
                                             nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
 
-  nsIContent* content = aElement;
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
+  if (!content) return NS_ERROR_FAILURE;
 
   PRBool forceFormat = PR_FALSE;
   if (!CheckElementStart(content, forceFormat, aStr)) {
@@ -234,7 +263,9 @@ nsHTMLContentSerializer::AppendElementStart(nsIContent *aElement,
   
   AppendToString(kLessThan, aStr);
 
-  AppendToString(nsDependentAtomString(name), aStr);
+  nsAutoString nameStr;
+  name->ToString(nameStr);
+  AppendToString(nameStr.get(), -1, aStr);
 
   MaybeEnterInPreContent(content);
 
@@ -249,8 +280,7 @@ nsHTMLContentSerializer::AppendElementStart(nsIContent *aElement,
     // Store its start attribute value in olState->startVal.
     nsAutoString start;
     PRInt32 startAttrVal = 0;
-
-    aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::start, start);
+    aElement->GetAttribute(NS_LITERAL_STRING("start"), start);
     if (!start.IsEmpty()){
       PRInt32 rv = 0;
       startAttrVal = start.ToInteger(&rv);
@@ -298,12 +328,13 @@ nsHTMLContentSerializer::AppendElementStart(nsIContent *aElement,
 }
   
 NS_IMETHODIMP 
-nsHTMLContentSerializer::AppendElementEnd(nsIContent *aElement,
+nsHTMLContentSerializer::AppendElementEnd(nsIDOMElement *aElement,
                                           nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
 
-  nsIContent* content = aElement;
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
+  if (!content) return NS_ERROR_FAILURE;
 
   nsIAtom *name = content->Tag();
 
@@ -372,8 +403,11 @@ nsHTMLContentSerializer::AppendElementEnd(nsIContent *aElement,
     mAddSpace = PR_FALSE;
   }
 
+  nsAutoString nameStr;
+  name->ToString(nameStr);
+
   AppendToString(kEndTag, aStr);
-  AppendToString(nsDependentAtomString(name), aStr);
+  AppendToString(nameStr.get(), -1, aStr);
   AppendToString(kGreaterThan, aStr);
 
   MaybeLeaveFromPreContent(content);
@@ -391,147 +425,4 @@ nsHTMLContentSerializer::AppendElementEnd(nsIContent *aElement,
   }
 
   return NS_OK;
-}
-
-static const PRUint16 kValNBSP = 160;
-static const char kEntityNBSP[] = "&nbsp;";
-
-static const PRUint16 kGTVal = 62;
-static const char* kEntities[] = {
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "", "&amp;", "",
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "", "", "",
-  "&lt;", "", "&gt;"
-};
-
-static const char* kAttrEntities[] = {
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "&quot;", "", "", "", "&amp;", "",
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "", "", "",
-  "&lt;", "", "&gt;"
-};
-
-void
-nsHTMLContentSerializer::AppendAndTranslateEntities(const nsAString& aStr,
-                                                     nsAString& aOutputStr)
-{
-  if (mBodyOnly && !mInBody) {
-    return;
-  }
-
-  if (mDisableEntityEncoding) {
-    aOutputStr.Append(aStr);
-    return;
-  }
-
-  if (mFlags & (nsIDocumentEncoder::OutputEncodeBasicEntities  |
-                nsIDocumentEncoder::OutputEncodeLatin1Entities |
-                nsIDocumentEncoder::OutputEncodeHTMLEntities   |
-                nsIDocumentEncoder::OutputEncodeW3CEntities)) {
-    nsIParserService* parserService = nsContentUtils::GetParserService();
-
-    if (!parserService) {
-      NS_ERROR("Can't get parser service");
-      return;
-    }
-
-    nsReadingIterator<PRUnichar> done_reading;
-    aStr.EndReading(done_reading);
-
-    // for each chunk of |aString|...
-    PRUint32 advanceLength = 0;
-    nsReadingIterator<PRUnichar> iter;
-
-    const char **entityTable = mInAttribute ? kAttrEntities : kEntities;
-    nsCAutoString entityReplacement;
-
-    for (aStr.BeginReading(iter);
-         iter != done_reading;
-         iter.advance(PRInt32(advanceLength))) {
-      PRUint32 fragmentLength = iter.size_forward();
-      PRUint32 lengthReplaced = 0; // the number of UTF-16 codepoints
-                                    //  replaced by a particular entity
-      const PRUnichar* c = iter.get();
-      const PRUnichar* fragmentStart = c;
-      const PRUnichar* fragmentEnd = c + fragmentLength;
-      const char* entityText = nsnull;
-      const char* fullConstEntityText = nsnull;
-      char* fullEntityText = nsnull;
-
-      advanceLength = 0;
-      // for each character in this chunk, check if it
-      // needs to be replaced
-      for (; c < fragmentEnd; c++, advanceLength++) {
-        PRUnichar val = *c;
-        if (val == kValNBSP) {
-          fullConstEntityText = kEntityNBSP;
-          break;
-        }
-        else if ((val <= kGTVal) && (entityTable[val][0] != 0)) {
-          fullConstEntityText = entityTable[val];
-          break;
-        } else if (val > 127 &&
-                  ((val < 256 &&
-                    mFlags & nsIDocumentEncoder::OutputEncodeLatin1Entities) ||
-                    mFlags & nsIDocumentEncoder::OutputEncodeHTMLEntities)) {
-          entityReplacement.Truncate();
-          parserService->HTMLConvertUnicodeToEntity(val, entityReplacement);
-
-          if (!entityReplacement.IsEmpty()) {
-            entityText = entityReplacement.get();
-            break;
-          }
-        }
-        else if (val > 127 &&
-                  mFlags & nsIDocumentEncoder::OutputEncodeW3CEntities &&
-                  mEntityConverter) {
-          if (NS_IS_HIGH_SURROGATE(val) &&
-              c + 1 < fragmentEnd &&
-              NS_IS_LOW_SURROGATE(*(c + 1))) {
-            PRUint32 valUTF32 = SURROGATE_TO_UCS4(val, *(++c));
-            if (NS_SUCCEEDED(mEntityConverter->ConvertUTF32ToEntity(valUTF32,
-                              nsIEntityConverter::entityW3C, &fullEntityText))) {
-              lengthReplaced = 2;
-              break;
-            }
-            else {
-              advanceLength++;
-            }
-          }
-          else if (NS_SUCCEEDED(mEntityConverter->ConvertToEntity(val,
-                                nsIEntityConverter::entityW3C, 
-                                &fullEntityText))) {
-            lengthReplaced = 1;
-            break;
-          }
-        }
-      }
-
-      aOutputStr.Append(fragmentStart, advanceLength);
-      if (entityText) {
-        aOutputStr.Append(PRUnichar('&'));
-        AppendASCIItoUTF16(entityText, aOutputStr);
-        aOutputStr.Append(PRUnichar(';'));
-        advanceLength++;
-      }
-      else if (fullConstEntityText) {
-        aOutputStr.AppendASCII(fullConstEntityText);
-        ++advanceLength;
-      }
-      // if it comes from nsIEntityConverter, it already has '&' and ';'
-      else if (fullEntityText) {
-        AppendASCIItoUTF16(fullEntityText, aOutputStr);
-        nsMemory::Free(fullEntityText);
-        advanceLength += lengthReplaced;
-      }
-    }
-  } else {
-    nsXMLContentSerializer::AppendAndTranslateEntities(aStr, aOutputStr);
-  }
 }

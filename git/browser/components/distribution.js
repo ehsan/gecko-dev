@@ -138,7 +138,6 @@ DistributionCustomizer.prototype = {
       let m = /^item\.(\d+)\.(\w+)\.?(\w*)/.exec(keys[i]);
       if (m) {
         let [foo, iid, iprop, ilocale] = m;
-        iid = parseInt(iid);
 
         if (ilocale)
           continue;
@@ -228,6 +227,7 @@ DistributionCustomizer.prototype = {
         break;
       }
     }
+    return this._checkCustomizationComplete();
   },
 
   _customizationsApplied: false,
@@ -244,7 +244,7 @@ DistributionCustomizer.prototype = {
   },
 
   _bookmarksApplied: false,
-  applyBookmarks: function DIST_applyBookmarks() {
+  applyBookmarks: function DIST_applyBookarks() {
     this._bookmarksApplied = true;
     if (!this._iniFile)
       return this._checkCustomizationComplete();

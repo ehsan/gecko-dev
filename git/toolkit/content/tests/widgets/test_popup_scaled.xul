@@ -52,9 +52,8 @@ function setScale(win, scale)
 function shown()
 {
   if (screenTest) {
-    var box = $("popup").boxObject;
-    is(box.screenX, screenx, "screen left position");
-    is(box.screenY, screeny, "screen top position");
+    is($("popup").boxObject.screenX, screenx, "screen left position");
+    is($("popup").boxObject.screenY, screeny, "screen top position");
   }
   else {
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
@@ -78,22 +77,13 @@ function nextTest()
   }
   else {
     screenTest = true;
-    var box = document.documentElement.boxObject;
-
-    // - the iframe is at 4×, but out here css pixels are only 2× device pixels
-    // - the popup manager rounds off (or truncates) the coordinates to
-    //   integers, so ensure we pass in even numbers to openPopupAtScreen
-    screenx = (x = even(box.screenX + 120))/2;
-    screeny = (y = even(box.screenY + 120))/2;
+    screenx = document.documentElement.boxObject.screenX + 120;
+    screeny = document.documentElement.boxObject.screenY + 50;
     setScale(window, 2);
-    $("popup").openPopupAtScreen(x, y);
+    $("popup").openPopupAtScreen(screenx, screeny);
   }
 }
 
-function even(n)
-{
-  return (n % 2) ? n+1 : n;
-}
 ]]>
 </script>
 

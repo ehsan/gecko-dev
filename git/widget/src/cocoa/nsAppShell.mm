@@ -41,7 +41,6 @@
  */
 
 #import <Cocoa/Cocoa.h>
-#include <dlfcn.h>
 
 #include "nsAppShell.h"
 #include "nsCOMPtr.h"
@@ -215,6 +214,14 @@ nsAppShell::nsAppShell()
 , mNativeEventCallbackDepth(0)
 , mNativeEventScheduledDepth(0)
 {
+  // mMainPool sits low on the autorelease pool stack to serve as a catch-all
+  // for autoreleased objects on this thread.  Because it won't be popped
+  // until the appshell is destroyed, objects attached to this pool will
+  // be leaked until app shutdown.  You probably don't want this!
+  //
+  // Objects autoreleased to this pool may result in warnings in the future.
+  mMainPool = [[NSAutoreleasePool alloc] init];
+
   // A Cocoa event loop is running here if (and only if) we've been embedded
   // by a Cocoa app (like Camino).
   mRunningCocoaEmbedded = [NSApp isRunning] ? PR_TRUE : PR_FALSE;
@@ -240,6 +247,31 @@ nsAppShell::~nsAppShell()
   }
 
   [mDelegate release];
+  // Cocoa-based embedders (like Camino) call NS_TermEmbedding() (which
+  // destroys us) before their own Cocoa infrastructure is fully shut down.
+  // This infrastructure assumes that various objects which have a retain
+  // count >= 1 will remain in existence, and that an autorelease pool will
+  // still be available.  But because mMainPool sits so low on the autorelease
+  // stack, if we release it here there's a good chance that all the
+  // aforementioned objects (including the other autorelease pools) will be
+  // released, and havoc will result.
+  //
+  // So if we've been called from a Cocoa embedder, or in general if we've
+  // been terminated using [NSApplication terminate:], we don't release
+  // mMainPool here.  This won't cause leaks, because after [NSApplication
+  // terminate:] sends an NSApplicationWillTerminate notification it calls
+  // [NSApplication _deallocHardCore:], which (after it uses [NSArray
+  // makeObjectsPerformSelector:] to close all remaining windows) calls
+  // [NSAutoreleasePool releaseAllPools] (to release all autorelease pools
+  // on the current thread, which is the main thread).
+  //
+  // Cocoa embedders will almost certainly be terminated using [NSApplication
+  // terminate:].  But we can be called from a Cocoa embedder's will-terminate
+  // notification handler before our own is called (so that
+  // mNotifiedWillTerminate isn't yet TRUE).  To avoid this, we also check
+  // mRunningCocoaEmbedded here.  See bug 471948.
+  if (!mNotifiedWillTerminate && !mRunningCocoaEmbedded)
+    [mMainPool release];
 
   NS_OBJC_END_TRY_ABORT_BLOCK
 }
@@ -256,7 +288,9 @@ nsAppShell::Init()
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   // No event loop is running yet (unless Camino is running, or another
-  // embedding app that uses NSApplicationMain()).
+  // embedding app that uses NSApplicationMain()).  Avoid autoreleasing
+  // objects to mMainPool.  The appshell retains objects it needs to be
+  // long-lived and will release them as appropriate.
   NSAutoreleasePool* localPool = [[NSAutoreleasePool alloc] init];
 
   // mAutoreleasePools is used as a stack of NSAutoreleasePool objects created
@@ -324,17 +358,6 @@ nsAppShell::Init()
                               @selector(nsAppShell_NSApplication_beginModalSessionForWindow:));
     nsToolkit::SwizzleMethods([NSApplication class], @selector(endModalSession:),
                               @selector(nsAppShell_NSApplication_endModalSession:));
-    if (!nsToolkit::OnSnowLeopardOrLater()) {
-      dlopen("/System/Library/Frameworks/Carbon.framework/Frameworks/Print.framework/Versions/Current/Plugins/PrintCocoaUI.bundle/Contents/MacOS/PrintCocoaUI",
-             RTLD_LAZY);
-      Class PDEPluginCallbackClass = ::NSClassFromString(@"PDEPluginCallback");
-      nsresult rv1 = nsToolkit::SwizzleMethods(PDEPluginCallbackClass, @selector(initWithPrintWindowController:),
-                                               @selector(nsAppShell_PDEPluginCallback_initWithPrintWindowController:));
-      if (NS_SUCCEEDED(rv1)) {
-        nsToolkit::SwizzleMethods(PDEPluginCallbackClass, @selector(dealloc),
-                                  @selector(nsAppShell_PDEPluginCallback_dealloc));
-      }
-    }
     gAppShellMethodsSwizzled = PR_TRUE;
   }
 
@@ -935,7 +958,8 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
   // to worry about getting an NSInternalInconsistencyException here.
   NSEvent* currentEvent = [NSApp currentEvent];
   if (currentEvent) {
-    gLastModifierState = [currentEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
+    gLastModifierState =
+      nsCocoaUtils::GetCocoaEventModifierFlags(currentEvent) & NSDeviceIndependentModifierFlagsMask;
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -996,43 +1020,6 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
   if (gCocoaAppModalWindowList &&
       wasRunningAppModal && (prevAppModalWindow != [NSApp modalWindow]))
     gCocoaAppModalWindowList->PopCocoa(prevAppModalWindow, aSession);
-}
-
-@end
-
-@interface NSObject (PDEPluginCallbackMethodSwizzling)
-- (id)nsAppShell_PDEPluginCallback_initWithPrintWindowController:(id)controller;
-- (void)nsAppShell_PDEPluginCallback_dealloc;
-@end
-
-@implementation NSObject (PDEPluginCallbackMethodSwizzling)
-
-// On Leopard, the PDEPluginCallback class in Apple's PrintCocoaUI module
-// fails to retain and release its PMPrintWindowController object.  This
-// causes the PMPrintWindowController to sometimes be deleted prematurely,
-// leading to crashes on attempts to access it.  One example is bug 396680,
-// caused by attempting to call a deleted PMPrintWindowController object's
-// printSettings method.  We work around the problem by hooking the
-// appropriate methods and retaining and releasing the object ourselves.
-// PrintCocoaUI.bundle is a "plugin" of the Carbon framework's Print
-// framework.
-
-- (id)nsAppShell_PDEPluginCallback_initWithPrintWindowController:(id)controller
-{
-  return [self nsAppShell_PDEPluginCallback_initWithPrintWindowController:[controller retain]];
-}
-
-- (void)nsAppShell_PDEPluginCallback_dealloc
-{
-  // Since the PDEPluginCallback class is undocumented (and the OS header
-  // files have no definition for it), we need to use low-level methods to
-  // access its _printWindowController variable.  (object_getInstanceVariable()
-  // is also available in Objective-C 2.0, so this code is 64-bit safe.)
-  id _printWindowController = nil;
-  object_getInstanceVariable(self, "_printWindowController",
-                             (void **) &_printWindowController);
-  [_printWindowController release];
-  [self nsAppShell_PDEPluginCallback_dealloc];
 }
 
 @end

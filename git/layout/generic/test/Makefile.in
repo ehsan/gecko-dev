@@ -56,7 +56,6 @@ _TEST_FILES = \
 		plugin_clipping_helper_transformed.xhtml \
 		plugin_clipping_helper_table.xhtml \
 		plugin_clipping_lib.js \
-		plugin_focus_helper.html \
 		test_backspace_delete.xul \
 		test_bug263683.html \
 		test_bug288789.html \
@@ -87,23 +86,17 @@ _TEST_FILES = \
 		test_bug469613.xul \
 		test_bug469774.xul \
 		test_bug470212.html \
-		test_bug496275.html \
 		test_bug503813.html \
-		test_bug508115.xul \
 		$(warning test_bug507902.html temporarily disabled - see bug 510001) \
 		test_bug514732.html \
-		test_bug527306.html \
 		test_movement_by_characters.html \
 		test_movement_by_words.html \
 		test_plugin_clipping.xhtml \
 		test_plugin_clipping2.xhtml \
 		test_plugin_clipping_transformed.xhtml \
 		test_plugin_clipping_table.xhtml \
-		test_plugin_focus.html \
 		test_plugin_mouse_coords.html \
 		test_plugin_position.xhtml \
-		test_selection_expanding.html \
-		selection_expanding_xbl.xml \
 		test_selection_underline.html \
 		file_BrokenImageReference.png \
 		file_Dolske.png \
@@ -111,18 +104,9 @@ _TEST_FILES = \
 		file_LoadingImageReference.png \
 		file_bug514732_1.html \
 		file_bug514732_helper.html \
-		test_bug522632.html \
 		$(NULL)
 # disabled temporarily
 #		test_bug488417.html \
 
-_CHROME_FILES = \
-		test_bug514732-2.xul \
-		file_bug514732_window.xul \
-		$(NULL)
-
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-
-libs:: $(_CHROME_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

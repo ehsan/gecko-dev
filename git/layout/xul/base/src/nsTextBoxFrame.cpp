@@ -173,11 +173,11 @@ nsTextBoxFrame::Init(nsIContent*      aContent,
 }
 
 void
-nsTextBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsTextBoxFrame::Destroy()
 {
     // unregister access key
     RegUnregAccessKey(PR_FALSE);
-    nsTextBoxFrameSuper::DestroyFrom(aDestructRoot);
+    nsTextBoxFrameSuper::Destroy();
 }
 
 PRBool
@@ -579,7 +579,7 @@ void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, aDirtyRect, nsnull);
+                                                  aCtx, aDirtyRect);
 
   if (!shadowContext)
     return;
@@ -876,7 +876,7 @@ nsTextBoxFrame::UpdateAccessTitle()
     }
 
     if (InsertSeparatorBeforeAccessKey() &&
-        offset > 0 && !NS_IS_SPACE(mTitle[offset - 1])) {
+        !NS_IS_SPACE(mTitle[offset - 1])) {
         mTitle.Insert(' ', offset);
         offset++;
     }
@@ -1046,8 +1046,7 @@ nsTextBoxFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
     DISPLAY_PREF_SIZE(this, size);
 
     AddBorderAndPadding(size);
-    PRBool widthSet, heightSet;
-    nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
+    nsIBox::AddCSSPrefSize(aBoxLayoutState, this, size);
 
     return size;
 }
@@ -1068,8 +1067,7 @@ nsTextBoxFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
         size.width = 0;
 
     AddBorderAndPadding(size);
-    PRBool widthSet, heightSet;
-    nsIBox::AddCSSMinSize(aBoxLayoutState, this, size, widthSet, heightSet);
+    nsIBox::AddCSSMinSize(aBoxLayoutState, this, size);
 
     return size;
 }

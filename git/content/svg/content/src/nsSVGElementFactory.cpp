@@ -50,8 +50,6 @@
 nsresult
 NS_NewSVGAElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
-NS_NewSVGAltGlyphElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
-nsresult
 NS_NewSVGPolylineElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
 NS_NewSVGPolygonElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
@@ -93,8 +91,7 @@ NS_NewSVGDefsElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
 NS_NewSVGDescElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
-NS_NewSVGScriptElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
-                       PRBool aFromParser);
+NS_NewSVGScriptElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
 NS_NewSVGUseElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
@@ -170,10 +167,6 @@ NS_NewSVGAnimateElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
 NS_NewSVGAnimateTransformElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
-NS_NewSVGAnimateMotionElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
-nsresult
-NS_NewSVGMpathElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
-nsresult
 NS_NewSVGSetElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 #endif // MOZ_SMIL
 
@@ -195,8 +188,6 @@ NS_NewSVGElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
   
   if (name == nsGkAtoms::a)
     return NS_NewSVGAElement(aResult, aNodeInfo);
-  if (name == nsGkAtoms::altGlyph)
-    return NS_NewSVGAltGlyphElement(aResult, aNodeInfo);
   if (name == nsGkAtoms::polyline)
     return NS_NewSVGPolylineElement(aResult, aNodeInfo);
   if (name == nsGkAtoms::polygon)
@@ -238,7 +229,7 @@ NS_NewSVGElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
   if (name == nsGkAtoms::desc)
     return NS_NewSVGDescElement(aResult, aNodeInfo);
   if (name == nsGkAtoms::script)
-    return NS_NewSVGScriptElement(aResult, aNodeInfo, aFromParser);
+    return NS_NewSVGScriptElement(aResult, aNodeInfo);
   if (name == nsGkAtoms::use)
     return NS_NewSVGUseElement(aResult, aNodeInfo);
   if (name == nsGkAtoms::symbol)
@@ -313,10 +304,6 @@ NS_NewSVGElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
       return NS_NewSVGAnimateElement(aResult, aNodeInfo);
     if (name == nsGkAtoms::animateTransform)
       return NS_NewSVGAnimateTransformElement(aResult, aNodeInfo);
-    if (name == nsGkAtoms::animateMotion)
-      return NS_NewSVGAnimateMotionElement(aResult, aNodeInfo);
-    if (name == nsGkAtoms::mpath)
-      return NS_NewSVGMpathElement(aResult, aNodeInfo);
     if (name == nsGkAtoms::set)
       return NS_NewSVGSetElement(aResult, aNodeInfo);
   }

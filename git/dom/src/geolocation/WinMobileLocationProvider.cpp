@@ -14,7 +14,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -69,8 +69,6 @@ private:
   ~nsGeoPositionCoords() {}
   double mLat, mLong, mAlt, mHError, mVError, mHeading, mSpeed;
 };
-
-DOMCI_DATA(GeoPositionCoords, nsGeoPositionCoords)
 
 NS_INTERFACE_MAP_BEGIN(nsGeoPositionCoords)
 NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMGeoPositionCoords)
@@ -157,8 +155,6 @@ private:
   long long mTimestamp;
   nsRefPtr<nsGeoPositionCoords> mCoords;
 };
-
-DOMCI_DATA(GeoPosition, nsGeoPosition)
 
 NS_INTERFACE_MAP_BEGIN(nsGeoPosition)
 NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMGeoPosition)

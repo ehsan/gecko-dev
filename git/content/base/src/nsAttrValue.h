@@ -54,6 +54,7 @@ typedef PRUptrdiff PtrBits;
 class nsAString;
 class nsIAtom;
 class nsICSSStyleRule;
+class nsIURI;
 class nsISVGValue;
 class nsIDocument;
 template<class E> class nsCOMArray;
@@ -120,6 +121,7 @@ public:
     ,eSVGValue =    0x12
 #endif
     ,eFloatValue  = 0x13
+    ,eLazyURIValue = 0x14
   };
 
   ValueType Type() const;
@@ -153,14 +155,10 @@ public:
   inline nsISVGValue* GetSVGValue() const;
 #endif
   inline float GetFloatValue() const;
-
-  /**
-   * Returns the string corresponding to the stored enum value.
-   *
-   * @param aResult   the string representing the enum tag
-   * @param aRealTag  wheter we want to have the real tag or the saved one
-   */
-  void GetEnumString(nsAString& aResult, PRBool aRealTag) const;
+  inline nsIURI* GetURIValue() const;
+  const nsCheapString GetURIStringValue() const;
+  void CacheURIValue(nsIURI* aURI);
+  void DropCachedURI();
 
   // Methods to get access to atoms we may have
   // Returns the number of atoms we have; 0 if we have none.  It's OK
@@ -207,12 +205,12 @@ public:
    *
    * @param aValue the string to find the value for
    * @param aTable the enumeration to map with
-   * @param aCaseSensitive specify if the parsing has to be case sensitive
+   * @param aResult the enum mapping [OUT]
    * @return whether the enum value was found or not
    */
   PRBool ParseEnumValue(const nsAString& aValue,
                         const EnumTable* aTable,
-                        PRBool aCaseSensitive);
+                        PRBool aCaseSensitive = PR_FALSE);
 
   /**
    * Parse a string into an integer. Can optionally parse percent (n%).
@@ -247,31 +245,6 @@ public:
    */
   PRBool ParseIntWithBounds(const nsAString& aString, PRInt32 aMin,
                             PRInt32 aMax = PR_INT32_MAX);
-
-  /**
-   * Parse a string value into a non-negative integer.
-   * This method follows the rules for parsing non-negative integer from:
-   * http://dev.w3.org/html5/spec/infrastructure.html#rules-for-parsing-non-negative-integers
-   *
-   * @param  aString the string to parse
-   * @return whether the value is valid
-   */
-  PRBool ParseNonNegativeIntValue(const nsAString& aString);
-
-  /**
-   * Parse a string value into a positive integer.
-   * This method follows the rules for parsing non-negative integer from:
-   * http://dev.w3.org/html5/spec/infrastructure.html#rules-for-parsing-non-negative-integers
-   * In addition of these rules, the value has to be greater than zero.
-   *
-   * This is generally used for parsing content attributes which reflecting IDL
-   * attributes are limited to only non-negative numbers greater than zero, see:
-   * http://dev.w3.org/html5/spec/common-dom-interfaces.html#limited-to-only-non-negative-numbers-greater-than-zero
-   *
-   * @param aString       the string to parse
-   * @return              whether the value was valid
-   */
-  PRBool ParsePositiveIntValue(const nsAString& aString);
 
   /**
    * Parse a string into a color.
@@ -324,21 +297,11 @@ private:
       nsISVGValue* mSVGValue;
 #endif
       float mFloatValue;
+      nsIURI* mURI;
     };
   };
 
   inline ValueBaseType BaseType() const;
-
-  /**
-   * Get the index of an EnumTable in the sEnumTableArray.
-   * If the EnumTable is not in the sEnumTableArray, it is added.
-   * If there is no more space in sEnumTableArray, it returns PR_FALSE.
-   *
-   * @param aTable   the EnumTable to get the index of.
-   * @param aResult  the index of the EnumTable.
-   * @return         whether the index has been found or inserted.
-   */
-  PRBool GetEnumTableIndex(const EnumTable* aTable, PRInt16& aResult);
 
   inline void SetPtrValueAndType(void* aValue, ValueBaseType aType);
   void SetIntValueAndType(PRInt32 aValue, ValueType aType,
@@ -439,6 +402,13 @@ nsAttrValue::GetFloatValue() const
 {
   NS_PRECONDITION(Type() == eFloatValue, "wrong type");
   return GetMiscContainer()->mFloatValue;
+}
+
+inline nsIURI*
+nsAttrValue::GetURIValue() const
+{
+  NS_PRECONDITION(Type() == eLazyURIValue, "wrong type");
+  return GetMiscContainer()->mURI;
 }
 
 inline nsAttrValue::ValueBaseType

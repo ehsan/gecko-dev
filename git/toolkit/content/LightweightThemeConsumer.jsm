@@ -42,16 +42,16 @@ function LightweightThemeConsumer(aDocument) {
 
   Components.classes["@mozilla.org/observer-service;1"]
             .getService(Components.interfaces.nsIObserverService)
-            .addObserver(this, "lightweight-theme-styling-update", false);
+            .addObserver(this, "lightweight-theme-changed", false);
 
   var temp = {};
   Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm", temp);
-  this._update(temp.LightweightThemeManager.currentThemeForDisplay);
+  this._update(temp.LightweightThemeManager.currentTheme);
 }
 
 LightweightThemeConsumer.prototype = {
   observe: function (aSubject, aTopic, aData) {
-    if (aTopic != "lightweight-theme-styling-update")
+    if (aTopic != "lightweight-theme-changed")
       return;
 
     this._update(JSON.parse(aData));
@@ -60,7 +60,7 @@ LightweightThemeConsumer.prototype = {
   destroy: function () {
     Components.classes["@mozilla.org/observer-service;1"]
               .getService(Components.interfaces.nsIObserverService)
-              .removeObserver(this, "lightweight-theme-styling-update");
+              .removeObserver(this, "lightweight-theme-changed");
 
     this._doc = null;
   },
@@ -97,10 +97,13 @@ LightweightThemeConsumer.prototype = {
     }
 
 #ifdef XP_MACOSX
-    if (active)
-      root.setAttribute("drawintitlebar", "true");
-    else
-      root.removeAttribute("drawintitlebar");
+    if (active && aData.accentcolor) {
+      root.setAttribute("activetitlebarcolor", aData.accentcolor);
+      root.setAttribute("inactivetitlebarcolor", aData.accentcolor);
+    } else {
+      root.removeAttribute("activetitlebarcolor");
+      root.removeAttribute("inactivetitlebarcolor");
+    }
 #endif
   }
 }

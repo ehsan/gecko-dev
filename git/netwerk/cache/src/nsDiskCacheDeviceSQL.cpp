@@ -63,8 +63,6 @@
 #include "nsICacheVisitor.h"
 #include "nsISeekableStream.h"
 
-#include "mozilla/FunctionTimer.h"
-
 static const char OFFLINE_CACHE_DEVICE_ID[] = { "offline" };
 static NS_DEFINE_CID(kCacheServiceCID, NS_CACHESERVICE_CID);
 
@@ -958,8 +956,6 @@ nsOfflineCacheDevice::GetInstance()
 nsresult
 nsOfflineCacheDevice::Init()
 {
-  NS_TIME_FUNCTION;
-
   NS_ENSURE_TRUE(!mDB, NS_ERROR_ALREADY_INITIALIZED);
 
   // SetCacheParentDirectory must have been called
