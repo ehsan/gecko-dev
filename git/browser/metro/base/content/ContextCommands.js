@@ -68,8 +68,6 @@ var ContextCommands = {
 
         SelectionHelperUI.closeEditSession(true);
       }
-    } else if (ContextMenuUI.popupState.string) {
-      this.clipboard.copyString(ContextMenuUI.popupState.string, this.docRef);
     } else {
       // chrome
       target.editor.copy();

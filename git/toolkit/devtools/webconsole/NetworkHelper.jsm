@@ -52,8 +52,19 @@
  *  Mihai Sucan (Mozilla Corp.)
  */
 
-const {Cc, Ci, Cu} = require("chrome");
-loader.lazyImporter(this, "NetUtil", "resource://gre/modules/NetUtil.jsm");
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
+  var obj = {};
+  Cu.import("resource://gre/modules/NetUtil.jsm", obj);
+  return obj.NetUtil;
+});
+
+this.EXPORTED_SYMBOLS = ["NetworkHelper"];
 
 /**
  * Helper object for networking stuff.
@@ -61,7 +72,9 @@ loader.lazyImporter(this, "NetUtil", "resource://gre/modules/NetUtil.jsm");
  * Most of the following functions have been taken from the Firebug source. They
  * have been modified to match the Firefox coding rules.
  */
-let NetworkHelper = {
+
+this.NetworkHelper =
+{
   /**
    * Converts aText with a given aCharset to unicode.
    *
@@ -255,7 +268,8 @@ let NetworkHelper = {
       let contentCharset = aChannel.contentCharset || aCharset;
 
       // Read the content of the stream using contentCharset as encoding.
-      aCallback(this.readAndConvertFromStream(aInputStream, contentCharset));
+      aCallback(NetworkHelper.readAndConvertFromStream(aInputStream,
+                                                       contentCharset));
     });
   },
 
@@ -424,7 +438,7 @@ let NetworkHelper = {
       return true;
     }
 
-    switch (this.mimeCategoryMap[aMimeType]) {
+    switch (NetworkHelper.mimeCategoryMap[aMimeType]) {
       case "txt":
       case "js":
       case "json":
@@ -438,8 +452,4 @@ let NetworkHelper = {
         return false;
     }
   },
-};
-
-for (let prop of Object.getOwnPropertyNames(NetworkHelper)) {
-  exports[prop] = NetworkHelper[prop];
 }

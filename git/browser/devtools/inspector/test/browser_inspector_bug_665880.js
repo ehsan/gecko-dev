@@ -29,7 +29,6 @@ function test()
   function runObjectInspectionTest(inspector)
   {
     inspector.highlighter.once("locked", performTestComparison);
-    inspector.highlighter.unlock();
     inspector.selection.setNode(objectNode, "");
   }
 

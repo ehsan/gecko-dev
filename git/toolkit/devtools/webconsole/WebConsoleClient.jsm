@@ -6,9 +6,16 @@
 
 "use strict";
 
-const {Cc, Ci, Cu} = require("chrome");
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
-loader.lazyImporter(this, "LongStringClient", "resource://gre/modules/devtools/dbg-client.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "LongStringClient",
+                                  "resource://gre/modules/devtools/dbg-client.jsm");
+
+this.EXPORTED_SYMBOLS = ["WebConsoleClient"];
 
 /**
  * A WebConsoleClient is used as a front end for the WebConsoleActor that is
@@ -19,13 +26,12 @@ loader.lazyImporter(this, "LongStringClient", "resource://gre/modules/devtools/d
  * @param string aActor
  *        The WebConsoleActor ID.
  */
-function WebConsoleClient(aDebuggerClient, aActor)
+this.WebConsoleClient = function WebConsoleClient(aDebuggerClient, aActor)
 {
   this._actor = aActor;
   this._client = aDebuggerClient;
   this._longStrings = {};
 }
-exports.WebConsoleClient = WebConsoleClient;
 
 WebConsoleClient.prototype = {
   _longStrings: null,

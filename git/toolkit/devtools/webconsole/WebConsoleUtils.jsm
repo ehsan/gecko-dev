@@ -6,24 +6,45 @@
 
 "use strict";
 
-const {Cc, Ci, Cu} = require("chrome");
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-loader.lazyGetter(this, "NetworkHelper", () => require("devtools/toolkit/webconsole/network-helper"));
-loader.lazyImporter(this, "Services", "resource://gre/modules/Services.jsm");
-loader.lazyImporter(this, "ConsoleAPIStorage", "resource://gre/modules/ConsoleAPIStorage.jsm");
-loader.lazyImporter(this, "NetUtil", "resource://gre/modules/NetUtil.jsm");
-loader.lazyImporter(this, "PrivateBrowsingUtils", "resource://gre/modules/PrivateBrowsingUtils.jsm");
-loader.lazyServiceGetter(this, "gActivityDistributor",
-                         "@mozilla.org/network/http-activity-distributor;1",
-                         "nsIHttpActivityDistributor");
+XPCOMUtils.defineLazyModuleGetter(this, "Services",
+                                  "resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "ConsoleAPIStorage",
+                                  "resource://gre/modules/ConsoleAPIStorage.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
+                                  "resource://gre/modules/NetUtil.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "NetworkHelper",
+                                  "resource://gre/modules/devtools/NetworkHelper.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
+                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
+
+XPCOMUtils.defineLazyServiceGetter(this, "gActivityDistributor",
+                                   "@mozilla.org/network/http-activity-distributor;1",
+                                   "nsIHttpActivityDistributor");
 
 // TODO: Bug 842672 - toolkit/ imports modules from browser/.
 // Note that these are only used in JSTermHelpers, see $0 and pprint().
-loader.lazyImporter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
-loader.lazyImporter(this, "devtools", "resource://gre/modules/devtools/Loader.jsm");
-loader.lazyImporter(this, "VariablesView", "resource:///modules/devtools/VariablesView.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
+                                  "resource:///modules/devtools/gDevTools.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "devtools",
+                                  "resource://gre/modules/devtools/Loader.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
+                                  "resource:///modules/devtools/VariablesView.jsm");
+
+this.EXPORTED_SYMBOLS = ["WebConsoleUtils", "JSPropertyProvider", "JSTermHelpers",
+                         "ConsoleServiceListener", "ConsoleAPIListener",
+                         "NetworkResponseListener", "NetworkMonitor",
+                         "ConsoleProgressListener"];
 
 // Match the function name from the result of toString() or toSource().
 //
@@ -36,7 +57,7 @@ const REGEX_MATCH_FUNCTION_NAME = /^\(?function\s+([^(\s]+)\s*\(/;
 // Match the function arguments from the result of toString() or toSource().
 const REGEX_MATCH_FUNCTION_ARGS = /^\(?function\s*[^\s(]*\s*\((.+?)\)/;
 
-let WebConsoleUtils = {
+this.WebConsoleUtils = {
   /**
    * Convenience function to unwrap a wrapped object.
    *
@@ -242,7 +263,7 @@ let WebConsoleUtils = {
     let desc = null;
     while (aObject) {
       try {
-        if ((desc = Object.getOwnPropertyDescriptor(aObject, aProp))) {
+        if (desc = Object.getOwnPropertyDescriptor(aObject, aProp)) {
           break;
         }
       }
@@ -490,7 +511,6 @@ let WebConsoleUtils = {
     return aGrip && typeof(aGrip) == "object" && aGrip.actor;
   },
 };
-exports.Utils = WebConsoleUtils;
 
 //////////////////////////////////////////////////////////////////////////
 // Localization
@@ -581,7 +601,7 @@ WebConsoleUtils.l10n.prototype = {
 // JS Completer
 //////////////////////////////////////////////////////////////////////////
 
-(function _JSPP(WCU) {
+this.JSPropertyProvider = (function _JSPP(WCU) {
 const STATE_NORMAL = 0;
 const STATE_QUOTE = 2;
 const STATE_DQUOTE = 3;
@@ -594,7 +614,7 @@ const OPEN_CLOSE_BODY = {
   "(": ")",
 };
 
-const MAX_COMPLETIONS = 1500;
+const MAX_COMPLETIONS = 256;
 
 /**
  * Analyses a given string to find the last statement that is interesting for
@@ -886,7 +906,7 @@ function getMatchedProps(aObj, aOptions = {matchProp: ""})
 }
 
 
-exports.JSPropertyProvider = JSPropertyProvider;
+return JSPropertyProvider;
 })(WebConsoleUtils);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -903,15 +923,14 @@ exports.JSPropertyProvider = JSPropertyProvider;
  *        for filtering out messages that belong to other windows.
  * @param object aListener
  *        The listener object must have one method:
- *        - onConsoleServiceMessage(). This method is invoked with one argument,
- *        the nsIConsoleMessage, whenever a relevant message is received.
+ *        - onConsoleServiceMessage(). This method is invoked with one argument, the
+ *        nsIConsoleMessage, whenever a relevant message is received.
  */
-function ConsoleServiceListener(aWindow, aListener)
+this.ConsoleServiceListener = function ConsoleServiceListener(aWindow, aListener)
 {
   this.window = aWindow;
   this.listener = aListener;
 }
-exports.ConsoleServiceListener = ConsoleServiceListener;
 
 ConsoleServiceListener.prototype =
 {
@@ -1077,12 +1096,11 @@ ConsoleServiceListener.prototype =
  *        Console API message that comes from the observer service, whenever
  *        a relevant console API call is received.
  */
-function ConsoleAPIListener(aWindow, aOwner)
+this.ConsoleAPIListener = function ConsoleAPIListener(aWindow, aOwner)
 {
   this.window = aWindow;
   this.owner = aOwner;
 }
-exports.ConsoleAPIListener = ConsoleAPIListener;
 
 ConsoleAPIListener.prototype =
 {
@@ -1196,7 +1214,7 @@ ConsoleAPIListener.prototype =
  * @param object aOwner
  *        The owning object.
  */
-function JSTermHelpers(aOwner)
+this.JSTermHelpers = function JSTermHelpers(aOwner)
 {
   /**
    * Find a node by ID.
@@ -1237,12 +1255,12 @@ function JSTermHelpers(aOwner)
   {
     let nodes = new aOwner.window.wrappedJSObject.Array();
     let doc = aOwner.window.document;
-    aContext = aContext || doc;
+    let aContext = aContext || doc;
 
     let results = doc.evaluate(aXPath, aContext, null,
                                Ci.nsIDOMXPathResult.ANY_TYPE, null);
     let node;
-    while ((node = results.iterateNext())) {
+    while (node = results.iterateNext()) {
       nodes.push(node);
     }
 
@@ -1371,7 +1389,7 @@ function JSTermHelpers(aOwner)
         type: "error",
         message: "helperFuncUnsupportedTypeError",
       };
-      return null;
+      return;
     }
 
     aOwner.helperResult = { rawOutput: true };
@@ -1415,10 +1433,10 @@ function JSTermHelpers(aOwner)
     aOwner.helperResult = { rawOutput: true };
     return String(aString);
   };
-}
-exports.JSTermHelpers = JSTermHelpers;
+};
 
-(function(WCU) {
+
+(function(_global, WCU) {
 ///////////////////////////////////////////////////////////////////////////////
 // Network logging
 ///////////////////////////////////////////////////////////////////////////////
@@ -2328,9 +2346,9 @@ NetworkMonitor.prototype = {
   },
 };
 
-exports.NetworkMonitor = NetworkMonitor;
-exports.NetworkResponseListener = NetworkResponseListener;
-})(WebConsoleUtils);
+_global.NetworkMonitor = NetworkMonitor;
+_global.NetworkResponseListener = NetworkResponseListener;
+})(this, WebConsoleUtils);
 
 /**
  * A WebProgressListener that listens for location changes.
@@ -2346,12 +2364,12 @@ exports.NetworkResponseListener = NetworkResponseListener;
  *        - onFileActivity(aFileURI)
  *        - onLocationChange(aState, aTabURI, aPageTitle)
  */
-function ConsoleProgressListener(aWindow, aOwner)
+this.ConsoleProgressListener =
+ function ConsoleProgressListener(aWindow, aOwner)
 {
   this.window = aWindow;
   this.owner = aOwner;
 }
-exports.ConsoleProgressListener = ConsoleProgressListener;
 
 ConsoleProgressListener.prototype = {
   /**

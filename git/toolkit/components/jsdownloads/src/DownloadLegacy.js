@@ -164,16 +164,16 @@ DownloadLegacyTransfer.prototype = {
   init: function DLT_init(aSource, aTarget, aDisplayName, aMIMEInfo, aStartTime,
                           aTempFile, aCancelable, aIsPrivate)
   {
-    let launchWhenSucceeded = false, contentType = null, launcherPath = null;
+
+    let launchWhenSuccedded = false, contentType = null, launcherPath = null;
 
     if (aMIMEInfo instanceof Ci.nsIMIMEInfo) {
-      launchWhenSucceeded =
-                aMIMEInfo.preferredAction != Ci.nsIMIMEInfo.saveToDisk;
+      launchWhenSuccedded = aMIMEInfo.preferredAction != Ci.nsIMIMEInfo.saveToDisk;
       contentType = aMIMEInfo.type;
-
       let appHandler = aMIMEInfo.preferredApplicationHandler;
+
       if (appHandler instanceof Ci.nsILocalHandlerApp) {
-        launcherPath = appHandler.executable.path;
+        launcherPath = localHandler.executable.path;
       }
     }
 
@@ -185,7 +185,7 @@ DownloadLegacyTransfer.prototype = {
       target: { path: aTarget.QueryInterface(Ci.nsIFileURL).file.path,
                 partFilePath: aTempFile && aTempFile.path },
       saver: "legacy",
-      launchWhenSucceeded: launchWhenSucceeded,
+      launchWhenSuccedded: launchWhenSuccedded,
       contentType: contentType,
       launcherPath: launcherPath
     }).then(function DLT_I_onDownload(aDownload) {
@@ -221,8 +221,6 @@ DownloadLegacyTransfer.prototype = {
       return list.then(function (aList) aList.add(aDownload));
     }.bind(this)).then(null, Cu.reportError);
   },
-
-  setSha256Hash: function () { },
 
   //////////////////////////////////////////////////////////////////////////////
   //// Private methods and properties

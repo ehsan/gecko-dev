@@ -2,8 +2,8 @@
  http://creativecommons.org/publicdomain/zero/1.0/ */
 
 /**
- * Tests that objects, nested objects, and circular references are
- * correctly serialized and sent in exitedFrame packets.
+ * Tests that chained object prototypes are correctly serialized and
+ * sent in exitedFrame packets.
  */
 
 let {defer} = devtools.require("sdk/core/promise");
@@ -38,16 +38,16 @@ function test_enter_exit_frame()
                   'exitedFrame response should have return value');
 
       let objPool = aPacket.return.objectPool;
-      let retval = objPool[aPacket.return.value.objectId];
-      let obj = objPool[retval.ownProperties.obj.value.objectId];
+      let obj = objPool[aPacket.return.value.objectId];
+      let propObj = objPool[obj.ownProperties.b.value.objectId];
+      let proto = objPool[obj.prototype.objectId];
+      let protoProto = objPool[proto.prototype.objectId];
 
-      do_check_eq(retval.ownProperties.num.value, 25);
-      do_check_eq(retval.ownProperties.str.value, "foo");
-      do_check_eq(retval.ownProperties.bool.value, false);
-      do_check_eq(retval.ownProperties.undef.value.type, "undefined");
-      do_check_eq(retval.ownProperties.nil.value.type, "null");
-      do_check_eq(obj.ownProperties.self.value.objectId,
-                  retval.ownProperties.obj.value.objectId);
+      do_check_eq(obj.ownProperties.a.value, 1);
+      do_check_eq(propObj.ownProperties.c.value, "c");
+      do_check_eq(proto.ownProperties.d.value, "foo");
+      do_check_eq(proto.ownProperties.e.value, 42);
+      do_check_eq(protoProto.ownProperties.f.value, 2);
     }
   });
 
@@ -70,18 +70,22 @@ function eval_code()
 {
   gDebuggee.eval("(" + function() {
     function foo() {
-      let obj = Object.create(null);
-      obj.self = obj;
+      let protoProto = Object.create(null);
+      protoProto.f = 2;
 
-      let retval = Object.create(null);
-      retval.num = 25;
-      retval.str = "foo";
-      retval.bool = false;
-      retval.undef = undefined;
-      retval.nil = null;
-      retval.obj = obj;
+      let proto = Object.create(protoProto);
+      proto.d = "foo";
+      proto.e = 42;
 
-      return retval;
+      let obj = Object.create(proto);
+      obj.a = 1;
+
+      let propObj = Object.create(null);
+      propObj.c = "c";
+
+      obj.b = propObj;
+
+      return obj;
     }
     foo();
   } + ")()");
