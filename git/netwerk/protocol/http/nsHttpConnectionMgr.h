@@ -272,7 +272,6 @@ private:
     PRBool   BuildPipeline(nsConnectionEntry *, nsAHttpTransaction *, nsHttpPipeline **);
     nsresult ProcessNewTransaction(nsHttpTransaction *);
     nsresult EnsureSocketThreadTargetIfOnline();
-    void     ClosePersistentConnections(nsConnectionEntry *ent);
     nsresult CreateTransport(nsConnectionEntry *, nsHttpTransaction *);
     void     AddActiveConn(nsHttpConnection *, nsConnectionEntry *);
     void     StartedConnect();

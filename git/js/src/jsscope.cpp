@@ -132,6 +132,8 @@ JSObject::ensureClassReservedSlotsForEmptyObject(JSContext *cx)
     return true;
 }
 
+#define PROPERTY_TABLE_NBYTES(n) ((n) * sizeof(Shape *))
+
 bool
 PropertyTable::init(JSRuntime *rt, Shape *lastProp)
 {
@@ -150,7 +152,7 @@ PropertyTable::init(JSRuntime *rt, Shape *lastProp)
      * Use rt->calloc_ for memory accounting and overpressure handling
      * without OOM reporting. See PropertyTable::change.
      */
-    entries = (Shape **) rt->calloc_(sizeOfEntries(JS_BIT(sizeLog2)));
+    entries = (Shape **) rt->calloc_(JS_BIT(sizeLog2) * sizeof(Shape *));
     if (!entries)
         return false;
 
@@ -288,30 +290,35 @@ PropertyTable::search(jsid id, bool adding)
 bool
 PropertyTable::change(int log2Delta, JSContext *cx)
 {
+    int oldlog2, newlog2;
+    uint32 oldsize, newsize, nbytes;
+    Shape **newTable, **oldTable, **spp, **oldspp, *shape;
+
     JS_ASSERT(entries);
 
     /*
      * Grow, shrink, or compress by changing this->entries.
      */
-    int oldlog2 = JS_DHASH_BITS - hashShift;
-    int newlog2 = oldlog2 + log2Delta;
-    uint32 oldsize = JS_BIT(oldlog2);
-    uint32 newsize = JS_BIT(newlog2);
-    Shape **newTable = (Shape **) cx->calloc_(sizeOfEntries(newsize));
+    oldlog2 = JS_DHASH_BITS - hashShift;
+    newlog2 = oldlog2 + log2Delta;
+    oldsize = JS_BIT(oldlog2);
+    newsize = JS_BIT(newlog2);
+    nbytes = PROPERTY_TABLE_NBYTES(newsize);
+    newTable = (Shape **) cx->calloc_(nbytes);
     if (!newTable)
         return false;
 
     /* Now that we have newTable allocated, update members. */
     hashShift = JS_DHASH_BITS - newlog2;
     removedCount = 0;
-    Shape **oldTable = entries;
+    oldTable = entries;
     entries = newTable;
 
     /* Copy only live entries, leaving removed and free ones behind. */
-    for (Shape **oldspp = oldTable; oldsize != 0; oldspp++) {
-        Shape *shape = SHAPE_FETCH(oldspp);
+    for (oldspp = oldTable; oldsize != 0; oldspp++) {
+        shape = SHAPE_FETCH(oldspp);
         if (shape) {
-            Shape **spp = search(shape->propid, true);
+            spp = search(shape->propid, true);
             JS_ASSERT(SHAPE_IS_FREE(*spp));
             *spp = shape;
         }

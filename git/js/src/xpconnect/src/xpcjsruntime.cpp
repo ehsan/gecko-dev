@@ -46,7 +46,6 @@
 #include "dom_quickstubs.h"
 
 #include "jsgcchunk.h"
-#include "jsscope.h"
 #include "nsIMemoryReporter.h"
 #include "nsPrintfCString.h"
 #include "mozilla/FunctionTimer.h"
@@ -1405,7 +1404,6 @@ private:
 
         PRInt64 objectSlots;
         PRInt64 stringChars;
-        PRInt64 propertyTables;
 
         PRInt64 scripts;
 #ifdef JS_METHODJIT
@@ -1545,21 +1543,17 @@ private:
         IterateData *data = static_cast<IterateData *>(vdata);
         CompartmentStats *curr = data->currCompartmentStats;
         if (traceKind == JSTRACE_OBJECT) {
-            curr->gcHeapObjects += thingSize;
             JSObject *obj = static_cast<JSObject *>(thing);
+            curr->gcHeapObjects += thingSize;
             if (obj->hasSlotsArray()) {
                 curr->objectSlots += obj->numSlots() * sizeof(js::Value);
             }
         } else if (traceKind == JSTRACE_STRING) {
-            curr->gcHeapStrings += thingSize;
             JSString *str = static_cast<JSString *>(thing);
+            curr->gcHeapStrings += thingSize;
             curr->stringChars += str->charsHeapSize();
         } else if (traceKind == JSTRACE_SHAPE) {
             curr->gcHeapShapes += thingSize;
-            js::Shape *shape = static_cast<js::Shape *>(thing);
-            if (shape->hasTable()) {
-                curr->propertyTables += shape->getTable()->sizeOf();
-            }
         } else {
             JS_ASSERT(traceKind == JSTRACE_XML);
             curr->gcHeapXml += thingSize;
@@ -1619,13 +1613,7 @@ public:
 
         #define BYTES(path, kind, amount, desc) \
             callback->Callback(p, path, kind, nsIMemoryReporter::UNITS_BYTES, \
-                               amount, NS_LITERAL_CSTRING(desc), closure)
-
-        #define BYTES0(path, kind, amount, desc) \
-            do { \
-                if (amount != 0) \
-                    BYTES(path, kind, amount, desc); \
-            } while (0)
+                               amount, NS_LITERAL_CSTRING(desc), closure);
 
         #define PERCENTAGE(path, kind, amount, desc) \
             callback->Callback(p, path, kind, nsIMemoryReporter::UNITS_PERCENTAGE, \
@@ -1646,28 +1634,28 @@ public:
 
             gcHeapArenaUnused += stats->gcHeapArenaUnused;
 
-            BYTES0(mkPath(name, "gc-heap/arena-headers"),
+            BYTES(mkPath(name, "gc-heap/arena-headers"),
                JS_GC_HEAP_KIND, stats->gcHeapArenaHeaders,
     "Memory on the compartment's garbage-collected JavaScript heap, within "
     "arenas, that is used to hold internal book-keeping information.");
 
-            BYTES0(mkPath(name, "gc-heap/arena-padding"),
+            BYTES(mkPath(name, "gc-heap/arena-padding"),
                JS_GC_HEAP_KIND, stats->gcHeapArenaPadding,
     "Memory on the compartment's garbage-collected JavaScript heap, within "
     "arenas, that is unused and present only so that other data is aligned. "
     "This constitutes internal fragmentation.");
 
-            BYTES0(mkPath(name, "gc-heap/arena-unused"),
+            BYTES(mkPath(name, "gc-heap/arena-unused"),
                JS_GC_HEAP_KIND, stats->gcHeapArenaUnused,
     "Memory on the compartment's garbage-collected JavaScript heap, within "
     "arenas, that could be holding useful data but currently isn't.");
 
-            BYTES0(mkPath(name, "gc-heap/objects"),
+            BYTES(mkPath(name, "gc-heap/objects"),
                JS_GC_HEAP_KIND, stats->gcHeapObjects,
     "Memory on the compartment's garbage-collected JavaScript heap that holds "
     "objects.");
 
-            BYTES0(mkPath(name, "gc-heap/strings"),
+            BYTES(mkPath(name, "gc-heap/strings"),
                JS_GC_HEAP_KIND, stats->gcHeapStrings,
     "Memory on the compartment's garbage-collected JavaScript heap that holds "
     "string headers.  String headers contain various pieces of information "
@@ -1675,18 +1663,18 @@ public:
     "strings) the string characters;  characters in longer strings are counted "
     "under 'gc-heap/string-chars' instead.");
 
-            BYTES0(mkPath(name, "gc-heap/shapes"),
+            BYTES(mkPath(name, "gc-heap/shapes"),
                JS_GC_HEAP_KIND, stats->gcHeapShapes,
     "Memory on the compartment's garbage-collected JavaScript heap that holds "
     "shapes. A shape is an internal data structure that makes JavaScript "
     "property accesses fast.");
 
-            BYTES0(mkPath(name, "gc-heap/xml"),
+            BYTES(mkPath(name, "gc-heap/xml"),
                JS_GC_HEAP_KIND, stats->gcHeapXml,
     "Memory on the compartment's garbage-collected JavaScript heap that holds "
     "E4X XML objects.");
 
-            BYTES0(mkPath(name, "object-slots"),
+            BYTES(mkPath(name, "object-slots"),
                nsIMemoryReporter::KIND_HEAP, stats->objectSlots,
     "Memory allocated for the compartment's non-fixed object slot arrays, "
     "which are used to represent object properties.  Some objects also "
@@ -1694,7 +1682,7 @@ public:
     "JavaScript heap; those slots are not counted here, but in "
     "'gc-heap/objects' instead.");
 
-            BYTES0(mkPath(name, "string-chars"),
+            BYTES(mkPath(name, "string-chars"),
                nsIMemoryReporter::KIND_HEAP, stats->stringChars,
     "Memory allocated to hold the compartment's string characters.  Sometimes "
     "more memory is allocated than necessary, to simplify string "
@@ -1702,13 +1690,7 @@ public:
     "compartment's JavaScript heap;  that header is not counted here, but in "
     "'gc-heap/strings' instead.");
 
-            BYTES0(mkPath(name, "property-tables"),
-               nsIMemoryReporter::KIND_HEAP, stats->propertyTables,
-    "Memory allocated for the compartment's property tables.  A property "
-    "table is an internal data structure that makes JavaScript property "
-    "accesses fast.");
-
-            BYTES0(mkPath(name, "scripts"),
+            BYTES(mkPath(name, "scripts"),
                nsIMemoryReporter::KIND_HEAP, stats->scripts,
     "Memory allocated for the compartment's JSScripts.  A JSScript is created "
     "for each user-defined function in a script.  One is also created for "
@@ -1716,26 +1698,26 @@ public:
     "various other things.");
 
 #ifdef JS_METHODJIT
-            BYTES0(mkPath(name, "mjit-code"),
+            BYTES(mkPath(name, "mjit-code"),
                nsIMemoryReporter::KIND_NONHEAP, stats->mjitCode,
     "Memory used by the method JIT to hold the compartment's generated code.");
 
-            BYTES0(mkPath(name, "mjit-data"),
+            BYTES(mkPath(name, "mjit-data"),
                nsIMemoryReporter::KIND_HEAP, stats->mjitData,
     "Memory used by the method JIT for the compartment's compilation data: "
     "JITScripts, native maps, and inline cache structs.");
 #endif
 #ifdef JS_TRACER
-            BYTES0(mkPath(name, "tjit-code"),
+            BYTES(mkPath(name, "tjit-code"),
                nsIMemoryReporter::KIND_NONHEAP, stats->tjitCode,
     "Memory used by the trace JIT to hold the compartment's generated code.");
 
-            BYTES0(mkPath(name, "tjit-data/allocators-main"),
+            BYTES(mkPath(name, "tjit-data/allocators-main"),
                nsIMemoryReporter::KIND_HEAP, stats->tjitDataAllocatorsMain,
     "Memory used by the trace JIT to store the compartment's trace-related "
     "data.  This data is allocated via the compartment's VMAllocators.");
 
-            BYTES0(mkPath(name, "tjit-data/allocators-reserve"),
+            BYTES(mkPath(name, "tjit-data/allocators-reserve"),
                nsIMemoryReporter::KIND_HEAP, stats->tjitDataAllocatorsReserve,
     "Memory used by the trace JIT and held in reserve for the compartment's "
     "VMAllocators in case of OOM.");

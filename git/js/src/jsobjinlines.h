@@ -760,7 +760,7 @@ JSObject::principals(JSContext *cx)
     JSSecurityCallbacks *cb = JS_GetSecurityCallbacks(cx);
     if (JSObjectPrincipalsFinder finder = cb ? cb->findObjectPrincipals : NULL)
         return finder(cx, this);
-    return cx->compartment ? cx->compartment->principals : NULL;
+    return NULL;
 }
 
 inline uint32

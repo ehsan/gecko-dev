@@ -557,6 +557,13 @@ nsContentSink::DoProcessLinkHeader()
   ProcessLinkHeader(nsnull, value);
 }
 
+static const PRUnichar kSemiCh = PRUnichar(';');
+static const PRUnichar kCommaCh = PRUnichar(',');
+static const PRUnichar kEqualsCh = PRUnichar('=');
+static const PRUnichar kLessThanCh = PRUnichar('<');
+static const PRUnichar kGreaterThanCh = PRUnichar('>');
+
+
 // check whether the Link header field applies to the context resource
 // see <http://tools.ietf.org/html/rfc5988#section-5.2>
 
@@ -635,31 +642,22 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
     end = start;
     last = end - 1;
 
-    PRBool needsUnescape = PR_FALSE;
-    
     // look for semicolon or comma
-    while (*end != kNullCh && *end != kSemicolon && *end != kComma) {
+    while (*end != kNullCh && *end != kSemiCh && *end != kCommaCh) {
       PRUnichar ch = *end;
 
-      if (ch == kApostrophe || ch == kQuote || ch == kLessThan) {
+      if (ch == kApostrophe || ch == kQuote || ch == kLessThanCh) {
         // quoted string
 
-        PRUnichar quote = ch;
-        if (quote == kLessThan) {
-          quote = kGreaterThan;
+        PRUnichar quote = *end;
+        if (quote == kLessThanCh) {
+          quote = kGreaterThanCh;
         }
-        
-        needsUnescape = (ch == kQuote);
-        
+
         PRUnichar* closeQuote = (end + 1);
 
         // seek closing quote
         while (*closeQuote != kNullCh && quote != *closeQuote) {
-          // in quoted-string, "\" is an escape character
-          if (needsUnescape && *closeQuote == kBackSlash && *(closeQuote + 1) != kNullCh) {
-            ++closeQuote;
-          }
-
           ++closeQuote;
         }
 
@@ -673,14 +671,14 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
 
           ch = *(end + 1);
 
-          if (ch != kNullCh && ch != kSemicolon && ch != kComma) {
+          if (ch != kNullCh && ch != kSemiCh && ch != kCommaCh) {
             // end string here
             *(++end) = kNullCh;
 
             ch = *(end + 1);
 
             // keep going until semi or comma
-            while (ch != kNullCh && ch != kSemicolon && ch != kComma) {
+            while (ch != kNullCh && ch != kSemiCh && ch != kCommaCh) {
               ++end;
 
               ch = *end;
@@ -699,7 +697,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
     *end = kNullCh;
 
     if (start < end) {
-      if ((*start == kLessThan) && (*last == kGreaterThan)) {
+      if ((*start == kLessThanCh) && (*last == kGreaterThanCh)) {
         *last = kNullCh;
 
         if (href.IsEmpty()) { // first one wins
@@ -709,7 +707,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
       } else {
         PRUnichar* equals = start;
 
-        while ((*equals != kNullCh) && (*equals != kEqual)) {
+        while ((*equals != kNullCh) && (*equals != kEqualsCh)) {
           equals++;
         }
 
@@ -729,21 +727,6 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
             value++;
           }
 
-          if (needsUnescape) {
-            // unescape in-place
-            PRUnichar* unescaped = value;
-            PRUnichar *src = value;
-            
-            while (*src != kNullCh) {
-              if (*src == kBackSlash && *(src + 1) != kNullCh) {
-                src++;
-              }
-              *unescaped++ = *src++;
-            }
-
-            *unescaped = kNullCh;
-          }
-          
           if (attr.LowerCaseEqualsLiteral("rel")) {
             if (rel.IsEmpty()) {
               rel = value;
@@ -776,7 +759,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
       }
     }
 
-    if (endCh == kComma) {
+    if (endCh == kCommaCh) {
       // hit a comma, process what we've got so far
 
       href.Trim(" \t\n\r\f"); // trim HTML5 whitespace

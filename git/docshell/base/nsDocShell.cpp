@@ -9214,8 +9214,7 @@ nsresult nsDocShell::DoChannelLoad(nsIChannel * aChannel,
     case LOAD_RELOAD_BYPASS_CACHE:
     case LOAD_RELOAD_BYPASS_PROXY:
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
-        loadFlags |= nsIRequest::LOAD_BYPASS_CACHE |
-                     nsIRequest::LOAD_FRESH_CONNECTION;
+        loadFlags |= nsIRequest::LOAD_BYPASS_CACHE;
         break;
 
     case LOAD_NORMAL:

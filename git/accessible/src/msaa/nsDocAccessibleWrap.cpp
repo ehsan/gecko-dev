@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/dom/TabChild.h"
-
 #include "nsDocAccessibleWrap.h"
 #include "ISimpleDOMDocument_i.c"
 #include "nsIAccessibilityService.h"
@@ -244,7 +242,7 @@ nsDocAccessibleWrap::Shutdown()
   // Do window emulation specific shutdown if emulation was started.
   if (nsWinUtils::IsWindowEmulationStarted()) {
     // Destroy window created for root document.
-    if (nsCoreUtils::IsTabDocument(mDocument)) {
+    if (nsWinUtils::IsTabDocument(mDocument)) {
       sHWNDCache.Remove(mHWND);
       ::DestroyWindow(static_cast<HWND>(mHWND));
     }
@@ -274,18 +272,8 @@ nsDocAccessibleWrap::NotifyOfInitialUpdate()
 
   if (nsWinUtils::IsWindowEmulationStarted()) {
     // Create window for tab document.
-    if (nsCoreUtils::IsTabDocument(mDocument)) {
-      mozilla::dom::TabChild* tabChild =
-        mozilla::dom::GetTabChildFrom(mDocument->GetShell());
-
+    if (nsWinUtils::IsTabDocument(mDocument)) {
       nsRootAccessible* rootDocument = RootAccessible();
-
-      mozilla::WindowsHandle nativeData = nsnull;
-      if (tabChild)
-        tabChild->SendGetWidgetNativeData(&nativeData);
-      else
-        nativeData = reinterpret_cast<mozilla::WindowsHandle>(
-          rootDocument->GetNativeWindow());
 
       PRBool isActive = PR_TRUE;
       PRInt32 x = CW_USEDEFAULT, y = CW_USEDEFAULT, width = 0, height = 0;
@@ -301,7 +289,7 @@ nsDocAccessibleWrap::NotifyOfInitialUpdate()
         docShell->GetIsActive(&isActive);
       }
 
-      HWND parentWnd = reinterpret_cast<HWND>(nativeData);
+      HWND parentWnd = static_cast<HWND>(rootDocument->GetNativeWindow());
       mHWND = nsWinUtils::CreateNativeWindow(kClassNameTabContent, parentWnd,
                                              x, y, width, height, isActive);
 

@@ -982,20 +982,23 @@ nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
   return nsnull;
 }
 
-gfx3DMatrix
+gfxMatrix
 nsLayoutUtils::ChangeMatrixBasis(const gfxPoint &aOrigin,
-                                 const gfx3DMatrix &aMatrix)
+                                 const gfxMatrix &aMatrix)
 {
   /* These are translation matrices from world-to-origin of relative frame and
    * vice-versa.  Although I could use the gfxMatrix::Translate function to
    * accomplish this, I'm hoping to reduce the overall number of matrix
    * operations by hardcoding as many of the matrices as possible.
    */
-  gfx3DMatrix worldToOrigin = gfx3DMatrix::From2D(gfxMatrix(1.0, 0.0, 0.0, 1.0, -aOrigin.x, -aOrigin.y));
-  gfx3DMatrix originToWorld = gfx3DMatrix::From2D(gfxMatrix(1.0, 0.0, 0.0, 1.0,  aOrigin.x,  aOrigin.y));
+  gfxMatrix worldToOrigin(1.0, 0.0, 0.0, 1.0, -aOrigin.x, -aOrigin.y);
+  gfxMatrix originToWorld(1.0, 0.0, 0.0, 1.0,  aOrigin.x,  aOrigin.y);
 
   /* Multiply all three to get the transform! */
-  return worldToOrigin * aMatrix * originToWorld;
+  gfxMatrix result(worldToOrigin);
+  result.Multiply(aMatrix);
+  result.Multiply(originToWorld);
+  return result;
 }
 
 /**
@@ -1060,7 +1063,7 @@ nsLayoutUtils::RoundedRectIntersectRect(const nsRect& aRoundedRect,
 
 nsRect
 nsLayoutUtils::MatrixTransformRectOut(const nsRect &aBounds,
-                                      const gfx3DMatrix &aMatrix, float aFactor)
+                                      const gfxMatrix &aMatrix, float aFactor)
 {
   nsRect outside = aBounds;
   outside.ScaleRoundOut(1/aFactor);
@@ -1073,7 +1076,7 @@ nsLayoutUtils::MatrixTransformRectOut(const nsRect &aBounds,
 
 nsRect
 nsLayoutUtils::MatrixTransformRect(const nsRect &aBounds,
-                                   const gfx3DMatrix &aMatrix, float aFactor)
+                                   const gfxMatrix &aMatrix, float aFactor)
 {
   gfxRect image = aMatrix.TransformBounds(gfxRect(NSAppUnitsToDoublePixels(aBounds.x, aFactor),
                                                   NSAppUnitsToDoublePixels(aBounds.y, aFactor),
@@ -1085,7 +1088,7 @@ nsLayoutUtils::MatrixTransformRect(const nsRect &aBounds,
 
 nsPoint
 nsLayoutUtils::MatrixTransformPoint(const nsPoint &aPoint,
-                                    const gfx3DMatrix &aMatrix, float aFactor)
+                                    const gfxMatrix &aMatrix, float aFactor)
 {
   gfxPoint image = aMatrix.Transform(gfxPoint(NSAppUnitsToFloatPixels(aPoint.x, aFactor),
                                               NSAppUnitsToFloatPixels(aPoint.y, aFactor)));
@@ -1093,10 +1096,10 @@ nsLayoutUtils::MatrixTransformPoint(const nsPoint &aPoint,
                  NSFloatPixelsToAppUnits(float(image.y), aFactor));
 }
 
-gfx3DMatrix nsLayoutUtils::GetTransformToAncestor(nsIFrame *aFrame,
-                                                  nsIFrame* aStopAtAncestor)
+gfxMatrix nsLayoutUtils::GetTransformToAncestor(nsIFrame *aFrame,
+                                                nsIFrame* aStopAtAncestor)
 {
-  gfx3DMatrix ctm;
+  gfxMatrix ctm;
 
   /* Starting at the specified frame, we'll use the GetTransformMatrix
    * function of the frame, which gives us a matrix from this frame up
@@ -1120,13 +1123,11 @@ nsLayoutUtils::InvertTransformsToRoot(nsIFrame *aFrame,
   /* To invert everything to the root, we'll get the CTM, invert it, and use it to transform
    * the point.
    */
-  gfx3DMatrix ctm = GetTransformToAncestor(aFrame);
+  gfxMatrix ctm = GetTransformToAncestor(aFrame);
 
   /* If the ctm is singular, hand back (0, 0) as a sentinel. */
   if (ctm.IsSingular())
     return nsPoint(0, 0);
-
-  /* TODO: Correctly handle 3d transforms when they start being used */
 
   /* Otherwise, invert the CTM and use it to transform the point. */
   return MatrixTransformPoint(aPoint, ctm.Invert(), aFrame->PresContext()->AppUnitsPerDevPixel());

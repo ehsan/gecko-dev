@@ -206,19 +206,6 @@ private:
     printf("document type: [failed]");                                         \
   }
 
-#define NS_LOG_ACCDOC_DOCSHELLTREE(aDocument)                                  \
-  if (aDocument->IsActive()) {                                                 \
-    nsCOMPtr<nsISupports> container = aDocument->GetContainer();               \
-    nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(container));      \
-    nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;                              \
-    treeItem->GetParent(getter_AddRefs(parentTreeItem));                       \
-    nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;                                \
-    treeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));                   \
-    printf("docshell hierarchy, parent: %p, root: %p, is tab document: %s;",   \
-           parentTreeItem, rootTreeItem,                                       \
-           (nsCoreUtils::IsTabDocument(aDocument) ? "yes" : "no"));            \
-  }
-
 #define NS_LOG_ACCDOC_SHELLSTATE(aDocument)                                    \
   nsCAutoString docShellBusy;                                                  \
   nsCOMPtr<nsISupports> container = aDocument->GetContainer();                 \
@@ -364,8 +351,6 @@ private:
       NS_LOG_ACCDOC_SHELLSTATE(aDocument)                                      \
       printf("; ");                                                            \
       NS_LOG_ACCDOC_TYPE(aDocument)                                            \
-      printf("\n    ");                                                        \
-      NS_LOG_ACCDOC_DOCSHELLTREE(aDocument)                                    \
       printf("\n    ");                                                        \
       NS_LOG_ACCDOC_DOCSTATES(aDocument)                                       \
       printf("\n    ");                                                        \

@@ -5218,15 +5218,18 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, bool 
     return true;
 }
 
-static JS_ALWAYS_INLINE JSBool
-js_GetPropertyHelperInline(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id,
-                           uint32 getHow, Value *vp)
+static JS_ALWAYS_INLINE bool
+js_GetPropertyHelperWithShapeInline(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id,
+                                    uintN getHow, Value *vp,
+                                    const Shape **shapeOut, JSObject **holderOut)
 {
     JSObject *aobj, *obj2;
     JSProperty *prop;
     const Shape *shape;
 
     JS_ASSERT_IF(getHow & JSGET_CACHE_RESULT, !JS_ON_TRACE(cx));
+
+    *shapeOut = NULL;
 
     /* Convert string indices to integers if appropriate. */
     id = js_CheckForStringIndex(id);
@@ -5235,6 +5238,8 @@ js_GetPropertyHelperInline(JSContext *cx, JSObject *obj, JSObject *receiver, jsi
     /* This call site is hot -- use the always-inlined variant of LookupPropertyWithFlags(). */
     if (!LookupPropertyWithFlagsInline(cx, aobj, id, cx->resolveFlags, &obj2, &prop))
         return false;
+
+    *holderOut = obj2;
 
     if (!prop) {
         vp->setUndefined();
@@ -5304,6 +5309,7 @@ js_GetPropertyHelperInline(JSContext *cx, JSObject *obj, JSObject *receiver, jsi
     }
 
     shape = (Shape *) prop;
+    *shapeOut = shape;
 
     if (getHow & JSGET_CACHE_RESULT) {
         JS_ASSERT_NOT_ON_TRACE(cx);
@@ -5315,6 +5321,24 @@ js_GetPropertyHelperInline(JSContext *cx, JSObject *obj, JSObject *receiver, jsi
         return JS_FALSE;
 
     return JS_TRUE;
+}
+
+bool
+js_GetPropertyHelperWithShape(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id,
+                              uint32 getHow, Value *vp,
+                              const Shape **shapeOut, JSObject **holderOut)
+{
+    return js_GetPropertyHelperWithShapeInline(cx, obj, receiver, id, getHow, vp,
+                                               shapeOut, holderOut);
+}
+
+static JS_ALWAYS_INLINE JSBool
+js_GetPropertyHelperInline(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id,
+                           uint32 getHow, Value *vp)
+{
+    const Shape *shape;
+    JSObject *holder;
+    return js_GetPropertyHelperWithShapeInline(cx, obj, receiver, id, getHow, vp, &shape, &holder);
 }
 
 JSBool

@@ -122,8 +122,7 @@ nsSVGFeatures::MatchesLanguagePreferences(const nsSubstring& aAttribute,
 {
   const nsDefaultStringComparator defaultComparator;
 
-  nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
-    attributeTokenizer(aAttribute, ',');
+  nsCharSeparatedTokenizer attributeTokenizer(aAttribute, ',');
 
   while (attributeTokenizer.hasMoreTokens()) {
     const nsSubstring &attributeToken = attributeTokenizer.nextToken();

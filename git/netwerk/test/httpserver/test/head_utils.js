@@ -335,7 +335,6 @@ function runHttpTests(testArray, done)
 
       onStartRequest: function(request, cx)
       {
-        dumpn("*** TEST ONSTARTREQUEST: " + testArray[testIndex].path);
         do_check_true(request === this._channel);
         var ch = request.QueryInterface(Ci.nsIHttpChannel)
                         .QueryInterface(Ci.nsIHttpChannelInternal);
@@ -360,18 +359,11 @@ function runHttpTests(testArray, done)
       },
       onDataAvailable: function(request, cx, inputStream, offset, count)
       {
-        dumpn("*** DATA AVAILABLE FOR TEST " + testArray[testIndex].path);
-        dumpn("*** COUNT:    " + count);
-        dumpn("*** OFFSET:   " + offset);
-        dumpn("*** ALREADY:  " + this._data.length);
-        var newData = makeBIS(inputStream).readByteArray(count);
-        dumpn("*** READ NOW: " + newData.length);
-        Array.prototype.push.apply(this._data, newData);
-        dumpn("*** UPDATED:  " + this._data.length);
+        Array.prototype.push.apply(this._data,
+                                   makeBIS(inputStream).readByteArray(count));
       },
       onStopRequest: function(request, cx, status)
       {
-        dumpn("*** TEST FINISHED: " + this._data.length + " for " + testArray[testIndex].path);
         this._channel = null;
 
         var ch = request.QueryInterface(Ci.nsIHttpChannel)
