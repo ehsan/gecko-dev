@@ -177,15 +177,18 @@ HTMLLinkElement::UnbindFromTree(bool aDeep, bool aNullParent)
   // be under a different xml:base, so forget the cached state now.
   Link::ResetLinkState(false, Link::ElementHasHref());
 
-  nsCOMPtr<nsIDocument> oldDoc = GetUncomposedDoc();
+  // Once we have XPCOMGC we shouldn't need to call UnbindFromTree during Unlink
+  // and so this messy event dispatch can go away.
+  nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
 
   // Check for a ShadowRoot because link elements are inert in a
   // ShadowRoot.
   ShadowRoot* oldShadowRoot = GetBindingParent() ?
     GetBindingParent()->GetShadowRoot() : nullptr;
 
-  OwnerDoc()->UnregisterPendingLinkUpdate(this);
-
+  if (oldDoc && !oldShadowRoot) {
+    oldDoc->UnregisterPendingLinkUpdate(this);
+  }
   CreateAndDispatchEvent(oldDoc, NS_LITERAL_STRING("DOMLinkRemoved"));
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 
@@ -248,7 +251,7 @@ void
 HTMLLinkElement::UpdateImport()
 {
   // 1. link node should be attached to the document.
-  nsCOMPtr<nsIDocument> doc = GetUncomposedDoc();
+  nsCOMPtr<nsIDocument> doc = GetCurrentDoc();
   if (!doc) {
     // We might have been just removed from the document, so
     // let's remove ourself from the list of link nodes of

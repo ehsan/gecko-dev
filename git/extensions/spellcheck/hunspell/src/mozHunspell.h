@@ -96,7 +96,7 @@ public:
 
   nsresult Init();
 
-  void LoadDictionaryList(bool aNotifyChildProcesses);
+  void LoadDictionaryList();
 
   // helper method for converting a word to the charset of the dictionary
   nsresult ConvertCharset(const char16_t* aStr, char ** aDst);

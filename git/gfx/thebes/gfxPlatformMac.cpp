@@ -168,7 +168,9 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags)
                  "strange font format hint set");
 
     // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMATS_COMMON |
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
+                        gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
+                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
         return true;
     }

@@ -25,7 +25,6 @@ EXTRA_JS_MODULES += [
     'Geometry.jsm',
     'Http.jsm',
     'InlineSpellChecker.jsm',
-    'InlineSpellCheckerContent.jsm',
     'LoadContextInfo.jsm',
     'Log.jsm',
     'NewTabUtils.jsm',

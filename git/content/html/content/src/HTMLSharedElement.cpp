@@ -227,9 +227,9 @@ HTMLSharedElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       aNameSpaceID == kNameSpaceID_None &&
       IsInDoc()) {
     if (aName == nsGkAtoms::href) {
-      SetBaseURIUsingFirstBaseWithHref(GetUncomposedDoc(), this);
+      SetBaseURIUsingFirstBaseWithHref(GetCurrentDoc(), this);
     } else if (aName == nsGkAtoms::target) {
-      SetBaseTargetUsingFirstBaseWithTarget(GetUncomposedDoc(), this);
+      SetBaseTargetUsingFirstBaseWithTarget(GetCurrentDoc(), this);
     }
   }
 
@@ -250,9 +250,9 @@ HTMLSharedElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       aNameSpaceID == kNameSpaceID_None &&
       IsInDoc()) {
     if (aName == nsGkAtoms::href) {
-      SetBaseURIUsingFirstBaseWithHref(GetUncomposedDoc(), nullptr);
+      SetBaseURIUsingFirstBaseWithHref(GetCurrentDoc(), nullptr);
     } else if (aName == nsGkAtoms::target) {
-      SetBaseTargetUsingFirstBaseWithTarget(GetUncomposedDoc(), nullptr);
+      SetBaseTargetUsingFirstBaseWithTarget(GetCurrentDoc(), nullptr);
     }
   }
 
@@ -287,7 +287,7 @@ HTMLSharedElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 HTMLSharedElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 

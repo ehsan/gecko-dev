@@ -41,9 +41,7 @@ HistoryEngine.prototype = {
   _storeObj: HistoryStore,
   _trackerObj: HistoryTracker,
   downloadLimit: MAX_HISTORY_DOWNLOAD,
-  applyIncomingBatchSize: HISTORY_STORE_BATCH_SIZE,
-
-  syncPriority: 7,
+  applyIncomingBatchSize: HISTORY_STORE_BATCH_SIZE
 };
 
 function HistoryStore(name, engine) {

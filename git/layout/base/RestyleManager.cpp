@@ -1454,7 +1454,9 @@ RestyleManager::RebuildAllStyleData(nsChangeHint aExtraHint)
   // hint passed in, and substantially improve the performance of things
   // like pref changes and the restyling that we do for downloadable
   // font loads.
-  DoRebuildAllStyleData(mPendingRestyles, aExtraHint, eRestyle_Subtree);
+  DoRebuildAllStyleData(mPendingRestyles, aExtraHint,
+                        nsRestyleHint(eRestyle_Subtree |
+                                      eRestyle_ForceDescendants));
 
   mPostAnimationRestyles = false;
   mSkipAnimationRules = false;
@@ -1481,10 +1483,8 @@ RestyleManager::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
     return;
   }
 
-  aRestyleHint = aRestyleHint | eRestyle_ForceDescendants;
-
-  if (!(aRestyleHint & eRestyle_Subtree) &&
-      (aRestyleHint & ~(eRestyle_Force | eRestyle_ForceDescendants))) {
+  if ((aRestyleHint & (eRestyle_Subtree | eRestyle_ForceDescendants)) !=
+      (eRestyle_Subtree | eRestyle_ForceDescendants)) {
     // We want this hint to apply to the root node's primary frame
     // rather than the root frame, since it's the primary frame that has
     // the styles for the root element (rather than the ancestors of the

@@ -904,6 +904,15 @@ jit::FinishDiscardBaselineScript(FreeOp *fop, JSScript *script)
 }
 
 void
+jit::JitCompartment::toggleBaselineStubBarriers(bool enabled)
+{
+    for (ICStubCodeMap::Enum e(*stubCodes_); !e.empty(); e.popFront()) {
+        JitCode *code = *e.front().value().unsafeGet();
+        code->togglePreBarriers(enabled);
+    }
+}
+
+void
 jit::AddSizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf, size_t *data,
                            size_t *fallbackStubs)
 {

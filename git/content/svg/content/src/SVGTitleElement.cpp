@@ -111,7 +111,7 @@ SVGTitleElement::DoneAddingChildren(bool aHaveNotified)
 void
 SVGTitleElement::SendTitleChangeEvent(bool aBound)
 {
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     doc->NotifyPossibleTitleChange(aBound);
   }

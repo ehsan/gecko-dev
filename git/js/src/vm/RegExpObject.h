@@ -15,7 +15,6 @@
 #include "gc/Marking.h"
 #include "gc/Zone.h"
 #include "proxy/Proxy.h"
-#include "vm/ArrayObject.h"
 #include "vm/Shape.h"
 
 /*
@@ -202,24 +201,6 @@ class RegExpShared
     bool marked() const { return marked_; }
     void clearMarked() { marked_ = false; }
 
-    static size_t offsetOfSource() {
-        return offsetof(RegExpShared, source);
-    }
-
-    static size_t offsetOfFlags() {
-        return offsetof(RegExpShared, flags);
-    }
-
-    static size_t offsetOfParenCount() {
-        return offsetof(RegExpShared, parenCount);
-    }
-
-    static size_t offsetOfJitCode(CompilationMode mode, bool latin1) {
-        return offsetof(RegExpShared, compilationArray)
-             + (CompilationIndex(mode, latin1) * sizeof(RegExpCompilation))
-             + offsetof(RegExpCompilation, jitCode);
-    }
-
     size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
 };
 
@@ -305,9 +286,9 @@ class RegExpCompartment
      * if there is a result. This is used in CreateRegExpMatchResult to set
      * the input/index properties faster.
      */
-    ReadBarriered<ArrayObject *> matchResultTemplateObject_;
+    ReadBarrieredObject matchResultTemplateObject_;
 
-    ArrayObject *createMatchResultTemplateObject(JSContext *cx);
+    JSObject *createMatchResultTemplateObject(JSContext *cx);
 
   public:
     explicit RegExpCompartment(JSRuntime *rt);
@@ -324,7 +305,7 @@ class RegExpCompartment
     bool get(JSContext *cx, HandleAtom source, JSString *maybeOpt, RegExpGuard *g);
 
     /* Get or create template object used to base the result of .exec() on. */
-    ArrayObject *getOrCreateMatchResultTemplateObject(JSContext *cx) {
+    JSObject *getOrCreateMatchResultTemplateObject(JSContext *cx) {
         if (matchResultTemplateObject_)
             return matchResultTemplateObject_;
         return createMatchResultTemplateObject(cx);
@@ -344,7 +325,6 @@ class RegExpObject : public NativeObject
 
   public:
     static const unsigned RESERVED_SLOTS = 6;
-    static const unsigned PRIVATE_SLOT = 7;
 
     static const Class class_;
 
@@ -456,7 +436,7 @@ class RegExpObject : public NativeObject
      */
     bool createShared(JSContext *cx, RegExpGuard *g);
     RegExpShared *maybeShared() const {
-        return static_cast<RegExpShared *>(NativeObject::getPrivate(PRIVATE_SLOT));
+        return static_cast<RegExpShared *>(NativeObject::getPrivate());
     }
 
     /* Call setShared in preference to setPrivate. */

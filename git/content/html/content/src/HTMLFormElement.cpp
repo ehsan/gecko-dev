@@ -446,7 +446,7 @@ CollectOrphans(nsINode* aRemovalRoot,
 void
 HTMLFormElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  nsCOMPtr<nsIHTMLDocument> oldDocument = do_QueryInterface(GetUncomposedDoc());
+  nsCOMPtr<nsIHTMLDocument> oldDocument = do_QueryInterface(GetCurrentDoc());
 
   // Mark all of our controls as maybe being orphans
   MarkOrphans(mControls->mElements);
@@ -583,7 +583,7 @@ HTMLFormElement::DoSubmitOrReset(WidgetEvent* aEvent,
                                  int32_t aMessage)
 {
   // Make sure the presentation is up-to-date
-  nsIDocument* doc = GetComposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     doc->FlushPendingNotifications(Flush_ContentAndNotify);
   }
@@ -633,7 +633,7 @@ HTMLFormElement::DoReset()
 nsresult
 HTMLFormElement::DoSubmit(WidgetEvent* aEvent)
 {
-  NS_ASSERTION(GetComposedDoc(), "Should never get here without a current doc");
+  NS_ASSERTION(GetCurrentDoc(), "Should never get here without a current doc");
 
   if (mIsSubmitting) {
     NS_WARNING("Preventing double form submission");
@@ -741,7 +741,7 @@ HTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
   }
 
   // If there is no link handler, then we won't actually be able to submit.
-  nsIDocument* doc = GetComposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   nsCOMPtr<nsISupports> container = doc ? doc->GetContainer() : nullptr;
   nsCOMPtr<nsILinkHandler> linkHandler(do_QueryInterface(container));
   if (!linkHandler || IsEditable()) {
@@ -1801,7 +1801,7 @@ HTMLFormElement::CheckValidFormSubmission()
   // Don't do validation for a form submit done by a sandboxed document that
   // doesn't have 'allow-forms', the submit will have been blocked and the
   // HTML5 spec says we shouldn't validate in this case.
-  nsIDocument* doc = GetComposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc && (doc->GetSandboxFlags() & SANDBOXED_FORMS)) {
     return true;
   }

@@ -101,7 +101,6 @@
 #include "nsIPresShell.h"
 #include "nsIScriptError.h"
 #include "nsISiteSecurityService.h"
-#include "nsISpellChecker.h"
 #include "nsIStyleSheet.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIURIFixup.h"
@@ -2497,8 +2496,7 @@ ContentParent::RecvAddNewProcess(const uint32_t& aPid,
 
     // Update offline settings.
     bool isOffline;
-    InfallibleTArray<nsString> unusedDictionaries;
-    RecvGetXPCOMProcessAttributes(&isOffline, &unusedDictionaries);
+    RecvGetXPCOMProcessAttributes(&isOffline);
     content->SendSetOffline(isOffline);
 
     PreallocatedProcessManager::PublishSpareProcess(content);
@@ -2746,18 +2744,12 @@ ContentParent::RecvGetProcessAttributes(uint64_t* aId,
 }
 
 bool
-ContentParent::RecvGetXPCOMProcessAttributes(bool* aIsOffline,
-                                             InfallibleTArray<nsString>* dictionaries)
+ContentParent::RecvGetXPCOMProcessAttributes(bool* aIsOffline)
 {
     nsCOMPtr<nsIIOService> io(do_GetIOService());
-    MOZ_ASSERT(io, "No IO service?");
+    NS_ASSERTION(io, "No IO service?");
     DebugOnly<nsresult> rv = io->GetOffline(aIsOffline);
-    MOZ_ASSERT(NS_SUCCEEDED(rv), "Failed getting offline?");
-
-    nsCOMPtr<nsISpellChecker> spellChecker(do_GetService(NS_SPELLCHECKER_CONTRACTID));
-    MOZ_ASSERT(spellChecker, "No spell checker?");
-
-    spellChecker->GetDictionaryList(dictionaries);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Failed getting offline?");
 
     return true;
 }
@@ -4059,23 +4051,6 @@ ContentParent::IgnoreIPCPrincipal()
                                  "dom.testing.ignore_ipc_principal", false);
   }
   return sIgnoreIPCPrincipal;
-}
-
-void
-ContentParent::NotifyUpdatedDictionaries()
-{
-    nsAutoTArray<ContentParent*, 8> processes;
-    GetAll(processes);
-
-    nsCOMPtr<nsISpellChecker> spellChecker(do_GetService(NS_SPELLCHECKER_CONTRACTID));
-    MOZ_ASSERT(spellChecker, "No spell checker?");
-
-    InfallibleTArray<nsString> dictionaries;
-    spellChecker->GetDictionaryList(&dictionaries);
-
-    for (size_t i = 0; i < processes.Length(); ++i) {
-        unused << processes[i]->SendUpdateDictionaryList(dictionaries);
-    }
 }
 
 } // namespace dom

@@ -48,7 +48,6 @@ function runSwfPlayer(flashParams) {
   Shumway.createAVM2(builtinPath, viewerPlayerglobalInfo, avm1Path, sysMode, appMode, function (avm2) {
     function runSWF(file) {
       var player = new Shumway.Player.Window.WindowPlayer(window, window.parent);
-      player.defaultStageColor = flashParams.bgcolor;
 
       Shumway.ExternalInterfaceService.instance = player.createExternalInterfaceService();
 
@@ -80,17 +79,10 @@ function setupServices() {
     }
   };
 
-  Shumway.ClipboardService.instance = {
-    setClipboard: function (data) {
-      window.parent.postMessage({
-        callback: 'setClipboard',
-        data: data
-      }, '*');
-    }
-  };
-
   Shumway.FileLoadingService.instance = {
-    baseUrl: null,
+    get baseUrl() {
+      return movieUrl;
+    },
     nextSessionId: 1, // 0 - is reserved
     sessions: [],
     createSession: function () {
@@ -176,11 +168,7 @@ window.addEventListener('message', function onWindowMessage(e) {
       }
       setupServices();
       runSwfPlayer(data.flashParams);
-
       document.body.style.backgroundColor = 'green';
-      window.parent.postMessage({
-        callback: 'started'
-      }, '*');
       break;
   }
 }, true);

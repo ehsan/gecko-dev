@@ -490,10 +490,11 @@ WebGLContext::EnumName(GLenum glenum)
     return "[Unknown enum name]";
 }
 
+
 bool
-WebGLContext::IsCompressedTextureFormat(GLenum format)
+WebGLContext::IsTextureFormatCompressed(TexInternalFormat format)
 {
-    switch (format) {
+    switch (format.get()) {
         case LOCAL_GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
@@ -510,13 +511,6 @@ WebGLContext::IsCompressedTextureFormat(GLenum format)
         default:
             return false;
     }
-}
-
-
-bool
-WebGLContext::IsTextureFormatCompressed(TexInternalFormat format)
-{
-    return IsCompressedTextureFormat(format.get());
 }
 
 GLenum

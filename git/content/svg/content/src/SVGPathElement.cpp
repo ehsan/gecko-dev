@@ -70,14 +70,14 @@ SVGPathElement::PathLength()
 float
 SVGPathElement::GetTotalLength()
 {
-  RefPtr<Path> flat = GetOrBuildPathForMeasuring();
+  RefPtr<Path> flat = GetPathForLengthOrPositionMeasuring();
   return flat ? flat->ComputeLength() : 0.f;
 }
 
 already_AddRefed<nsISVGPoint>
 SVGPathElement::GetPointAtLength(float distance, ErrorResult& rv)
 {
-  RefPtr<Path> path = GetOrBuildPathForMeasuring();
+  RefPtr<Path> path = GetPathForLengthOrPositionMeasuring();
   if (!path) {
     rv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -305,9 +305,9 @@ SVGPathElement::IsAttributeMapped(const nsIAtom* name) const
 }
 
 TemporaryRef<Path>
-SVGPathElement::GetOrBuildPathForMeasuring()
+SVGPathElement::GetPathForLengthOrPositionMeasuring()
 {
-  return mD.GetAnimValue().BuildPathForMeasuring();
+  return mD.GetAnimValue().ToPathForLengthOrPositionMeasuring();
 }
 
 //----------------------------------------------------------------------
@@ -340,7 +340,7 @@ SVGPathElement::GetPathLengthScale(PathLengthScaleForType aFor)
   if (mPathLength.IsExplicitlySet()) {
     float authorsPathLengthEstimate = mPathLength.GetAnimValue();
     if (authorsPathLengthEstimate > 0) {
-      RefPtr<Path> path = GetOrBuildPathForMeasuring();
+      RefPtr<Path> path = GetPathForLengthOrPositionMeasuring();
       if (!path) {
         // The path is empty or invalid so its length must be zero and
         // we know that 0 / authorsPathLengthEstimate = 0.
@@ -390,7 +390,24 @@ SVGPathElement::BuildPath(PathBuilder* aBuilder)
     }
   }
 
-  return mD.GetAnimValue().BuildPath(aBuilder, strokeLineCap, strokeWidth);
+  RefPtr<PathBuilder> builder;
+  if (aBuilder) {
+    builder = aBuilder;
+  } else {
+    RefPtr<DrawTarget> drawTarget =
+      gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget();
+    // The fill rule that we pass must be the current computed value of our
+    // CSS 'fill-rule' property if the path that we return will be used for
+    // painting or hit-testing. For all other uses (bounds calculatons, length
+    // measurement, position-at-offset calculations) the fill rule that we pass
+    // doesn't matter. As a result we can just pass the current computed value
+    // regardless of who's calling us, or what they're going to do with the
+    // path that we return.
+    RefPtr<PathBuilder> builder =
+      drawTarget->CreatePathBuilder(GetFillRule());
+  }
+
+  return mD.GetAnimValue().BuildPath(builder, strokeLineCap, strokeWidth);
 }
 
 } // namespace dom

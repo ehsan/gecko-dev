@@ -36,7 +36,6 @@ class AutoPropDescVector;
 class GCMarker;
 struct NativeIterator;
 class Nursery;
-class ObjectElements;
 struct StackShape;
 
 inline JSObject *

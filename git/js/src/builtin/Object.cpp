@@ -1051,19 +1051,16 @@ obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
     return JSObject::preventExtensions(cx, obj);
 }
 
-// ES6 draft rev27 (2014/08/24) 19.1.2.5 Object.freeze(O)
 static bool
 obj_freeze(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().set(args.get(0));
+    RootedObject obj(cx);
+    if (!GetFirstArgumentAsObject(cx, args, "Object.freeze", &obj))
+        return false;
 
-    // Step 1.
-    if (!args.get(0).isObject())
-        return true;
+    args.rval().setObject(*obj);
 
-    // Steps 2-5.
-    RootedObject obj(cx, &args.get(0).toObject());
     return JSObject::freeze(cx, obj);
 }
 

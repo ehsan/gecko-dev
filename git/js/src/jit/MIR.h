@@ -513,14 +513,8 @@ class MDefinition : public MNode
         Truncate = 3
     };
 
-    // |needTruncation| records the truncation kind of the results, such that it
-    // can be used to truncate the operands of this instruction.  If
-    // |needTruncation| function returns true, then the |truncate| function is
-    // called on the same instruction to mutate the instruction, such as
-    // updating the return type, the range and the specialization of the
-    // instruction.
-    virtual bool needTruncation(TruncateKind kind);
-    virtual void truncate();
+    // Apply the given truncate to this node itself.
+    virtual bool truncate(TruncateKind kind);
 
     // Determine what kind of truncate this node prefers for the operand at the
     // given index.
@@ -1201,7 +1195,7 @@ class MLimitedTruncate
     }
 
     void computeRange(TempAllocator &alloc);
-    bool needTruncation(TruncateKind kind);
+    bool truncate(TruncateKind kind);
     TruncateKind operandTruncateKind(size_t index) const;
     TruncateKind truncateKind() const {
         return truncate_;
@@ -1259,8 +1253,7 @@ class MConstant : public MNullaryInstruction
     }
 
     void computeRange(TempAllocator &alloc);
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
 
     bool canProduceFloat32() const;
 
@@ -1610,21 +1603,6 @@ class MSimdBinaryComp : public MBinaryInstruction
 
     Operation operation() const { return operation_; }
     CompareType compareType() const { return compareType_; }
-
-    // Swap the operands and reverse the comparison predicate.
-    void reverse() {
-        switch (operation()) {
-          case greaterThan:        operation_ = lessThan; break;
-          case greaterThanOrEqual: operation_ = lessThanOrEqual; break;
-          case lessThan:           operation_ = greaterThan; break;
-          case lessThanOrEqual:    operation_ = greaterThanOrEqual; break;
-          case equal:
-          case notEqual:
-            break;
-          default: MOZ_CRASH("Unexpected compare operation");
-        }
-        swapOperands();
-    }
 
     bool congruentTo(const MDefinition *ins) const {
         if (!binaryCongruentTo(ins))
@@ -3459,8 +3437,7 @@ class MCompare
 
     void trySpecializeFloat32(TempAllocator &alloc);
     bool isFloat32Commutative() const { return true; }
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
     TruncateKind operandTruncateKind(size_t index) const;
 
 # ifdef DEBUG
@@ -4049,8 +4026,7 @@ class MToDouble
     }
 
     void computeRange(TempAllocator &alloc);
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
     TruncateKind operandTruncateKind(size_t index) const;
 
 #ifdef DEBUG
@@ -5242,8 +5218,7 @@ class MAdd : public MBinaryArithInstruction
 
     bool fallible() const;
     void computeRange(TempAllocator &alloc);
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
     TruncateKind operandTruncateKind(size_t index) const;
 
     bool writeRecoverData(CompactBufferWriter &writer) const;
@@ -5286,8 +5261,7 @@ class MSub : public MBinaryArithInstruction
 
     bool fallible() const;
     void computeRange(TempAllocator &alloc);
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
     TruncateKind operandTruncateKind(size_t index) const;
 
     bool writeRecoverData(CompactBufferWriter &writer) const;
@@ -5388,8 +5362,7 @@ class MMul : public MBinaryArithInstruction
     bool isFloat32Commutative() const { return true; }
 
     void computeRange(TempAllocator &alloc);
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
     TruncateKind operandTruncateKind(size_t index) const;
 
     Mode mode() const { return mode_; }
@@ -5493,8 +5466,7 @@ class MDiv : public MBinaryArithInstruction
 
     void computeRange(TempAllocator &alloc);
     bool fallible() const;
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
     void collectRangeInfoPreTrunc();
     TruncateKind operandTruncateKind(size_t index) const;
 
@@ -5575,8 +5547,7 @@ class MMod : public MBinaryArithInstruction
     bool fallible() const;
 
     void computeRange(TempAllocator &alloc);
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
     void collectRangeInfoPreTrunc();
     TruncateKind operandTruncateKind(size_t index) const;
 
@@ -5988,8 +5959,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineListNode<MPhi>
     }
 
     TruncateKind operandTruncateKind(size_t index) const;
-    bool needTruncation(TruncateKind kind);
-    void truncate();
+    bool truncate(TruncateKind kind);
 };
 
 // The goal of a Beta node is to split a def at a conditionally taken
@@ -7938,7 +7908,7 @@ class MLoadTypedArrayElementStatic
     }
 
     void computeRange(TempAllocator &alloc);
-    bool needTruncation(TruncateKind kind);
+    bool truncate(TruncateKind kind);
     bool canProduceFloat32() const { return viewType() == Scalar::Float32; }
 };
 

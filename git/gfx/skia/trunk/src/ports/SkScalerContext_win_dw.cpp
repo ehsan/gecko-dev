@@ -26,9 +26,7 @@
 #include "SkTypeface_win_dw.h"
 
 #include <dwrite.h>
-#if SK_HAS_DWRITE_1_H
-#  include <dwrite_1.h>
-#endif
+#include <dwrite_1.h>
 
 static bool isLCD(const SkScalerContext::Rec& rec) {
     return SkMask::kLCD16_Format == rec.fMaskFormat ||
@@ -481,7 +479,6 @@ void SkScalerContext_DW::generateFontMetrics(SkPaint::FontMetrics* metrics) {
     metrics->fFlags |= SkPaint::FontMetrics::kUnderlineThinknessIsValid_Flag;
     metrics->fFlags |= SkPaint::FontMetrics::kUnderlinePositionIsValid_Flag;
 
-#if SK_HAS_DWRITE_1_H
     if (NULL != fTypeface->fDWriteFontFace1.get()) {
         DWRITE_FONT_METRICS1 dwfm1;
         fTypeface->fDWriteFontFace1->GetMetrics(&dwfm1);
@@ -491,28 +488,23 @@ void SkScalerContext_DW::generateFontMetrics(SkPaint::FontMetrics* metrics) {
         metrics->fXMax = fTextSizeRender * SkIntToScalar(dwfm1.glyphBoxRight) / upem;
 
         metrics->fMaxCharWidth = metrics->fXMax - metrics->fXMin;
-        return;
+    } else {
+        AutoTDWriteTable<SkOTTableHead> head(fTypeface->fDWriteFontFace.get());
+        if (head.fExists &&
+            head.fSize >= sizeof(SkOTTableHead) &&
+            head->version == SkOTTableHead::version1)
+        {
+            metrics->fTop = -fTextSizeRender * (int16_t)SkEndian_SwapBE16(head->yMax) / upem;
+            metrics->fBottom = -fTextSizeRender * (int16_t)SkEndian_SwapBE16(head->yMin) / upem;
+            metrics->fXMin = fTextSizeRender * (int16_t)SkEndian_SwapBE16(head->xMin) / upem;
+            metrics->fXMax = fTextSizeRender * (int16_t)SkEndian_SwapBE16(head->xMax) / upem;
+
+            metrics->fMaxCharWidth = metrics->fXMax - metrics->fXMin;
+        } else {
+            metrics->fTop = metrics->fAscent;
+            metrics->fBottom = metrics->fDescent;
+        }
     }
-#else
-#  pragma message("No dwrite_1.h is available, font metrics may be affected.")
-#endif
-
-    AutoTDWriteTable<SkOTTableHead> head(fTypeface->fDWriteFontFace.get());
-    if (head.fExists &&
-        head.fSize >= sizeof(SkOTTableHead) &&
-        head->version == SkOTTableHead::version1)
-    {
-        metrics->fTop = -fTextSizeRender * (int16_t)SkEndian_SwapBE16(head->yMax) / upem;
-        metrics->fBottom = -fTextSizeRender * (int16_t)SkEndian_SwapBE16(head->yMin) / upem;
-        metrics->fXMin = fTextSizeRender * (int16_t)SkEndian_SwapBE16(head->xMin) / upem;
-        metrics->fXMax = fTextSizeRender * (int16_t)SkEndian_SwapBE16(head->xMax) / upem;
-
-        metrics->fMaxCharWidth = metrics->fXMax - metrics->fXMin;
-        return;
-    }
-
-    metrics->fTop = metrics->fAscent;
-    metrics->fBottom = metrics->fDescent;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

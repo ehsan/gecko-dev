@@ -118,17 +118,19 @@ SVGRectElement::BuildPath(PathBuilder* aBuilder)
     return nullptr;
   }
 
+  RefPtr<PathBuilder> pathBuilder = aBuilder ? aBuilder : CreatePathBuilder();
+
   rx = std::max(rx, 0.0f);
   ry = std::max(ry, 0.0f);
 
   if (rx == 0 && ry == 0) {
     // Optimization for the no rounded corners case.
     Rect r(x, y, width, height);
-    aBuilder->MoveTo(r.TopLeft());
-    aBuilder->LineTo(r.TopRight());
-    aBuilder->LineTo(r.BottomRight());
-    aBuilder->LineTo(r.BottomLeft());
-    aBuilder->Close();
+    pathBuilder->MoveTo(r.TopLeft());
+    pathBuilder->LineTo(r.TopRight());
+    pathBuilder->LineTo(r.BottomRight());
+    pathBuilder->LineTo(r.BottomLeft());
+    pathBuilder->Close();
   } else {
     // If either the 'rx' or the 'ry' attribute isn't set, then we have to
     // set it to the value of the other:
@@ -148,10 +150,10 @@ SVGRectElement::BuildPath(PathBuilder* aBuilder)
 
     Size cornerRadii(rx, ry);
     Size radii[] = { cornerRadii, cornerRadii, cornerRadii, cornerRadii };
-    AppendRoundedRectToPath(aBuilder, Rect(x, y, width, height), radii);
+    AppendRoundedRectToPath(pathBuilder, Rect(x, y, width, height), radii);
   }
 
-  return aBuilder->Finish();
+  return pathBuilder->Finish();
 }
 
 } // namespace dom

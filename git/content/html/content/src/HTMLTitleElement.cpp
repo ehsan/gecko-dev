@@ -127,7 +127,7 @@ HTMLTitleElement::DoneAddingChildren(bool aHaveNotified)
 void
 HTMLTitleElement::SendTitleChangeEvent(bool aBound)
 {
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     doc->NotifyPossibleTitleChange(aBound);
   }

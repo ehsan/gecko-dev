@@ -203,7 +203,7 @@ nsIContent::GetDesiredIMEState()
   if (editableAncestor && editableAncestor != this) {
     return editableAncestor->GetDesiredIMEState();
   }
-  nsIDocument* doc = GetComposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (!doc) {
     return IMEState(IMEState::DISABLED);
   }
@@ -238,10 +238,10 @@ nsIContent::GetEditingHost()
   // If this isn't editable, return nullptr.
   NS_ENSURE_TRUE(IsEditableInternal(), nullptr);
 
-  nsIDocument* doc = GetComposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   NS_ENSURE_TRUE(doc, nullptr);
   // If this is in designMode, we should return <body>
-  if (doc->HasFlag(NODE_IS_EDITABLE) && !IsInShadowTree()) {
+  if (doc->HasFlag(NODE_IS_EDITABLE)) {
     return doc->GetBodyElement();
   }
 
@@ -1501,9 +1501,7 @@ FragmentOrElement::CanSkipInCC(nsINode* aNode)
     return false;
   }
 
-  //XXXsmaug Need to figure out in which cases Shadow DOM can be optimized out
-  //         from the CC graph.
-  nsIDocument* currentDoc = aNode->GetUncomposedDoc();
+  nsIDocument* currentDoc = aNode->GetCurrentDoc();
   if (currentDoc &&
       nsCCUncollectableMarker::InGeneration(currentDoc->GetMarkedCCGeneration())) {
     return !NeedsScriptTraverse(aNode);
@@ -1680,7 +1678,7 @@ FragmentOrElement::CanSkip(nsINode* aNode, bool aRemovingAllowed)
   }
 
   bool unoptimizable = aNode->UnoptimizableCCNode();
-  nsIDocument* currentDoc = aNode->GetUncomposedDoc();
+  nsIDocument* currentDoc = aNode->GetCurrentDoc();
   if (currentDoc &&
       nsCCUncollectableMarker::InGeneration(currentDoc->GetMarkedCCGeneration()) &&
       (!unoptimizable || NodeHasActiveFrame(currentDoc, aNode) ||
@@ -1809,7 +1807,7 @@ FragmentOrElement::CanSkipThis(nsINode* aNode)
   if (aNode->IsBlack()) {
     return true;
   }
-  nsIDocument* c = aNode->GetUncomposedDoc();
+  nsIDocument* c = aNode->GetCurrentDoc();
   return 
     ((c && nsCCUncollectableMarker::InGeneration(c->GetMarkedCCGeneration())) ||
      aNode->InCCBlackTree()) && !NeedsScriptTraverse(aNode);

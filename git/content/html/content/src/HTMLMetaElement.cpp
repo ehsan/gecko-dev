@@ -54,7 +54,7 @@ HTMLMetaElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::content) {
-      nsIDocument *document = GetUncomposedDoc();
+      nsIDocument *document = GetCurrentDoc();
       CreateAndDispatchEvent(document, NS_LITERAL_STRING("DOMMetaChanged"));
     }
   }
@@ -86,7 +86,7 @@ HTMLMetaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 HTMLMetaElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  nsCOMPtr<nsIDocument> oldDoc = GetUncomposedDoc();
+  nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
   CreateAndDispatchEvent(oldDoc, NS_LITERAL_STRING("DOMMetaRemoved"));
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }

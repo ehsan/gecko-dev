@@ -246,10 +246,7 @@ HTMLLabelElement::GetLabeledElement() const
 
   // We have a @for. The id has to be linked to an element in the same document
   // and this element should be a labelable form control.
-  //XXXsmaug It is unclear how this should work in case the element is in
-  //         Shadow DOM.
-  //         See https://www.w3.org/Bugs/Public/show_bug.cgi?id=26365.
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (!doc) {
     return nullptr;
   }

@@ -1063,7 +1063,7 @@ nsImageLoadingContent::GetOurCurrentDoc()
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ENSURE_TRUE(thisContent, nullptr);
 
-  return thisContent->GetComposedDoc();
+  return thisContent->GetCurrentDoc();
 }
 
 nsIFrame*

@@ -113,14 +113,6 @@ ProfilerConnection.prototype = {
   }),
 
   /**
-   * Destroys this connection.
-   */
-  destroy: function() {
-    this._disconnectMiscActors();
-    this._connected = false;
-  },
-
-  /**
    * Initializes a connection to miscellaneous actors which are going to be
    * used in tandem with the profiler actor.
    */
@@ -132,7 +124,6 @@ ProfilerConnection.prototype = {
       this._framerate = new FramerateFront(this._target.client, this._target.form);
     } else {
       this._framerate = {
-        destroy: () => {},
         startRecording: () => {},
         stopRecording: () => {},
         cancelRecording: () => {},
@@ -140,14 +131,6 @@ ProfilerConnection.prototype = {
         getPendingTicks: () => null
       };
     }
-  },
-
-  /**
-   * Closes the connections to miscellaneous actors.
-   * @see ProfilerConnection.prototype._connectMiscActors
-   */
-  _disconnectMiscActors: function() {
-    this._framerate.destroy();
   },
 
   /**

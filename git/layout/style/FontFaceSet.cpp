@@ -17,7 +17,6 @@
 #include "mozilla/dom/FontFaceSetBinding.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/AsyncEventDispatcher.h"
-#include "mozilla/Preferences.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsFontFaceLoader.h"
 #include "nsIChannelPolicy.h"
@@ -280,7 +279,7 @@ FontFaceSet::Delete(FontFace& aFontFace, ErrorResult& aRv)
 
   if (aFontFace.HasRule()) {
     aRv.Throw(NS_ERROR_DOM_INVALID_MODIFICATION_ERR);
-    return false;
+    return nullptr;
   }
 
   if (!mNonRuleFaces.RemoveElement(&aFontFace)) {
@@ -903,9 +902,6 @@ FontFaceSet::FindOrCreateUserFontEntryFromFontFace(const nsAString& aFamilyName,
             nsDependentString valueString(val.GetStringBufferValue());
             if (valueString.LowerCaseEqualsASCII("woff")) {
               face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_WOFF;
-            } else if (Preferences::GetBool(GFX_PREF_WOFF2_ENABLED) &&
-                       valueString.LowerCaseEqualsASCII("woff2")) {
-              face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_WOFF2;
             } else if (valueString.LowerCaseEqualsASCII("opentype")) {
               face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_OPENTYPE;
             } else if (valueString.LowerCaseEqualsASCII("truetype")) {

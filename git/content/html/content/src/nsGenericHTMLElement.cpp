@@ -580,8 +580,7 @@ nsGenericHTMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
   RemoveFromNameTable();
 
   if (GetContentEditableValue() == eTrue) {
-    //XXXsmaug Fix this for Shadow DOM, bug 1066965.
-    nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(GetUncomposedDoc());
+    nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(GetCurrentDoc());
     if (htmlDocument) {
       htmlDocument->ChangeContentEditableCount(this, -1);
     }
@@ -781,7 +780,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
     // If we have a document, and it has a window, add the event
     // listener on the window (the inner window). If not, proceed as
     // normal.
-    // XXXbz sXBL/XBL2 issue: should we instead use GetComposedDoc() here,
+    // XXXbz sXBL/XBL2 issue: should we instead use GetCurrentDoc() here,
     // override BindToTree for those classes and munge event listeners there?
     nsIDocument *document = OwnerDoc();
 
@@ -1773,8 +1772,7 @@ nsGenericHTMLElement::GetContextMenu() const
   nsAutoString value;
   GetHTMLAttr(nsGkAtoms::contextmenu, value);
   if (!value.IsEmpty()) {
-    //XXXsmaug How should this work in Shadow DOM?
-    nsIDocument* doc = GetUncomposedDoc();
+    nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       return HTMLMenuElement::FromContentOrNull(doc->GetElementById(value));
     }
@@ -2032,7 +2030,7 @@ nsGenericHTMLFormElement::BindToTree(nsIDocument* aDocument,
   // wouldn't be possible to find a form ancestor.
   // We should not call UpdateFormOwner if none of these conditions are
   // fulfilled.
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::form) ? !!GetUncomposedDoc()
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::form) ? !!GetCurrentDoc()
                                                   : !!aParent) {
     UpdateFormOwner(true, nullptr);
   }
@@ -2184,8 +2182,7 @@ nsGenericHTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 
     if (aName == nsGkAtoms::form) {
       // We need a new form id observer.
-      //XXXsmaug How should this work in Shadow DOM?
-      nsIDocument* doc = GetUncomposedDoc();
+      nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         Element* formIdElement = nullptr;
         if (aValue && !aValue->IsEmptyString()) {
@@ -2351,8 +2348,8 @@ nsGenericHTMLFormElement::FocusState()
 Element*
 nsGenericHTMLFormElement::AddFormIdObserver()
 {
-  NS_ASSERTION(GetUncomposedDoc(), "When adding a form id observer, "
-                                   "we should be in a document!");
+  NS_ASSERTION(GetCurrentDoc(), "When adding a form id observer, "
+                                "we should be in a document!");
 
   nsAutoString formId;
   nsIDocument* doc = OwnerDoc();
@@ -2372,8 +2369,8 @@ nsGenericHTMLFormElement::RemoveFormIdObserver()
    * element actually being in the tree. If it is not and @form value changes,
    * this method will be called for nothing but removing an observer which does
    * not exist doesn't cost so much (no entry in the hash table) so having a
-   * boolean for GetUncomposedDoc()/GetOwnerDoc() would make everything look
-   * more complex for nothing.
+   * boolean for GetCurrentDoc()/GetOwnerDoc() would make everything look more
+   * complex for nothing.
    */
 
   nsIDocument* doc = OwnerDoc();
@@ -2452,10 +2449,10 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
           element = aFormIdElement;
         }
 
-        NS_ASSERTION(GetUncomposedDoc(), "The element should be in a document "
-                                         "when UpdateFormOwner is called!");
-        NS_ASSERTION(!GetUncomposedDoc() ||
-                     element == GetUncomposedDoc()->GetElementById(formId),
+        NS_ASSERTION(GetCurrentDoc(), "The element should be in a document "
+                                      "when UpdateFormOwner is called!");
+        NS_ASSERTION(!GetCurrentDoc() ||
+                     element == GetCurrentDoc()->GetElementById(formId),
                      "element should be equals to the current element "
                      "associated with the id in @form!");
 
@@ -2768,7 +2765,7 @@ nsGenericHTMLElement::IsCurrentBodyElement()
   }
 
   nsCOMPtr<nsIDOMHTMLDocument> htmlDocument =
-    do_QueryInterface(GetUncomposedDoc());
+    do_QueryInterface(GetCurrentDoc());
   if (!htmlDocument) {
     return false;
   }
@@ -2825,7 +2822,7 @@ nsGenericHTMLElement::RecompileScriptEventListeners()
 bool
 nsGenericHTMLElement::IsEditableRoot() const
 {
-  nsIDocument *document = GetComposedDoc();
+  nsIDocument *document = GetCurrentDoc();
   if (!document) {
     return false;
   }
@@ -2871,8 +2868,7 @@ MakeContentDescendantsEditable(nsIContent *aContent, nsIDocument *aDocument)
 void
 nsGenericHTMLElement::ChangeEditableState(int32_t aChange)
 {
-  //XXXsmaug Fix this for Shadow DOM, bug 1066965.
-  nsIDocument* document = GetUncomposedDoc();
+  nsIDocument* document = GetCurrentDoc();
   if (!document) {
     return;
   }

@@ -43,7 +43,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 HTMLPropertiesCollection::HTMLPropertiesCollection(nsGenericHTMLElement* aRoot)
   : mRoot(aRoot)
-  , mDoc(aRoot->GetUncomposedDoc())
+  , mDoc(aRoot->GetCurrentDoc())
   , mIsDirty(true)
 {
   SetIsDOMBinding();
@@ -248,7 +248,7 @@ GetElementByIdForConnectedSubtree(nsIContent* aContent, const nsIAtom* aId)
 void
 HTMLPropertiesCollection::CrawlProperties()
 {
-  nsIDocument* doc = mRoot->GetUncomposedDoc();
+  nsIDocument* doc = mRoot->GetCurrentDoc();
 
   const nsAttrValue* attr = mRoot->GetParsedAttr(nsGkAtoms::itemref);
   if (attr) {
@@ -306,7 +306,7 @@ HTMLPropertiesCollection::GetSupportedNames(unsigned, nsTArray<nsString>& aNames
 PropertyNodeList::PropertyNodeList(HTMLPropertiesCollection* aCollection,
                                    nsIContent* aParent, const nsAString& aName)
   : mName(aName),
-    mDoc(aParent->GetUncomposedDoc()),
+    mDoc(aParent->GetCurrentDoc()),
     mCollection(aCollection),
     mParent(aParent),
     mIsDirty(true)

@@ -56,7 +56,6 @@ import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSObject;
 import org.mozilla.gecko.util.PrefUtils;
-import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.webapp.EventListener;
 import org.mozilla.gecko.webapp.UninstallListener;
@@ -192,6 +191,7 @@ public abstract class GeckoApp
     private Telemetry.Timer mGeckoReadyStartupTimer;
 
     private String mPrivateBrowsingSession;
+    private volatile boolean mIsPaused = true;
 
     private volatile HealthRecorder mHealthRecorder;
     private volatile Locale mLastLocale;
@@ -247,7 +247,13 @@ public abstract class GeckoApp
     }
 
     public void addAppStateListener(GeckoAppShell.AppStateListener listener) {
+        ThreadUtils.assertOnUiThread();
         mAppStateListeners.add(listener);
+
+        // If we're already resumed, make sure the listener gets a notification.
+        if (!mIsPaused) {
+            listener.onResume();
+        }
     }
 
     public void removeAppStateListener(GeckoAppShell.AppStateListener listener) {
@@ -1087,10 +1093,11 @@ public abstract class GeckoApp
     }
 
     /**
-     * Check and start the Java profiler if MOZ_PROFILER_STARTUP env var is specified.
+     * Check and start the Java profiler if MOZ_PROFILER_STARTUP env var is specified
      **/
-    protected static void earlyStartJavaSampler(Intent intent) {
-        String env = StringUtils.getStringExtra(intent, "env0");
+    protected void earlyStartJavaSampler(Intent intent)
+    {
+        String env = intent.getStringExtra("env0");
         for (int i = 1; env != null; i++) {
             if (env.startsWith("MOZ_PROFILER_STARTUP=")) {
                 if (!env.endsWith("=")) {
@@ -1125,7 +1132,7 @@ public abstract class GeckoApp
 
         final Intent intent = getIntent();
         final String action = intent.getAction();
-        final String args = StringUtils.getStringExtra(intent, "args");
+        final String args = intent.getStringExtra("args");
 
         earlyStartJavaSampler(intent);
 
@@ -1836,22 +1843,20 @@ public abstract class GeckoApp
     }
 
     /*
-     * Handles getting a URI from an intent in a way that is backwards-
-     * compatible with our previous implementations.
+     * Handles getting a uri from and intent in a way that is backwards
+     * compatable with our previous implementations
      */
     protected String getURIFromIntent(Intent intent) {
         final String action = intent.getAction();
-        if (ACTION_ALERT_CALLBACK.equals(action) || NotificationHelper.HELPER_BROADCAST_ACTION.equals(action)) {
+        if (ACTION_ALERT_CALLBACK.equals(action) || NotificationHelper.HELPER_BROADCAST_ACTION.equals(action))
             return null;
-        }
 
         String uri = intent.getDataString();
-        if (uri != null) {
+        if (uri != null)
             return uri;
-        }
 
         if ((action != null && action.startsWith(ACTION_WEBAPP_PREFIX)) || ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
-            uri = StringUtils.getStringExtra(intent, "args");
+            uri = intent.getStringExtra("args");
             if (uri != null && uri.startsWith("--url=")) {
                 uri.replace("--url=", "");
             }
@@ -1887,6 +1892,8 @@ public abstract class GeckoApp
                 listener.onResume();
             }
         }
+        // Setting this state will force any listeners added after this to have their onResume() method called
+        mIsPaused = false;
 
         // We use two times: a pseudo-unique wall-clock time to identify the
         // current session across power cycles, and the elapsed realtime to
@@ -1963,6 +1970,9 @@ public abstract class GeckoApp
             }
         });
 
+        // Setting this state will keep any listeners registered after this from having their onResume
+        // method called.
+        mIsPaused = true;
         if (mAppStateListeners != null) {
             for(GeckoAppShell.AppStateListener listener: mAppStateListeners) {
                 listener.onPause();

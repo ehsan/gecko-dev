@@ -161,11 +161,10 @@ JSDependentString::new_(js::ExclusiveContext *cx, JSLinearString *baseArg, size_
                         size_t length)
 {
     /* Try to avoid long chains of dependent strings. */
-    if (baseArg->isDependent()) {
+    while (baseArg->isDependent()) {
         start += baseArg->asDependent().baseOffset();
         baseArg = baseArg->asDependent().base();
     }
-    MOZ_ASSERT(!baseArg->isDependent());
 
     MOZ_ASSERT(start + length <= baseArg->length());
     MOZ_ASSERT(baseArg->isFlat());

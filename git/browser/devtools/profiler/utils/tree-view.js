@@ -18,9 +18,6 @@ const ZOOM_BUTTON_TOOLTIP = L10N.getStr("table.zoom.tooltiptext");
 const CALL_TREE_INDENTATION = 16; // px
 const CALL_TREE_AUTO_EXPAND = 3; // depth
 
-const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
-const sum = vals => vals.reduce((a, b) => a + b, 0);
-
 exports.CallView = CallView;
 
 /**
@@ -66,17 +63,10 @@ CallView.prototype = Heritage.extend(AbstractTreeItem.prototype, {
     this.document = document;
 
     let frameInfo = this.frame.getInfo();
-    let framePercentage = this._getPercentage(this.frame.samples);
-    let childrenPercentage = sum([this._getPercentage(c.samples)
-                                  for (c of this._getChildCalls())]);
-    let selfPercentage = clamp(framePercentage - childrenPercentage, 0, 100);
-    let selfDuration = this.frame.duration - sum([c.duration
-                                                  for (c of this._getChildCalls())]);
+    let framePercentage = this.frame.samples / this.root.frame.samples * 100;
 
     let durationCell = this._createTimeCell(this.frame.duration);
-    let selfDurationCell = this._createTimeCell(selfDuration, true);
     let percentageCell = this._createExecutionCell(framePercentage);
-    let selfPercentageCell = this._createExecutionCell(selfPercentage, true);
     let samplesCell = this._createSamplesCell(this.frame.samples);
     let functionCell = this._createFunctionCell(arrowNode, frameInfo, this.level);
 
@@ -93,27 +83,11 @@ CallView.prototype = Heritage.extend(AbstractTreeItem.prototype, {
     }
 
     targetNode.appendChild(durationCell);
-    targetNode.appendChild(selfDurationCell);
     targetNode.appendChild(percentageCell);
-    targetNode.appendChild(selfPercentageCell);
     targetNode.appendChild(samplesCell);
     targetNode.appendChild(functionCell);
 
     return targetNode;
-  },
-
-  /**
-   * Calculate what percentage of all samples the given number of samples is.
-   */
-  _getPercentage: function (samples) {
-    return samples / this.root.frame.samples * 100;
-  },
-
-  /**
-   * Return an array of this frame's child calls.
-   */
-  _getChildCalls: function () {
-    return Object.keys(this.frame.calls).map(k => this.frame.calls[k]);
   },
 
   /**
@@ -124,7 +98,7 @@ CallView.prototype = Heritage.extend(AbstractTreeItem.prototype, {
   _populateSelf: function(children) {
     let newLevel = this.level + 1;
 
-    for (let newFrame of this._getChildCalls()) {
+    for (let [, newFrame] of _Iterator(this.frame.calls)) {
       children.push(new CallView({
         caller: this,
         frame: newFrame,
@@ -140,18 +114,18 @@ CallView.prototype = Heritage.extend(AbstractTreeItem.prototype, {
    * Functions creating each cell in this call view.
    * Invoked by `_displaySelf`.
    */
-  _createTimeCell: function(duration, isSelf = false) {
+  _createTimeCell: function(duration) {
     let cell = this.document.createElement("label");
     cell.className = "plain call-tree-cell";
-    cell.setAttribute("type", isSelf ? "self-duration" : "duration");
+    cell.setAttribute("type", "duration");
     cell.setAttribute("crop", "end");
     cell.setAttribute("value", L10N.numberWithDecimals(duration, 2));
     return cell;
   },
-  _createExecutionCell: function(percentage, isSelf = false) {
+  _createExecutionCell: function(percentage) {
     let cell = this.document.createElement("label");
     cell.className = "plain call-tree-cell";
-    cell.setAttribute("type", isSelf ? "self-percentage" : "percentage");
+    cell.setAttribute("type", "percentage");
     cell.setAttribute("crop", "end");
     cell.setAttribute("value", L10N.numberWithDecimals(percentage, 2) + "%");
     return cell;

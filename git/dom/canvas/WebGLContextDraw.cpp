@@ -676,7 +676,7 @@ WebGLContext::BindFakeBlackTexturesHelper(
         }
 
         bool alpha = s == WebGLTextureFakeBlackStatus::UninitializedImageData &&
-                     FormatHasAlpha(boundTexturesArray[i]->ImageInfoBase().InternalFormat());
+                     FormatHasAlpha(boundTexturesArray[i]->ImageInfoBase().WebGLFormat());
         UniquePtr<FakeBlackTexture>&
             blackTexturePtr = alpha
                               ? transparentTextureScopedPtr

@@ -2453,8 +2453,7 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIHTMLDocument> htmlDocument =
-    do_QueryInterface(aContent->GetUncomposedDoc());
+  nsCOMPtr<nsIHTMLDocument> htmlDocument(do_QueryInterface(aContent->GetCurrentDoc()));
 
   KeyAppendInt(partID, aKey);  // first append a partID
   bool generatedUniqueKey = false;
@@ -2464,7 +2463,7 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
     // If this becomes unnecessary and the following line is removed,
     // please also remove the corresponding flush operation from
     // nsHtml5TreeBuilderCppSupplement.h. (Look for "See bug 497861." there.)
-    aContent->GetUncomposedDoc()->FlushPendingNotifications(Flush_Content);
+    aContent->GetCurrentDoc()->FlushPendingNotifications(Flush_Content);
 
     nsContentList *htmlForms = htmlDocument->GetForms();
     nsContentList *htmlFormControls = htmlDocument->GetFormControls();
@@ -2848,7 +2847,7 @@ nsContentUtils::SplitExpatName(const char16_t *aExpatName, nsIAtom **aPrefix,
 nsPresContext*
 nsContentUtils::GetContextForContent(const nsIContent* aContent)
 {
-  nsIDocument* doc = aContent->GetComposedDoc();
+  nsIDocument* doc = aContent->GetCurrentDoc();
   if (doc) {
     nsIPresShell *presShell = doc->GetShell();
     if (presShell) {
@@ -4405,7 +4404,7 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
 
   // Might as well stick a batch around this since we're performing several
   // mutations.
-  mozAutoDocUpdate updateBatch(aContent->GetComposedDoc(),
+  mozAutoDocUpdate updateBatch(aContent->GetCurrentDoc(),
     UPDATE_CONTENT_MODEL, true);
   nsAutoMutationBatch mb;
 
@@ -6105,9 +6104,7 @@ nsContentUtils::IsFocusedContent(const nsIContent* aContent)
 bool
 nsContentUtils::IsSubDocumentTabbable(nsIContent* aContent)
 {
-  //XXXsmaug Shadow DOM spec issue!
-  //         We may need to change this to GetComposedDoc().
-  nsIDocument* doc = aContent->GetUncomposedDoc();
+  nsIDocument* doc = aContent->GetCurrentDoc();
   if (!doc) {
     return false;
   }

@@ -511,7 +511,8 @@ HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFrom
 
     if (cx->isExceptionPending() && cx->compartment()->debugMode()) {
         BaselineFrame *baselineFrame = frame.baselineFrame();
-        switch (Debugger::onExceptionUnwind(cx, baselineFrame)) {
+        JSTrapStatus status = DebugExceptionUnwind(cx, baselineFrame, pc);
+        switch (status) {
           case JSTRAP_ERROR:
             // Uncatchable exception.
             MOZ_ASSERT(!cx->isExceptionPending());
@@ -1436,19 +1437,17 @@ OsiIndex::returnPointDisplacement() const
     return callPointDisplacement_ + Assembler::PatchWrite_NearCallSize();
 }
 
-RInstructionResults::RInstructionResults(IonJSFrameLayout *fp)
+RInstructionResults::RInstructionResults()
   : results_(nullptr),
-    fp_(fp),
-    initialized_(false)
+    fp_(nullptr)
 {
 }
 
 RInstructionResults::RInstructionResults(RInstructionResults&& src)
   : results_(mozilla::Move(src.results_)),
-    fp_(src.fp_),
-    initialized_(src.initialized_)
+    fp_(src.fp_)
 {
-    src.initialized_ = false;
+    src.fp_ = nullptr;
 }
 
 RInstructionResults&
@@ -1466,7 +1465,7 @@ RInstructionResults::~RInstructionResults()
 }
 
 bool
-RInstructionResults::init(JSContext *cx, uint32_t numResults)
+RInstructionResults::init(JSContext *cx, uint32_t numResults, IonJSFrameLayout *fp)
 {
     if (numResults) {
         results_ = cx->make_unique<Values>();
@@ -1478,20 +1477,21 @@ RInstructionResults::init(JSContext *cx, uint32_t numResults)
             (*results_)[i].init(guard);
     }
 
-    initialized_ = true;
+    fp_ = fp;
     return true;
 }
 
 bool
 RInstructionResults::isInitialized() const
 {
-    return initialized_;
+    MOZ_ASSERT_IF(results_, fp_);
+    return fp_;
 }
 
 IonJSFrameLayout *
 RInstructionResults::frame() const
 {
-    MOZ_ASSERT(fp_);
+    MOZ_ASSERT(isInitialized());
     return fp_;
 }
 
@@ -1798,8 +1798,9 @@ SnapshotIterator::initInstructionResults(MaybeReadFallback &fallback)
         // before we initialize the list such as if any recover instruction
         // cause a GC, we can ensure that the results are properly traced by the
         // activation.
-        RInstructionResults tmp(fallback.frame->jsFrame());
-        if (!fallback.activation->registerIonFrameRecovery(mozilla::Move(tmp)))
+        RInstructionResults tmp;
+        if (!fallback.activation->registerIonFrameRecovery(fallback.frame->jsFrame(),
+                                                           mozilla::Move(tmp)))
             return false;
 
         results = fallback.activation->maybeIonFrameRecovery(fp);
@@ -1831,7 +1832,7 @@ SnapshotIterator::computeInstructionResults(JSContext *cx, RInstructionResults *
     // The last instruction will always be a resume point.
     size_t numResults = recover_.numInstructions() - 1;
     if (!results->isInitialized()) {
-        if (!results->init(cx, numResults))
+        if (!results->init(cx, numResults, fp_))
             return false;
 
         // No need to iterate over the only resume point.
