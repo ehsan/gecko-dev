@@ -13,6 +13,7 @@ import org.json.JSONObject;
 
 import android.content.ContentResolver;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.SystemClock;
 import android.util.Log;
 import android.widget.Toast;
@@ -75,13 +76,12 @@ public class Tabs implements GeckoEventListener {
     static public int getThumbnailWidth() {
         if (sThumbnailWidth < 0) {
             sThumbnailWidth = (int) (GeckoApp.mAppContext.getResources().getDimension(R.dimen.tab_thumbnail_width));
-            return sThumbnailWidth & ~0x1;
         }
-        return sThumbnailWidth;
+        return sThumbnailWidth & ~0x1;
     }
 
     static public int getThumbnailHeight() {
-        return Math.round(getThumbnailWidth() * getThumbnailAspectRatio());
+        return Math.round(getThumbnailWidth() * getThumbnailAspectRatio()) & ~0x1;
     }
 
     static public float getThumbnailAspectRatio() { return 0.714f; }
@@ -499,7 +499,13 @@ public class Tabs implements GeckoEventListener {
             if ((flags & LOADURL_NEW_TAB) != 0) {
                 tabId = getNextTabId();
                 args.put("tabID", tabId);
-                added = addTab(tabId, (userEntered ? null : url), false, parentId, url, isPrivate);
+
+                // The URL is updated for the tab once Gecko responds with the
+                // Tab:Added message. We can preliminarily set the tab's URL as
+                // long as it's a valid URI.
+                String tabUrl = (url != null && Uri.parse(url).getScheme() != null) ? url : null;
+
+                added = addTab(tabId, tabUrl, false, parentId, url, isPrivate);
             }
         } catch (Exception e) {
             Log.e(LOGTAG, "error building JSON arguments");
@@ -533,7 +539,16 @@ public class Tabs implements GeckoEventListener {
             }
         }
 
-        loadUrl(url, null, getSelectedTab().getId(), LOADURL_NEW_TAB);
+        // getSelectedTab() can return null if no tab has been created yet
+        // (i.e., we're restoring a session after a crash). In these cases,
+        // don't mark any tabs as a parent.
+        int parentId = -1;
+        Tab selectedTab = getSelectedTab();
+        if (selectedTab != null) {
+            parentId = selectedTab.getId();
+        }
+
+        loadUrl(url, null, parentId, LOADURL_NEW_TAB);
     }
 
     /**

@@ -31,7 +31,6 @@
 #endif
 
 #include "XPCQuickStubs.h"
-#include "dombindings.h"
 
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/TextDecoderBinding.h"
@@ -40,6 +39,7 @@
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMMutationObserver.h"
 #include "nsICycleCollectorListener.h"
+#include "nsThread.h"
 
 using namespace mozilla::dom;
 using namespace xpc;
@@ -158,13 +158,12 @@ nsXPConnect::GetXPConnect()
         // balanced by explicit call to ReleaseXPConnectSingleton()
         NS_ADDREF(gSelf);
 
-        // Add XPConnect as an thread observer.
+        // Set XPConnect as the main thread observer.
         //
         // The cycle collector sometimes calls GetXPConnect, but it should never
         // be the one that initializes gSelf.
         MOZ_ASSERT(NS_IsMainThread());
-        nsCOMPtr<nsIThreadInternal> thread = do_QueryInterface(NS_GetCurrentThread());
-        if (NS_FAILED(thread->AddObserver(gSelf))) {
+        if (NS_FAILED(nsThread::SetMainThreadObserver(gSelf))) {
             NS_RELEASE(gSelf);
             // Fall through to returning null
         }
@@ -187,14 +186,7 @@ nsXPConnect::ReleaseXPConnectSingleton()
 {
     nsXPConnect* xpc = gSelf;
     if (xpc) {
-
-        // The thread subsystem may have been shut down already, so make sure
-        // to check for null here.
-        nsCOMPtr<nsIThreadInternal> thread = do_QueryInterface(NS_GetCurrentThread());
-        if (thread) {
-            MOZ_ASSERT(NS_IsMainThread());
-            thread->RemoveObserver(xpc);
-        }
+        nsThread::SetMainThreadObserver(nullptr);
 
 #ifdef DEBUG
         // force a dump of the JavaScript gc heap if JS is still alive
@@ -847,11 +839,6 @@ NoteGCThingXPCOMChildren(js::Class *clasp, JSObject *obj,
              clasp->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)");
         cb.NoteXPCOMChild(static_cast<nsISupports*>(xpc_GetJSPrivate(obj)));
-    } else if (oldproxybindings::instanceIsProxy(obj)) {
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "js::GetProxyPrivate(obj)");
-        nsISupports *identity =
-            static_cast<nsISupports*>(js::GetProxyPrivate(obj).toPrivate());
-        cb.NoteXPCOMChild(identity);
     } else {
         const DOMClass* domClass;
         DOMObjectSlot slot = GetDOMClass(obj, domClass);
@@ -1423,21 +1410,10 @@ nsXPConnect::GetNativeOfWrapper(JSContext * aJSContext,
     if (obj2)
         return (nsISupports*)xpc_GetJSPrivate(obj2);
 
-    if (mozilla::dom::IsDOMProxy(aJSObj) ||
-        mozilla::dom::oldproxybindings::instanceIsProxy(aJSObj)) {
-        // FIXME: Provide a fast non-refcounting way to get the canonical
-        //        nsISupports from the proxy.
-        nsISupports *supports =
-            static_cast<nsISupports*>(js::GetProxyPrivate(aJSObj).toPrivate());
-        nsCOMPtr<nsISupports> canonical = do_QueryInterface(supports);
-        return canonical.get();
-    }
-
     nsISupports* supports = nullptr;
-    if (mozilla::dom::UnwrapDOMObjectToISupports(aJSObj, supports))
-        return supports;
-
-    return nullptr;
+    mozilla::dom::UnwrapDOMObjectToISupports(aJSObj, supports);
+    nsCOMPtr<nsISupports> canonical = do_QueryInterface(supports);
+    return canonical;
 }
 
 /* JSObjectPtr getJSObjectOfWrapper (in JSContextPtr aJSContext, in JSObjectPtr aJSObj); */
@@ -1466,8 +1442,7 @@ nsXPConnect::GetJSObjectOfWrapper(JSContext * aJSContext,
         *_retval = obj2;
         return NS_OK;
     }
-    if (mozilla::dom::IsDOMProxy(aJSObj) ||
-        mozilla::dom::oldproxybindings::instanceIsProxy(aJSObj)) {
+    if (mozilla::dom::IsDOMObject(aJSObj)) {
         *_retval = aJSObj;
         return NS_OK;
     }

@@ -167,7 +167,9 @@ nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mCurrentScale(1.0f),
     mPreviousTranslate(0.0f, 0.0f),
     mPreviousScale(1.0f),
-    mStartAnimationOnBindToTree(!aFromParser),
+    mStartAnimationOnBindToTree(aFromParser == NOT_FROM_PARSER ||
+                                aFromParser == FROM_PARSER_FRAGMENT ||
+                                aFromParser == FROM_PARSER_XSLT),
     mImageNeedsTransformInvalidation(false),
     mIsPaintingSVGImageElement(false),
     mHasChildrenOnlyTransform(false),
@@ -1234,7 +1236,9 @@ nsSVGSVGElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
     gfxMatrix zoomPanTM;
     zoomPanTM.Translate(gfxPoint(mCurrentTranslate.GetX(), mCurrentTranslate.GetY()));
     zoomPanTM.Scale(mCurrentScale, mCurrentScale);
-    return GetViewBoxTransform() * zoomPanTM * aMatrix;
+    gfxMatrix matrix = mFragmentIdentifierTransform ? 
+                         *mFragmentIdentifierTransform * aMatrix : aMatrix;
+    return GetViewBoxTransform() * zoomPanTM * matrix;
   }
 
   // outer-<svg>, but inline in some other content:

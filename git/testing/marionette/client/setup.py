@@ -1,7 +1,7 @@
 import os
 from setuptools import setup, find_packages
 
-version = '0.5'
+version = '0.5.1'
 
 # get documentation from the README
 try:
@@ -12,7 +12,7 @@ except (OSError, IOError):
 
 # dependencies
 deps = ['manifestdestiny', 'mozhttpd >= 0.3',
-        'mozprocess == 0.5', 'mozrunner == 5.10']
+        'mozprocess >= 0.5', 'mozrunner >= 5.10']
 
 setup(name='marionette_client',
       version=version,

@@ -100,10 +100,7 @@ UnwrapDOMObject(JSObject* obj, DOMObjectSlot slot)
   if (IsDOMClass(js::GetObjectClass(obj))) {
     MOZ_ASSERT(slot == eRegularDOMObject);
   } else {
-    MOZ_ASSERT(js::IsObjectProxyClass(js::GetObjectClass(obj)) ||
-               js::IsFunctionProxyClass(js::GetObjectClass(obj)));
-    MOZ_ASSERT(js::GetProxyHandler(obj)->family() == ProxyFamily());
-    MOZ_ASSERT(IsNewProxyBinding(js::GetProxyHandler(obj)));
+    MOZ_ASSERT(IsDOMProxy(obj));
     MOZ_ASSERT(slot == eProxyDOMObject);
   }
 #endif
@@ -129,9 +126,8 @@ GetDOMClass(JSObject* obj)
     return &DOMJSClass::FromJSClass(clasp)->mClass;
   }
 
+  MOZ_ASSERT(IsDOMProxy(obj));
   js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
-  MOZ_ASSERT(handler->family() == ProxyFamily());
-  MOZ_ASSERT(IsNewProxyBinding(handler));
   return &static_cast<DOMProxyHandler*>(handler)->mClass;
 }
 
@@ -146,7 +142,7 @@ GetDOMClass(JSObject* obj, const DOMClass*& result)
 
   if (js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) {
     js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
-    if (handler->family() == ProxyFamily() && IsNewProxyBinding(handler)) {
+    if (handler->family() == ProxyFamily()) {
       result = &static_cast<DOMProxyHandler*>(handler)->mClass;
       return eProxyDOMObject;
     }
@@ -174,8 +170,7 @@ IsDOMObject(JSObject* obj)
   js::Class* clasp = js::GetObjectClass(obj);
   return IsDOMClass(clasp) ||
          ((js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) &&
-          (js::GetProxyHandler(obj)->family() == ProxyFamily() &&
-           IsNewProxyBinding(js::GetProxyHandler(obj))));
+          js::GetProxyHandler(obj)->family() == ProxyFamily());
 }
 
 // Some callers don't want to set an exception when unwrapping fails
@@ -355,6 +350,9 @@ struct NativeProperties
   Prefable<JSPropertySpec>* attributes;
   jsid* attributeIds;
   JSPropertySpec* attributeSpecs;
+  Prefable<JSPropertySpec>* unforgeableAttributes;
+  jsid* unforgeableAttributeIds;
+  JSPropertySpec* unforgeableAttributeSpecs;
   Prefable<ConstantSpec>* constants;
   jsid* constantIds;
   ConstantSpec* constantSpecs;
@@ -406,6 +404,24 @@ CreateInterfaceObjects(JSContext* cx, JSObject* global, JSObject* receiver,
                        const NativeProperties* properties,
                        const NativeProperties* chromeProperties,
                        const char* name);
+
+/*
+ * Define the unforgeable attributes on an object.
+ */
+bool
+DefineUnforgeableAttributes(JSContext* cx, JSObject* obj,
+                            Prefable<JSPropertySpec>* props);
+
+inline bool
+MaybeWrapValue(JSContext* cx, JSObject* obj, JS::Value* vp)
+{
+  if (vp->isObject() &&
+      js::GetObjectCompartment(&vp->toObject()) != js::GetObjectCompartment(obj)) {
+    return JS_WrapValue(cx, vp);
+  }
+
+  return true;
+}
 
 template <class T>
 inline bool
@@ -1035,6 +1051,15 @@ protected:
   bool inited;
 #endif
 };
+
+// Helper for OwningNonNull
+template <class T>
+inline bool
+WrapNewBindingObject(JSContext* cx, JSObject* scope, OwningNonNull<T>& value,
+                     JS::Value* vp)
+{
+  return WrapNewBindingObject(cx, scope, &static_cast<T&>(value), vp);
+}
 
 // A struct that has the same layout as an nsDependentString but much
 // faster constructor and destructor behavior

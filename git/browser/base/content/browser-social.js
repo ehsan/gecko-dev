@@ -62,7 +62,7 @@ let SocialUI = {
         break;
       case "social:ambient-notification-changed":
         SocialToolbar.updateButton();
-        SocialMenu.updateMenu();
+        SocialMenu.populate();
         break;
       case "social:profile-changed":
         SocialToolbar.updateProfile();
@@ -72,6 +72,8 @@ let SocialUI = {
       case "nsPref:changed":
         SocialSidebar.updateSidebar();
         SocialToolbar.updateButton();
+        SocialMenu.populate();
+        break;
     }
   },
 
@@ -99,25 +101,14 @@ let SocialUI = {
     SocialToolbar.init();
     SocialShareButton.init();
     SocialSidebar.init();
+    SocialMenu.populate();
   },
 
   updateToggleCommand: function SocialUI_updateToggleCommand() {
     let toggleCommand = this.toggleCommand;
+    // We only need to update the command itself - all our menu items use it.
     toggleCommand.setAttribute("checked", Services.prefs.getBoolPref("social.enabled"));
-
-    // FIXME: bug 772808: menu items don't inherit the "hidden" state properly,
-    // need to update them manually.
-    // This should just be: toggleCommand.hidden = !Social.active;
-    for (let id of ["appmenu_socialToggle", "menu_socialToggle", "menu_socialAmbientMenu"]) {
-      let el = document.getElementById(id);
-      if (!el)
-        continue;
-
-      if (Social.active)
-        el.removeAttribute("hidden");
-      else
-        el.setAttribute("hidden", "true");
-    }
+    toggleCommand.setAttribute("hidden", Social.active ? "false" : "true");
   },
 
   // This handles "ActivateSocialFeature" events fired against content documents
@@ -219,6 +210,10 @@ let SocialChatBar = {
   update: function() {
     if (!this.canShow)
       this.chatbar.removeAll();
+  },
+  focus: function SocialChatBar_focus() {
+    let commandDispatcher = gBrowser.ownerDocument.commandDispatcher;
+    commandDispatcher.advanceFocusIntoSubtree(this.chatbar);
   }
 }
 
@@ -364,6 +359,9 @@ let SocialFlyout = {
   },
 
   open: function(aURL, yOffset, aCallback) {
+    // Hide any other social panels that may be open.
+    document.getElementById("social-notification-panel").hidePopup();
+
     if (!Social.provider)
       return;
     let panel = this.panel;
@@ -511,11 +509,17 @@ let SocialShareButton = {
     this.unsharePopup.hidePopup();
   },
 
+  canSharePage: function SSB_canSharePage(aURI) {
+    // We only allow sharing of http or https
+    return aURI && (aURI.schemeIs('http') || aURI.schemeIs('https'));
+  },
+
   updateButtonHiddenState: function SSB_updateButtonHiddenState() {
     let shareButton = this.shareButton;
     if (shareButton)
       shareButton.hidden = !Social.uiVisible || this.promptImages == null ||
-                           !SocialUI.haveLoggedInUser();
+                           !SocialUI.haveLoggedInUser() ||
+                           !this.canSharePage(gBrowser.currentURI);
   },
 
   onClick: function SSB_onClick(aEvent) {
@@ -568,7 +572,12 @@ let SocialShareButton = {
   },
 
   updateShareState: function SSB_updateShareState() {
-    let currentPageShared = Social.isPageShared(gBrowser.currentURI);
+    // we might have been called due to a location change, and the new location
+    // might change the state of "can this url be shared"
+    this.updateButtonHiddenState();
+
+    let shareButton = this.shareButton;
+    let currentPageShared = shareButton && !shareButton.hidden && Social.isPageShared(gBrowser.currentURI);
 
     // Provide a11y-friendly notification of share.
     let status = document.getElementById("share-button-status");
@@ -585,7 +594,6 @@ let SocialShareButton = {
     }
 
     // Update the share button, if present
-    let shareButton = this.shareButton;
     if (!shareButton || shareButton.hidden)
       return;
 
@@ -607,24 +615,28 @@ var SocialMenu = {
   populate: function SocialMenu_populate() {
     // This menu is only accessible through keyboard navigation.
     let submenu = document.getElementById("menu_socialAmbientMenuPopup");
-    while (submenu.hasChildNodes())
-      submenu.removeChild(submenu.firstChild);
+    let ambientMenuItems = submenu.getElementsByClassName("ambient-menuitem");
+    for (let ambientMenuItem of ambientMenuItems)
+      submenu.removeChild(ambientMenuItem);
     let provider = Social.provider;
     if (Social.active && provider) {
       let iconNames = Object.keys(provider.ambientNotificationIcons);
+      let separator = document.getElementById("socialAmbientMenuSeparator");
       for (let name of iconNames) {
         let icon = provider.ambientNotificationIcons[name];
         if (!icon.label || !icon.menuURL)
           continue;
         let menuitem = document.createElement("menuitem");
         menuitem.setAttribute("label", icon.label);
+        menuitem.classList.add("ambient-menuitem");
         menuitem.addEventListener("command", function() {
           openUILinkIn(icon.menuURL, "tab");
         }, false);
-        submenu.appendChild(menuitem);
+        submenu.insertBefore(menuitem, separator);
       }
+      separator.hidden = !iconNames.length;
     }
-    document.getElementById("menu_socialAmbientMenu").hidden = !submenu.querySelector("menuitem");
+    document.getElementById("menu_socialAmbientMenu").hidden = !Social.enabled;
   }
 };
 
@@ -689,11 +701,12 @@ var SocialToolbar = {
     const CACHE_PREF_NAME = "social.cached.notificationIcons";
     // provider.profile == undefined means no response yet from the provider
     // to tell us whether the user is logged in or not.
-    if (!SocialUI.haveLoggedInUser() && provider.profile !== undefined) {
-      // The provider has responded with a profile and the user isn't logged
-      // in.  The icons etc have already been removed by
-      // updateButtonHiddenState, so we want to nuke any cached icons we
-      // have and get out of here!
+    if (!Social.provider || !Social.provider.enabled ||
+        (!SocialUI.haveLoggedInUser() && provider.profile !== undefined)) {
+      // Either no enabled provider, or there is a provider and it has
+      // responded with a profile and the user isn't loggedin.  The icons
+      // etc have already been removed by updateButtonHiddenState, so we want
+      // to nuke any cached icons we have and get out of here!
       Services.prefs.clearUserPref(CACHE_PREF_NAME);
       return;
     }
@@ -813,6 +826,9 @@ var SocialToolbar = {
   },
 
   showAmbientPopup: function SocialToolbar_showAmbientPopup(aToolbarButtonBox) {
+    // Hide any other social panels that may be open.
+    SocialFlyout.panel.hidePopup();
+
     let panel = document.getElementById("social-notification-panel");
     let notificationFrameId = aToolbarButtonBox.getAttribute("notificationFrameId");
     let notificationFrame = document.getElementById(notificationFrameId);
@@ -880,12 +896,6 @@ var SocialToolbar = {
 var SocialSidebar = {
   // Called once, after window load, when the Social.provider object is initialized
   init: function SocialSidebar_init() {
-    let sbrowser = document.getElementById("social-sidebar-browser");
-    // setting isAppTab causes clicks on untargeted links to open new tabs
-    sbrowser.docShell.isAppTab = true;
-    sbrowser.webProgress.addProgressListener(new SocialErrorListener("sidebar"),
-                                             Ci.nsIWebProgress.NOTIFY_STATE_REQUEST |
-                                             Ci.nsIWebProgress.NOTIFY_LOCATION);
     this.updateSidebar();
   },
 
@@ -915,9 +925,10 @@ var SocialSidebar = {
   },
 
   updateSidebar: function SocialSidebar_updateSidebar() {
+    clearTimeout(this._unloadTimeoutId);
     // Hide the toggle menu item if the sidebar cannot appear
     let command = document.getElementById("Social:ToggleSidebar");
-    command.hidden = !this.canShow;
+    command.setAttribute("hidden", this.canShow ? "false" : "true");
 
     // Hide the sidebar if it cannot appear, or has been toggled off.
     // Also set the command "checked" state accordingly.
@@ -930,15 +941,26 @@ var SocialSidebar = {
     sbrowser.docShell.isActive = !hideSidebar;
     if (hideSidebar) {
       this.dispatchEvent("socialFrameHide");
-      // If we're disabled, unload the sidebar content
+      // If we've been disabled, unload the sidebar content immediately;
+      // if the sidebar was just toggled to invisible, wait a timeout
+      // before unloading.
       if (!this.canShow) {
-        sbrowser.removeAttribute("origin");
-        sbrowser.setAttribute("src", "about:blank");
+        this.unloadSidebar();
+      } else {
+        this._unloadTimeoutId = setTimeout(
+          this.unloadSidebar,
+          Services.prefs.getIntPref("social.sidebar.unload_timeout_ms")
+        );
       }
     } else {
       // Make sure the right sidebar URL is loaded
       if (sbrowser.getAttribute("origin") != Social.provider.origin) {
         sbrowser.setAttribute("origin", Social.provider.origin);
+        // setting isAppTab causes clicks on untargeted links to open new tabs
+        sbrowser.docShell.isAppTab = true;
+        sbrowser.webProgress.addProgressListener(new SocialErrorListener("sidebar"),
+                                                 Ci.nsIWebProgress.NOTIFY_STATE_REQUEST |
+                                                 Ci.nsIWebProgress.NOTIFY_LOCATION);
         sbrowser.setAttribute("src", Social.provider.sidebarURL);
         sbrowser.addEventListener("load", function sidebarOnShow() {
           sbrowser.removeEventListener("load", sidebarOnShow);
@@ -952,6 +974,25 @@ var SocialSidebar = {
       }
     }
   },
+
+  unloadSidebar: function SocialSidebar_unloadSidebar() {
+    let sbrowser = document.getElementById("social-sidebar-browser");
+    if (!sbrowser.hasAttribute("origin"))
+      return;
+
+    // Bug 803255 - If we don't remove the sidebar browser from the DOM,
+    // the previous document leaks because it's only released when the
+    // sidebar is made visible again.
+    let container = sbrowser.parentNode;
+    container.removeChild(sbrowser);
+    sbrowser.removeAttribute("origin");
+    sbrowser.removeAttribute("src");
+    container.appendChild(sbrowser);
+
+    SocialFlyout.unload();
+  },
+
+  _unloadTimeoutId: 0,
 
   setSidebarErrorMessage: function() {
     let sbrowser = document.getElementById("social-sidebar-browser");
