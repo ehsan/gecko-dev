@@ -209,10 +209,6 @@ class Type
         return (JSValueType) data;
     }
 
-    bool isSomeObject() const {
-        return data == JSVAL_TYPE_OBJECT || data > JSVAL_TYPE_UNKNOWN;
-    }
-
     bool isAnyObject() const {
         return data == JSVAL_TYPE_OBJECT;
     }

@@ -295,16 +295,6 @@ ClientLayerManager::FlushRendering()
 }
 
 void
-ClientLayerManager::SendInvalidRegion(const nsIntRegion& aRegion)
-{
-  if (mWidget) {
-    if (CompositorChild* remoteRenderer = mWidget->GetRemoteRenderer()) {
-      remoteRenderer->SendNotifyRegionInvalidated(aRegion);
-    }
-  }
-}
-
-void
 ClientLayerManager::ForwardTransaction()
 {
   mPhase = PHASE_FORWARD;

@@ -24,12 +24,6 @@ namespace jit {
 class CodeGenerator;
 class CallInfo;
 class BaselineInspector;
-class BaselineFrameInspector;
-
-// Records information about a baseline frame for compilation that is stable
-// when later used off thread.
-BaselineFrameInspector *
-NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame);
 
 class IonBuilder : public MIRGenerator
 {
@@ -213,7 +207,7 @@ class IonBuilder : public MIRGenerator
   public:
     IonBuilder(JSContext *analysisContext, CompileCompartment *comp, TempAllocator *temp, MIRGraph *graph,
                types::CompilerConstraintList *constraints,
-               BaselineInspector *inspector, CompileInfo *info, BaselineFrameInspector *baselineFrame,
+               BaselineInspector *inspector, CompileInfo *info, BaselineFrame *baselineFrame,
                size_t inliningDepth = 0, uint32_t loopDepth = 0);
 
     bool build();
@@ -751,7 +745,7 @@ class IonBuilder : public MIRGenerator
     bool init();
 
     JSContext *analysisContext;
-    BaselineFrameInspector *baselineFrame_;
+    BaselineFrame *baselineFrame_;
     AbortReason abortReason_;
     TypeRepresentationSetHash *reprSetHash_;
 

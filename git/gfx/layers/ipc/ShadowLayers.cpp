@@ -536,7 +536,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies, bool
     }
     common.maskLayerParent() = nullptr;
     common.animations() = mutant->GetAnimations();
-    common.invalidRegion() = mutant->GetInvalidRegion();
     attrs.specific() = null_t();
     mutant->FillSpecificAttributes(attrs.specific());
 
