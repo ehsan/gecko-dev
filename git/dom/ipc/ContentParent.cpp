@@ -54,7 +54,6 @@
 #include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layers/ImageBridgeParent.h"
-#include "mozilla/layers/SharedBufferManagerParent.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -599,9 +598,9 @@ ContentParent::GetNewOrUsed(bool aForBrowserElement)
                               aForBrowserElement,
                               /* isForPreallocated = */ false,
                               PROCESS_PRIORITY_FOREGROUND);
-        p->Init();
     }
 
+    p->Init();
     sNonAppContentParents->AppendElement(p);
     return p.forget();
 }
@@ -1596,10 +1595,6 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
             }
         }
     }
-#ifdef MOZ_WIDGET_GONK
-    DebugOnly<bool> opened = PSharedBufferManager::Open(this);
-    MOZ_ASSERT(opened);
-#endif
 
     if (aSendRegisteredChrome) {
         nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
@@ -1710,7 +1705,7 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
 {
 #ifdef MOZ_PERMISSIONS
     nsCOMPtr<nsIPermissionManager> permissionManagerIface =
-        services::GetPermissionManager();
+        do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
     nsPermissionManager* permissionManager =
         static_cast<nsPermissionManager*>(permissionManagerIface.get());
     NS_ABORT_IF_FALSE(permissionManager,
@@ -2195,13 +2190,6 @@ ContentParent::AllocPBackgroundParent(Transport* aTransport,
                                       ProcessId aOtherProcess)
 {
     return BackgroundParent::Alloc(this, aTransport, aOtherProcess);
-}
-
-PSharedBufferManagerParent*
-ContentParent::AllocPSharedBufferManagerParent(mozilla::ipc::Transport* aTransport,
-                                                base::ProcessId aOtherProcess)
-{
-    return SharedBufferManagerParent::Create(aTransport, aOtherProcess);
 }
 
 bool

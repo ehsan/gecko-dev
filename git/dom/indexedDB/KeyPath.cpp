@@ -169,7 +169,9 @@ GetJSValFromKeyPathString(JSContext* aCx,
         }
 
         if (!JS_DefineUCProperty(aCx, obj, token.BeginReading(),
-                                 token.Length(), dummy, JSPROP_ENUMERATE)) {
+                                 token.Length(),
+                                 OBJECT_TO_JSVAL(dummy), nullptr, nullptr,
+                                 JSPROP_ENUMERATE)) {
           IDB_REPORT_INTERNAL_ERR();
           rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
           break;
@@ -187,7 +189,8 @@ GetJSValFromKeyPathString(JSContext* aCx,
         }
 
         if (!JS_DefineUCProperty(aCx, obj, token.BeginReading(),
-                                 token.Length(), dummy, JSPROP_ENUMERATE)) {
+                                 token.Length(), OBJECT_TO_JSVAL(dummy),
+                                 nullptr, nullptr, JSPROP_ENUMERATE)) {
           IDB_REPORT_INTERNAL_ERR();
           rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
           break;

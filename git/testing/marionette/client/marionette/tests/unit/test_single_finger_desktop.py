@@ -5,11 +5,7 @@ from marionette import MarionetteException
 import os
 import sys
 sys.path.append(os.path.dirname(__file__))
-from single_finger_functions import (
-        chain, chain_flick, context_menu, double_tap, long_press_action,
-        move_element, move_element_offset, press_release, single_tap, wait,
-        wait_with_value
-        )
+from single_finger_functions import *
 
 class testSingleFingerMouse(MarionetteTestCase):
     def setUp(self):

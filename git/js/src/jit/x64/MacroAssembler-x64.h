@@ -1301,9 +1301,10 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     // Save an exit frame (which must be aligned to the stack pointer) to
-    // PerThreadData::jitTop of the main thread.
+    // ThreadData::ionTop of the main thread.
     void linkExitFrame() {
-        storePtr(StackPointer, AbsoluteAddress(GetIonContext()->runtime->addressOfJitTop()));
+        storePtr(StackPointer,
+                 AbsoluteAddress(GetIonContext()->runtime->addressOfIonTop()));
     }
 
     void callWithExitFrame(JitCode *target, Register dynStack) {
@@ -1316,7 +1317,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // Save an exit frame to the thread data of the current thread, given a
     // register that holds a PerThreadData *.
     void linkParallelExitFrame(const Register &pt) {
-        storePtr(StackPointer, Address(pt, offsetof(PerThreadData, jitTop)));
+        storePtr(StackPointer, Address(pt, offsetof(PerThreadData, ionTop)));
     }
 
     // See CodeGeneratorX64 calls to noteAsmJSGlobalAccess.
@@ -1334,8 +1335,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
 #ifdef JSGC_GENERATIONAL
-    void branchPtrInNurseryRange(Condition cond, Register ptr, Register temp, Label *label);
-    void branchValueIsNurseryObject(Condition cond, ValueOperand value, Register temp, Label *label);
+    void branchPtrInNurseryRange(Register ptr, Register temp, Label *label);
+    void branchValueIsNurseryObject(ValueOperand value, Register temp, Label *label);
 #endif
 };
 

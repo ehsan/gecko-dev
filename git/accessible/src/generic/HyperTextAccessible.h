@@ -302,7 +302,7 @@ public:
    * Get/set caret offset, if no caret then -1.
    */
   int32_t CaretOffset() const;
-  void SetCaretOffset(int32_t aOffset);
+  void SetCaretOffset(int32_t aOffset) { SetSelectionRange(aOffset, aOffset); }
 
   /**
    * Provide the line number for the caret.
@@ -406,11 +406,6 @@ public:
    */
   virtual already_AddRefed<nsIEditor> GetEditor() const;
 
-  /**
-   * Return DOM selection object for the accessible.
-   */
-  dom::Selection* DOMSelection() const;
-
 protected:
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
@@ -491,9 +486,10 @@ protected:
   // Selection helpers
 
   /**
-   * Return frame selection object for the accessible.
+   * Return frame/DOM selection object for the accessible.
    */
   already_AddRefed<nsFrameSelection> FrameSelection() const;
+  dom::Selection* DOMSelection() const;
 
   /**
    * Return selection ranges within the accessible subtree.

@@ -157,7 +157,7 @@ MobileConnection::CheckPermission(const char* aType)
   NS_ENSURE_TRUE(window, false);
 
   nsCOMPtr<nsIPermissionManager> permMgr =
-    mozilla::services::GetPermissionManager();
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, false);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;

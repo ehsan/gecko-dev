@@ -239,7 +239,7 @@ nsSubDocumentFrame::PassPointerEventsToChildren()
       }
 
       nsCOMPtr<nsIPermissionManager> permMgr =
-        services::GetPermissionManager();
+        do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
       if (permMgr) {
         uint32_t permission = nsIPermissionManager::DENY_ACTION;
         permMgr->TestPermissionFromPrincipal(GetContent()->NodePrincipal(),

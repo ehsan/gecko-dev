@@ -352,6 +352,9 @@ public:
 
     void SetPopupWindowLevel();
 
+    bool IsChildInFailingLeftClickThrough(NSView *aChild);
+    bool ShouldFocusPlugin();
+
     NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 

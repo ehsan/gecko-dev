@@ -223,13 +223,12 @@ JSObject::ensureDenseInitializedLengthNoPackedCheck(js::ThreadSafeContext *cx, u
     uint32_t &initlen = getElementsHeader()->initializedLength;
 
     if (initlen < index + extra) {
+        JSRuntime *rt = runtimeFromAnyThread();
         size_t offset = initlen;
         for (js::HeapSlot *sp = elements + initlen;
              sp != elements + (index + extra);
              sp++, offset++)
-        {
-            sp->init(this, js::HeapSlot::Element, offset, js::MagicValue(JS_ELEMENTS_HOLE));
-        }
+            sp->init(rt, this, js::HeapSlot::Element, offset, js::MagicValue(JS_ELEMENTS_HOLE));
         initlen = index + extra;
     }
 }
@@ -518,7 +517,7 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
     if (extantSlots) {
 #ifdef JSGC_GENERATIONAL
         if (cx->isJSContext())
-            cx->asJSContext()->runtime()->gc.nursery.notifyInitialSlots(obj, extantSlots);
+            cx->asJSContext()->runtime()->gcNursery.notifyInitialSlots(obj, extantSlots);
 #endif
         obj->slots = extantSlots;
     }

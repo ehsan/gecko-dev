@@ -68,7 +68,7 @@ protected:
   nsresult Init(WidgetQueryContentEvent* aEvent);
   nsresult Init(WidgetSelectionEvent* aEvent);
 
-  nsresult InitBasic();
+  // InitCommon() is called from each Init().
   nsresult InitCommon();
 
 public:

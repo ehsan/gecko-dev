@@ -396,7 +396,7 @@ nsXMLHttpRequest::InitParameters(bool aAnon, bool aSystem)
 
     nsCOMPtr<nsIPrincipal> principal = doc->NodePrincipal();
     nsCOMPtr<nsIPermissionManager> permMgr =
-      services::GetPermissionManager();
+      do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
     if (!permMgr)
       return;
 

@@ -94,9 +94,6 @@
 #include "nsIPrivateBrowsingChannel.h"
 #include "nsIDocShell.h"
 
-#include "WorkerPrivate.h"
-#include "WorkerRunnable.h"
-
 namespace mozilla {
 namespace dom {
 
@@ -1413,12 +1410,10 @@ Navigator::GetBattery(ErrorResult& aRv)
   return mBatteryManager;
 }
 
-/* static */ already_AddRefed<Promise>
-Navigator::GetDataStores(nsPIDOMWindow* aWindow,
-                         const nsAString& aName,
-                         ErrorResult& aRv)
+already_AddRefed<Promise>
+Navigator::GetDataStores(const nsAString& aName, ErrorResult& aRv)
 {
-  if (!aWindow || !aWindow->GetDocShell()) {
+  if (!mWindow || !mWindow->GetDocShell()) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
   }
@@ -1431,16 +1426,10 @@ Navigator::GetDataStores(nsPIDOMWindow* aWindow,
   }
 
   nsCOMPtr<nsISupports> promise;
-  aRv = service->GetDataStores(aWindow, aName, getter_AddRefs(promise));
+  aRv = service->GetDataStores(mWindow, aName, getter_AddRefs(promise));
 
   nsRefPtr<Promise> p = static_cast<Promise*>(promise.get());
   return p.forget();
-}
-
-already_AddRefed<Promise>
-Navigator::GetDataStores(const nsAString& aName, ErrorResult& aRv)
-{
-  return GetDataStores(mWindow, aName, aRv);
 }
 
 PowerManager*
@@ -1793,7 +1782,7 @@ Navigator::CheckPermission(nsPIDOMWindow* aWindow, const char* aType)
   }
 
   nsCOMPtr<nsIPermissionManager> permMgr =
-    services::GetPermissionManager();
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, false);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
@@ -2189,7 +2178,7 @@ Navigator::HasWifiManagerSupport(JSContext* /* unused */,
   nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aGlobal);
 
   nsCOMPtr<nsIPermissionManager> permMgr =
-    services::GetPermissionManager();
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, false);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
@@ -2302,9 +2291,9 @@ Navigator::HasInputMethodSupport(JSContext* /* unused */,
 
 /* static */
 bool
-Navigator::HasDataStoreSupport(nsIPrincipal* aPrincipal)
+Navigator::HasDataStoreSupport(JSContext* cx, JSObject* aGlobal)
 {
-  workers::AssertIsOnMainThread();
+  JS::Rooted<JSObject*> global(cx, aGlobal);
 
   // First of all, the general pref has to be turned on.
   bool enabled = false;
@@ -2318,64 +2307,6 @@ Navigator::HasDataStoreSupport(nsIPrincipal* aPrincipal)
     return true;
   }
 
-  uint16_t status;
-  if (NS_FAILED(aPrincipal->GetAppStatus(&status))) {
-    return false;
-  }
-
-  // Only support DataStore API for certified apps for now.
-  return status == nsIPrincipal::APP_STATUS_CERTIFIED;
-}
-
-// A WorkerMainThreadRunnable to synchronously dispatch the call of
-// HasDataStoreSupport() from the worker thread to the main thread.
-class HasDataStoreSupportRunnable MOZ_FINAL
-  : public workers::WorkerMainThreadRunnable
-{
-public:
-  bool mResult;
-
-  HasDataStoreSupportRunnable(workers::WorkerPrivate* aWorkerPrivate)
-    : workers::WorkerMainThreadRunnable(aWorkerPrivate)
-    , mResult(false)
-  {
-    MOZ_ASSERT(aWorkerPrivate);
-    aWorkerPrivate->AssertIsOnWorkerThread();
-  }
-
-protected:
-  virtual bool
-  MainThreadRun() MOZ_OVERRIDE
-  {
-    workers::AssertIsOnMainThread();
-
-    mResult = Navigator::HasDataStoreSupport(mWorkerPrivate->GetPrincipal());
-
-    return true;
-  }
-};
-
-/* static */
-bool
-Navigator::HasDataStoreSupport(JSContext* aCx, JSObject* aGlobal)
-{
-  // If the caller is on the worker thread, dispatch this to the main thread.
-  if (!NS_IsMainThread()) {
-    workers::WorkerPrivate* workerPrivate =
-      workers::GetWorkerPrivateFromContext(aCx);
-    workerPrivate->AssertIsOnWorkerThread();
-
-    nsRefPtr<HasDataStoreSupportRunnable> runnable =
-      new HasDataStoreSupportRunnable(workerPrivate);
-    runnable->Dispatch(aCx);
-
-    return runnable->mResult;
-  }
-
-  workers::AssertIsOnMainThread();
-
-  JS::Rooted<JSObject*> global(aCx, aGlobal);
-
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(global);
   if (!win) {
     return false;
@@ -2386,7 +2317,12 @@ Navigator::HasDataStoreSupport(JSContext* aCx, JSObject* aGlobal)
     return false;
   }
 
-  return HasDataStoreSupport(doc->NodePrincipal());
+  uint16_t status;
+  if (NS_FAILED(doc->NodePrincipal()->GetAppStatus(&status))) {
+    return false;
+  }
+
+  return status == nsIPrincipal::APP_STATUS_CERTIFIED;
 }
 
 /* static */

@@ -2021,7 +2021,7 @@ Debugger::addAllGlobalsAsDebuggees(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGGER(cx, argc, vp, "addAllGlobalsAsDebuggees", args, dbg);
     for (ZonesIter zone(cx->runtime(), SkipAtoms); !zone.done(); zone.next()) {
-        // Invalidate a zone at a time to avoid doing a ZoneCellIter
+        // Invalidate a zone at a time to avoid doing a zone-wide CellIter
         // per compartment.
         AutoDebugModeInvalidation invalidate(zone);
 
@@ -2113,7 +2113,7 @@ Debugger::getNewestFrame(JSContext *cx, unsigned argc, Value *vp)
         if (dbg->observesFrame(i)) {
             // Ensure that Ion frames are rematerialized. Only rematerialized
             // Ion frames may be used as AbstractFramePtrs.
-            if (i.isIon() && !i.ensureHasRematerializedFrame(cx))
+            if (i.isIon() && !i.ensureHasRematerializedFrame())
                 return false;
             AbstractFramePtr frame = i.abstractFramePtr();
             ScriptFrameIter iter(i.activation()->cx(), ScriptFrameIter::GO_THROUGH_SAVED);
@@ -4118,7 +4118,7 @@ UpdateFrameIterPc(FrameIter &iter)
         jit::IonJSFrameLayout *jsFrame = (jit::IonJSFrameLayout *)frame->top();
         jit::JitActivation *activation = iter.activation()->asJit();
 
-        ActivationIterator activationIter(activation->cx()->perThreadData);
+        ActivationIterator activationIter(activation->cx()->runtime());
         while (activationIter.activation() != activation)
             ++activationIter;
 
@@ -4370,7 +4370,7 @@ DebuggerFrame_getOlder(JSContext *cx, unsigned argc, Value *vp)
 
     for (++iter; !iter.done(); ++iter) {
         if (dbg->observesFrame(iter)) {
-            if (iter.isIon() && !iter.ensureHasRematerializedFrame(cx))
+            if (iter.isIon() && !iter.ensureHasRematerializedFrame())
                 return false;
             return dbg->getScriptFrame(cx, iter, args.rval());
         }

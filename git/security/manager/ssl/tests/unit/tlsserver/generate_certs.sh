@@ -12,10 +12,7 @@
 #
 # NB: This will cause the following files to be overwritten if they are in
 # the output directory:
-#  cert8.db, key3.db, secmod.db, ocsp-ca.der, ocsp-other-ca.der, default-ee.der
-# NB: You must run genHPKPStaticPins.js after running this file, since its
-# output (StaticHPKPins.h) depends on default-ee.der
-
+#  cert8.db, key3.db, secmod.db, ocsp-ca.der, ocsp-other-ca.der
 set -x
 set -e
 
@@ -28,13 +25,11 @@ OBJDIR=${1}
 OUTPUT_DIR=${2}
 RUN_MOZILLA="$OBJDIR/dist/bin/run-mozilla.sh"
 CERTUTIL="$OBJDIR/dist/bin/certutil"
-# On BSD, mktemp requires either a template or a prefix.
-MKTEMP="mktemp temp.XXXX"
 
-NOISE_FILE=`$MKTEMP`
+NOISE_FILE=`mktemp`
 # Make a good effort at putting something unique in the noise file.
 date +%s%N  > "$NOISE_FILE"
-PASSWORD_FILE=`$MKTEMP`
+PASSWORD_FILE=`mktemp`
 
 function cleanup {
   rm -f "$NOISE_FILE" "$PASSWORD_FILE"
@@ -139,11 +134,7 @@ function make_delegated {
 
 make_CA testCA 'CN=Test CA' test-ca.der
 make_CA otherCA 'CN=Other test CA' other-test-ca.der
-
-make_EE localhostAndExampleCom 'CN=Test End-entity' testCA "localhost,*.example.com,*.pinning.example.com,*.include-subdomains.pinning.example.com,*.exclude-subdomains.pinning.example.com"
-# Make an EE cert issued by otherCA
-make_EE otherIssuerEE 'CN=Wrong CA Pin Test End-Entity' otherCA "*.include-subdomains.pinning.example.com,*.exclude-subdomains.pinning.example.com"
-
+make_EE localhostAndExampleCom 'CN=Test End-entity' testCA "localhost,*.example.com"
 $RUN_MOZILLA $CERTUTIL -d $OUTPUT_DIR -L -n localhostAndExampleCom -r > $OUTPUT_DIR/default-ee.der
 # A cert that is like localhostAndExampleCom, but with a different serial number for
 # testing the "OCSP response is from the right issuer, but it is for the wrong cert"

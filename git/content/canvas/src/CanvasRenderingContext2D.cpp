@@ -415,12 +415,12 @@ CanvasGradient::AddColorStop(float offset, const nsAString& colorstr, ErrorResul
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasGradient, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasGradient, Release)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(CanvasGradient, mContext)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasGradient, mContext)
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasPattern, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasPattern, Release)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(CanvasPattern, mContext)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasPattern, mContext)
 
 class CanvasRenderingContext2DUserData : public LayerUserData {
 public:
@@ -888,8 +888,8 @@ CanvasRenderingContext2D::CheckSizeForSkiaGL(IntSize size) {
     }
   }
 
-  double scale = gDefaultScale > 0 ? gDefaultScale : 1.0;
-  int32_t threshold = ceil(scale * scale * gScreenPixels);
+  int32_t threshold = gDefaultScale > 0 ? ceil(gDefaultScale * gScreenPixels)
+                                        : gScreenPixels;
 
   // screen size acts as max threshold
   return threshold < 0 || (size.width * size.height) <= threshold;
@@ -1490,13 +1490,7 @@ CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& e
       return pat.forget();
     }
   } else if (element.IsHTMLImageElement()) {
-    HTMLImageElement* img = &element.GetAsHTMLImageElement();
-    if (img->IntrinsicState().HasState(NS_EVENT_STATE_BROKEN)) {
-      error.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-      return nullptr;
-    }
-
-    htmlElement = img;
+    htmlElement = &element.GetAsHTMLImageElement();
   } else {
     htmlElement = &element.GetAsHTMLVideoElement();
   }

@@ -407,7 +407,7 @@ nsJSIID::NewResolve(nsIXPConnectWrappedNative *wrapper,
             return NS_ERROR_OUT_OF_MEMORY;
 
         *objp = obj;
-        *_retval = JS_DefinePropertyById(cx, obj, id, val,
+        *_retval = JS_DefinePropertyById(cx, obj, id, val, nullptr, nullptr,
                                          JSPROP_ENUMERATE | JSPROP_READONLY |
                                          JSPROP_PERMANENT);
     }
