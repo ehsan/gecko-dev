@@ -72,6 +72,9 @@ pref("toolkit.zoomManager.zoomValues", ".2,.3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.
 // Mobile will use faster, less durable mode.
 pref("toolkit.storage.synchronous", 0);
 
+// disable telemetry for beta
+pref("toolkit.telemetry.enabled", false);
+
 // Device pixel to CSS px ratio, in percent. Set to -1 to calculate based on display density.
 pref("browser.viewport.scaleRatio", -1);
 pref("browser.viewport.desktopWidth", 980);
@@ -471,7 +474,10 @@ pref("dom.ipc.plugins.enabled", true);
 #endif
 
 pref("plugins.click_to_play", true);
-pref("plugins.use_placeholder", 1);
+// Disabled because of thread safety problem
+// in getting the bits from the surface.
+// Bug 756253
+pref("plugins.use_placeholder", 0);
 
 // process priority
 // higher values give content process less CPU time
