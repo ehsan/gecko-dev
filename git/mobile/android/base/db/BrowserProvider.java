@@ -1400,8 +1400,7 @@ public class BrowserProvider extends SharedBrowserDatabaseProvider {
                 + " AND " + Bookmarks.URL + " IS NOT NULL)";
 
         return deleteFavicons(uri, faviconSelection, null) +
-               deleteThumbnails(uri, thumbnailSelection, null) +
-               URLMetadata.deleteUnused(getContext().getContentResolver());
+               deleteThumbnails(uri, thumbnailSelection, null);
     }
 
     @Override

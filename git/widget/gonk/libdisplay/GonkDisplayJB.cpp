@@ -106,6 +106,13 @@ GonkDisplayJB::GonkDisplayJB()
     mAlloc = new GraphicBufferAlloc();
 
     status_t error;
+    uint32_t usage = GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER;
+    mBootAnimBuffer = mAlloc->createGraphicBuffer(mWidth, mHeight, surfaceformat, usage, &error);
+    if (error != NO_ERROR || !mBootAnimBuffer.get()) {
+        ALOGI("Trying to create BRGA format framebuffer");
+        surfaceformat = HAL_PIXEL_FORMAT_BGRA_8888;
+        mBootAnimBuffer = mAlloc->createGraphicBuffer(mWidth, mHeight, surfaceformat, usage, &error);
+    }
 
 #if ANDROID_VERSION >= 19
     sp<BufferQueue> bq = new BufferQueue(mAlloc);
@@ -120,14 +127,12 @@ GonkDisplayJB::GonkDisplayJB()
     sp<Surface> stc = new Surface(static_cast<sp<IGraphicBufferProducer> >(bq));
 #endif
     mSTClient = stc;
-    mSTClient->perform(mSTClient.get(), NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
-    mSTClient->perform(mSTClient.get(), NATIVE_WINDOW_SET_USAGE, GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER);
 
     mList = (hwc_display_contents_1_t *)malloc(sizeof(*mList) + (sizeof(hwc_layer_1_t)*2));
     if (mHwc)
         mHwc->blank(mHwc, HWC_DISPLAY_PRIMARY, 0);
 
-    if (error == NO_ERROR) {
+    if (error == NO_ERROR && mBootAnimBuffer.get()) {
         ALOGI("Starting bootanimation with (%d) format framebuffer", surfaceformat);
         StartBootAnimation();
     } else
@@ -146,7 +151,6 @@ GonkDisplayJB::~GonkDisplayJB()
 ANativeWindow*
 GonkDisplayJB::GetNativeWindow()
 {
-    StopBootAnimation();
     return mSTClient.get();
 }
 
@@ -193,6 +197,9 @@ GonkDisplayJB::GetFBSurface()
 bool
 GonkDisplayJB::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 {
+    StopBootAnimation();
+    mBootAnimBuffer = nullptr;
+
     // Should be called when composition rendering is complete for a frame.
     // Only HWC v1.0 needs this call.
     // HWC > v1.0 case, do not call compositionComplete().
@@ -273,23 +280,21 @@ GonkDisplayJB::Post(buffer_handle_t buf, int fence)
 ANativeWindowBuffer*
 GonkDisplayJB::DequeueBuffer()
 {
-    ANativeWindowBuffer *buf;
-    mSTClient->dequeueBuffer(mSTClient.get(), &buf, &mFence);
-    return buf;
+    return static_cast<ANativeWindowBuffer*>(mBootAnimBuffer.get());
 }
 
 bool
 GonkDisplayJB::QueueBuffer(ANativeWindowBuffer* buf)
 {
     bool success = Post(buf->handle, -1);
-    int error = mSTClient->queueBuffer(mSTClient.get(), buf, mFence);
-
-    return error == 0 && success;
+    return success;
 }
 
 void
 GonkDisplayJB::UpdateFBSurface(EGLDisplay dpy, EGLSurface sur)
 {
+    StopBootAnimation();
+    mBootAnimBuffer = nullptr;
     eglSwapBuffers(dpy, sur);
 }
 

@@ -352,6 +352,12 @@ describe("loop.panel", function() {
         sinon.assert.calledWithExactly(notifier.errorL10n,
                                        "unable_retrieve_url");
       });
+
+      it("should set 'loopToken' with the callUrl token", function() {
+        sinon.assert.calledOnce(navigator.mozLoop.setLoopCharPref);
+        sinon.assert.calledWithExactly(navigator.mozLoop.setLoopCharPref,
+                                       "loopToken", "fakeToken");
+      });
     });
   });
 

@@ -26,10 +26,8 @@ class MOZ_STACK_CLASS nsViewportInfo
 {
   public:
     nsViewportInfo(const mozilla::ScreenIntSize& aDisplaySize,
-                   const mozilla::CSSToScreenScale& aDefaultZoom,
-                   bool aAllowZoom,
-                   bool aAllowDoubleTapZoom) :
-      mDefaultZoom(aDefaultZoom),
+                   bool aAllowZoom = true, bool aAllowDoubleTapZoom = true) :
+      mDefaultZoom(1.0),
       mAutoSize(true),
       mAllowZoom(aAllowZoom),
       mAllowDoubleTapZoom(aAllowDoubleTapZoom)

@@ -862,15 +862,11 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
     try {
       var canvas = document.createElementNS('http://www.w3.org/1999/xhtml',
                                             'canvas');
-      var docRect = document.body.getBoundingClientRect();
-      var width = docRect.width;
-      var height = docRect.height;
-
-      // Convert width and height from CSS pixels (potentially fractional)
-      // to device pixels (integer).
+      var width = window.innerWidth;
+      var height = window.innerHeight;
       var scale = window.devicePixelRatio;
-      canvas.setAttribute('width', Math.round(width * scale));
-      canvas.setAttribute('height', Math.round(height * scale));
+      canvas.setAttribute('width', width * scale);
+      canvas.setAttribute('height', height * scale);
 
       var context = canvas.getContext('2d');
       var flags =
