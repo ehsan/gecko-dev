@@ -96,7 +96,8 @@ static struct {
 #define AUDIT(x) ((void)0)
 #endif 
 
-#define INS_CONST(c) addName(lir->insImm(c), #c)
+#define INS_CONST(c)    addName(lir->insImm(c), #c)
+#define INS_CONSTPTR(p) addName(lir->insImmPtr((void*) (p)), #p)
 
 using namespace avmplus;
 using namespace nanojit;
@@ -1518,8 +1519,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f)
 #endif
     }
 
-    if (f->vmprivate)
-        js_TrashTree(cx, f);
+    JS_ASSERT(!f->vmprivate);
     
     /* setup the VM-private treeInfo structure for this fragment */
     TreeInfo* ti = new (&gc) TreeInfo(f); // TODO: deallocate when fragment dies
@@ -1795,8 +1795,9 @@ js_AbortRecording(JSContext* cx, jsbytecode* abortpc, const char* reason)
 }
 
 extern void
-js_InitJIT(JSTraceMonitor *tm)
+js_InitJIT(JSContext* cx)
 {
+    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     if (!tm->fragmento) {
         Fragmento* fragmento = new (&gc) Fragmento(core, 24);
         verbose_only(fragmento->labels = new (&gc) LabelMap(core, NULL);)
@@ -1810,8 +1811,9 @@ js_InitJIT(JSTraceMonitor *tm)
 }
 
 extern void
-js_DestroyJIT(JSTraceMonitor *tm)
+js_DestroyJIT(JSContext* cx)
 {
+    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
 #ifdef DEBUG
     printf("recorder: started(%llu), aborted(%llu), completed(%llu), different header(%llu), "
            "trees trashed(%llu), slot promoted(%llu), "
@@ -1822,11 +1824,8 @@ js_DestroyJIT(JSTraceMonitor *tm)
            "global mismatch(%llu)\n", stat.traceTriggered, stat.sideExitIntoInterpreter,
            stat.typeMapMismatchAtEntry, stat.globalShapeMismatchAtEntry);
 #endif
-    if (tm->fragmento != NULL) {
-        verbose_only(delete tm->fragmento->labels;)
-        delete tm->fragmento;
-        tm->fragmento = NULL;
-    }
+    verbose_only(delete tm->fragmento->labels;)
+    delete tm->fragmento;
 }
 
 extern void
@@ -1932,7 +1931,7 @@ TraceRecorder::ifop()
         guard(JSSTRING_LENGTH(JSVAL_TO_STRING(v)) == 0,
               lir->ins_eq0(lir->ins2(LIR_and,
                                      lir->insLoadi(get(&v), offsetof(JSString, length)),
-                                     INS_CONST(JSSTRING_LENGTH_MASK))),
+                                     INS_CONSTPTR(JSSTRING_LENGTH_MASK))),
               BRANCH_EXIT);
     } else {
         JS_NOT_REACHED("ifop");
@@ -2769,16 +2768,8 @@ TraceRecorder::record_JSOP_ADD()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
-    if (JSVAL_IS_STRING(l)) {
-        LIns* args[] = { NULL, get(&l), cx_ins };
-        if (JSVAL_IS_STRING(r)) {
-            args[0] = get(&r);
-        } else if (JSVAL_IS_NUMBER(r)) {
-            LIns* args2[] = { get(&r), cx_ins };
-            args[0] = lir->insCall(F_NumberToString, args2);
-        } else {
-            ABORT_TRACE("untraceable right operand to string-JSOP_ADD");
-        }
+    if (JSVAL_IS_STRING(l) && JSVAL_IS_STRING(r)) {
+        LIns* args[] = { get(&r), get(&l), cx_ins };
         LIns* concat = lir->insCall(F_ConcatStrings, args);
         guard(false, lir->ins_eq0(concat), OOM_EXIT);
         set(&l, concat);
@@ -4905,12 +4896,26 @@ TraceRecorder::record_JSOP_LENGTH()
         LIns* str_ins = get(&l);
         LIns* len_ins = lir->insLoadi(str_ins, offsetof(JSString, length));
 
-        // We support only flat strings at present.
-        guard(true, addName(lir->ins_eq0(lir->ins2(LIR_and, len_ins,
-                                                   INS_CONST(JSSTRFLAG_DEPENDENT))),
-                            "guard(flat-string)"), MISMATCH_EXIT);
-        set(&l, lir->ins1(LIR_i2f,
-                          lir->ins2(LIR_and, len_ins, INS_CONST(JSSTRING_LENGTH_MASK))));
+        LIns* masked_len_ins = lir->ins2(LIR_and,
+                                         len_ins,
+                                         INS_CONSTPTR(JSSTRING_LENGTH_MASK));
+
+        LIns *choose_len_ins =
+            lir->ins_choose(lir->ins_eq0(lir->ins2(LIR_and,
+                                                   len_ins,
+                                                   INS_CONSTPTR(JSSTRFLAG_DEPENDENT))),
+                            masked_len_ins,
+                            lir->ins_choose(lir->ins_eq0(lir->ins2(LIR_and,
+                                                                   len_ins,
+                                                                   INS_CONSTPTR(JSSTRFLAG_PREFIX))),
+                                            lir->ins2(LIR_and,
+                                                      len_ins,
+                                                      INS_CONSTPTR(JSSTRDEP_LENGTH_MASK)),
+                                            masked_len_ins,
+                                            true),
+                            true);
+
+        set(&l, lir->ins1(LIR_i2f, choose_len_ins));
         return true;
     }
 
