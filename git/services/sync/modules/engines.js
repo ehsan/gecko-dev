@@ -199,15 +199,14 @@ SyncEngine.prototype = {
   },
 
   get lastSync() {
-    return Svc.Prefs.get(this.name + ".lastSync", 0);
+    try {
+      return Utils.prefs.getCharPref(this.name + ".lastSync");
+    } catch (e) {
+      return 0;
+    }
   },
   set lastSync(value) {
-    Svc.Prefs.set(this.name + ".lastSync", value);
-  },
-  resetLastSync: function SyncEngine_resetLastSync() {
-    this._log.debug("Resetting " + this.name + " last sync time");
-    Svc.Prefs.reset(this.name + ".lastSync");
-    Svc.Prefs.set(this.name + ".lastSync", 0);
+    Utils.prefs.setCharPref(this.name + ".lastSync", value);
   },
 
   // Create a new record by querying the store, and add the engine metadata
