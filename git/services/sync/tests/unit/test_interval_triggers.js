@@ -55,11 +55,10 @@ function run_test() {
 add_test(function test_successful_sync_adjustSyncInterval() {
   _("Test successful sync calling adjustSyncInterval");
   let syncSuccesses = 0;
-  function onSyncFinish() {
+  Svc.Obs.add("weave:service:sync:finish", function onSyncFinish() {
     _("Sync success.");
     syncSuccesses++;
-  };
-  Svc.Obs.add("weave:service:sync:finish", onSyncFinish);
+  });
 
   let server = sync_httpd_setup();
   setUp();
@@ -146,8 +145,11 @@ add_test(function test_successful_sync_adjustSyncInterval() {
   do_check_false(SyncScheduler.hasIncomingItems); //gets reset to false
   do_check_eq(SyncScheduler.syncInterval, SyncScheduler.immediateInterval);
 
-  Svc.Obs.remove("weave:service:sync:finish", onSyncFinish);
-  Service.startOver();
+  Records.clearCache();
+  Svc.Prefs.resetBranch("");
+  SyncScheduler.setDefaults();
+  Clients.resetClient();
+
   server.stop(run_next_test);
 });
 
@@ -155,15 +157,18 @@ add_test(function test_unsuccessful_sync_adjustSyncInterval() {
   _("Test unsuccessful sync calling adjustSyncInterval");
 
   let syncFailures = 0;
-  function onSyncError() {
+  Svc.Obs.add("weave:service:sync:error", function onSyncError() {
     _("Sync error.");
     syncFailures++;
-  }
-  Svc.Obs.add("weave:service:sync:error", onSyncError);
+  });
     
   _("Test unsuccessful sync calls adjustSyncInterval");
-  // Force sync to fail.
-  Svc.Prefs.set("firstSync", "notReady");
+  let origLockedSync = Service._lockedSync;
+  Service._lockedSync = function () {
+    // Force a sync fail.
+    Service._loggedIn = false;
+    origLockedSync.call(Service);
+  };
   
   let server = sync_httpd_setup();
   setUp();
@@ -255,8 +260,12 @@ add_test(function test_unsuccessful_sync_adjustSyncInterval() {
   do_check_false(SyncScheduler.hasIncomingItems); //gets reset to false
   do_check_eq(SyncScheduler.syncInterval, SyncScheduler.immediateInterval);
 
-  Service.startOver();
-  Svc.Obs.remove("weave:service:sync:error", onSyncError);
+  Records.clearCache();
+  Svc.Prefs.resetBranch("");
+  SyncScheduler.setDefaults();
+  Clients.resetClient();
+  Service._lockedSync = origLockedSync;
+
   server.stop(run_next_test);
 });
 
@@ -281,7 +290,6 @@ add_test(function test_back_triggers_sync() {
     SyncScheduler.setDefaults();
     Clients.resetClient();
 
-    Service.startOver();
     server.stop(run_next_test);
   });
 

@@ -11,8 +11,6 @@ function test() {
   let assertWindowTitle = function (win, title) {
     let browser = win.gBrowser.tabs[0].linkedBrowser;
     let winTitle = win.gBrowser.getWindowTitleForBrowser(browser);
-
-    info('window title is: "' + winTitle + '"');
     is(winTitle.indexOf(title), 0, "title starts with '" + title + "'");
   };
 
