@@ -10,12 +10,12 @@
 #include "nsXBLPrototypeBinding.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
-#include "nsGlobalWindow.h"
 #include "nsIContent.h"
 #include "nsIAtom.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsNameSpaceManager.h"
+#include "nsIScriptContext.h"
 #include "nsIDocument.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
@@ -46,8 +46,6 @@
 #include "mozilla/JSEventHandler.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/EventHandlerBinding.h"
-#include "mozilla/dom/ScriptSettings.h"
-#include "xpcpublic.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -261,6 +259,10 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
   if (!boundGlobal)
     return NS_OK;
 
+  nsIScriptContext *boundContext = boundGlobal->GetScriptContext();
+  if (!boundContext)
+    return NS_OK;
+
   nsISupports *scriptTarget;
 
   if (winRoot) {
@@ -269,17 +271,16 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
     scriptTarget = aTarget;
   }
 
-  // We're about to create a new JSEventHandler, which means that we need to
-  // Initiatize an AutoJSAPI with aTarget's bound global to make sure any errors
-  // are reported to the correct place.
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(boundGlobal))) {
-    return NS_OK;
-  }
-  JSContext* cx = jsapi.cx();
+  // We're about to create a new JSEventHandler, which means that we're
+  // responsible for pushing the context of the event target. See the similar
+  // comment in nsEventManagerListener.cpp.
+  nsCxPusher pusher;
+  NS_ENSURE_STATE(pusher.Push(aTarget));
+
+  AutoPushJSContext cx(boundContext->GetNativeContext());
   JS::Rooted<JSObject*> handler(cx);
 
-  rv = EnsureEventHandler(jsapi, onEventAtom, &handler);
+  rv = EnsureEventHandler(boundGlobal, boundContext, onEventAtom, &handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
   JSAddonId* addonId = MapURIToAddonID(mPrototypeBinding->DocURI());
@@ -337,14 +338,15 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
 }
 
 nsresult
-nsXBLPrototypeHandler::EnsureEventHandler(AutoJSAPI& jsapi, nsIAtom* aName,
+nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
+                                          nsIScriptContext *aBoundContext,
+                                          nsIAtom *aName,
                                           JS::MutableHandle<JSObject*> aHandler)
 {
-  JSContext* cx = jsapi.cx();
+  AutoPushJSContext cx(aBoundContext->GetNativeContext());
 
   // Check to see if we've already compiled this
-  JS::Rooted<JSObject*> globalObject(cx, JS::CurrentGlobalOrNull(cx));
-  nsCOMPtr<nsPIDOMWindow> pWindow = xpc::WindowOrNull(globalObject);
+  nsCOMPtr<nsPIDOMWindow> pWindow = do_QueryInterface(aGlobal);
   if (pWindow) {
     JS::Rooted<JSObject*> cachedHandler(cx, pWindow->GetCachedXBLPrototypeHandler(this));
     if (cachedHandler) {
@@ -361,6 +363,7 @@ nsXBLPrototypeHandler::EnsureEventHandler(AutoJSAPI& jsapi, nsIAtom* aName,
 
   JSAddonId* addonId = MapURIToAddonID(mPrototypeBinding->DocURI());
 
+  JS::Rooted<JSObject*> globalObject(cx, aGlobal->GetGlobalJSObject());
   JS::Rooted<JSObject*> scopeObject(cx, xpc::GetScopeForXBLExecution(cx, globalObject, addonId));
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 

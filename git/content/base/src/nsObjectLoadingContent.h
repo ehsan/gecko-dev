@@ -477,11 +477,13 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     public:
       NS_DECL_ISUPPORTS
 
-      SetupProtoChainRunner(nsObjectLoadingContent* aContent);
+      SetupProtoChainRunner(nsIScriptContext* scriptContext,
+                            nsObjectLoadingContent* aContent);
 
       NS_IMETHOD Run() MOZ_OVERRIDE;
 
     private:
+      nsCOMPtr<nsIScriptContext> mContext;
       // We store an nsIObjectLoadingContent because we can
       // unambiguously refcount that.
       nsRefPtr<nsIObjectLoadingContent> mContent;

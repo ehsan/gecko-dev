@@ -6065,11 +6065,7 @@ GenerateEntry(ModuleCompiler &m, const AsmJSModule::ExportedFunction &exportedFu
     return true;
 }
 
-// This function and InvokeFromAsmJS* functions all return int32_t rather than
-// bool to prevent the compiler from optimizing bits higher than what's
-// actually needed for a bool (as the result is tested in asm.js generated code
-// which the compiler isn't aware of).
-static inline int32_t
+static inline bool
 TryEnablingIon(JSContext *cx, AsmJSModule &module, HandleFunction fun, uint32_t exitIndex,
                int32_t argc, Value *argv)
 {
@@ -6109,53 +6105,64 @@ TryEnablingIon(JSContext *cx, AsmJSModule &module, HandleFunction fun, uint32_t 
 
 namespace js {
 
-// See comment above TryEnablingIon.
 int32_t
-InvokeFromAsmJS(JSContext *cx, int32_t exitIndex, int32_t argc, Value *argv,
-                MutableHandleValue rval)
+InvokeFromAsmJS_Ignore(JSContext *cx, int32_t exitIndex, int32_t argc, Value *argv)
 {
     AsmJSModule &module = cx->mainThread().asmJSActivationStackFromOwnerThread()->module();
 
     RootedFunction fun(cx, module.exitIndexToGlobalDatum(exitIndex).fun);
     RootedValue fval(cx, ObjectValue(*fun));
-    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, rval))
+    RootedValue rval(cx);
+    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, &rval))
         return false;
 
-    return TryEnablingIon(cx, module, fun, exitIndex, argc, argv);
-}
+    if (!TryEnablingIon(cx, module, fun, exitIndex, argc, argv))
+        return false;
 
-int32_t
-InvokeFromAsmJS_Ignore(JSContext *cx, int32_t exitIndex, int32_t argc, Value *argv)
-{
-    RootedValue rval(cx);
-    return InvokeFromAsmJS(cx, exitIndex, argc, argv, &rval);
+    return true;
 }
 
 int32_t
 InvokeFromAsmJS_ToInt32(JSContext *cx, int32_t exitIndex, int32_t argc, Value *argv)
 {
+    AsmJSModule &module = cx->mainThread().asmJSActivationStackFromOwnerThread()->module();
+
+    RootedFunction fun(cx, module.exitIndexToGlobalDatum(exitIndex).fun);
+    RootedValue fval(cx, ObjectValue(*fun));
     RootedValue rval(cx);
-    if (!InvokeFromAsmJS(cx, exitIndex, argc, argv, &rval))
+    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, &rval))
+        return false;
+
+    if (!TryEnablingIon(cx, module, fun, exitIndex, argc, argv))
         return false;
 
     int32_t i32;
     if (!ToInt32(cx, rval, &i32))
         return false;
     argv[0] = Int32Value(i32);
+
     return true;
 }
 
 int32_t
 InvokeFromAsmJS_ToNumber(JSContext *cx, int32_t exitIndex, int32_t argc, Value *argv)
 {
+    AsmJSModule &module = cx->mainThread().asmJSActivationStackFromOwnerThread()->module();
+
+    RootedFunction fun(cx, module.exitIndexToGlobalDatum(exitIndex).fun);
+    RootedValue fval(cx, ObjectValue(*fun));
     RootedValue rval(cx);
-    if (!InvokeFromAsmJS(cx, exitIndex, argc, argv, &rval))
+    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, &rval))
+        return false;
+
+    if (!TryEnablingIon(cx, module, fun, exitIndex, argc, argv))
         return false;
 
     double dbl;
     if (!ToNumber(cx, rval, &dbl))
         return false;
     argv[0] = DoubleValue(dbl);
+
     return true;
 }
 

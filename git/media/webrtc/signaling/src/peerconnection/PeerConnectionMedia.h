@@ -231,8 +231,6 @@ public:
   void DetachTransport_s();
   void DetachMedia_m();
 
-  bool AnyCodecHasPluginID(uint64_t aPluginID);
-
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(LocalSourceStreamInfo)
 private:
   nsTArray<mozilla::TrackID> mAudioTracks;
@@ -263,8 +261,6 @@ class RemoteSourceStreamInfo : public SourceStreamInfo {
 #ifdef MOZILLA_INTERNAL_API
   void UpdatePrincipal_m(nsIPrincipal* aPrincipal);
 #endif
-
-  bool AnyCodecHasPluginID(uint64_t aPluginID);
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RemoteSourceStreamInfo)
 
@@ -340,8 +336,6 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   // on streams
   void UpdateRemoteStreamPrincipals_m(nsIPrincipal* aPrincipal);
 #endif
-
-  bool AnyCodecHasPluginID(uint64_t aPluginID);
 
   const nsCOMPtr<nsIThread>& GetMainThread() const { return mMainThread; }
   const nsCOMPtr<nsIEventTarget>& GetSTSThread() const { return mSTSThread; }

@@ -36,7 +36,7 @@ public:
 
   // Returns true if this AutoCxPusher performed the push that is currently at
   // the top of the cx stack.
-  bool IsStackTop() const;
+  bool IsStackTop();
 
 private:
   mozilla::Maybe<JSAutoRequest> mAutoRequest;

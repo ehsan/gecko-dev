@@ -759,10 +759,10 @@ function PCT_setMediaConstraints(constraintsLocal, constraintsRemote) {
  *
  * @param {object} constraints the media constraints to use on createOffer
  */
-PeerConnectionTest.prototype.setOfferOptions =
-function PCT_setOfferOptions(options) {
+PeerConnectionTest.prototype.setOfferConstraints =
+function PCT_setOfferConstraints(constraints) {
   if (this.pcLocal)
-    this.pcLocal.offerOptions = options;
+    this.pcLocal.offerConstraints = constraints;
 };
 
 /**
@@ -1362,7 +1362,7 @@ function PeerConnectionWrapper(label, configuration, h264) {
   this.whenCreated = Date.now();
 
   this.constraints = [ ];
-  this.offerOptions = {};
+  this.offerConstraints = {};
   this.streams = [ ];
   this.mediaCheckers = [ ];
 
@@ -1637,7 +1637,7 @@ PeerConnectionWrapper.prototype = {
         offer.sdp = removeVP8(offer.sdp);
       }
       onSuccess(offer);
-    }, generateErrorCallback(), this.offerOptions);
+    }, generateErrorCallback(), this.offerConstraints);
   },
 
   /**

@@ -41,7 +41,7 @@
       });
     }, function (err) {
         croak("createOffer failed: " + err);
-    },  { offerToReceiveAudio: true });
+    },  { mandatory: { OfferToReceiveAudio: true} });
   });
 </script>
 </pre>

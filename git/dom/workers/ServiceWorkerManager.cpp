@@ -11,6 +11,7 @@
 
 #include "jsapi.h"
 
+#include "mozilla/Preferences.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/ErrorEvent.h"
@@ -298,15 +299,12 @@ FinishFetchOnMainThreadRunnable::Run()
 }
 
 ServiceWorkerRegistration::ServiceWorkerRegistration(const nsACString& aScope)
-  : mControlledDocumentsCounter(0),
-    mScope(aScope),
+  : mScope(aScope),
     mPendingUninstall(false)
 { }
 
 ServiceWorkerRegistration::~ServiceWorkerRegistration()
-{
-  MOZ_ASSERT(!IsControllingDocuments());
-}
+{ }
 
 //////////////////////////
 // ServiceWorkerManager //
@@ -362,16 +360,18 @@ public:
   NS_IMETHODIMP
   Run()
   {
-    nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
-    nsRefPtr<ServiceWorkerManager::ServiceWorkerDomainInfo> domainInfo = swm->GetDomainInfo(mScriptURI);
-    if (!domainInfo) {
-      nsCString domain;
-      nsresult rv = mScriptURI->GetHost(domain);
-      if (NS_WARN_IF(NS_FAILED(rv))) {
-        mPromise->MaybeReject(rv);
-        return NS_OK;
-      }
+    nsCString domain;
+    nsresult rv = mScriptURI->GetHost(domain);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      mPromise->MaybeReject(rv);
+      return NS_OK;
+    }
 
+    nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+    nsRefPtr<ServiceWorkerManager::ServiceWorkerDomainInfo> domainInfo;
+    // XXXnsm: This pattern can be refactored if we end up using it
+    // often enough.
+    if (!swm->mDomainMap.Get(domain, getter_AddRefs(domainInfo))) {
       domainInfo = new ServiceWorkerManager::ServiceWorkerDomainInfo;
       swm->mDomainMap.Put(domain, domainInfo);
     }
@@ -380,7 +380,7 @@ public:
       domainInfo->GetRegistration(mScope);
 
     nsCString spec;
-    nsresult rv = mScriptURI->GetSpec(spec);
+    rv = mScriptURI->GetSpec(spec);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       mPromise->MaybeReject(rv);
       return NS_OK;
@@ -399,12 +399,12 @@ public:
         // There is no update in progress and since SW updating is upto the UA,
         // we will not update right now. Simply resolve with whatever worker we
         // have.
-        nsRefPtr<ServiceWorkerInfo> info = registration->Newest();
-        if (info) {
+        ServiceWorkerInfo info = registration->Newest();
+        if (info.IsValid()) {
           nsRefPtr<ServiceWorker> serviceWorker;
           nsresult rv =
             swm->CreateServiceWorkerForWindow(mWindow,
-                                              info->GetScriptSpec(),
+                                              info.GetScriptSpec(),
                                               registration->mScope,
                                               getter_AddRefs(serviceWorker));
 
@@ -563,14 +563,14 @@ ServiceWorkerManager::Update(ServiceWorkerRegistration* aRegistration,
     aRegistration->mUpdateInstance = nullptr;
   }
 
-  if (aRegistration->mInstallingWorker) {
+  if (aRegistration->mInstallingWorker.IsValid()) {
     // FIXME(nsm): Terminate the worker. We still haven't figured out worker
     // instance ownership when not associated with a window, so let's wait on
     // this.
     // FIXME(nsm): We should be setting the state on the actual worker
     // instance.
     // FIXME(nsm): Fire "statechange" on installing worker instance.
-    aRegistration->mInstallingWorker = nullptr;
+    aRegistration->mInstallingWorker.Invalidate();
   }
 
   aRegistration->mUpdatePromise = new UpdatePromise();
@@ -657,7 +657,7 @@ ServiceWorkerManager::FinishFetch(ServiceWorkerRegistration* aRegistration,
 
   ResolveRegisterPromises(aRegistration, aRegistration->mScriptSpec);
 
-  nsRefPtr<ServiceWorkerInfo> info = new ServiceWorkerInfo(aRegistration->mScriptSpec);
+  ServiceWorkerInfo info(aRegistration->mScriptSpec);
   Install(aRegistration, info);
 }
 
@@ -680,8 +680,14 @@ ServiceWorkerManager::HandleError(JSContext* aCx,
     return;
   }
 
-  nsRefPtr<ServiceWorkerDomainInfo> domainInfo = GetDomainInfo(uri);
-  if (!domainInfo) {
+  nsCString domain;
+  rv = uri->GetHost(domain);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
+
+  nsRefPtr<ServiceWorkerDomainInfo> domainInfo;
+  if (!mDomainMap.Get(domain, getter_AddRefs(domainInfo))) {
     return;
   }
 
@@ -754,7 +760,7 @@ public:
     AssertIsOnMainThread();
     // FIXME(nsm): Change installing worker state to redundant.
     // FIXME(nsm): Fire statechange.
-    mRegistration->mInstallingWorker = nullptr;
+    mRegistration->mInstallingWorker.Invalidate();
     return NS_OK;
   }
 };
@@ -875,7 +881,7 @@ private:
 
 void
 ServiceWorkerManager::Install(ServiceWorkerRegistration* aRegistration,
-                              ServiceWorkerInfo* aServiceWorkerInfo)
+                              ServiceWorkerInfo aServiceWorkerInfo)
 {
   AssertIsOnMainThread();
   aRegistration->mInstallingWorker = aServiceWorkerInfo;
@@ -885,12 +891,12 @@ ServiceWorkerManager::Install(ServiceWorkerRegistration* aRegistration,
 
   nsRefPtr<ServiceWorker> serviceWorker;
   nsresult rv =
-    CreateServiceWorker(aServiceWorkerInfo->GetScriptSpec(),
+    CreateServiceWorker(aServiceWorkerInfo.GetScriptSpec(),
                         aRegistration->mScope,
                         getter_AddRefs(serviceWorker));
 
   if (NS_WARN_IF(NS_FAILED(rv))) {
-    aRegistration->mInstallingWorker = nullptr;
+    aRegistration->mInstallingWorker.Invalidate();
     return;
   }
 
@@ -930,11 +936,12 @@ ServiceWorkerManager::FinishInstall(ServiceWorkerRegistration* aRegistration)
 {
   AssertIsOnMainThread();
 
-  if (aRegistration->mWaitingWorker) {
+  if (aRegistration->mWaitingWorker.IsValid()) {
     // FIXME(nsm): Actually update the state of active ServiceWorker instances.
   }
 
-  aRegistration->mWaitingWorker = aRegistration->mInstallingWorker.forget();
+  aRegistration->mWaitingWorker = aRegistration->mInstallingWorker;
+  aRegistration->mInstallingWorker.Invalidate();
 
   // FIXME(nsm): Actually update state of active ServiceWorker instances to
   // installed.
@@ -988,8 +995,8 @@ ServiceWorkerManager::CreateServiceWorkerForWindow(nsPIDOMWindow* aWindow,
 already_AddRefed<ServiceWorkerRegistration>
 ServiceWorkerManager::GetServiceWorkerRegistration(nsPIDOMWindow* aWindow)
 {
-  nsCOMPtr<nsIDocument> document = aWindow->GetExtantDoc();
-  return GetServiceWorkerRegistration(document);
+  nsCOMPtr<nsIURI> documentURI = aWindow->GetDocumentURI();
+  return GetServiceWorkerRegistration(documentURI);
 }
 
 already_AddRefed<ServiceWorkerRegistration>
@@ -1149,53 +1156,6 @@ ServiceWorkerManager::GetDomainInfo(const nsCString& aURL)
   }
 
   return GetDomainInfo(uri);
-}
-
-void
-ServiceWorkerManager::MaybeStartControlling(nsIDocument* aDoc)
-{
-  AssertIsOnMainThread();
-  if (!Preferences::GetBool("dom.serviceWorkers.enabled")) {
-    return;
-  }
-
-  nsRefPtr<ServiceWorkerDomainInfo> domainInfo = GetDomainInfo(aDoc);
-  if (!domainInfo) {
-    return;
-  }
-
-  nsRefPtr<ServiceWorkerRegistration> registration =
-    GetServiceWorkerRegistration(aDoc);
-  if (registration) {
-    MOZ_ASSERT(!domainInfo->mControlledDocuments.Contains(aDoc));
-    registration->StartControllingADocument();
-    // Use the already_AddRefed<> form of Put to avoid the addref-deref since
-    // we don't need the registration pointer in this function anymore.
-    domainInfo->mControlledDocuments.Put(aDoc, registration.forget());
-  }
-}
-
-void
-ServiceWorkerManager::MaybeStopControlling(nsIDocument* aDoc)
-{
-  MOZ_ASSERT(aDoc);
-  if (!Preferences::GetBool("dom.serviceWorkers.enabled")) {
-    return;
-  }
-
-  nsRefPtr<ServiceWorkerDomainInfo> domainInfo = GetDomainInfo(aDoc);
-  if (!domainInfo) {
-    return;
-  }
-
-  nsRefPtr<ServiceWorkerRegistration> registration;
-  domainInfo->mControlledDocuments.Remove(aDoc, getter_AddRefs(registration));
-  // A document which was uncontrolled does not maintain that state itself, so
-  // it will always call MaybeStopControlling() even if there isn't an
-  // associated registration. So this check is required.
-  if (registration) {
-    registration->StopControllingADocument();
-  }
 }
 
 NS_IMETHODIMP

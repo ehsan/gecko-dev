@@ -92,14 +92,15 @@ cc_return_t CCAPI_Call_originateCall(cc_call_handle_t handle, cc_sdp_direction_t
 }
 
 cc_return_t CCAPI_CreateOffer(cc_call_handle_t handle,
-                              cc_media_options_t *options,
+                              cc_media_constraints_t *constraints,
                               Timecard *tc) {
-    return CC_CallFeature_CreateOffer(handle, options, tc);
+    return CC_CallFeature_CreateOffer(handle, constraints, tc);
 }
 
 cc_return_t CCAPI_CreateAnswer(cc_call_handle_t handle,
+                               cc_media_constraints_t *constraints,
                                Timecard *tc) {
-    return CC_CallFeature_CreateAnswer(handle, tc);
+    return CC_CallFeature_CreateAnswer(handle, constraints, tc);
 }
 
 cc_return_t CCAPI_SetLocalDescription(cc_call_handle_t handle,
@@ -123,8 +124,10 @@ cc_return_t CCAPI_SetPeerConnection(cc_call_handle_t handle, cc_peerconnection_t
 cc_return_t CCAPI_AddStream(cc_call_handle_t handle,
                             cc_media_stream_id_t stream_id,
                             cc_media_track_id_t track_id,
-                            cc_media_type_t media_type) {
-  return CC_CallFeature_AddStream(handle, stream_id, track_id, media_type);
+                            cc_media_type_t media_type,
+                            cc_media_constraints_t *constraints) {
+  return CC_CallFeature_AddStream(handle, stream_id, track_id, media_type,
+                                  constraints);
 }
 
 cc_return_t CCAPI_RemoveStream(cc_call_handle_t handle, cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) {
