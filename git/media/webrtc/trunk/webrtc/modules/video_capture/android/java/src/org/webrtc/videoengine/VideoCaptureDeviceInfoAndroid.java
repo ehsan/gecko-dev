@@ -24,8 +24,6 @@ import android.hardware.Camera;
 import android.hardware.Camera.Size;
 import android.util.Log;
 
-import org.mozilla.gecko.mozglue.WebRTCJNITarget;
-
 public class VideoCaptureDeviceInfoAndroid {
 
     //Context
@@ -36,7 +34,6 @@ public class VideoCaptureDeviceInfoAndroid {
     private final static String TAG = "WEBRTC";
 
     // Private class with info about all available cameras and the capabilities
-    @WebRTCJNITarget
     public class AndroidVideoCaptureDevice {
         AndroidVideoCaptureDevice() {
             frontCameraType = FrontFacingCameraType.None;
@@ -65,7 +62,6 @@ public class VideoCaptureDeviceInfoAndroid {
     int id;
     List<AndroidVideoCaptureDevice> deviceList;
 
-    @WebRTCJNITarget
     public static VideoCaptureDeviceInfoAndroid
     CreateVideoCaptureDeviceInfoAndroid(int in_id, Context in_context) {
         Log.d(TAG,
@@ -217,12 +213,10 @@ public class VideoCaptureDeviceInfoAndroid {
     }
 
     // Returns the number of Capture devices that is supported
-    @WebRTCJNITarget
     public int NumberOfDevices() {
         return deviceList.size();
     }
 
-    @WebRTCJNITarget
     public String GetDeviceUniqueName(int deviceNumber) {
         if(deviceNumber < 0 || deviceNumber >= deviceList.size()) {
             return null;
@@ -230,7 +224,6 @@ public class VideoCaptureDeviceInfoAndroid {
         return deviceList.get(deviceNumber).deviceUniqueName;
     }
 
-    @WebRTCJNITarget
     public CaptureCapabilityAndroid[] GetCapabilityArray (String deviceUniqueId)
     {
         for (AndroidVideoCaptureDevice device: deviceList) {
@@ -243,7 +236,6 @@ public class VideoCaptureDeviceInfoAndroid {
 
     // Returns the camera orientation as described by
     // android.hardware.Camera.CameraInfo.orientation
-    @WebRTCJNITarget
     public int GetOrientation(String deviceUniqueId) {
         for (AndroidVideoCaptureDevice device: deviceList) {
             if(device.deviceUniqueName.equals(deviceUniqueId)) {
@@ -254,7 +246,6 @@ public class VideoCaptureDeviceInfoAndroid {
     }
 
     // Returns an instance of VideoCaptureAndroid.
-    @WebRTCJNITarget
     public VideoCaptureAndroid AllocateCamera(int id, long context,
             String deviceUniqueId) {
         try {
@@ -305,7 +296,6 @@ public class VideoCaptureDeviceInfoAndroid {
     }
 
     // Searches for a front facing camera device. This is device specific code.
-    @WebRTCJNITarget
     private Camera.Parameters
     SearchOldFrontFacingCameras(AndroidVideoCaptureDevice newDevice)
             throws SecurityException, IllegalArgumentException,

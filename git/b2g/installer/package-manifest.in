@@ -43,7 +43,7 @@
 
 [xpcom]
 @BINPATH@/dependentlibs.list
-#ifdef GKMEDIAS_SHARED_LIBRARY
+#ifdef XP_WIN32
 @BINPATH@/@DLL_PREFIX@gkmedias@DLL_SUFFIX@
 #endif
 #ifndef MOZ_STATIC_JS
@@ -748,13 +748,6 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 #endif
 
 [b2g]
-#ifndef MOZ_WIDGET_GONK
-#ifdef XP_WIN32
-@BINPATH@/xpcshell.exe
-#else
-@BINPATH@/xpcshell
-#endif
-#endif
 @BINPATH@/chrome/icons/
 @BINPATH@/chrome/chrome@JAREXT@
 @BINPATH@/chrome/chrome.manifest

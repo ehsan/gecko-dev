@@ -198,14 +198,12 @@ nsNumberControlFrame::MakeAnonymousElement(nsIContent** aResult,
   NS_ASSERTION(aPseudoType != nsCSSPseudoElements::ePseudo_NotPseudoElement,
                "Expecting anonymous children to all be pseudo-elements");
   // Associate the pseudo-element with the anonymous child
-  Element* resultElement = (*aResult)->AsElement();
   nsRefPtr<nsStyleContext> newStyleContext =
     PresContext()->StyleSet()->ResolvePseudoElementStyle(mContent->AsElement(),
                                                          aPseudoType,
-                                                         aParentContext,
-                                                         resultElement);
+                                                         aParentContext);
 
-  if (!aElements.AppendElement(ContentInfo(resultElement, newStyleContext))) {
+  if (!aElements.AppendElement(ContentInfo(*aResult, newStyleContext))) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;

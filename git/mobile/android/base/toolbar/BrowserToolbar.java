@@ -546,7 +546,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
         switch (msg) {
             case ADDED:
-            case CLOSED:
                 updateTabCount(tabs.getDisplayCount());
                 break;
             case RESTORED:
@@ -589,7 +588,12 @@ public class BrowserToolbar extends GeckoRelativeLayout
                 case LOCATION_CHANGE:
                     // A successful location change will cause Tab to notify
                     // us of a title change, so we don't update the title here.
-                    refresh();
+                    // And there's no point in refreshing the UI
+                    // if the page is the same.
+                    final String oldURL = (String) data;
+                    if (!TextUtils.equals(oldURL, tab.getURL())) {
+                        refresh();
+                    }
                     break;
 
                 case CLOSED:

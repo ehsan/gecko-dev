@@ -136,14 +136,9 @@ void TestTextureClientSurface(TextureClient* texture, gfxImageSurface* surface) 
 
   // host read
   ASSERT_TRUE(host->Lock());
-  RefPtr<mozilla::gfx::DataSourceSurface> hostDataSurface = host->GetAsSurface();
+  nsRefPtr<gfxImageSurface> hostSurface = host->GetAsSurface();
   host->Unlock();
 
-  nsRefPtr<gfxImageSurface> hostSurface =
-    new gfxImageSurface(hostDataSurface->GetData(),
-                        ThebesIntSize(hostDataSurface->GetSize()),
-                        hostDataSurface->Stride(),
-                        SurfaceFormatToImageFormat(hostDataSurface->GetFormat()));
   AssertSurfacesEqual(surface, hostSurface.get());
 
   // host deallocation

@@ -136,18 +136,18 @@ const PageMod = Loader.compose(EventEmitter, {
 
   _applyOnExistingDocuments: function _applyOnExistingDocuments() {
     let mod = this;
-    let tabs = getAllTabs();
+    // Returns true if the tab match one rule
+    let tabs = getAllTabs().filter(function (tab) {
+      return mod.include.matchesAny(getTabURI(tab));
+    });
 
     tabs.forEach(function (tab) {
       // Fake a newly created document
       let window = getTabContentWindow(tab);
-      if (has(mod.attachTo, "top") && mod.include.matchesAny(getTabURI(tab)))
+      if (has(mod.attachTo, "top"))
         mod._onContent(window);
-      if (has(mod.attachTo, "frame")) {
-        getFrames(window).
-            filter((iframe) => mod.include.matchesAny(iframe.location.href)).
-            forEach(mod._onContent);
-      }
+      if (has(mod.attachTo, "frame"))
+        getFrames(window).forEach(mod._onContent);
     });
   },
 

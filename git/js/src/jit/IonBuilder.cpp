@@ -5520,9 +5520,7 @@ IonBuilder::jsop_initelem_array()
     MStoreElement *store = MStoreElement::New(alloc(), elements, id, value, /* needsHoleCheck = */ false);
     current->add(store);
 
-    // Update the initialized length. (The template object for this array has
-    // the array's ultimate length, so the length field is already correct: no
-    // updating needed.)
+    // Update the length.
     MSetInitializedLength *initLength = MSetInitializedLength::New(alloc(), elements, id);
     current->add(initLength);
 
@@ -6053,6 +6051,10 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
     *testString = false;
 
     types::TemporaryTypeSet *types = obj->resultTypeSet();
+
+    if (!types && obj->type() != MIRType_String)
+        return false;
+
     if (types && types->unknownObject())
         return false;
 
@@ -6077,9 +6079,6 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
 
       case MIRType_Object:
       case MIRType_Value: {
-        if (!types)
-            return false;
-
         if (types->hasType(types::Type::StringType())) {
             key = JSProto_String;
             *testString = true;
@@ -7767,9 +7766,7 @@ IonBuilder::jsop_rest()
                                       MNewArray::NewArray_Allocating);
     current->add(array);
 
-    if (numRest == 0) {
-        // No more updating to do. (Note that in this one case the length from
-        // the template object is already correct.)
+    if (numActuals <= numFormals) {
         current->push(array);
         return true;
     }
@@ -7790,18 +7787,10 @@ IonBuilder::jsop_rest()
         current->add(store);
     }
 
-    // The array's length is incorrectly 0 now, from the template object
-    // created by BaselineCompiler::emit_JSOP_REST() before the actual argument
-    // count was known. Set the correct length now that we know that count.
-    MSetArrayLength *length = MSetArrayLength::New(alloc(), elements, index);
-    current->add(length);
-
-    // Update the initialized length for all the (necessarily non-hole)
-    // elements added.
     MSetInitializedLength *initLength = MSetInitializedLength::New(alloc(), elements, index);
     current->add(initLength);
-
     current->push(array);
+
     return true;
 }
 

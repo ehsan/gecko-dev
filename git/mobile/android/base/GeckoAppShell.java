@@ -10,7 +10,6 @@ import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanZoomController;
-import org.mozilla.gecko.mozglue.JNITarget;
 import org.mozilla.gecko.mozglue.generatorannotations.OptionalGeneratedParameter;
 import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 import org.mozilla.gecko.prompts.PromptService;
@@ -127,9 +126,6 @@ public class GeckoAppShell
     static private final HashMap<String, String>
         mAlertCookies = new HashMap<String, String>();
 
-    // See also HardwareUtils.LOW_MEMORY_THRESHOLD_MB.
-    static private final int HIGH_MEMORY_DEVICE_THRESHOLD_MB = 768;
-
     /* Keep in sync with constants found here:
       http://mxr.mozilla.org/mozilla-central/source/uriloader/base/nsIWebProgressListener.idl
     */
@@ -203,7 +199,6 @@ public class GeckoAppShell
     }
     public static native Message getNextMessageFromQueue(MessageQueue queue);
     public static native void onSurfaceTextureFrameAvailable(Object surfaceTexture, int id);
-    public static native void dispatchMemoryPressure();
 
     public static void registerGlobalExceptionHandler() {
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
@@ -392,6 +387,7 @@ public class GeckoAppShell
         } catch (NoSuchElementException e) {}
     }
 
+    /* This method is referenced by Robocop via reflection. */
     public static void sendEventToGecko(GeckoEvent e) {
         if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
             notifyGeckoOfEvent(e);
@@ -859,7 +855,6 @@ public class GeckoAppShell
         });
     }
 
-    @JNITarget
     static public int getPreferredIconSize() {
         if (android.os.Build.VERSION.SDK_INT >= 11) {
             ActivityManager am = (ActivityManager)getContext().getSystemService(Context.ACTIVITY_SERVICE);
@@ -1382,7 +1377,29 @@ public class GeckoAppShell
     }
 
     private static boolean isHighMemoryDevice() {
-        return HardwareUtils.getMemSize() > HIGH_MEMORY_DEVICE_THRESHOLD_MB;
+        BufferedReader br = null;
+        FileReader fr = null;
+        try {
+            fr = new FileReader("/proc/meminfo");
+            if (fr == null)
+                return false;
+            br = new BufferedReader(fr);
+            String line = br.readLine();
+            while (line != null && !line.startsWith("MemTotal")) {
+                line = br.readLine();
+            }
+            String[] tokens = line.split("\\s+");
+            if (tokens.length >= 2 && Long.parseLong(tokens[1]) >= 786432 /* 768MB in kb*/) {
+                return true;
+            }
+        } catch (Exception ex) {
+        } finally {
+            try {
+                if (fr != null)
+                    fr.close();
+            } catch (IOException ioe) {}
+        }
+        return false;
     }
 
     /**
@@ -2321,6 +2338,8 @@ public class GeckoAppShell
      * with an event that is currently being processed has the properly-defined behaviour that
      * any added listeners will not be invoked on the event currently being processed, but
      * will be invoked on future events of that type.
+     *
+     * This method is referenced by Robocop via reflection.
      */
     public static void registerEventListener(String event, GeckoEventListener listener) {
         sEventDispatcher.registerEventListener(event, listener);
@@ -2336,6 +2355,8 @@ public class GeckoAppShell
      * with an event that is currently being processed has the properly-defined behaviour that
      * any removed listeners will still be invoked on the event currently being processed, but
      * will not be invoked on future events of that type.
+     *
+     * This method is referenced by Robocop via reflection.
      */
     public static void unregisterEventListener(String event, GeckoEventListener listener) {
         sEventDispatcher.unregisterEventListener(event, listener);

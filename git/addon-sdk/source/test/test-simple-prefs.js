@@ -41,7 +41,7 @@ exports.testSetGetBool = function(assert) {
 };
 
 // TEST: setting and getting preferences with special characters work
-exports.testSpecialChars = function(assert, done) {
+exports.testSpecialChars = function(assert) {
   let chars = specialChars.split("");
   let len = chars.length;
 
@@ -54,7 +54,7 @@ exports.testSpecialChars = function(assert, done) {
 
       // end test
       if (++count == len)
-        done();
+        test.done();
     })
     sp[char] = rand;
   });

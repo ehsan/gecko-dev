@@ -131,7 +131,6 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
   public:
     typedef HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy> Base;
     typedef typename Base::Enum Enum;
-    typedef typename Base::Lookup Lookup;
     typedef typename Base::Range Range;
 
     explicit WeakMap(JSContext *cx, JSObject *memOf = nullptr)
@@ -151,7 +150,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
             Key key(e.front().key);
             gc::Mark(trc, &key, "WeakMap entry key");
             if (key != e.front().key)
-                entryMoved(e, key);
+                e.rekeyFront(key, key);
         }
     }
 
@@ -186,11 +185,11 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
                 if (markValue(trc, &e.front().value))
                     markedAny = true;
                 if (e.front().key != key)
-                    entryMoved(e, key);
+                    e.rekeyFront(key);
             } else if (keyNeedsMark(key)) {
                 gc::Mark(trc, const_cast<Key *>(&key), "proxy-preserved WeakMap entry key");
                 if (e.front().key != key)
-                    entryMoved(e, key);
+                    e.rekeyFront(key);
                 gc::Mark(trc, &e.front().value, "WeakMap entry value");
                 markedAny = true;
             }
@@ -206,7 +205,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
             if (gc::IsAboutToBeFinalized(&k))
                 e.removeFront();
             else if (k != e.front().key)
-                entryMoved(e, k);
+                e.rekeyFront(k, k);
         }
         /*
          * Once we've swept, all remaining edges should stay within the
@@ -226,16 +225,6 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
                                  value, gc::TraceKind(r.front().value));
             }
         }
-    }
-
-    /* Rekey an entry when moved, ensuring we do not trigger barriers. */
-    void entryMoved(Enum &eArg, const Key &k) {
-        typedef typename HashMap<typename Unbarriered<Key>::type,
-                                 typename Unbarriered<Value>::type,
-                                 typename Unbarriered<HashPolicy>::type,
-                                 RuntimeAllocPolicy>::Enum UnbarrieredEnum;
-        UnbarrieredEnum &e = reinterpret_cast<UnbarrieredEnum &>(eArg);
-        e.rekeyFront(reinterpret_cast<const typename Unbarriered<Key>::type &>(k));
     }
 
 protected:

@@ -60,10 +60,6 @@ using namespace ABI::Windows::Graphics::Display;
 extern PRLogModuleInfo* gWindowsLog;
 #endif
 
-#if !defined(SM_CONVERTIBLESLATEMODE)
-#define SM_CONVERTIBLESLATEMODE 0x2003
-#endif
-
 static uint32_t gInstanceCount = 0;
 const PRUnichar* kMetroSubclassThisProp = L"MetroSubclassThisProp";
 HWND MetroWidget::sICoreHwnd = nullptr;
@@ -714,17 +710,6 @@ MetroWidget::WindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLPara
 {
   if(sDefaultBrowserMsgId == aMsg) {
     CloseGesture();
-  } else if (WM_SETTINGCHANGE == aMsg) {
-    if (aLParam && !wcsicmp(L"ConvertibleSlateMode", (wchar_t*)aLParam)) {
-      // If we're switching away from slate mode, switch to Desktop for
-      // hardware that supports this feature.
-      if (GetSystemMetrics(SM_CONVERTIBLESLATEMODE) != 0) {
-        nsCOMPtr<nsIAppStartup> appStartup(do_GetService(NS_APPSTARTUP_CONTRACTID));
-        if (appStartup) {
-          appStartup->Quit(nsIAppStartup::eForceQuit | nsIAppStartup::eRestart);
-        }
-      }
-    }
   }
 
   // Indicates if we should hand messages to the default windows

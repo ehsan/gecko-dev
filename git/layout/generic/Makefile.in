@@ -8,7 +8,19 @@ RESOURCES_HTML = \
 
 include $(topsrcdir)/config/rules.mk
 
-CXXFLAGS += \
+LOCAL_INCLUDES += \
+		-I$(srcdir) \
+		-I$(srcdir)/../base \
+		-I$(srcdir)/../forms \
+		-I$(srcdir)/../style \
+		-I$(srcdir)/../tables \
+		-I$(srcdir)/../xul/base/src \
+		-I$(srcdir)/../../content/xul/content/src \
+		-I$(srcdir)/../../content/base/src \
+		-I$(srcdir)/../../content/html/content/src \
+		-I$(srcdir)/../../dom/base \
+		-I$(srcdir)/../../dom/plugins/base \
+		-I$(srcdir)/../svg \
 		$(MOZ_CAIRO_CFLAGS) \
 		$(MOZ_PIXMAN_CFLAGS) \
 		$(NULL)

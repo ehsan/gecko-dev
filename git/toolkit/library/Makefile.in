@@ -137,7 +137,7 @@ ifdef MOZ_NATIVE_PNG
 EXTRA_DSO_LDOPTS += $(MOZ_PNG_LIBS)
 endif
 
-ifndef ZLIB_IN_MOZGLUE
+ifneq (WINNT,$(OS_ARCH))
 EXTRA_DSO_LDOPTS += $(MOZ_ZLIB_LIBS)
 endif
 
@@ -180,8 +180,10 @@ endif
 endif
 
 
+ifdef MOZ_CUBEB
 ifdef MOZ_ALSA
 EXTRA_DSO_LDOPTS += $(MOZ_ALSA_LIBS)
+endif
 endif
 
 ifdef HAVE_CLOCK_MONOTONIC
@@ -245,7 +247,9 @@ OS_LIBS += \
 endif
 
 ifeq (OpenBSD,$(OS_ARCH))
+ifdef MOZ_CUBEB
 EXTRA_DSO_LDOPTS += -lsndio
+endif
 endif
 
 ifdef MOZ_ENABLE_DBUS
@@ -387,6 +391,10 @@ LOCAL_INCLUDES += \
   $(NULL)
 
 OS_LIBS += $(LIBICONV)
+
+DEFINES += \
+  -DIMPL_LIBXUL \
+  $(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 OS_LIBS += $(call EXPAND_LIBNAME,usp10 oleaut32)

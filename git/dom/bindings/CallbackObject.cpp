@@ -166,7 +166,7 @@ CallbackObject::CallSetup::~CallSetup()
   // errors on it, unless we were told to re-throw them.
   if (mCx) {
     bool dealtWithPendingException = false;
-    if ((mCompartment && mExceptionHandling == eRethrowContentExceptions) ||
+    if (mExceptionHandling == eRethrowContentExceptions ||
         mExceptionHandling == eRethrowExceptions) {
       // Restore the old context options
       JS::ContextOptionsRef(mCx) = mSavedJSContextOptions;

@@ -9,6 +9,7 @@
 #include "Units.h"                      // for CSSRect, LayerPixel, etc
 #include "gfx2DGlue.h"                  // for ToMatrix4x4
 #include "gfx3DMatrix.h"                // for gfx3DMatrix
+#include "gfxImageSurface.h"            // for gfxImageSurface
 #include "gfxUtils.h"                   // for gfxUtils, etc
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
@@ -111,14 +112,8 @@ ThebesLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
-    RefPtr<gfx::DataSourceSurface> dSurf = mBuffer->GetAsSurface();
-    if (dSurf) {
-      gfxPlatform *platform = gfxPlatform::GetPlatform();
-      RefPtr<gfx::DrawTarget> dt = platform->CreateDrawTargetForData(dSurf->GetData(),
-                                                                     dSurf->GetSize(),
-                                                                     dSurf->Stride(),
-                                                                     dSurf->GetFormat());
-      nsRefPtr<gfxASurface> surf = platform->GetThebesSurfaceForDrawTarget(dt);
+    nsRefPtr<gfxImageSurface> surf = mBuffer->GetAsSurface();
+    if (surf) {
       WriteSnapshotToDumpFile(this, surf);
     }
   }
@@ -131,6 +126,8 @@ ThebesLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 
   TiledLayerProperties tiledLayerProps;
   if (mRequiresTiledProperties) {
+    // calculating these things can be a little expensive, so don't
+    // do them if we don't have to
     tiledLayerProps.mVisibleRegion = visibleRegion;
     tiledLayerProps.mEffectiveResolution = GetEffectiveResolution();
     tiledLayerProps.mValidRegion = mValidRegion;
@@ -174,17 +171,22 @@ ThebesLayerComposite::CleanupResources()
   mBuffer = nullptr;
 }
 
-CSSToScreenScale
+gfxSize
 ThebesLayerComposite::GetEffectiveResolution()
 {
+  // Work out render resolution by multiplying the resolution of our ancestors.
+  // Only container layers can have frame metrics, so we start off with a
+  // resolution of 1, 1.
+  // XXX For large layer trees, it would be faster to do this once from the
+  //     root node upwards and store the value on each layer.
+  gfxSize resolution(1, 1);
   for (ContainerLayer* parent = GetParent(); parent; parent = parent->GetParent()) {
     const FrameMetrics& metrics = parent->GetFrameMetrics();
-    if (metrics.mScrollId != FrameMetrics::NULL_SCROLL_ID) {
-      return metrics.mZoom;
-    }
+    resolution.width *= metrics.mResolution.scale;
+    resolution.height *= metrics.mResolution.scale;
   }
 
-  return CSSToScreenScale(1.0);
+  return resolution;
 }
 
 nsACString&
