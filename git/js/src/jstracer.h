@@ -152,14 +152,14 @@ class TraceRecorder {
     void trackNativeFrameUse(unsigned slots);
 
     unsigned getCallDepth() const;
-    nanojit::LIns* guard(bool expected, nanojit::LIns* cond);
-    nanojit::LIns* addName(nanojit::LIns* ins, const char* name);
+    void guard(bool expected, nanojit::LIns* cond);
 
     nanojit::LIns* get(jsval* p);
     void set(jsval* p, nanojit::LIns* l);
 
     bool checkType(jsval& v, uint8& type);
     bool verifyTypeStability(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m);
+    void closeLoop(nanojit::Fragmento* fragmento);
 
     jsval& argval(unsigned n) const;
     jsval& varval(unsigned n) const;
@@ -216,9 +216,10 @@ public:
     ~TraceRecorder();
 
     nanojit::SideExit* snapshot();
-    nanojit::Fragment* getFragment() const { return fragment; }
-    void closeLoop(nanojit::Fragmento* fragmento);
-    
+
+    bool loopEdge();
+    void stop();
+
     bool record_EnterFrame();
     
 #define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)               \
@@ -246,8 +247,5 @@ js_AbortRecording(JSContext* cx, const char* reason);
 
 extern void
 js_InitJIT(JSContext* cx);
-
-extern void
-js_DestroyJIT(JSContext* cx);
 
 #endif /* jstracer_h___ */
