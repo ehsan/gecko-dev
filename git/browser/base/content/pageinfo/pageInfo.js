@@ -323,7 +323,7 @@ function onLoadPageInfo()
              window.arguments[0];
 
   if (!args || !args.doc) {
-    gWindow = window.opener.gBrowser.selectedBrowser.contentWindowAsCPOW;
+    gWindow = window.opener.content;
     gDocument = gWindow.document;
   }
 

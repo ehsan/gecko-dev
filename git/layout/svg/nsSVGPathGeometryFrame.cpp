@@ -107,11 +107,11 @@ nsDisplaySVGPathGeometry::Paint(nsDisplayListBuilder* aBuilder,
   gfxPoint devPixelOffset =
     nsLayoutUtils::PointToGfxPoint(offset, appUnitsPerDevPixel);
 
-  aCtx->ThebesContext()->Save();
+  aCtx->PushState();
   gfxMatrix tm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(mFrame) *
                    gfxMatrix::Translation(devPixelOffset);
   static_cast<nsSVGPathGeometryFrame*>(mFrame)->PaintSVG(aCtx, tm);
-  aCtx->ThebesContext()->Restore();
+  aCtx->PopState();
 }
 
 //----------------------------------------------------------------------
@@ -466,7 +466,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
   nsRefPtr<gfxContext> tmpCtx = new gfxContext(tmpDT);
 
   GeneratePath(tmpCtx, aToBBoxUserspace);
-  tmpCtx->SetMatrix(gfxMatrix());
+  tmpCtx->IdentityMatrix();
 
   // Be careful when replacing the following logic to get the fill and stroke
   // extents independently (instead of computing the stroke extents from the
@@ -703,14 +703,12 @@ nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
                                      const Matrix &aTransform)
 {
   if (aTransform.IsSingular()) {
-    aContext->SetMatrix(gfxMatrix());
+    aContext->IdentityMatrix();
     aContext->NewPath();
     return;
   }
 
-  aContext->SetMatrix(
-    aContext->CurrentMatrix().PreMultiply(ThebesMatrix(aTransform)).
-                              NudgeToIntegers());
+  aContext->MultiplyAndNudgeToIntegers(ThebesMatrix(aTransform));
 
   // Hack to let SVGPathData::ConstructPath know if we have square caps:
   const nsStyleSVG* style = StyleSVG();

@@ -1219,7 +1219,7 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
   }
 
   // Clip so we don't render outside the inner rect
-  aRenderingContext.ThebesContext()->Save();
+  aRenderingContext.PushState();
   aRenderingContext.IntersectClip(inner);
 
   // Check if we should display image placeholders
@@ -1262,11 +1262,11 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
                          inner.XMost() - size : inner.x;
       nscoord twoPX = nsPresContext::CSSPixelsToAppUnits(2);
       aRenderingContext.DrawRect(iconXPos, inner.y,size,size);
-      aRenderingContext.ThebesContext()->Save();
+      aRenderingContext.PushState();
       aRenderingContext.SetColor(NS_RGB(0xFF,0,0));
       aRenderingContext.FillEllipse(size/2 + iconXPos, size/2 + inner.y,
                                     size/2 - twoPX, size/2 - twoPX);
-      aRenderingContext.ThebesContext()->Restore();
+      aRenderingContext.PopState();
     }
 
     // Reduce the inner rect by the width of the icon, and leave an
@@ -1288,7 +1288,7 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
     }
   }
 
-  aRenderingContext.ThebesContext()->Restore();
+  aRenderingContext.PopState();
 }
 
 #ifdef DEBUG
@@ -1298,14 +1298,10 @@ static void PaintDebugImageMap(nsIFrame* aFrame, nsRenderingContext* aCtx,
   nsRect inner = f->GetInnerArea() + aPt;
 
   aCtx->SetColor(NS_RGB(0, 0, 0));
-  aCtx->ThebesContext()->Save();
-  gfxPoint devPixelOffset =
-    nsLayoutUtils::PointToGfxPoint(inner.TopLeft(),
-                                   aFrame->PresContext()->AppUnitsPerDevPixel());
-  aCtx->ThebesContext()->SetMatrix(
-    aCtx->ThebesContext()->CurrentMatrix().Translate(devPixelOffset));
+  aCtx->PushState();
+  aCtx->Translate(inner.TopLeft());
   f->GetImageMap()->Draw(aFrame, *aCtx);
-  aCtx->ThebesContext()->Restore();
+  aCtx->PopState();
 }
 #endif
 
@@ -1472,19 +1468,15 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
 
   nsImageMap* map = GetImageMap();
   if (nullptr != map) {
-    aRenderingContext.ThebesContext()->Save();
-    gfxPoint devPixelOffset =
-      nsLayoutUtils::PointToGfxPoint(inner.TopLeft(),
-                                     PresContext()->AppUnitsPerDevPixel());
-    aRenderingContext.ThebesContext()->SetMatrix(
-      aRenderingContext.ThebesContext()->CurrentMatrix().Translate(devPixelOffset));
+    aRenderingContext.PushState();
+    aRenderingContext.Translate(inner.TopLeft());
     aRenderingContext.SetColor(NS_RGB(255, 255, 255));
     aRenderingContext.SetLineStyle(nsLineStyle_kSolid);
     map->Draw(this, aRenderingContext);
     aRenderingContext.SetColor(NS_RGB(0, 0, 0));
     aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
     map->Draw(this, aRenderingContext);
-    aRenderingContext.ThebesContext()->Restore();
+    aRenderingContext.PopState();
   }
 }
 

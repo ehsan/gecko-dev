@@ -177,7 +177,7 @@ void imgRequest::AddProxy(imgRequestProxy *proxy)
   if (statusTracker->ConsumerCount() == 0) {
     NS_ABORT_IF_FALSE(mURI, "Trying to SetHasProxies without key uri.");
     if (mLoader) {
-      mLoader->SetHasProxies(this);
+      mLoader->SetHasProxies(mURI);
     }
   }
 
@@ -209,7 +209,7 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus)
       NS_ABORT_IF_FALSE(mURI, "Removing last observer without key uri.");
 
       if (mLoader) {
-        mLoader->SetHasNoProxies(this, mCacheEntry);
+        mLoader->SetHasNoProxies(mURI, mCacheEntry);
       }
     }
 #if defined(PR_LOGGING)

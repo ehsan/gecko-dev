@@ -75,7 +75,7 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
     gfxPoint topleft(irect.TopLeft().x, irect.TopLeft().y);
 
     mContext = new gfxContext(dt);
-    mContext->SetMatrix(gfxMatrix::Translation(-topleft));
+    mContext->Translate(-topleft);
 
     return mContext;
 }

@@ -1375,17 +1375,9 @@ nsTableFrame::PaintTableBorderBackground(nsRenderingContext& aRenderingContext,
                                   aDirtyRect, rect, mStyleContext, skipSides);
     }
     else {
-      gfxContext* ctx = aRenderingContext.ThebesContext();
-
-      gfxPoint devPixelOffset =
-        nsLayoutUtils::PointToGfxPoint(aPt,
-                                       PresContext()->AppUnitsPerDevPixel());
-
       // XXX we should probably get rid of this translation at some stage
       // But that would mean modifying PaintBCBorders, ugh
-      gfxContextMatrixAutoSaveRestore autoSR(ctx);
-      ctx->SetMatrix(ctx->CurrentMatrix().Translate(devPixelOffset));
-
+      nsRenderingContext::AutoPushTranslation translate(&aRenderingContext, aPt);
       PaintBCBorders(aRenderingContext, aDirtyRect - aPt);
     }
   }

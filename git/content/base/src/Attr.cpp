@@ -18,6 +18,7 @@
 #include "nsDOMString.h"
 #include "nsIContentInlines.h"
 #include "nsIDocument.h"
+#include "nsIDOMUserDataHandler.h"
 #include "nsGkAtoms.h"
 #include "nsCOMArray.h"
 #include "nsNameSpaceManager.h"

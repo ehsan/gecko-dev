@@ -96,7 +96,7 @@ function shouldAllowRelink(acctName) {
 let wrapper = {
   iframe: null,
 
-  init: function (url, entryPoint) {
+  init: function (url=null) {
     let weave = Cc["@mozilla.org/weave/service;1"]
                   .getService(Ci.nsISupports)
                   .wrappedJSObject;
@@ -116,11 +116,9 @@ let wrapper = {
     let iframe = document.getElementById("remote");
     this.iframe = iframe;
     iframe.addEventListener("load", this);
+
     try {
-      if (entryPoint) {
-        url += (url.indexOf("?") >= 0 ? "&" : "?") + entryPoint;
-      }
-      iframe.src = url;
+      iframe.src = url || fxAccounts.getAccountsSignUpURI();
     } catch (e) {
       error("Couldn't init Firefox Account wrapper: " + e.message);
     }
@@ -290,17 +288,6 @@ function openPrefs() {
 
 function init() {
   fxAccounts.getSignedInUser().then(user => {
-    // If the url contains an entrypoint query parameter, extract it into a variable
-    // to append it to the accounts URI resource.
-    // Works for the following cases:
-    // - about:accounts?entrypoint="abouthome"
-    // - about:accounts?entrypoint=abouthome&action=signup
-    let entryPointQParam = "entrypoint=";
-    let entryPointPos = window.location.href.indexOf(entryPointQParam);
-    let entryPoint = "";
-    if (entryPointPos >= 0) {
-      entryPoint = window.location.href.substring(entryPointPos).split("&")[0];
-    }
     // tests in particular might cause the window to start closing before
     // getSignedInUser has returned.
     if (window.closed) {
@@ -312,7 +299,7 @@ function init() {
         show("stage", "manage");
       } else {
         show("remote");
-        wrapper.init(fxAccounts.getAccountsSignInURI(), entryPoint);
+        wrapper.init(fxAccounts.getAccountsSignInURI());
       }
     } else if (window.location.href.contains("action=signup")) {
       if (user) {
@@ -320,7 +307,7 @@ function init() {
         show("stage", "manage");
       } else {
         show("remote");
-        wrapper.init(fxAccounts.getAccountsSignUpURI(), entryPoint);
+        wrapper.init();
       }
     } else if (window.location.href.contains("action=reauth")) {
       // ideally we would only show this when we know the user is in a
@@ -329,7 +316,7 @@ function init() {
       // promiseAccountsForceSigninURI, just always show it.
       fxAccounts.promiseAccountsForceSigninURI().then(url => {
         show("remote");
-        wrapper.init(url, entryPoint);
+        wrapper.init(url);
       });
     } else {
       // No action specified
@@ -340,7 +327,7 @@ function init() {
       } else {
         show("stage", "intro");
         // load the remote frame in the background
-        wrapper.init(fxAccounts.getAccountsSignUpURI(), entryPoint);
+        wrapper.init();
       }
     }
   });

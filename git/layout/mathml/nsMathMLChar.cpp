@@ -2028,18 +2028,16 @@ nsMathMLChar::ApplyTransforms(gfxContext* aThebesContext,
   // apply the transforms
   if (mMirrored) {
     nsPoint pt = r.TopRight();
-    gfxPoint devPixelOffset(NSAppUnitsToFloatPixels(pt.x, aAppUnitsPerGfxUnit),
-                            NSAppUnitsToFloatPixels(pt.y, aAppUnitsPerGfxUnit));
-    aThebesContext->SetMatrix(
-      aThebesContext->CurrentMatrix().Translate(devPixelOffset).
-                                      Scale(-mScaleX, mScaleY));
+    aThebesContext->
+      Translate(gfxPoint(NSAppUnitsToFloatPixels(pt.x, aAppUnitsPerGfxUnit),
+                         NSAppUnitsToFloatPixels(pt.y, aAppUnitsPerGfxUnit)));
+    aThebesContext->Scale(-mScaleX, mScaleY);
   } else {
     nsPoint pt = r.TopLeft();
-    gfxPoint devPixelOffset(NSAppUnitsToFloatPixels(pt.x, aAppUnitsPerGfxUnit),
-                            NSAppUnitsToFloatPixels(pt.y, aAppUnitsPerGfxUnit));
-    aThebesContext->SetMatrix(
-      aThebesContext->CurrentMatrix().Translate(devPixelOffset).
-                                      Scale(mScaleX, mScaleY));
+    aThebesContext->
+      Translate(gfxPoint(NSAppUnitsToFloatPixels(pt.x, aAppUnitsPerGfxUnit),
+                         NSAppUnitsToFloatPixels(pt.y, aAppUnitsPerGfxUnit)));
+    aThebesContext->Scale(mScaleX, mScaleY);
   }
 
   // update the bounding rectangle.

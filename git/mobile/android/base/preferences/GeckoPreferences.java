@@ -122,7 +122,6 @@ OnSharedPreferenceChangeListener
 
     public static final String PREFS_RESTORE_SESSION = NON_PREF_PREFIX + "restoreSession3";
     public static final String PREFS_SUGGESTED_SITES = NON_PREF_PREFIX + "home_suggested_sites";
-    public static final String PREFS_NEW_TABLET_UI = NON_PREF_PREFIX + "new_tablet_ui";
 
     // These values are chosen to be distinct from other Activity constants.
     private static final int REQUEST_CODE_PREF_SCREEN = 5;
@@ -627,7 +626,7 @@ OnSharedPreferenceChangeListener
             // This logic will need to be extended when
             // content language selection (Bug 881510) is implemented.
             if (!localeSwitchingIsEnabled &&
-                "preferences_locale".equals(pref.getExtras().getString("resource"))) {
+                "preferences_locale".equals(pref.getExtras().getString("resource", null))) {
                 preferences.removePreference(pref);
                 i--;
                 continue;
@@ -656,12 +655,6 @@ OnSharedPreferenceChangeListener
                 } else if (AppConstants.RELEASE_BUILD &&
                            PREFS_DISPLAY_REFLOW_ON_ZOOM.equals(key)) {
                     // Remove UI for reflow on release builds.
-                    preferences.removePreference(pref);
-                    i--;
-                    continue;
-                } else if (AppConstants.RELEASE_BUILD &&
-                           PREFS_NEW_TABLET_UI.equals(key)) {
-                    // Remove toggle for new tablet UI on release builds.
                     preferences.removePreference(pref);
                     i--;
                     continue;
@@ -1002,8 +995,6 @@ OnSharedPreferenceChangeListener
                              sharedPreferences.getString(key, null));
         } else if (PREFS_SUGGESTED_SITES.equals(key)) {
             refreshSuggestedSites();
-        } else if (PREFS_NEW_TABLET_UI.equals(key)) {
-            Toast.makeText(this, "Restart the browser for the changes to take effect", Toast.LENGTH_SHORT).show();
         }
     }
 

@@ -58,7 +58,7 @@ FallbackICSpew(JSContext *cx, ICFallbackStub *stub, const char *fmt, ...)
                 script->lineno(),
                 (int) script->pcToOffset(pc),
                 PCToLineNumber(script, pc),
-                script->getWarmUpCount(),
+                script->getWarmUpCounter(),
                 (int) stub->numOptimizedStubs(),
                 fmtbuf);
     }
@@ -83,7 +83,7 @@ TypeFallbackICSpew(JSContext *cx, ICTypeMonitor_Fallback *stub, const char *fmt,
                 script->lineno(),
                 (int) script->pcToOffset(pc),
                 PCToLineNumber(script, pc),
-                script->getWarmUpCount(),
+                script->getWarmUpCounter(),
                 (int) stub->numOptimizedMonitorStubs(),
                 fmtbuf);
     }
@@ -961,7 +961,7 @@ DoWarmUpCounterFallback(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineF
     // Ensure that Ion-compiled code is available.
     JitSpew(JitSpew_BaselineOSR,
             "WarmUpCounter for %s:%d reached %d at pc %p, trying to switch to Ion!",
-            script->filename(), script->lineno(), (int) script->getWarmUpCount(), (void *) pc);
+            script->filename(), script->lineno(), (int) script->getWarmUpCounter(), (void *) pc);
     void *jitcode = nullptr;
     if (!EnsureCanEnterIon(cx, stub, frame, script, pc, &jitcode))
         return false;

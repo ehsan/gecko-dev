@@ -5348,14 +5348,7 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
       channel.loadFlags = aOptions.loadFromCache
         ? channel.LOAD_FROM_CACHE
         : channel.LOAD_BYPASS_CACHE;
-      try {
-        channel.asyncOpen(streamListener, null);
-      } catch(e) {
-        deferred.reject(new Error("Request failed for '"
-                                  + url
-                                  + "': "
-                                  + e.message));
-      }
+      channel.asyncOpen(streamListener, null);
       break;
   }
 

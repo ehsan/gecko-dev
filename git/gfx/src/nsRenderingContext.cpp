@@ -86,6 +86,18 @@ nsRenderingContext::Init(nsDeviceContext* aContext,
 //
 
 void
+nsRenderingContext::PushState()
+{
+    mThebes->Save();
+}
+
+void
+nsRenderingContext::PopState()
+{
+    mThebes->Restore();
+}
+
+void
 nsRenderingContext::IntersectClip(const nsRect& aRect)
 {
     mThebes->NewPath();
@@ -112,7 +124,7 @@ nsRenderingContext::SetClip(const nsIntRegion& aRegion)
     // an existing clip.
 
     gfxMatrix mat = mThebes->CurrentMatrix();
-    mThebes->SetMatrix(gfxMatrix());
+    mThebes->IdentityMatrix();
 
     mThebes->ResetClip();
 
@@ -158,6 +170,18 @@ nsRenderingContext::SetColor(nscolor aColor)
     mThebes->SetColor(gfxRGBA(aColor));
 }
 
+void
+nsRenderingContext::Translate(const nsPoint& aPt)
+{
+    mThebes->Translate(gfxPoint(FROM_TWIPS(aPt.x), FROM_TWIPS(aPt.y)));
+}
+
+void
+nsRenderingContext::Scale(float aSx, float aSy)
+{
+    mThebes->Scale(aSx, aSy);
+}
+
 //
 // shapes
 //
@@ -185,7 +209,7 @@ nsRenderingContext::DrawLine(nscoord aX0, nscoord aY0,
         p0.Round();
         p1.Round();
 
-        mThebes->SetMatrix(gfxMatrix());
+        mThebes->IdentityMatrix();
 
         mThebes->NewPath();
 
@@ -308,7 +332,7 @@ nsRenderingContext::FillRect(const nsRect& aRect)
         if (!ConditionRect(r))
             return;
 
-        mThebes->SetMatrix(gfxMatrix());
+        mThebes->IdentityMatrix();
         mThebes->NewPath();
 
         mThebes->Rectangle(r, true);

@@ -642,12 +642,6 @@ public:
                      JS::Handle<jsid> id, JS::Handle<JSObject*> callable) const MOZ_OVERRIDE;
   virtual bool unwatch(JSContext *cx, JS::Handle<JSObject*> proxy,
                        JS::Handle<jsid> id) const MOZ_OVERRIDE;
-  virtual bool isCallable(JSObject *obj) const MOZ_OVERRIDE {
-    return false;
-  }
-  virtual bool isConstructor(JSObject *obj) const MOZ_OVERRIDE {
-    return false;
-  }
 
   // Derived traps
   virtual bool has(JSContext *cx, JS::Handle<JSObject*> proxy,
@@ -700,6 +694,8 @@ const js::Class OuterWindowProxyClass =
         "Proxy",
         0, /* additional slots */
         0, /* additional class flags */
+        nullptr, /* call */
+        nullptr, /* construct */
         PROXY_MAKE_EXT(
             nullptr, /* outerObject */
             js::proxy_innerObject,
@@ -1059,7 +1055,7 @@ NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> parent, bool isChrome)
   JSObject *obj = js::Wrapper::New(cx, parent, parent,
                                    isChrome ? &nsChromeOuterWindowProxy::singleton
                                             : &nsOuterWindowProxy::singleton,
-                                   options);
+                                   &options);
 
   NS_ASSERTION(js::GetObjectClass(obj)->ext.innerObject, "bad class");
   return obj;

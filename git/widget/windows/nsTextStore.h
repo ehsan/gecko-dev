@@ -170,13 +170,12 @@ public:
 
   // Returns the address of the pointer so that the TSF automatic test can
   // replace the system object with a custom implementation for testing.
-  // XXX TSF doesn't work now.  Should we remove it?
   static void* GetNativeData(uint32_t aDataType)
   {
     switch (aDataType) {
       case NS_NATIVE_TSF_THREAD_MGR:
         Initialize(); // Apply any previous changes
-        return static_cast<void*>(&sThreadMgr);
+        return static_cast<void*>(&sTsfThreadMgr);
       case NS_NATIVE_TSF_CATEGORY_MGR:
         return static_cast<void*>(&sCategoryMgr);
       case NS_NATIVE_TSF_DISPLAY_ATTR_MGR:
@@ -193,7 +192,7 @@ public:
 
   static void* GetThreadManager()
   {
-    return static_cast<void*>(sThreadMgr);
+    return static_cast<void*>(sTsfThreadMgr);
   }
 
   static bool ThinksHavingFocus()
@@ -203,7 +202,7 @@ public:
 
   static bool IsInTSFMode()
   {
-    return sThreadMgr != nullptr;
+    return sTsfThreadMgr != nullptr;
   }
 
   static bool IsComposing()
@@ -740,16 +739,18 @@ protected:
   bool                         mNativeCaretIsCreated;
 
   // TSF thread manager object for the current application
-  static mozilla::StaticRefPtr<ITfThreadMgr> sThreadMgr;
-  // sMessagePump is QI'ed from sThreadMgr
-  static mozilla::StaticRefPtr<ITfMessagePump> sMessagePump;
-  // sKeystrokeMgr is QI'ed from sThreadMgr
-  static mozilla::StaticRefPtr<ITfKeystrokeMgr> sKeystrokeMgr;
+  static ITfThreadMgr*  sTsfThreadMgr;
+  // sMessagePump is QI'ed from sTsfThreadMgr
+  static ITfMessagePump* sMessagePump;
+  // sKeystrokeMgr is QI'ed from sTsfThreadMgr
+  static ITfKeystrokeMgr* sKeystrokeMgr;
   // TSF display attribute manager
-  static mozilla::StaticRefPtr<ITfDisplayAttributeMgr> sDisplayAttrMgr;
+  static ITfDisplayAttributeMgr* sDisplayAttrMgr;
   // TSF category manager
-  static mozilla::StaticRefPtr<ITfCategoryMgr> sCategoryMgr;
+  static ITfCategoryMgr* sCategoryMgr;
 
+  // TSF client ID for the current application
+  static DWORD          sTsfClientId;
   // Current text store which is managing a keyboard enabled editor (i.e.,
   // editable editor).  Currently only ONE nsTextStore instance is ever used,
   // although Create is called when an editor is focused and Destroy called
@@ -757,14 +758,10 @@ protected:
   static mozilla::StaticRefPtr<nsTextStore> sEnabledTextStore;
 
   // For IME (keyboard) disabled state:
-  static mozilla::StaticRefPtr<ITfDocumentMgr> sDisabledDocumentMgr;
-  static mozilla::StaticRefPtr<ITfContext> sDisabledContext;
+  static ITfDocumentMgr* sTsfDisabledDocumentMgr;
+  static ITfContext* sTsfDisabledContext;
 
-  static mozilla::StaticRefPtr<ITfInputProcessorProfiles>
-    sInputProcessorProfiles;
-
-  // TSF client ID for the current application
-  static DWORD sClientId;
+  static ITfInputProcessorProfiles* sInputProcessorProfiles;
 
   // Enables/Disables hack for specific TIP.
   static bool sCreateNativeCaretForATOK;

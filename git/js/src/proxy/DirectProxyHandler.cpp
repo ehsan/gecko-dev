@@ -248,10 +248,3 @@ DirectProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy) const
     RootedObject target(cx, proxy->as<ProxyObject>().target());
     return JSObject::preventExtensions(cx, target);
 }
-
-bool
-DirectProxyHandler::isCallable(JSObject *obj) const
-{
-    JSObject * target = obj->as<ProxyObject>().target();
-    return target->isCallable();
-}

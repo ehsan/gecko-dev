@@ -127,17 +127,13 @@ public:
      * Scales this matrix. The scale is pre-multiplied onto this matrix,
      * i.e. the scaling takes place before the other transformations.
      */
-    gfxMatrix& Scale(gfxFloat x, gfxFloat y);
+    const gfxMatrix& Scale(gfxFloat x, gfxFloat y);
 
     /**
      * Translates this matrix. The translation is pre-multiplied onto this matrix,
      * i.e. the translation takes place before the other transformations.
      */
-    gfxMatrix& Translate(const gfxPoint& pt);
-
-    gfxMatrix& Translate(gfxFloat x, gfxFloat y) {
-      return Translate(gfxPoint(x, y));
-    }
+    const gfxMatrix& Translate(const gfxPoint& pt);
 
     /**
      * Rotates this matrix. The rotation is pre-multiplied onto this matrix,
@@ -145,14 +141,14 @@ public:
      *
      * @param radians Angle in radians.
      */
-    gfxMatrix& Rotate(gfxFloat radians);
+    const gfxMatrix& Rotate(gfxFloat radians);
 
     /**
      * Multiplies the current matrix with m.
      * This is a pre-multiplication, i.e. the transformations of m are
      * applied _before_ the existing transformations.
      */
-    gfxMatrix& PreMultiply(const gfxMatrix& m);
+    const gfxMatrix& PreMultiply(const gfxMatrix& m);
 
     static gfxMatrix Translation(gfxFloat aX, gfxFloat aY)
     {
@@ -284,7 +280,7 @@ public:
      * to integers. In particular, components that are integral when
      * converted to single precision are set to those integers.
      */
-    gfxMatrix& NudgeToIntegers(void);
+    void NudgeToIntegers(void);
 
     /**
      * Returns true if matrix is multiple of 90 degrees rotation with flipping,

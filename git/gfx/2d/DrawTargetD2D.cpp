@@ -76,10 +76,7 @@ public:
 
     HRESULT hr = mDT->mDevice->CreateTexture2D(&desc, nullptr, byRef(tmpTexture));
     if (FAILED(hr)) {
-      gfxWarning() << "Failure to create temporary texture. Size: " << size << " Code: " << hr;
-      // Crash debug builds but try to recover in release builds.
-      MOZ_ASSERT(false);
-      return;
+      gfxWarning() << "Failed to create temporary texture to hold surface data.";
     }
     mDT->mDevice->CopyResource(tmpTexture, mDT->mTexture);
 
@@ -93,10 +90,7 @@ public:
                                       &props, byRef(mOldSurfBitmap));
 
     if (FAILED(hr)) {
-      gfxWarning() << "Failed to create shared bitmap for old surface. Code: " << hr;
-      // Crash debug builds but try to recover in release builds.
-      MOZ_ASSERT(false);
-      return;
+      gfxWarning() << "Failed to create shared bitmap for old surface.";
     }
 
     IntRect clipBounds;

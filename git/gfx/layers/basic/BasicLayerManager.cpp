@@ -69,7 +69,7 @@ ClipToContain(gfxContext* aContext, const nsIntRect& aRect)
   deviceRect.RoundOut();
 
   gfxMatrix currentMatrix = aContext->CurrentMatrix();
-  aContext->SetMatrix(gfxMatrix());
+  aContext->IdentityMatrix();
   aContext->NewPath();
   aContext->Rectangle(deviceRect);
   aContext->Clip();

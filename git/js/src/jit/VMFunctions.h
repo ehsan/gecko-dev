@@ -747,8 +747,6 @@ IonMarkFunction(MIRType type)
     }
 }
 
-bool ObjectIsCallable(JSObject *obj);
-
 } // namespace jit
 } // namespace js
 

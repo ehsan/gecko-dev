@@ -49,6 +49,7 @@ namespace layers {
 struct TargetConfig {
   nsIntRect naturalBounds;
   ScreenRotation rotation;
+  nsIntRect clientBounds;
   ScreenOrientation orientation;
   nsIntRegion clearRegion;
 };

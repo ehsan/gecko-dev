@@ -102,6 +102,7 @@
 
 #include "nsBidiUtils.h"
 
+#include "nsIDOMUserDataHandler.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsIParserService.h"
 #include "nsContentCreatorFunctions.h"
@@ -6380,6 +6381,15 @@ nsIDocument::ImportNode(nsINode& aNode, bool aDeep, ErrorResult& rv) const
       if (rv.Failed()) {
         return nullptr;
       }
+
+      nsIDocument *ownerDoc = imported->OwnerDoc();
+      rv = nsNodeUtils::CallUserDataHandlers(nodesWithProperties, ownerDoc,
+                                             nsIDOMUserDataHandler::NODE_IMPORTED,
+                                             true);
+      if (rv.Failed()) {
+        return nullptr;
+      }
+
       return newNode.forget();
     }
     default:
@@ -7328,6 +7338,30 @@ BlastSubtreeToPieces(nsINode *aNode)
   }
 }
 
+
+class nsUserDataCaller : public nsRunnable
+{
+public:
+  nsUserDataCaller(nsCOMArray<nsINode>& aNodesWithProperties,
+                   nsIDocument* aOwnerDoc)
+    : mNodesWithProperties(aNodesWithProperties),
+      mOwnerDoc(aOwnerDoc)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    nsNodeUtils::CallUserDataHandlers(mNodesWithProperties, mOwnerDoc,
+                                      nsIDOMUserDataHandler::NODE_ADOPTED,
+                                      false);
+    return NS_OK;
+  }
+
+private:
+  nsCOMArray<nsINode> mNodesWithProperties;
+  nsCOMPtr<nsIDocument> mOwnerDoc;
+};
+
 NS_IMETHODIMP
 nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
 {
@@ -7510,6 +7544,11 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
 
       return nullptr;
     }
+  }
+
+  if (nodesWithProperties.Count()) {
+    nsContentUtils::AddScriptRunner(new nsUserDataCaller(nodesWithProperties,
+                                                         this));
   }
 
   NS_ASSERTION(adoptedNode->OwnerDoc() == this,
