@@ -1789,6 +1789,37 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
   }
 }
 
+void
+nsGenericHTMLFormElement::UpdateEditableFormControlState(PRBool aNotify)
+{
+  // nsCSSFrameConstructor::MaybeConstructLazily is based on the logic of this
+  // function, so should be kept in sync with that.
+
+  ContentEditableTristate value = GetContentEditableValue();
+  if (value != eInherit) {
+    DoSetEditableFlag(!!value, aNotify);
+    return;
+  }
+
+  nsIContent *parent = GetParent();
+
+  if (parent && parent->HasFlag(NODE_IS_EDITABLE)) {
+    DoSetEditableFlag(PR_TRUE, aNotify);
+    return;
+  }
+
+  if (!IsTextControl(PR_FALSE)) {
+    DoSetEditableFlag(PR_FALSE, aNotify);
+    return;
+  }
+
+  // If not contentEditable we still need to check the readonly attribute.
+  PRBool roState;
+  GetBoolAttr(nsGkAtoms::readonly, &roState);
+
+  DoSetEditableFlag(!roState, aNotify);
+}
+
 
 /* static */ const nsGenericHTMLElement::MappedAttributeEntry
 nsGenericHTMLElement::sCommonAttributeMap[] = {
@@ -2474,7 +2505,7 @@ nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo>
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
   if (mFieldSet) {
-    mFieldSet->RemoveElement(this);
+    static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
   }
 
   // Check that this element doesn't know anything about its form at this point.
@@ -2811,22 +2842,6 @@ nsGenericHTMLFormElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return nsGenericHTMLElement::PreHandleEvent(aVisitor);
 }
 
-/* virtual */
-bool
-nsGenericHTMLFormElement::IsDisabled() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
-         (mFieldSet && mFieldSet->IsDisabled());
-}
-
-void
-nsGenericHTMLFormElement::ForgetFieldSet(nsIContent* aFieldset)
-{
-  if (mFieldSet == aFieldset) {
-    mFieldSet = nsnull;
-  }
-}
-
 PRBool
 nsGenericHTMLFormElement::CanBeDisabled() const
 {
@@ -2879,18 +2894,6 @@ nsGenericHTMLFormElement::IntrinsicState() const
                    "Default submit element that isn't a submit control.");
       // We are the default submit element (:default)
       state |= NS_EVENT_STATE_DEFAULT;
-  }
-
-  // Make the text controls read-write
-  if (!state.HasState(NS_EVENT_STATE_MOZ_READWRITE) &&
-      IsTextControl(PR_FALSE)) {
-    PRBool roState;
-    GetBoolAttr(nsGkAtoms::readonly, &roState);
-
-    if (!roState) {
-      state |= NS_EVENT_STATE_MOZ_READWRITE;
-      state &= ~NS_EVENT_STATE_MOZ_READONLY;
-    }
   }
 
   return state;
@@ -3089,30 +3092,32 @@ nsGenericHTMLFormElement::UpdateFieldSet(PRBool aNotify)
 
   for (parent = GetParent(); parent;
        prev = parent, parent = parent->GetParent()) {
-    nsHTMLFieldSetElement* fieldset =
-      nsHTMLFieldSetElement::FromContent(parent);
-    if (fieldset &&
-        (!prev || fieldset->GetFirstLegend() != prev)) {
-      if (mFieldSet == fieldset) {
-        // We already have the right fieldset;
+    if (parent->IsHTML(nsGkAtoms::fieldset)) {
+      nsHTMLFieldSetElement* fieldset =
+        static_cast<nsHTMLFieldSetElement*>(parent);
+
+      if (!prev || fieldset->GetFirstLegend() != prev) {
+        if (mFieldSet == fieldset) {
+          // We already have the right fieldset;
+          return;
+        }
+
+        if (mFieldSet) {
+          static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
+        }
+        mFieldSet = fieldset;
+        fieldset->AddElement(this);
+
+        // The disabled state may have changed
+        FieldSetDisabledChanged(aNotify);
         return;
       }
-
-      if (mFieldSet) {
-        mFieldSet->RemoveElement(this);
-      }
-      mFieldSet = fieldset;
-      fieldset->AddElement(this);
-
-      // The disabled state may have changed
-      FieldSetDisabledChanged(aNotify);
-      return;
     }
   }
 
   // No fieldset found.
   if (mFieldSet) {
-    mFieldSet->RemoveElement(this);
+    static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
     mFieldSet = nsnull;
     // The disabled state may have changed
     FieldSetDisabledChanged(aNotify);

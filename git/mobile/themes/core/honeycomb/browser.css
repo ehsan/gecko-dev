@@ -260,8 +260,6 @@ toolbarbutton.urlbar-button {
   background-position: bottom right;
   background-repeat: no-repeat,
                      repeat-x;
-  padding-bottom: 1px;
-  -moz-padding-end: 1px;
 }
 
 #urlbar-icons:-moz-locale-dir(rtl) {
@@ -1018,8 +1016,8 @@ documenttab[selected="true"] {
   margin: -1px;
 }
 
-documenttab:hover:active > vbox > stack > .documenttab-thumbnail,
-documenttab[selected="true"] > vbox > stack > .documenttab-thumbnail {
+documenttab:hover:active > stack > .documenttab-thumbnail,
+documenttab[selected="true"] > stack > .documenttab-thumbnail {
   opacity: 1.0;
 }
 
@@ -1036,7 +1034,7 @@ documenttab[selected="true"] > vbox > stack > .documenttab-thumbnail {
   list-style-image: url("chrome://browser/skin/images/close-inactive-tab-hdpi.png");
 }
 
-documenttab[selected="true"] > vbox > stack > hbox > .documenttab-close {
+documenttab[selected="true"] > stack > hbox > .documenttab-close {
   list-style-image: url("chrome://browser/skin/images/close-default-hdpi.png");
 }
 
@@ -1044,7 +1042,7 @@ documenttab[selected="true"] > vbox > stack > hbox > .documenttab-close {
   list-style-image: url("chrome://browser/skin/images/close-active-hdpi.png");
 }
 
-documenttab:only-child > vbox > stack > hbox > .documenttab-close {
+documenttab:only-child > stack > hbox > .documenttab-close {
   display: none;
 }
 
@@ -1057,16 +1055,12 @@ documenttab[reload="true"] {
   display: none;
 }
 
-documenttab[reload="true"] > vbox > stack > .documenttab-close-container {
+documenttab[reload="true"] > stack > .documenttab-close-container {
   display: none;
 }
 
-documenttab[reload="true"] > vbox > stack > .documenttab-reload {
+documenttab[reload="true"] > stack > .documenttab-reload {
   display: -moz-box;
-}
-
-.documenttab-title {
-  display: none;
 }
 
 #newtab-button {
@@ -1222,12 +1216,6 @@ pageaction > vbox {
 }
 
 /* Override richlistbox and richlistitem styles */
-#context-header {
-  background-color: transparent;
-  border-bottom: @border_width_xlarge@ solid @color_divider_border@;
-  margin: @margin_large@ @margin_large@ 0px;
-}
-
 #context-commands > scrollbox {
   width: 100%;
 }
@@ -1235,26 +1223,6 @@ pageaction > vbox {
 .action-button,
 .context-command {
   -moz-box-align: center;
-  padding: 0px @padding_large@;
-  border: none;
-  border-top: @border_width_tiny@ solid transparent;
-}
-
-.action-button > label,
-.context-command > label {
-  min-height: @touch_row@;
-  padding-top: -moz-calc(@touch_row@ / 2 - 0.75em);
-  -moz-box-align: center;
-  border-bottom: @border_width_tiny@ solid @color_button_border@;
-  -moz-box-flex: 1;
-  margin-bottom: -@border_width_tiny@;
-}
-
-.action-button:last-child > label
-.action-button[selector="last-child"] > label,
-.context-command:last-child > label,
-.context-command[selector="last-child"] > label {
-  border-bottom: none;
 }
 
 .action-button[disabled="true"],
@@ -1265,7 +1233,7 @@ pageaction > vbox {
 
 .action-button[selected="true"],
 .context-command[selected="true"] {
-  color: @color_text_active@; /* force */
+  color: black; /* force */
   background: transparent;
 }
 
@@ -1322,7 +1290,8 @@ pageaction:not([image]) > hbox >.pageaction-image {
 .action-button,
 .context-command,
 .pageaction-title {
-  color: @color_text_active@; /* force */
+  font-size: @font_normal@ !important;
+  color: black; /* force */
 }
 
 .pageaction-desc {
@@ -1332,6 +1301,10 @@ pageaction:not([image]) > hbox >.pageaction-image {
 
 .pageaction-desc[value=""] {
   display: none;
+}
+
+#context-header {
+  background-color: @color_background_default@;
 }
 
 #share-title,
@@ -1588,7 +1561,7 @@ setting {
   margin: @margin_xxxnormal@ @margin_xxxnormal@ 0 @margin_xxxnormal@;
 }
 
-#appmenu-overflow-commands > .appmenu-button {
+#appmenu-overflow-appcommands > .appmenu-button {
   color: @color_text_default@;
   background: transparent;
   font-size: @font_normal@ !important;
@@ -1598,7 +1571,7 @@ setting {
   -moz-box-align: center;
 }
 
-#appmenu-overflow-commands > .appmenu-button:hover:active {
+#appmenu-overflow-appcommands > .appmenu-button:hover:active {
   background-image: url("chrome://browser/skin/images/appmenu-active-hdpi.png");
   background-size: 100% 100%;
 }
@@ -1683,19 +1656,6 @@ setting {
 }
 
 /* Sync setup ------------------------------------------------------------- */
-.content-dialog > .prompt-title {
-  margin: @margin_normal@ @margin_large@ 0px;
-}
-
-.content-dialog > .prompt-line,
-.content-dialog .prompt-message {
-  margin: 0px @margin_large@;
-}
-
-.content-dialog .prompt-message {
-  border-bottom: @border_width_tiny@ solid @color_button_border@;
-}
-
 .syncsetup-center {
   /* TODO: remove this dummy when we no longer use it in other themes */
 }
@@ -1862,97 +1822,6 @@ setting {
     font-size: @font_tiny@ !important;
   }
 
-}
-
-#tabs-popup-container {
-  max-height: -moz-calc(6 * @touch_row@);
-}
-
-#tabs-popup-container .panel-arrowcontent {
-  background-color: @color_toolbar_background@;
-}
-
-#tabs-popup-list {
-  background-color: transparent;
-}
-
-#tabs-popup-newtab-button,
-.tab-popup-item {
-  min-width: @touch_action_minwidth@;
-  padding: 0px @padding_xnormal@;
-  border: none;
-  height: -moz-calc(0.75 * @touch_row@);
-  min-height: -moz-calc(0.75 * @touch_row@);
-}
-
-.tab-popup-item {
-  margin: @border_width_tiny@ 0px -moz-calc(@border_width_tiny@ * 2) 0px; /* provide some top and bottom margin to shift the borders into */
-}
-
-.tab-popup-item-box {
-  border-top: @border_width_tiny@ solid @color_button_border@;
-  margin-top: -2px; /* make the border stick slightly outside this box */
-}
-
-.tab-popup-item:first-child .tab-popup-item-box {
-  border-top: none;
-}
-
-.documenttab-popup-closebutton {
-  background-image: none;
-  background-color: transparent;
-  min-width: -moz-calc(0.75 * @touch_row@) !important;
-  list-style-image: url("chrome://browser/skin/images/close-default-tablet-hdpi.png");
-  -moz-image-region: rect(14px, 23px, 30px, 7px); /* remove empty space from around the close image */
-  -moz-margin-end: -@margin_snormal@;
-  border: none;
-  -moz-border-start: @border_width_tiny@ solid @color_button_border@;
-}
-
-#tabs-popup-newtab-button:hover:active {
-  background-color: @color_background_highlight@;  
-}
-
-.documenttab-popup-closebutton:hover:active {
-  background-image: none !important;
-}
-
-.documenttab-popup-checkmark {
-  min-width: -moz-calc(26px + 2 * @padding_normal@); /* size of the checkmark image  plus the padding */
-  padding: 0px @padding_normal@;
-}
-
-.tab-popup-item.selected .documenttab-popup-checkmark {
-  list-style-image: url("chrome://browser/skin/images/checkmark-hdpi.png");
-}
-
-.documenttab-popup-label {
-  -moz-box-flex: 1;
-  padding: 0px @padding_normal@;
-  font-size: @font_small@;
-}
-
-#tabs-popup-newtab-button {
-  background-image: none;
-  background-color: transparent;
-  padding: 0px @padding_xnormal@;
-  margin: 0px;
-  -moz-box-flex: 1;
-  border-radius: 0px;
-  list-style-image: url("chrome://browser/skin/images/newtab-tabmenu-tablet-hdpi.png");
-  -moz-box-pack: center;
-  -moz-box-align: center;
-  border: none;
-  min-height: -moz-calc(0.75 * @touch_row@) !important;
-}
-
-#tabs-popup-newtab-button > .button-box {
-  min-height: -moz-calc(0.75 * @touch_row@);
-  border-top: @border_width_tiny@ solid @color_button_border@;
-}
-
-#tabs-popup-newtab-button .button-text {
-  -moz-padding-start: @padding_large@;
 }
 
 %include ../tablet.css

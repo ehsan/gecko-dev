@@ -920,16 +920,6 @@ js_SuppressDeletedProperty(JSContext *cx, JSObject *obj, jsid id)
     return SuppressDeletedPropertyHelper(cx, obj, SingleIdPredicate(id));
 }
 
-bool
-js_SuppressDeletedElement(JSContext *cx, JSObject *obj, uint32 index)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    JS_ASSERT(id == js_CheckForStringIndex(id));
-    return SuppressDeletedPropertyHelper(cx, obj, SingleIdPredicate(id));
-}
-
 class IndexRangePredicate {
     jsint begin, end;
 public:
@@ -1025,8 +1015,8 @@ js_IteratorNext(JSContext *cx, JSObject *iterobj, Value *rval)
 
             JSString *str;
             jsint i;
-            if (rval->isInt32() && StaticStrings::hasInt(i = rval->toInt32())) {
-                str = cx->runtime->staticStrings.getInt(i);
+            if (rval->isInt32() && JSAtom::hasIntStatic(i = rval->toInt32())) {
+                str = &JSAtom::intStatic(i);
             } else {
                 str = js_ValueToString(cx, *rval);
                 if (!str)

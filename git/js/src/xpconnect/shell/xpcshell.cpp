@@ -86,6 +86,9 @@
 #ifdef XP_WIN
 #include <windows.h>
 #endif
+#ifdef __SYMBIAN32__
+#include <unistd.h>
+#endif
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
@@ -477,14 +480,14 @@ Load(JSContext *cx, uintN argc, jsval *vp)
                            filename.ptr());
             return false;
         }
-        JSScript *script = JS_CompileFileHandleForPrincipals(cx, obj, filename.ptr(),
-                                                             file, gJSPrincipals);
+        JSObject *scriptObj = JS_CompileFileHandleForPrincipals(cx, obj, filename.ptr(),
+                                                                file, gJSPrincipals);
         fclose(file);
-        if (!script)
+        if (!scriptObj)
             return false;
 
         jsval result;
-        if (!compileOnly && !JS_ExecuteScript(cx, obj, script, &result))
+        if (!compileOnly && !JS_ExecuteScript(cx, obj, scriptObj, &result))
             return false;
     }
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -1011,7 +1014,7 @@ static void
 ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
             JSBool forceTTY)
 {
-    JSScript *script;
+    JSObject *scriptObj;
     jsval result;
     int lineno, startline;
     JSBool ok, hitEOF;
@@ -1044,11 +1047,11 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
         ungetc(ch, file);
         DoBeginRequest(cx);
 
-        script = JS_CompileFileHandleForPrincipals(cx, obj, filename, file,
-                                                   gJSPrincipals);
+        scriptObj = JS_CompileFileHandleForPrincipals(cx, obj, filename, file,
+                                                      gJSPrincipals);
 
-        if (script && !compileOnly)
-            (void)JS_ExecuteScript(cx, obj, script, &result);
+        if (scriptObj && !compileOnly)
+            (void)JS_ExecuteScript(cx, obj, scriptObj, &result);
         DoEndRequest(cx);
 
         return;
@@ -1080,13 +1083,13 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
         DoBeginRequest(cx);
         /* Clear any pending exception from previous failed compiles.  */
         JS_ClearPendingException(cx);
-        script = JS_CompileScriptForPrincipals(cx, obj, gJSPrincipals, buffer,
-                                               strlen(buffer), "typein", startline);
-        if (script) {
+        scriptObj = JS_CompileScriptForPrincipals(cx, obj, gJSPrincipals, buffer,
+                                                  strlen(buffer), "typein", startline);
+        if (scriptObj) {
             JSErrorReporter older;
 
             if (!compileOnly) {
-                ok = JS_ExecuteScript(cx, obj, script, &result);
+                ok = JS_ExecuteScript(cx, obj, scriptObj, &result);
                 if (ok && result != JSVAL_VOID) {
                     /* Suppress error reports from JS_ValueToString(). */
                     older = JS_SetErrorReporter(cx, NULL);

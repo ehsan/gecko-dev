@@ -688,13 +688,7 @@ public:
                                const Item& item) {
     return ReplaceElementsAt(start, count, &item, 1);
   }
-
-  // A variation on the ReplaceElementsAt method defined above.
-  template<class Item>
-  elem_type *ReplaceElementAt(index_type index, const Item& item) {
-    return ReplaceElementsAt(index, 1, item, 1);
-  }
-
+    
   // A variation on the ReplaceElementsAt method defined above.
   template<class Item>
   elem_type *InsertElementsAt(index_type index, const Item* array,
@@ -1236,22 +1230,7 @@ public:
   typedef typename base_type::Header Header;
   typedef typename base_type::elem_type elem_type;
 
-protected:
   nsAutoArrayBase() {
-    Init();
-  }
-
-  // We need this constructor because nsAutoTArray and friends all have
-  // implicit copy-constructors.  If we don't have this method, those
-  // copy-constructors will call nsAutoArrayBase's implicit copy-constructor,
-  // which won't call Init() and set up the auto buffer!
-  nsAutoArrayBase(const TArrayBase &aOther) {
-    Init();
-    AppendElements(aOther);
-  }
-
-private:
-  void Init() {
     *base_type::PtrToHdr() = reinterpret_cast<Header*>(&mAutoBuf);
     base_type::Hdr()->mLength = 0;
     base_type::Hdr()->mCapacity = N;
@@ -1262,6 +1241,7 @@ private:
                  "GetAutoArrayBuffer needs to be fixed");
   }
 
+protected:
   union {
     char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
     PRUint64 dummy;

@@ -1854,9 +1854,9 @@ GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
     if (rowLength > mMaxTextureSize)
       useUnpackRowLength = false;
 
-    if (useUnpackRowLength) {
+    if (useUnpackRowLength)
         fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
-    } else if (stride != width * pixelsize) {
+    else if (stride != width * pixelsize) {
         // Not using the whole row of texture data and GLES doesn't 
         // support GL_UNPACK_ROW_LENGTH. We need to upload each row
         // separately.
@@ -1916,18 +1916,9 @@ GLContext::TexSubImage2D(GLenum target, GLint level,
                         GetAddressAlignment((ptrdiff_t)stride)));
 
 #ifndef USE_GLES2
-    bool useUnpackRowLength = true;
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, stride/pixelsize);
 #else
-    bool useUnpackRowLength = IsExtensionSupported(EXT_unpack_subimage);
-#endif
-
-    int rowLength = stride/pixelsize;
-    if (rowLength > mMaxTextureSize)
-      useUnpackRowLength = false;
-
-    if (useUnpackRowLength) {
-        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
-    } else if (stride != width * pixelsize) {
+    if (stride != width * pixelsize) {
         // Not using the whole row of texture data and GLES doesn't 
         // support GL_UNPACK_ROW_LENGTH. We need to upload each row
         // separately.
@@ -1949,6 +1940,7 @@ GLContext::TexSubImage2D(GLenum target, GLint level,
         fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
         return;
     }
+#endif
 
     fTexSubImage2D(target,
                    level,
@@ -1960,8 +1952,9 @@ GLContext::TexSubImage2D(GLenum target, GLint level,
                    type,
                    pixels);
 
-    if (useUnpackRowLength)
-        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+#ifndef USE_GLES2
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+#endif
     fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
 }
 

@@ -205,8 +205,6 @@ public:
                                         nsIPrivateTextRangeList *aTextRange)=0;
   nsresult EndIMEComposition();
 
-  void SwitchTextDirectionTo(PRUint32 aDirection);
-
   void BeginKeypressHandling() { mLastKeypressEventWasTrusted = eTriTrue; }
   void BeginKeypressHandling(nsIDOMNSEvent* aEvent);
   void EndKeypressHandling() { mLastKeypressEventWasTrusted = eTriUnset; }
@@ -232,8 +230,6 @@ public:
 
 protected:
   nsCString mContentMIMEType;       // MIME type of the doc we are editing.
-
-  nsresult DetermineCurrentDirection();
 
   /** create a transaction for setting aAttribute to aValue on aElement
     */
@@ -548,7 +544,7 @@ public:
   virtual PRBool IsContainer(nsIDOMNode *aNode);
 
   /** returns PR_TRUE if aNode is an editable node */
-  virtual PRBool IsEditable(nsIDOMNode *aNode);
+  PRBool IsEditable(nsIDOMNode *aNode);
 
   virtual PRBool IsTextInDirtyFrameVisible(nsIDOMNode *aNode);
 

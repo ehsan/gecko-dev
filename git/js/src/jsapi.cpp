@@ -1580,8 +1580,8 @@ StdNameToAtom(JSContext *cx, JSStdName *stdn)
  * If you add a "standard" class, remember to update this table.
  */
 static JSStdName standard_class_atoms[] = {
-    {js_InitFunctionClass,              EAGER_ATOM_AND_CLASP(Function)},
-    {js_InitObjectClass,                EAGER_ATOM_AND_CLASP(Object)},
+    {js_InitFunctionAndObjectClasses,   EAGER_ATOM_AND_CLASP(Function)},
+    {js_InitFunctionAndObjectClasses,   EAGER_ATOM_AND_CLASP(Object)},
     {js_InitArrayClass,                 EAGER_ATOM_AND_CLASP(Array)},
     {js_InitBooleanClass,               EAGER_ATOM_AND_CLASP(Boolean)},
     {js_InitDateClass,                  EAGER_ATOM_AND_CLASP(Date)},
@@ -2086,13 +2086,6 @@ JS_AddNamedObjectRoot(JSContext *cx, JSObject **rp, const char *name)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_AddNamedScriptRoot(JSContext *cx, JSScript **rp, const char *name)
-{
-    CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, name);
-}
-
-JS_PUBLIC_API(JSBool)
 JS_AddNamedGCThingRoot(JSContext *cx, void **rp, const char *name)
 {
     CHECK_REQUEST(cx);
@@ -2115,13 +2108,6 @@ JS_RemoveStringRoot(JSContext *cx, JSString **rp)
 
 JS_PUBLIC_API(JSBool)
 JS_RemoveObjectRoot(JSContext *cx, JSObject **rp)
-{
-    CHECK_REQUEST(cx);
-    return js_RemoveRoot(cx->runtime, (void *)rp);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_RemoveScriptRoot(JSContext *cx, JSScript **rp)
 {
     CHECK_REQUEST(cx);
     return js_RemoveRoot(cx->runtime, (void *)rp);
@@ -4476,7 +4462,7 @@ JS_OPTIONS_TO_TCFLAGS(JSContext *cx)
            (cx->hasRunOption(JSOPTION_NO_SCRIPT_RVAL) ? TCF_NO_SCRIPT_RVAL : 0);
 }
 
-static JSScript *
+static JSObject *
 CompileUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj, JSPrincipals *principals,
                                       const jschar *chars, size_t length,
                                       const char *filename, uintN lineno, JSVersion version)
@@ -4487,11 +4473,15 @@ CompileUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj, JSPrincipals *p
     AutoLastFrameCheck lfc(cx);
 
     uint32 tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_MUTABLE_SCRIPT | TCF_NEED_SCRIPT_OBJECT;
-    return Compiler::compileScript(cx, obj, NULL, principals, tcflags,
-                                   chars, length, filename, lineno, version);
+    JSScript *script = Compiler::compileScript(cx, obj, NULL, principals, tcflags,
+                                               chars, length, filename, lineno, version);
+    if (!script)
+        return NULL;
+    JS_ASSERT(script->u.object);
+    return script->u.object;
 }
 
-extern JS_PUBLIC_API(JSScript *)
+extern JS_PUBLIC_API(JSObject *)
 JS_CompileUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
                                        JSPrincipals *principals,
                                        const jschar *chars, size_t length,
@@ -4503,7 +4493,7 @@ JS_CompileUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
                                               avi.version());
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileUCScriptForPrincipals(JSContext *cx, JSObject *obj, JSPrincipals *principals,
                                 const jschar *chars, size_t length,
                                 const char *filename, uintN lineno)
@@ -4512,7 +4502,7 @@ JS_CompileUCScriptForPrincipals(JSContext *cx, JSObject *obj, JSPrincipals *prin
                                               cx->findVersion());
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileUCScript(JSContext *cx, JSObject *obj, const jschar *chars, size_t length,
                    const char *filename, uintN lineno)
 {
@@ -4520,7 +4510,7 @@ JS_CompileUCScript(JSContext *cx, JSObject *obj, const jschar *chars, size_t len
     return JS_CompileUCScriptForPrincipals(cx, obj, NULL, chars, length, filename, lineno);
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
                                      JSPrincipals *principals,
                                      const char *bytes, size_t length,
@@ -4531,7 +4521,7 @@ JS_CompileScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
     return JS_CompileScriptForPrincipals(cx, obj, principals, bytes, length, filename, lineno);
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileScriptForPrincipals(JSContext *cx, JSObject *obj,
                               JSPrincipals *principals,
                               const char *bytes, size_t length,
@@ -4543,13 +4533,13 @@ JS_CompileScriptForPrincipals(JSContext *cx, JSObject *obj,
     jschar *chars = InflateString(cx, bytes, &length);
     if (!chars)
         return NULL;
-    JSScript *script =
+    JSObject *scriptObj =
         JS_CompileUCScriptForPrincipals(cx, obj, principals, chars, length, filename, lineno);
     cx->free_(chars);
-    return script;
+    return scriptObj;
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileScript(JSContext *cx, JSObject *obj, const char *bytes, size_t length,
                  const char *filename, uintN lineno)
 {
@@ -4610,7 +4600,7 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSBool bytes_are_utf8, JSObject *obj, c
 # define fast_getc getc
 #endif
 
-static JSScript *
+static JSObject *
 CompileFileHelper(JSContext *cx, JSObject *obj, JSPrincipals *principals,
                   const char* filename, FILE *fp)
 {
@@ -4667,10 +4657,13 @@ CompileFileHelper(JSContext *cx, JSObject *obj, JSPrincipals *principals,
     script = Compiler::compileScript(cx, obj, NULL, principals, tcflags, buf, len, filename, 1,
                                      cx->findVersion());
     cx->free_(buf);
-    return script;
+    if (!script)
+        return NULL;
+    JS_ASSERT(script->u.object);
+    return script->u.object;
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileFile(JSContext *cx, JSObject *obj, const char *filename)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
@@ -4690,13 +4683,13 @@ JS_CompileFile(JSContext *cx, JSObject *obj, const char *filename)
         }
     }
 
-    JSScript *script = CompileFileHelper(cx, obj, NULL, filename, fp);
+    JSObject *scriptObj = CompileFileHelper(cx, obj, NULL, filename, fp);
     if (fp != stdin)
         fclose(fp);
-    return script;
+    return scriptObj;
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileFileHandleForPrincipals(JSContext *cx, JSObject *obj, const char *filename,
                                   FILE *file, JSPrincipals *principals)
 {
@@ -4708,7 +4701,7 @@ JS_CompileFileHandleForPrincipals(JSContext *cx, JSObject *obj, const char *file
     return CompileFileHelper(cx, obj, principals, filename, file);
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileFileHandleForPrincipalsVersion(JSContext *cx, JSObject *obj, const char *filename,
                                          FILE *file, JSPrincipals *principals, JSVersion version)
 {
@@ -4716,19 +4709,19 @@ JS_CompileFileHandleForPrincipalsVersion(JSContext *cx, JSObject *obj, const cha
     return JS_CompileFileHandleForPrincipals(cx, obj, filename, file, principals);
 }
 
-JS_PUBLIC_API(JSScript *)
+JS_PUBLIC_API(JSObject *)
 JS_CompileFileHandle(JSContext *cx, JSObject *obj, const char *filename, FILE *file)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     return JS_CompileFileHandleForPrincipals(cx, obj, filename, file, NULL);
 }
 
-JS_PUBLIC_API(JSObject *)
-JS_GetObjectFromScript(JSScript *script)
+JS_PUBLIC_API(JSScript *)
+JS_GetScriptFromObject(JSObject *scriptObj)
 {
-    JS_ASSERT(script->u.object);
+    JS_ASSERT(scriptObj->isScript());
 
-    return script->u.object;
+    return (JSScript *) scriptObj->getPrivate();
 }
 
 static JSFunction *
@@ -4869,6 +4862,12 @@ JS_DecompileScript(JSContext *cx, JSScript *script, const char *name, uintN inde
 }
 
 JS_PUBLIC_API(JSString *)
+JS_DecompileScriptObject(JSContext *cx, JSObject *scriptObj, const char *name, uintN indent)
+{
+    return JS_DecompileScript(cx, scriptObj->getScript(), name, indent);
+}
+
+JS_PUBLIC_API(JSString *)
 JS_DecompileFunction(JSContext *cx, JSFunction *fun, uintN indent)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
@@ -4893,22 +4892,22 @@ JS_DecompileFunctionBody(JSContext *cx, JSFunction *fun, uintN indent)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ExecuteScript(JSContext *cx, JSObject *obj, JSScript *script, jsval *rval)
+JS_ExecuteScript(JSContext *cx, JSObject *obj, JSObject *scriptObj, jsval *rval)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj, script);
+    assertSameCompartment(cx, obj, scriptObj);
     AutoLastFrameCheck lfc(cx);
 
-    return Execute(cx, script, *obj, Valueify(rval));
+    return Execute(cx, scriptObj->getScript(), *obj, Valueify(rval));
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ExecuteScriptVersion(JSContext *cx, JSObject *obj, JSScript *script, jsval *rval,
+JS_ExecuteScriptVersion(JSContext *cx, JSObject *obj, JSObject *scriptObj, jsval *rval,
                         JSVersion version)
 {
     AutoVersionAPI ava(cx, version);
-    return JS_ExecuteScript(cx, obj, script, rval);
+    return JS_ExecuteScript(cx, obj, scriptObj, rval);
 }
 
 bool

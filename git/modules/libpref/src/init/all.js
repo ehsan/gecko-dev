@@ -623,8 +623,6 @@ pref("javascript.options.methodjit.content", true);
 pref("javascript.options.methodjit.chrome",  true);
 pref("javascript.options.jitprofiling.content", true);
 pref("javascript.options.jitprofiling.chrome",  true);
-pref("javascript.options.pccounts.content", false);
-pref("javascript.options.pccounts.chrome",  false);
 pref("javascript.options.methodjit_always", false);
 pref("javascript.options.typeinference", true);
 // This preference limits the memory usage of javascript.
@@ -820,10 +818,8 @@ pref("network.websocket.timeout.ping.request", 0);
 pref("network.websocket.timeout.ping.response", 10);
 
 // Defines whether or not to try and negotiate the stream-deflate compression
-// extension with the websocket server. Stream-Deflate has been removed from
-// the standards track document, but can still be used by servers who opt
-// into it.
-pref("network.websocket.extensions.stream-deflate", false);
+// extension with the websocket server
+pref("network.websocket.extensions.stream-deflate", true);
 
 // the maximum number of concurrent websocket sessions. By specification there
 // is never more than one handshake oustanding to an individual host at

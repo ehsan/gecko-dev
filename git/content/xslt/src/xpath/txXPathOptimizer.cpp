@@ -39,7 +39,7 @@
 #include "txXPathOptimizer.h"
 #include "txExprResult.h"
 #include "nsIAtom.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txXPathNode.h"
 #include "txExpr.h"
 #include "txIXPathContext.h"
@@ -175,7 +175,7 @@ txXPathOptimizer::optimizeStep(Expr* aInExpr, Expr** aOutExpr)
         if (!step->getSubExprAt(0) &&
             step->getNodeTest()->getType() == txNameTest::NAME_TEST &&
             (nameTest = static_cast<txNameTest*>(step->getNodeTest()))->
-                mLocalName != nsGkAtoms::_asterix) {
+                mLocalName != txXPathAtoms::_asterix) {
 
             *aOutExpr = new txNamedAttributeStep(nameTest->mNamespace,
                                                  nameTest->mPrefix,

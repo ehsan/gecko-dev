@@ -113,7 +113,21 @@ mjit::Compiler::tryBinaryConstantFold(JSContext *cx, FrameState &frame, JSOp op,
         dL *= dR;
         break;
       case JSOP_DIV:
-        dL = js::NumberDiv(dL, dR);
+        if (dR == 0) {
+#ifdef XP_WIN
+            if (JSDOUBLE_IS_NaN(dR))
+                dL = js_NaN;
+            else
+#endif
+            if (dL == 0 || JSDOUBLE_IS_NaN(dL))
+                dL = js_NaN;
+            else if (JSDOUBLE_IS_NEG(dL) != JSDOUBLE_IS_NEG(dR))
+                dL = cx->runtime->negativeInfinityValue.toDouble();
+            else
+                dL = cx->runtime->positiveInfinityValue.toDouble();
+        } else {
+            dL /= dR;
+        }
         break;
       case JSOP_MOD:
         if (needInt)

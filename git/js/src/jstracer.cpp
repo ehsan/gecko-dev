@@ -6875,7 +6875,8 @@ LeaveTree(TraceMonitor *tm, TracerState& state, VMSideExit* lr)
              * Since this doesn't re-enter the recorder, the post-state snapshot
              * is invalid. Fix it up here.
              */
-            if (op == JSOP_SETELEM && JSOp(regs->pc[JSOP_SETELEM_LENGTH]) == JSOP_POP) {
+            if ((op == JSOP_SETELEM || op == JSOP_SETHOLE) &&
+                JSOp(regs->pc[JSOP_SETELEM_LENGTH]) == JSOP_POP) {
                 regs->sp -= js_CodeSpec[JSOP_SETELEM].nuses;
                 regs->sp += js_CodeSpec[JSOP_SETELEM].ndefs;
                 regs->pc += JSOP_SETELEM_LENGTH;
@@ -11047,11 +11048,7 @@ TraceRecorder::record_JSOP_OBJTOP()
 RecordingStatus
 TraceRecorder::getClassPrototype(JSObject* ctor, LIns*& proto_ins)
 {
-    /*
-     * This function requires that |ctor| be a built-in class function in order
-     * to have an immutable |ctor.prototype| that can be burned into the trace
-     * below.
-     */
+    // ctor must be a function created via js_InitClass.
 #ifdef DEBUG
     Class *clasp = ctor->getFunctionPrivate()->getConstructorClass();
     JS_ASSERT(clasp);
@@ -11063,10 +11060,8 @@ TraceRecorder::getClassPrototype(JSObject* ctor, LIns*& proto_ins)
     if (!ctor->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom), &pval))
         RETURN_ERROR("error getting prototype from constructor");
 
-    /*
-     * |ctor.prototype| is a non-configurable, non-writable data property, so
-     * this lookup cannot have deep-aborted.
-     */
+    // ctor.prototype is a permanent data property, so this lookup cannot have
+    // deep-aborted.
     JS_ASSERT(localtm.recorder);
 
 #ifdef DEBUG
@@ -11078,10 +11073,8 @@ TraceRecorder::getClassPrototype(JSObject* ctor, LIns*& proto_ins)
     JS_ASSERT((~attrs & (JSPROP_READONLY | JSPROP_PERMANENT)) == 0);
 #endif
 
-    /*
-     * Per requirements noted at the start of this function, pval must be
-     * usable.
-     */
+    // Since ctor was built by js_InitClass, we can assert (rather than check)
+    // that pval is usable.
     JS_ASSERT(!pval.isPrimitive());
     JSObject *proto = &pval.toObject();
     JS_ASSERT(!proto->isDenseArray());
@@ -11516,6 +11509,22 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
             }
             if (vp[1].isString()) {
                 JSString *str = vp[1].toString();
+#ifdef JS_HAS_STATIC_STRINGS
+                if (native == js_str_charAt) {
+                    jsdouble i = vp[2].toNumber();
+                    if (JSDOUBLE_IS_NaN(i))
+                      i = 0;
+                    if (i < 0 || i >= str->length())
+                        RETURN_STOP("charAt out of bounds");
+                    LIns* str_ins = get(&vp[1]);
+                    LIns* idx_ins = get(&vp[2]);
+                    LIns* char_ins;
+                    CHECK_STATUS(getCharAt(str, str_ins, idx_ins, mode, &char_ins));
+                    set(&vp[0], char_ins);
+                    pendingSpecializedNative = IGNORE_NATIVE_CALL_COMPLETE_CALLBACK;
+                    return RECORD_CONTINUE;
+                } else
+#endif
                 if (native == js_str_charCodeAt) {
                     jsdouble i = vp[2].toNumber();
                     if (JSDOUBLE_IS_NaN(i))
@@ -12863,6 +12872,53 @@ TraceRecorder::getCharCodeAt(JSString *str, LIns* str_ins, LIns* idx_ins, LIns**
 JS_STATIC_ASSERT(sizeof(JSString) == 16 || sizeof(JSString) == 32);
 
 
+#ifdef JS_HAS_STATIC_STRINGS
+JS_REQUIRES_STACK LIns*
+TraceRecorder::getUnitString(LIns* str_ins, LIns* idx_ins)
+{
+    LIns *ch_ins = w.getStringChar(str_ins, idx_ins);
+    guard(true, w.ltuiN(ch_ins, JSAtom::UNIT_STATIC_LIMIT), MISMATCH_EXIT);
+    JS_STATIC_ASSERT(sizeof(JSString) == 16 || sizeof(JSString) == 32);
+    return w.addp(w.nameImmpNonGC(JSAtom::unitStaticTable),
+                  w.lshpN(w.ui2p(ch_ins), (sizeof(JSString) == 16) ? 4 : 5));
+}
+
+JS_REQUIRES_STACK RecordingStatus
+TraceRecorder::getCharAt(JSString *str, LIns* str_ins, LIns* idx_ins, JSOp mode, LIns** out)
+{
+    CHECK_STATUS(makeNumberInt32(idx_ins, &idx_ins));
+    idx_ins = w.ui2p(idx_ins);
+    LIns *lengthAndFlags_ins = w.ldpStringLengthAndFlags(str_ins);
+    if (MaybeBranch mbr = w.jt(w.eqp0(w.andp(lengthAndFlags_ins,
+                                             w.nameImmw(JSString::ROPE_BIT)))))
+    {
+        LIns *args[] = { str_ins, cx_ins };
+        LIns *ok_ins = w.call(&js_FlattenOnTrace_ci, args);
+        guard(false, w.eqi0(ok_ins), OOM_EXIT);
+        w.label(mbr);
+    }
+
+    LIns* inRange = w.ltup(idx_ins, w.rshupN(lengthAndFlags_ins, JSString::LENGTH_SHIFT));
+
+    if (mode == JSOP_GETELEM) {
+        guard(true, inRange, MISMATCH_EXIT);
+
+        *out = getUnitString(str_ins, idx_ins);
+    } else {
+        LIns *phi_ins = w.allocp(sizeof(JSString *));
+        w.stAlloc(w.nameImmpNonGC(cx->runtime->emptyString), phi_ins);
+
+        if (MaybeBranch mbr = w.jf(inRange)) {
+            LIns *unitstr_ins = getUnitString(str_ins, idx_ins);
+            w.stAlloc(unitstr_ins, phi_ins);
+            w.label(mbr);
+        }
+        *out = w.ldpAlloc(phi_ins);
+    }
+    return RECORD_CONTINUE;
+}
+#endif
+
 // Typed array tracing depends on EXPANDED_LOADSTORE and F2I
 #if NJ_EXPANDED_LOADSTORE_SUPPORTED && NJ_F2I_SUPPORTED
 static bool OkToTraceTypedArrays = true;
@@ -12895,6 +12951,21 @@ TraceRecorder::record_JSOP_GETELEM()
 
     LIns* obj_ins = get(&lval);
     LIns* idx_ins = get(&idx);
+
+#ifdef JS_HAS_STATIC_STRINGS
+    // Special case for array-like access of strings.
+    if (lval.isString() && hasInt32Repr(idx)) {
+        if (call)
+            RETURN_STOP_A("JSOP_CALLELEM on a string");
+        int i = asInt32(idx);
+        if (size_t(i) >= lval.toString()->length())
+            RETURN_STOP_A("Invalid string index in JSOP_GETELEM");
+        LIns* char_ins;
+        CHECK_STATUS_A(getCharAt(lval.toString(), obj_ins, idx_ins, JSOP_GETELEM, &char_ins));
+        set(&lval, char_ins);
+        return ARECORD_CONTINUE;
+    }
+#endif
 
     if (lval.isPrimitive())
         RETURN_STOP_A("JSOP_GETLEM on a primitive");
@@ -13349,7 +13420,7 @@ TraceRecorder::setElem(int lval_spindex, int idx_spindex, int v_spindex)
     }
 
     jsbytecode* pc = cx->regs().pc;
-    if (*pc == JSOP_SETELEM && pc[JSOP_SETELEM_LENGTH] != JSOP_POP)
+    if ((*pc == JSOP_SETELEM || *pc == JSOP_SETHOLE) && pc[JSOP_SETELEM_LENGTH] != JSOP_POP)
         set(&lval, v_ins);
 
     return ARECORD_CONTINUE;
@@ -13357,6 +13428,12 @@ TraceRecorder::setElem(int lval_spindex, int idx_spindex, int v_spindex)
 
 JS_REQUIRES_STACK AbortableRecordingStatus
 TraceRecorder::record_JSOP_SETELEM()
+{
+    return setElem(-3, -2, -1);
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_SETHOLE()
 {
     return setElem(-3, -2, -1);
 }
@@ -16987,7 +17064,7 @@ LoopProfile::profileOperation(JSContext* cx, JSOp op)
     if (op == JSOP_NEW)
         increment(OP_NEW);
 
-    if (op == JSOP_GETELEM || op == JSOP_SETELEM) {
+    if (op == JSOP_GETELEM || op == JSOP_SETELEM || op == JSOP_SETHOLE) {
         Value& lval = cx->regs().sp[op == JSOP_GETELEM ? -2 : -3];
         if (lval.isObject() && js_IsTypedArray(&lval.toObject()))
             increment(OP_TYPED_ARRAY);

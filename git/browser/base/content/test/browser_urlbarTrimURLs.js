@@ -4,7 +4,6 @@
 
 function testVal(originalValue, targetValue) {
   gURLBar.value = originalValue;
-  gURLBar.valueIsTyped = false;
   is(gURLBar.value, targetValue || originalValue, "url bar value set");
 }
 
@@ -64,7 +63,6 @@ function test() {
 
     testCopy("example.com", "http://example.com/", function () {
       SetPageProxyState("invalid");
-      gURLBar.valueIsTyped = true;
       testCopy("example.com", "example.com", finish);
     });
   }, true);

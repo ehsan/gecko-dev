@@ -144,7 +144,6 @@ class WeakMapBase {
             // many keys as possible have been marked, and add ourselves to the list of
             // known-live WeakMaps to be scanned in the iterative marking phase, by
             // markAllIteratively.
-            JS_ASSERT(!tracer->eagerlyTraceWeakMaps);
             JSRuntime *rt = tracer->context->runtime;
             next = rt->gcWeakMapList;
             rt->gcWeakMapList = this;
@@ -153,8 +152,7 @@ class WeakMapBase {
             // nicely as needed by the true ephemeral marking algorithm --- custom tracers
             // must use their own means for cycle detection. So here we do a conservative
             // approximation: pretend all keys are live.
-            if (tracer->eagerlyTraceWeakMaps)
-                nonMarkingTrace(tracer);
+            nonMarkingTrace(tracer);
         }
     }
 

@@ -1,6 +1,6 @@
 dump("====================== Content Script Loaded =======================\n");
 
-let assistant = Content.formAssistant;
+let assistant = Content._formAssistant;
 
 AsyncTests.add("FormAssist:Show", function(aMessage, aJson) {
   let element = content.document.getElementById(aJson.id);

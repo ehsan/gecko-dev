@@ -6,7 +6,7 @@
 %define color_background_default rgba(255,255,255,0.95)
 %define color_text_default #222222
 %define color_toolbar_background #eaeaea
-%define color_divider_border #6699ff
+%define color_divider_border #333333
 %define color_button_border rgb(207,207,207)
 %define color_background_dialog #fff
 %define color_text_dialog #000
@@ -45,7 +45,6 @@
 %define font_xsmall 2.69mozmm
 %define font_tiny 2.48mozmm
 %define font_xtiny 2.27mozmm
-%define font_xxtiny 1.93mozmm
 
 %define touch_row 10.41mozmm
 %define touch_button_xlarge 10.62mozmm
@@ -84,7 +83,6 @@
 
 %define border_radius_normal 0.85mozmm
 %define border_radius_small 0.64mozmm
-%define border_radius_xsmall 0.31mozmm
 %define border_radius_tiny 0.21mozmm
 
 %define shadow_width_xlarge 3.06mozmm

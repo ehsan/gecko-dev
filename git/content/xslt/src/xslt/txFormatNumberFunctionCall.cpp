@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "txXSLTFunctions.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txIXPathContext.h"
 #include "txStylesheet.h"
 #include <math.h>
@@ -424,7 +424,7 @@ txFormatNumberFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 nsresult
 txFormatNumberFunctionCall::getNameAtom(nsIAtom** aAtom)
 {
-    *aAtom = nsGkAtoms::formatNumber;
+    *aAtom = txXSLTAtoms::formatNumber;
     NS_ADDREF(*aAtom);
     return NS_OK;
 }

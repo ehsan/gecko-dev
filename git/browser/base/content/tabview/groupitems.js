@@ -920,7 +920,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     this.$undoContainer = iQ("<div/>")
       .addClass("undo")
       .attr("type", "button")
-      .attr("data-group-id", this.id)
       .appendTo("body");
     iQ("<span/>")
       .text(tabviewString("groupItem.undoCloseGroup"))
@@ -1052,7 +1051,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
         item.addSubscriber("close", this._onChildClose);
         item.setParent(this);
-        $el.attr("data-group-id", this.id);
+        $el.attr("data-group", this.id);
 
         if (typeof item.setResizable == 'function')
           item.setResizable(false, options.immediately);
@@ -1138,7 +1137,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           this._activeTab = null;
       }
 
-      $el[0].removeAttribute("data-group-id");
+      $el[0].removeAttribute("data-group");
       item.setParent(null);
       item.removeClass("stacked");
       item.isStacked = false;

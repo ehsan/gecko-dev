@@ -1884,8 +1884,7 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   nsIURI* aDocumentURI,
                   nsIURI* aBaseURI,
                   nsIPrincipal* aPrincipal,
-                  PRBool aLoadedAsData,
-                  nsIScriptGlobalObject* aEventObject);
+                  PRBool aLoadedAsData);
 nsresult
 NS_NewPluginDocument(nsIDocument** aInstancePtrResult);
 

@@ -1631,15 +1631,7 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     UpdateImageLayer(container, r);
 
     imglayer->SetContainer(container);
-    gfxPattern::GraphicsFilter filter =
-      nsLayoutUtils::GetGraphicsFilterForFrame(this);
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    if (!aManager->IsCompositingCheap()) {
-      // Pixman just horrible with bilinear filter scaling
-      filter = gfxPattern::FILTER_NEAREST;
-    }
-#endif
-    imglayer->SetFilter(filter);
+    imglayer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
 
     layer->SetContentFlags(IsOpaque() ? Layer::CONTENT_OPAQUE : 0);
   } else {
@@ -1691,22 +1683,6 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
                            nsRenderingContext& aRenderingContext,
                            const nsRect& aDirtyRect, const nsRect& aPluginRect)
 {
-#if defined(ANDROID)
-  if (mInstanceOwner) {
-    NPWindow *window;
-    mInstanceOwner->GetWindow(window);
-
-    gfxRect frameGfxRect =
-      PresContext()->AppUnitsToGfxUnits(aPluginRect);
-    gfxRect dirtyGfxRect =
-      PresContext()->AppUnitsToGfxUnits(aDirtyRect);
-    gfxContext* ctx = aRenderingContext.ThebesContext();
-
-    mInstanceOwner->Paint(ctx, frameGfxRect, dirtyGfxRect);
-    return;
-  }
-#endif
-
   // Screen painting code
 #if defined(XP_MACOSX)
   // delegate all painting to the plugin instance.
@@ -2543,7 +2519,7 @@ nsObjectFrame::NotifyContentObjectWrapper()
   if (!scx)
     return;
 
-  JSContext *cx = scx->GetNativeContext();
+  JSContext *cx = (JSContext *)scx->GetNativeContext();
 
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
   nsContentUtils::XPConnect()->

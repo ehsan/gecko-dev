@@ -68,8 +68,6 @@ DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
                          PRBool forceWriteOnly,
                          PRBool CORSUsed)
 {
-    NS_PRECONDITION(aPrincipal, "Must have a principal here");
-
     // Callers should ensure that mCanvasElement is non-null before calling this
     if (!aCanvasElement) {
         NS_WARNING("DoDrawImageSecurityCheck called without canvas element!");
@@ -84,6 +82,9 @@ DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
         aCanvasElement->SetWriteOnly();
         return;
     }
+
+    if (aPrincipal == nsnull)
+        return;
 
     // No need to do a security check if the image used CORS for the load
     if (CORSUsed)
