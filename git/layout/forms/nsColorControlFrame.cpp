@@ -135,13 +135,3 @@ nsColorControlFrame::GetContentInsertionFrame()
 {
   return this;
 }
-
-nsIContent*
-nsColorControlFrame::GetPseudoElementContent(nsCSSPseudoElements::Type aType)
-{
-  if (aType == nsCSSPseudoElements::ePseudo_mozColorSwatch) {
-    return mColorContent;
-  }
-
-  return nsContainerFrame::GetPseudoElementContent(aType);
-}

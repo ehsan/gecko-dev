@@ -8105,20 +8105,6 @@ nsIFrame::IsPseudoStackingContextFromStyle() {
          disp->IsFloating(this);
 }
 
-nsIContent*
-nsIFrame::GetPseudoElementContent(nsCSSPseudoElements::Type aType)
-{
-  nsIFrame* frame = nullptr;
-
-  if (aType == nsCSSPseudoElements::ePseudo_before) {
-    frame = nsLayoutUtils::GetBeforeFrame(this);
-  } else if (aType == nsCSSPseudoElements::ePseudo_after) {
-    frame = nsLayoutUtils::GetAfterFrame(this);
-  }
-
-  return frame ? frame->GetContent() : nullptr;
-}
-
 nsIFrame::ContentOffsets::ContentOffsets()
 {
 }

@@ -1045,9 +1045,7 @@ ParticularProcessPriorityManager::ShutDown()
     mResetPriorityTimer = nullptr;
   }
 
-  if (mPriority == PROCESS_PRIORITY_BACKGROUND && !IsPreallocated()) {
-    ProcessPriorityManager::RemoveFromBackgroundLRUPool(mContentParent);
-  }
+  ProcessPriorityManager::RemoveFromBackgroundLRUPool(mContentParent);
 
   mContentParent = nullptr;
 }

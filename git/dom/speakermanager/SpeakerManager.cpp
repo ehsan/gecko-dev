@@ -110,12 +110,10 @@ SpeakerManager::DispatchSimpleEvent(const nsAString& aStr)
 void
 SpeakerManager::Init(nsPIDOMWindow* aWindow)
 {
-  BindToOwner(aWindow);
+  BindToOwner(aWindow->IsOuterWindow() ?
+    aWindow->GetCurrentInnerWindow() : aWindow);
 
-  nsCOMPtr<nsIDocShell> docshell = do_GetInterface(GetOwner());
-  NS_ENSURE_TRUE_VOID(docshell);
-  docshell->GetIsActive(&mVisible);
-
+  mVisible = !GetOwner()->IsBackground();
   nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(GetOwner());
   NS_ENSURE_TRUE_VOID(target);
 

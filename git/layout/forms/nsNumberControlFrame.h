@@ -105,8 +105,6 @@ public:
 
   void HandleFocusEvent(WidgetEvent* aEvent);
 
-  virtual nsIContent* GetPseudoElementContent(nsCSSPseudoElements::Type aType) MOZ_OVERRIDE;
-
 private:
 
   nsresult MakeAnonymousElement(nsIContent** aResult,

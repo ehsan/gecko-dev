@@ -47,7 +47,6 @@ FilePicker.prototype = {
   /* members */
 
   mParent: undefined,
-  mExtraProps: {},
   mFilterTypes: [],
   mFileEnumerator: undefined,
   mFilePickerShownCallback: undefined,
@@ -86,8 +85,6 @@ FilePicker.prototype = {
 
     if (filterMask & Ci.nsIFilePicker.filterImages) {
       this.mFilterTypes = this.mFilterTypes.concat(IMAGE_FILTERS);
-      // This property is needed for the gallery app pick activity.
-      this.mExtraProps['nocrop'] = true;
     }
 
     // Ci.nsIFilePicker.filterXML is not supported
@@ -118,12 +115,6 @@ FilePicker.prototype = {
     let detail = {};
     if (this.mFilterTypes) {
        detail.type = this.mFilterTypes;
-    }
-
-    for (let prop in this.mExtraProps) {
-      if (!(prop in detail)) {
-        detail[prop] = this.mExtraProps[prop];
-      }
     }
 
     cpmm.sendAsyncMessage('file-picker', detail);
