@@ -199,19 +199,18 @@ nsTableRowFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
 NS_IMETHODIMP
 nsTableRowFrame::AppendFrames(nsIAtom*        aListName,
-                              nsFrameList&    aFrameList)
+                              nsIFrame*       aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
 
   // Append the frames
-  // XXXbz why do we append here first, then append to table, while
-  // for InsertFrames we do it in the other order?  Bug 507419 covers this.
-  const nsFrameList::Slice& newCells = mFrames.AppendFrames(nsnull, aFrameList);
+  mFrames.AppendFrames(nsnull, aFrameList);
 
   // Add the new cell frames to the table
   nsTableFrame *tableFrame =  nsTableFrame::GetTableFrame(this);
-  for (nsFrameList::Enumerator e(newCells) ; !e.AtEnd(); e.Next()) {
-    nsTableCellFrame *cellFrame = do_QueryFrame(e.get());
+  for (nsIFrame* childFrame = aFrameList; childFrame;
+       childFrame = childFrame->GetNextSibling()) {
+    nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
     NS_ASSERTION(cellFrame, "Unexpected frame");
     if (cellFrame) {
       // Add the cell to the cell map
@@ -230,7 +229,7 @@ nsTableRowFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
                               nsIFrame*       aPrevFrame,
-                              nsFrameList&    aFrameList)
+                              nsIFrame*       aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
@@ -240,13 +239,12 @@ nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   
   // gather the new frames (only those which are cells) into an array
-  // XXXbz there shouldn't be any other ones here... can we just put
-  // them all in the array and not do all this QI nonsense?
   nsIAtom* cellFrameType = (tableFrame->IsBorderCollapse()) ? nsGkAtoms::bcTableCellFrame : nsGkAtoms::tableCellFrame;
   nsTableCellFrame* prevCellFrame = (nsTableCellFrame *)nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame, cellFrameType);
   nsTArray<nsTableCellFrame*> cellChildren;
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    nsTableCellFrame *cellFrame = do_QueryFrame(e.get());
+  for (nsIFrame* childFrame = aFrameList; childFrame;
+       childFrame = childFrame->GetNextSibling()) {
+    nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
     NS_ASSERTION(cellFrame, "Unexpected frame");
     if (cellFrame) {
       cellChildren.AppendElement(cellFrame);

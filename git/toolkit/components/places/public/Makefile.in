@@ -61,7 +61,6 @@ XPIDLSRCS += \
   nsITaggingService.idl  \
   nsPIPlacesDatabase.idl \
   nsPIPlacesHistoryListenersNotifier.idl \
-  mozIPlacesAutoComplete.idl \
   $(NULL)
 endif
 

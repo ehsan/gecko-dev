@@ -1390,21 +1390,20 @@ nsTableRowGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
 NS_IMETHODIMP
 nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
-                                   nsFrameList&    aFrameList)
+                                   nsIFrame*       aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
 
   ClearRowCursor();
 
   // collect the new row frames in an array
-  // XXXbz why are we doing the QI stuff?  There shouldn't be any non-rows here.
   nsAutoTArray<nsTableRowFrame*, 8> rows;
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(e.get());
-    NS_ASSERTION(rowFrame, "Unexpected frame; frame constructor screwed up");
+  for (nsIFrame* childFrame = aFrameList; childFrame;
+       childFrame = childFrame->GetNextSibling()) {
+    nsTableRowFrame *rowFrame = do_QueryFrame(childFrame);
     if (rowFrame) {
       NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     e.get()->GetStyleDisplay()->mDisplay,
+                     childFrame->GetStyleDisplay()->mDisplay,
                    "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
     }
@@ -1431,7 +1430,7 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
                                    nsIFrame*       aPrevFrame,
-                                   nsFrameList&    aFrameList)
+                                   nsIFrame*       aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
@@ -1444,15 +1443,14 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
     return NS_ERROR_NULL_POINTER;
 
   // collect the new row frames in an array
-  // XXXbz why are we doing the QI stuff?  There shouldn't be any non-rows here.
   nsTArray<nsTableRowFrame*> rows;
   PRBool gotFirstRow = PR_FALSE;
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(e.get());
-    NS_ASSERTION(rowFrame, "Unexpected frame; frame constructor screwed up");
+  for (nsIFrame* childFrame = aFrameList; childFrame;
+       childFrame = childFrame->GetNextSibling()) {
+    nsTableRowFrame *rowFrame = do_QueryFrame(childFrame);
     if (rowFrame) {
       NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     e.get()->GetStyleDisplay()->mDisplay,
+                     childFrame->GetStyleDisplay()->mDisplay,
                    "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
       if (!gotFirstRow) {

@@ -147,11 +147,11 @@ public:
                          nsEventStatus*  aEventStatus);
 
   NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
@@ -229,8 +229,11 @@ protected:
   friend class nsMenuTimerMediator;
   friend class nsASyncMenuInitialization;
 
-  // initialize mPopupFrame to the first popup frame within
-  // aChildList. Removes the popup, if any, from aChildList.
+  // initialize mPopupFrame to the first popup frame within aChildList. Returns
+  // aChildList with the popup frame removed.
+  nsIFrame* SetPopupFrame(nsIFrame* aChildList);
+
+  // As above, but using an nsFrameList; modifies the passed-in list.
   void SetPopupFrame(nsFrameList& aChildList);
 
   // set mMenuParent to the nearest enclosing menu bar or menupopup frame of

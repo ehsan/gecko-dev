@@ -132,23 +132,19 @@ SplitInlineAncestors(nsIFrame*     aFrame)
     
     // The new parent adopts the new frame
     frame->SetNextSibling(nsnull);
-    // XXXbz this thing should be rewritten on top of nsFrameList on a
-    // much higher level...
-    nsFrameList temp(newFrame);
+    rv = newParent->InsertFrames(nsGkAtoms::nextBidi, nsnull, newFrame);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 
     // Reparent views as necessary
-    rv = nsHTMLContainerFrame::ReparentFrameViewList(presContext, temp, parent, newParent);
+    rv = nsHTMLContainerFrame::ReparentFrameViewList(presContext, newFrame, parent, newParent);
     if (NS_FAILED(rv)) {
       return rv;
     }
     
-    rv = newParent->InsertFrames(nsGkAtoms::nextBidi, nsnull, temp);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
     // The list name nsGkAtoms::nextBidi would indicate we don't want reflow
-    nsFrameList temp2(newParent);
-    rv = grandparent->InsertFrames(nsGkAtoms::nextBidi, parent, temp2);
+    rv = grandparent->InsertFrames(nsGkAtoms::nextBidi, parent, newParent);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -208,9 +204,7 @@ CreateBidiContinuation(nsIFrame*       aFrame,
   }
   
   // The list name nsGkAtoms::nextBidi would indicate we don't want reflow
-  // XXXbz this needs higher-level framelist love
-  nsFrameList temp(*aNewFrame);
-  rv = parent->InsertFrames(nsGkAtoms::nextBidi, aFrame, temp);
+  rv = parent->InsertFrames(nsGkAtoms::nextBidi, aFrame, *aNewFrame);
   if (NS_FAILED(rv)) {
     return rv;
   }

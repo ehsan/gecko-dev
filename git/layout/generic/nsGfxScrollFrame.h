@@ -291,10 +291,10 @@ public:
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   virtual void Destroy();
 
@@ -458,10 +458,10 @@ public:
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   virtual void Destroy();
 

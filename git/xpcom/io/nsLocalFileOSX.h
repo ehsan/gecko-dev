@@ -95,17 +95,21 @@ private:
 
 protected:
   nsLocalFile(const nsLocalFile& src);
+
   nsresult SetBaseURL(CFURLRef aCFURLRef); // retains aCFURLRef
+
   nsresult GetFSRefInternal(FSRef& aFSRef);
-  nsresult GetPathInternal(nsACString& path); // Returns path respecting mFollowLinks
+  nsresult GetPathInternal(nsACString& path); // Returns path WRT mFollowLinks
   nsresult CopyInternal(nsIFile* newParentDir,
                         const nsAString& newName,
                         PRBool followLinks);
   nsresult FillStatBufferInternal(struct STAT *statBuffer);
 
+  static nsresult CFStringReftoUTF8(CFStringRef aInStrRef, nsACString& aOutStr);
+
 protected:
-  CFURLRef     mBaseURL; // The FS object we represent
-  char         mPath[PATH_MAX]; // POSIX path, UTF-8, NULL terminated
+  CFURLRef mBaseURL; // The FS object we represent
+
   PRPackedBool mFollowLinks;
 };
 

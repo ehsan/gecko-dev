@@ -56,7 +56,7 @@ NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
 
 NS_IMETHODIMP
 nsSVGContainerFrame::AppendFrames(nsIAtom* aListName,
-                                  nsFrameList& aFrameList)
+                                  nsIFrame* aFrameList)
 {
   return InsertFrames(aListName, mFrames.LastChild(), aFrameList);  
 }
@@ -64,7 +64,7 @@ nsSVGContainerFrame::AppendFrames(nsIAtom* aListName,
 NS_IMETHODIMP
 nsSVGContainerFrame::InsertFrames(nsIAtom* aListName,
                                   nsIFrame* aPrevFrame,
-                                  nsFrameList& aFrameList)
+                                  nsIFrame* aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
@@ -110,14 +110,14 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
 NS_IMETHODIMP
 nsSVGDisplayContainerFrame::InsertFrames(nsIAtom* aListName,
                                          nsIFrame* aPrevFrame,
-                                         nsFrameList& aFrameList)
+                                         nsIFrame* aFrameList)
 {
-  // memorize first old frame after insertion point
-  // XXXbz once again, this would work a lot better if the nsIFrame
-  // methods returned framelist iterators....
-  nsIFrame* firstOldFrame = aPrevFrame ?
-    aPrevFrame->GetNextSibling() : GetChildList(aListName).FirstChild();
-  nsIFrame* firstNewFrame = aFrameList.FirstChild();
+  // memorize last new frame
+  nsIFrame* lastNewFrame = nsnull;
+  {
+    nsFrameList tmpList(aFrameList);
+    lastNewFrame = tmpList.LastChild();
+  }
   
   // Insert the new frames
   nsSVGContainerFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
@@ -125,7 +125,11 @@ nsSVGDisplayContainerFrame::InsertFrames(nsIAtom* aListName,
   // Call InitialUpdate on the new frames ONLY if our nsSVGOuterSVGFrame has had
   // its initial reflow (our NS_FRAME_FIRST_REFLOW bit is clear) - bug 399863.
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    for (nsIFrame* kid = firstNewFrame; kid != firstOldFrame;
+    nsIFrame* end = nsnull;
+    if (lastNewFrame)
+      end = lastNewFrame->GetNextSibling();
+
+    for (nsIFrame* kid = aFrameList; kid != end;
          kid = kid->GetNextSibling()) {
       nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
       if (SVGFrame) {

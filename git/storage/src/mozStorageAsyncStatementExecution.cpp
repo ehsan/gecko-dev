@@ -205,7 +205,8 @@ AsyncExecuteStatements::AsyncExecuteStatements(StatementDataArray &aStatements,
 , mMaxWait(TimeDuration::FromMilliseconds(MAX_MILLISECONDS_BETWEEN_RESULTS))
 , mIntervalStart(TimeStamp::Now())
 , mState(PENDING)
-, mCancelRequested(0)
+, mCancelRequested(PR_FALSE)
+, mMutex(aConnection->sharedAsyncExecutionMutex)
 {
   (void)mStatements.SwapElements(aStatements);
   NS_ASSERTION(mStatements.Length(), "We weren't given any statements!");
@@ -221,6 +222,9 @@ AsyncExecuteStatements::shouldNotify()
   NS_ASSERTION(onCallingThread, "runEvent not running on the calling thread!");
 #endif
 
+  // We do not need to acquire mMutex here because it can only ever be written
+  // to on the calling thread, and the only thread that can call us is the
+  // calling thread, so we know that our access is serialized.
   return !mCancelRequested;
 }
 
@@ -228,6 +232,8 @@ bool
 AsyncExecuteStatements::bindExecuteAndProcessStatement(StatementData &aData,
                                                        bool aLastStatement)
 {
+  mMutex.AssertNotCurrentThreadOwns();
+
   sqlite3_stmt *stmt(aData);
   BindingParamsArray *paramsArray(aData);
 
@@ -241,7 +247,10 @@ AsyncExecuteStatements::bindExecuteAndProcessStatement(StatementData &aData,
     error = (*itr)->bind(stmt);
     if (error) {
       // Set our error state.
-      (void)::PR_AtomicSet(const_cast<PRInt32 *>(&mState), ERROR);
+      {
+        MutexAutoLock mutex(mMutex);
+        mState = ERROR;
+      }
 
       // And notify.
       (void)notifyError(error);
@@ -264,6 +273,13 @@ bool
 AsyncExecuteStatements::executeAndProcessStatement(sqlite3_stmt *aStatement,
                                                    bool aLastStatement)
 {
+  mMutex.AssertNotCurrentThreadOwns();
+
+  // We need to hold the mutex for statement execution so we can properly
+  // reflect state in case we are canceled.  We release the mutex in a few areas
+  // in order to allow for cancelation to occur.
+  MutexAutoLock lockedScope(mMutex);
+
   // Execute our statement
   bool hasResults;
   do {
@@ -275,7 +291,7 @@ AsyncExecuteStatements::executeAndProcessStatement(sqlite3_stmt *aStatement,
 
     // If we have been canceled, there is no point in going on...
     if (mCancelRequested) {
-      (void)::PR_AtomicSet(const_cast<PRInt32 *>(&mState), CANCELED);
+      mState = CANCELED;
       return false;
     }
 
@@ -284,11 +300,16 @@ AsyncExecuteStatements::executeAndProcessStatement(sqlite3_stmt *aStatement,
     if (mCallback && hasResults &&
         NS_FAILED(buildAndNotifyResults(aStatement))) {
       // We had an error notifying, so we notify on error and stop processing.
-      (void)::PR_AtomicSet(const_cast<PRInt32 *>(&mState), ERROR);
+      mState = ERROR;
 
-      // Notify, and stop processing statements.
-      (void)notifyError(mozIStorageError::ERROR,
-                        "An error occurred while notifying about results");
+      {
+        // Drop our mutex because notifyError doesn't want it held.
+        MutexAutoUnlock unlockedScope(mMutex);
+
+        // Notify, and stop processing statements.
+        (void)notifyError(mozIStorageError::ERROR,
+                          "An error occurred while notifying about results");
+      }
 
       return false;
     }
@@ -299,9 +320,11 @@ AsyncExecuteStatements::executeAndProcessStatement(sqlite3_stmt *aStatement,
   checkAndLogStatementPerformance(aStatement);
 #endif
 
-  // If we are done, we need to set our state accordingly.
+  // If we are done, we need to set our state accordingly while we still hold
+  // our mutex.  We would have already returned if we were canceled or had
+  // an error at this point.
   if (aLastStatement)
-    (void)::PR_AtomicSet(const_cast<PRInt32 *>(&mState), COMPLETED);
+    mState = COMPLETED;
 
   return true;
 }
@@ -309,6 +332,8 @@ AsyncExecuteStatements::executeAndProcessStatement(sqlite3_stmt *aStatement,
 bool
 AsyncExecuteStatements::executeStatement(sqlite3_stmt *aStatement)
 {
+  mMutex.AssertCurrentThreadOwns();
+
   while (true) {
     int rc = ::sqlite3_step(aStatement);
     // Stop if we have no more results.
@@ -321,17 +346,25 @@ AsyncExecuteStatements::executeStatement(sqlite3_stmt *aStatement)
 
     // Some errors are not fatal, and we can handle them and continue.
     if (rc == SQLITE_BUSY) {
+      // We do not want to hold our mutex while we yield.
+      MutexAutoUnlock cancelationScope(mMutex);
+
       // Yield, and try again
       (void)::PR_Sleep(PR_INTERVAL_NO_WAIT);
       continue;
     }
 
     // Set an error state.
-    (void)::PR_AtomicSet(const_cast<PRInt32 *>(&mState), ERROR);
+    mState = ERROR;
 
-    // And notify.
-    sqlite3 *db = ::sqlite3_db_handle(aStatement);
-    (void)notifyError(rc, ::sqlite3_errmsg(db));
+    {
+      // Drop our mutex because notifyError doesn't want it held.
+      MutexAutoUnlock unlockedScope(mMutex);
+
+      // And notify.
+      sqlite3 *db = ::sqlite3_db_handle(aStatement);
+      (void)notifyError(rc, ::sqlite3_errmsg(db));
+    }
 
     // Finally, indicate that we should stop processing.
     return false;
@@ -342,6 +375,12 @@ nsresult
 AsyncExecuteStatements::buildAndNotifyResults(sqlite3_stmt *aStatement)
 {
   NS_ASSERTION(mCallback, "Trying to dispatch results without a callback!");
+  mMutex.AssertCurrentThreadOwns();
+
+  // At this point, it is safe to not hold the mutex and allow for cancelation.
+  // We may add an event to the calling thread, but that thread will not end
+  // up running when it checks back with us to see if it should run.
+  MutexAutoUnlock cancelationScope(mMutex);
 
   // Build result object if we need it.
   if (!mResultSet)
@@ -378,6 +417,7 @@ AsyncExecuteStatements::buildAndNotifyResults(sqlite3_stmt *aStatement)
 nsresult
 AsyncExecuteStatements::notifyComplete()
 {
+  mMutex.AssertNotCurrentThreadOwns();
   NS_ASSERTION(mState != PENDING,
                "Still in a pending state when calling Complete!");
 
@@ -392,7 +432,7 @@ AsyncExecuteStatements::notifyComplete()
     if (mState == COMPLETED) {
       nsresult rv = mTransactionManager->Commit();
       if (NS_FAILED(rv)) {
-        (void)::PR_AtomicSet(const_cast<PRInt32 *>(&mState), ERROR);
+        mState = ERROR;
         (void)notifyError(mozIStorageError::ERROR,
                           "Transaction failed to commit");
       }
@@ -407,7 +447,7 @@ AsyncExecuteStatements::notifyComplete()
   // Notify about completion iff we have a callback.
   if (mCallback) {
     nsRefPtr<CompletionNotifier> completionEvent =
-      new CompletionNotifier(mCallback, static_cast<ExecutionState>(mState));
+      new CompletionNotifier(mCallback, mState);
     NS_ENSURE_TRUE(completionEvent, NS_ERROR_OUT_OF_MEMORY);
 
     // We no longer own mCallback (the CompletionNotifier takes ownership).
@@ -423,6 +463,8 @@ nsresult
 AsyncExecuteStatements::notifyError(PRInt32 aErrorCode,
                                     const char *aMessage)
 {
+  mMutex.AssertNotCurrentThreadOwns();
+
   if (!mCallback)
     return NS_OK;
 
@@ -435,6 +477,8 @@ AsyncExecuteStatements::notifyError(PRInt32 aErrorCode,
 nsresult
 AsyncExecuteStatements::notifyError(mozIStorageError *aError)
 {
+  mMutex.AssertNotCurrentThreadOwns();
+
   if (!mCallback)
     return NS_OK;
 
@@ -448,6 +492,7 @@ AsyncExecuteStatements::notifyError(mozIStorageError *aError)
 nsresult
 AsyncExecuteStatements::notifyResults()
 {
+  mMutex.AssertNotCurrentThreadOwns();
   NS_ASSERTION(mCallback, "notifyResults called without a callback!");
 
   nsRefPtr<CallbackResultNotifier> notifier =
@@ -470,7 +515,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(
 //// mozIStoragePendingStatement
 
 NS_IMETHODIMP
-AsyncExecuteStatements::Cancel()
+AsyncExecuteStatements::Cancel(PRBool *_successful)
 {
 #ifdef DEBUG
   PRBool onCallingThread = PR_FALSE;
@@ -482,11 +527,17 @@ AsyncExecuteStatements::Cancel()
   // we are trying to cancel.
   NS_ENSURE_FALSE(mCancelRequested, NS_ERROR_UNEXPECTED);
 
-  // Indicate that we want to try and cancel at the next cancelation point.
-  (void)::PR_AtomicSet(const_cast<PRInt32 *>(&mCancelRequested), 1);
+  {
+    MutexAutoLock lockedScope(mMutex);
 
-  // Note:  While we are requesting to cancel here, it is possible that we will
-  // not actually be able to.  However, we will still suppress handleResult
+    // We need to indicate that we want to try and cancel now.
+    mCancelRequested = true;
+
+    // Establish if we can cancel
+    *_successful = (mState == PENDING);
+  }
+
+  // Note, it is possible for us to return false here, and end up canceling
   // events that have been dispatched to the calling thread.  This is OK,
   // however, because only read statements (such as SELECT) are going to be
   // posting events to the calling thread that actually check if they should
@@ -502,10 +553,15 @@ NS_IMETHODIMP
 AsyncExecuteStatements::Run()
 {
   // Do not run if we have been canceled.
-  if (mCancelRequested) {
-    (void)::PR_AtomicSet(const_cast<PRInt32 *>(&mState), CANCELED);
-    return notifyComplete();
+  bool cancelRequested;
+  {
+    MutexAutoLock lockedScope(mMutex);
+    cancelRequested = mCancelRequested;
+    if (cancelRequested)
+      mState = CANCELED;
   }
+  if (cancelRequested)
+    return notifyComplete();
 
   // If there is more than one statement, run it in a transaction.  We assume
   // that we have been given write statements since getting a batch of read

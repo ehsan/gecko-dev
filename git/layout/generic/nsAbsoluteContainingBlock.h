@@ -91,11 +91,11 @@ public:
                                nsFrameList&    aChildList);
   nsresult AppendFrames(nsIFrame*      aDelegatingFrame,
                         nsIAtom*       aListName,
-                        nsFrameList&   aFrameList);
+                        nsIFrame*      aFrameList);
   nsresult InsertFrames(nsIFrame*      aDelegatingFrame,
                         nsIAtom*       aListName,
                         nsIFrame*      aPrevFrame,
-                        nsFrameList&   aFrameList);
+                        nsIFrame*      aFrameList);
   nsresult RemoveFrame(nsIFrame*      aDelegatingFrame,
                        nsIAtom*       aListName,
                        nsIFrame*      aOldFrame);

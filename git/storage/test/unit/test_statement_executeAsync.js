@@ -373,6 +373,7 @@ function test_immediate_cancellation()
     "DELETE FROM test WHERE id = ?"
   );
   stmt.bindInt32Parameter(0, 0);
+  let reason = Ci.mozIStorageStatementCallback.REASON_CANCELED;
   var pendingStatement = stmt.executeAsync({
     handleResult: function(aResultSet)
     {
@@ -388,9 +389,7 @@ function test_immediate_cancellation()
     {
       print("handleCompletion(" + aReason +
             ") for test_immediate_cancellation");
-      // It is possible that we finished before we canceled.
-      do_check_true(aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED ||
-                    aReason == Ci.mozIStorageStatementCallback.REASON_CANCELED);
+      do_check_eq(reason, aReason);
 
       // Run the next test.
       run_next_test();
@@ -398,7 +397,10 @@ function test_immediate_cancellation()
   });
 
   // Cancel immediately
-  pendingStatement.cancel()
+  if (!pendingStatement.cancel()) {
+    // It is possible that we finished before we canceled
+    reason = Ci.mozIStorageStatementCallback.REASON_FINISHED;
+  }
 
   stmt.finalize();
 }
@@ -409,6 +411,7 @@ function test_double_cancellation()
     "DELETE FROM test WHERE id = ?"
   );
   stmt.bindInt32Parameter(0, 0);
+  let reason = Ci.mozIStorageStatementCallback.REASON_CANCELED;
   var pendingStatement = stmt.executeAsync({
     handleResult: function(aResultSet)
     {
@@ -424,9 +427,7 @@ function test_double_cancellation()
     {
       print("handleCompletion(" + aReason +
             ") for test_double_cancellation");
-      // It is possible that we finished before we canceled.
-      do_check_true(aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED ||
-                    aReason == Ci.mozIStorageStatementCallback.REASON_CANCELED);
+      do_check_eq(reason, aReason);
 
       // Run the next test.
       run_next_test();
@@ -434,7 +435,10 @@ function test_double_cancellation()
   });
 
   // Cancel immediately
-  pendingStatement.cancel()
+  if (!pendingStatement.cancel()) {
+    // It is possible that we finished before we canceled
+    reason = Ci.mozIStorageStatementCallback.REASON_FINISHED;
+  }
 
   // And cancel again - expect an exception
   try {

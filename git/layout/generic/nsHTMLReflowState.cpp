@@ -1925,8 +1925,7 @@ nsCSSOffsetState::InitOffsets(nscoord aContainingBlockWidth,
   }
   mComputedBorderPadding += mComputedPadding;
 
-  nsIAtom* frameType = frame->GetType();
-  if (frameType == nsGkAtoms::tableFrame) {
+  if (frame->GetType() == nsGkAtoms::tableFrame) {
     nsTableFrame *tableFrame = static_cast<nsTableFrame*>(frame);
 
     if (tableFrame->IsBorderCollapse()) {
@@ -1936,23 +1935,6 @@ nsCSSOffsetState::InitOffsets(nscoord aContainingBlockWidth,
       // '-moz-box-sizing', or 'auto' margins.
       mComputedPadding.SizeTo(0,0,0,0);
       mComputedBorderPadding = tableFrame->GetIncludedOuterBCBorder();
-    }
-  } else if (frameType == nsGkAtoms::scrollbarFrame) {
-    // scrollbars may have had their width or height smashed to zero
-    // by the associated scrollframe, in which case we must not report
-    // any padding or border on that axis.
-    nsSize size(frame->GetSize());
-    if (size.width == 0) {
-      mComputedPadding.left = 0;
-      mComputedPadding.right = 0;
-      mComputedBorderPadding.left = 0;
-      mComputedBorderPadding.right = 0;
-    }
-    if (size.height == 0) {
-      mComputedPadding.top = 0;
-      mComputedPadding.bottom = 0;
-      mComputedBorderPadding.top = 0;
-      mComputedBorderPadding.bottom = 0;
     }
   }
 }
