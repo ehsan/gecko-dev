@@ -76,16 +76,12 @@ CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     return;
   }
 
-  bool updated = false;
-  {
-    // Restrict drawTarget to a scope so that terminates before Unlock.
-    RefPtr<DrawTarget> drawTarget =
-      mBuffer->AsTextureClientDrawTarget()->GetAsDrawTarget();
-    if (drawTarget) {
-      aLayer->UpdateTarget(drawTarget);
-      updated = true;
-    }
+  RefPtr<DrawTarget> drawTarget =
+    mBuffer->AsTextureClientDrawTarget()->GetAsDrawTarget();
+  if (drawTarget) {
+    aLayer->UpdateTarget(drawTarget);
   }
+
   mBuffer->Unlock();
 
   if (bufferCreated && !AddTextureClient(mBuffer)) {
@@ -93,7 +89,7 @@ CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     return;
   }
 
-  if (updated) {
+  if (drawTarget) {
     GetForwarder()->UpdatedTexture(this, mBuffer, nullptr);
     GetForwarder()->UseTexture(this, mBuffer);
   }

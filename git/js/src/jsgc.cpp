@@ -2438,10 +2438,11 @@ GCHelperThread::init()
 void
 GCHelperThread::finish()
 {
-    if (!rt->useHelperThreads() || !rt->gcLock) {
+    if (!rt->useHelperThreads()) {
         JS_ASSERT(state == IDLE);
         return;
     }
+
 
 #ifdef JS_THREADSAFE
     PRThread *join = nullptr;
@@ -3139,7 +3140,7 @@ BeginMarkPhase(JSRuntime *rt)
      */
 
     for (GCZonesIter zone(rt); !zone.done(); zone.next()) {
-        if (!zone->maybeAlive && !rt->isAtomsZone(zone))
+        if (!zone->maybeAlive)
             zone->scheduledForDestruction = true;
     }
     rt->gcFoundBlackGrayEdges = false;
@@ -3919,7 +3920,7 @@ BeginSweepingZoneGroup(JSRuntime *rt)
 
     if (sweepingAtoms) {
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_ATOMS);
-        rt->sweepAtoms();
+        SweepAtoms(rt);
     }
 
     /* Prune out dead views from ArrayBuffer's view lists. */

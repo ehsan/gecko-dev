@@ -180,7 +180,7 @@ fun_enumerate(JSContext *cx, HandleObject obj)
 
     for (unsigned i = 0; i < ArrayLength(poisonPillProps); i++) {
         const uint16_t offset = poisonPillProps[i];
-        id = NameToId(AtomStateOffsetToName(cx->names(), offset));
+        id = NameToId(AtomStateOffsetToName(cx->runtime()->atomState, offset));
         if (!JSObject::hasProperty(cx, obj, id, &found, 0))
             return false;
     }
@@ -320,7 +320,7 @@ js::fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     for (unsigned i = 0; i < ArrayLength(poisonPillProps); i++) {
         const uint16_t offset = poisonPillProps[i];
 
-        if (JSID_IS_ATOM(id, AtomStateOffsetToName(cx->names(), offset))) {
+        if (JSID_IS_ATOM(id, AtomStateOffsetToName(cx->runtime()->atomState, offset))) {
             JS_ASSERT(!IsInternalFunctionObject(fun));
 
             PropertyOp getter;
@@ -357,10 +357,8 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
                            MutableHandleObject objp)
 {
     enum FirstWordFlag {
-        HasAtom             = 0x1,
-        IsStarGenerator     = 0x2,
-        IsLazy              = 0x4,
-        HasSingletonType    = 0x8
+        HasAtom = 0x1,
+        IsStarGenerator = 0x2
     };
 
     /* NB: Keep this in sync with CloneFunctionAndScript. */
@@ -371,8 +369,6 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
     JSContext *cx = xdr->cx();
     RootedFunction fun(cx);
     RootedScript script(cx);
-    Rooted<LazyScript *> lazy(cx);
-
     if (mode == XDR_ENCODE) {
         fun = &objp->as<JSFunction>();
         if (!fun->isInterpreted()) {
@@ -383,30 +379,13 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
             }
             return false;
         }
-
         if (fun->atom() || fun->hasGuessedAtom())
             firstword |= HasAtom;
-
         if (fun->isStarGenerator())
             firstword |= IsStarGenerator;
-
-        if (fun->isInterpretedLazy()) {
-            // This can only happen for re-lazified cloned functions, so this
-            // does not apply to any JSFunction produced by the parser, only to
-            // JSFunction created by the runtime.
-            JS_ASSERT(!fun->lazyScript()->maybeScript());
-
-            // Encode a lazy script.
-            firstword |= IsLazy;
-            lazy = fun->lazyScript();
-        } else {
-            // Encode the script.
-            script = fun->nonLazyScript();
-        }
-
-        if (fun->hasSingletonType())
-            firstword |= HasSingletonType;
-
+        script = fun->getOrCreateScript(cx);
+        if (!script)
+            return false;
         atom = fun->displayAtom();
         flagsword = (fun->nargs() << 16) | fun->flags();
     }
@@ -435,29 +414,18 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
     if (!xdr->codeUint32(&flagsword))
         return false;
 
-    if (firstword & IsLazy) {
-        if (!XDRLazyScript(xdr, enclosingScope, enclosingScript, fun, &lazy))
-            return false;
-    } else {
-        if (!XDRScript(xdr, enclosingScope, enclosingScript, fun, &script))
-            return false;
-    }
+    if (!XDRScript(xdr, enclosingScope, enclosingScript, fun, &script))
+        return false;
 
     if (mode == XDR_DECODE) {
         fun->setArgCount(flagsword >> 16);
         fun->setFlags(uint16_t(flagsword));
         fun->initAtom(atom);
-        if (firstword & IsLazy) {
-            fun->initLazyScript(lazy);
-        } else {
-            fun->initScript(script);
-            script->setFunction(fun);
-            JS_ASSERT(fun->nargs() == script->bindings.numArgs());
-        }
-
-        bool singleton = firstword & HasSingletonType;
-        if (!JSFunction::setTypeForScriptedFunction(cx, fun, singleton))
+        fun->initScript(script);
+        script->setFunction(fun);
+        if (!JSFunction::setTypeForScriptedFunction(cx, fun))
             return false;
+        JS_ASSERT(fun->nargs() == fun->nonLazyScript()->bindings.numArgs());
         objp.set(fun);
     }
 

@@ -589,7 +589,7 @@ StaticStrings::init(JSContext *cx)
         JSFlatString *s = js_NewStringCopyN<NoGC>(cx, buffer, 1);
         if (!s)
             return false;
-        unitStaticTable[i] = s->morphAtomizedStringIntoPermanentAtom();
+        unitStaticTable[i] = s->morphAtomizedStringIntoAtom();
     }
 
     for (uint32_t i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++) {
@@ -597,7 +597,7 @@ StaticStrings::init(JSContext *cx)
         JSFlatString *s = js_NewStringCopyN<NoGC>(cx, buffer, 2);
         if (!s)
             return false;
-        length2StaticTable[i] = s->morphAtomizedStringIntoPermanentAtom();
+        length2StaticTable[i] = s->morphAtomizedStringIntoAtom();
     }
 
     for (uint32_t i = 0; i < INT_STATIC_LIMIT; i++) {
@@ -615,7 +615,7 @@ StaticStrings::init(JSContext *cx)
             JSFlatString *s = js_NewStringCopyN<NoGC>(cx, buffer, 3);
             if (!s)
                 return false;
-            intStaticTable[i] = s->morphAtomizedStringIntoPermanentAtom();
+            intStaticTable[i] = s->morphAtomizedStringIntoAtom();
         }
     }
 
@@ -627,15 +627,21 @@ StaticStrings::trace(JSTracer *trc)
 {
     /* These strings never change, so barriers are not needed. */
 
-    for (uint32_t i = 0; i < UNIT_STATIC_LIMIT; i++)
-        MarkPermanentAtom(trc, unitStaticTable[i], "unit-static-string");
+    for (uint32_t i = 0; i < UNIT_STATIC_LIMIT; i++) {
+        if (unitStaticTable[i])
+            MarkStringUnbarriered(trc, &unitStaticTable[i], "unit-static-string");
+    }
 
-    for (uint32_t i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++)
-        MarkPermanentAtom(trc, length2StaticTable[i], "length2-static-string");
+    for (uint32_t i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++) {
+        if (length2StaticTable[i])
+            MarkStringUnbarriered(trc, &length2StaticTable[i], "length2-static-string");
+    }
 
     /* This may mark some strings more than once, but so be it. */
-    for (uint32_t i = 0; i < INT_STATIC_LIMIT; i++)
-        MarkPermanentAtom(trc, intStaticTable[i], "int-static-string");
+    for (uint32_t i = 0; i < INT_STATIC_LIMIT; i++) {
+        if (intStaticTable[i])
+            MarkStringUnbarriered(trc, &intStaticTable[i], "int-static-string");
+    }
 }
 
 bool

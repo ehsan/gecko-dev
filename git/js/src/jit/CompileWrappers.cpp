@@ -112,13 +112,13 @@ CompileRuntime::hadOutOfMemory()
 const JSAtomState &
 CompileRuntime::names()
 {
-    return *runtime()->commonNames;
+    return runtime()->atomState;
 }
 
 const StaticStrings &
 CompileRuntime::staticStrings()
 {
-    return *runtime()->staticStrings;
+    return runtime()->staticStrings;
 }
 
 const Value &

@@ -117,11 +117,8 @@ public:
     Size      mPreviewSize;
     nsString  mRecorderProfile;
   };
-  static already_AddRefed<ICameraControl> Create(uint32_t aCameraId);
-
-  virtual nsresult Start(const Configuration* aInitialConfig = nullptr) = 0;
-  virtual nsresult Stop() = 0;
-
+  static already_AddRefed<ICameraControl> Create(uint32_t aCameraId,
+                                                 const Configuration* aInitialConfig);
   virtual nsresult SetConfiguration(const Configuration& aConfig) = 0;
 
   virtual void AddListener(CameraControlListener* aListener) = 0;
@@ -134,6 +131,7 @@ public:
   virtual nsresult StartRecording(DeviceStorageFileDescriptor *aFileDescriptor,
                                   const StartRecordingOptions* aOptions = nullptr) = 0;
   virtual nsresult StopRecording() = 0;
+  virtual nsresult ReleaseHardware() = 0;
 
   virtual nsresult Set(uint32_t aKey, const nsAString& aValue) = 0;
   virtual nsresult Get(uint32_t aKey, nsAString& aValue) = 0;

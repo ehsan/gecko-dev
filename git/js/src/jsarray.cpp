@@ -3277,7 +3277,8 @@ js::NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *values,
 }
 
 ArrayObject *
-js::NewDenseAllocatedArrayWithTemplate(JSContext *cx, uint32_t length, JSObject *templateObject)
+js::NewDenseCopiedArrayWithTemplate(JSContext *cx, uint32_t length, const Value *values,
+                                    JSObject *templateObject)
 {
     gc::AllocKind allocKind = GuessArrayGCKind(length);
     JS_ASSERT(CanBeFinalizedInBackground(allocKind, &ArrayObject::class_));
@@ -3298,6 +3299,9 @@ js::NewDenseAllocatedArrayWithTemplate(JSContext *cx, uint32_t length, JSObject 
 
     if (!EnsureNewArrayElements(cx, arr, length))
         return nullptr;
+
+    arr->setDenseInitializedLength(length);
+    arr->initDenseElements(0, values, length);
 
     probes::CreateObject(cx, arr);
 

@@ -108,13 +108,13 @@ void TestTextureClientSurface(TextureClient* texture, gfxImageSurface* surface) 
   client->AllocateForSurface(ToIntSize(surface->GetSize()));
   ASSERT_TRUE(texture->IsAllocated());
 
-  ASSERT_TRUE(texture->Lock(OPEN_READ_WRITE));
   // client painting
   client->UpdateSurface(surface);
 
   nsRefPtr<gfxASurface> aSurface = client->GetAsSurface();
   nsRefPtr<gfxImageSurface> clientSurface = aSurface->GetAsImageSurface();
 
+  ASSERT_TRUE(texture->Lock(OPEN_READ_ONLY));
   AssertSurfacesEqual(surface, clientSurface);
   texture->Unlock();
 
@@ -155,9 +155,10 @@ void TestTextureClientYCbCr(TextureClient* client, PlanarYCbCrData& ycbcrData) {
                             ycbcrData.mStereoMode);
   ASSERT_TRUE(client->IsAllocated());
 
-  ASSERT_TRUE(client->Lock(OPEN_READ_WRITE));
   // client painting
   texture->UpdateYCbCr(ycbcrData);
+
+  ASSERT_TRUE(client->Lock(OPEN_READ_ONLY));
   client->Unlock();
 
   // client serialization
@@ -175,11 +176,13 @@ void TestTextureClientYCbCr(TextureClient* client, PlanarYCbCrData& ycbcrData) {
   ASSERT_TRUE(host.get() != nullptr);
   ASSERT_EQ(host->GetFlags(), client->GetFlags());
 
+  // This will work iff the compositor is not BasicCompositor
+  ASSERT_EQ(host->GetFormat(), mozilla::gfx::SurfaceFormat::YUV);
+
   // host read
   ASSERT_TRUE(host->Lock());
 
-  // This will work iff the compositor is not BasicCompositor
-  ASSERT_EQ(host->GetFormat(), mozilla::gfx::SurfaceFormat::YUV);
+  ASSERT_TRUE(host->GetFormat() == mozilla::gfx::SurfaceFormat::YUV);
 
   YCbCrImageDataDeserializer yuvDeserializer(host->GetBuffer());
   ASSERT_TRUE(yuvDeserializer.IsValid());

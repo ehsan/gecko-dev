@@ -126,7 +126,7 @@ FxAccountsService.prototype = {
 
     log.debug("get assertion for " + rp.audience);
 
-    this.fxAccountsManager.getAssertion(rp.audience, options).then(
+    this.fxAccountsManager.getAssertion(rp.audience).then(
       data => {
         log.debug("got assertion: " + JSON.stringify(data));
         this.doLogin(aRPId, data);

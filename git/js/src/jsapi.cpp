@@ -636,18 +636,12 @@ JS_FRIEND_API(bool) JS::isGCEnabled() { return true; }
 #endif
 
 JS_PUBLIC_API(JSRuntime *)
-JS_NewRuntime(uint32_t maxbytes, JSUseHelperThreads useHelperThreads, JSRuntime *parentRuntime)
+JS_NewRuntime(uint32_t maxbytes, JSUseHelperThreads useHelperThreads)
 {
     MOZ_ASSERT(jsInitState == Running,
                "must call JS_Init prior to creating any JSRuntimes");
 
-    // Any parent runtime should be the topmost parent. This assert
-    // isn't required for correctness, but ensuring that the parent
-    // runtime is not destroyed before this one is more easily done
-    // for the main runtime in the process.
-    JS_ASSERT_IF(parentRuntime, !parentRuntime->parentRuntime);
-
-    JSRuntime *rt = js_new<JSRuntime>(parentRuntime, useHelperThreads);
+    JSRuntime *rt = js_new<JSRuntime>(useHelperThreads);
     if (!rt)
         return nullptr;
 
@@ -811,13 +805,6 @@ JS_PUBLIC_API(JSRuntime *)
 JS_GetRuntime(JSContext *cx)
 {
     return cx->runtime();
-}
-
-JS_PUBLIC_API(JSRuntime *)
-JS_GetParentRuntime(JSContext *cx)
-{
-    JSRuntime *rt = cx->runtime();
-    return rt->parentRuntime ? rt->parentRuntime : nullptr;
 }
 
 JS_PUBLIC_API(JSContext *)
@@ -1173,7 +1160,7 @@ LookupStdName(JSRuntime *rt, HandleString name, const JSStdName *table)
     for (unsigned i = 0; !table[i].isSentinel(); i++) {
         if (table[i].isDummy())
             continue;
-        JSAtom *atom = AtomStateOffsetToName(*rt->commonNames, table[i].atomOffset);
+        JSAtom *atom = AtomStateOffsetToName(rt->atomState, table[i].atomOffset);
         MOZ_ASSERT(atom);
         if (name == atom)
             return &table[i];
@@ -1278,7 +1265,7 @@ JS_ResolveStandardClass(JSContext *cx, HandleObject obj, HandleId id, bool *reso
     RootedString idstr(cx, JSID_TO_STRING(id));
 
     /* Check whether we're resolving 'undefined', and define it if so. */
-    JSAtom *undefinedAtom = cx->names().undefined;
+    JSAtom *undefinedAtom = rt->atomState.undefined;
     if (idstr == undefinedAtom) {
         *resolved = true;
         return JSObject::defineProperty(cx, obj, undefinedAtom->asPropertyName(),

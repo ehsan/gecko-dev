@@ -146,11 +146,11 @@ public:
   already_AddRefed<TestInterface> Test2(const GlobalObject&,
                                         JSContext*,
                                         const DictForConstructor&,
-                                        JS::Handle<JS::Value>,
+                                        JS::Value,
                                         JS::Handle<JSObject*>,
                                         JS::Handle<JSObject*>,
                                         const Sequence<Dict>&,
-                                        JS::Handle<JS::Value>,
+                                        const Optional<JS::Handle<JS::Value> >&,
                                         const Optional<JS::Handle<JSObject*> >&,
                                         const Optional<JS::Handle<JSObject*> >&,
                                         ErrorResult&);
@@ -466,6 +466,7 @@ public:
   // Any types
   void PassAny(JSContext*, JS::Handle<JS::Value>);
   void PassVariadicAny(JSContext*, const Sequence<JS::Value>&);
+  void PassOptionalAny(JSContext*, const Optional<JS::Handle<JS::Value> >&);
   void PassAnyDefaultNull(JSContext*, JS::Handle<JS::Value>);
   void PassSequenceOfAny(JSContext*, const Sequence<JS::Value>&);
   void PassNullableSequenceOfAny(JSContext*, const Nullable<Sequence<JS::Value> >&);

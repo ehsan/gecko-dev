@@ -70,7 +70,7 @@ JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt)
 {
     JS_ASSERT(rt->hasContexts());
-    return rt->commonNames->anonymous;
+    return rt->atomState.anonymous;
 }
 
 JS_FRIEND_API(void)

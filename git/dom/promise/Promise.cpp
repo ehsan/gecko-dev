@@ -482,7 +482,8 @@ Promise::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  aInit.Call(resolveFunc, rejectFunc, aRv, CallbackObject::eRethrowExceptions);
+  aInit.Call(promise, resolveFunc, rejectFunc, aRv,
+             CallbackObject::eRethrowExceptions);
   aRv.WouldReportJSException();
 
   if (aRv.IsJSException()) {
@@ -499,11 +500,13 @@ Promise::Constructor(const GlobalObject& aGlobal,
 
 /* static */ already_AddRefed<Promise>
 Promise::Resolve(const GlobalObject& aGlobal, JSContext* aCx,
-                 JS::Handle<JS::Value> aValue, ErrorResult& aRv)
+                 const Optional<JS::Handle<JS::Value>>& aValue, ErrorResult& aRv)
 {
   // If a Promise was passed, just return it.
-  if (aValue.isObject()) {
-    JS::Rooted<JSObject*> valueObj(aCx, &aValue.toObject());
+  JS::Rooted<JS::Value> value(aCx, aValue.WasPassed() ? aValue.Value() :
+                                                        JS::UndefinedValue());
+  if (value.isObject()) {
+    JS::Rooted<JSObject*> valueObj(aCx, &value.toObject());
     Promise* nextPromise;
     nsresult rv = UNWRAP_OBJECT(Promise, valueObj, nextPromise);
 
@@ -522,7 +525,7 @@ Promise::Resolve(const GlobalObject& aGlobal, JSContext* aCx,
     }
   }
 
-  return Resolve(window, aCx, aValue, aRv);
+  return Resolve(window, aCx, value, aRv);
 }
 
 /* static */ already_AddRefed<Promise>
@@ -538,7 +541,7 @@ Promise::Resolve(nsPIDOMWindow* aWindow, JSContext* aCx,
 
 /* static */ already_AddRefed<Promise>
 Promise::Reject(const GlobalObject& aGlobal, JSContext* aCx,
-                JS::Handle<JS::Value> aValue, ErrorResult& aRv)
+                const Optional<JS::Handle<JS::Value>>& aValue, ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> window;
   if (MOZ_LIKELY(NS_IsMainThread())) {
@@ -549,7 +552,9 @@ Promise::Reject(const GlobalObject& aGlobal, JSContext* aCx,
     }
   }
 
-  return Reject(window, aCx, aValue, aRv);
+  return Reject(window, aCx,
+                aValue.WasPassed() ? aValue.Value() : JS::UndefinedHandleValue,
+                aRv);
 }
 
 /* static */ already_AddRefed<Promise>
@@ -731,8 +736,8 @@ Promise::All(const GlobalObject& aGlobal, JSContext* aCx,
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return nullptr;
     }
-    JS::Rooted<JS::Value> value(aCx, JS::ObjectValue(*empty));
-    return Promise::Resolve(aGlobal, aCx, value, aRv);
+    Optional<JS::Handle<JS::Value>> optValue(aCx, JS::ObjectValue(*empty));
+    return Promise::Resolve(aGlobal, aCx, optValue, aRv);
   }
 
   nsRefPtr<Promise> promise = new Promise(window);
@@ -742,8 +747,8 @@ Promise::All(const GlobalObject& aGlobal, JSContext* aCx,
   nsRefPtr<PromiseCallback> rejectCb = new RejectPromiseCallback(promise);
 
   for (uint32_t i = 0; i < aIterable.Length(); ++i) {
-    JS::Rooted<JS::Value> value(aCx, aIterable.ElementAt(i));
-    nsRefPtr<Promise> nextPromise = Promise::Resolve(aGlobal, aCx, value, aRv);
+    Optional<JS::Handle<JS::Value>> optValue(aCx, aIterable.ElementAt(i));
+    nsRefPtr<Promise> nextPromise = Promise::Resolve(aGlobal, aCx, optValue, aRv);
 
     MOZ_ASSERT(!aRv.Failed());
 
@@ -778,8 +783,8 @@ Promise::Race(const GlobalObject& aGlobal, JSContext* aCx,
   nsRefPtr<PromiseCallback> rejectCb = new RejectPromiseCallback(promise);
 
   for (uint32_t i = 0; i < aIterable.Length(); ++i) {
-    JS::Rooted<JS::Value> value(aCx, aIterable.ElementAt(i));
-    nsRefPtr<Promise> nextPromise = Promise::Resolve(aGlobal, aCx, value, aRv);
+    Optional<JS::Handle<JS::Value>> optValue(aCx, aIterable.ElementAt(i));
+    nsRefPtr<Promise> nextPromise = Promise::Resolve(aGlobal, aCx, optValue, aRv);
     // According to spec, Resolve can throw, but our implementation never does.
     // Well it does when window isn't passed on the main thread, but that is an
     // implementation detail which should never be reached since we are checking

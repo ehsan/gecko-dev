@@ -550,8 +550,6 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
 
   switch (aEffectChain.mPrimaryEffect->mType) {
   case EFFECT_SOLID_COLOR: {
-      SetPSForEffect(aEffectChain.mPrimaryEffect, maskType, SurfaceFormat::UNKNOWN);
-
       Color color =
         static_cast<EffectSolidColor*>(aEffectChain.mPrimaryEffect.get())->mColor;
       mPSConstants.layerColor[0] = color.r * color.a * aOpacity;
@@ -566,6 +564,8 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
       TexturedEffect* texturedEffect =
         static_cast<TexturedEffect*>(aEffectChain.mPrimaryEffect.get());
 
+      SetPSForEffect(aEffectChain.mPrimaryEffect, maskType, texturedEffect->mTexture->GetFormat());
+
       mVSConstants.textureCoords = texturedEffect->mTextureCoords;
 
       TextureSourceD3D11* source = texturedEffect->mTexture->AsSourceD3D11();
@@ -574,8 +574,6 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
         NS_WARNING("Missing texture source!");
         return;
       }
-
-      SetPSForEffect(aEffectChain.mPrimaryEffect, maskType, texturedEffect->mTexture->GetFormat());
 
       RefPtr<ID3D11ShaderResourceView> view;
       mDevice->CreateShaderResourceView(source->GetD3D11Texture(), nullptr, byRef(view));
@@ -595,6 +593,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
       EffectYCbCr* ycbcrEffect =
         static_cast<EffectYCbCr*>(aEffectChain.mPrimaryEffect.get());
 
+      SetPSForEffect(aEffectChain.mPrimaryEffect, maskType, ycbcrEffect->mTexture->GetFormat());
       SetSamplerForFilter(Filter::LINEAR);
 
       mVSConstants.textureCoords = ycbcrEffect->mTextureCoords;
@@ -606,8 +605,6 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
         NS_WARNING("No texture to composite");
         return;
       }
-
-      SetPSForEffect(aEffectChain.mPrimaryEffect, maskType, ycbcrEffect->mTexture->GetFormat());
 
       if (!source->GetSubSource(Y) || !source->GetSubSource(Cb) || !source->GetSubSource(Cr)) {
         // This can happen if we failed to upload the textures, most likely
@@ -638,6 +635,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
       EffectComponentAlpha* effectComponentAlpha =
         static_cast<EffectComponentAlpha*>(aEffectChain.mPrimaryEffect.get());
 
+      SetPSForEffect(aEffectChain.mPrimaryEffect, maskType, effectComponentAlpha->mTexture->GetFormat());
       TextureSourceD3D11* sourceOnWhite = effectComponentAlpha->mOnWhite->AsSourceD3D11();
       TextureSourceD3D11* sourceOnBlack = effectComponentAlpha->mOnBlack->AsSourceD3D11();
 
@@ -645,8 +643,6 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
         NS_WARNING("Missing texture source(s)!");
         return;
       }
-
-      SetPSForEffect(aEffectChain.mPrimaryEffect, maskType, effectComponentAlpha->mOnWhite->GetFormat());
 
       SetSamplerForFilter(effectComponentAlpha->mFilter);
 

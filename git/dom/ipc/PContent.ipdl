@@ -80,12 +80,6 @@ struct DeviceStorageAvailableParams
   nsString storageName;
 };
 
-struct DeviceStorageStatusParams
-{
-  nsString type;
-  nsString storageName;
-};
-
 struct DeviceStorageFormatParams
 {
   nsString type;
@@ -140,7 +134,6 @@ union DeviceStorageParams
   DeviceStorageFreeSpaceParams;
   DeviceStorageUsedSpaceParams;
   DeviceStorageAvailableParams;
-  DeviceStorageStatusParams;
   DeviceStorageFormatParams;
 };
 

@@ -605,9 +605,6 @@ struct EncapsulatedPtrHasher
 template <class T>
 struct DefaultHasher< EncapsulatedPtr<T> > : EncapsulatedPtrHasher<T> { };
 
-bool
-StringIsPermanentAtom(JSString *str);
-
 /*
  * Base class for barriered value types.
  */
@@ -660,8 +657,6 @@ class BarrieredValue : public ValueOperations<BarrieredValue>
 
     static void writeBarrierPre(Zone *zone, const Value &v) {
 #ifdef JSGC_INCREMENTAL
-        if (v.isString() && StringIsPermanentAtom(v.toString()))
-            return;
         JS::shadow::Zone *shadowZone = JS::shadow::Zone::asShadowZone(zone);
         if (shadowZone->needsBarrier()) {
             JS_ASSERT_IF(v.isMarkable(), shadowRuntimeFromMainThread(v)->needsBarrier());

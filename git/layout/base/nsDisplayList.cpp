@@ -1217,7 +1217,8 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   if (usingDisplayport &&
       !(root->GetContentFlags() & Layer::CONTENT_OPAQUE)) {
     // See bug 693938, attachment 567017
-    NS_WARNING("Transparent content with displayports can be expensive.");
+    NS_WARNING("We don't support transparent content with displayports, force it to be opqaue");
+    root->SetContentFlags(Layer::CONTENT_OPAQUE);
   }
 
   layerManager->SetRoot(root);

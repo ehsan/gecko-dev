@@ -1388,14 +1388,14 @@ public:
   // @return        True if the operation succeeded; false otherwise.
   // See also TruncateLength if the new length is guaranteed to be
   // smaller than the old.
-  typename Alloc::ResultType SetLength(size_type newLen) {
+  bool SetLength(size_type newLen) {
     size_type oldLen = Length();
     if (newLen > oldLen) {
-      return Alloc::ConvertBoolToResultType(InsertElementsAt(oldLen, newLen - oldLen) != nullptr);
+      return InsertElementsAt(oldLen, newLen - oldLen) != nullptr;
     }
 
     TruncateLength(newLen);
-    return Alloc::ConvertBoolToResultType(true);
+    return true;
   }
 
   // This method modifies the length of the array, but may only be

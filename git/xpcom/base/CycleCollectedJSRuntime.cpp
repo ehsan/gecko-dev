@@ -436,8 +436,7 @@ NoteJSChildGrayWrapperShim(void* aData, void* aThing)
 // CycleCollectedJSRuntime. It should never be used directly.
 static const JSZoneParticipant sJSZoneCycleCollectorGlobal;
 
-CycleCollectedJSRuntime::CycleCollectedJSRuntime(JSRuntime* aParentRuntime,
-                                                 uint32_t aMaxbytes,
+CycleCollectedJSRuntime::CycleCollectedJSRuntime(uint32_t aMaxbytes,
                                                  JSUseHelperThreads aUseHelperThreads)
   : mGCThingCycleCollectorGlobal(sGCThingCycleCollectorGlobal),
     mJSZoneCycleCollectorGlobal(sJSZoneCycleCollectorGlobal),
@@ -446,7 +445,7 @@ CycleCollectedJSRuntime::CycleCollectedJSRuntime(JSRuntime* aParentRuntime,
 {
   mozilla::dom::InitScriptSettings();
 
-  mJSRuntime = JS_NewRuntime(aMaxbytes, aUseHelperThreads, aParentRuntime);
+  mJSRuntime = JS_NewRuntime(aMaxbytes, aUseHelperThreads);
   if (!mJSRuntime) {
     MOZ_CRASH();
   }
@@ -549,8 +548,7 @@ CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, void* aThing,
       "BaseShape",
       "TypeObject",
     };
-    static_assert(MOZ_ARRAY_LENGTH(trace_types) == JSTRACE_LAST + 1,
-                  "Length of trace_types should match the number of cases of JSGCTraceKind.");
+    JS_STATIC_ASSERT(MOZ_ARRAY_LENGTH(trace_types) == JSTRACE_LAST + 1);
     JS_snprintf(name, sizeof(name), "JS %s", trace_types[aTraceKind]);
   }
 

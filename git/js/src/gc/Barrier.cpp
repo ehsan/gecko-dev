@@ -57,10 +57,4 @@ RuntimeFromMainThreadIsHeapMajorCollecting(JS::shadow::Zone *shadowZone)
 }
 #endif // DEBUG
 
-bool
-StringIsPermanentAtom(JSString *str)
-{
-    return str->isPermanentAtom();
-}
-
 } // namespace js

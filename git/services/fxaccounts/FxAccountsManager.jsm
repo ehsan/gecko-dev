@@ -59,28 +59,21 @@ this.FxAccountsManager = {
     }
   },
 
-  _error: function(aError, aDetails) {
-    log.error(aError);
-    let reason = {
-      error: aError
-    };
-    if (aDetails) {
-      reason.details = aDetails;
-    }
-    return Promise.reject(reason);
-  },
-
   _getError: function(aServerResponse) {
     if (!aServerResponse || !aServerResponse.error || !aServerResponse.error.errno) {
       return;
     }
     let error = SERVER_ERRNO_TO_ERROR[aServerResponse.error.errno];
+    log.error(error);
     return error;
   },
 
   _serverError: function(aServerResponse) {
     let error = this._getError({ error: aServerResponse });
-    return this._error(error ? error : ERROR_SERVER_ERROR, aServerResponse);
+    return Promise.reject({
+      error: error ? error : ERROR_SERVER_ERROR,
+      details: aServerResponse
+    });
   },
 
   // As we do with _fxAccounts, we don't really need this factory, but this way
@@ -91,21 +84,34 @@ this.FxAccountsManager = {
 
   _signInSignUp: function(aMethod, aAccountId, aPassword) {
     if (Services.io.offline) {
-      return this._error(ERROR_OFFLINE);
+      log.error(ERROR_OFFLINE);
+      return Promise.reject({
+        error: ERROR_OFFLINE
+      });
     }
 
     if (!aAccountId) {
-      return this._error(ERROR_INVALID_ACCOUNTID);
+      log.error(ERROR_INVALID_ACCOUNTID);
+      return Promise.reject({
+        error: ERROR_INVALID_ACCOUNTID
+      });
     }
 
     if (!aPassword) {
-      return this._error(ERROR_INVALID_PASSWORD);
+      log.error(ERROR_INVALID_PASSWORD);
+      return Promise.reject({
+        error: ERROR_INVALID_PASSWORD
+      });
     }
 
     // Check that there is no signed in account first.
     if (this._activeSession) {
-      return this._error(ERROR_ALREADY_SIGNED_IN_USER, {
-        user: this._user
+      log.error(ERROR_ALREADY_SIGNED_IN_USER);
+      return Promise.reject({
+        error: ERROR_ALREADY_SIGNED_IN_USER,
+        details: {
+          user: this._user
+        }
       });
     }
 
@@ -113,8 +119,12 @@ this.FxAccountsManager = {
     return this._fxAccounts.getSignedInUser().then(
       user => {
         if (user) {
-          return this._error(ERROR_ALREADY_SIGNED_IN_USER, {
-            user: this._user
+          log.error(ERROR_ALREADY_SIGNED_IN_USER);
+          return Promise.reject({
+            error: ERROR_ALREADY_SIGNED_IN_USER,
+            details: {
+              user: user
+            }
           });
         }
         return client[aMethod](aAccountId, aPassword);
@@ -123,8 +133,12 @@ this.FxAccountsManager = {
       user => {
         let error = this._getError(user);
         if (!user || !user.uid || !user.sessionToken || error) {
-          return this._error(error ? error : ERROR_INTERNAL_INVALID_USER, {
-            user: user
+          log.error(error ? error : ERROR_INTERNAL_INVALID_USER);
+          return Promise.reject({
+            error: error ? error : ERROR_INTERNAL_INVALID_USER,
+            details: {
+              user: user
+            }
           });
         }
 
@@ -176,7 +190,10 @@ this.FxAccountsManager = {
           result => {
             let error = this._getError(result);
             if (error) {
-              return this._error(error, result);
+              return Promise.reject({
+                error: error,
+                details: result
+              });
             }
             log.debug("Signed out");
             return Promise.resolve();
@@ -185,35 +202,6 @@ this.FxAccountsManager = {
             return this._serverError(reason);
           }
         );
-      }
-    );
-  },
-
-  _uiRequest: function(aRequest, aAudience, aParams) {
-    let ui = Cc["@mozilla.org/fxaccounts/fxaccounts-ui-glue;1"]
-               .createInstance(Ci.nsIFxAccountsUIGlue);
-    if (!ui[aRequest]) {
-      return this._error(ERROR_UI_REQUEST);
-    }
-
-    if (!aParams || !Array.isArray(aParams)) {
-      aParams = [aParams];
-    }
-
-    return ui[aRequest].apply(this, aParams).then(
-      result => {
-        // Even if we get a successful result from the UI, the account will
-        // most likely be unverified, so we cannot get an assertion.
-        if (result && result.verified) {
-          return this._getAssertion(aAudience);
-        }
-
-        return this._error(ERROR_UNVERIFIED_ACCOUNT, {
-          user: result
-        });
-      },
-      error => {
-        return this._error(ERROR_UI_ERROR, error);
       }
     );
   },
@@ -284,13 +272,19 @@ this.FxAccountsManager = {
   queryAccount: function(aAccountId) {
     log.debug("queryAccount " + aAccountId);
     if (Services.io.offline) {
-      return this._error(ERROR_OFFLINE);
+      log.error(ERROR_OFFLINE);
+      return Promise.reject({
+        error: ERROR_OFFLINE
+      });
     }
 
     let deferred = Promise.defer();
 
     if (!aAccountId) {
-      return this._error(ERROR_INVALID_ACCOUNTID);
+      log.error(ERROR_INVALID_ACCOUNTID);
+      return Promise.reject({
+        error: ERROR_INVALID_ACCOUNTID
+      });
     }
 
     let client = this._createFxAccountsClient();
@@ -299,7 +293,10 @@ this.FxAccountsManager = {
         log.debug("Account " + result ? "" : "does not" + " exists");
         let error = this._getError(result);
         if (error) {
-          return this._error(error, result);
+          return Promise.reject({
+            error: error,
+            details: result
+          });
         }
 
         return Promise.resolve({
@@ -313,7 +310,10 @@ this.FxAccountsManager = {
   verificationStatus: function() {
     log.debug("verificationStatus");
     if (!this._activeSession || !this._activeSession.sessionToken) {
-      return this._error(ERROR_NO_TOKEN_SESSION);
+      log.error(ERROR_NO_TOKEN_SESSION);
+      return Promise.reject({
+        error: ERROR_NO_TOKEN_SESSION
+      });
     }
 
     // There is no way to unverify an already verified account, so we just
@@ -324,7 +324,10 @@ this.FxAccountsManager = {
     }
 
     if (Services.io.offline) {
-      return this._error(ERROR_OFFLINE);
+      log.error(ERROR_OFFLINE);
+      return Promise.reject({
+        error: ERROR_OFFLINE
+      });
     }
 
     let client = this._createFxAccountsClient();
@@ -332,7 +335,10 @@ this.FxAccountsManager = {
       data => {
         let error = this._getError(data);
         if (error) {
-          return this._error(error, data);
+          return Promise.reject({
+            error: error,
+            details: data
+          });
         }
 
         // If the verification status is different from the one that we have
@@ -354,58 +360,71 @@ this.FxAccountsManager = {
     );
   },
 
-  getAssertion: function(aAudience, aOptions) {
-    log.debug("getAssertion " + aAudience + JSON.stringify(aOptions));
+  getAssertion: function(aAudience) {
+    log.debug("getAssertion " + aAudience);
     if (!aAudience) {
-      return this._error(ERROR_INVALID_AUDIENCE);
+      log.error(ERROR_INVALID_AUDIENCE);
+      return Promise.reject({
+        error: ERROR_INVALID_AUDIENCE
+      });
     }
 
     if (Services.io.offline) {
-      return this._error(ERROR_OFFLINE);
+      log.error(ERROR_OFFLINE);
+      return Promise.reject({
+        error: ERROR_OFFLINE
+      });
     }
 
     return this.getAccount().then(
       user => {
         if (user) {
           // We cannot get assertions for unverified accounts.
-          if (!user.verified) {
-            return this._error(ERROR_UNVERIFIED_ACCOUNT, {
+          if (user.verified) {
+            return this._getAssertion(aAudience);
+          }
+
+          log.error(ERROR_UNVERIFIED_ACCOUNT);
+          return Promise.reject({
+            error: ERROR_UNVERIFIED_ACCOUNT,
+            details: {
               user: user
-            });
-          }
-
-          // RPs might require an authentication refresh.
-          if (aOptions &&
-              aOptions.refreshAuthentication) {
-            let gracePeriod = aOptions.refreshAuthentication;
-            if (typeof gracePeriod != 'number' || isNaN(gracePeriod)) {
-              return this._error(ERROR_INVALID_REFRESH_AUTH_VALUE);
             }
-
-            if ((Date.now() / 1000) - this._activeSession.authAt > gracePeriod) {
-              // Grace period expired, so we sign out and request the user to
-              // authenticate herself again. If the authentication succeeds, we
-              // will return the assertion. Otherwise, we will return an error.
-              return this._signOut().then(
-                () => {
-                  return this._uiRequest(UI_REQUEST_REFRESH_AUTH,
-                                         aAudience, user.accountId);
-                }
-              );
-            }
-          }
-
-          return this._getAssertion(aAudience);
+          });
         }
 
         log.debug("No signed in user");
         // If there is no currently signed in user, we trigger the signIn UI
         // flow.
-        return this._uiRequest(UI_REQUEST_SIGN_IN_FLOW, aAudience);
+        let ui = Cc["@mozilla.org/fxaccounts/fxaccounts-ui-glue;1"]
+                   .createInstance(Ci.nsIFxAccountsUIGlue);
+        return ui.signInFlow().then(
+          result => {
+            // Even if we get a successful result from the UI, the account will
+            // most likely be unverified, so we cannot get an assertion.
+            if (result && result.verified) {
+              return this._getAssertion(aAudience);
+            }
+
+            log.error(ERROR_UNVERIFIED_ACCOUNT);
+            return Promise.reject({
+              error: ERROR_UNVERIFIED_ACCOUNT,
+              details: {
+                user: result
+              }
+            });
+          },
+          error => {
+            log.error(ERROR_UI_ERROR + " " + error);
+            return Promise.reject({
+              error: ERROR_UI_ERROR,
+              details: error
+            });
+          }
+        );
       }
     );
   }
-
 };
 
 FxAccountsManager.init();

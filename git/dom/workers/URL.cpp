@@ -312,10 +312,10 @@ public:
   }
 };
 
-class TeardownURLRunnable : public nsRunnable
+class TeardownRunnable : public nsRunnable
 {
 public:
-  TeardownURLRunnable(URLProxy* aURLProxy)
+  TeardownRunnable(URLProxy* aURLProxy)
     : mURLProxy(aURLProxy)
   {
   }
@@ -576,8 +576,7 @@ URL::~URL()
   MOZ_COUNT_DTOR(workers::URL);
 
   if (mURLProxy) {
-    nsRefPtr<TeardownURLRunnable> runnable =
-      new TeardownURLRunnable(mURLProxy);
+    nsRefPtr<TeardownRunnable> runnable = new TeardownRunnable(mURLProxy);
     mURLProxy = nullptr;
 
     if (NS_FAILED(NS_DispatchToMainThread(runnable))) {

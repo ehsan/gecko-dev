@@ -180,10 +180,8 @@ WorkerGlobalScope::SetTimeout(JSContext* aCx,
 }
 
 int32_t
-WorkerGlobalScope::SetTimeout(JSContext* /* unused */,
-                              const nsAString& aHandler,
+WorkerGlobalScope::SetTimeout(const nsAString& aHandler,
                               const int32_t aTimeout,
-                              const Sequence<JS::Value>& /* unused */,
                               ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
@@ -215,10 +213,8 @@ WorkerGlobalScope::SetInterval(JSContext* aCx,
 }
 
 int32_t
-WorkerGlobalScope::SetInterval(JSContext* /* unused */,
-                               const nsAString& aHandler,
+WorkerGlobalScope::SetInterval(const nsAString& aHandler,
                                const Optional<int32_t>& aTimeout,
-                               const Sequence<JS::Value>& /* unused */,
                                ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();

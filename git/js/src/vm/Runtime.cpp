@@ -109,14 +109,13 @@ static const JSWrapObjectCallbacks DefaultWrapObjectCallbacks = {
     nullptr
 };
 
-JSRuntime::JSRuntime(JSRuntime *parentRuntime, JSUseHelperThreads useHelperThreads)
+JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
   : JS::shadow::Runtime(
 #ifdef JSGC_GENERATIONAL
         &gcStoreBuffer
 #endif
     ),
     mainThread(this),
-    parentRuntime(parentRuntime),
     interrupt(false),
 #if defined(JS_THREADSAFE) && defined(JS_ION)
     interruptPar(false),
@@ -276,12 +275,8 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime, JSUseHelperThreads useHelperThrea
     activeCompilations_(0),
     keepAtoms_(0),
     trustedPrincipals_(nullptr),
-    beingDestroyed_(false),
-    atoms_(nullptr),
     atomsCompartment_(nullptr),
-    staticStrings(nullptr),
-    commonNames(nullptr),
-    permanentAtoms(nullptr),
+    beingDestroyed_(false),
     wrapObjectCallbacks(&DefaultWrapObjectCallbacks),
     preserveWrapperCallback(nullptr),
 #ifdef DEBUG
@@ -311,6 +306,7 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime, JSUseHelperThreads useHelperThrea
     JS_INIT_CLIST(&onNewGlobalObjectWatchers);
 
     PodZero(&debugHooks);
+    PodZero(&atomState);
     PodArrayZero(nativeStackQuota);
     PodZero(&asmJSCacheOps);
 
@@ -393,6 +389,9 @@ JSRuntime::init(uint32_t maxbytes)
     atomsZone.forget();
     this->atomsCompartment_ = atomsCompartment.forget();
 
+    if (!InitAtoms(this))
+        return false;
+
     if (!scriptDataTable_.init())
         return false;
 
@@ -420,10 +419,6 @@ JSRuntime::init(uint32_t maxbytes)
 #ifdef JS_ION
     signalHandlersInstalled_ = EnsureAsmJSSignalHandlersInstalled(this);
 #endif
-
-    if (!spsProfiler.init())
-        return false;
-
     return true;
 }
 
@@ -445,6 +440,9 @@ JSRuntime::~JSRuntime()
             CancelOffThreadIonCompile(comp, nullptr);
         CancelOffThreadParses(this);
 
+        /* Poison common names before final GC. */
+        FinishCommonNames(this);
+
         /* Clear debugging state to remove GC roots. */
         for (CompartmentsIter comp(this, SkipAtoms); !comp.done(); comp.next()) {
             comp->clearTraps(defaultFreeOp());
@@ -452,8 +450,8 @@ JSRuntime::~JSRuntime()
                 wpmap->clear();
         }
 
-        /* Clear atoms to remove GC roots and heap allocations. */
-        finishAtoms();
+        /* Clear the statics table to remove GC roots. */
+        staticStrings.finish();
 
         /*
          * Flag us as being destroyed. This allows the GC to free things like
@@ -513,6 +511,7 @@ JSRuntime::~JSRuntime()
 #if !EXPOSE_INTL_API
     FinishRuntimeNumberState(this);
 #endif
+    FinishAtoms(this);
 
     js_FinishGC(this);
     atomsCompartment_ = nullptr;
@@ -583,13 +582,7 @@ JSRuntime::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::Runtim
 
     rtSizes->object += mallocSizeOf(this);
 
-    rtSizes->atomsTable += atoms().sizeOfIncludingThis(mallocSizeOf);
-
-    if (!parentRuntime) {
-        rtSizes->atomsTable += mallocSizeOf(staticStrings);
-        rtSizes->atomsTable += mallocSizeOf(commonNames);
-        rtSizes->atomsTable += permanentAtoms->sizeOfIncludingThis(mallocSizeOf);
-    }
+    rtSizes->atomsTable += atoms().sizeOfExcludingThis(mallocSizeOf);
 
     for (ContextIter acx(this); !acx.done(); acx.next())
         rtSizes->contexts += acx->sizeOfIncludingThis(mallocSizeOf);

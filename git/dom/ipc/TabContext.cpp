@@ -172,7 +172,7 @@ TabContext::SetTabContextForAppFrame(mozIApplication* aOwnApp,
 
   uint32_t containingAppId = NO_APP_ID;
   if (aAppFrameOwnerApp) {
-    nsresult rv = aAppFrameOwnerApp->GetLocalId(&containingAppId);
+    nsresult rv = aOwnApp->GetLocalId(&containingAppId);
     NS_ENSURE_SUCCESS(rv, false);
     NS_ENSURE_TRUE(containingAppId != NO_APP_ID, false);
   }

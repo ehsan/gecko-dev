@@ -83,15 +83,18 @@ public:
              JS::Handle<JS::Value> aContextOptions,
              ErrorResult& aRv);
   void ToDataURL(JSContext* aCx, const nsAString& aType,
-                 JS::Handle<JS::Value> aParams,
+                 const Optional<JS::Handle<JS::Value> >& aParams,
                  nsAString& aDataURL, ErrorResult& aRv)
   {
-    aRv = ToDataURL(aType, aParams, aCx, aDataURL);
+    JS::Handle<JS::Value> params = aParams.WasPassed()
+                                 ? aParams.Value()
+                                 : JS::UndefinedHandleValue;
+    aRv = ToDataURL(aType, params, aCx, aDataURL);
   }
   void ToBlob(JSContext* aCx,
               FileCallback& aCallback,
               const nsAString& aType,
-              JS::Handle<JS::Value> aParams,
+              const Optional<JS::Handle<JS::Value> >& aParams,
               ErrorResult& aRv);
 
   bool MozOpaque() const
