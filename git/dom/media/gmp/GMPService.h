@@ -90,7 +90,6 @@ protected:
   void ReAddOnGMPThread(nsRefPtr<GMPParent>& aOld);
 private:
   GMPParent* ClonePlugin(const GMPParent* aOriginal);
-  nsresult EnsurePluginsOnDiskScanned();
 
   class PathRunnable : public nsRunnable
   {

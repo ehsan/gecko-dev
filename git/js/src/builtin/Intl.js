@@ -52,19 +52,6 @@ function toASCIIUpperCase(s) {
     return result;
 }
 
-/**
- * Holder object for encapsulating regexp instances.
- *
- * Regular expression instances should be created after the initialization of
- * self-hosted global.
- */
-var internalIntlRegExps = std_Object_create(null);
-internalIntlRegExps.unicodeLocaleExtensionSequenceRE = null;
-internalIntlRegExps.languageTagRE = null;
-internalIntlRegExps.duplicateVariantRE = null;
-internalIntlRegExps.duplicateSingletonRE = null;
-internalIntlRegExps.isWellFormedCurrencyCodeRE = null;
-internalIntlRegExps.currencyDigitsRE = null;
 
 /**
  * Regular expression matching a "Unicode locale extension sequence", which the
@@ -78,11 +65,8 @@ internalIntlRegExps.currencyDigitsRE = null;
  *
  * Spec: ECMAScript Internationalization API Specification, 6.2.1.
  */
-function getUnicodeLocaleExtensionSequenceRE() {
-    return internalIntlRegExps.unicodeLocaleExtensionSequenceRE ||
-           (internalIntlRegExps.unicodeLocaleExtensionSequenceRE =
-            regexp_construct_no_statics("-u(-[a-z0-9]{2,8})+"));
-}
+var unicodeLocaleExtensionSequence = "-u(-[a-z0-9]{2,8})+";
+var unicodeLocaleExtensionSequenceRE = new RegExp(unicodeLocaleExtensionSequence);
 
 
 /**
@@ -92,7 +76,6 @@ function removeUnicodeExtensions(locale) {
     // Don't use std_String_replace directly with a regular expression,
     // as that would set RegExp statics.
     var extensions;
-    var unicodeLocaleExtensionSequenceRE = getUnicodeLocaleExtensionSequenceRE();
     while ((extensions = regexp_exec_no_statics(unicodeLocaleExtensionSequenceRE, locale)) !== null) {
         locale = callFunction(std_String_replace, locale, extensions[0], "");
         unicodeLocaleExtensionSequenceRE.lastIndex = 0;
@@ -106,10 +89,7 @@ function removeUnicodeExtensions(locale) {
  *
  * Spec: RFC 5646 section 2.1.
  */
-function getLanguageTagRE() {
-    if (internalIntlRegExps.languageTagRE)
-        return internalIntlRegExps.languageTagRE;
-
+var languageTagRE = (function () {
     // RFC 5234 section B.1
     // ALPHA          =  %x41-5A / %x61-7A   ; A-Z / a-z
     var ALPHA = "[a-zA-Z]";
@@ -192,15 +172,11 @@ function getLanguageTagRE() {
     var languageTag = "^(?:" + langtag + "|" + privateuse + "|" + grandfathered + ")$";
 
     // Language tags are case insensitive (RFC 5646 section 2.1.1).
-    return (internalIntlRegExps.languageTagRE =
-            regexp_construct_no_statics(languageTag, "i"));
-}
+    return new RegExp(languageTag, "i");
+}());
 
 
-function getDuplicateVariantRE() {
-    if (internalIntlRegExps.duplicateVariantRE)
-        return internalIntlRegExps.duplicateVariantRE;
-
+var duplicateVariantRE = (function () {
     // RFC 5234 section B.1
     // ALPHA          =  %x41-5A / %x61-7A   ; A-Z / a-z
     var ALPHA = "[a-zA-Z]";
@@ -235,15 +211,11 @@ function getDuplicateVariantRE() {
     // Language tags are case insensitive (RFC 5646 section 2.1.1), but for
     // this regular expression that's covered by having its character classes
     // list both upper- and lower-case characters.
-    return (internalIntlRegExps.duplicateVariantRE =
-            regexp_construct_no_statics(duplicateVariant));
-}
+    return new RegExp(duplicateVariant);
+}());
 
 
-function getDuplicateSingletonRE() {
-    if (internalIntlRegExps.duplicateSingletonRE)
-        return internalIntlRegExps.duplicateSingletonRE;
-
+var duplicateSingletonRE = (function () {
     // RFC 5234 section B.1
     // ALPHA          =  %x41-5A / %x61-7A   ; A-Z / a-z
     var ALPHA = "[a-zA-Z]";
@@ -277,9 +249,8 @@ function getDuplicateSingletonRE() {
     // Language tags are case insensitive (RFC 5646 section 2.1.1), but for
     // this regular expression that's covered by having its character classes
     // list both upper- and lower-case characters.
-    return (internalIntlRegExps.duplicateSingletonRE =
-            regexp_construct_no_statics(duplicateSingleton));
-}
+    return new RegExp(duplicateSingleton);
+}());
 
 
 /**
@@ -290,7 +261,6 @@ function getDuplicateSingletonRE() {
  */
 function IsStructurallyValidLanguageTag(locale) {
     assert(typeof locale === "string", "IsStructurallyValidLanguageTag");
-    var languageTagRE = getLanguageTagRE();
     if (!regexp_test_no_statics(languageTagRE, locale))
         return false;
 
@@ -304,8 +274,6 @@ function IsStructurallyValidLanguageTag(locale) {
         locale = callFunction(std_String_substring, locale, 0, pos);
 
     // Check for duplicate variant or singleton subtags.
-    var duplicateVariantRE = getDuplicateVariantRE();
-    var duplicateSingletonRE = getDuplicateSingletonRE();
     return !regexp_test_no_statics(duplicateVariantRE, locale) &&
            !regexp_test_no_statics(duplicateSingletonRE, locale);
 }
@@ -484,17 +452,12 @@ function DefaultLocale() {
  *
  * Spec: ECMAScript Internationalization API Specification, 6.3.1.
  */
-function getIsWellFormedCurrencyCodeRE() {
-    return internalIntlRegExps.isWellFormedCurrencyCodeRE ||
-           (internalIntlRegExps.isWellFormedCurrencyCodeRE =
-            regexp_construct_no_statics("[^A-Z]"));
-}
 function IsWellFormedCurrencyCode(currency) {
     var c = ToString(currency);
     var normalized = toASCIIUpperCase(c);
     if (normalized.length !== 3)
         return false;
-    return !regexp_test_no_statics(getIsWellFormedCurrencyCodeRE(), normalized);
+    return !regexp_test_no_statics(/[^A-Z]/, normalized);
 }
 
 
@@ -608,7 +571,6 @@ function LookupMatcher(availableLocales, requestedLocales) {
     if (availableLocale !== undefined) {
         result.locale = availableLocale;
         if (locale !== noExtensionsLocale) {
-            var unicodeLocaleExtensionSequenceRE = getUnicodeLocaleExtensionSequenceRE();
             var extensionMatch = regexp_exec_no_statics(unicodeLocaleExtensionSequenceRE, locale);
             var extension = extensionMatch[0];
             var extensionIndex = extensionMatch.index;
@@ -1769,14 +1731,9 @@ var currencyDigits = {
  *
  * Spec: ECMAScript Internationalization API Specification, 11.1.1.
  */
-function getCurrencyDigitsRE() {
-    return internalIntlRegExps.currencyDigitsRE ||
-           (internalIntlRegExps.currencyDigitsRE =
-            regexp_construct_no_statics("^[A-Z]{3}$"));
-}
 function CurrencyDigits(currency) {
     assert(typeof currency === "string", "CurrencyDigits");
-    assert(regexp_test_no_statics(getCurrencyDigitsRE(), currency), "CurrencyDigits");
+    assert(regexp_test_no_statics(/^[A-Z]{3}$/, currency), "CurrencyDigits");
 
     if (callFunction(std_Object_hasOwnProperty, currencyDigits, currency))
         return currencyDigits[currency];

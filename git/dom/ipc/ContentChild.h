@@ -304,8 +304,6 @@ public:
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType,
                                           const nsString& aData) MOZ_OVERRIDE;
 
-    virtual bool RecvLoadProcessScript(const nsString& aURL) MOZ_OVERRIDE;
-
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData,
                                   InfallibleTArray<CpowEntry>&& aCpows,

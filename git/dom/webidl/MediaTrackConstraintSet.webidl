@@ -23,9 +23,9 @@ enum SupportedAudioConstraints {
 };
 
 dictionary MediaTrackConstraintSet {
-    ConstrainLong width;
-    ConstrainLong height;
-    ConstrainDouble frameRate;
+    ConstrainLongRange width;
+    ConstrainLongRange height;
+    ConstrainDoubleRange frameRate;
     ConstrainDOMString facingMode;
     DOMString mediaSource = "camera";
     long long browserWindow;
@@ -34,5 +34,4 @@ dictionary MediaTrackConstraintSet {
 
 typedef (long or ConstrainLongRange) ConstrainLong;
 typedef (double or ConstrainDoubleRange) ConstrainDouble;
-typedef (boolean or ConstrainBooleanParameters) ConstrainBoolean;
-typedef (DOMString or sequence<DOMString> or ConstrainDOMStringParameters) ConstrainDOMString;
+typedef (DOMString or sequence<DOMString>) ConstrainDOMString;

@@ -49,7 +49,7 @@ public:
     SetHTMLIntAttr(nsGkAtoms::rowspan, aRowSpan, aError);
   }
   //already_AddRefed<nsDOMSettableTokenList> Headers() const;
-  void GetHeaders(DOMString& aHeaders)
+  void GetHeaders(nsString& aHeaders)
   {
     GetHTMLAttr(nsGkAtoms::headers, aHeaders);
   }
@@ -59,7 +59,7 @@ public:
   }
   int32_t CellIndex() const;
 
-  void GetAbbr(DOMString& aAbbr)
+  void GetAbbr(nsString& aAbbr)
   {
     GetHTMLAttr(nsGkAtoms::abbr, aAbbr);
   }
@@ -67,7 +67,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::abbr, aAbbr, aError);
   }
-  void GetScope(DOMString& aScope)
+  void GetScope(nsString& aScope)
   {
     GetHTMLAttr(nsGkAtoms::scope, aScope);
   }
@@ -75,12 +75,12 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::scope, aScope, aError);
   }
-  void GetAlign(DOMString& aAlign);
+  void GetAlign(nsString& aAlign);
   void SetAlign(const nsAString& aAlign, ErrorResult& aError)
   {
     SetHTMLAttr(nsGkAtoms::align, aAlign, aError);
   }
-  void GetAxis(DOMString& aAxis)
+  void GetAxis(nsString& aAxis)
   {
     GetHTMLAttr(nsGkAtoms::axis, aAxis);
   }
@@ -88,7 +88,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::axis, aAxis, aError);
   }
-  void GetHeight(DOMString& aHeight)
+  void GetHeight(nsString& aHeight)
   {
     GetHTMLAttr(nsGkAtoms::height, aHeight);
   }
@@ -96,7 +96,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::height, aHeight, aError);
   }
-  void GetWidth(DOMString& aWidth)
+  void GetWidth(nsString& aWidth)
   {
     GetHTMLAttr(nsGkAtoms::width, aWidth);
   }
@@ -104,7 +104,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::width, aWidth, aError);
   }
-  void GetCh(DOMString& aCh)
+  void GetCh(nsString& aCh)
   {
     GetHTMLAttr(nsGkAtoms::_char, aCh);
   }
@@ -112,7 +112,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::_char, aCh, aError);
   }
-  void GetChOff(DOMString& aChOff)
+  void GetChOff(nsString& aChOff)
   {
     GetHTMLAttr(nsGkAtoms::charoff, aChOff);
   }
@@ -128,7 +128,7 @@ public:
   {
     SetHTMLBoolAttr(nsGkAtoms::nowrap, aNoWrap, aError);
   }
-  void GetVAlign(DOMString& aVAlign)
+  void GetVAlign(nsString& aVAlign)
   {
     GetHTMLAttr(nsGkAtoms::valign, aVAlign);
   }
@@ -136,7 +136,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::valign, aVAlign, aError);
   }
-  void GetBgColor(DOMString& aBgColor)
+  void GetBgColor(nsString& aBgColor)
   {
     GetHTMLAttr(nsGkAtoms::bgcolor, aBgColor);
   }

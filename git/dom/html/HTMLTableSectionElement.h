@@ -29,7 +29,7 @@ public:
     InsertRow(int32_t aIndex, ErrorResult& aError);
   void DeleteRow(int32_t aValue, ErrorResult& aError);
 
-  void GetAlign(DOMString& aAlign)
+  void GetAlign(nsString& aAlign)
   {
     GetHTMLAttr(nsGkAtoms::align, aAlign);
   }
@@ -37,7 +37,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::align, aAlign, aError);
   }
-  void GetCh(DOMString& aCh)
+  void GetCh(nsString& aCh)
   {
     GetHTMLAttr(nsGkAtoms::_char, aCh);
   }
@@ -45,7 +45,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::_char, aCh, aError);
   }
-  void GetChOff(DOMString& aChOff)
+  void GetChOff(nsString& aChOff)
   {
     GetHTMLAttr(nsGkAtoms::charoff, aChOff);
   }
@@ -53,7 +53,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::charoff, aChOff, aError);
   }
-  void GetVAlign(DOMString& aVAlign)
+  void GetVAlign(nsString& aVAlign)
   {
     GetHTMLAttr(nsGkAtoms::valign, aVAlign);
   }

@@ -11,6 +11,7 @@
  */
 
 dictionary MediaTrackConstraints : MediaTrackConstraintSet {
+    sequence<DOMString> require;
     sequence<MediaTrackConstraintSet> advanced;
 };
 

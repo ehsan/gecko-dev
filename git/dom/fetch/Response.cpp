@@ -190,23 +190,19 @@ Response::Constructor(const GlobalObject& aGlobal,
   return r.forget();
 }
 
+// FIXME(nsm): Bug 1073231: This is currently unspecced!
 already_AddRefed<Response>
-Response::Clone(ErrorResult& aRv) const
+Response::Clone()
 {
-  if (BodyUsed()) {
-    aRv.ThrowTypeError(MSG_FETCH_BODY_CONSUMED_ERROR);
-    return nullptr;
-  }
-
-  nsRefPtr<InternalResponse> ir = mInternalResponse->Clone();
-  nsRefPtr<Response> response = new Response(mOwner, ir);
+  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(mOwner);
+  nsRefPtr<Response> response = new Response(global, mInternalResponse);
   return response.forget();
 }
 
 void
 Response::SetBody(nsIInputStream* aBody)
 {
-  MOZ_ASSERT(!BodyUsed());
+  // FIXME(nsm): Do we flip bodyUsed here?
   mInternalResponse->SetBody(aBody);
 }
 

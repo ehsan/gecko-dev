@@ -29,25 +29,11 @@ enum MediaSourceEnum {
 };
 
 dictionary ConstrainLongRange {
-    long min;
-    long max;
-    long exact;
-    long ideal;
+    long min = -2147483647; // +1 works around windows compiler bug
+    long max = 2147483647;
 };
 
 dictionary ConstrainDoubleRange {
-    double min;
-    double max;
-    double exact;
-    double ideal;
-};
-
-dictionary ConstrainBooleanParameters {
-    boolean exact;
-    boolean ideal;
-};
-
-dictionary ConstrainDOMStringParameters {
-    (DOMString or sequence<DOMString>) exact;
-    (DOMString or sequence<DOMString>) ideal;
+    unrestricted double min = -Infinity;
+    unrestricted double max = Infinity;
 };

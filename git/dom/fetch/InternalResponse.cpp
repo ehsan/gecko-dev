@@ -8,7 +8,6 @@
 #include "nsIDOMFile.h"
 
 #include "mozilla/dom/InternalHeaders.h"
-#include "nsStreamUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -23,7 +22,7 @@ InternalResponse::InternalResponse(uint16_t aStatus, const nsACString& aStatusTe
 }
 
 // Headers are not copied since BasicResponse and CORSResponse both need custom
-// header handling.  Body is not copied as it cannot be shared directly.
+// header handling.
 InternalResponse::InternalResponse(const InternalResponse& aOther)
   : mType(aOther.mType)
   , mTerminationReason(aOther.mTerminationReason)
@@ -31,33 +30,9 @@ InternalResponse::InternalResponse(const InternalResponse& aOther)
   , mFinalURL(aOther.mFinalURL)
   , mStatus(aOther.mStatus)
   , mStatusText(aOther.mStatusText)
+  , mBody(aOther.mBody)
   , mContentType(aOther.mContentType)
 {
-}
-
-already_AddRefed<InternalResponse>
-InternalResponse::Clone()
-{
-  nsRefPtr<InternalResponse> clone = new InternalResponse(*this);
-  clone->mHeaders = new InternalHeaders(*mHeaders);
-
-  if (!mBody) {
-    return clone.forget();
-  }
-
-  nsCOMPtr<nsIInputStream> clonedBody;
-  nsCOMPtr<nsIInputStream> replacementBody;
-
-  nsresult rv = NS_CloneInputStream(mBody, getter_AddRefs(clonedBody),
-                                    getter_AddRefs(replacementBody));
-  if (NS_WARN_IF(NS_FAILED(rv))) { return nullptr; }
-
-  clone->mBody.swap(clonedBody);
-  if (replacementBody) {
-    mBody.swap(replacementBody);
-  }
-
-  return clone.forget();
 }
 
 // static
@@ -68,7 +43,6 @@ InternalResponse::BasicResponse(InternalResponse* aInner)
   nsRefPtr<InternalResponse> basic = new InternalResponse(*aInner);
   basic->mType = ResponseType::Basic;
   basic->mHeaders = InternalHeaders::BasicHeaders(aInner->mHeaders);
-  basic->mBody.swap(aInner->mBody);
   return basic.forget();
 }
 
@@ -80,7 +54,6 @@ InternalResponse::CORSResponse(InternalResponse* aInner)
   nsRefPtr<InternalResponse> cors = new InternalResponse(*aInner);
   cors->mType = ResponseType::Cors;
   cors->mHeaders = InternalHeaders::CORSHeaders(aInner->mHeaders);
-  cors->mBody.swap(aInner->mBody);
   return cors.forget();
 }
 

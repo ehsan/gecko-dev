@@ -23,8 +23,7 @@ interface Request {
   readonly attribute RequestCredentials credentials;
   readonly attribute RequestCache cache;
 
-  [Throws,
-   NewObject] Request clone();
+  [NewObject] Request clone();
 
   // Bug 1124638 - Allow chrome callers to set the context.
   [ChromeOnly]

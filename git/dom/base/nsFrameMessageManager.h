@@ -54,7 +54,7 @@ class MessageManagerCallback
 public:
   virtual ~MessageManagerCallback() {}
 
-  virtual bool DoLoadMessageManagerScript(const nsAString& aURL, bool aRunInGlobalScope)
+  virtual bool DoLoadFrameScript(const nsAString& aURL, bool aRunInGlobalScope)
   {
     return true;
   }
@@ -154,7 +154,6 @@ private:
 class nsFrameMessageManager MOZ_FINAL : public nsIContentFrameMessageManager,
                                         public nsIMessageBroadcaster,
                                         public nsIFrameScriptLoader,
-                                        public nsIProcessScriptLoader,
                                         public nsIProcessChecker
 {
   friend class mozilla::dom::MessageManagerReporter;
@@ -218,10 +217,8 @@ public:
   NS_DECL_NSIMESSAGESENDER
   NS_DECL_NSIMESSAGEBROADCASTER
   NS_DECL_NSISYNCMESSAGESENDER
-  NS_DECL_NSIMESSAGEMANAGERGLOBAL
   NS_DECL_NSICONTENTFRAMEMESSAGEMANAGER
   NS_DECL_NSIFRAMESCRIPTLOADER
-  NS_DECL_NSIPROCESSSCRIPTLOADER
   NS_DECL_NSIPROCESSCHECKER
 
   static nsFrameMessageManager*
@@ -276,10 +273,6 @@ public:
   {
     return sChildProcessManager;
   }
-  static void SetChildProcessManager(nsFrameMessageManager* aManager)
-  {
-    sChildProcessManager = aManager;
-  }
 private:
   nsresult SendMessage(const nsAString& aMessageName,
                        JS::Handle<JS::Value> aJSON,
@@ -289,13 +282,6 @@ private:
                        uint8_t aArgc,
                        JS::MutableHandle<JS::Value> aRetval,
                        bool aIsSync);
-
-  NS_IMETHOD LoadScript(const nsAString& aURL,
-                        bool aAllowDelayedLoad,
-                        bool aRunInGlobalScope);
-  NS_IMETHOD RemoveDelayedScript(const nsAString& aURL);
-  NS_IMETHOD GetDelayedScripts(JSContext* aCx, JS::MutableHandle<JS::Value> aList);
-
 protected:
   friend class MMListenerRemover;
   // We keep the message listeners as arrays in a hastable indexed by the
@@ -320,10 +306,10 @@ protected:
                           nsFrameMessageManager* aChildMM);
 public:
   static nsFrameMessageManager* sParentProcessManager;
+  static nsFrameMessageManager* sChildProcessManager;
   static nsFrameMessageManager* sSameProcessParentManager;
   static nsTArray<nsCOMPtr<nsIRunnable> >* sPendingSameProcessAsyncMessages;
 private:
-  static nsFrameMessageManager* sChildProcessManager;
   enum ProcessCheckerType {
     PROCESS_CHECKER_PERMISSION,
     PROCESS_CHECKER_MANIFEST_URL,
@@ -375,16 +361,14 @@ private:
 
 class nsScriptCacheCleaner;
 
-struct nsMessageManagerScriptHolder
+struct nsFrameScriptObjectExecutorHolder
 {
-  nsMessageManagerScriptHolder(JSContext* aCx,
-                               JSScript* aScript,
-                               bool aRunInGlobalScope)
+  nsFrameScriptObjectExecutorHolder(JSContext* aCx, JSScript* aScript, bool aRunInGlobalScope)
    : mScript(aCx, aScript), mRunInGlobalScope(aRunInGlobalScope)
-  { MOZ_COUNT_CTOR(nsMessageManagerScriptHolder); }
+  { MOZ_COUNT_CTOR(nsFrameScriptObjectExecutorHolder); }
 
-  ~nsMessageManagerScriptHolder()
-  { MOZ_COUNT_DTOR(nsMessageManagerScriptHolder); }
+  ~nsFrameScriptObjectExecutorHolder()
+  { MOZ_COUNT_DTOR(nsFrameScriptObjectExecutorHolder); }
 
   bool WillRunInGlobalScope() { return mRunInGlobalScope; }
 
@@ -392,7 +376,9 @@ struct nsMessageManagerScriptHolder
   bool mRunInGlobalScope;
 };
 
-class nsMessageManagerScriptExecutor
+class nsFrameScriptObjectExecutorStackHolder;
+
+class nsFrameScriptExecutor
 {
 public:
   static void Shutdown();
@@ -402,24 +388,24 @@ public:
     return ref.forget();
   }
 protected:
-  friend class nsMessageManagerScriptCx;
-  nsMessageManagerScriptExecutor() { MOZ_COUNT_CTOR(nsMessageManagerScriptExecutor); }
-  ~nsMessageManagerScriptExecutor() { MOZ_COUNT_DTOR(nsMessageManagerScriptExecutor); }
+  friend class nsFrameScriptCx;
+  nsFrameScriptExecutor() { MOZ_COUNT_CTOR(nsFrameScriptExecutor); }
+  ~nsFrameScriptExecutor() { MOZ_COUNT_DTOR(nsFrameScriptExecutor); }
 
   void DidCreateGlobal();
-  void LoadScriptInternal(const nsAString& aURL, bool aRunInGlobalScope);
+  void LoadFrameScriptInternal(const nsAString& aURL, bool aRunInGlobalScope);
   void TryCacheLoadAndCompileScript(const nsAString& aURL,
                                     bool aRunInGlobalScope,
                                     bool aShouldCache,
                                     JS::MutableHandle<JSScript*> aScriptp);
   void TryCacheLoadAndCompileScript(const nsAString& aURL,
                                     bool aRunInGlobalScope);
-  bool InitChildGlobalInternal(nsISupports* aScope, const nsACString& aID);
+  bool InitTabChildGlobalInternal(nsISupports* aScope, const nsACString& aID);
   nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobal;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsAutoTArray<JS::Heap<JSObject*>, 2> mAnonymousGlobalScopes;
 
-  static nsDataHashtable<nsStringHashKey, nsMessageManagerScriptHolder*>* sCachedScripts;
+  static nsDataHashtable<nsStringHashKey, nsFrameScriptObjectExecutorHolder*>* sCachedScripts;
   static nsScriptCacheCleaner* sScriptCacheCleaner;
 };
 
@@ -440,7 +426,7 @@ class nsScriptCacheCleaner MOZ_FINAL : public nsIObserver
                         const char *aTopic,
                         const char16_t *aData) MOZ_OVERRIDE
   {
-    nsMessageManagerScriptExecutor::Shutdown();
+    nsFrameScriptExecutor::Shutdown();
     return NS_OK;
   }
 };

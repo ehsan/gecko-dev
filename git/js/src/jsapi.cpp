@@ -403,9 +403,6 @@ JS_Init(void)
     if (!CreateHelperThreadsState())
         return false;
 
-    if (!FutexRuntime::initialize())
-        return false;
-
     jsInitState = Running;
     return true;
 }
@@ -424,8 +421,6 @@ JS_ShutDown(void)
                 "TIME.  FIX THIS!\n");
     }
 #endif
-
-    FutexRuntime::destroy();
 
     DestroyHelperThreadsState();
 
@@ -509,6 +504,18 @@ JS_PUBLIC_API(void)
 JS_SetRuntimePrivate(JSRuntime *rt, void *data)
 {
     rt->data = data;
+}
+
+JS_PUBLIC_API(JS::PerRuntimeFutexAPI *)
+JS::GetRuntimeFutexAPI(JSRuntime *rt)
+{
+    return rt->futexAPI_;
+}
+
+JS_PUBLIC_API(void)
+JS::SetRuntimeFutexAPI(JSRuntime *rt, JS::PerRuntimeFutexAPI *fx)
+{
+    rt->futexAPI_ = fx;
 }
 
 static void

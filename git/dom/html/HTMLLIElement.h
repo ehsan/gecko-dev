@@ -38,7 +38,7 @@ public:
   virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // WebIDL API
-  void GetType(DOMString& aType)
+  void GetType(nsString& aType)
   {
     GetHTMLAttr(nsGkAtoms::type, aType);
   }
