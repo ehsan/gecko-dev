@@ -87,7 +87,8 @@ SVGFELeafFrame::Init(nsIContent* aContent,
                      nsIFrame* aParent,
                      nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eFILTER),
+  nsCOMPtr<nsIDOMSVGFilterPrimitiveStandardAttributes> elem = do_QueryInterface(aContent);
+  NS_ASSERTION(elem,
                "Trying to construct an SVGFELeafFrame for a "
                "content element that doesn't support the right interfaces");
 

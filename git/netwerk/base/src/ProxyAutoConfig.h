@@ -37,7 +37,7 @@ public:
                 const nsCString &aPACScript);
   void     Shutdown();
   void     GC();
-  bool     MyIPAddress(JS::Value *vp);
+  bool     MyIPAddress(jsval *vp);
   bool     ResolveAddress(const nsCString &aHostName,
                           NetAddr *aNetAddr, unsigned int aTimeout);
 
@@ -87,7 +87,7 @@ private:
 
   bool SrcAddress(const NetAddr *remoteAddress, nsCString &localAddress);
   bool MyIPAddressTryHost(const nsCString &hostName, unsigned int timeout,
-                          JS::Value *vp);
+                          jsval *vp);
 
   JSRuntimeWrapper *mJSRuntime;
   bool              mJSNeedsSetup;

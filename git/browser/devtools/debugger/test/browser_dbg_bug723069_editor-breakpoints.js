@@ -273,18 +273,9 @@ function test()
 
       let iframe = gEditor.editorElement;
       let testWin = iframe.ownerDocument.defaultView;
-
       // flush the layout for the iframe
       info("rect " + iframe.contentDocument.documentElement.getBoundingClientRect());
-
-      let utils = testWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                  .getInterface(Ci.nsIDOMWindowUtils);
-
-      let rect = iframe.getBoundingClientRect();
-      let left = rect.left + 10;
-      let top = rect.top + 70;
-      utils.sendMouseEventToWindow("mousedown", left, top, 0, 1, 0, false, 0, 0);
-      utils.sendMouseEventToWindow("mouseup", left, top, 0, 1, 0, false, 0, 0);
+      EventUtils.synthesizeMouse(iframe, 10, 70, {}, testWin);
     });
 
   }

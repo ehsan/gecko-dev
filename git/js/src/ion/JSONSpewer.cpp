@@ -178,7 +178,7 @@ JSONSpewer::init(const char *path)
 }
 
 void
-JSONSpewer::beginFunction(RawScript script)
+JSONSpewer::beginFunction(UnrootedScript script)
 {
     if (inFunction_)
         endFunction();

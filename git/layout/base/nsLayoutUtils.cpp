@@ -3771,14 +3771,10 @@ GraphicsFilter
 nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
   GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
-  nsStyleContext *sc;
-  if (nsCSSRendering::IsCanvasFrame(aForFrame)) {
-    nsCSSRendering::FindBackground(aForFrame, &sc);
-  } else {
-    sc = aForFrame->StyleContext();
-  }
+  nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
+    nsCSSRendering::FindBackgroundStyleFrame(aForFrame) : aForFrame;
 
-  switch (sc->StyleSVG()->mImageRendering) {
+  switch (frame->StyleSVG()->mImageRendering) {
   case NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED:
     return gfxPattern::FILTER_FAST;
   case NS_STYLE_IMAGE_RENDERING_OPTIMIZEQUALITY:
@@ -4323,7 +4319,8 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
   }
 
   nsStyleContext* bgSC;
-  if (!nsCSSRendering::FindBackground(aBackgroundFrame, &bgSC)) {
+  if (!nsCSSRendering::FindBackground(aBackgroundFrame->PresContext(),
+                                      aBackgroundFrame, &bgSC)) {
     return eTransparencyTransparent;
   }
   const nsStyleBackground* bg = bgSC->StyleBackground();

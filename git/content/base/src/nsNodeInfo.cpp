@@ -24,6 +24,7 @@
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "nsAutoPtr.h"
+#include NEW_H
 #include "prprf.h"
 #include "nsIDocument.h"
 #include "nsGkAtoms.h"

@@ -19,6 +19,7 @@ EXPORT_LIBRARY  = 1
 
 EXPORTS = nsBrowserComponents.h
 
+XPIDL_MODULE = browsercomps
 
 XPIDLSRCS = nsIShellService.idl
 

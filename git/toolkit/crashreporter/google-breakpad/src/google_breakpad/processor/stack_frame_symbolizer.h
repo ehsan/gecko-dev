@@ -56,13 +56,13 @@ class StackFrameSymbolizer {
   enum SymbolizerResult {
     // Symbol data was found and successfully loaded in resolver.
     // This does NOT guarantee source line info is found within symbol file.
-    kNoError,
+    NO_ERROR,
     // This indicates non-critical error, such as, no code module found for
     // frame's instruction, no symbol file, or resolver failed to load symbol.
-    kError,
+    ERROR,
     // This indicates error for which stack walk should be interrupted
     // and retried in future.
-    kInterrupt
+    INTERRUPT
   };
 
   StackFrameSymbolizer(SymbolSupplier* supplier,

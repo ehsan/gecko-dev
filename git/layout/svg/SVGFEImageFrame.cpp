@@ -10,10 +10,8 @@
 #include "nsLiteralString.h"
 #include "nsSVGEffects.h"
 #include "nsSVGFilters.h"
-#include "mozilla/dom/SVGFEImageElement.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 typedef nsFrame SVGFEImageFrameBase;
 
@@ -129,7 +127,7 @@ SVGFEImageFrame::AttributeChanged(int32_t  aNameSpaceID,
                                   nsIAtom* aAttribute,
                                   int32_t  aModType)
 {
-  SVGFEImageElement *element = static_cast<SVGFEImageElement*>(mContent);
+  nsSVGFEImageElement *element = static_cast<nsSVGFEImageElement*>(mContent);
   if (element->AttributeAffectsRendering(aNameSpaceID, aAttribute)) {
     nsSVGEffects::InvalidateRenderingObservers(this);
   }
@@ -141,7 +139,7 @@ SVGFEImageFrame::AttributeChanged(int32_t  aNameSpaceID,
       return NS_OK;
     }
 
-    if (element->mStringAttributes[SVGFEImageElement::HREF].IsExplicitlySet()) {
+    if (element->mStringAttributes[nsSVGFEImageElement::HREF].IsExplicitlySet()) {
       element->LoadSVGImage(true, true);
     } else {
       element->CancelImageRequests(true);

@@ -32,17 +32,17 @@ ShapeHasher::match(const Key k, const Lookup &l)
     return k->matches(l);
 }
 
-RawShape
+UnrootedShape
 PropertyTree::newShape(JSContext *cx)
 {
-    RawShape shape = js_NewGCShape(cx);
+    UnrootedShape shape = js_NewGCShape(cx);
     if (!shape)
         JS_ReportOutOfMemory(cx);
     return shape;
 }
 
 static KidsHash *
-HashChildren(RawShape kid1, RawShape kid2)
+HashChildren(UnrootedShape kid1, UnrootedShape kid2)
 {
     KidsHash *hash = js_new<KidsHash>();
     if (!hash || !hash->init(2)) {
@@ -56,7 +56,7 @@ HashChildren(RawShape kid1, RawShape kid2)
 }
 
 bool
-PropertyTree::insertChild(JSContext *cx, RawShape parent, RawShape child)
+PropertyTree::insertChild(JSContext *cx, UnrootedShape parent, UnrootedShape child)
 {
     JS_ASSERT(!parent->inDictionary());
     JS_ASSERT(!child->parent);
@@ -73,7 +73,7 @@ PropertyTree::insertChild(JSContext *cx, RawShape parent, RawShape child)
     }
 
     if (kidp->isShape()) {
-        RawShape shape = kidp->toShape();
+        UnrootedShape shape = kidp->toShape();
         JS_ASSERT(shape != child);
         JS_ASSERT(!shape->matches(child));
 
@@ -97,7 +97,7 @@ PropertyTree::insertChild(JSContext *cx, RawShape parent, RawShape child)
 }
 
 void
-Shape::removeChild(RawShape child)
+Shape::removeChild(UnrootedShape child)
 {
     JS_ASSERT(!child->inDictionary());
     JS_ASSERT(child->parent == this);
@@ -127,11 +127,13 @@ Shape::removeChild(RawShape child)
     }
 }
 
-RawShape
+UnrootedShape
 PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const StackShape &child)
 {
+    AssertCanGC();
+
     {
-        RawShape shape = NULL;
+        UnrootedShape shape = NULL;
 
         JS_ASSERT(parent_);
 
@@ -145,7 +147,7 @@ PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const Sta
          */
         KidsPointer *kidp = &parent_->kids;
         if (kidp->isShape()) {
-            RawShape kid = kidp->toShape();
+            UnrootedShape kid = kidp->toShape();
             if (kid->matches(child))
                 shape = kid;
         } else if (kidp->isHash()) {
@@ -187,14 +189,14 @@ PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const Sta
     StackShape::AutoRooter childRoot(cx, &child);
     RootedShape parent(cx, parent_);
 
-    RawShape shape = newShape(cx);
+    UnrootedShape shape = newShape(cx);
     if (!shape)
-        return NULL;
+        return UnrootedShape(NULL);
 
     new (shape) Shape(child, nfixed);
 
     if (!insertChild(cx, parent, shape))
-        return NULL;
+        return UnrootedShape(NULL);
 
     return shape;
 }
@@ -241,7 +243,7 @@ Shape::finalize(FreeOp *fop)
 #ifdef DEBUG
 
 void
-KidsPointer::checkConsistency(RawShape aKid) const
+KidsPointer::checkConsistency(UnrootedShape aKid) const
 {
     if (isShape()) {
         JS_ASSERT(toShape() == aKid);
@@ -326,7 +328,7 @@ Shape::dumpSubtree(JSContext *cx, int level, FILE *fp) const
     if (!kids.isNull()) {
         ++level;
         if (kids.isShape()) {
-            RawShape kid = kids.toShape();
+            UnrootedShape kid = kids.toShape();
             JS_ASSERT(kid->parent == this);
             kid->dumpSubtree(cx, level, fp);
         } else {

@@ -138,7 +138,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         // IonMonkey does not guarantee |f.arguments| can be
         // fully recovered, so we try to mitigate observing this behavior by
         // detecting its use early.
-        RawScript script = iter.script();
+        UnrootedScript script = iter.script();
         ion::ForbidCompilation(cx, script);
 #endif
 
@@ -456,6 +456,8 @@ js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, M
 JSObject *
 js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
 {
+    AssertCanGC();
+
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
     RootedFunction clone(cx, NewFunction(cx, NullPtr(), NULL, 0,
@@ -615,6 +617,7 @@ FindBody(JSContext *cx, HandleFunction fun, StableCharPtr chars, size_t length,
 JSString *
 js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lambdaParen)
 {
+    AssertCanGC();
     StringBuffer out(cx);
     RootedScript script(cx);
 
@@ -1110,6 +1113,8 @@ js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 fun_isGenerator(JSContext *cx, unsigned argc, Value *vp)
 {
+    AutoAssertNoGC nogc;
+
     RawFunction fun;
     if (!IsFunctionObject(vp[1], &fun)) {
         JS_SET_RVAL(cx, vp, BooleanValue(false));
@@ -1118,7 +1123,7 @@ fun_isGenerator(JSContext *cx, unsigned argc, Value *vp)
 
     bool result = false;
     if (fun->hasScript()) {
-        RawScript script = fun->nonLazyScript();
+        UnrootedScript script = fun->nonLazyScript();
         JS_ASSERT(script->length != 0);
         result = script->isGenerator;
     }
@@ -1471,6 +1476,7 @@ js::NewFunction(JSContext *cx, HandleObject funobjArg, Native native, unsigned n
 JSFunction *
 js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, gc::AllocKind allocKind)
 {
+    AssertCanGC();
     JS_ASSERT(parent);
     JS_ASSERT(!fun->isBoundFunction());
 

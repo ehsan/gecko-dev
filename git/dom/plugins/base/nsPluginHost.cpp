@@ -8,7 +8,6 @@
 #include "nscore.h"
 #include "nsPluginHost.h"
 
-#include <cstdlib>
 #include <stdio.h>
 #include "prio.h"
 #include "prmem.h"

@@ -40,13 +40,13 @@ Debug_SetSlotRangeToCrashOnTouch(HeapSlot *begin, HeapSlot *end)
 
 } // namespace js
 
-inline js::RawShape
+inline js::UnrootedShape
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyId pid)
 {
     return nativeLookup(cx, pid.asId());
 }
 
-inline js::RawShape
+inline js::UnrootedShape
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyName *name)
 {
     return nativeLookup(cx, NameToId(name));
@@ -314,7 +314,7 @@ js::ObjectImpl::dynamicSlotsCount(uint32_t nfixed, uint32_t span)
 inline size_t
 js::ObjectImpl::sizeOfThis() const
 {
-    return js::gc::Arena::thingSize(getAllocKind());
+    return arenaHeader()->getThingSize();
 }
 
 /* static */ inline void

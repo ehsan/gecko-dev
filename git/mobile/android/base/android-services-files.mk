@@ -34,8 +34,6 @@ SYNC_JAVA_FILES := \
   background/common/log/writers/StringLogWriter.java \
   background/common/log/writers/TagLogWriter.java \
   background/common/log/writers/ThreadLocalTagLogWriter.java \
-  background/db/CursorDumper.java \
-  background/db/Tab.java \
   sync/AlreadySyncingException.java \
   sync/CollectionKeys.java \
   sync/CommandProcessor.java \
@@ -251,6 +249,7 @@ SYNC_JAVA_FILES := \
   sync/stage/ServerSyncStage.java \
   sync/stage/SyncClientsEngineStage.java \
   sync/stage/UploadMetaGlobalStage.java \
+  sync/StubActivity.java \
   sync/syncadapter/SyncAdapter.java \
   sync/syncadapter/SyncService.java \
   sync/SyncConfiguration.java \

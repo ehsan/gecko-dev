@@ -27,9 +27,9 @@ NewShortString(JSContext *cx, Latin1Chars chars)
 {
     size_t len = chars.length();
     JS_ASSERT(JSShortString::lengthFits(len));
-    RawInlineString str = JSInlineString::lengthFits(len)
-                          ? JSInlineString::new_<allowGC>(cx)
-                          : JSShortString::new_<allowGC>(cx);
+    UnrootedInlineString str = JSInlineString::lengthFits(len)
+                               ? JSInlineString::new_<allowGC>(cx)
+                               : JSShortString::new_<allowGC>(cx);
     if (!str)
         return NULL;
 
@@ -97,11 +97,17 @@ NewShortString(JSContext *cx, TwoByteChars chars)
 static inline void
 StringWriteBarrierPost(JSRuntime *rt, JSString **strp)
 {
+#ifdef JSGC_GENERATIONAL
+    rt->gcStoreBuffer.putRelocatableCell(reinterpret_cast<gc::Cell **>(strp));
+#endif
 }
 
 static inline void
 StringWriteBarrierPostRemove(JSRuntime *rt, JSString **strp)
 {
+#ifdef JSGC_GENERATIONAL
+    rt->gcStoreBuffer.removeRelocatableCell(reinterpret_cast<gc::Cell **>(strp));
+#endif
 }
 
 } /* namespace js */
@@ -125,6 +131,11 @@ JSString::writeBarrierPre(JSString *str)
 inline void
 JSString::writeBarrierPost(JSString *str, void *addr)
 {
+#ifdef JSGC_GENERATIONAL
+    if (!str)
+        return;
+    str->runtime()->gcStoreBuffer.putCell((Cell **)addr);
+#endif
 }
 
 inline bool
@@ -241,7 +252,7 @@ JSDependentString::new_(JSContext *cx, JSLinearString *baseArg, const jschar *ch
         return str;
     }
 
-    JS::Rooted<JSLinearString*> base(cx, baseArg);
+    js::Rooted<JSLinearString*> base(cx, baseArg);
 
     str = (JSDependentString *)js_NewGCString<js::CanGC>(cx);
     if (!str)
@@ -405,6 +416,7 @@ js::StaticStrings::getInt(int32_t i)
 inline JSLinearString *
 js::StaticStrings::getUnitStringForElement(JSContext *cx, JSString *str, size_t index)
 {
+    AssertCanGC();
     JS_ASSERT(index < str->length());
     const jschar *chars = str->getChars(cx);
     if (!chars)

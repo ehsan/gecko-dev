@@ -1,4 +1,4 @@
-// -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
@@ -24,14 +24,6 @@ function debugClipFlavors(aClip)
 function emptyClipboard() {
   Cc["@mozilla.org/widget/clipboard;1"].getService(Ci.nsIClipboard)
                                        .emptyClipboard(Ci.nsIClipboard.kGlobalClipboard);
-}
-
-function checkContextMenuPositionRange(aElement, aMinLeft, aMaxLeft, aMinTop, aMaxTop) {
-  ok(aElement.left > aMinLeft && aElement.left < aMaxLeft,
-    "Left position is " + aElement.left + ", expected between " + aMinLeft + " and " + aMaxLeft);
-
-  ok(aElement.top > aMinTop && aElement.top < aMaxTop, 
-    "Top position is " + aElement.top + ", expected between " + aMinTop + " and " + aMaxTop);
 }
 
 gTests.push({
@@ -432,7 +424,8 @@ gTests.push({
     // should be visible
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 560, 570, 175, 190);
+    ok(ContextMenuUI._panel.left > 375 && ContextMenuUI._panel.left < 390, "position");
+    ok(ContextMenuUI._panel.top > 235 && ContextMenuUI._panel.top < 245, "position");
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -449,7 +442,8 @@ gTests.push({
     // should be visible
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 560, 570, 95, 110);
+    ok(ContextMenuUI._panel.left > 375 && ContextMenuUI._panel.left < 390, "position");
+    ok(ContextMenuUI._panel.top > 35 && ContextMenuUI._panel.top < 45, "position");
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -466,7 +460,8 @@ gTests.push({
     // should be visible
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 910, 925, 540, 555);
+    ok(ContextMenuUI._panel.left > 730 && ContextMenuUI._panel.left < 745, "position");
+    ok(ContextMenuUI._panel.top > 600 && ContextMenuUI._panel.top < 610, "position");
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -483,7 +478,8 @@ gTests.push({
     // should be visible
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 910, 925, 340, 355);
+    ok(ContextMenuUI._panel.left > 730 && ContextMenuUI._panel.left < 745, "position");
+    ok(ContextMenuUI._panel.top > 400 && ContextMenuUI._panel.top < 410, "position");
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -503,7 +499,8 @@ gTests.push({
     info(ContextMenuUI._panel.left);
     info(ContextMenuUI._panel.top);
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 560, 570, 110, 125);
+    ok(ContextMenuUI._panel.left > 380 && ContextMenuUI._panel.left < 390, "position");
+    ok(ContextMenuUI._panel.top > 170 && ContextMenuUI._panel.top < 185, "position");
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();

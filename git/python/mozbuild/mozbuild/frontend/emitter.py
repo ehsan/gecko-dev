@@ -7,9 +7,8 @@ from __future__ import unicode_literals
 import os
 
 from .data import (
-    ConfigFileSubstitution,
     DirectoryTraversal,
-    VariablePassthru,
+    ConfigFileSubstitution,
     ReaderSummary,
 )
 
@@ -69,14 +68,6 @@ class TreeMetadataEmitter(object):
             sub.output_path = os.path.join(sandbox['OBJDIR'], path)
             sub.relpath = path
             yield sub
-
-        # Proxy some variables as-is until we have richer classes to represent
-        # them. We should aim to keep this set small because it violates the
-        # desired abstraction of the build definition away from makefiles.
-        passthru = VariablePassthru(sandbox)
-
-        if passthru.variables:
-            yield passthru
 
     def _emit_directory_traversal_from_sandbox(self, sandbox):
         o = DirectoryTraversal(sandbox)

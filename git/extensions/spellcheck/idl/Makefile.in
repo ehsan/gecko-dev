@@ -8,6 +8,7 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 MODULE			= spellchecker
+XPIDL_MODULE		= spellchecker
 
 include $(DEPTH)/config/autoconf.mk
 

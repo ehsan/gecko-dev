@@ -172,7 +172,7 @@ void AbortOnBadWrite(int fd, const void *wbuf, size_t count) {
         return;
 
     // Debugging FDs are OK
-    if (IsDebugFile(fd))
+    if (IsDebugFD(fd))
         return;
 
     // For writev we pass NULL in wbuf. We should only get here from
@@ -203,11 +203,6 @@ void AbortOnBadWrite(int fd, const void *wbuf, size_t count) {
 } // anonymous namespace
 
 namespace mozilla {
-
-intptr_t FileDescriptorToID(int aFd) {
-    return aFd;
-}
-
 void PoisonWrite() {
     // Quick sanity check that we don't poison twice.
     static bool WritesArePoisoned = false;

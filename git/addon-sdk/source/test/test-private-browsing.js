@@ -4,29 +4,24 @@
 'use strict';
 
 const { Ci } = require('chrome');
+const { pb, pbUtils, getOwnerWindow } = require('./private-browsing/helper');
 const { merge } = require('sdk/util/object');
 const windows = require('sdk/windows').browserWindows;
 const tabs = require('sdk/tabs');
 const winUtils = require('sdk/window/utils');
-const { isWindowPrivate } = winUtils;
 const { isPrivateBrowsingSupported } = require('sdk/self');
 const { is } = require('sdk/system/xul-app');
 const { isPrivate } = require('sdk/private-browsing');
-const { getOwnerWindow } = require('sdk/private-browsing/window/utils');
-const { LoaderWithHookedConsole } = require("sdk/test/loader");
-const { getMode, isGlobalPBSupported,
-        isWindowPBSupported, isTabPBSupported } = require('sdk/private-browsing/utils');
-const { pb } = require('./private-browsing/helper');
 
 // is global pb is enabled?
-if (isGlobalPBSupported) {
+if (pbUtils.isGlobalPBSupported) {
   merge(module.exports, require('./private-browsing/global'));
 
   exports.testGlobalOnlyOnFirefox = function(test) {
     test.assert(is("Firefox"), "isGlobalPBSupported is only true on Firefox");
   }
 }
-else if (isWindowPBSupported) {
+else if (pbUtils.isWindowPBSupported) {
   merge(module.exports, require('./private-browsing/windows'));
 
   exports.testPWOnlyOnFirefox = function(test) {
@@ -34,7 +29,7 @@ else if (isWindowPBSupported) {
   }
 }
 // only on Fennec
-else if (isTabPBSupported) {
+else if (pbUtils.isTabPBSupported) {
   merge(module.exports, require('./private-browsing/tabs'));
 
   exports.testPTOnlyOnFennec = function(test) {
@@ -43,26 +38,19 @@ else if (isTabPBSupported) {
 }
 
 exports.testIsPrivateDefaults = function(test) {
-  test.assertEqual(isPrivate(), false, 'undefined is not private');
-  test.assertEqual(isPrivate('test'), false, 'strings are not private');
-  test.assertEqual(isPrivate({}), false, 'random objects are not private');
-  test.assertEqual(isPrivate(4), false, 'numbers are not private');
-  test.assertEqual(isPrivate(/abc/), false, 'regex are not private');
-  test.assertEqual(isPrivate(function() {}), false, 'functions are not private');
+  test.assertEqual(pb.isPrivate(), false, 'undefined is not private');
+  test.assertEqual(pb.isPrivate('test'), false, 'strings are not private');
+  test.assertEqual(pb.isPrivate({}), false, 'random objects are not private');
+  test.assertEqual(pb.isPrivate(4), false, 'numbers are not private');
+  test.assertEqual(pb.isPrivate(/abc/), false, 'regex are not private');
+  test.assertEqual(pb.isPrivate(function() {}), false, 'functions are not private');
 };
 
 exports.testWindowDefaults = function(test) {
-  // Ensure that browserWindow still works while being deprecated
-  let { loader, messages } = LoaderWithHookedConsole(module);
-  let windows = loader.require("sdk/windows").browserWindows;
-  test.assertEqual(windows.activeWindow.isPrivateBrowsing, false,
-                   'window is not private browsing by default');
-  test.assertMatches(messages[0].msg, /DEPRECATED.+isPrivateBrowsing/,
-                     'isPrivateBrowsing is deprecated');
-
+  test.assertEqual(windows.activeWindow.isPrivateBrowsing, false, 'window is not private browsing by default');
   let chromeWin = winUtils.getMostRecentBrowserWindow();
-  test.assertEqual(getMode(chromeWin), false);
-  test.assertEqual(isWindowPrivate(chromeWin), false);
+  test.assertEqual(pbUtils.getMode(chromeWin), false);
+  test.assertEqual(pbUtils.isWindowPrivate(chromeWin), false);
 }
 
 // tests for the case where private browsing doesn't exist
@@ -73,7 +61,7 @@ exports.testIsActiveDefault = function(test) {
 
 exports.testIsPrivateBrowsingFalseDefault = function(test) {
   test.assertEqual(isPrivateBrowsingSupported, false,
-  	               'isPrivateBrowsingSupported property is false by default');
+  	               'usePrivateBrowsing property is false by default');
 };
 
 exports.testGetOwnerWindow = function(test) {

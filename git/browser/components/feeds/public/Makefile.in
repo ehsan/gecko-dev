@@ -11,6 +11,7 @@ VPATH   = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE = browser-feeds
+XPIDL_MODULE  = browser-feeds
 
 XPIDLSRCS = nsIFeedResultService.idl nsIWebContentConverterRegistrar.idl nsIFeedWriter.idl
 

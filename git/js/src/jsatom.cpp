@@ -239,13 +239,13 @@ enum OwnCharsBehavior
  * longer owns the memory and this method is responsible for freeing the memory.
  */
 JS_ALWAYS_INLINE
-static RawAtom
+static UnrootedAtom
 AtomizeAndTakeOwnership(JSContext *cx, const jschar *tbchars, size_t length,
                            InternBehavior ib)
 {
     JS_ASSERT(tbchars[length] == 0);
 
-    if (RawAtom s = cx->runtime->staticStrings.lookup(tbchars, length)) {
+    if (UnrootedAtom s = cx->runtime->staticStrings.lookup(tbchars, length)) {
         js_free((void*)tbchars);
         return s;
     }
@@ -260,7 +260,7 @@ AtomizeAndTakeOwnership(JSContext *cx, const jschar *tbchars, size_t length,
     AtomSet::AddPtr p = cx->runtime->atoms.lookupForAdd(lookup);
     SkipRoot skipHash(cx, &p); /* Prevent the hash from being poisoned. */
     if (p) {
-        RawAtom atom = p->asPtr();
+        UnrootedAtom atom = p->asPtr();
         p->setTagged(bool(ib));
         js_free((void*)tbchars);
         return atom;
@@ -268,17 +268,17 @@ AtomizeAndTakeOwnership(JSContext *cx, const jschar *tbchars, size_t length,
 
     AutoEnterAtomsCompartment ac(cx);
 
-    RawFlatString flat = js_NewString<CanGC>(cx, const_cast<jschar*>(tbchars), length);
+    UnrootedFlatString flat = js_NewString<CanGC>(cx, const_cast<jschar*>(tbchars), length);
     if (!flat) {
         js_free((void*)tbchars);
-        return NULL;
+        return UnrootedAtom();
     }
 
-    RawAtom atom = flat->morphAtomizedStringIntoAtom();
+    UnrootedAtom atom = flat->morphAtomizedStringIntoAtom();
 
     if (!cx->runtime->atoms.relookupOrAdd(p, lookup, AtomStateEntry(atom, bool(ib)))) {
         JS_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
-        return NULL;
+        return UnrootedAtom();
     }
 
     return atom;
@@ -287,10 +287,10 @@ AtomizeAndTakeOwnership(JSContext *cx, const jschar *tbchars, size_t length,
 /* |tbchars| must not point into an inline or short string. */
 template <AllowGC allowGC>
 JS_ALWAYS_INLINE
-static RawAtom
+static UnrootedAtom
 AtomizeAndCopyChars(JSContext *cx, const jschar *tbchars, size_t length, InternBehavior ib)
 {
-    if (RawAtom s = cx->runtime->staticStrings.lookup(tbchars, length))
+    if (UnrootedAtom s = cx->runtime->staticStrings.lookup(tbchars, length))
          return s;
 
     /*
@@ -303,31 +303,33 @@ AtomizeAndCopyChars(JSContext *cx, const jschar *tbchars, size_t length, InternB
     AtomSet::AddPtr p = cx->runtime->atoms.lookupForAdd(lookup);
     SkipRoot skipHash(cx, &p); /* Prevent the hash from being poisoned. */
     if (p) {
-        RawAtom atom = p->asPtr();
+        UnrootedAtom atom = p->asPtr();
         p->setTagged(bool(ib));
         return atom;
     }
 
     AutoEnterAtomsCompartment ac(cx);
 
-    RawFlatString flat = js_NewStringCopyN<allowGC>(cx, tbchars, length);
+    UnrootedFlatString flat = js_NewStringCopyN<allowGC>(cx, tbchars, length);
     if (!flat)
-        return NULL;
+        return UnrootedAtom();
 
-    RawAtom atom = flat->morphAtomizedStringIntoAtom();
+    UnrootedAtom atom = flat->morphAtomizedStringIntoAtom();
 
     if (!cx->runtime->atoms.relookupOrAdd(p, lookup, AtomStateEntry(atom, bool(ib)))) {
         JS_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
-        return NULL;
+        return UnrootedAtom();
     }
 
     return atom;
 }
 
 template <AllowGC allowGC>
-RawAtom
+UnrootedAtom
 js::AtomizeString(JSContext *cx, JSString *str, js::InternBehavior ib /* = js::DoNotInternAtom */)
 {
+    AssertCanGC();
+
     if (str->isAtom()) {
         JSAtom &atom = str->asAtom();
         /* N.B. static atoms are effectively always interned. */
@@ -360,15 +362,16 @@ js::AtomizeString(JSContext *cx, JSString *str, js::InternBehavior ib /* = js::D
     return AtomizeAndCopyChars<CanGC>(cx, linear->chars(), linear->length(), ib);
 }
 
-template RawAtom
+template UnrootedAtom
 js::AtomizeString<CanGC>(JSContext *cx, JSString *str, js::InternBehavior ib);
 
-template RawAtom
+template UnrootedAtom
 js::AtomizeString<NoGC>(JSContext *cx, JSString *str, js::InternBehavior ib);
 
-RawAtom
+UnrootedAtom
 js::Atomize(JSContext *cx, const char *bytes, size_t length, InternBehavior ib)
 {
+    AssertCanGC();
     CHECK_REQUEST(cx);
 
     if (!JSString::validateLength(cx, length))
@@ -391,12 +394,12 @@ js::Atomize(JSContext *cx, const char *bytes, size_t length, InternBehavior ib)
 
     jschar *tbcharsZ = InflateString(cx, bytes, &length);
     if (!tbcharsZ)
-        return NULL;
+        return UnrootedAtom();
     return AtomizeAndTakeOwnership(cx, tbcharsZ, length, ib);
 }
 
 template <AllowGC allowGC>
-RawAtom
+UnrootedAtom
 js::AtomizeChars(JSContext *cx, const jschar *chars, size_t length, InternBehavior ib)
 {
     CHECK_REQUEST(cx);
@@ -407,10 +410,10 @@ js::AtomizeChars(JSContext *cx, const jschar *chars, size_t length, InternBehavi
     return AtomizeAndCopyChars<allowGC>(cx, chars, length, ib);
 }
 
-template RawAtom
+template UnrootedAtom
 js::AtomizeChars<CanGC>(JSContext *cx, const jschar *chars, size_t length, InternBehavior ib);
 
-template RawAtom
+template UnrootedAtom
 js::AtomizeChars<NoGC>(JSContext *cx, const jschar *chars, size_t length, InternBehavior ib);
 
 template <AllowGC allowGC>
@@ -465,6 +468,7 @@ template<XDRMode mode>
 bool
 js::XDRAtom(XDRState<mode> *xdr, MutableHandleAtom atomp)
 {
+    AssertCanGC();
     if (mode == XDR_ENCODE) {
         uint32_t nchars = atomp->length();
         if (!xdr->codeUint32(&nchars))

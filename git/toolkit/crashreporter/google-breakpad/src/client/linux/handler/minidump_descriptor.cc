@@ -38,8 +38,7 @@ namespace google_breakpad {
 MinidumpDescriptor::MinidumpDescriptor(const MinidumpDescriptor& descriptor)
     : fd_(descriptor.fd_),
       directory_(descriptor.directory_),
-      c_path_(NULL),
-      size_limit_(descriptor.size_limit_) {
+      c_path_(NULL) {
   // The copy constructor is not allowed to be called on a MinidumpDescriptor
   // with a valid path_, as getting its c_path_ would require the heap which
   // can cause problems in compromised environments.
@@ -58,7 +57,6 @@ MinidumpDescriptor& MinidumpDescriptor::operator=(
     c_path_ = NULL;
     UpdatePath();
   }
-  size_limit_ = descriptor.size_limit_;
   return *this;
 }
 

@@ -54,6 +54,7 @@ IonFrameIterator::checkInvalidation() const
 bool
 IonFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
 {
+    AutoAssertNoGC nogc;
     uint8_t *returnAddr = returnAddressToFp();
     RawScript script = this->script();
     // N.B. the current IonScript is not the same as the frame's
@@ -154,9 +155,10 @@ IonFrameIterator::isEntryJSFrame() const
     return true;
 }
 
-RawScript
+UnrootedScript
 IonFrameIterator::script() const
 {
+    AutoAssertNoGC nogc;
     JS_ASSERT(isScripted());
     RawScript script = ScriptFromCalleeToken(calleeToken());
     JS_ASSERT(script);
@@ -247,6 +249,7 @@ IonFrameIterator::machineState() const
 static void
 CloseLiveIterator(JSContext *cx, const InlineFrameIterator &frame, uint32_t localSlot)
 {
+    AssertCanGC();
     SnapshotIterator si = frame.snapshotIterator();
 
     // Skip stack slots until we reach the iterator object.
@@ -268,6 +271,7 @@ CloseLiveIterator(JSContext *cx, const InlineFrameIterator &frame, uint32_t loca
 static void
 CloseLiveIterators(JSContext *cx, const InlineFrameIterator &frame)
 {
+    AssertCanGC();
     RootedScript script(cx, frame.script());
     jsbytecode *pc = frame.pc();
 
@@ -298,6 +302,7 @@ CloseLiveIterators(JSContext *cx, const InlineFrameIterator &frame)
 void
 ion::HandleException(ResumeFromException *rfe)
 {
+    AssertCanGC();
     JSContext *cx = GetIonContext()->cx;
 
     IonSpew(IonSpew_Invalidate, "handling exception");
@@ -318,6 +323,7 @@ ion::HandleException(ResumeFromException *rfe)
                 // When profiling, each frame popped needs a notification that
                 // the function has exited, so invoke the probe that a function
                 // is exiting.
+                AutoAssertNoGC nogc;
                 RawScript script = frames.script();
                 Probes::exitScript(cx, script, script->function(), NULL);
                 if (!frames.more())
@@ -417,7 +423,7 @@ MarkCalleeToken(JSTracer *trc, CalleeToken token)
       }
       case CalleeToken_Script:
       {
-        RawScript script = CalleeTokenToScript(token);
+        UnrootedScript script = CalleeTokenToScript(token);
         MarkScriptRoot(trc, &script, "ion-entry");
         JS_ASSERT(script == CalleeTokenToScript(token));
         break;
@@ -928,6 +934,7 @@ InlineFrameIterator::InlineFrameIterator(JSContext *cx, const InlineFrameIterato
 void
 InlineFrameIterator::findNextFrame()
 {
+    AutoAssertNoGC nogc;
     JS_ASSERT(more());
 
     si_ = start_;
@@ -1175,6 +1182,7 @@ struct DumpOp {
 void
 InlineFrameIterator::dump() const
 {
+    AutoAssertNoGC nogc;
     if (more())
         fprintf(stderr, " JS frame (inlined)\n");
     else

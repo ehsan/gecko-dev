@@ -2871,7 +2871,7 @@ RadioInterfaceLayer.prototype = {
   },
 
   _contactUpdateCallbacks: null,
-  updateICCContact: function updateICCContact(contactType, contact, pin2, callback) {
+  updateICCContact: function updateICCContact(contactType, contact, callback) {
     if (!this._contactUpdateCallbacks) {
       this._contactUpdateCallbacks = {};
     }
@@ -2880,7 +2880,6 @@ RadioInterfaceLayer.prototype = {
     this.worker.postMessage({rilMessageType: "updateICCContact",
                              contactType: contactType,
                              contact: contact,
-                             pin2: pin2,
                              requestId: requestId});
   },
 };

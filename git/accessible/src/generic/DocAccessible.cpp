@@ -705,7 +705,11 @@ DocAccessible::AddEventListeners()
       commandManager->AddCommandObserver(this, "obs_documentCreated");
   }
 
-  SelectionMgr()->AddDocSelectionListener(mPresShell);
+  a11y::RootAccessible* rootAccessible = RootAccessible();
+  NS_ENSURE_TRUE(rootAccessible, NS_ERROR_FAILURE);
+  nsRefPtr<nsCaretAccessible> caretAccessible = rootAccessible->GetCaretAccessible();
+  if (caretAccessible)
+    caretAccessible->AddDocSelectionListener(mPresShell);
 
   // Add document observer.
   mDocumentNode->AddObserver(this);
@@ -747,7 +751,13 @@ DocAccessible::RemoveEventListeners()
     NS_RELEASE_THIS(); // Kung fu death grip
   }
 
-  SelectionMgr()->RemoveDocSelectionListener(mPresShell);
+  a11y::RootAccessible* rootAccessible = RootAccessible();
+  if (rootAccessible) {
+    nsRefPtr<nsCaretAccessible> caretAccessible = rootAccessible->GetCaretAccessible();
+    if (caretAccessible)
+      caretAccessible->RemoveDocSelectionListener(mPresShell);
+  }
+
   return NS_OK;
 }
 

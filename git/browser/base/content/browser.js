@@ -6403,20 +6403,20 @@ function warnAboutClosingWindow() {
   // Figure out if there's at least one other browser window around.
   let e = Services.wm.getEnumerator("navigator:browser");
   let otherPBWindowExists = false;
-  let nonPopupPresent = false;
+  let warnAboutClosingTabs = false;
   while (e.hasMoreElements()) {
     let win = e.getNext();
     if (win != window) {
       if (isPBWindow && PrivateBrowsingUtils.isWindowPrivate(win))
         otherPBWindowExists = true;
       if (win.toolbar.visible)
-        nonPopupPresent = true;
+        warnAboutClosingTabs = true;
       // If the current window is not in private browsing mode we don't need to 
       // look for other pb windows, we can leave the loop when finding the 
       // first non-popup window. If however the current window is in private 
       // browsing mode then we need at least one other pb and one non-popup 
       // window to break out early.
-      if ((!isPBWindow || otherPBWindowExists) && nonPopupPresent)
+      if ((!isPBWindow || otherPBWindowExists) && warnAboutClosingTabs)
         break;
     }
   }
@@ -6431,8 +6431,7 @@ function warnAboutClosingWindow() {
     if (exitingCanceled.data)
       return false;
   }
-
-  if (!isPBWindow && nonPopupPresent)
+  if (warnAboutClosingTabs)
     return gBrowser.warnAboutClosingTabs(true);
 
   let os = Services.obs;
@@ -6450,7 +6449,7 @@ function warnAboutClosingWindow() {
   // OS X doesn't quit the application when the last window is closed, but keeps
   // the session alive. Hence don't prompt users to save tabs, but warn about
   // closing multiple tabs.
-  return isPBWindow || gBrowser.warnAboutClosingTabs(true);
+  return gBrowser.warnAboutClosingTabs(true);
 #else
   return true;
 #endif

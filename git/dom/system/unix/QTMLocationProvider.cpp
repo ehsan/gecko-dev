@@ -6,6 +6,8 @@
 #include "QTMLocationProvider.h"
 #include "nsGeoPosition.h"
 
+using namespace QtMobility;
+
 using namespace mozilla;
 
 NS_IMPL_ISUPPORTS1(QTMLocationProvider, nsIGeolocationProvider)

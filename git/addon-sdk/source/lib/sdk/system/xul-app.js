@@ -39,20 +39,18 @@ var ids = exports.ids = {
   Thunderbird: "{3550f703-e582-4d05-9a08-453d09bdfdc6}"
 };
 
-function is(name) {
+var is = exports.is = function is(name) {
   if (!(name in ids))
     throw new Error("Unkown Mozilla Application: " + name);
   return ID == ids[name];
 };
-exports.is = is;
 
-function isOneOf(names) {
+var isOneOf = exports.isOneOf = function isOneOf(names) {
   for (var i = 0; i < names.length; i++)
     if (is(names[i]))
       return true;
   return false;
 };
-exports.isOneOf = isOneOf;
 
 /**
  * Use this to check whether the given version (e.g. xulApp.platformVersion)

@@ -48,7 +48,7 @@ class CFIFrameInfo;
 
 class SourceLineResolverInterface {
  public:
-  typedef uint64_t MemAddr;
+  typedef u_int64_t MemAddr;
 
   virtual ~SourceLineResolverInterface() {}
 

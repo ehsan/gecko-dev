@@ -289,7 +289,7 @@ private:
 
   bool AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread,
                   bool privateSQL);
-  bool GetSQLStats(JSContext *cx, JS::Value *ret, bool includePrivateSql);
+  bool GetSQLStats(JSContext *cx, jsval *ret, bool includePrivateSql);
 
   // Like GetHistogramById, but returns the underlying C++ object, not the JS one.
   nsresult GetHistogramByName(const nsACString &name, Histogram **ret);
@@ -615,14 +615,14 @@ IsEmpty(const Histogram *h)
 }
 
 JSBool
-JSHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
+JSHistogram_Add(JSContext *cx, unsigned argc, jsval *vp)
 {
   if (!argc) {
     JS_ReportError(cx, "Expected one argument");
     return JS_FALSE;
   }
 
-  JS::Value v = JS_ARGV(cx, vp)[0];
+  jsval v = JS_ARGV(cx, vp)[0];
 
   if (!(JSVAL_IS_NUMBER(v) || JSVAL_IS_BOOLEAN(v))) {
     JS_ReportError(cx, "Not a number");
@@ -647,7 +647,7 @@ JSHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
 }
 
 JSBool
-JSHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
+JSHistogram_Snapshot(JSContext *cx, unsigned argc, jsval *vp)
 {
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
   if (!obj) {
@@ -676,7 +676,7 @@ JSHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
 }
 
 JSBool
-JSHistogram_Clear(JSContext *cx, unsigned argc, JS::Value *vp)
+JSHistogram_Clear(JSContext *cx, unsigned argc, jsval *vp)
 {
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
   if (!obj) {
@@ -689,7 +689,7 @@ JSHistogram_Clear(JSContext *cx, unsigned argc, JS::Value *vp)
 }
 
 nsresult 
-WrapAndReturnHistogram(Histogram *h, JSContext *cx, JS::Value *ret)
+WrapAndReturnHistogram(Histogram *h, JSContext *cx, jsval *ret)
 {
   static JSClass JSHistogram_class = {
     "JSHistogram",  /* name */
@@ -974,9 +974,7 @@ TelemetryImpl::~TelemetryImpl() {
 }
 
 NS_IMETHODIMP
-TelemetryImpl::NewHistogram(const nsACString &name, uint32_t min, uint32_t max,
-                            uint32_t bucketCount, uint32_t histogramType,
-                            JSContext *cx, JS::Value *ret)
+TelemetryImpl::NewHistogram(const nsACString &name, uint32_t min, uint32_t max, uint32_t bucketCount, uint32_t histogramType, JSContext *cx, jsval *ret)
 {
   Histogram *h;
   nsresult rv = HistogramGet(PromiseFlatCString(name).get(), min, max, bucketCount, histogramType, &h);
@@ -997,8 +995,8 @@ TelemetryImpl::ReflectSQL(const SlowSQLEntryType *entry,
     return true;
 
   const nsACString &sql = entry->GetKey();
-  JS::Value hitCount = UINT_TO_JSVAL(stat->hitCount);
-  JS::Value totalTime = UINT_TO_JSVAL(stat->totalTime);
+  jsval hitCount = UINT_TO_JSVAL(stat->hitCount);
+  jsval totalTime = UINT_TO_JSVAL(stat->totalTime);
 
   JSObject *arrayObj = JS_NewArrayObject(cx, 0, nullptr);
   if (!arrayObj) {
@@ -1097,7 +1095,7 @@ TelemetryImpl::GetHistogramByName(const nsACString &name, Histogram **ret)
 
 NS_IMETHODIMP
 TelemetryImpl::HistogramFrom(const nsACString &name, const nsACString &existing_name,
-                             JSContext *cx, JS::Value *ret)
+                             JSContext *cx, jsval *ret)
 {
   Histogram *existing;
   nsresult rv = GetHistogramByName(existing_name, &existing);
@@ -1237,7 +1235,7 @@ TelemetryImpl::RegisterAddonHistogram(const nsACString &id,
 
 NS_IMETHODIMP
 TelemetryImpl::GetAddonHistogram(const nsACString &id, const nsACString &name,
-                                 JSContext *cx, JS::Value *ret)
+                                 JSContext *cx, jsval *ret)
 {
   AddonEntryType *addonEntry = mAddonMap.GetEntry(id);
   // The given id has not been registered.
@@ -1280,7 +1278,7 @@ TelemetryImpl::UnregisterAddonHistograms(const nsACString &id)
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::Value *ret)
+TelemetryImpl::GetHistogramSnapshots(JSContext *cx, jsval *ret)
 {
   JSObject *root_obj = JS_NewObject(cx, NULL, NULL, NULL);
   if (!root_obj)
@@ -1424,7 +1422,7 @@ TelemetryImpl::AddonReflector(AddonEntryType *entry,
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetAddonHistogramSnapshots(JSContext *cx, JS::Value *ret)
+TelemetryImpl::GetAddonHistogramSnapshots(JSContext *cx, jsval *ret)
 {
   *ret = JSVAL_VOID;
   JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
@@ -1441,7 +1439,7 @@ TelemetryImpl::GetAddonHistogramSnapshots(JSContext *cx, JS::Value *ret)
 }
 
 bool
-TelemetryImpl::GetSQLStats(JSContext *cx, JS::Value *ret, bool includePrivateSql)
+TelemetryImpl::GetSQLStats(JSContext *cx, jsval *ret, bool includePrivateSql)
 {
   JSObject *root_obj = JS_NewObject(cx, NULL, NULL, NULL);
   if (!root_obj)
@@ -1460,7 +1458,7 @@ TelemetryImpl::GetSQLStats(JSContext *cx, JS::Value *ret, bool includePrivateSql
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetSlowSQL(JSContext *cx, JS::Value *ret)
+TelemetryImpl::GetSlowSQL(JSContext *cx, jsval *ret)
 {
   if (GetSQLStats(cx, ret, false))
     return NS_OK;
@@ -1468,7 +1466,7 @@ TelemetryImpl::GetSlowSQL(JSContext *cx, JS::Value *ret)
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetDebugSlowSQL(JSContext *cx, JS::Value *ret)
+TelemetryImpl::GetDebugSlowSQL(JSContext *cx, jsval *ret)
 {
   bool revealPrivateSql =
     Preferences::GetBool("toolkit.telemetry.debugSlowSql", false);
@@ -1478,7 +1476,7 @@ TelemetryImpl::GetDebugSlowSQL(JSContext *cx, JS::Value *ret)
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetChromeHangs(JSContext *cx, JS::Value *ret)
+TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
 {
   MutexAutoLock hangReportMutex(mHangReportsMutex);
 
@@ -1503,7 +1501,7 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, JS::Value *ret)
 
   const size_t length = stacks.GetStackCount();
   for (size_t i = 0; i < length; ++i) {
-    JS::Value duration = INT_TO_JSVAL(mHangReports.GetDuration(i));
+    jsval duration = INT_TO_JSVAL(mHangReports.GetDuration(i));
     if (!JS_SetElement(cx, durationArray, i, &duration)) {
       return NS_ERROR_FAILURE;
     }
@@ -1540,7 +1538,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
     if (!moduleInfoArray) {
       return nullptr;
     }
-    JS::Value val = OBJECT_TO_JSVAL(moduleInfoArray);
+    jsval val = OBJECT_TO_JSVAL(moduleInfoArray);
     if (!JS_SetElement(cx, moduleArray, moduleIndex, &val)) {
       return nullptr;
     }
@@ -1587,7 +1585,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
       return nullptr;
     }
 
-    JS::Value pcArrayVal = OBJECT_TO_JSVAL(pcArray);
+    jsval pcArrayVal = OBJECT_TO_JSVAL(pcArray);
     if (!JS_SetElement(cx, reportArray, i, &pcArrayVal)) {
       return nullptr;
     }
@@ -1602,15 +1600,15 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
       }
       int modIndex = (std::numeric_limits<uint16_t>::max() == frame.mModIndex) ?
         -1 : frame.mModIndex;
-      JS::Value modIndexVal = INT_TO_JSVAL(modIndex);
+      jsval modIndexVal = INT_TO_JSVAL(modIndex);
       if (!JS_SetElement(cx, framePair, 0, &modIndexVal)) {
         return nullptr;
       }
-      JS::Value mOffsetVal = INT_TO_JSVAL(frame.mOffset);
+      jsval mOffsetVal = INT_TO_JSVAL(frame.mOffset);
       if (!JS_SetElement(cx, framePair, 1, &mOffsetVal)) {
         return nullptr;
       }
-      JS::Value framePairVal = OBJECT_TO_JSVAL(framePair);
+      jsval framePairVal = OBJECT_TO_JSVAL(framePair);
       if (!JS_SetElement(cx, pcArray, pcIndex, &framePairVal)) {
         return nullptr;
       }
@@ -1754,7 +1752,7 @@ TelemetryImpl::ReadLateWritesStacks()
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetLateWrites(JSContext *cx, JS::Value *ret)
+TelemetryImpl::GetLateWrites(JSContext *cx, jsval *ret)
 {
   // The user must call AsyncReadTelemetryData first. We return an empty list
   // instead of reporting a failure so that the rest of telemetry can uniformly
@@ -1786,7 +1784,7 @@ TelemetryImpl::GetLateWrites(JSContext *cx, JS::Value *ret)
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetRegisteredHistograms(JSContext *cx, JS::Value *ret)
+TelemetryImpl::GetRegisteredHistograms(JSContext *cx, jsval *ret)
 {
   size_t count = ArrayLength(gHistograms);
   JSObject *info = JS_NewObject(cx, NULL, NULL, NULL);
@@ -1810,7 +1808,7 @@ TelemetryImpl::GetRegisteredHistograms(JSContext *cx, JS::Value *ret)
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetHistogramById(const nsACString &name, JSContext *cx, JS::Value *ret)
+TelemetryImpl::GetHistogramById(const nsACString &name, JSContext *cx, jsval *ret)
 {
   Histogram *h;
   nsresult rv = GetHistogramByName(name, &h);

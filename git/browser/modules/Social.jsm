@@ -33,7 +33,6 @@ Services.obs.addObserver(function xpcomShutdown() {
 }, "xpcom-shutdown", false);
 
 this.Social = {
-  initialized: false,
   lastEventReceived: 0,
   providers: null,
   _disabledForSafeMode: false,
@@ -98,10 +97,9 @@ this.Social = {
   init: function Social_init() {
     this._disabledForSafeMode = Services.appinfo.inSafeMode && this.enabled;
 
-    if (this.initialized) {
+    if (this.providers) {
       return;
     }
-    this.initialized = true;
 
     // Retrieve the current set of providers, and set the current provider.
     SocialService.getProviderList(function (providers) {
@@ -122,12 +120,9 @@ this.Social = {
   _updateProviderCache: function (providers) {
     this.providers = providers;
 
-    // If social is currently disabled there's nothing else to do other than
-    // to notify about the lack of a provider.
-    if (!SocialService.enabled) {
-      Services.obs.notifyObservers(null, "social:provider-set", null);
+    // If social is currently disabled there's nothing else to do.
+    if (!SocialService.enabled)
       return;
-    }
     // Otherwise set the provider.
     this._setProvider(this.defaultProvider);
   },

@@ -9,13 +9,12 @@ module.metadata = {
 
 const { Cc, Ci } = require('chrome');
 const array = require('../util/array');
-const observers = require('../deprecated/observer-service');
-const { defer } = require('sdk/core/promise');
 
 const windowWatcher = Cc['@mozilla.org/embedcomp/window-watcher;1'].
                        getService(Ci.nsIWindowWatcher);
 const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
                         getService(Ci.nsIAppShellService);
+const observers = require('../deprecated/observer-service');
 const WM = Cc['@mozilla.org/appshell/window-mediator;1'].
            getService(Ci.nsIWindowMediator);
 
@@ -24,40 +23,10 @@ const BROWSER = 'navigator:browser',
       NAME = '_blank',
       FEATURES = 'chrome,all,dialog=no';
 
-function isWindowPrivate(win) {
-  if (!win)
-    return false;
-
-  // if the pbService is undefined, the PrivateBrowsingUtils.jsm is available,
-  // and the app is Firefox, then assume per-window private browsing is
-  // enabled.
-  try {
-    return win.QueryInterface(Ci.nsIInterfaceRequestor)
-                  .getInterface(Ci.nsIWebNavigation)
-                  .QueryInterface(Ci.nsILoadContext)
-                  .usePrivateBrowsing;
-  }
-  catch(e) {}
-
-  // Sometimes the input is not a nsIDOMWindow.. but it is still a winodw.
-  try {
-    return !!win.docShell.QueryInterface(Ci.nsILoadContext).usePrivateBrowsing;
-  }
-  catch (e) {}
-
-  return false;
-}
-exports.isWindowPrivate = isWindowPrivate;
-
 function getMostRecentBrowserWindow() {
-  return getMostRecentWindow(BROWSER);
+  return WM.getMostRecentWindow(BROWSER);
 }
 exports.getMostRecentBrowserWindow = getMostRecentBrowserWindow;
-
-function getMostRecentWindow(type) {
-  return WM.getMostRecentWindow(type);
-}
-exports.getMostRecentWindow = getMostRecentWindow;
 
 /**
  * Returns the ID of the window's current inner window.
@@ -138,11 +107,6 @@ exports.backgroundify = backgroundify;
 function serializeFeatures(options) {
   return Object.keys(options).reduce(function(result, name) {
     let value = options[name];
-
-    // the chrome and private features are special
-    if ((name == 'private' || name == 'chrome'))
-      return result + ((value === true) ? ',' + name : '');
-
     return result + ',' + name + '=' +
            (value === true ? 'yes' : value === false ? 'no' : value);
   }, '').substr(1);
@@ -157,54 +121,18 @@ function serializeFeatures(options) {
  * @params {String} options.name
  *    Optional name that is assigned to the window.
  * @params {Object} options.features
- *    Map of key, values like: `{ width: 10, height: 15, chrome: true, private: true }`.
+ *    Map of key, values like: `{ width: 10, height: 15, chrome: true }`.
  */
 function open(uri, options) {
   options = options || {};
-  let newWindow = windowWatcher.
+  return windowWatcher.
     openWindow(options.parent || null,
                uri,
                options.name || null,
                serializeFeatures(options.features || {}),
                options.args || null);
-
-  return newWindow;
 }
 exports.open = open;
-
-function onFocus(window) {
-  let deferred = defer();
-
-  if (isFocused(window)) {
-    deferred.resolve(window);
-  }
-  else {
-    window.addEventListener("focus", function focusListener() {
-      window.removeEventListener("focus", focusListener, true);
-      deferred.resolve(window);
-    }, true);
-  }
-
-  return deferred.promise;
-}
-exports.onFocus = onFocus;
-
-function isFocused(window) {
-  const FM = Cc["@mozilla.org/focus-manager;1"].
-                getService(Ci.nsIFocusManager);
-
-  let childTargetWindow = {};
-  FM.getFocusedElementForWindow(window, true, childTargetWindow);
-  childTargetWindow = childTargetWindow.value;
-
-  let focusedChildWindow = {};
-  if (FM.activeWindow) {
-    FM.getFocusedElementForWindow(FM.activeWindow, true, focusedChildWindow);
-    focusedChildWindow = focusedChildWindow.value;
-  }
-
-  return (focusedChildWindow === childTargetWindow);
-}
 
 /**
  * Opens a top level window and returns it's `nsIDOMWindow` representation.
@@ -221,13 +149,8 @@ function openDialog(options) {
     features = features.split(',').concat('private').join(',');
   }
 
-  let browser = getMostRecentBrowserWindow();
-
-  // if there is no browser then do nothing
-  if (!browser)
-    return undefined;
-
-  let newWindow = browser.openDialog.apply(
+  let browser = WM.getMostRecentWindow(BROWSER);
+  return browser.openDialog.apply(
       browser,
       array.flatten([
         options.url || URI_BROWSER,
@@ -236,8 +159,6 @@ function openDialog(options) {
         options.args || null
       ])
   );
-
-  return newWindow;
 }
 exports.openDialog = openDialog;
 
@@ -245,17 +166,12 @@ exports.openDialog = openDialog;
  * Returns an array of all currently opened windows.
  * Note that these windows may still be loading.
  */
-function windows(type, options) {
-  options = options || {};
+function windows() {
   let list = [];
-  let winEnum = WM.getEnumerator(type);
+  let winEnum = windowWatcher.getWindowEnumerator();
   while (winEnum.hasMoreElements()) {
     let window = winEnum.getNext().QueryInterface(Ci.nsIDOMWindow);
-    // Only add non-private windows when pb permission isn't set,
-    // unless an option forces the addition of them.
-    if (options.includePrivate || !isWindowPrivate(window)) {
-      list.push(window);
-    }
+    list.push(window);
   }
   return list;
 }
@@ -273,11 +189,7 @@ function isDocumentLoaded(window) {
 exports.isDocumentLoaded = isDocumentLoaded;
 
 function isBrowser(window) {
-  try {
-    return window.document.documentElement.getAttribute("windowtype") === BROWSER;
-  }
-  catch (e) {}
-  return false;
+  return window.document.documentElement.getAttribute("windowtype") === BROWSER;
 };
 exports.isBrowser = isBrowser;
 

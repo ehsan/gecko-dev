@@ -531,7 +531,7 @@ function openHealthReport()
  */
 function openFeedbackPage()
 {
-  openUILinkIn("https://input.mozilla.org/feedback", "tab");
+  openUILinkIn("http://input.mozilla.com/feedback", "tab");
 }
 
 function buildHelpMenu()

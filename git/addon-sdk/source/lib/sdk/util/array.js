@@ -87,11 +87,3 @@ exports.flatten = function flatten(array){
    }
    return flat;
 };
-
-function fromIterator(iterator) {
-  let array = [];
-  for each (let item in iterator)
-    array.push(item);
-  return array;
-}
-exports.fromIterator = fromIterator;

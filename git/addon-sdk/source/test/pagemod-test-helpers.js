@@ -8,7 +8,6 @@ const {Cc,Ci} = require("chrome");
 const timer = require("sdk/timers");
 const xulApp = require("sdk/system/xul-app");
 const { Loader } = require("sdk/test/loader");
-const { openTab, getBrowserForTab, closeTab } = require("sdk/tabs/utils");
 
 /**
  * A helper function that creates a PageMod, then opens the specified URL
@@ -41,10 +40,10 @@ exports.testPageMod = function testPageMod(test, testURL, pageModOptions,
 
   var pageMods = [new pageMod.PageMod(opts) for each(opts in pageModOptions)];
 
-  let newTab = openTab(browserWindow, testURL, {
-    inBackground: false
-  });
-  var b = getBrowserForTab(newTab);
+  var tabBrowser = browserWindow.gBrowser;
+  var newTab = tabBrowser.addTab(testURL);
+  tabBrowser.selectedTab = newTab;
+  var b = tabBrowser.getBrowserForTab(newTab);
 
   function onPageLoad() {
     b.removeEventListener("load", onPageLoad, true);
@@ -57,7 +56,7 @@ exports.testPageMod = function testPageMod(test, testURL, pageModOptions,
       function done() {
         pageMods.forEach(function(mod) mod.destroy());
         // XXX leaks reported if we don't close the tab?
-        closeTab(newTab);
+        tabBrowser.removeTab(newTab);
         loader.unload();
         test.done();
       }

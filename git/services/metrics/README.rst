@@ -36,7 +36,7 @@ Metrics.Measurement
 Metrics.Storage
   Persistent SQLite-backed store for collected metrics data and state.
 
-Metrics.ProviderManager
+Metrics.Collector
   High-level entity coordinating activity among several Metrics.Provider
   instances.
 

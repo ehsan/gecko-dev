@@ -2,11 +2,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 'use strict';
  let prefs = Components.classes["@mozilla.org/preferences-service;1"].
       getService(Components.interfaces.nsIPrefBranch);
-
-Cu.import("resource://gre/modules/PageThumbs.jsm");
 
 // singleton to provide data-level functionality to the views
 let TopSites = {
@@ -32,13 +31,10 @@ let TopSites = {
   }
 };
 
-// The value of useThumbs should not be changed over the lifetime of
-//   the object.
-function TopSitesView(aGrid, aMaxSites, aUseThumbnails) {
+function TopSitesView(aGrid, maxSites) {
   this._set = aGrid;
   this._set.controller = this;
-  this._topSitesMax = aMaxSites;
-  this._useThumbs = aUseThumbnails;
+  this._topSitesMax = maxSites;
 
   // handle selectionchange DOM events from the grid/tile group
   this._set.addEventListener("context-action", this, false);
@@ -46,10 +42,6 @@ function TopSitesView(aGrid, aMaxSites, aUseThumbnails) {
   let history = Cc["@mozilla.org/browser/nav-history-service;1"].
                 getService(Ci.nsINavHistoryService);
   history.addObserver(this, false);
-  if (this._useThumbs) {
-    PageThumbs.addExpirationFilter(this);
-    Services.obs.addObserver(this, "Metro:RefreshTopsiteThumbnail", false);
-  }
 }
 
 TopSitesView.prototype = {
@@ -155,24 +147,8 @@ TopSitesView.prototype = {
       item.setAttribute("data-itemid", node[identifier]);
       // here is where we could add verbs based on pinned etc. state
       item.setAttribute("data-contextactions", supportedActions.join(','));
-
-      if (this._useThumbs) {
-        let thumbnail = PageThumbs.getThumbnailURL(uri);
-        let cssthumbnail = 'url("'+thumbnail+'")';
-        item.backgroundImage = cssthumbnail;
-      }
     }
     rootNode.containerOpen = false;
-  },
-
-  forceReloadOfThumbnail: function forceReloadOfThumbnail(url) {
-      let nodes = this._set.querySelectorAll('richgriditem[value="'+url+'"]');
-      for (let item of nodes) {
-        item.refreshBackgroundImage();
-      }
-  },
-  filterForThumbnailExpiration: function filterForThumbnailExpiration(aCallback) {
-    aCallback([item.getAttribute("value") for (item of this._set.children)]);
   },
 
   isFirstRun: function isFirstRun() {
@@ -180,20 +156,9 @@ TopSitesView.prototype = {
   },
 
   destruct: function destruct() {
-    if (this._useThumbs) {
-      Services.obs.removeObserver(this, "Metro:RefreshTopsiteThumbnail");
-      PageThumbs.removeExpirationFilter(this);
-    }
+    // remove the observers here
   },
 
-  // nsIObservers
-  observe: function (aSubject, aTopic, aState) {
-    switch(aTopic) {
-      case "Metro:RefreshTopsiteThumbnail":
-        this.forceReloadOfThumbnail(aState);
-        break;
-    }
-  },
   // nsINavHistoryObserver
 
   onBeginUpdateBatch: function() {
@@ -237,7 +202,7 @@ let TopSitesStartView = {
   get _grid() { return document.getElementById("start-topsites-grid"); },
 
   init: function init() {
-    this._view = new TopSitesView(this._grid, 9, true);
+    this._view = new TopSitesView(this._grid, 9);
     if (this._view.isFirstRun()) {
       let topsitesVbox = document.getElementById("start-topsites");
       topsitesVbox.setAttribute("hidden", "true");

@@ -13,7 +13,6 @@ function getOwnerWindow(thing) {
   try {
     // check for and return associated window
     let fn = (privateNS(thing.prototype) || privateNS(thing) || {}).getOwnerWindow;
-
     if (fn)
       return fn.apply(fn, [thing].concat(arguments));
   }

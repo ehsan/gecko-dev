@@ -72,7 +72,7 @@ NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *values, RawObje
                     NewObjectKind newKind = GenericObject);
 
 /* Get the common shape used by all dense arrays with a prototype at globalObj. */
-extern RawShape
+extern UnrootedShape
 GetDenseArrayShape(JSContext *cx, HandleObject globalObj);
 
 extern JSBool

@@ -1035,7 +1035,7 @@ IsLowerableFunCallOrApply(jsbytecode *pc)
 #endif
 }
 
-RawShape
+UnrootedShape
 GetPICSingleShape(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing);
 
 static inline void
@@ -1075,6 +1075,7 @@ VMFrame::script()
 inline jsbytecode *
 VMFrame::pc()
 {
+    AutoAssertNoGC nogc;
     if (regs.inlined())
         return script()->code + regs.inlined()->pcOffset;
     return regs.pc;

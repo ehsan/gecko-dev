@@ -6,8 +6,9 @@ MARIONETTE_TIMEOUT = 10000;
 SpecialPowers.setBoolPref("dom.sms.enabled", true);
 SpecialPowers.addPermission("sms", true, document);
 
-const REMOTE = "5559997777"; // the remote number
-const EMULATOR = "15555215554"; // the emulator's number
+const REMOTE = "5559997777";
+const REMOTE_FMT = "+15559997777"; // the normalized remote number
+const EMU_FMT = "+15555215554"; // the emulator's number
 
 let sms = window.navigator.mozSms;
 let inText = "Incoming SMS message. Mozilla Firefox OS!";
@@ -39,8 +40,8 @@ function simulateIncomingSms() {
     is(incomingSms.delivery, "received", "delivery");
     is(incomingSms.deliveryStatus, "success", "deliveryStatus");
     is(incomingSms.read, false, "read");
-    is(incomingSms.receiver, EMULATOR, "receiver");
-    is(incomingSms.sender, REMOTE, "sender");
+    is(incomingSms.receiver, EMU_FMT, "receiver");
+    is(incomingSms.sender, REMOTE_FMT, "sender");
     is(incomingSms.messageClass, "normal", "messageClass");
     ok(incomingSms.timestamp instanceof Date, "timestamp is instanceof date");
     inSmsTimeStamp = incomingSms.timestamp;
@@ -66,8 +67,8 @@ function sendSms() {
     is(sentSms.delivery, "sent", "delivery");
     is(sentSms.deliveryStatus, "pending", "deliveryStatus");
     is(sentSms.read, true, "read");
-    is(sentSms.receiver, REMOTE, "receiver");
-    is(sentSms.sender, EMULATOR, "sender");
+    is(sentSms.receiver, REMOTE_FMT, "receiver");
+    is(sentSms.sender, EMU_FMT, "sender");
     is(sentSms.messageClass, "normal", "messageClass");
     ok(sentSms.timestamp instanceof Date, "timestamp is instanceof date");  
     outSmsTimeStamp = sentSms.timestamp;
@@ -115,8 +116,8 @@ function getReceivedSms() {
     is(foundSms.delivery, "received", "delivery");
     is(foundSms.deliveryStatus, "success", "deliveryStatus");
     is(foundSms.read, false, "read");
-    is(foundSms.receiver, EMULATOR, "receiver");
-    is(foundSms.sender, REMOTE, "sender");
+    is(foundSms.receiver, EMU_FMT, "receiver");
+    is(foundSms.sender, REMOTE_FMT, "sender");
     is(foundSms.messageClass, "normal", "messageClass");
     ok(foundSms.timestamp instanceof Date, "timestamp is instanceof date");
     is(foundSms.timestamp.getTime(), inSmsTimeStamp.getTime(), "timestamp matches");
@@ -148,8 +149,8 @@ function getSentSms() {
     is(foundSms.delivery, "sent", "delivery");
     is(foundSms.deliveryStatus, "pending", "deliveryStatus");
     is(foundSms.read, true, "read");
-    is(foundSms.receiver, REMOTE, "receiver");
-    is(foundSms.sender, EMULATOR, "sender");
+    is(foundSms.receiver, REMOTE_FMT, "receiver");
+    is(foundSms.sender, EMU_FMT, "sender");
     is(foundSms.messageClass, "normal", "messageClass");
     ok(foundSms.timestamp instanceof Date, "timestamp is instanceof date");
     is(foundSms.timestamp.getTime(), outSmsTimeStamp.getTime(), "timestamp matches");

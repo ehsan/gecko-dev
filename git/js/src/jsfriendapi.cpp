@@ -846,15 +846,6 @@ JS::DisableIncrementalGC(JSRuntime *rt)
     rt->gcIncrementalEnabled = false;
 }
 
-extern JS_FRIEND_API(void)
-JS::DisableGenerationalGC(JSRuntime *rt)
-{
-    rt->gcGenerationalEnabled = false;
-#ifdef JSGC_GENERATIONAL
-    rt->gcStoreBuffer.disable();
-#endif
-}
-
 JS_FRIEND_API(bool)
 JS::IsIncrementalBarrierNeeded(JSRuntime *rt)
 {

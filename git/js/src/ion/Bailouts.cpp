@@ -74,9 +74,11 @@ IonBailoutIterator::dump() const
     }
 }
 
-static RawScript
+static UnrootedScript
 GetBailedJSScript(JSContext *cx)
 {
+    AutoAssertNoGC nogc;
+
     // Just after the frame conversion, we can safely interpret the ionTop as JS
     // frame because it targets the bailed JS frame converted to an exit frame.
     IonJSFrameLayout *frame = reinterpret_cast<IonJSFrameLayout*>(cx->mainThread().ionTop);
@@ -96,6 +98,7 @@ GetBailedJSScript(JSContext *cx)
 void
 StackFrame::initFromBailout(JSContext *cx, SnapshotIterator &iter)
 {
+    AutoAssertNoGC nogc;
     uint32_t exprStackSlots = iter.slots() - script()->nfixed;
 
 #ifdef TRACK_SNAPSHOTS
@@ -187,6 +190,8 @@ StackFrame::initFromBailout(JSContext *cx, SnapshotIterator &iter)
 static StackFrame *
 PushInlinedFrame(JSContext *cx, StackFrame *callerFrame)
 {
+    AutoAssertNoGC nogc;
+
     // Grab the callee object out of the caller's frame, which has already been restored.
     // N.B. we currently assume that the caller frame is at a JSOP_CALL pc for the caller frames,
     // which will not be the case when we inline getters (in which case it would be a
@@ -226,6 +231,7 @@ PushInlinedFrame(JSContext *cx, StackFrame *callerFrame)
 static uint32_t
 ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
 {
+    AutoAssertNoGC nogc;
     IonSpew(IonSpew_Bailouts, "Bailing out %s:%u, IonScript %p",
             it.script()->filename, it.script()->lineno, (void *) it.ionScript());
     IonSpew(IonSpew_Bailouts, " reading from snapshot offset %u size %u",
@@ -341,6 +347,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
 uint32_t
 ion::Bailout(BailoutStack *sp)
 {
+    AutoAssertNoGC nogc;
     JSContext *cx = GetIonContext()->cx;
     // We don't have an exit frame.
     cx->mainThread().ionTop = NULL;
@@ -363,6 +370,7 @@ ion::Bailout(BailoutStack *sp)
 uint32_t
 ion::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut)
 {
+    AutoAssertNoGC nogc;
     sp->checkInvariants();
 
     JSContext *cx = GetIonContext()->cx;
@@ -474,8 +482,9 @@ ion::ReflowTypeInfo(uint32_t bailoutResult)
 uint32_t
 ion::RecompileForInlining()
 {
+    AutoAssertNoGC nogc;
     JSContext *cx = GetIonContext()->cx;
-    RawScript script = cx->fp()->script();
+    UnrootedScript script = cx->fp()->script();
 
     IonSpew(IonSpew_Inlining, "Recompiling script to inline calls %s:%d", script->filename,
             script->lineno);
@@ -507,7 +516,7 @@ uint32_t
 ion::BoundsCheckFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    RawScript script = GetBailedJSScript(cx);
+    UnrootedScript script = GetBailedJSScript(cx);
 
     IonSpew(IonSpew_Bailouts, "Bounds check failure %s:%d", script->filename,
             script->lineno);
@@ -528,7 +537,7 @@ uint32_t
 ion::ShapeGuardFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    RawScript script = GetBailedJSScript(cx);
+    UnrootedScript script = GetBailedJSScript(cx);
 
     JS_ASSERT(script->hasIonScript());
     JS_ASSERT(!script->ion->invalidated());
@@ -544,7 +553,7 @@ uint32_t
 ion::CachedShapeGuardFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    RawScript script = GetBailedJSScript(cx);
+    UnrootedScript script = GetBailedJSScript(cx);
 
     JS_ASSERT(script->hasIonScript());
     JS_ASSERT(!script->ion->invalidated());

@@ -8,13 +8,13 @@ using namespace google_breakpad;
 // Return true if the specified minidump contains a stream of |stream_type|.
 extern "C"
 NS_EXPORT bool
-DumpHasStream(const char* dump_file, uint32_t stream_type)
+DumpHasStream(const char* dump_file, u_int32_t stream_type)
 {
   Minidump dump(dump_file);
   if (!dump.Read())
     return false;
 
-  uint32_t length;
+  u_int32_t length;
   if (!dump.SeekToStreamType(stream_type, &length) || length == 0)
     return false;
 
@@ -41,8 +41,18 @@ DumpHasInstructionPointerMemory(const char* dump_file)
   if (!context)
     return false;
 
-  uint64_t instruction_pointer;
-  if (!context->GetInstructionPointer(&instruction_pointer)) {
+  u_int64_t instruction_pointer;
+  switch (context->GetContextCPU()) {
+  case MD_CONTEXT_X86:
+    instruction_pointer = context->GetContextX86()->eip;
+    break;
+  case MD_CONTEXT_AMD64:
+    instruction_pointer = context->GetContextAMD64()->rip;
+    break;
+  case MD_CONTEXT_ARM:
+    instruction_pointer = context->GetContextARM()->iregs[15];
+    break;
+  default:
     return false;
   }
 
@@ -80,11 +90,11 @@ DumpCheckMemory(const char* dump_file)
   remove("crash-addr");
 
   MinidumpMemoryRegion* region =
-    memory_list->GetMemoryRegionForAddress(uint64_t(addr));
+    memory_list->GetMemoryRegionForAddress(u_int64_t(addr));
   if(!region)
     return false;
 
-  const uint8_t* chars = region->GetMemory();
+  const u_int8_t* chars = region->GetMemory();
   if (region->GetSize() != 32)
     return false;
 

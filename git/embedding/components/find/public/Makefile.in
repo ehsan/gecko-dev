@@ -11,6 +11,7 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= find
+XPIDL_MODULE	= find
 
 SDK_XPIDLSRCS   = nsIWebBrowserFind.idl \
 		  $(NULL)

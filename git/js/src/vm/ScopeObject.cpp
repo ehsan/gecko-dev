@@ -58,13 +58,13 @@ StaticScopeIter::hasDynamicScopeObject() const
            : obj->toFunction()->isHeavyweight();
 }
 
-RawShape
+UnrootedShape
 StaticScopeIter::scopeShape() const
 {
     JS_ASSERT(hasDynamicScopeObject());
     JS_ASSERT(type() != NAMED_LAMBDA);
     return type() == BLOCK
-           ? block().lastProperty()
+           ? UnrootedShape(block().lastProperty())
            : funScript()->bindings.callObjShape();
 }
 
@@ -83,7 +83,7 @@ StaticScopeIter::block() const
     return obj->asStaticBlock();
 }
 
-RawScript
+UnrootedScript
 StaticScopeIter::funScript() const
 {
     JS_ASSERT(type() == FUNCTION);
@@ -92,7 +92,7 @@ StaticScopeIter::funScript() const
 
 /*****************************************************************************/
 
-RawShape
+UnrootedShape
 js::ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(pc >= script->code && pc < script->code + script->length);
@@ -146,8 +146,7 @@ CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type, Heap
     JS_ASSERT(CanBeFinalizedInBackground(kind, &CallClass));
     kind = gc::GetBackgroundAllocKind(kind);
 
-    JSObject *obj = JSObject::create(cx, kind, GetInitialHeap(GenericObject, &CallClass),
-                                     shape, type, slots);
+    JSObject *obj = JSObject::create(cx, kind, gc::DefaultHeap, shape, type, slots);
     if (!obj)
         return NULL;
     return &obj->asCall();
@@ -202,6 +201,8 @@ CallObject::create(JSContext *cx, HandleScript script, HandleObject enclosing, H
 CallObject *
 CallObject::createForFunction(JSContext *cx, HandleObject enclosing, HandleFunction callee)
 {
+    AssertCanGC();
+
     RootedObject scopeChain(cx, enclosing);
     JS_ASSERT(scopeChain);
 
@@ -222,6 +223,7 @@ CallObject::createForFunction(JSContext *cx, HandleObject enclosing, HandleFunct
 CallObject *
 CallObject::createForFunction(JSContext *cx, AbstractFramePtr frame)
 {
+    AssertCanGC();
     JS_ASSERT(frame.isNonEvalFunctionFrame());
     assertSameCompartment(cx, frame);
 
@@ -242,6 +244,7 @@ CallObject::createForFunction(JSContext *cx, AbstractFramePtr frame)
 CallObject *
 CallObject::createForStrictEval(JSContext *cx, AbstractFramePtr frame)
 {
+    AssertCanGC();
     JS_ASSERT(frame.isStrictEvalFrame());
     JS_ASSERT_IF(frame.isStackFrame(), cx->fp() == frame.asStackFrame());
     JS_ASSERT_IF(frame.isStackFrame(), cx->regs().pc == frame.script()->code);
@@ -655,6 +658,7 @@ ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, Abst
 void
 ClonedBlockObject::copyUnaliasedValues(AbstractFramePtr frame)
 {
+    AutoAssertNoGC nogc;
     StaticBlockObject &block = staticBlock();
     unsigned base = frame.script()->nfixed + block.stackDepth();
     for (unsigned i = 0; i < slotCount(); ++i) {
@@ -683,7 +687,7 @@ StaticBlockObject::create(JSContext *cx)
     return &obj->asStaticBlock();
 }
 
-/* static */ RawShape
+/* static */ UnrootedShape
 StaticBlockObject::addVar(JSContext *cx, Handle<StaticBlockObject*> block, HandleId id,
                           int index, bool *redeclared)
 {
@@ -695,7 +699,7 @@ StaticBlockObject::addVar(JSContext *cx, Handle<StaticBlockObject*> block, Handl
     Shape **spp;
     if (Shape::search(cx, block->lastProperty(), id, &spp, true)) {
         *redeclared = true;
-        return NULL;
+        return UnrootedShape(NULL);
     }
 
     /*
@@ -794,7 +798,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope, Handl
             return false;
 
         for (Shape::Range r(obj->lastProperty()); !r.empty(); r.popFront()) {
-            RawShape shape = &r.front();
+            UnrootedShape shape = &r.front();
             shapes[shape->shortid()] = shape;
         }
 
@@ -1009,6 +1013,7 @@ ScopeIter::operator++()
 void
 ScopeIter::settle()
 {
+    AutoAssertNoGC nogc;
     /*
      * Given an iterator state (cur_, block_), figure out which (potentially
      * optimized) scope the iterator should report. Thus, the result is a pair
@@ -1224,16 +1229,17 @@ class DebugScopeProxy : public BaseProxyHandler
         /* Handle unaliased let and catch bindings at block scope. */
         if (scope->isClonedBlock()) {
             Rooted<ClonedBlockObject *> block(cx, &scope->asClonedBlock());
-            RawShape shape = block->lastProperty()->search(cx, id);
+            UnrootedShape shape = block->lastProperty()->search(cx, id);
             if (!shape)
                 return false;
 
+            AutoAssertNoGC nogc;
             unsigned i = shape->shortid();
             if (block->staticBlock().isAliased(i))
                 return false;
 
             if (maybeframe) {
-                RawScript script = maybeframe.script();
+                UnrootedScript script = maybeframe.script();
                 unsigned local = block->slotToLocalIndex(script->bindings, shape->slot());
                 if (action == GET)
                     *vp = maybeframe.unaliasedLocal(local);
@@ -1286,6 +1292,7 @@ class DebugScopeProxy : public BaseProxyHandler
     static bool checkForMissingArguments(JSContext *cx, jsid id, ScopeObject &scope,
                                          ArgumentsObject **maybeArgsObj)
     {
+        AssertCanGC();
         *maybeArgsObj = NULL;
 
         if (!isArguments(cx, id) || !isFunctionScope(scope))

@@ -52,7 +52,7 @@ using mozilla::ArrayLength;
 
 typedef Rooted<PropertyIteratorObject*> RootedPropertyIteratorObject;
 
-static const gc::AllocKind ITERATOR_FINALIZE_KIND = gc::FINALIZE_OBJECT2_BACKGROUND;
+static const gc::AllocKind ITERATOR_FINALIZE_KIND = gc::FINALIZE_OBJECT2;
 
 void
 NativeIterator::mark(JSTracer *trc)
@@ -385,14 +385,12 @@ NewPropertyIteratorObject(JSContext *cx, unsigned flags)
         if (!type)
             return NULL;
 
-        Class *clasp = &PropertyIteratorObject::class_;
-        RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, NULL, NULL,
-                                                          ITERATOR_FINALIZE_KIND));
+        RootedShape shape(cx, EmptyShape::getInitialShape(cx, &PropertyIteratorObject::class_,
+                                                          NULL, NULL, ITERATOR_FINALIZE_KIND));
         if (!shape)
             return NULL;
 
-        RawObject obj = JSObject::create(cx, ITERATOR_FINALIZE_KIND,
-                                         GetInitialHeap(GenericObject, clasp), shape, type, NULL);
+        RawObject obj = JSObject::create(cx, ITERATOR_FINALIZE_KIND, gc::DefaultHeap, shape, type, NULL);
         if (!obj)
             return NULL;
 
@@ -647,6 +645,7 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
              * currently active.
              */
             {
+                AutoAssertNoGC nogc;
                 RawObject pobj = obj;
                 do {
                     if (!pobj->isNative() ||
@@ -841,8 +840,7 @@ Class PropertyIteratorObject::class_ = {
     "Iterator",
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator) |
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_BACKGROUND_FINALIZE,
+    JSCLASS_HAS_PRIVATE,
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -1503,6 +1501,8 @@ static JSBool
 SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
                 JSGenerator *gen, const Value &arg)
 {
+    AssertCanGC();
+
     if (gen->state == JSGEN_RUNNING || gen->state == JSGEN_CLOSING) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NESTING_GENERATOR);
         return false;

@@ -74,9 +74,6 @@ extern "C" {
 #ifndef EWOULDBLOCK
 #define EWOULDBLOCK  WSAEWOULDBLOCK
 #endif
-#ifndef EINPROGRESS
-#define EINPROGRESS  WSAEINPROGRESS
-#endif
 #define SHUT_RD    1
 #define SHUT_WR    2
 #define SHUT_RDWR  3

@@ -240,7 +240,7 @@ class B2GRemoteAutomation(Automation):
         time.sleep(5)
 
         # relaunch b2g inside b2g instance
-        instance = self.B2GInstance(self._devicemanager, env=env)
+        instance = self.B2GInstance(self._devicemanager)
 
         time.sleep(5)
 
@@ -298,9 +298,8 @@ class B2GRemoteAutomation(Automation):
            automation.
         """
 
-        def __init__(self, dm, env=None):
+        def __init__(self, dm):
             self.dm = dm
-            self.env = env or {}
             self.stdout_proc = None
             self.queue = Queue.Queue()
 
@@ -312,8 +311,6 @@ class B2GRemoteAutomation(Automation):
             if self.dm._deviceSerial:
                 cmd.extend(['-s', self.dm._deviceSerial])
             cmd.append('shell')
-            for k, v in self.env.iteritems():
-                cmd.append("%s=%s" % (k, v))
             cmd.append('/system/bin/b2g.sh')
             proc = threading.Thread(target=self._save_stdout_proc, args=(cmd, self.queue))
             proc.daemon = True

@@ -42,8 +42,8 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
              uint32_t argc,
-             JS::Value* argv,
-             JS::Value* vp,
+             jsval* argv,
+             jsval* vp,
              bool* _retval)
 {
   JSObject* global = JS_GetGlobalForScopeChain(cx);

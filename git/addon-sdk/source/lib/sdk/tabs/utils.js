@@ -8,17 +8,9 @@ module.metadata = {
   'stability': 'unstable'
 };
 
-
-// NOTE: This file should only deal with xul/native tabs
-
-
-const { Ci } = require('chrome');
 const { defer } = require("../lang/functional");
 const { windows, isBrowser } = require('../window/utils');
-const { isPrivateBrowsingSupported } = require('../self');
-
-// Bug 834961: ignore private windows when they are not supported
-function getWindows() windows(null, { includePrivate: isPrivateBrowsingSupported });
+const { Ci } = require('chrome');
 
 function activateTab(tab, window) {
   let gBrowser = getTabBrowserForTab(tab);
@@ -56,7 +48,7 @@ exports.getTabContainer = getTabContainer;
  */
 function getTabs(window) {
   if (arguments.length === 0) {
-    return getWindows().filter(isBrowser).reduce(function(tabs, window) {
+    return windows().filter(isBrowser).reduce(function(tabs, window) {
       return tabs.concat(getTabs(window))
     }, []);
   }
@@ -71,7 +63,7 @@ function getTabs(window) {
 exports.getTabs = getTabs;
 
 function getActiveTab(window) {
-  return getSelectedTab(window);
+  return window.gBrowser.selectedTab;
 }
 exports.getActiveTab = getActiveTab;
 
@@ -87,7 +79,7 @@ exports.getOwnerWindow = getOwnerWindow;
 
 // fennec
 function getWindowHoldingTab(rawTab) {
-  for each (let window in getWindows()) {
+  for each (let window in windows()) {
     // this function may be called when not using fennec,
     // but BrowserApp is only defined on Fennec
     if (!window.BrowserApp)
@@ -113,13 +105,10 @@ function openTab(window, url, options) {
       isPrivate: options.isPrivate || false
     });
   }
-
-  // firefox
-  let newTab = window.gBrowser.addTab(url);
-  if (!options.inBackground) {
-    activateTab(newTab);
-  }
-  return newTab;
+  let tab = window.gBrowser.addTab(url);
+  if (!options.inBackground)
+    activateTab(tab);
+  return tab;
 };
 exports.openTab = openTab;
 
@@ -206,7 +195,6 @@ function getAllTabContentWindows() {
 }
 exports.getAllTabContentWindows = getAllTabContentWindows;
 
-// gets the tab containing the provided window
 function getTabForContentWindow(window) {
   // Retrieve the topmost frame container. It can be either <xul:browser>,
   // <xul:iframe/> or <html:iframe/>. But in our case, it should be xul:browser.
@@ -214,12 +202,9 @@ function getTabForContentWindow(window) {
                    .getInterface(Ci.nsIWebNavigation)
                    .QueryInterface(Ci.nsIDocShell)
                    .chromeEventHandler;
-
   // Is null for toplevel documents
-  if (!browser) {
+  if (!browser)
     return false;
-  }
-
   // Retrieve the owner window, should be browser.xul one
   let chromeWindow = browser.ownerDocument.defaultView;
 
@@ -236,28 +221,14 @@ function getTabForContentWindow(window) {
       return chromeWindow.gBrowser.tabs[i];
     return null;
   }
-  // Fennec
   else if ('BrowserApp' in chromeWindow) {
-    return getTabForWindow(window);
+    // Looks like we are on Firefox Mobile
+    return chromeWindow.BrowserApp.getTabForWindow(window)
   }
 
   return null;
 }
 exports.getTabForContentWindow = getTabForContentWindow;
-
-// used on fennec
-function getTabForWindow(window) {
-  for each (let { BrowserApp } in getWindows()) {
-    if (!BrowserApp)
-      continue;
-
-    for each (let tab in BrowserApp.tabs) {
-      if (tab.browser.contentWindow == window.top)
-        return tab;
-    }
-  }
-  return null; 
-}
 
 function getTabURL(tab) {
   if (tab.browser) // fennec
@@ -291,20 +262,3 @@ function getSelectedTab(window) {
   return null;
 }
 exports.getSelectedTab = getSelectedTab;
-
-
-function getTabForBrowser(browser) {
-  for each (let window in getWindows()) {
-    // this function may be called when not using fennec
-    if (!window.BrowserApp)
-      continue;
-
-    for each (let tab in window.BrowserApp.tabs) {
-      if (tab.browser === browser)
-        return tab;
-    }
-  }
-  return null;
-}
-exports.getTabForBrowser = getTabForBrowser;
-

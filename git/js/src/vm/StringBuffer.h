@@ -89,10 +89,10 @@ class StringBuffer
      * Creates a string from the characters in this buffer, then (regardless
      * whether string creation succeeded or failed) empties the buffer.
      */
-    js::RawFlatString finishString();
+    js::UnrootedFlatString finishString();
 
     /* Identical to finishString() except that an atom is created. */
-    js::RawAtom finishAtom();
+    js::UnrootedAtom finishAtom();
 
     /*
      * Creates a raw string from the characters in this buffer.  The string is

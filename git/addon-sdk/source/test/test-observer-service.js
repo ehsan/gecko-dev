@@ -4,10 +4,16 @@
 
 const observers = require("sdk/deprecated/observer-service");
 const { Cc, Ci } = require("chrome");
-const { LoaderWithHookedConsole2 } = require("sdk/test/loader");
+const { Loader } = require("sdk/test/loader");
+const { PlainTextConsole } = require("sdk/console/plain-text");
 
 exports.testUnloadAndErrorLogging = function(test) {
-  let { loader, messages } = LoaderWithHookedConsole2(module);
+  var prints = [];
+  var loader = Loader(module, {
+    console: new PlainTextConsole(function(_) {
+      prints.push(_);
+    })
+  });
   var sbobsvc = loader.require("sdk/deprecated/observer-service");
 
   var timesCalled = 0;
@@ -22,12 +28,10 @@ exports.testUnloadAndErrorLogging = function(test) {
   test.assertEqual(timesCalled, 1);
   sbobsvc.add("narg", badCb);
   observers.notify("narg", "yo yo");
-  var lines = messages[0].split("\n");
-  test.assertEqual(lines[0], "error: " + require("sdk/self").name + ": An exception occurred.");
+  var lines = prints[0].split("\n");
   test.assertEqual(lines[0], "error: " + require("sdk/self").name + ": An exception occurred.");
   test.assertEqual(lines[1], "Error: foo");
-  // Keep in mind to update "18" to the line of "throw new Error("foo")"
-  test.assertEqual(lines[2], module.uri + " 18");
+  test.assertEqual(lines[2], module.uri + " 24");
   test.assertEqual(lines[3], "Traceback (most recent call last):");
 
   loader.unload();

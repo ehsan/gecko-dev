@@ -220,8 +220,8 @@ this.InspectedHealthReporter = function (branch, policy) {
   HealthReporter.call(this, branch, policy);
 
   this.onStorageCreated = null;
-  this.onProviderManagerInitialized = null;
-  this.providerManagerShutdownCount = 0;
+  this.onCollectorInitialized = null;
+  this.collectorShutdownCount = 0;
   this.storageCloseCount = 0;
 }
 
@@ -236,28 +236,28 @@ InspectedHealthReporter.prototype = {
     return HealthReporter.prototype._onStorageCreated.call(this, storage);
   },
 
-  _initializeProviderManager: function () {
-    for (let result of HealthReporter.prototype._initializeProviderManager.call(this)) {
+  _initializeCollector: function () {
+    for (let result of HealthReporter.prototype._initializeCollector.call(this)) {
       yield result;
     }
 
-    if (this.onInitializeProviderManagerFinished) {
-      this.onInitializeProviderManagerFinished();
+    if (this.onInitializeCollectorFinished) {
+      this.onInitializeCollectorFinished();
     }
   },
 
-  _onProviderManagerInitialized: function () {
-    if (this.onProviderManagerInitialized) {
-      this.onProviderManagerInitialized();
+  _onCollectorInitialized: function () {
+    if (this.onCollectorInitialized) {
+      this.onCollectorInitialized();
     }
 
-    return HealthReporter.prototype._onProviderManagerInitialized.call(this);
+    return HealthReporter.prototype._onCollectorInitialized.call(this);
   },
 
-  _onProviderManagerShutdown: function () {
-    this.providerManagerShutdownCount++;
+  _onCollectorShutdown: function () {
+    this.collectorShutdownCount++;
 
-    return HealthReporter.prototype._onProviderManagerShutdown.call(this);
+    return HealthReporter.prototype._onCollectorShutdown.call(this);
   },
 
   _onStorageClose: function () {

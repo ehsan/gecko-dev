@@ -341,7 +341,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
         if (!str)
             return false;
 
-        RawString wrapped = js_NewStringCopyN<CanGC>(cx, str->chars(), str->length());
+        UnrootedString wrapped = js_NewStringCopyN<CanGC>(cx, str->chars(), str->length());
         if (!wrapped)
             return false;
 

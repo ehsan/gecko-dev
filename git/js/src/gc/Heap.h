@@ -84,7 +84,9 @@ static const size_t MAX_BACKGROUND_FINALIZE_KINDS = FINALIZE_LIMIT - FINALIZE_OB
  */
 struct Cell
 {
+    inline uintptr_t address() const;
     inline ArenaHeader *arenaHeader() const;
+    inline Chunk *chunk() const;
     inline AllocKind getAllocKind() const;
     MOZ_ALWAYS_INLINE bool isMarked(uint32_t color = BLACK) const;
     MOZ_ALWAYS_INLINE bool markIfUnmarked(uint32_t color = BLACK) const;
@@ -96,12 +98,7 @@ struct Cell
 
 #ifdef DEBUG
     inline bool isAligned() const;
-    bool isTenured() const;
 #endif
-
-  protected:
-    inline uintptr_t address() const;
-    inline Chunk *chunk() const;
 };
 
 /*
@@ -828,6 +825,15 @@ JS_STATIC_ASSERT(sizeof(Chunk) == ChunkSize);
 JS_STATIC_ASSERT(js::gc::ChunkMarkBitmapOffset == offsetof(Chunk, bitmap));
 
 inline uintptr_t
+Cell::address() const
+{
+    uintptr_t addr = uintptr_t(this);
+    JS_ASSERT(addr % CellSize == 0);
+    JS_ASSERT(Chunk::withinArenasRange(addr));
+    return addr;
+}
+
+inline uintptr_t
 ArenaHeader::address() const
 {
     uintptr_t addr = reinterpret_cast<uintptr_t>(this);
@@ -938,10 +944,18 @@ AssertValidColor(const void *thing, uint32_t color)
 inline ArenaHeader *
 Cell::arenaHeader() const
 {
-    JS_ASSERT(isTenured());
     uintptr_t addr = address();
     addr &= ~ArenaMask;
     return reinterpret_cast<ArenaHeader *>(addr);
+}
+
+Chunk *
+Cell::chunk() const
+{
+    uintptr_t addr = uintptr_t(this);
+    JS_ASSERT(addr % CellSize == 0);
+    addr &= ~(ChunkSize - 1);
+    return reinterpret_cast<Chunk *>(addr);
 }
 
 inline JSRuntime *
@@ -959,7 +973,6 @@ Cell::getAllocKind() const
 bool
 Cell::isMarked(uint32_t color /* = BLACK */) const
 {
-    JS_ASSERT(isTenured());
     AssertValidColor(this, color);
     return chunk()->bitmap.isMarked(this, color);
 }
@@ -967,7 +980,6 @@ Cell::isMarked(uint32_t color /* = BLACK */) const
 bool
 Cell::markIfUnmarked(uint32_t color /* = BLACK */) const
 {
-    JS_ASSERT(isTenured());
     AssertValidColor(this, color);
     return chunk()->bitmap.markIfUnmarked(this, color);
 }
@@ -975,7 +987,6 @@ Cell::markIfUnmarked(uint32_t color /* = BLACK */) const
 void
 Cell::unmark(uint32_t color) const
 {
-    JS_ASSERT(isTenured());
     JS_ASSERT(color != BLACK);
     AssertValidColor(this, color);
     chunk()->bitmap.unmark(this, color);
@@ -984,14 +995,12 @@ Cell::unmark(uint32_t color) const
 JSCompartment *
 Cell::compartment() const
 {
-    JS_ASSERT(isTenured());
     return arenaHeader()->zone;
 }
 
 Zone *
 Cell::zone() const
 {
-    JS_ASSERT(isTenured());
     return arenaHeader()->zone;
 }
 
@@ -1002,24 +1011,6 @@ Cell::isAligned() const
     return Arena::isAligned(address(), arenaHeader()->getThingSize());
 }
 #endif
-
-inline uintptr_t
-Cell::address() const
-{
-    uintptr_t addr = uintptr_t(this);
-    JS_ASSERT(addr % CellSize == 0);
-    JS_ASSERT(Chunk::withinArenasRange(addr));
-    return addr;
-}
-
-Chunk *
-Cell::chunk() const
-{
-    uintptr_t addr = uintptr_t(this);
-    JS_ASSERT(addr % CellSize == 0);
-    addr &= ~(ChunkSize - 1);
-    return reinterpret_cast<Chunk *>(addr);
-}
 
 inline bool
 InFreeList(ArenaHeader *aheader, void *thing)

@@ -4,8 +4,8 @@
 'use strict';
 
 const { Trait } = require('../deprecated/traits');
-const { isWindowPrivate, getWindowTitle } = require('../window/utils');
-const { deprecateUsage } = require('../util/deprecate');
+const { getWindowTitle } = require('../window/utils');
+const { getMode } = require('../private-browsing/utils');
 
 module.metadata = {
   "stability": "unstable"
@@ -27,11 +27,7 @@ const WindowDom = Trait.compose({
     return this._public;
   },
   get isPrivateBrowsing() {
-    deprecateUsage('`browserWindow.isPrivateBrowsing` is deprecated, please ' +
-                   'consider using ' +
-                   '`require("private-browsing").isPrivate(browserWindow)` ' +
-                   'instead.');
-    return isWindowPrivate(this._window);
+    return getMode(this._window);
   }
 });
 exports.WindowDom = WindowDom;

@@ -19,8 +19,7 @@
 namespace mozilla {
 bool PoisonWriteEnabled();
 bool ValidWriteAssert(bool ok);
-bool IsDebugFile(intptr_t aFileID);
-intptr_t FileDescriptorToID(int aFd);
+bool IsDebugFD(int fd);
 }
 
 #endif

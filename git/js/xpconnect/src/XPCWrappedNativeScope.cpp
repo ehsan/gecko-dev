@@ -102,6 +102,7 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
         mNext(nullptr),
         mGlobalJSObject(aGlobal),
         mPrototypeNoHelper(nullptr),
+        mExperimentalBindingsEnabled(XPCJSRuntime::Get()->ExperimentalBindingsEnabled()),
         mIsXBLScope(false)
 {
     // add ourselves to the scopes list

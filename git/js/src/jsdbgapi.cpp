@@ -515,7 +515,7 @@ JS_GetFunctionScript(JSContext *cx, JSFunction *fun)
     if (fun->isInterpretedLazy()) {
         RootedFunction rootedFun(cx, fun);
         AutoCompartment funCompartment(cx, rootedFun);
-        RawScript script = rootedFun->getOrCreateScript(cx);
+        UnrootedScript script = rootedFun->getOrCreateScript(cx);
         if (!script)
             MOZ_CRASH();
         return script;
@@ -847,6 +847,7 @@ GetAtomTotalSize(JSContext *cx, JSAtom *atom)
 JS_PUBLIC_API(size_t)
 JS_GetFunctionTotalSize(JSContext *cx, JSFunction *fun)
 {
+    AutoAssertNoGC nogc;
     size_t nbytes = sizeof *fun;
     nbytes += JS_GetObjectTotalSize(cx, fun);
     if (fun->isInterpreted())
@@ -1014,6 +1015,7 @@ JS_UnwrapObjectAndInnerize(JSObject *obj)
 JS_FRIEND_API(JSBool)
 js_CallContextDebugHandler(JSContext *cx)
 {
+    AssertCanGC();
     ScriptFrameIter iter(cx);
     JS_ASSERT(!iter.done());
 
@@ -1036,6 +1038,7 @@ js_CallContextDebugHandler(JSContext *cx)
 JS_PUBLIC_API(StackDescription *)
 JS::DescribeStack(JSContext *cx, unsigned maxFrames)
 {
+    AutoAssertNoGC nogc;
     Vector<FrameDescription> frames(cx);
 
     for (ScriptFrameIter i(cx); !i.done(); ++i) {
@@ -1112,6 +1115,8 @@ static char *
 FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
             JSBool showArgs, JSBool showLocals, JSBool showThisProps)
 {
+    AssertCanGC();
+
     RootedScript script(cx, iter.script());
     jsbytecode* pc = iter.pc();
 

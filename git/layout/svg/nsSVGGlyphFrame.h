@@ -193,6 +193,8 @@ public:
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
+  NS_IMETHOD  IsSelectable(bool* aIsSelectable, uint8_t* aSelectStyle) const;
+
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
@@ -313,6 +315,8 @@ private:
 
   void NotifyGlyphMetricsChange();
   void SetupGlobalTransform(gfxContext *aContext, uint32_t aFor);
+  nsresult GetHighlight(uint32_t *charnum, uint32_t *nchars,
+                        nscolor *foreground, nscolor *background);
   float GetSubStringAdvance(uint32_t charnum, uint32_t fragmentChars,
                             float aMetricsScale);
   gfxFloat GetBaselineOffset(float aMetricsScale);

@@ -12,6 +12,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "SharedFrame",
 let SocialUI = {
   // Called on delayed startup to initialize the UI
   init: function SocialUI_init() {
+    Services.obs.addObserver(this, "social:pref-changed", false);
     Services.obs.addObserver(this, "social:ambient-notification-changed", false);
     Services.obs.addObserver(this, "social:profile-changed", false);
     Services.obs.addObserver(this, "social:recommend-info-changed", false);
@@ -36,18 +37,19 @@ let SocialUI = {
     SocialToolbar.init();
     SocialSidebar.init();
 
-    if (!Social.initialized) {
-      Social.init();
-    } else {
-      // social was previously initialized, so it's not going to notify us of
-      // anything, so handle that now.
+    Social.init();
+    // If social was previously initialized it isn't going to notify observers
+    // about the provider being set or the list of providers changing, so
+    // handle those now.
+    if (Social.provider) {
+      this.observe(null, "social:provider-set", Social.provider.origin);
       this.observe(null, "social:providers-changed", null);
-      this.observe(null, "social:provider-set", Social.provider ? Social.provider.origin : null);
     }
   },
 
   // Called on window unload
   uninit: function SocialUI_uninit() {
+    Services.obs.removeObserver(this, "social:pref-changed");
     Services.obs.removeObserver(this, "social:ambient-notification-changed");
     Services.obs.removeObserver(this, "social:profile-changed");
     Services.obs.removeObserver(this, "social:recommend-info-changed");
@@ -57,6 +59,32 @@ let SocialUI = {
 
     Services.prefs.removeObserver("social.sidebar.open", this);
     Services.prefs.removeObserver("social.toast-notifications.enabled", this);
+  },
+
+  // Social.provider has changed, update any state that depends on it.
+  // Note: this method is not called when Social.provider is first set, during
+  // the first window load.
+  _updateProvider: function () {
+    // XXX audit for handling nullness of social.provider
+    this._updateActiveUI();
+    this._updateMenuItems();
+
+    SocialChatBar.update();
+    SocialShareButton.updateProvider();
+    SocialMenu.populate();
+    SocialToolbar.updateProvider();
+    SocialSidebar.update();
+  },
+
+  // The entire feature is being turned on/off.
+  _updateEnabledState: function () {
+    this._updateActiveUI();
+    SocialChatBar.update();
+    SocialSidebar.update();
+    SocialShareButton.updateButtonHiddenState();
+    SocialMenu.populate();
+    SocialToolbar.updateButtonHiddenState();
+    SocialToolbar.populateProviderMenus();
   },
 
   _matchesCurrentProvider: function (origin) {
@@ -69,22 +97,16 @@ let SocialUI = {
     try {
       switch (topic) {
         case "social:provider-set":
-          // Social.provider has changed (possibly to null), update any state
-          // which depends on it.
-          this._updateActiveUI();
-          this._updateMenuItems();
-
-          SocialChatBar.update();
-          SocialSidebar.update();
-          SocialShareButton.update();
-          SocialToolbar.update();
-          SocialMenu.populate();
+          this._updateProvider();
           break;
         case "social:providers-changed":
           // the list of providers changed - this may impact the "active" UI.
           this._updateActiveUI();
           // and the multi-provider menu
           SocialToolbar.populateProviderMenus();
+          break;
+        case "social:pref-changed":
+          this._updateEnabledState();
           break;
 
         // Provider-specific notifications
@@ -97,7 +119,7 @@ let SocialUI = {
         case "social:profile-changed":
           if (this._matchesCurrentProvider(data)) {
             SocialToolbar.updateProfile();
-            SocialShareButton.update();
+            SocialShareButton.updateProfileInfo();
             SocialChatBar.update();
           }
           break;
@@ -573,8 +595,16 @@ let SocialShareButton = {
   },
 
   // Called when the Social.provider changes
-  update: function() {
-    this._updateButtonHiddenState();
+  updateProvider: function () {
+    this.updateButtonHiddenState();
+    if (!Social.provider)
+      return;
+    this.updateProfileInfo();
+  },
+
+  // Called when the provider's profile info changes (or when the provider
+  // changes, via updateProvider)
+  updateProfileInfo: function SSB_updateProfileInfo() {
     let profileRow = document.getElementById("unsharePopupHeader");
     let profile = SocialUI.enabled ? Social.provider.profile : null;
     if (profile && profile.displayName) {
@@ -589,6 +619,7 @@ let SocialShareButton = {
       displayName.setAttribute("label", profile.displayName);
     } else {
       profileRow.hidden = true;
+      this.updateButtonHiddenState();
     }
   },
 
@@ -608,7 +639,7 @@ let SocialShareButton = {
     return aURI && (aURI.schemeIs('http') || aURI.schemeIs('https'));
   },
 
-  _updateButtonHiddenState: function SSB_updateButtonHiddenState() {
+  updateButtonHiddenState: function SSB_updateButtonHiddenState() {
     let shareButton = this.shareButton;
     if (shareButton)
       shareButton.hidden = !SocialUI.enabled || Social.provider.recommendInfo == null ||
@@ -672,7 +703,7 @@ let SocialShareButton = {
   },
 
   updateShareState: function SSB_updateShareState() {
-    this._updateButtonHiddenState();
+    this.updateButtonHiddenState();
 
     let shareButton = this.shareButton;
     let currentPageShared = shareButton && !shareButton.hidden && Social.isPageShared(gBrowser.currentURI);
@@ -751,12 +782,6 @@ var SocialToolbar = {
     this._dynamicResizer = new DynamicResizeWatcher();
   },
 
-  update: function() {
-    this._updateButtonHiddenState();
-    this.updateProvider();
-    this.populateProviderMenus();
-  },
-
   // Called when the Social.provider changes
   updateProvider: function () {
     let provider = Social.provider || Social.defaultProvider;
@@ -768,6 +793,7 @@ var SocialToolbar = {
       this.updateProfile();
     }
     this.updateButton();
+    this.populateProviderMenus();
   },
 
   get button() {
@@ -776,7 +802,8 @@ var SocialToolbar = {
 
   // Note: this doesn't actually handle hiding the toolbar button,
   // socialActiveBroadcaster is responsible for that.
-  _updateButtonHiddenState: function SocialToolbar_updateButtonHiddenState() {
+  updateButtonHiddenState: function SocialToolbar_updateButtonHiddenState() {
+    let tbi = document.getElementById("social-toolbar-item");
     let socialEnabled = SocialUI.enabled;
     for (let className of ["social-statusarea-separator", "social-statusarea-user"]) {
       for (let element of document.getElementsByClassName(className))
@@ -793,11 +820,8 @@ var SocialToolbar = {
         parent.removeChild(frame);
       }
 
-      let tbi = document.getElementById("social-toolbar-item");
-      if (tbi) {
-        while (tbi.lastChild != tbi.firstChild)
-          tbi.removeChild(tbi.lastChild);
-      }
+      while (tbi.lastChild != tbi.firstChild)
+        tbi.removeChild(tbi.lastChild);
     }
   },
 
@@ -830,7 +854,7 @@ var SocialToolbar = {
 
   // XXX doesn't this need to be called for profile changes, given its use of provider.profile?
   updateButton: function SocialToolbar_updateButton() {
-    this._updateButtonHiddenState();
+    this.updateButtonHiddenState();
     let panel = document.getElementById("social-notification-panel");
     panel.hidden = !SocialUI.enabled;
 

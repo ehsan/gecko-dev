@@ -4917,7 +4917,8 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
   // be created will be an nsInlineFrame, so it can never be a filter.
   bool parentIsFilter = aParentFrame &&
     aParentFrame->GetType() == nsGkAtoms::svgFilterFrame;
-  bool filterPrimitive = aElement->IsNodeOfType(nsINode::eFILTER);
+  nsCOMPtr<nsIDOMSVGFilterPrimitiveStandardAttributes> filterPrimitive =
+    do_QueryInterface(aElement);
   if ((parentIsFilter && !filterPrimitive) ||
       (!parentIsFilter && filterPrimitive)) {
     return &sSuppressData;
@@ -7962,7 +7963,7 @@ ApplyRenderingChangeToTree(nsPresContext* aPresContext,
   // If the frame's background is propagated to an ancestor, walk up to
   // that ancestor.
   nsStyleContext *bgSC;
-  while (!nsCSSRendering::FindBackground(aFrame, &bgSC)) {
+  while (!nsCSSRendering::FindBackground(aPresContext, aFrame, &bgSC)) {
     aFrame = aFrame->GetParent();
     NS_ASSERTION(aFrame, "root frame must paint");
   }

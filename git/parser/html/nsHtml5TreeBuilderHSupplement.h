@@ -67,8 +67,6 @@
 
     void StartPlainText();
 
-    void StartPlainTextBody();
-
     bool HasScript();
     
     void SetOpSink(nsAHtml5TreeOpSink* aOpSink) {

@@ -63,10 +63,8 @@
 #include "common/linux/file_id.h"
 #include "common/module.h"
 #include "common/scoped_ptr.h"
-#ifndef NO_STABS_SUPPORT
 #include "common/stabs_reader.h"
 #include "common/stabs_to_module.h"
-#endif
 #include "common/using_std_string.h"
 
 // This namespace contains helper functions.
@@ -82,9 +80,7 @@ using google_breakpad::FindElfSectionByName;
 using google_breakpad::GetOffset;
 using google_breakpad::IsValidElf;
 using google_breakpad::Module;
-#ifndef NO_STABS_SUPPORT
 using google_breakpad::StabsToModule;
-#endif
 using google_breakpad::UniqueString;
 using google_breakpad::scoped_ptr;
 
@@ -122,7 +118,7 @@ class MmapWrapper {
  public:
   MmapWrapper() : is_set_(false) {}
   ~MmapWrapper() {
-    if (is_set_ && base_ != NULL) {
+    if (base_ != NULL) {
       assert(size_ > 0);
       munmap(base_, size_);
     }
@@ -134,7 +130,6 @@ class MmapWrapper {
   }
   void release() {
     assert(is_set_);
-    is_set_ = false;
     base_ = NULL;
     size_ = 0;
   }
@@ -163,7 +158,6 @@ typename ElfClass::Addr GetLoadingAddress(
   return 0;
 }
 
-#ifndef NO_STABS_SUPPORT
 template<typename ElfClass>
 bool LoadStabs(const typename ElfClass::Ehdr* elf_header,
                const typename ElfClass::Shdr* stab_section,
@@ -189,7 +183,6 @@ bool LoadStabs(const typename ElfClass::Ehdr* elf_header,
   handler.Finalize();
   return true;
 }
-#endif  // NO_STABS_SUPPORT
 
 // A line-to-module loader that accepts line number info parsed by
 // dwarf2reader::LineInfo and populates a Module and a line vector
@@ -425,12 +418,8 @@ string ReadDebugLink(const char* debuglink,
   }
 
   if (!found) {
-    fprintf(stderr, "Failed to find debug ELF file for '%s' after trying:\n",
-            obj_file.c_str());
-    for (it = debug_dirs.begin(); it < debug_dirs.end(); ++it) {
-      const string debug_dir = *it;
-      fprintf(stderr, "  %s/%s\n", debug_dir.c_str(), debuglink);
-    }
+    fprintf(stderr, "Failed to open debug ELF file '%s' for '%s': %s\n",
+            debuglink_path.c_str(), obj_file.c_str(), strerror(errno));
     return "";
   }
 
@@ -544,7 +533,6 @@ bool LoadSymbols(const string& obj_file,
   bool found_usable_info = false;
 
   if (symbol_data != ONLY_CFI) {
-#ifndef NO_STABS_SUPPORT
     // Look for STABS debugging information, and load it if present.
     const Shdr* stab_section =
       FindElfSectionByName<ElfClass>(".stab", SHT_PROGBITS,
@@ -563,7 +551,6 @@ bool LoadSymbols(const string& obj_file,
         }
       }
     }
-#endif  // NO_STABS_SUPPORT
 
     // Look for DWARF debugging information, and load it if present.
     const Shdr* dwarf_section =
@@ -655,37 +642,33 @@ bool LoadSymbols(const string& obj_file,
         fprintf(stderr, "%s does not contain a .gnu_debuglink section.\n",
                 obj_file.c_str());
       }
-    } else {
-      if (symbol_data != ONLY_CFI) {
-        // The caller doesn't want to consult .gnu_debuglink.
-        // See if there are export symbols available.
-        const Shdr* dynsym_section =
+    } else if (symbol_data != ONLY_CFI) {
+      // The caller doesn't want to consult .gnu_debuglink.
+      // See if there are export symbols available.
+      const Shdr* dynsym_section =
           FindElfSectionByName<ElfClass>(".dynsym", SHT_DYNSYM,
                                          sections, names, names_end,
                                          elf_header->e_shnum);
-        const Shdr* dynstr_section =
+      const Shdr* dynstr_section =
           FindElfSectionByName<ElfClass>(".dynstr", SHT_STRTAB,
                                          sections, names, names_end,
                                          elf_header->e_shnum);
-        if (dynsym_section && dynstr_section) {
-          info->LoadedSection(".dynsym");
+      if (dynsym_section && dynstr_section) {
+        info->LoadedSection(".dynsym");
 
-          const uint8_t* dynsyms =
-              GetOffset<ElfClass, uint8_t>(elf_header,
-                                           dynsym_section->sh_offset);
-          const uint8_t* dynstrs =
-              GetOffset<ElfClass, uint8_t>(elf_header,
-                                           dynstr_section->sh_offset);
-          bool result =
-              ELFSymbolsToModule(dynsyms,
-                                 dynsym_section->sh_size,
-                                 dynstrs,
-                                 dynstr_section->sh_size,
-                                 big_endian,
-                                 ElfClass::kAddrSize,
-                                 module);
-          found_usable_info = found_usable_info || result;
-        }
+        const uint8_t* dynsyms =
+            GetOffset<ElfClass, uint8_t>(elf_header, dynsym_section->sh_offset);
+        const uint8_t* dynstrs =
+            GetOffset<ElfClass, uint8_t>(elf_header, dynstr_section->sh_offset);
+        bool result =
+            ELFSymbolsToModule(dynsyms,
+                               dynsym_section->sh_size,
+                               dynstrs,
+                               dynstr_section->sh_size,
+                               big_endian,
+                               ElfClass::kAddrSize,
+                               module);
+        found_usable_info = found_usable_info || result;
       }
 
       // Return true if some usable information was found, since

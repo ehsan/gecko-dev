@@ -134,6 +134,7 @@
     _(ParDump)                      \
     _(TypeBarrier)                  \
     _(MonitorTypes)                 \
+    _(ExcludeType)                  \
     _(InitializedLength)            \
     _(SetInitializedLength)         \
     _(BoundsCheck)                  \

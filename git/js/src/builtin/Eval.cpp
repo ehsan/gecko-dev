@@ -35,7 +35,7 @@ AssertInnerizedScopeChain(JSContext *cx, JSObject &scopeobj)
 }
 
 static bool
-IsEvalCacheCandidate(RawScript script)
+IsEvalCacheCandidate(UnrootedScript script)
 {
     // Make sure there are no inner objects which might use the wrong parent
     // and/or call scope by reusing the previous eval's script. Skip the
@@ -57,7 +57,7 @@ EvalCacheHashPolicy::hash(const EvalCacheLookup &l)
 }
 
 /* static */ bool
-EvalCacheHashPolicy::match(RawScript script, const EvalCacheLookup &l)
+EvalCacheHashPolicy::match(UnrootedScript script, const EvalCacheLookup &l)
 {
     JS_ASSERT(IsEvalCacheCandidate(script));
 
@@ -127,7 +127,7 @@ class EvalScriptGuard
         }
     }
 
-    void setNewScript(RawScript script) {
+    void setNewScript(UnrootedScript script) {
         // JSScript::initFromEmitter has already called js_CallNewScriptHook.
         JS_ASSERT(!script_ && script);
         script_ = script;
@@ -293,8 +293,8 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
         RootedScript callerScript(cx, caller ? caller.script() : NULL);
-        RawScript compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
-                                                     chars.get(), length, stableStr, staticLevel);
+        UnrootedScript compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
+                                                          chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
 
@@ -354,8 +354,8 @@ js::DirectEvalFromIon(JSContext *cx,
                .setNoScriptRval(false)
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
-        RawScript compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
-                                                     chars.get(), length, stableStr, staticLevel);
+        UnrootedScript compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
+                                                          chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
 

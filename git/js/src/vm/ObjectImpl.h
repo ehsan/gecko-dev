@@ -450,7 +450,7 @@ class DenseElementsHeader : public ElementsHeader
 class SparseElementsHeader : public ElementsHeader
 {
   public:
-    RawShape shape() {
+    UnrootedShape shape() {
         MOZ_ASSERT(ElementsHeader::isSparseElements());
         return sparse.shape;
     }
@@ -1232,9 +1232,9 @@ class ObjectImpl : public gc::Cell
     /* Compute dynamicSlotsCount() for this object. */
     inline uint32_t numDynamicSlots() const;
 
-    RawShape nativeLookup(JSContext *cx, jsid id);
-    inline RawShape nativeLookup(JSContext *cx, PropertyId pid);
-    inline RawShape nativeLookup(JSContext *cx, PropertyName *name);
+    UnrootedShape nativeLookup(JSContext *cx, jsid id);
+    inline UnrootedShape nativeLookup(JSContext *cx, PropertyId pid);
+    inline UnrootedShape nativeLookup(JSContext *cx, PropertyName *name);
 
     inline bool nativeContains(JSContext *cx, jsid id);
     inline bool nativeContains(JSContext *cx, PropertyName* name);

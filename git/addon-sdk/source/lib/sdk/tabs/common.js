@@ -11,10 +11,7 @@ function Options(options) {
 
   return validateOptions(options, {
     url: { is: ["string"] },
-    inBackground: {
-      map: function(v) !!v,
-      is: ["undefined", "boolean"]
-    },
+    inBackground: { is: ["undefined", "boolean"] },
     isPinned: { is: ["undefined", "boolean"] },
     isPrivate: { is: ["undefined", "boolean"] },
     onOpen: { is: ["undefined", "function"] },

@@ -11,6 +11,7 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= commandhandler
+XPIDL_MODULE	= commandhandler
 
 XPIDLSRCS	= \
         nsICommandManager.idl \

@@ -898,6 +898,11 @@ public:
 
     static void ActivityCallback(void *arg, JSBool active);
 
+    bool ExperimentalBindingsEnabled()
+    {
+        return gExperimentalBindingsEnabled;
+    }
+
     bool XBLScopesEnabled() {
         return gXBLScopesEnabled;
     }
@@ -917,6 +922,7 @@ private:
 
     void ReleaseIncrementally(nsTArray<nsISupports *> &array);
 
+    static bool gExperimentalBindingsEnabled;
     static bool gXBLScopesEnabled;
 
     static const char* mStrings[IDX_TOTAL_COUNT];
@@ -1677,6 +1683,11 @@ public:
     XPCContext *GetContext() { return mContext; }
     void ClearContext() { mContext = nullptr; }
 
+    JSBool ExperimentalBindingsEnabled()
+    {
+        return mExperimentalBindingsEnabled;
+    }
+
     typedef nsTHashtable<nsPtrHashKey<JSObject> > DOMExpandoMap;
 
     bool RegisterDOMExpandoObject(JSObject *expando) {
@@ -1737,6 +1748,7 @@ private:
 
     nsAutoPtr<DOMExpandoMap> mDOMExpandoMap;
 
+    JSBool mExperimentalBindingsEnabled;
     bool mIsXBLScope;
     bool mUseXBLScope;
 };

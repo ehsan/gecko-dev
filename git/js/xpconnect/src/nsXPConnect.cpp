@@ -773,7 +773,7 @@ NoteGCThingJSChildren(JSRuntime *rt, void *p, JSGCTraceKind traceKind,
     MOZ_ASSERT(rt);
     TraversalTracer trc(cb);
     JS_TracerInit(&trc, rt, NoteJSChildTracerShim);
-    trc.eagerlyTraceWeakMaps = DoNotTraceWeakMaps;
+    trc.eagerlyTraceWeakMaps = false;
     JS_TraceChildren(&trc, p, traceKind);
 }
 
@@ -2395,7 +2395,7 @@ public:
         TraversalTracer trc(cb);
         JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
         JS_TracerInit(&trc, rt, NoteJSChildTracerShim);
-        trc.eagerlyTraceWeakMaps = DoNotTraceWeakMaps;
+        trc.eagerlyTraceWeakMaps = false;
         js::VisitGrayWrapperTargets(c, NoteJSChildGrayWrapperShim, &trc);
 
         /*

@@ -90,7 +90,7 @@ void SetDirectionFromChangedTextNode(nsIContent* aTextNode, uint32_t aOffset,
  * When a text node is appended to an element, find any ancestors with dir=auto
  * whose directionality will be determined by the text node
  */
-void SetDirectionFromNewTextNode(nsIContent* aTextNode);
+void SetDirectionFromNewTextNode(nsTextNode* aTextNode);
 
 /**
  * When a text node is removed from a document, find any ancestors whose
@@ -117,7 +117,6 @@ void SetDirectionalityFromValue(mozilla::dom::Element* aElement,
 void OnSetDirAttr(mozilla::dom::Element* aElement,
                   const nsAttrValue* aNewValue,
                   bool hadValidDir,
-                  bool hadDirAuto,
                   bool aNotify);
 
 /**

@@ -35,13 +35,11 @@
     function statesChecker(aTreeID, aView)
     {
       this.DOMNode = getNode(aTreeID);
-
-      this.invoke = function statesChecker_invoke()
+      this.invoke = function invoke()
       {
         this.DOMNode.treeBoxObject.view = aView;
       }
-
-      this.check = function statesChecker_check()
+      this.check = function check()
       {
         var tree = getAccessible(this.DOMNode);
 
@@ -74,10 +72,9 @@
           testStates(checkboxCell, STATE_CHECKABLE | STATE_CHECKED);
         }
       }
-
-      this.getID = function statesChecker_getID()
+      this.getID = function getID()
       {
-        return "tree processor for " + prettyName(aTreeID);
+        "tree processor for " + prettyName(aTreeID);
       }
     }
 

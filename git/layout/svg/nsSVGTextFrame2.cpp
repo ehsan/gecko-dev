@@ -3089,7 +3089,7 @@ nsSVGTextFrame2::FindCloserFrameForSelection(
                                  nsPoint aPoint,
                                  nsIFrame::FrameWithDistance* aCurrentBestFrame)
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(true);
 
   nsPresContext* presContext = PresContext();
 

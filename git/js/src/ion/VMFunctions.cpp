@@ -53,6 +53,8 @@ ShouldMonitorReturnType(JSFunction *fun)
 bool
 InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, Value *rval)
 {
+    AssertCanGC();
+
     RootedFunction fun(cx, fun0);
     if (fun->isInterpreted()) {
         if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
@@ -71,7 +73,7 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
         // In order to prevent massive bouncing between Ion and JM, see if we keep
         // hitting functions that are uncompilable.
         if (cx->methodJitEnabled && !fun->nonLazyScript()->canIonCompile()) {
-            RawScript script = GetTopIonJSScript(cx);
+            UnrootedScript script = GetTopIonJSScript(cx);
             if (script->hasIonScript() &&
                 ++script->ion->slowCallCount >= js_IonOptions.slowCallLimit)
             {
@@ -252,6 +254,7 @@ template bool StringsEqual<false>(JSContext *cx, HandleString lhs, HandleString 
 JSBool
 ObjectEmulatesUndefined(RawObject obj)
 {
+    AutoAssertNoGC nogc;
     return EmulatesUndefined(obj);
 }
 

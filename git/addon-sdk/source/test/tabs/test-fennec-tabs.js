@@ -4,20 +4,30 @@
 'use strict';
 
 const { Cc, Ci } = require('chrome');
-const { Loader, LoaderWithHookedConsole } = require('sdk/test/loader');
+const { Loader } = require('sdk/test/loader');
 const timer = require('sdk/timers');
 const tabs = require('sdk/tabs');
 const windows = require('sdk/windows');
 
 const tabsLen = tabs.length;
 const URL = 'data:text/html;charset=utf-8,<html><head><title>#title#</title></head></html>';
+const ERR_MSG = 'Error: This method is not yet supported by Fennec';
 
-// Fennec error message dispatched on all currently unimplement tab features,
-// that match LoaderWithHookedConsole messages object pattern
-const ERR_FENNEC_MSG = {
-  type: "error",
-  msg: "This method is not yet supported by Fennec"
-};
+function LoaderWithHookedConsole() {
+  let errors = [];
+  let loader = Loader(module, {
+    console: Object.create(console, {
+      error: { value: function(error) {
+        errors.push(error);
+      }}
+    })
+  });
+
+  return {
+    loader: loader,
+    errors: errors
+  }
+}
 
 // TEST: tab unloader
 exports.testAutomaticDestroy = function(test) {
@@ -99,7 +109,7 @@ exports.testAutomaticDestroy = function(test) {
 // TEST: tab properties
 exports.testTabProperties = function(test) {
   test.waitUntilDone();
-  let { loader, messages } = LoaderWithHookedConsole();
+  let { loader, errors } = LoaderWithHookedConsole();
   let tabs = loader.require('sdk/tabs');
 
   let url = "data:text/html;charset=utf-8,<html><head><title>foo</title></head><body>foo</body></html>";
@@ -111,10 +121,7 @@ exports.testTabProperties = function(test) {
       test.assertEqual(tab.url, url, "URL of the new tab matches");
       test.assert(tab.favicon, "favicon of the new tab is not empty");
       // TODO: remove need for this test by implementing the favicon feature
-      // Poors man deepEqual with JSON.stringify...
-      test.assertEqual(JSON.stringify(messages),
-                       JSON.stringify([ERR_FENNEC_MSG]),
-                       "favicon logs an error for now");
+      test.assertEqual(errors.length, 1, "favicon logs an error for now");
       test.assertEqual(tab.style, null, "style of the new tab matches");
       test.assertEqual(tab.index, tabsLen, "index of the new tab matches");
       test.assertNotEqual(tab.getThumbnail(), null, "thumbnail of the new tab matches");
@@ -223,7 +230,7 @@ exports.testTabReload = function(test) {
 exports.testTabMove = function(test) {
   test.waitUntilDone();
 
-  let { loader, messages } = LoaderWithHookedConsole();
+  let { loader, errors } = LoaderWithHookedConsole();
   let tabs = loader.require('sdk/tabs');
 
   let url = "data:text/html;charset=utf-8,testTabMove";
@@ -240,9 +247,8 @@ exports.testTabMove = function(test) {
           test.assert(tab.index > tab1.index, "2nd tab has valid index");
           tab.index = 0;
           test.assertEqual(tab.index, i, "tab index after move matches");
-          test.assertEqual(JSON.stringify(messages),
-                           JSON.stringify([ERR_FENNEC_MSG]),
-                           "setting tab.index logs error");
+          test.assertEqual(errors.length, 1, "setting tab.index logs error");
+
           // end test
           tab1.close(function() tab.close(function() {
             loader.unload();
@@ -258,7 +264,7 @@ exports.testTabMove = function(test) {
 exports.testTabsOpen_alt = function(test) {
   test.waitUntilDone();
 
-  let { loader, messages } = LoaderWithHookedConsole();
+  let { loader, errors } = LoaderWithHookedConsole();
   let tabs = loader.require('sdk/tabs');
   let url = "data:text/html;charset=utf-8,default";
 
@@ -268,7 +274,7 @@ exports.testTabsOpen_alt = function(test) {
       test.assertEqual(tab.url, url, "URL of the new tab matches");
       test.assertEqual(tabs.activeTab, tab, "URL of active tab in the current window matches");
       test.assertEqual(tab.isPinned, false, "The new tab is not pinned");
-      test.assertEqual(messages.length, 1, "isPinned logs error");
+      test.assertEqual(errors.length, 1, "isPinned logs error");
 
       // end test
       tab.close(function() {
@@ -283,7 +289,7 @@ exports.testTabsOpen_alt = function(test) {
 exports.testOpenPinned_alt = function(test) {
     test.waitUntilDone();
 
-    let { loader, messages } = LoaderWithHookedConsole();
+    let { loader, errors } = LoaderWithHookedConsole();
     let tabs = loader.require('sdk/tabs');
     let url = "about:blank";
 
@@ -292,11 +298,7 @@ exports.testOpenPinned_alt = function(test) {
       isPinned: true,
       onOpen: function(tab) {
         test.assertEqual(tab.isPinned, false, "The new tab is pinned");
-        // We get two error message: one for tabs.open's isPinned argument
-        // and another one for tab.isPinned
-        test.assertEqual(JSON.stringify(messages),
-                         JSON.stringify([ERR_FENNEC_MSG, ERR_FENNEC_MSG]),
-                         "isPinned logs error");
+        test.assertEqual(errors.length, 2, "isPinned logs error");
 
         // end test
         tab.close(function() {
@@ -311,7 +313,7 @@ exports.testOpenPinned_alt = function(test) {
 exports.testPinUnpin_alt = function(test) {
     test.waitUntilDone();
 
-    let { loader, messages } = LoaderWithHookedConsole();
+    let { loader, errors } = LoaderWithHookedConsole();
     let tabs = loader.require('sdk/tabs');
     let url = "data:text/html;charset=utf-8,default";
 
@@ -320,18 +322,11 @@ exports.testPinUnpin_alt = function(test) {
       onOpen: function(tab) {
         tab.pin();
         test.assertEqual(tab.isPinned, false, "The tab was pinned correctly");
-        test.assertEqual(JSON.stringify(messages),
-                         JSON.stringify([ERR_FENNEC_MSG, ERR_FENNEC_MSG]),
-                         "tab.pin() logs error");
-
-        // Clear console messages for the following test
-        messages.length = 0;
+        test.assertEqual(errors.length, 2, "tab.pin() logs error");
 
         tab.unpin();
         test.assertEqual(tab.isPinned, false, "The tab was unpinned correctly");
-        test.assertEqual(JSON.stringify(messages),
-                         JSON.stringify([ERR_FENNEC_MSG, ERR_FENNEC_MSG]),
-                         "tab.unpin() logs error");
+        test.assertEqual(errors.length, 4, "tab.unpin() logs error");
 
         // end test
         tab.close(function() {

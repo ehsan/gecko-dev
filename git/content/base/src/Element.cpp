@@ -1854,12 +1854,10 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
   }
 
   bool hadValidDir = false;
-  bool hadDirAuto = false;
 
   if (aNamespaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::dir) {
       hadValidDir = HasValidDir() || IsHTML(nsGkAtoms::bdi);
-      hadDirAuto = HasDirAuto(); // already takes bdi into account
     }
 
     // XXXbz Perhaps we should push up the attribute mapping function
@@ -1899,8 +1897,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (aNamespaceID == kNameSpaceID_None && aName == nsGkAtoms::dir) {
-      OnSetDirAttr(this, &aValueForAfterSetAttr,
-                   hadValidDir, hadDirAuto, aNotify);
+      OnSetDirAttr(this, &aValueForAfterSetAttr, hadValidDir, aNotify);
     }
   }
 
@@ -2055,11 +2052,9 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   nsMutationGuard::DidMutate();
 
   bool hadValidDir = false;
-  bool hadDirAuto = false;
 
   if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::dir) {
     hadValidDir = HasValidDir() || IsHTML(nsGkAtoms::bdi);
-    hadDirAuto = HasDirAuto(); // already takes bdi into account
   }
 
   nsAttrValue oldValue;
@@ -2085,7 +2080,7 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::dir) {
-    OnSetDirAttr(this, nullptr, hadValidDir, hadDirAuto, aNotify);
+    OnSetDirAttr(this, nullptr, hadValidDir, aNotify);
   }
 
   if (hasMutationListeners) {

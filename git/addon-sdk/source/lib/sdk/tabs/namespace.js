@@ -7,4 +7,3 @@ let { ns } = require('../core/namespace');
 
 exports.tabsNS = ns();
 exports.tabNS = ns();
-exports.rawTabNS = ns();

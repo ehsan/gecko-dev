@@ -41,7 +41,7 @@ Module::~Module()
 static JSBool
 SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
 {
-  JS::Value prop;
+  jsval prop;
   if (!JS_GetProperty(cx, parent, name, &prop))
     return false;
 
@@ -82,8 +82,8 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
              uint32_t argc,
-             JS::Value* argv,
-             JS::Value* vp,
+             jsval* argv,
+             jsval* vp,
              bool* _retval)
 {
   JSObject* targetObj = nullptr;

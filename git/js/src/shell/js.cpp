@@ -1315,12 +1315,12 @@ AssertEq(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static RawScript
+static UnrootedScript
 ValueToScript(JSContext *cx, jsval v, JSFunction **funp = NULL)
 {
     RootedFunction fun(cx, JS_ValueToFunction(cx, v));
     if (!fun)
-        return NULL;
+        return UnrootedScript(NULL);
 
     RootedScript script(cx);
     JSFunction::maybeGetOrCreateScript(cx, fun, &script);
@@ -1356,7 +1356,7 @@ SetDebug(JSContext *cx, unsigned argc, jsval *vp)
     return ok;
 }
 
-static RawScript
+static UnrootedScript
 GetTopScript(JSContext *cx)
 {
     RootedScript script(cx);
@@ -2026,6 +2026,7 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
     void *thingToIgnore;
     FILE *dumpFile;
     bool ok;
+    AssertCanGC();
 
     const char *fileName = NULL;
     JSAutoByteString fileNameBytes;
@@ -4575,7 +4576,7 @@ static JSClass *GetDomClass() {
 static JSBool
 dom_genericGetter(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-    RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    js::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
 
@@ -4595,7 +4596,7 @@ dom_genericGetter(JSContext *cx, unsigned argc, JS::Value *vp)
 static JSBool
 dom_genericSetter(JSContext* cx, unsigned argc, JS::Value* vp)
 {
-    RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    js::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
 
@@ -4621,7 +4622,7 @@ dom_genericSetter(JSContext* cx, unsigned argc, JS::Value* vp)
 static JSBool
 dom_genericMethod(JSContext* cx, unsigned argc, JS::Value *vp)
 {
-    RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    js::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
 
@@ -5256,8 +5257,7 @@ main(int argc, char **argv, char **envp)
 
     JS_SetGCParameter(rt, JSGC_MAX_BYTES, 0xffffffff);
 #ifdef JSGC_GENERATIONAL
-    if (!op.getBoolOption("ggc"))
-        JS::DisableGenerationalGC(rt);
+    JS_SetGCParameter(rt, JSGC_ENABLE_GENERATIONAL, op.getBoolOption("ggc"));
 #endif
 
     JS_SetTrustedPrincipals(rt, &shellTrustedPrincipals);
