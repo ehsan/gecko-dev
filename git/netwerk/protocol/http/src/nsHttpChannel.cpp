@@ -1229,7 +1229,6 @@ nsHttpChannel::HandleAsyncReplaceWithProxy()
 nsresult
 nsHttpChannel::DoReplaceWithProxy(nsIProxyInfo* pi)
 {
-    LOG(("DoReplaceWithProxy from @%x [pi=%p]", this, pi));
     nsresult rv;
 
     nsCOMPtr<nsIChannel> newChannel;
@@ -2749,8 +2748,6 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
                                        nsIChannel   *newChannel,
                                        PRBool        preserveMethod)
 {
-    LOG(("SetupReplacementChannel from @%x with @%x [preserveMethod=%d]",
-         this, newChannel, preserveMethod));
     PRUint32 newLoadFlags = mLoadFlags | LOAD_REPLACE;
     // if the original channel was using SSL and this channel is not using
     // SSL, then no need to inhibit persistent caching.  however, if the
@@ -2789,11 +2786,11 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
                 if (!ctype)
                     ctype = "";
                 const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
-                PRInt64 len = clen ? nsCRT::atoll(clen) : -1;
-                uploadChannel2->ExplicitSetUploadStream(
+                if (clen)
+                    uploadChannel2->ExplicitSetUploadStream(
                         mUploadStream,
                         nsDependentCString(ctype),
-                        len,
+                        nsCRT::atoll(clen),
                         nsDependentCString(mRequestHead.Method()),
                         mUploadStreamHasHeaders);
             }
@@ -4783,7 +4780,7 @@ nsHttpChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
     // Ensure stream is set and method is valid 
     NS_ENSURE_TRUE(aStream, NS_ERROR_FAILURE);
 
-    if (aContentLength < 0 && !aStreamHasHeaders) {
+    if (aContentLength < 0) {
         PRUint32 streamLength;
         aStream->Available(&streamLength);
         aContentLength = streamLength;
@@ -4796,10 +4793,8 @@ nsHttpChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
     nsresult rv = SetRequestMethod(aMethod);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (!aStreamHasHeaders) {
-        mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", aContentLength));
-        mRequestHead.SetHeader(nsHttp::Content_Type, aContentType);
-    }
+    mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", aContentLength));
+    mRequestHead.SetHeader(nsHttp::Content_Type, aContentType);
 
     mUploadStreamHasHeaders = aStreamHasHeaders;
     mUploadStream = aStream;
