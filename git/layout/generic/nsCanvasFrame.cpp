@@ -27,9 +27,10 @@
 #include "nsIScrollableFrame.h"
 #include "nsIDocShell.h"
 
+#ifdef DEBUG_rods
 //#define DEBUG_CANVAS_FOCUS
+#endif
 
-using namespace mozilla::layout;
 
 nsIFrame*
 NS_NewCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -429,8 +430,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
   nsCanvasFrame* prevCanvasFrame = static_cast<nsCanvasFrame*>
                                                (GetPrevInFlow());
   if (prevCanvasFrame) {
-    AutoFrameListPtr overflow(aPresContext,
-                              prevCanvasFrame->StealOverflowFrames());
+    nsAutoPtr<nsFrameList> overflow(prevCanvasFrame->StealOverflowFrames());
     if (overflow) {
       NS_ASSERTION(overflow->OnlyChild(),
                    "must have doc root as canvas frame's only child");

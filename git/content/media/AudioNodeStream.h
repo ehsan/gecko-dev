@@ -50,7 +50,6 @@ public:
   {
     // AudioNodes are always producing data
     mHasCurrentData = true;
-    MOZ_COUNT_CTOR(AudioNodeStream);
   }
   ~AudioNodeStream();
 

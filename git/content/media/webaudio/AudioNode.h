@@ -13,7 +13,6 @@
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "AudioContext.h"
-#include "AudioParamTimeline.h"
 #include "MediaStreamGraph.h"
 
 struct JSContext;
@@ -142,8 +141,6 @@ protected:
   void SendDoubleParameterToStream(uint32_t aIndex, double aValue);
   void SendInt32ParameterToStream(uint32_t aIndex, int32_t aValue);
   void SendThreeDPointParameterToStream(uint32_t aIndex, const ThreeDPoint& aValue);
-  static void SendTimelineParameterToStream(AudioNode* aNode, uint32_t aIndex,
-                                            const AudioParamTimeline& aValue);
 
 private:
   nsRefPtr<AudioContext> mContext;

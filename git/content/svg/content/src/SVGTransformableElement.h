@@ -26,8 +26,6 @@ public:
     : nsSVGElement(aNodeInfo) {}
   virtual ~SVGTransformableElement() {}
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE = 0;
-
   // WebIDL
   already_AddRefed<DOMSVGAnimatedTransformList> Transform();
   nsSVGElement* GetNearestViewportElement();

@@ -62,13 +62,7 @@ nsVolumeService::GetSingleton()
 void
 nsVolumeService::Shutdown()
 {
-  if (!sSingleton) {
-    return;
-  }
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    nsCOMPtr<nsIObserverService> obs = GetObserverService();
-    obs->RemoveObserver(sSingleton.get(), NS_VOLUME_STATE_CHANGED);
-    sSingleton = nullptr;
+  if (!sSingleton || (XRE_GetProcessType() != GeckoProcessType_Default)) {
     return;
   }
 
@@ -90,12 +84,10 @@ nsVolumeService::nsVolumeService()
   sSingleton = this;
 
   if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    // For child processes, we keep a cache of the volume state.
-    nsCOMPtr<nsIObserverService> obs = GetObserverService();
-    obs->AddObserver(this, NS_VOLUME_STATE_CHANGED, false /*weak*/);
-
-    // Request the initial state for all volumes.
-    ContentChild::GetSingleton()->SendBroadcastVolume(NS_LITERAL_STRING(""));
+    // We don't support the nsIVolumeService in the child processes,
+    // but we get constructed due to the way we're registered with
+    // nsLayoutModule.cpp. So we exit early to reduce our memory
+    // impact, and so that we don't start unnecessary IOThread stuff.
     return;
   }
 
@@ -127,25 +119,6 @@ NS_IMETHODIMP nsVolumeService::Callback(const nsAString& aTopic, const nsAString
 NS_IMETHODIMP nsVolumeService::BroadcastVolume(const nsAString& aVolName)
 {
   MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
-
-  if (aVolName.EqualsLiteral("")) {
-    // We treat being passed the empty string as "broadcast all volumes"
-    nsVolume::Array::size_type numVolumes = mVolumeArray.Length();
-    nsVolume::Array::index_type volIndex;
-    for (volIndex = 0; volIndex < numVolumes; volIndex++) {
-      const nsString &volName(mVolumeArray[volIndex]->Name());
-      if (!volName.EqualsLiteral("")) {
-        // Note: The volume service is the only entity that should be able to
-        // modify the array of volumes. So we shouldn't have any issues with
-        // the array being modified under our feet (Since we're the volume
-        // service the array can't change until after we finish iterating the
-        // the loop).
-        nsresult rv = BroadcastVolume(volName);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-    }
-    return NS_OK;
-  }
   nsRefPtr<nsVolume> vol = FindVolumeByName(aVolName);
   if (!vol) {
     ERR("BroadcastVolume: Unable to locate volume '%s'",
@@ -164,8 +137,11 @@ NS_IMETHODIMP nsVolumeService::BroadcastVolume(const nsAString& aVolName)
 
 NS_IMETHODIMP nsVolumeService::GetVolumeByName(const nsAString& aVolName, nsIVolume **aResult)
 {
+  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   nsRefPtr<nsVolume> vol = FindVolumeByName(aVolName);
   if (!vol) {
+    ERR("GetVolumeByName: Unable to locate volume '%s'",
+        NS_LossyConvertUTF16toASCII(aVolName).get());
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -175,6 +151,7 @@ NS_IMETHODIMP nsVolumeService::GetVolumeByName(const nsAString& aVolName, nsIVol
 
 NS_IMETHODIMP nsVolumeService::GetVolumeByPath(const nsAString& aPath, nsIVolume **aResult)
 {
+  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   nsCString utf8Path = NS_ConvertUTF16toUTF8(aPath);
   char realPathBuf[PATH_MAX];
 
@@ -193,7 +170,7 @@ NS_IMETHODIMP nsVolumeService::GetVolumeByPath(const nsAString& aPath, nsIVolume
 
   strlcat(realPathBuf, "/", sizeof(realPathBuf));
 
-  nsVolume::Array::size_type numVolumes = mVolumeArray.Length();
+  nsVolume::Array::size_type  numVolumes = mVolumeArray.Length();
   nsVolume::Array::index_type volIndex;
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
     nsRefPtr<nsVolume> vol = mVolumeArray[volIndex];
@@ -215,18 +192,6 @@ NS_IMETHODIMP nsVolumeService::GetVolumeByPath(const nsAString& aPath, nsIVolume
   return NS_OK;
 }
 
-NS_IMETHODIMP nsVolumeService::GetVolumeNames(nsTArray<nsString>& aVolNames)
-{
-  nsVolume::Array::size_type numVolumes = mVolumeArray.Length();
-  nsVolume::Array::index_type volIndex;
-  for (volIndex = 0; volIndex < numVolumes; volIndex++) {
-    nsRefPtr<nsVolume> vol = mVolumeArray[volIndex];
-    aVolNames.AppendElement(vol->Name());
-  }
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsVolumeService::CreateMountLock(const nsAString& aVolumeName, nsIVolumeMountLock **aResult)
 {
   nsRefPtr<nsVolumeMountLock> mountLock = nsVolumeMountLock::Create(aVolumeName);
@@ -243,7 +208,7 @@ void nsVolumeService::CheckMountLock(const nsAString& aMountLockName,
   MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsVolume::Array::size_type numVolumes = mVolumeArray.Length();
+  nsVolume::Array::size_type  numVolumes = mVolumeArray.Length();
   nsVolume::Array::index_type volIndex;
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
     nsRefPtr<nsVolume> vol = mVolumeArray[volIndex];
@@ -258,9 +223,10 @@ void nsVolumeService::CheckMountLock(const nsAString& aMountLockName,
 
 already_AddRefed<nsVolume> nsVolumeService::FindVolumeByName(const nsAString& aName)
 {
+  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsVolume::Array::size_type numVolumes = mVolumeArray.Length();
+  nsVolume::Array::size_type  numVolumes = mVolumeArray.Length();
   nsVolume::Array::index_type volIndex;
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
     nsRefPtr<nsVolume> vol = mVolumeArray[volIndex];
@@ -274,6 +240,7 @@ already_AddRefed<nsVolume> nsVolumeService::FindVolumeByName(const nsAString& aN
 //static
 already_AddRefed<nsVolume> nsVolumeService::FindAddVolumeByName(const nsAString& aName)
 {
+  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsRefPtr<nsVolume> vol;
@@ -287,36 +254,17 @@ already_AddRefed<nsVolume> nsVolumeService::FindAddVolumeByName(const nsAString&
   return vol.forget();
 }
 
-NS_IMETHODIMP nsVolumeService::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* aData)
+void nsVolumeService::UpdateVolume(const nsVolume* aVolume)
 {
-  if (strcmp(aTopic, NS_VOLUME_STATE_CHANGED) != 0) {
-    return NS_OK;
-  }
-  MOZ_ASSERT(XRE_GetProcessType() != GeckoProcessType_Default);
-  nsCOMPtr<nsIVolume> vol = do_QueryInterface(aSubject);
-  if (!vol) {
-    return NS_OK;
-  }
-  UpdateVolume(vol);
-  return NS_OK;
-}
-
-void nsVolumeService::UpdateVolume(nsIVolume* aVolume)
-{
+  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsString volName;
-  aVolume->GetName(volName);
-  nsRefPtr<nsVolume> vol = FindAddVolumeByName(volName);
+  nsRefPtr<nsVolume> vol = FindAddVolumeByName(aVolume->Name());
   if (vol->Equals(aVolume)) {
     // Nothing has really changed. Don't bother telling anybody.
     return;
   }
   vol->Set(aVolume);
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    // Only the parent broadcasts the state changes
-    return;
-  }
   nsCOMPtr<nsIObserverService> obs = GetObserverService();
   if (!obs) {
     return;

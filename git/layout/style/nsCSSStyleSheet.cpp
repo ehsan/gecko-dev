@@ -733,7 +733,12 @@ nsMediaList::Append(const nsAString& aNewMedium)
 
   nsresult rv = NS_OK;
   nsTArray<nsAutoPtr<nsMediaQuery> > buf;
-  mArray.SwapElements(buf);
+#ifdef DEBUG
+  bool ok = 
+#endif
+    mArray.SwapElements(buf);
+  NS_ASSERTION(ok, "SwapElements should never fail when neither array "
+                   "is an auto array");
   SetText(aNewMedium);
   if (mArray.Length() == 1) {
     nsMediaQuery *query = mArray[0].forget();
@@ -742,8 +747,12 @@ nsMediaList::Append(const nsAString& aNewMedium)
       rv = NS_ERROR_OUT_OF_MEMORY;
     }
   }
-
-  mArray.SwapElements(buf);
+#ifdef DEBUG
+  ok = 
+#endif
+    mArray.SwapElements(buf);
+  NS_ASSERTION(ok, "SwapElements should never fail when neither array "
+                   "is an auto array");
   return rv;
 }
 

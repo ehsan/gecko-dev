@@ -51,11 +51,9 @@ extern void lsm_stop_continuous_tone_timer(void);
 
 static const char* logTag = "VcmSipccBinding";
 
-// Cloned from ccapi.h
 typedef enum {
     CC_AUDIO_1,
-    CC_VIDEO_1,
-    CC_DATACHANNEL_1
+    CC_VIDEO_1
 } cc_media_cap_name;
 
 #define SIPSDP_ILBC_MODE20 20
@@ -1062,8 +1060,7 @@ short vcmGetDtlsIdentity(const char *peerconnection,
  *
  *  @return 0 success, error failure
  */
-static short vcmInitializeDataChannel_m(const char *peerconnection,
-  int track_id, cc_uint16_t streams,
+static short vcmInitializeDataChannel_m(const char *peerconnection, cc_uint16_t streams,
   int local_datachannel_port, int remote_datachannel_port, const char* protocol)
 {
   nsresult res;
@@ -1073,8 +1070,7 @@ static short vcmInitializeDataChannel_m(const char *peerconnection,
   sipcc::PeerConnectionWrapper pc(peerconnection);
   ENSURE_PC(pc, VCM_ERROR);
 
-  res = pc.impl()->InitializeDataChannel(track_id, local_datachannel_port,
-                                         remote_datachannel_port, streams);
+  res = pc.impl()->InitializeDataChannel(local_datachannel_port, remote_datachannel_port, streams);
   if (NS_FAILED(res)) {
     return VCM_ERROR;
   }
@@ -1092,8 +1088,7 @@ static short vcmInitializeDataChannel_m(const char *peerconnection,
  *
  *  @return 0 success, error failure
  */
-short vcmInitializeDataChannel(const char *peerconnection, int track_id,
-  cc_uint16_t streams,
+short vcmInitializeDataChannel(const char *peerconnection, cc_uint16_t streams,
   int local_datachannel_port, int remote_datachannel_port, const char* protocol)
 {
   short ret;
@@ -1101,7 +1096,6 @@ short vcmInitializeDataChannel(const char *peerconnection, int track_id,
   mozilla::SyncRunnable::DispatchToThread(VcmSIPCCBinding::getMainThread(),
       WrapRunnableNMRet(&vcmInitializeDataChannel_m,
                         peerconnection,
-                        track_id,
                         streams,
                         local_datachannel_port,
                         remote_datachannel_port,
@@ -1320,24 +1314,9 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
   sipcc::PeerConnectionWrapper pc(peerconnection);
   ENSURE_PC(pc, VCM_ERROR);
 
-  // Datachannel will use this though not for RTP
-  mozilla::RefPtr<TransportFlow> rtp_flow =
-    vcmCreateTransportFlow(pc.impl(), level, false,
-                           fingerprint_alg, fingerprint);
-  if (!rtp_flow) {
-    CSFLogError( logTag, "Could not create RTP flow");
-    return VCM_ERROR;
-  }
-
-  if (CC_IS_DATACHANNEL(mcap_id)) {
-    // That's all we need for DataChannels - a flow registered
-    CSFLogDebug( logTag, "%s success", __FUNCTION__);
-    return 0;
-  }
-
-  if (!payloads) {
-    CSFLogError( logTag, "Unitialized payload list");
-    return VCM_ERROR;
+  if(!payloads) {
+      CSFLogError( logTag, "Unitialized payload list");
+      return VCM_ERROR;
   }
 
   // Find the stream we need
@@ -1348,13 +1327,20 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
     PR_ASSERT(PR_FALSE);
     return VCM_ERROR;
   }
-
+  // Create the transport flows
+  mozilla::RefPtr<TransportFlow> rtp_flow =
+      vcmCreateTransportFlow(pc.impl(), level, false,
+                             fingerprint_alg, fingerprint);
+  if (!rtp_flow) {
+      CSFLogError( logTag, "Could not create RTP flow");
+      return VCM_ERROR;
+  }
   mozilla::RefPtr<TransportFlow> rtcp_flow =
-    vcmCreateTransportFlow(pc.impl(), level, true,
-                           fingerprint_alg, fingerprint);
+      vcmCreateTransportFlow(pc.impl(), level, true,
+                             fingerprint_alg, fingerprint);
   if (!rtcp_flow) {
-    CSFLogError( logTag, "Could not create RTCP flow");
-    return VCM_ERROR;
+      CSFLogError( logTag, "Could not create RTCP flow");
+      return VCM_ERROR;
   }
 
   if (CC_IS_AUDIO(mcap_id)) {

@@ -35,7 +35,6 @@ UTIL_JAVA_FILES := \
   util/GeckoEventListener.java \
   util/GeckoEventResponder.java \
   util/GeckoJarReader.java \
-  util/HardwareUtils.java \
   util/INIParser.java \
   util/INISection.java \
   util/StringUtils.java \

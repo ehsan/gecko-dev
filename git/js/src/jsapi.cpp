@@ -718,7 +718,6 @@ PerThreadData::~PerThreadData()
 
 JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
   : mainThread(this),
-    interrupt(0),
     atomsCompartment(NULL),
     systemZone(NULL),
     numCompartments(0),
@@ -849,7 +848,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     data(NULL),
     gcLock(NULL),
     gcHelperThread(thisFromCtor()),
-    sizeOfNonHeapAsmJSArrays_(0),
 #ifdef JS_THREADSAFE
 #ifdef JS_ION
     workerThreadState(NULL),

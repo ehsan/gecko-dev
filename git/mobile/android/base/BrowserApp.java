@@ -12,7 +12,6 @@ import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 import org.mozilla.gecko.widget.AboutHomeContent;
@@ -703,7 +702,7 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     public void refreshChrome() {
         // Only ICS phones use a smaller action-bar in landscape mode.
-        if (Build.VERSION.SDK_INT >= 14 && !HardwareUtils.isTablet()) {
+        if (Build.VERSION.SDK_INT >= 14 && !isTablet()) {
             int index = mMainLayout.indexOfChild(mBrowserToolbar.getLayout());
             mMainLayout.removeViewAt(index);
 
@@ -735,7 +734,7 @@ abstract public class BrowserApp extends GeckoApp
     public View getActionBarLayout() {
         int actionBarRes;
 
-        if (!HardwareUtils.hasMenuButton() || HardwareUtils.isTablet())
+        if (!hasPermanentMenuKey() || isTablet())
            actionBarRes = R.layout.browser_toolbar_menu;
         else
            actionBarRes = R.layout.browser_toolbar;
@@ -755,7 +754,7 @@ abstract public class BrowserApp extends GeckoApp
         if (mMainLayoutAnimator != null)
             mMainLayoutAnimator.stop();
 
-        boolean isSideBar = (HardwareUtils.isTablet() && mOrientation == Configuration.ORIENTATION_LANDSCAPE);
+        boolean isSideBar = (GeckoAppShell.isTablet() && mOrientation == Configuration.ORIENTATION_LANDSCAPE);
 
         ViewGroup.LayoutParams lp = mTabsPanel.getLayoutParams();
         if (isSideBar) {
@@ -1181,10 +1180,8 @@ abstract public class BrowserApp extends GeckoApp
                                                         AboutHomeContent.UpdateFlags.REMOTE_TABS));
                 }
                 mAboutHomeContent.setVisibility(View.VISIBLE);
-                mBrowserToolbar.setNextFocusDownId(R.id.abouthome_content);
             } else {
                 findViewById(R.id.abouthome_content).setVisibility(View.GONE);
-                mBrowserToolbar.setNextFocusDownId(R.id.layer_view);
             }
 
             // Refresh margins to possibly restore the toolbar padding
@@ -1382,7 +1379,7 @@ abstract public class BrowserApp extends GeckoApp
         super.onCreateOptionsMenu(menu);
 
         // Inform the menu about the action-items bar. 
-        if (menu instanceof GeckoMenu && HardwareUtils.isTablet())
+        if (menu instanceof GeckoMenu && isTablet())
             ((GeckoMenu) menu).setActionItemBarPresenter(mBrowserToolbar);
 
         MenuInflater inflater = getMenuInflater();
@@ -1453,9 +1450,9 @@ abstract public class BrowserApp extends GeckoApp
         MenuItem findInPage = aMenu.findItem(R.id.find_in_page);
         MenuItem desktopMode = aMenu.findItem(R.id.desktop_mode);
 
-        // Only show the "Quit" menu item on pre-ICS or television devices.
-        // In ICS+, it's easy to kill an app through the task switcher.
-        aMenu.findItem(R.id.quit).setVisible(Build.VERSION.SDK_INT < 14 || HardwareUtils.isTelevision());
+        // Only show the "Quit" menu item on pre-ICS. In ICS+, it's easy to
+        // kill an app through the task switcher.
+        aMenu.findItem(R.id.quit).setVisible(Build.VERSION.SDK_INT < 14 || !isTouchDevice());
 
         if (tab == null || tab.getURL() == null) {
             bookmark.setEnabled(false);

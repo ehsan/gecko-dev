@@ -389,7 +389,6 @@ pref("dom.mozContacts.enabled", true);
 pref("dom.mozAlarms.enabled", true);
 
 // SimplePush
-pref("services.push.enabled", true);
 // serverURL to be assigned by services team
 pref("services.push.serverURL", "");
 pref("services.push.userAgentID", "");

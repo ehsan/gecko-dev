@@ -19,7 +19,6 @@ namespace mozilla {
 
 namespace dom {
 class SVGAnimationElement;
-class SVGTransform;
 }
 
 /**
@@ -39,7 +38,7 @@ class SVGTransform;
 class SVGAnimatedTransformList
 {
   // friends so that they can get write access to mBaseVal
-  friend class dom::SVGTransform;
+  friend class DOMSVGTransform;
   friend class DOMSVGTransformList;
 
 public:

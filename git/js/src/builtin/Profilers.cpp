@@ -199,15 +199,15 @@ JS_DumpProfile(const char *outfile, const char *profileName)
 struct RequiredStringArg {
     JSContext *mCx;
     char *mBytes;
-    RequiredStringArg(JSContext *cx, const CallArgs &args, size_t argi, const char *caller)
+    RequiredStringArg(JSContext *cx, unsigned argc, jsval *vp, size_t argi, const char *caller)
         : mCx(cx), mBytes(NULL)
     {
-        if (args.length() <= argi) {
+        if (argc <= argi) {
             JS_ReportError(cx, "%s: not enough arguments", caller);
-        } else if (!args[argi].isString()) {
+        } else if (!JSVAL_IS_STRING(JS_ARGV(cx, vp)[argi])) {
             JS_ReportError(cx, "%s: invalid arguments (string expected)", caller);
         } else {
-            mBytes = JS_EncodeString(cx, args[argi].toString());
+            mBytes = JS_EncodeString(cx, JSVAL_TO_STRING(JS_ARGV(cx, vp)[argi]));
         }
     }
     operator void*() {
@@ -222,64 +222,60 @@ struct RequiredStringArg {
 static JSBool
 StartProfiling(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() == 0) {
-        args.rval().setBoolean(JS_StartProfiling(NULL));
+    if (argc == 0) {
+        JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_StartProfiling(NULL)));
         return JS_TRUE;
     }
 
-    RequiredStringArg profileName(cx, args, 0, "startProfiling");
+    RequiredStringArg profileName(cx, argc, vp, 0, "startProfiling");
     if (!profileName)
         return JS_FALSE;
-    args.rval().setBoolean(JS_StartProfiling(profileName.mBytes));
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_StartProfiling(profileName.mBytes)));
     return JS_TRUE;
 }
 
 static JSBool
 StopProfiling(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() == 0) {
-        args.rval().setBoolean(JS_StopProfiling(NULL));
+    if (argc == 0) {
+        JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_StopProfiling(NULL)));
         return JS_TRUE;
     }
 
-    RequiredStringArg profileName(cx, args, 0, "stopProfiling");
+    RequiredStringArg profileName(cx, argc, vp, 0, "stopProfiling");
     if (!profileName)
         return JS_FALSE;
-    args.rval().setBoolean(JS_StopProfiling(profileName.mBytes));
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_StopProfiling(profileName.mBytes)));
     return JS_TRUE;
 }
 
 static JSBool
 PauseProfilers(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() == 0) {
-        args.rval().setBoolean(JS_PauseProfilers(NULL));
+    if (argc == 0) {
+        JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_PauseProfilers(NULL)));
         return JS_TRUE;
     }
 
-    RequiredStringArg profileName(cx, args, 0, "pauseProfiling");
+    RequiredStringArg profileName(cx, argc, vp, 0, "pauseProfiling");
     if (!profileName)
         return JS_FALSE;
-    args.rval().setBoolean(JS_PauseProfilers(profileName.mBytes));
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_PauseProfilers(profileName.mBytes)));
     return JS_TRUE;
 }
 
 static JSBool
 ResumeProfilers(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() == 0) {
-        args.rval().setBoolean(JS_ResumeProfilers(NULL));
+    if (argc == 0) {
+        JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_ResumeProfilers(NULL)));
         return JS_TRUE;
     }
 
-    RequiredStringArg profileName(cx, args, 0, "resumeProfiling");
+    RequiredStringArg profileName(cx, argc, vp, 0, "resumeProfiling");
     if (!profileName)
         return JS_FALSE;
-    args.rval().setBoolean(JS_ResumeProfilers(profileName.mBytes));
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_ResumeProfilers(profileName.mBytes)));
     return JS_TRUE;
 }
 
@@ -288,18 +284,17 @@ static JSBool
 DumpProfile(JSContext *cx, unsigned argc, jsval *vp)
 {
     bool ret;
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() == 0) {
+    if (argc == 0) {
         ret = JS_DumpProfile(NULL, NULL);
     } else {
-        RequiredStringArg filename(cx, args, 0, "dumpProfile");
+        RequiredStringArg filename(cx, argc, vp, 0, "dumpProfile");
         if (!filename)
             return JS_FALSE;
 
-        if (args.length() == 1) {
+        if (argc == 1) {
             ret = JS_DumpProfile(filename.mBytes, NULL);
         } else {
-            RequiredStringArg profileName(cx, args, 1, "dumpProfile");
+            RequiredStringArg profileName(cx, argc, vp, 1, "dumpProfile");
             if (!profileName)
                 return JS_FALSE;
 
@@ -307,7 +302,7 @@ DumpProfile(JSContext *cx, unsigned argc, jsval *vp)
         }
     }
 
-    args.rval().setBoolean(ret);
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(ret));
     return true;
 }
 
@@ -316,8 +311,7 @@ DumpProfile(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 IgnoreAndReturnTrue(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(true);
+    JS_SET_RVAL(cx, vp, JSVAL_TRUE);
     return true;
 }
 
@@ -327,33 +321,30 @@ IgnoreAndReturnTrue(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 StartCallgrind(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(js_StartCallgrind());
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(js_StartCallgrind()));
     return JS_TRUE;
 }
 
 static JSBool
 StopCallgrind(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(js_StopCallgrind());
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(js_StopCallgrind()));
     return JS_TRUE;
 }
 
 static JSBool
 DumpCallgrind(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() == 0) {
-        args.rval().setBoolean(js_DumpCallgrind(NULL));
+    if (argc == 0) {
+        JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(js_DumpCallgrind(NULL)));
         return JS_TRUE;
     }
 
-    RequiredStringArg outFile(cx, args, 0, "dumpCallgrind");
+    RequiredStringArg outFile(cx, argc, vp, 0, "dumpCallgrind");
     if (!outFile)
         return JS_FALSE;
 
-    args.rval().setBoolean(js_DumpCallgrind(outFile.mBytes));
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(js_DumpCallgrind(outFile.mBytes)));
     return JS_TRUE;
 }
 #endif

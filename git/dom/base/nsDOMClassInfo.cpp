@@ -4794,7 +4794,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
       JSObject* global;
       bool defineOnXray = ObjectIsNativeWrapper(cx, obj);
       if (defineOnXray) {
-        global = js::UnwrapObjectChecked(obj, /* stopAtOuter = */ false);
+        global = xpc::Unwrap(cx, obj, false);
         if (!global) {
           return NS_ERROR_DOM_SECURITY_ERR;
         }

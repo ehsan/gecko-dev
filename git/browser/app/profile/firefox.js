@@ -401,6 +401,7 @@ pref("browser.link.open_newwindow.disabled_in_fullscreen", false);
 #endif
 
 // Tabbed browser
+pref("browser.tabs.autoHide", false);
 pref("browser.tabs.closeWindowWithLastTab", true);
 pref("browser.tabs.insertRelatedAfterCurrent", true);
 pref("browser.tabs.warnOnClose", true);
@@ -974,6 +975,7 @@ pref("services.sync.prefs.sync.browser.search.update", true);
 pref("services.sync.prefs.sync.browser.sessionstore.restore_on_demand", true);
 pref("services.sync.prefs.sync.browser.startup.homepage", true);
 pref("services.sync.prefs.sync.browser.startup.page", true);
+pref("services.sync.prefs.sync.browser.tabs.autoHide", true);
 pref("services.sync.prefs.sync.browser.tabs.closeButtons", true);
 pref("services.sync.prefs.sync.browser.tabs.loadInBackground", true);
 pref("services.sync.prefs.sync.browser.tabs.warnOnClose", true);
@@ -1230,6 +1232,3 @@ pref("plain_text.wrap_long_lines", true);
 pref("media.webaudio.enabled", true);
 #endif
 
-// If this turns true, Moz*Gesture events are not called stopPropagation()
-// before content.
-pref("dom.debug.propagate_gesture_events_through_content", false);

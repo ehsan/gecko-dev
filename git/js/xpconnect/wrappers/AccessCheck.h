@@ -31,6 +31,8 @@ class AccessCheck {
     static bool isSystemOnlyAccessPermitted(JSContext *cx);
 
     static bool needsSystemOnlyWrapper(JSObject *obj);
+
+    static bool isScriptAccessOnly(JSContext *cx, JSObject *wrapper);
 };
 
 struct Policy {

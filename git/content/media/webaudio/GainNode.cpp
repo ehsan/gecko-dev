@@ -117,7 +117,8 @@ void
 GainNode::SendGainToStream(AudioNode* aNode)
 {
   GainNode* This = static_cast<GainNode*>(aNode);
-  SendTimelineParameterToStream(This, GainNodeEngine::GAIN, *This->mGain);
+  AudioNodeStream* ns = static_cast<AudioNodeStream*>(This->mStream.get());
+  ns->SetTimelineParameter(GainNodeEngine::GAIN, *This->mGain);
 }
 
 }

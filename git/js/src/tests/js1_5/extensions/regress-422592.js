@@ -36,6 +36,7 @@ function test()
     }
     catch(ex)
     {
+      print(ex + '');
     }
     print('After dis');
     actual = 'Completed';
@@ -58,6 +59,7 @@ function test()
     }
     catch(ex)
     {
+      print(ex + '');
     }
     print('After dissrc');
     actual = 'Completed';

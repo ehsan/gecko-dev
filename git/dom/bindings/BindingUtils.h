@@ -160,7 +160,7 @@ UnwrapObject(JSContext* cx, JSObject* obj, U& value)
       return NS_ERROR_XPC_BAD_CONVERT_JS;
     }
 
-    obj = js::UnwrapObjectChecked(obj, /* stopAtOuter = */ false);
+    obj = xpc::Unwrap(cx, obj, false);
     if (!obj) {
       return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
     }
@@ -194,19 +194,10 @@ IsNotDateOrRegExp(JSContext* cx, JSObject* obj)
   // the underlying object after unwrapping.
   Maybe<JSAutoCompartment> ac;
   if (js::IsWrapper(obj)) {
-    obj = js::UnwrapObjectChecked(obj, /* stopAtOuter = */ false);
+    obj = xpc::Unwrap(cx, obj, false);
     if (!obj) {
-      // If this is a security wrapper, it'd be better to say not here. But
-      // this function is used to determine whether an object is convertible to
-      // a callback interface, and we've historically allowed COWs to be passed
-      // as callback interfaces (in part to allow things like:
-      //
-      // |contentWindow.wrappedJSObject.addEventListener(function() {...})|
-      //
-      // to work. We could check for COWs here, but bz says we can probably
-      // just get away with returning true until the JS engine switches to
-      // ObjectClassIs for this stuff and we can just kill this code.
-      return true;
+      // Let's say it's not
+      return false;
     }
 
     ac.construct(cx, obj);
@@ -645,7 +636,7 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx, JSObject* scope, T* value,
     // before we call JS_WrapValue.
     Maybe<JSAutoCompartment> ac;
     if (js::IsWrapper(scope)) {
-      scope = js::UnwrapObjectChecked(scope, /* stopAtOuter = */ false);
+      scope = xpc::Unwrap(cx, scope, false);
       if (!scope)
         return false;
       ac.construct(cx, scope);

@@ -16,14 +16,16 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/ErrorResult.h"
 
+class nsIDOMSVGTransform;
 class nsSVGElement;
 
 namespace mozilla {
 
 namespace dom {
 class SVGMatrix;
-class SVGTransform;
 }
+
+class DOMSVGTransform;
 
 /**
  * Class DOMSVGTransformList
@@ -36,7 +38,7 @@ class SVGTransform;
 class DOMSVGTransformList MOZ_FINAL : public nsISupports,
                                       public nsWrapperCache
 {
-  friend class dom::SVGTransform;
+  friend class DOMSVGTransform;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -94,34 +96,34 @@ public:
     return LengthNoFlush();
   }
   void Clear(ErrorResult& error);
-  already_AddRefed<dom::SVGTransform> Initialize(dom::SVGTransform& newItem,
-                                                 ErrorResult& error);
-  dom::SVGTransform* GetItem(uint32_t index, ErrorResult& error)
+  already_AddRefed<DOMSVGTransform> Initialize(DOMSVGTransform& newItem,
+                                               ErrorResult& error);
+  DOMSVGTransform* GetItem(uint32_t index, ErrorResult& error)
   {
     bool found;
-    dom::SVGTransform* item = IndexedGetter(index, found, error);
+    DOMSVGTransform* item = IndexedGetter(index, found, error);
     if (!found) {
       error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     }
     return item;
   }
-  dom::SVGTransform* IndexedGetter(uint32_t index, bool& found,
-                                   ErrorResult& error);
-  already_AddRefed<dom::SVGTransform> InsertItemBefore(dom::SVGTransform& newItem,
-                                                       uint32_t index,
-                                                       ErrorResult& error);
-  already_AddRefed<dom::SVGTransform> ReplaceItem(dom::SVGTransform& newItem,
-                                                  uint32_t index,
-                                                  ErrorResult& error);
-  already_AddRefed<dom::SVGTransform> RemoveItem(uint32_t index,
-                                                 ErrorResult& error);
-  already_AddRefed<dom::SVGTransform> AppendItem(dom::SVGTransform& newItem,
-                                                 ErrorResult& error)
+  DOMSVGTransform* IndexedGetter(uint32_t index, bool& found,
+                                 ErrorResult& error);
+  already_AddRefed<DOMSVGTransform> InsertItemBefore(DOMSVGTransform& newItem,
+                                                     uint32_t index,
+                                                     ErrorResult& error);
+  already_AddRefed<DOMSVGTransform> ReplaceItem(DOMSVGTransform& newItem,
+                                                uint32_t index,
+                                                ErrorResult& error);
+  already_AddRefed<DOMSVGTransform> RemoveItem(uint32_t index,
+                                               ErrorResult& error);
+  already_AddRefed<DOMSVGTransform> AppendItem(DOMSVGTransform& newItem,
+                                               ErrorResult& error)
   {
     return InsertItemBefore(newItem, LengthNoFlush(), error);
   }
-  already_AddRefed<dom::SVGTransform> CreateSVGTransformFromMatrix(dom::SVGMatrix& matrix);
-  already_AddRefed<dom::SVGTransform> Consolidate(ErrorResult& error);
+  already_AddRefed<DOMSVGTransform> CreateSVGTransformFromMatrix(dom::SVGMatrix& matrix);
+  already_AddRefed<DOMSVGTransform> Consolidate(ErrorResult& error);
   uint32_t Length() const
   {
     return NumberOfItems();
@@ -150,15 +152,15 @@ private:
    */
   SVGTransformList& InternalList() const;
 
-  /// Creates a SVGTransform for aIndex, if it doesn't already exist.
+  /// Creates a DOMSVGTransform for aIndex, if it doesn't already exist.
   void EnsureItemAt(uint32_t aIndex);
 
   void MaybeInsertNullInAnimValListAt(uint32_t aIndex);
   void MaybeRemoveItemFromAnimValListAt(uint32_t aIndex);
 
-  // Weak refs to our SVGTransform items. The items are friends and take care
+  // Weak refs to our DOMSVGTransform items. The items are friends and take care
   // of clearing our pointer to them when they die.
-  FallibleTArray<dom::SVGTransform*> mItems;
+  FallibleTArray<DOMSVGTransform*> mItems;
 
   nsRefPtr<DOMSVGAnimatedTransformList> mAList;
 };

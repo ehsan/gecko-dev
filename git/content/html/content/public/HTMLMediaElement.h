@@ -467,6 +467,8 @@ public:
 
   void SetMozSrcObject(DOMMediaStream& aValue);
 
+  double InitialTime();
+
   bool MozPreservesPitch() const
   {
     return mPreservesPitch;

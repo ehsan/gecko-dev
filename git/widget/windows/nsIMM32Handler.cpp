@@ -162,7 +162,12 @@ nsresult
 nsIMM32Handler::EnsureClauseArray(int32_t aCount)
 {
   NS_ENSURE_ARG_MIN(aCount, 0);
-  mClauseArray.SetCapacity(aCount + 32);
+  if (!mClauseArray.SetCapacity(aCount + 32)) {
+    PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
+      ("IMM32: EnsureClauseArray, aCount=%ld, FAILED to allocate\n",
+       aCount));
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   return NS_OK;
 }
 
@@ -170,7 +175,12 @@ nsresult
 nsIMM32Handler::EnsureAttributeArray(int32_t aCount)
 {
   NS_ENSURE_ARG_MIN(aCount, 0);
-  mAttributeArray.SetCapacity(aCount + 64);
+  if (!mAttributeArray.SetCapacity(aCount + 64)) {
+    PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
+      ("IMM32: EnsureAttributeArray, aCount=%ld, FAILED to allocate\n",
+       aCount));
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   return NS_OK;
 }
 

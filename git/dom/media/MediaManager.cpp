@@ -1272,7 +1272,6 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
       MutexAutoLock lock(mMutex);
       GetActiveWindows()->Clear();
       mActiveCallbacks.Clear();
-      LOG(("Releasing MediaManager singleton and thread"));
       sSingleton = nullptr;
     }
 

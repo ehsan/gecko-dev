@@ -240,16 +240,18 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
     return true;
 }
 
-AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module)
+AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module, unsigned entryIndex)
   : cx_(cx),
     module_(module),
+    entryIndex_(entryIndex),
     errorRejoinSP_(NULL),
     profiler_(NULL),
     resumePC_(NULL)
 {
     if (cx->runtime->spsProfiler.enabled()) {
         profiler_ = &cx->runtime->spsProfiler;
-        profiler_->enterNative("asm.js code", this);
+        JSFunction *fun = module_.exportedFunction(entryIndex_).unclonedFunObj();
+        profiler_->enter(cx_, fun->nonLazyScript(), fun);
     }
 
     prev_ = cx_->runtime->mainThread.asmJSActivationStack_;
@@ -262,8 +264,10 @@ AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module)
 
 AsmJSActivation::~AsmJSActivation()
 {
-    if (profiler_)
-        profiler_->exitNative();
+    if (profiler_) {
+        JSFunction *fun = module_.exportedFunction(entryIndex_).unclonedFunObj();
+        profiler_->exit(cx_, fun->nonLazyScript(), fun);
+    }
 
     JS_ASSERT(cx_->runtime->mainThread.asmJSActivationStack_ == this);
 
@@ -320,7 +324,7 @@ CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
     }
 
     {
-        AsmJSActivation activation(cx, module);
+        AsmJSActivation activation(cx, module, exportIndex);
 
         // Call into generated code.
         if (!func.code()(coercedArgs.begin()))
@@ -367,8 +371,8 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
     const AsmJSModule::PostLinkFailureInfo &info = module.postLinkFailureInfo();
 
     uint32_t length = info.bufEnd_ - info.bufStart_;
-    Rooted<JSStableString*> src(cx, info.scriptSource_->substring(cx, info.bufStart_, info.bufEnd_));
-    const jschar *chars = src->chars().get();
+    Rooted<JSFlatString*> src(cx, info.scriptSource_->substring(cx, info.bufStart_, info.bufEnd_));
+    const jschar *chars = src->chars();
 
     RootedFunction fun(cx, NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED,
                                        cx->global(), name));
@@ -391,15 +395,20 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
     // Call the function we just recompiled.
 
     unsigned argc = args.length();
+    JS_ASSERT(argc <= 3);
 
     InvokeArgsGuard args2;
-    if (!cx->stack.pushInvokeArgs(cx, argc, &args2))
+    if (!cx->stack.pushInvokeArgs(cx, args.length(), &args2))
         return false;
 
     args2.setCallee(ObjectValue(*fun));
     args2.setThis(args.thisv());
-    for (unsigned i = 0; i < argc; i++)
-        args2[i] = args[i];
+    if (argc > 0)
+        args2[0] = args[0];
+    if (argc > 1)
+        args2[1] = args[1];
+    if (argc > 2)
+        args2[2] = args[2];
 
     if (!Invoke(cx, args2))
         return false;

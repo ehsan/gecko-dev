@@ -5,7 +5,6 @@
 
 #include "TextAttrs.h"
 
-#include "Accessible-inl.h"
 #include "HyperTextAccessibleWrap.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"

@@ -42,12 +42,12 @@ const PERSIST_FILES = {
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeImageOptimizer",
   "resource://gre/modules/LightweightThemeImageOptimizer.jsm");
 
-this.__defineGetter__("_prefs", function prefsGetter() {
+__defineGetter__("_prefs", function prefsGetter() {
   delete this._prefs;
   return this._prefs = Services.prefs.getBranch("lightweightThemes.");
 });
 
-this.__defineGetter__("_maxUsedThemes", function maxUsedThemesGetter() {
+__defineGetter__("_maxUsedThemes", function maxUsedThemesGetter() {
   delete this._maxUsedThemes;
   try {
     this._maxUsedThemes = _prefs.getIntPref("maxUsedThemes");
@@ -58,7 +58,7 @@ this.__defineGetter__("_maxUsedThemes", function maxUsedThemesGetter() {
   return this._maxUsedThemes;
 });
 
-this.__defineSetter__("_maxUsedThemes", function maxUsedThemesSetter(aVal) {
+__defineSetter__("_maxUsedThemes", function maxUsedThemesSetter(aVal) {
   delete this._maxUsedThemes;
   return this._maxUsedThemes = aVal;
 });

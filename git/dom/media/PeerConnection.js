@@ -682,18 +682,10 @@ PeerConnection.prototype = {
 
   createDataChannel: function(label, dict) {
     this._checkClosed();
-    if (dict == undefined) {
-	dict = {};
-    }
-    if (dict.maxRetransmitTime != undefined &&
+    if (dict &&
+        dict.maxRetransmitTime != undefined &&
         dict.maxRetransmitNum != undefined) {
       throw new Components.Exception("Both maxRetransmitTime and maxRetransmitNum cannot be provided");
-    }
-    let protocol;
-    if (dict.protocol == undefined) {
-      protocol = "";
-    } else {
-      protocol = dict.protocol;
     }
 
     // Must determine the type where we still know if entries are undefined.
@@ -707,10 +699,11 @@ PeerConnection.prototype = {
     }
 
     // Synchronous since it doesn't block.
+    // TODO -- this may need to be revisited, based on how the
+    // spec ends up defining data channel handling
     let channel = this._pc.createDataChannel(
-      label, protocol, type, dict.outOfOrderAllowed, dict.maxRetransmitTime,
-      dict.maxRetransmitNum, dict.preset ? true : false,
-      dict.stream != undefined ? dict.stream : 0xFFFF
+      label, type, dict.outOfOrderAllowed, dict.maxRetransmitTime,
+      dict.maxRetransmitNum
     );
     return channel;
   },
@@ -936,10 +929,7 @@ PeerConnectionObserver.prototype = {
   notifyDataChannel: function(channel) {
     if (this._dompc.ondatachannel) {
       try {
-        this._dompc.ondatachannel.onCallback({
-          channel: channel,
-          __exposedProps__: { channel: "r" }
-        });
+        this._dompc.ondatachannel.onCallback(channel);
       } catch(e) {}
     }
   },

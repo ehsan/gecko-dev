@@ -122,9 +122,7 @@ PuppetWidget::InitIMEState()
 {
   if (mNeedIMEStateInit) {
     uint32_t chromeSeqno;
-    if (mTabChild) {
-      mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
-    }
+    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
     mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
     mNeedIMEStateInit = false;
   }
@@ -537,7 +535,8 @@ PuppetWidget::SetCursor(nsCursor aCursor)
     return NS_OK;
   }
 
-  if (mTabChild && !mTabChild->SendSetCursor(aCursor)) {
+  if (!mTabChild ||
+      !mTabChild->SendSetCursor(aCursor)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -577,9 +576,7 @@ PuppetWidget::Paint()
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BUFFER_NONE);
       mAttachedWidgetListener->PaintWindow(this, region, 0);
-      if (mTabChild) {
-        mTabChild->NotifyPainted();
-      }
+      mTabChild->NotifyPainted();
     }
   }
 
@@ -619,11 +616,8 @@ float
 PuppetWidget::GetDPI()
 {
   if (mDPI < 0) {
-    if (mTabChild) {
-      mTabChild->GetDPI(&mDPI);
-    } else {
-      mDPI = 96.0;
-    }
+    NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the DPI from!");
+    mTabChild->GetDPI(&mDPI);
   }
 
   return mDPI;
@@ -636,9 +630,7 @@ PuppetWidget::GetNativeData(uint32_t aDataType)
   case NS_NATIVE_SHAREABLE_WINDOW: {
     NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the nativeWindow from!");
     mozilla::WindowsHandle nativeData = 0;
-    if (mTabChild) {
-      mTabChild->SendGetWidgetNativeData(&nativeData);
-    }
+    mTabChild->SendGetWidgetNativeData(&nativeData);
     return (void*)nativeData;
   }
   case NS_NATIVE_WINDOW:

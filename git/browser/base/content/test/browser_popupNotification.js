@@ -725,26 +725,7 @@ var tests = [
       PopupNotifications.buttonDelay = PREF_SECURITY_DELAY_INITIAL;
     },
   },
-  { // Test #25 - reload removes notification
-    run: function () {
-      loadURI("http://example.com/", function() {
-        let notifyObj = new basicNotification();
-        notifyObj.options.eventCallback = function (eventName) {
-          if (eventName == "removed") {
-            ok(true, "Notification removed in background tab after reloading");
-            executeSoon(function () {
-              goNext();
-            });
-          }
-        };
-        showNotification(notifyObj);
-        executeSoon(function () {
-          gBrowser.selectedBrowser.reload();
-        });
-      });
-    }
-  },
-  { // Test #26 - location change in background tab removes notification
+  { // Test #25 - location change in background tab removes notification
     run: function () {
       let oldSelectedTab = gBrowser.selectedTab;
       let newTab = gBrowser.addTab("about:blank");
@@ -772,7 +753,7 @@ var tests = [
       });
     }
   },
-  { // Test #27 -  Popup notification anchor shouldn't disappear when a notification with the same ID is re-added in a background tab
+  { // Test #26 -  Popup notification anchor shouldn't disappear when a notification with the same ID is re-added in a background tab
     run: function () {
       loadURI("http://example.com/", function () {
         let originalTab = gBrowser.selectedTab;
@@ -806,24 +787,6 @@ var tests = [
           fgNotification.remove();
           gBrowser.removeTab(bgTab);
           goNext();
-        });
-      });
-    }
-  },
-  { // Test #28 - location change in embedded frame removes notification
-    run: function () {
-      loadURI("data:text/html,<iframe id='iframe' src='http://example.com/'>", function () {
-        let notifyObj = new basicNotification();
-        notifyObj.options.eventCallback = function (eventName) {
-          if (eventName == "removed") {
-            ok(true, "Notification removed in background tab after reloading");
-            executeSoon(goNext);
-          }
-        };
-        showNotification(notifyObj);
-        executeSoon(function () {
-          content.document.getElementById("iframe")
-                          .setAttribute("src", "http://example.org/");
         });
       });
     }
@@ -914,7 +877,7 @@ function loadURI(uri, callback) {
   if (callback) {
     gBrowser.addEventListener("load", function() {
       // Ignore the about:blank load
-      if (gBrowser.currentURI.spec == "about:blank")
+      if (gBrowser.currentURI.spec != uri)
         return;
 
       gBrowser.removeEventListener("load", arguments.callee, true);

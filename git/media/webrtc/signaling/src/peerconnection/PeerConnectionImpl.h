@@ -236,8 +236,8 @@ public:
   NS_IMETHODIMP CreateOffer(MediaConstraints& aConstraints);
   NS_IMETHODIMP CreateAnswer(MediaConstraints& aConstraints);
 
-  nsresult InitializeDataChannel(int track_id, uint16_t aLocalport,
-                                 uint16_t aRemoteport, uint16_t aNumstreams);
+  nsresult
+  InitializeDataChannel(uint16_t aLocalport, uint16_t aRemoteport, uint16_t aNumstreams);
 
   // Called whenever something is unrecognized by the parser
   // May be called more than once and does not necessarily mean
@@ -259,7 +259,6 @@ private:
                       JSContext* aCx);
   NS_IMETHODIMP CreateOfferInt(MediaConstraints& constraints);
   NS_IMETHODIMP CreateAnswerInt(MediaConstraints& constraints);
-  NS_IMETHODIMP EnsureDataConnection(uint16_t aNumstreams);
 
   nsresult CloseInt(bool aIsSynchronous);
   void ChangeReadyState(ReadyState aReadyState);
@@ -338,8 +337,6 @@ private:
   // Bug 840728.
   int mNumAudioStreams;
   int mNumVideoStreams;
-
-  bool mHaveDataStream;
 
   // Holder for error messages from parsing SDP
   std::vector<std::string> mSDPParseErrorMessages;

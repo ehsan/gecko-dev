@@ -67,7 +67,6 @@ public:
 
   static nsresult GetPermissionForType(const nsAString& aType, nsACString& aPermissionResult);
   static nsresult GetAccessForRequest(const DeviceStorageRequestType aRequestType, nsACString& aAccessResult);
-  static bool IsVolumeBased(const nsAString& aType);
 
 private:
   nsString mPicturesExtensions;
@@ -135,7 +134,7 @@ jsval nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile);
 jsval InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID);
 
 #ifdef MOZ_WIDGET_GONK
-nsresult GetSDCardStatus(nsAString& aPath, nsAString& aState);
+nsresult GetSDCardStatus(nsAString& aState);
 #endif
 
 #endif

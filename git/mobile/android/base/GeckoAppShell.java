@@ -13,7 +13,6 @@ import org.mozilla.gecko.gfx.PanZoomController;
 import org.mozilla.gecko.mozglue.GeckoLoader;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.app.ActivityManager;
@@ -1939,9 +1938,16 @@ public class GeckoAppShell
         SmsManager.getInstance().clearMessageList(aListId);
     }
 
-    /* Called by JNI from AndroidBridge, and by reflection from tests/BaseTest.java.in */
     public static boolean isTablet() {
-        return HardwareUtils.isTablet();
+        return GeckoApp.mAppContext.isTablet();
+    }
+
+    public static boolean isLargeTablet() {
+        return GeckoApp.mAppContext.isLargeTablet();
+    }
+
+    public static boolean isSmallTablet() {
+        return GeckoApp.mAppContext.isSmallTablet();
     }
 
     public static void viewSizeChanged() {

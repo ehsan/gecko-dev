@@ -576,7 +576,7 @@ var BrowserUI = {
     } else if (!Util.isURLEmpty(url)) {
       tabCaption = url;
     } else {
-      tabCaption = Util.getEmptyURLTabTitle();
+      tabCaption = Strings.browser.GetStringFromName("tabs.emptyTabTitle");
     }
 
     let tab = Browser.getTabForBrowser(aBrowser);

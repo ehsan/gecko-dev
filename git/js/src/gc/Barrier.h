@@ -376,6 +376,7 @@ class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
      */
     EncapsulatedValue() MOZ_DELETE;
 
+
   public:
     EncapsulatedValue(const Value &v) : value(v) {
         JS_ASSERT(!IsPoisonedValue(v));
@@ -459,7 +460,8 @@ class RelocatableValue : public EncapsulatedValue
 
   private:
     inline void post();
-    inline void relocate(JSRuntime *rt);
+    inline void post(JSRuntime *rt);
+    inline void relocate();
 };
 
 class HeapSlot : public EncapsulatedValue

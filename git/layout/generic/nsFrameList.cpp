@@ -6,8 +6,6 @@
 #include "nsFrameList.h"
 #include "nsIFrame.h"
 #include "nsLayoutUtils.h"
-#include "nsPresContext.h"
-#include "nsIPresShell.h"
 
 #ifdef IBMBIDI
 #include "nsCOMPtr.h"
@@ -16,27 +14,33 @@
 #include "nsBidiPresUtils.h"
 #endif // IBMBIDI
 
-namespace mozilla {
-namespace layout {
-namespace detail {
-const AlignedFrameListBytes gEmptyFrameListBytes = { 0 };
-}
-}
-}
+const nsFrameList* nsFrameList::sEmptyList;
 
-void*
-nsFrameList::operator new(size_t sz, nsIPresShell* aPresShell) CPP_THROW_NEW
+/* static */
+void
+nsFrameList::Init()
 {
-  return aPresShell->AllocateByObjectID(nsPresArena::nsFrameList_id, sz);
+  NS_PRECONDITION(!sEmptyList, "Shouldn't be allocated");
+
+  sEmptyList = new nsFrameList();
 }
 
 void
-nsFrameList::Delete(nsIPresShell* aPresShell)
+nsFrameList::Destroy()
 {
-  NS_PRECONDITION(this != &EmptyList(), "Shouldn't Delete() this list");
-  NS_ASSERTION(IsEmpty(), "Shouldn't Delete() a non-empty list");
+  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
 
-  aPresShell->FreeByObjectID(nsPresArena::nsFrameList_id, this);
+  DestroyFrames();
+  delete this;
+}
+
+void
+nsFrameList::DestroyFrom(nsIFrame* aDestructRoot)
+{
+  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
+
+  DestroyFramesFrom(aDestructRoot);
+  delete this;
 }
 
 void
@@ -540,16 +544,3 @@ nsFrameList::VerifyList() const
   // prevents that, e.g. table captions.
 }
 #endif
-
-namespace mozilla {
-namespace layout {
-
-AutoFrameListPtr::~AutoFrameListPtr()
-{
-  if (mFrameList) {
-    mFrameList->Delete(mPresContext->PresShell());
-  }
-}
-
-}
-}

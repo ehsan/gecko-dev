@@ -26,7 +26,8 @@ interface TestJSImplInterface {
   void passByte(byte arg);
   byte receiveByte();
   void passOptionalByte(optional byte arg);
-  void passOptionalByteWithDefault(optional byte arg = 0);
+  // Callback interface limitation.  See bug 841429.
+  // void passOptionalByteWithDefault(optional byte arg = 0);
   void passNullableByte(byte? arg);
   void passOptionalNullableByte(optional byte? arg);
   void passVariadicByte(byte... arg);
@@ -36,49 +37,56 @@ interface TestJSImplInterface {
   void passShort(short arg);
   short receiveShort();
   void passOptionalShort(optional short arg);
-  void passOptionalShortWithDefault(optional short arg = 5);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalShortWithDefault(optional short arg = 5);
 
   readonly attribute long readonlyLong;
   attribute long writableLong;
   void passLong(long arg);
   long receiveLong();
   void passOptionalLong(optional long arg);
-  void passOptionalLongWithDefault(optional long arg = 7);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalLongWithDefault(optional long arg = 7);
 
   readonly attribute long long readonlyLongLong;
   attribute long long writableLongLong;
   void passLongLong(long long arg);
   long long receiveLongLong();
   void passOptionalLongLong(optional long long arg);
-  void passOptionalLongLongWithDefault(optional long long arg = -12);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalLongLongWithDefault(optional long long arg = -12);
 
   readonly attribute octet readonlyOctet;
   attribute octet writableOctet;
   void passOctet(octet arg);
   octet receiveOctet();
   void passOptionalOctet(optional octet arg);
-  void passOptionalOctetWithDefault(optional octet arg = 19);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalOctetWithDefault(optional octet arg = 19);
 
   readonly attribute unsigned short readonlyUnsignedShort;
   attribute unsigned short writableUnsignedShort;
   void passUnsignedShort(unsigned short arg);
   unsigned short receiveUnsignedShort();
   void passOptionalUnsignedShort(optional unsigned short arg);
-  void passOptionalUnsignedShortWithDefault(optional unsigned short arg = 2);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalUnsignedShortWithDefault(optional unsigned short arg = 2);
 
   readonly attribute unsigned long readonlyUnsignedLong;
   attribute unsigned long writableUnsignedLong;
   void passUnsignedLong(unsigned long arg);
   unsigned long receiveUnsignedLong();
   void passOptionalUnsignedLong(optional unsigned long arg);
-  void passOptionalUnsignedLongWithDefault(optional unsigned long arg = 6);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalUnsignedLongWithDefault(optional unsigned long arg = 6);
 
   readonly attribute unsigned long long readonlyUnsignedLongLong;
   attribute unsigned long long  writableUnsignedLongLong;
   void passUnsignedLongLong(unsigned long long arg);
   unsigned long long receiveUnsignedLongLong();
   void passOptionalUnsignedLongLong(optional unsigned long long arg);
-  void passOptionalUnsignedLongLongWithDefault(optional unsigned long long arg = 17);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalUnsignedLongLongWithDefault(optional unsigned long long arg = 17);
 
   attribute float writableFloat;
   attribute unrestricted float writableUnrestrictedFloat;
@@ -133,7 +141,8 @@ interface TestJSImplInterface {
   // Optional arguments
   void passOptionalSelf(optional TestJSImplInterface? arg);
   void passOptionalNonNullSelf(optional TestJSImplInterface arg);
-  void passOptionalSelfWithDefault(optional TestJSImplInterface? arg = null);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalSelfWithDefault(optional TestJSImplInterface? arg = null);
 
   // Non-wrapper-cache interface types
   [Creator]
@@ -168,7 +177,8 @@ interface TestJSImplInterface {
   // Optional arguments
   void passOptionalOther(optional IndirectlyImplementedInterface? arg);
   void passOptionalNonNullOther(optional IndirectlyImplementedInterface arg);
-  void passOptionalOtherWithDefault(optional IndirectlyImplementedInterface? arg = null);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalOtherWithDefault(optional IndirectlyImplementedInterface? arg = null);
 
   // External interface types
   TestExternalInterface receiveExternal();
@@ -186,7 +196,8 @@ interface TestJSImplInterface {
   // Optional arguments
   void passOptionalExternal(optional TestExternalInterface? arg);
   void passOptionalNonNullExternal(optional TestExternalInterface arg);
-  void passOptionalExternalWithDefault(optional TestExternalInterface? arg = null);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalExternalWithDefault(optional TestExternalInterface? arg = null);
 
   // Callback interface types
   TestCallbackInterface receiveCallbackInterface();
@@ -204,7 +215,8 @@ interface TestJSImplInterface {
   // Optional arguments
   void passOptionalCallbackInterface(optional TestCallbackInterface? arg);
   void passOptionalNonNullCallbackInterface(optional TestCallbackInterface arg);
-  void passOptionalCallbackInterfaceWithDefault(optional TestCallbackInterface? arg = null);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalCallbackInterfaceWithDefault(optional TestCallbackInterface? arg = null);
 
   // Miscellaneous interface tests
   IndirectlyImplementedInterface receiveConsequentialInterface();
@@ -238,7 +250,8 @@ interface TestJSImplInterface {
   void passNullableCastableObjectNullableSequence(sequence<TestJSImplInterface?>? arg);
   void passOptionalSequence(optional sequence<long> arg);
   void passOptionalNullableSequence(optional sequence<long>? arg);
-  void passOptionalNullableSequenceWithDefaultValue(optional sequence<long>? arg = null);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalNullableSequenceWithDefaultValue(optional sequence<long>? arg = null);
   void passOptionalObjectSequence(optional sequence<TestJSImplInterface> arg);
   void passExternalInterfaceSequence(sequence<TestExternalInterface> arg);
   void passNullableExternalInterfaceSequence(sequence<TestExternalInterface?> arg);
@@ -277,9 +290,11 @@ interface TestJSImplInterface {
   void passString(DOMString arg);
   void passNullableString(DOMString? arg);
   void passOptionalString(optional DOMString arg);
-  void passOptionalStringWithDefaultValue(optional DOMString arg = "abc");
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalStringWithDefaultValue(optional DOMString arg = "abc");
   void passOptionalNullableString(optional DOMString? arg);
-  void passOptionalNullableStringWithDefaultValue(optional DOMString? arg = null);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalNullableStringWithDefaultValue(optional DOMString? arg = null);
   void passVariadicString(DOMString... arg);
 
   // Enumerated types
@@ -288,7 +303,8 @@ interface TestJSImplInterface {
   // void passNullableEnum(MyTestEnum? arg);
   // Optional enum arg doesn't work with callback interfaces. See bug 843355.
   //void passOptionalEnum(optional MyTestEnum arg);
-  void passEnumWithDefault(optional MyTestEnum arg = "a");
+  // Callback interface limitation.  See bug 841429.
+  //void passEnumWithDefault(optional MyTestEnum arg = "a");
   // void passOptionalNullableEnum(optional MyTestEnum? arg);
   // void passOptionalNullableEnumWithDefaultValue(optional MyTestEnum? arg = null);
   MyTestEnum receiveEnum();
@@ -300,13 +316,15 @@ interface TestJSImplInterface {
   void passNullableCallback(MyTestCallback? arg);
   void passOptionalCallback(optional MyTestCallback arg);
   void passOptionalNullableCallback(optional MyTestCallback? arg);
-  void passOptionalNullableCallbackWithDefaultValue(optional MyTestCallback? arg = null);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalNullableCallbackWithDefaultValue(optional MyTestCallback? arg = null);
   MyTestCallback receiveCallback();
   MyTestCallback? receiveNullableCallback();
   // Hmm. These two don't work, I think because I need a locally modified version of TestTreatAsNullCallback.
   //void passNullableTreatAsNullCallback(TestTreatAsNullCallback? arg);
   //void passOptionalNullableTreatAsNullCallback(optional TestTreatAsNullCallback? arg);
-  void passOptionalNullableTreatAsNullCallbackWithDefaultValue(optional TestTreatAsNullCallback? arg = null);
+  // Callback interface limitation.  See bug 841429.
+  //void passOptionalNullableTreatAsNullCallbackWithDefaultValue(optional TestTreatAsNullCallback? arg = null);
 
 /* The rest of these are untested.
   // Any types

@@ -336,7 +336,12 @@ ContactDB.prototype = {
               for (let num in search) {
                 contact.search[field].push(num);
               }
-            } else if (field == "impp" || field == "email") {
+            } else if (field == "email") {
+              let address = aContact.properties[field][i].value;
+              if (address && typeof address == "string") {
+                contact.search[field].push(address.toLowerCase());
+              }
+            } else if (field == "impp") {
               let value = aContact.properties[field][i].value;
               if (value && typeof value == "string") {
                 contact.search[field].push(value.toLowerCase());

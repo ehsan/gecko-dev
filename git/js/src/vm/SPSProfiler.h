@@ -175,10 +175,6 @@ class SPSProfiler
         }
     }
 
-    /* Enter a C++ function. */
-    void enterNative(const char *string, void *sp);
-    void exitNative() { pop(); }
-
 #ifdef JS_METHODJIT
     struct ICInfo
     {
