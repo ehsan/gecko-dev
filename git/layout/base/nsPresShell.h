@@ -73,7 +73,6 @@
 #include "nsFrameSelection.h"
 #include "nsGUIEvent.h"
 #include "nsContentUtils.h"
-#include "nsRefreshDriver.h"
 
 class nsIRange;
 class nsIDragService;
