@@ -52,8 +52,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICONTENTPOLICY
   NS_DECL_NSICHANNELEVENTSINK
-
+  
   CSPService();
   virtual ~CSPService();
-  static PRBool sCSPEnabled;
 };

@@ -3389,8 +3389,7 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
   nsAutoString data;
   if (mContent->Tag() == nsGkAtoms::object &&
       !mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::src) &&
-      mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::data, data) &&
-      !data.IsEmpty()) {
+      mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::data, data)) {
     mNumCachedAttrs++;
   }
 

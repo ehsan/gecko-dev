@@ -3111,7 +3111,7 @@ nsCanvasRenderingContext2D::SetLineCap(const nsAString& capstyle)
         cap = gfxContext::LINE_CAP_SQUARE;
     else
         // XXX ERRMSG we need to report an error to developers here! (bug 329026)
-        return NS_OK;
+        return NS_ERROR_NOT_IMPLEMENTED;
 
     mThebes->SetLineCap(cap);
     return NS_OK;
@@ -3147,7 +3147,7 @@ nsCanvasRenderingContext2D::SetLineJoin(const nsAString& joinstyle)
         j = gfxContext::LINE_JOIN_MITER;
     else
         // XXX ERRMSG we need to report an error to developers here! (bug 329026)
-        return NS_OK;
+        return NS_ERROR_NOT_IMPLEMENTED;
 
     mThebes->SetLineJoin(j);
     return NS_OK;
@@ -3532,8 +3532,7 @@ nsCanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op)
     else CANVAS_OP_TO_THEBES_OP("xor", XOR)
     // not part of spec, kept here for compat
     else CANVAS_OP_TO_THEBES_OP("over", OVER)
-    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
-    else return NS_OK;
+    else return NS_ERROR_NOT_IMPLEMENTED;
 
 #undef CANVAS_OP_TO_THEBES_OP
 
