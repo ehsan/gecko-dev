@@ -515,7 +515,7 @@ BrowserTabActor.prototype = {
     // as the title.
     if (!title && this._tabbrowser) {
       title = this._tabbrowser
-                  ._getTabForContentWindow(this.window).label;
+                  ._getTabForContentWindow(this.contentWindow).label;
     }
     return title;
   },
@@ -530,19 +530,12 @@ BrowserTabActor.prototype = {
   },
 
   /**
-   * Getter for the tab content window, will be used by child actors to target
-   * the right window.
+   * Getter for the tab content window.
    * @return nsIDOMWindow
    *         Tab content window.
    */
-  get window() {
-    if (this.browser instanceof Ci.nsIDOMWindow) {
-      return this.browser;
-    } else if (this.browser instanceof Ci.nsIDOMElement) {
-      return this.browser.contentWindow;
-    } else {
-      return null;
-    }
+  get contentWindow() {
+    return this.browser.contentWindow;
   },
 
   grip: function BTA_grip() {
@@ -635,7 +628,7 @@ BrowserTabActor.prototype = {
     this._contextPool = new ActorPool(this.conn);
     this.conn.addActorPool(this._contextPool);
 
-    this.threadActor = new ThreadActor(this, this.window.wrappedJSObject);
+    this.threadActor = new ThreadActor(this, this.contentWindow.wrappedJSObject);
     this._contextPool.addActor(this.threadActor);
   },
 
@@ -709,7 +702,7 @@ BrowserTabActor.prototype = {
     // Wait a tick so that the response packet can be dispatched before the
     // subsequent navigation event packet.
     Services.tm.currentThread.dispatch(makeInfallible(() => {
-      this.window.location.reload();
+      this.contentWindow.location.reload();
     }, "BrowserTabActor.prototype.onReload's delayed body"), 0);
     return {};
   },
@@ -721,7 +714,7 @@ BrowserTabActor.prototype = {
     // Wait a tick so that the response packet can be dispatched before the
     // subsequent navigation event packet.
     Services.tm.currentThread.dispatch(makeInfallible(() => {
-      this.window.location = aRequest.url;
+      this.contentWindow.location = aRequest.url;
     }, "BrowserTabActor.prototype.onNavigateTo's delayed body"), 0);
     return {};
   },
@@ -734,7 +727,7 @@ BrowserTabActor.prototype = {
       // The tab is already closed.
       return;
     }
-    let windowUtils = this.window
+    let windowUtils = this.contentWindow
                           .QueryInterface(Ci.nsIInterfaceRequestor)
                           .getInterface(Ci.nsIDOMWindowUtils);
     windowUtils.suppressEventHandling(true);
@@ -749,7 +742,7 @@ BrowserTabActor.prototype = {
       // The tab is already closed.
       return;
     }
-    let windowUtils = this.window
+    let windowUtils = this.contentWindow
                           .QueryInterface(Ci.nsIInterfaceRequestor)
                           .getInterface(Ci.nsIDOMWindowUtils);
     windowUtils.resumeTimeouts();
@@ -846,7 +839,7 @@ DebuggerProgressListener.prototype = {
 
     // Skip non-interesting states.
     if (!isWindow || !isNetwork ||
-        aProgress.DOMWindow != this._tabActor.window) {
+        aProgress.DOMWindow != this._tabActor.contentWindow) {
       return;
     }
 
@@ -872,7 +865,7 @@ DebuggerProgressListener.prototype = {
         this._tabActor.threadActor.dbg.enabled = true;
       }
 
-      let window = this._tabActor.window;
+      let window = this._tabActor.contentWindow;
       this._tabActor.conn.send({
         from: this._tabActor.actorID,
         type: "tabNavigated",

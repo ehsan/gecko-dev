@@ -113,10 +113,5 @@ elif CONFIG['OS_ARCH'] == 'Darwin':
 else:
     error('No TimeStamp implementation on this platform.  Build will not succeed')
 
-EXTRA_COMPONENTS += [
-    'nsINIProcessor.js',
-    'nsINIProcessor.manifest',
-]
-
 LIBRARY_NAME = 'xpcomds_s'
 

@@ -4,24 +4,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDeviceContext.h"
-
-#include <algorithm>
-
-#include "gfxImageSurface.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 #include "nsCRT.h"
 #include "nsFontMetrics.h"
-#include "nsIDeviceContextSpec.h"
+#include "nsRenderingContext.h"
+#include "nsIWidget.h"
+
+#include "mozilla/Attributes.h"
+#include "mozilla/Services.h"
+#include "mozilla/Preferences.h"
+#include "nsIServiceManager.h"
 #include "nsILanguageAtomService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsIScreen.h"
-#include "nsIScreenManager.h"
-#include "nsIServiceManager.h"
-#include "nsIWidget.h"
-#include "nsRenderingContext.h"
+
+#include "gfxImageSurface.h"
+#include <algorithm>
 
 #if !XP_MACOSX
 #include "gfxPDFSurface.h"

@@ -1315,7 +1315,7 @@ XPCConvert::JSErrorToXPCException(const char* message,
             uclinebuf ? nsDependentString(uclinebuf) : EmptyString(),
             report->lineno,
             report->uctokenptr - report->uclinebuf, report->flags,
-            NS_LITERAL_CSTRING("XPConnect JavaScript"),
+            "XPConnect JavaScript",
             nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(cx));
     }
 

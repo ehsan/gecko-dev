@@ -6,24 +6,16 @@
 #ifndef _NS_DEVICECONTEXT_H_
 #define _NS_DEVICECONTEXT_H_
 
-#include "gfxTypes.h"
-#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
+#include "nsIDeviceContextSpec.h"
+#include "nsIScreenManager.h"
+#include "nsIWidget.h"
 #include "nsCoord.h"
-#include "nsMathUtils.h"
+#include "gfxContext.h"
 
-class gfxASurface;
-class gfxUserFontSet;
-class nsFont;
-class nsFontCache;
-class nsFontMetrics;
 class nsIAtom;
-class nsIDeviceContextSpec;
-class nsIScreen;
-class nsIScreenManager;
-class nsIWidget;
-class nsRect;
-class nsRenderingContext;
+class nsFontCache;
+class gfxUserFontSet;
 
 class nsDeviceContext
 {

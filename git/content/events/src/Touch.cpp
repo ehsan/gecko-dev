@@ -134,25 +134,32 @@ Touch::InitializePoints(nsPresContext* aPresContext, nsEvent* aEvent)
   if (mPointsInitialized) {
     return;
   }
-  mClientPoint = nsDOMEvent::GetClientCoords(
-    aPresContext, aEvent, LayoutDeviceIntPoint::FromUntyped(mRefPoint),
-    mClientPoint);
-  mPagePoint = nsDOMEvent::GetPageCoords(
-    aPresContext, aEvent, LayoutDeviceIntPoint::FromUntyped(mRefPoint),
-    mClientPoint);
-  mScreenPoint = nsDOMEvent::GetScreenCoords(aPresContext, aEvent,
-    LayoutDeviceIntPoint::FromUntyped(mRefPoint));
+  mClientPoint = nsDOMEvent::GetClientCoords(aPresContext,
+                                             aEvent,
+                                             mRefPoint,
+                                             mClientPoint);
+  mPagePoint = nsDOMEvent::GetPageCoords(aPresContext,
+                                         aEvent,
+                                         mRefPoint,
+                                         mClientPoint);
+  mScreenPoint = nsDOMEvent::GetScreenCoords(aPresContext, aEvent, mRefPoint);
   mPointsInitialized = true;
 }
 
 bool
-Touch::Equals(Touch* aTouch)
+Touch::Equals(nsIDOMTouch* aTouch)
 {
-  return mRefPoint == aTouch->mRefPoint &&
-         mForce == aTouch->Force() &&
-         mRotationAngle == aTouch->RotationAngle() &&
-         mRadius.x == aTouch->RadiusX() &&
-         mRadius.y == aTouch->RadiusY();
+  float force;
+  float orientation;
+  int32_t radiusX, radiusY;
+  aTouch->GetForce(&force);
+  aTouch->GetRotationAngle(&orientation);
+  aTouch->GetRadiusX(&radiusX);
+  aTouch->GetRadiusY(&radiusY);
+  return mRefPoint != aTouch->mRefPoint ||
+         (mForce != force) ||
+         (mRotationAngle != orientation) ||
+         (mRadius.x != radiusX) || (mRadius.y != radiusY);
 }
 
 /* virtual */ JSObject*

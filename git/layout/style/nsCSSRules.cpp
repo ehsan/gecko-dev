@@ -687,7 +687,7 @@ GroupRule::ReplaceStyleRule(Rule* aOld, Rule* aNew)
   return NS_OK;
 }
 
-void
+nsresult
 GroupRule::AppendRulesToCssText(nsAString& aCssText)
 {
   aCssText.AppendLiteral(" {\n");
@@ -706,6 +706,8 @@ GroupRule::AppendRulesToCssText(nsAString& aCssText)
   }
 
   aCssText.AppendLiteral("}");
+
+  return NS_OK;
 }
 
 // nsIDOMCSSMediaRule or nsIDOMCSSMozDocumentRule methods
@@ -869,8 +871,7 @@ MediaRule::GetCssText(nsAString& aCssText)
 {
   aCssText.AssignLiteral("@media ");
   AppendConditionText(aCssText);
-  GroupRule::AppendRulesToCssText(aCssText);
-  return NS_OK;
+  return GroupRule::AppendRulesToCssText(aCssText);
 }
 
 NS_IMETHODIMP
@@ -1077,8 +1078,7 @@ DocumentRule::GetCssText(nsAString& aCssText)
 {
   aCssText.AssignLiteral("@-moz-document ");
   AppendConditionText(aCssText);
-  GroupRule::AppendRulesToCssText(aCssText);
-  return NS_OK;
+  return GroupRule::AppendRulesToCssText(aCssText);
 }
 
 NS_IMETHODIMP
@@ -1760,7 +1760,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCSSFontFaceRule)
   // Unlink the wrapper for our declaraton.  This just expands out
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER which we can't use
   // directly because the wrapper is on the declaration, not on us.
-  tmp->mDecl.ReleaseWrapper(static_cast<nsISupports*>(p));
+  nsContentUtils::ReleaseWrapper(static_cast<nsISupports*>(p), &tmp->mDecl);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCSSFontFaceRule)
@@ -2937,8 +2937,7 @@ CSSSupportsRule::GetCssText(nsAString& aCssText)
 {
   aCssText.AssignLiteral("@supports ");
   aCssText.Append(mCondition);
-  css::GroupRule::AppendRulesToCssText(aCssText);
-  return NS_OK;
+  return css::GroupRule::AppendRulesToCssText(aCssText);
 }
 
 NS_IMETHODIMP

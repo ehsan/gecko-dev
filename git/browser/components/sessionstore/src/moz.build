@@ -20,8 +20,3 @@ EXTRA_JS_MODULES = [
     'XPathGenerator.jsm',
     '_SessionFile.jsm',
 ]
-
-EXTRA_PP_JS_MODULES += [
-    'SessionStore.jsm',
-]
-

@@ -34,7 +34,18 @@ function StyleEditorActor(aConnection, aParentActor)
   this.conn = aConnection;
   this._onDocumentLoaded = this._onDocumentLoaded.bind(this);
   this._onSheetLoaded = this._onSheetLoaded.bind(this);
-  this.parentActor = aParentActor;
+
+  if (aParentActor instanceof BrowserTabActor &&
+      aParentActor.browser instanceof Ci.nsIDOMWindow) {
+    this._window = aParentActor.browser;
+  }
+  else if (aParentActor instanceof BrowserTabActor &&
+           aParentActor.browser instanceof Ci.nsIDOMElement) {
+    this._window = aParentActor.browser.contentWindow;
+  }
+  else {
+    this._window = Services.wm.getMostRecentWindow("navigator:browser");
+  }
 
   // keep a map of sheets-to-actors so we don't create two actors for one sheet
   this._sheets = new Map();
@@ -55,14 +66,19 @@ StyleEditorActor.prototype = {
   conn: null,
 
   /**
-   * The window we work with, taken from the parent actor.
+   * The content window we work with.
    */
-  get window() this.parentActor.window,
+  get win() this._window,
 
   /**
    * The current content document of the window we work with.
    */
-  get document() this.window.document,
+  get doc() this._window.document,
+
+  /**
+   * A window object, usually the browser window
+   */
+  _window: null,
 
   actorPrefix: "styleEditor",
 
@@ -85,7 +101,7 @@ StyleEditorActor.prototype = {
 
     this.conn.removeActorPool(this._actorPool);
     this._actorPool = null;
-    this.conn = null;
+    this.conn = this._window = null;
   },
 
   /**
@@ -104,7 +120,7 @@ StyleEditorActor.prototype = {
    * @return {object} JSON message to with BaseURI
    */
   onGetBaseURI: function() {
-    return { baseURI: this.document.baseURIObject };
+    return { baseURI: this.doc.baseURIObject };
   },
 
   /**
@@ -117,11 +133,11 @@ StyleEditorActor.prototype = {
 
     // Note: listening for load won't be necessary once
     // https://bugzilla.mozilla.org/show_bug.cgi?id=839103 is fixed
-    if (this.document.readyState == "complete") {
+    if (this.doc.readyState == "complete") {
       this._onDocumentLoaded();
     }
     else {
-      this.window.addEventListener("load", this._onDocumentLoaded, false);
+      this.win.addEventListener("load", this._onDocumentLoaded, false);
     }
     return {};
   },
@@ -132,10 +148,10 @@ StyleEditorActor.prototype = {
    */
   _onDocumentLoaded: function(event) {
     if (event) {
-      this.window.removeEventListener("load", this._onDocumentLoaded, false);
+      this.win.removeEventListener("load", this._onDocumentLoaded, false);
     }
 
-    let documents = [this.document];
+    let documents = [this.doc];
     var forms = [];
     for (let doc of documents) {
       let sheetForms = this._addStyleSheets(doc.styleSheets);
@@ -251,7 +267,7 @@ StyleEditorActor.prototype = {
    * @return {object} JSON message with the stylesheet actors' forms
    */
   onGetStyleSheets: function() {
-    let forms = this._addStyleSheets(this.document.styleSheets);
+    let forms = this._addStyleSheets(this.doc.styleSheets);
     return { "styleSheets": forms };
   },
 
@@ -279,12 +295,12 @@ StyleEditorActor.prototype = {
    *         Object with 'styelSheet' property for form on new actor.
    */
   onNewStyleSheet: function(request) {
-    let parent = this.document.documentElement;
-    let style = this.document.createElementNS("http://www.w3.org/1999/xhtml", "style");
+    let parent = this.doc.documentElement;
+    let style = this.doc.createElementNS("http://www.w3.org/1999/xhtml", "style");
     style.setAttribute("type", "text/css");
 
     if (request.text) {
-      style.appendChild(this.document.createTextNode(request.text));
+      style.appendChild(this.doc.createTextNode(request.text));
     }
     parent.appendChild(style);
 
@@ -342,12 +358,16 @@ StyleSheetActor.prototype = {
   /**
    * Window of target
    */
-  get window() this.parentActor.window,
+  get win() {
+    return this.parentActor._window;
+  },
 
   /**
    * Document of target.
    */
-  get document() this.window.document,
+  get doc() {
+    return this.win.document;
+  },
 
   /**
    * Retrieve the index (order) of stylesheet in the document.
@@ -357,8 +377,8 @@ StyleSheetActor.prototype = {
   get styleSheetIndex()
   {
     if (this._styleSheetIndex == -1) {
-      for (let i = 0; i < this.document.styleSheets.length; i++) {
-        if (this.document.styleSheets[i] == this.styleSheet) {
+      for (let i = 0; i < this.doc.styleSheets.length; i++) {
+        if (this.doc.styleSheets[i] == this.styleSheet) {
           this._styleSheetIndex = i;
           break;
         }
@@ -623,10 +643,9 @@ StyleSheetActor.prototype = {
     };
 
     if (channel instanceof Ci.nsIPrivateBrowsingChannel) {
-      let loadContext = this.window
-                            .QueryInterface(Ci.nsIInterfaceRequestor)
-                            .getInterface(Ci.nsIWebNavigation)
-                            .QueryInterface(Ci.nsILoadContext);
+      let loadContext = this.win.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIWebNavigation)
+                          .QueryInterface(Ci.nsILoadContext);
       channel.setPrivate(loadContext.usePrivateBrowsing);
     }
     channel.loadFlags = channel.LOAD_FROM_CACHE;
@@ -665,14 +684,14 @@ StyleSheetActor.prototype = {
     // it only when all pending StyleEditor-generated transitions ended.
     if (this._transitionRefCount == 0) {
       this.styleSheet.insertRule(TRANSITION_RULE, this.styleSheet.cssRules.length);
-      this.document.documentElement.classList.add(TRANSITION_CLASS);
+      this.doc.documentElement.classList.add(TRANSITION_CLASS);
     }
 
     this._transitionRefCount++;
 
     // Set up clean up and commit after transition duration (+10% buffer)
     // @see _onTransitionEnd
-    this.window.setTimeout(this._onTransitionEnd.bind(this),
+    this.win.setTimeout(this._onTransitionEnd.bind(this),
                            Math.floor(TRANSITION_DURATION_MS * 1.1));
   },
 
@@ -683,7 +702,7 @@ StyleSheetActor.prototype = {
   _onTransitionEnd: function()
   {
     if (--this._transitionRefCount == 0) {
-      this.document.documentElement.classList.remove(TRANSITION_CLASS);
+      this.doc.documentElement.classList.remove(TRANSITION_CLASS);
       this.styleSheet.deleteRule(this.styleSheet.cssRules.length - 1);
     }
 

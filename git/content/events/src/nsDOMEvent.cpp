@@ -1063,7 +1063,7 @@ nsDOMEvent::Shutdown()
 nsIntPoint
 nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
                             nsEvent* aEvent,
-                            LayoutDeviceIntPoint aPoint)
+                            nsIntPoint aPoint)
 {
   if (nsEventStateManager::sIsPointerLocked) {
     return nsEventStateManager::sLastScreenPoint;
@@ -1081,11 +1081,10 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
 
   nsGUIEvent* guiEvent = static_cast<nsGUIEvent*>(aEvent);
   if (!guiEvent->widget) {
-    return LayoutDeviceIntPoint::ToUntyped(aPoint);
+    return aPoint;
   }
 
-  LayoutDeviceIntPoint offset = aPoint +
-    LayoutDeviceIntPoint::FromUntyped(guiEvent->widget->WidgetToScreenOffset());
+  nsIntPoint offset = aPoint + guiEvent->widget->WidgetToScreenOffset();
   nscoord factor = aPresContext->DeviceContext()->UnscaledAppUnitsPerDevPixel();
   return nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(offset.x * factor),
                     nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
@@ -1095,7 +1094,7 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
 CSSIntPoint
 nsDOMEvent::GetPageCoords(nsPresContext* aPresContext,
                           nsEvent* aEvent,
-                          LayoutDeviceIntPoint aPoint,
+                          nsIntPoint aPoint,
                           CSSIntPoint aDefaultPoint)
 {
   CSSIntPoint pagePoint = nsDOMEvent::GetClientCoords(aPresContext,
@@ -1119,7 +1118,7 @@ nsDOMEvent::GetPageCoords(nsPresContext* aPresContext,
 CSSIntPoint
 nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
                             nsEvent* aEvent,
-                            LayoutDeviceIntPoint aPoint,
+                            nsIntPoint aPoint,
                             CSSIntPoint aDefaultPoint)
 {
   if (nsEventStateManager::sIsPointerLocked) {
@@ -1148,8 +1147,7 @@ nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
     return CSSIntPoint(0, 0);
   }
   nsPoint pt =
-    nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent,
-      LayoutDeviceIntPoint::ToUntyped(aPoint), rootFrame);
+    nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, aPoint, rootFrame);
 
   return CSSIntPoint::FromAppUnitsRounded(pt);
 }

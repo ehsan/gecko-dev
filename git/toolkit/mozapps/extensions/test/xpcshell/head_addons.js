@@ -615,7 +615,7 @@ function createInstallRDF(aData) {
 function writeInstallRDFToDir(aData, aDir, aExtraFile) {
   var rdf = createInstallRDF(aData);
   if (!aDir.exists())
-    aDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+    aDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
   var file = aDir.clone();
   file.append("install.rdf");
   if (file.exists())
@@ -633,7 +633,7 @@ function writeInstallRDFToDir(aData, aDir, aExtraFile) {
 
   file = aDir.clone();
   file.append(aExtraFile);
-  file.create(AM_Ci.nsIFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+  file.create(AM_Ci.nsIFile.NORMAL_FILE_TYPE, 0644);
 }
 
 /**
@@ -665,7 +665,7 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
   }
 
   if (!dir.exists())
-    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
   dir.append(id + ".xpi");
   var rdf = createInstallRDF(aData);
   var stream = AM_Cc["@mozilla.org/io/string-input-stream;1"].
@@ -718,7 +718,7 @@ function manuallyInstall(aXPIFile, aInstallLocation, aID) {
   if (TEST_UNPACKED) {
     let dir = aInstallLocation.clone();
     dir.append(aID);
-    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
     let zip = AM_Cc["@mozilla.org/libjar/zip-reader;1"].
               createInstance(AM_Ci.nsIZipReader);
     zip.open(aXPIFile);
