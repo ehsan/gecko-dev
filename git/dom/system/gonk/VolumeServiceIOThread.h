@@ -37,7 +37,6 @@ private:
 
 void InitVolumeServiceIOThread(nsVolumeService* const & aVolumeService);
 void ShutdownVolumeServiceIOThread();
-void FormatVolume(const nsCString& aVolume);
 
 } // system
 } // mozilla

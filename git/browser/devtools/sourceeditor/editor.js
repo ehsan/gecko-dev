@@ -77,6 +77,8 @@ const CM_MAPPING = [
   "redo",
   "clearHistory",
   "openDialog",
+  "cursorCoords",
+  "markText",
   "refresh"
 ];
 
@@ -235,7 +237,6 @@ Editor.prototype = {
       }, false);
 
       cm.on("focus", () => this.emit("focus"));
-      cm.on("scroll", () => this.emit("scroll"));
       cm.on("change", () => this.emit("change"));
       cm.on("cursorActivity", (cm) => this.emit("cursorActivity"));
 
@@ -538,17 +539,6 @@ Editor.prototype = {
   },
 
   /**
-   * Mark a range of text inside the two {line, ch} bounds. Since the range may
-   * be modified, for example, when typing text, this method returns a function
-   * that can be used to remove the mark.
-   */
-  markText: function(from, to, className = "marked-text") {
-    let cm = editors.get(this);
-    let mark = cm.markText(from, to, { className: className });
-    return { clear: () => mark.clear() };
-  },
-
-  /**
    * Calculates and returns one or more {line, ch} objects for
    * a zero-based index who's value is relative to the start of
    * the editor's text.
@@ -577,18 +567,9 @@ Editor.prototype = {
    * Returns a {line, ch} object that corresponds to the
    * left, top coordinates.
    */
-  getPositionFromCoords: function ({left, top}) {
+  getPositionFromCoords: function (left, top) {
     let cm = editors.get(this);
     return cm.coordsChar({ left: left, top: top });
-  },
-
-  /**
-   * The reverse of getPositionFromCoords. Similarly, returns a {left, top}
-   * object that corresponds to the specified line and character number.
-   */
-  getCoordsFromPosition: function ({line, ch}) {
-    let cm = editors.get(this);
-    return cm.charCoords({ line: ~~line, ch: ~~ch });
   },
 
   /**

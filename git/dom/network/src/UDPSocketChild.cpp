@@ -67,7 +67,7 @@ UDPSocketChild::Bind(nsIUDPSocketInternal *aSocket,
   mSocket = aSocket;
   AddIPDLReference();
 
-  gNeckoChild->SendPUDPSocketConstructor(this, nsCString(aHost), aPort, mFilterName);
+  gNeckoChild->SendPUDPSocketConstructor(this, nsCString(aHost), aPort);
 
   return NS_OK;
 }
@@ -146,24 +146,6 @@ NS_IMETHODIMP
 UDPSocketChild::GetLocalAddress(nsACString &aLocalAddress)
 {
   aLocalAddress = mLocalAddress;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-UDPSocketChild::SetFilterName(const nsACString &aFilterName)
-{
-  if (!mFilterName.IsEmpty()) {
-    // filter name can only be set once.
-    return NS_ERROR_FAILURE;
-  }
-  mFilterName = aFilterName;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-UDPSocketChild::GetFilterName(nsACString &aFilterName)
-{
-  aFilterName = mFilterName;
   return NS_OK;
 }
 

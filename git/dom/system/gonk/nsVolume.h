@@ -37,8 +37,7 @@ public:
       mMountLocked(false),
       mIsFake(false),
       mIsMediaPresent(aIsMediaPresent),
-      mIsSharing(aIsSharing),
-      mIsFormatting(false)
+      mIsSharing(aIsSharing)
   {
   }
 
@@ -51,8 +50,7 @@ public:
       mMountLocked(true),  // Needs to agree with Volume::Volume
       mIsFake(false),
       mIsMediaPresent(false),
-      mIsSharing(false),
-      mIsFormatting(false)
+      mIsSharing(false)
   {
   }
 
@@ -76,7 +74,6 @@ public:
   bool IsFake() const                 { return mIsFake; }
   bool IsMediaPresent() const         { return mIsMediaPresent; }
   bool IsSharing() const              { return mIsSharing; }
-  bool IsFormatting() const           { return mIsFormatting; }
 
   typedef nsTArray<nsRefPtr<nsVolume> > Array;
 
@@ -89,7 +86,6 @@ private:
 
   void SetIsFake(bool aIsFake);
   void SetState(int32_t aState);
-  static void FormatVolumeIOThread(const nsCString& aVolume);
 
   nsString mName;
   nsString mMountPoint;
@@ -99,7 +95,6 @@ private:
   bool     mIsFake;
   bool     mIsMediaPresent;
   bool     mIsSharing;
-  bool     mIsFormatting;
 };
 
 } // system
