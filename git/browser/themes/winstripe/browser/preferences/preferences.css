@@ -173,3 +173,10 @@ radio[pane=paneAdvanced][selected="true"] {
 .bottomBox {
   padding-bottom: 4px;
 }
+
+/**
+ * Clear Private Data
+ */
+#SanitizeDialogPane > groupbox {
+  margin-top: 0;
+}
