@@ -15,6 +15,9 @@ var homeWindow = Cc["@mozilla.org/embedcomp/window-watcher;1"]
 var consoleService = Cc["@mozilla.org/consoleservice;1"]
     .getService(Components.interfaces.nsIConsoleService);
 
+var extensionManager = Cc["@mozilla.org/extensions/manager;1"]  
+    .getService(Ci.nsIExtensionManager);  
+
 // ##########
 // Class: Point
 // A simple point. 
@@ -336,8 +339,6 @@ var Utils = {
     
   // ___ Files
   getInstallDirectory: function(id) { 
-    var extensionManager = Cc["@mozilla.org/extensions/manager;1"]  
-                           .getService(Ci.nsIExtensionManager);  
     var file = extensionManager.getInstallLocation(id).getItemFile(id, "install.rdf"); 
     return file.parent;  
   }, 
@@ -358,7 +359,6 @@ var Utils = {
 
   getVisualizationNames: function() {
     var names = [];
-    /*
     var dir = this.getInstallDirectory('tabcandy@aza.raskin');  
     dir.append('content');
     dir.append('candies');
@@ -371,7 +371,6 @@ var Utils = {
         names.push(file.leafName);
     }
 
-    */
     return names;
   },
     
