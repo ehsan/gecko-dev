@@ -789,6 +789,7 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl
 == 417676.html 417676-ref.html
 == 418766-1a.html 418766-1-ref.html
 == 418766-1b.html 418766-1-ref.html
+== 419285-1.html 419285-1-ref.html
 == 419060.html 419060-ref.html
 == 419531-1.html 419531-1-ref.html
 == 420069-1.html 420069-1-ref.html
@@ -848,6 +849,8 @@ random == 429849-1.html 429849-1-ref.html # bug 432288
 == 430813-1.html 430813-1-ref.html
 == 430813-2.html 430813-2-ref.html
 == 430813-3.html 430813-3-ref.html
+== 431341-1.html 431341-1-ref.html
+== 431341-2.html 431341-2-ref.html
 == 431520-1.html 431520-1-ref.html
 == 440112.html 440112-ref.html
 == 433640-1.html 433640-1-ref.html
