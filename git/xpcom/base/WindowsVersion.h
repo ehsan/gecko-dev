@@ -5,8 +5,7 @@
 #ifndef mozilla_WindowsVersion_h
 #define mozilla_WindowsVersion_h
 
-#include "mozilla/Attributes.h"
-#include <stdint.h>
+#include "nscore.h"
 #include <windows.h>
 
 namespace mozilla

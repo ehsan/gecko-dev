@@ -77,7 +77,7 @@ XPCOMUtils.defineLazyGetter(this, "DEFAULT_AREA_PLACEMENTS", function() {
     result["PanelUI-contents"].push("characterencoding-button");
   }
 
-  if (Services.metro && Services.metro.supported) {
+  if (Services.sysinfo.getProperty("hasWindowsTouchInterface")) {
     result["PanelUI-contents"].push("switch-to-metro-button");
   }
 

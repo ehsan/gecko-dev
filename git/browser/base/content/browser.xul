@@ -218,9 +218,7 @@
         </vbox>
       </hbox>
     </panel>
-    <!-- type="default" forces frames to be created so that the panel's size can be determined --> 
     <panel id="UITourHighlightContainer"
-           type="default"
            hidden="true"
            noautofocus="true"
            noautohide="true"
@@ -973,8 +971,7 @@
     </toolbar>
 
     <!-- This is a shim which will go away ASAP. See bug 749804 for details -->
-    <toolbar id="addon-bar" toolbar-delegate="nav-bar" mode="icons" iconsize="small"
-             customizable="true">
+    <toolbar id="addon-bar" toolbar-delegate="nav-bar" mode="icons" iconsize="small">
       <hbox id="addonbar-closebutton"/>
       <statusbar id="status-bar"/>
     </toolbar>

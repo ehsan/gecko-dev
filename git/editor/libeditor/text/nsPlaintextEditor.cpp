@@ -37,7 +37,7 @@
 #include "nsIDOMNodeList.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIEditorIMESupport.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsINode.h"
 #include "nsIPresShell.h"
 #include "nsIPrivateTextEvent.h"

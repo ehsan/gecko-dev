@@ -18,7 +18,7 @@
 #include "nsIFrame.h"
 #include "nsIAtom.h"
 #include "nsEventStates.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
 #include "nsCocoaFeatures.h"

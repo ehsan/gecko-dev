@@ -56,7 +56,7 @@
 #include "nsParserCIID.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLHeadElement.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsGenericHTMLElement.h"
 #include "mozilla/css/Loader.h"
 #include "nsIHttpChannel.h"

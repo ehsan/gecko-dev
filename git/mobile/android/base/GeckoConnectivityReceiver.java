@@ -26,7 +26,7 @@ public class GeckoConnectivityReceiver extends BroadcastReceiver {
 
     private static GeckoConnectivityReceiver sInstance = new GeckoConnectivityReceiver();
 
-    private final IntentFilter mFilter;
+    private IntentFilter mFilter;
     private Context mApplicationContext;
     private boolean mIsEnabled;
 
@@ -39,31 +39,26 @@ public class GeckoConnectivityReceiver extends BroadcastReceiver {
         mFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
     }
 
-    public synchronized void start(Context context) {
-        if (mIsEnabled) {
-            Log.w(LOGTAG, "Already started!");
-            return;
-        }
-
+    public void init(Context context) {
         mApplicationContext = context.getApplicationContext();
+    }
 
-        // registerReceiver will return null if registering fails.
-        if (mApplicationContext.registerReceiver(this, mFilter) == null) {
-            Log.e(LOGTAG, "Registering receiver failed");
-        } else {
-            mIsEnabled = true;
+    public synchronized void start() {
+        if (!mIsEnabled) {
+            // registerReceiver will return null if registering fails
+            if (mApplicationContext.registerReceiver(this, mFilter) == null) {
+                Log.e(LOGTAG, "Registering receiver failed");
+            } else {
+                mIsEnabled = true;
+            }
         }
     }
 
     public synchronized void stop() {
-        if (!mIsEnabled) {
-            Log.w(LOGTAG, "Already stopped!");
-            return;
+        if (mIsEnabled) {
+            mApplicationContext.unregisterReceiver(this);
+            mIsEnabled = false;
         }
-
-        mApplicationContext.unregisterReceiver(this);
-        mApplicationContext = null;
-        mIsEnabled = false;
     }
 
     @Override
@@ -71,7 +66,7 @@ public class GeckoConnectivityReceiver extends BroadcastReceiver {
         ConnectivityManager cm = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo info = cm.getActiveNetworkInfo();
 
-        final String status;
+        String status;
         if (info == null) {
             status = LINK_DATA_UNKNOWN;
         } else if (!info.isConnected()) {

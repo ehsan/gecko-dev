@@ -19,7 +19,6 @@
 #include "MediaSource.h"
 #include "SubBufferDecoder.h"
 #include "SourceBufferResource.h"
-#include "VideoUtils.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaSourceLog;
@@ -237,14 +236,6 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
   *aInfo = mInfo;
 
   return NS_OK;
-}
-
-double
-MediaSourceDecoder::GetMediaSourceDuration()
-{
-  return mMediaSource ?
-           mMediaSource->Duration() :
-           mDuration / static_cast<double>(USECS_PER_S);
 }
 
 } // namespace mozilla

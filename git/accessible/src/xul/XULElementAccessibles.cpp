@@ -22,7 +22,7 @@
 
 #include "nsIAccessibleRelation.h"
 #include "nsIDOMXULDescriptionElement.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsNetUtil.h"
 #include "nsString.h"
 #include "nsTextBoxFrame.h"

@@ -297,9 +297,9 @@ this.DataStore.prototype = {
     }
 
     cpmm.sendAsyncMessage("DataStore:Changed",
-                          { store: this.name, owner: this._owner,
+                          { store: this.name, owner: this.owner,
                             message: { revisionId: aRevisionId, id: aId,
-                                       operation: aOperation, owner: this._owner } } );
+                                       operation: aOperation } } );
   },
 
   receiveMessage: function(aMessage) {

@@ -1213,13 +1213,7 @@ public abstract class GeckoApp
         }
 
         BrowserDB.initialize(getProfile().getName());
-
-        // Workaround for <http://code.google.com/p/android/issues/detail?id=20915>.
-        try {
-            Class.forName("android.os.AsyncTask");
-        } catch (ClassNotFoundException e) {}
-
-        MemoryMonitor.getInstance().init(getApplicationContext());
+        ((GeckoApplication) getApplication()).initialize();
 
         sAppContext = this;
         GeckoAppShell.setContextGetter(this);
@@ -1283,6 +1277,7 @@ public abstract class GeckoApp
             // Bug 896992 - This intent has already been handled; reset the intent.
             setIntent(new Intent(Intent.ACTION_MAIN));
         }
+
 
         super.onCreate(savedInstanceState);
 

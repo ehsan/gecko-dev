@@ -26,7 +26,6 @@
 #include "gc/Marking.h"
 #include "gc/Rooting.h"
 #include "js/HashTable.h"
-#include "js/MemoryMetrics.h"
 #include "js/RootingAPI.h"
 
 #ifdef _MSC_VER
@@ -582,7 +581,7 @@ class BaseShape : public gc::BarrieredCell<BaseShape>
     };
 
   private:
-    const Class         *clasp_;        /* Class of referring object. */
+    const Class         *clasp;         /* Class of referring object. */
     HeapPtrObject       parent;         /* Parent of referring object. */
     HeapPtrObject       metadata;       /* Optional holder of metadata about
                                          * the referring object. */
@@ -619,7 +618,7 @@ class BaseShape : public gc::BarrieredCell<BaseShape>
     {
         JS_ASSERT(!(objectFlags & ~OBJECT_FLAG_MASK));
         mozilla::PodZero(this);
-        this->clasp_ = clasp;
+        this->clasp = clasp;
         this->parent = parent;
         this->metadata = metadata;
         this->flags = objectFlags;
@@ -632,7 +631,7 @@ class BaseShape : public gc::BarrieredCell<BaseShape>
     {
         JS_ASSERT(!(objectFlags & ~OBJECT_FLAG_MASK));
         mozilla::PodZero(this);
-        this->clasp_ = clasp;
+        this->clasp = clasp;
         this->parent = parent;
         this->metadata = metadata;
         this->flags = objectFlags;
@@ -655,7 +654,7 @@ class BaseShape : public gc::BarrieredCell<BaseShape>
     ~BaseShape();
 
     BaseShape &operator=(const BaseShape &other) {
-        clasp_ = other.clasp_;
+        clasp = other.clasp;
         parent = other.parent;
         metadata = other.metadata;
         flags = other.flags;
@@ -679,8 +678,6 @@ class BaseShape : public gc::BarrieredCell<BaseShape>
         compartment_ = other.compartment_;
         return *this;
     }
-
-    const Class *clasp() const { return clasp_; }
 
     bool isOwned() const { return !!(flags & OWNED_SHAPE); }
 
@@ -763,7 +760,7 @@ class BaseShape : public gc::BarrieredCell<BaseShape>
 
   private:
     static void staticAsserts() {
-        JS_STATIC_ASSERT(offsetof(BaseShape, clasp_) == offsetof(js::shadow::BaseShape, clasp_));
+        JS_STATIC_ASSERT(offsetof(BaseShape, clasp) == offsetof(js::shadow::BaseShape, clasp));
     }
 };
 
@@ -820,7 +817,7 @@ struct StackBaseShape
 
     explicit StackBaseShape(BaseShape *base)
       : flags(base->flags & BaseShape::OBJECT_FLAG_MASK),
-        clasp(base->clasp_),
+        clasp(base->clasp),
         parent(base->parent),
         metadata(base->metadata),
         rawGetter(nullptr),
@@ -859,7 +856,7 @@ inline
 BaseShape::BaseShape(const StackBaseShape &base)
 {
     mozilla::PodZero(this);
-    this->clasp_ = base.clasp;
+    this->clasp = base.clasp;
     this->parent = base.parent;
     this->metadata = base.metadata;
     this->flags = base.flags;
@@ -985,17 +982,12 @@ class Shape : public gc::BarrieredCell<Shape>
     ShapeTable &table() const { return base()->table(); }
 
     void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf,
-                                JS::ClassInfo *info) const
-    {
-        if (hasTable()) {
-            if (inDictionary())
-                info->shapesMallocHeapDictTables += table().sizeOfIncludingThis(mallocSizeOf);
-            else
-                info->shapesMallocHeapTreeTables += table().sizeOfIncludingThis(mallocSizeOf);
-        }
+                                size_t *propTableSize, size_t *kidsSize) const {
+        if (hasTable())
+            *propTableSize += table().sizeOfIncludingThis(mallocSizeOf);
 
         if (!inDictionary() && kids.isHash())
-            info->shapesMallocHeapTreeKids += kids.toHash()->sizeOfIncludingThis(mallocSizeOf);
+            *kidsSize += kids.toHash()->sizeOfIncludingThis(mallocSizeOf);
     }
 
     bool isNative() const {
@@ -1038,7 +1030,7 @@ class Shape : public gc::BarrieredCell<Shape>
     };
 
     const Class *getObjectClass() const {
-        return base()->clasp_;
+        return base()->clasp;
     }
     JSObject *getObjectParent() const { return base()->parent; }
     JSObject *getObjectMetadata() const { return base()->metadata; }
@@ -1489,7 +1481,7 @@ struct StackShape
     uint32_t maybeSlot() const { return slot_; }
 
     uint32_t slotSpan() const {
-        uint32_t free = JSSLOT_FREE(base->clasp_);
+        uint32_t free = JSSLOT_FREE(base->clasp);
         return hasMissingSlot() ? free : (maybeSlot() + 1);
     }
 

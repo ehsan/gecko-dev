@@ -35,7 +35,7 @@
 #include "nsHtml5AtomTable.h"
 #include "nsITimer.h"
 #include "nsString.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsISupportsImpl.h"
 #include "jArray.h"

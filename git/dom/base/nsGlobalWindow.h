@@ -106,7 +106,6 @@ namespace mozilla {
 class Selection;
 namespace dom {
 class BarProp;
-class Console;
 class Function;
 class Gamepad;
 class MediaQueryList;
@@ -821,8 +820,6 @@ public:
   mozilla::dom::Navigator* GetNavigator(mozilla::ErrorResult& aError);
   nsIDOMOfflineResourceList* GetApplicationCache(mozilla::ErrorResult& aError);
 
-  mozilla::dom::Console* GetConsole(mozilla::ErrorResult& aRv);
-
 protected:
   bool AlertOrConfirm(bool aAlert, const nsAString& aMessage,
                       mozilla::ErrorResult& aError);
@@ -1457,7 +1454,6 @@ protected:
   nsString                      mDefaultStatus;
   nsGlobalWindowObserver*       mObserver; // Inner windows only.
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
-  nsRefPtr<mozilla::dom::Console> mConsole;
 
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
   nsCOMPtr<nsIDOMStorage>      mSessionStorage;

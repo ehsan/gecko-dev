@@ -22,6 +22,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMRange.h"
 #include "nsISelectionPrivate.h"
+#include "nsINameSpaceManager.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDocument.h"
@@ -33,7 +34,6 @@
 #include "nsError.h"
 #include "nsArrayUtils.h"
 #include "nsComponentManagerUtils.h"
-#include "nsNameSpaceManager.h"
 #include "nsTableCellFrame.h"
 #include "nsTableOuterFrame.h"
 

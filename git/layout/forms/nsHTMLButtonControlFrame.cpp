@@ -12,7 +12,7 @@
 #include "nsButtonFrameRenderer.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsFormControlFrame.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsStyleSet.h"
 #include "nsDisplayList.h"
 #include <algorithm>

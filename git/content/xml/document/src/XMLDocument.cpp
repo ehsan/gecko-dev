@@ -20,6 +20,7 @@
 #include "nsIBaseWindow.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocumentType.h"
+#include "nsINameSpaceManager.h"
 #include "nsCOMPtr.h"
 #include "nsXPIDLString.h"
 #include "nsIHttpChannel.h"

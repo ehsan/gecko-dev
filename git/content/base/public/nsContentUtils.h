@@ -68,7 +68,7 @@ class nsIInterfaceRequestor;
 class nsIIOService;
 class nsIJSRuntimeService;
 class nsILineBreaker;
-class nsNameSpaceManager;
+class nsINameSpaceManager;
 class nsINodeInfo;
 class nsIObserver;
 class nsIParser;
@@ -451,7 +451,7 @@ public:
 
   static nsIParserService* GetParserService();
 
-  static nsNameSpaceManager* NameSpaceManager()
+  static nsINameSpaceManager* NameSpaceManager()
   {
     return sNameSpaceManager;
   }
@@ -2155,7 +2155,7 @@ private:
 
   static nsIParserService *sParserService;
 
-  static nsNameSpaceManager *sNameSpaceManager;
+  static nsINameSpaceManager *sNameSpaceManager;
 
   static nsIIOService *sIOService;
 

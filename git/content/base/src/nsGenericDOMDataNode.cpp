@@ -19,6 +19,7 @@
 #include "nsIDOMDocument.h"
 #include "nsReadableUtils.h"
 #include "mozilla/InternalMutationEvent.h"
+#include "nsINameSpaceManager.h"
 #include "nsIURI.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMText.h"

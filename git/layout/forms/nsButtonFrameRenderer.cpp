@@ -7,7 +7,7 @@
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
 #include "nsCSSPseudoElements.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsStyleSet.h"
 #include "nsDisplayList.h"
 #include "nsITheme.h"

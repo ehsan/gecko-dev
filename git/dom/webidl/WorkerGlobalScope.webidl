@@ -16,7 +16,7 @@ interface WorkerGlobalScope : EventTarget {
   readonly attribute WorkerGlobalScope self;
 
   [Replaceable]
-  readonly attribute Console console;
+  readonly attribute WorkerConsole console;
 
   readonly attribute WorkerLocation location;
 

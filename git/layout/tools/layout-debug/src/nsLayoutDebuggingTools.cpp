@@ -391,7 +391,7 @@ DumpFramesRecur(nsIDocShell* aDocShell, FILE* out)
     if (shell) {
         nsIFrame* root = shell->GetRootFrame();
         if (root) {
-            root->List(out);
+            root->List(out, 0);
         }
     }
     else {
