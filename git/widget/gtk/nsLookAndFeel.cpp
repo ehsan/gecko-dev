@@ -664,7 +664,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
         aResult = 0;
         break;
     case eIntID_ColorPickerAvailable:
-        aResult = 0;
+        aResult = 1;
         break;
     default:
         aResult = 0;

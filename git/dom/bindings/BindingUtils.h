@@ -22,6 +22,7 @@
 #include "mozilla/dom/RootedDictionary.h"
 #include "mozilla/dom/workers/Workers.h"
 #include "mozilla/ErrorResult.h"
+#include "mozilla/HoldDropJSObjects.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
 #include "nsCycleCollector.h"
@@ -2344,9 +2345,7 @@ CreateGlobal(JSContext* aCx, T* aObject, nsWrapperCache* aCache,
     return nullptr;
   }
 
-  MOZ_ALWAYS_TRUE(TryPreserveWrapper(global));
-
-  MOZ_ASSERT(UnwrapDOMObjectToISupports(global));
+  mozilla::HoldJSObjects(aObject);
 
   return global;
 }

@@ -125,8 +125,7 @@ MediaPermissionRequest::GetPrincipal(nsIPrincipal **aRequestingPrincipal)
 {
   NS_ENSURE_ARG_POINTER(aRequestingPrincipal);
 
-  nsCOMPtr<nsPIDOMWindow> window = static_cast<nsPIDOMWindow*>
-      (nsGlobalWindow::GetInnerWindowWithId(mRequest->InnerWindowID()));
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mRequest->GetParentObject());
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
@@ -158,8 +157,7 @@ NS_IMETHODIMP
 MediaPermissionRequest::GetWindow(nsIDOMWindow** aRequestingWindow)
 {
   NS_ENSURE_ARG_POINTER(aRequestingWindow);
-  nsCOMPtr<nsPIDOMWindow> window = static_cast<nsPIDOMWindow*>
-      (nsGlobalWindow::GetInnerWindowWithId(mRequest->InnerWindowID()));
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mRequest->GetParentObject());
   window.forget(aRequestingWindow);
   return NS_OK;
 }
@@ -193,8 +191,7 @@ MediaPermissionRequest::Allow()
 already_AddRefed<nsPIDOMWindow>
 MediaPermissionRequest::GetOwner()
 {
-  nsCOMPtr<nsPIDOMWindow> window = static_cast<nsPIDOMWindow*>
-      (nsGlobalWindow::GetInnerWindowWithId(mRequest->InnerWindowID()));
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mRequest->GetParentObject());
   return window.forget();
 }
 
@@ -409,8 +406,7 @@ MediaPermissionManager::HandleRequest(nsRefPtr<dom::GetUserMediaRequest> &req)
   nsString callID;
   req->GetCallID(callID);
 
-  nsCOMPtr<nsPIDOMWindow> innerWindow = static_cast<nsPIDOMWindow*>
-      (nsGlobalWindow::GetInnerWindowWithId(req->InnerWindowID()));
+  nsCOMPtr<nsPIDOMWindow> innerWindow = do_QueryInterface(req->GetParentObject());
   if (!innerWindow) {
     MOZ_ASSERT(false, "No inner window");
     return NS_ERROR_FAILURE;

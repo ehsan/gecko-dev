@@ -398,7 +398,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
             break;
 
         case eIntID_ColorPickerAvailable:
-            aResult = 0;
+            aResult = 1;
             break;
 
         case eIntID_WindowsDefaultTheme:
