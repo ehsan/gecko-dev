@@ -326,8 +326,7 @@ function testConsoleTimeEnd(aMessageObject) {
   is(aMessageObject.arguments.length, gArgs[0].arguments.length, "arguments.length matches");
   is(aMessageObject.timer.name, gArgs[0].timer.name, "timer name matches");
   is(typeof aMessageObject.timer.duration, "number", "timer duration is a number");
-  info("timer duration: " + aMessageObject.timer.duration);
-  ok(aMessageObject.timer.duration >= 0, "timer duration is positive");
+  ok(aMessageObject.timer.duration > 0, "timer duration is positive");
 
   gArgs[0].arguments.forEach(function (a, i) {
     is(aMessageObject.arguments[i], a, "correct arg " + i);

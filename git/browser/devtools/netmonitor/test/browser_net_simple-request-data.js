@@ -9,7 +9,7 @@ function test() {
   initNetMonitor(SIMPLE_SJS).then(([aTab, aDebuggee, aMonitor]) => {
     info("Starting test... ");
 
-    let { L10N, NetMonitorView } = aMonitor.panelWin;
+    let { NetMonitorView } = aMonitor.panelWin;
     let { RequestsMenu } = NetMonitorView;
 
     RequestsMenu.lazyUpdate = false;
@@ -162,7 +162,7 @@ function test() {
 
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS, {
         type: "plain",
-        size: L10N.getFormatStr("networkMenu.sizeKB", 0.01),
+        size: "0.01kb"
       });
     });
 
@@ -180,7 +180,7 @@ function test() {
 
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS, {
         type: "plain",
-        size: L10N.getFormatStr("networkMenu.sizeKB", 0.01),
+        size: "0.01kb"
       });
     });
 

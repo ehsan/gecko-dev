@@ -61,14 +61,14 @@ ToolSidebar.prototype = {
 
     let onIFrameLoaded = function() {
       tab.setAttribute("label", iframe.contentDocument.title);
-      iframe.removeEventListener("load", onIFrameLoaded, true);
+      iframe.removeEventListener("DOMContentLoaded", onIFrameLoaded, true);
       if ("setPanel" in iframe.contentWindow) {
         iframe.contentWindow.setPanel(this._toolPanel, iframe);
       }
       this.emit(id + "-ready");
     }.bind(this);
 
-    iframe.addEventListener("load", onIFrameLoaded, true);
+    iframe.addEventListener("DOMContentLoaded", onIFrameLoaded, true);
 
     let tabpanel = this._panelDoc.createElementNS(XULNS, "tabpanel");
     tabpanel.setAttribute("id", "sidebar-panel-" + id);
@@ -91,7 +91,7 @@ ToolSidebar.prototype = {
       // the "selected" attribute set to true.
       this._panelDoc.defaultView.setTimeout(function() {
         this.select(id);
-      }.bind(this), 10);
+      }.bind(this), 0);
     }
 
     this.emit("new-tab-registered", id);

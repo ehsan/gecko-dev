@@ -59,7 +59,6 @@ function testConsoleLogRepeats()
   jsterm.execute();
 
   waitForSuccess({
-    timeout: 10000,
     name: "10 repeated console.log messages",
     validatorFn: function()
     {
@@ -67,10 +66,7 @@ function testConsoleLogRepeats()
       return node && node.childNodes[3].firstChild.getAttribute("value") == 10;
     },
     successFn: finishTest,
-    failureFn: function() {
-      info("output content: " + outputNode.textContent);
-      finishTest();
-    },
+    failureFn: finishTest,
   });
 }
 

@@ -37,8 +37,8 @@ function performTest(hud)
 
       let msg = hud.outputNode.querySelector(".webconsole-msg-output");
       ok(msg, "eval output node found");
-      is(msg.textContent.indexOf("HTMLDivElement"), -1,
-         "HTMLDivElement string not displayed");
+      isnot(msg.textContent.indexOf("HTMLDivElement"), -1,
+            "HTMLDivElement string found");
       EventUtils.synthesizeMouseAtCenter(msg, {type: "mousemove"});
       ok(!gBrowser._bug772506, "no content variable");
 

@@ -52,7 +52,7 @@ function test()
       gBrowser.selectedBrowser.addEventListener("load", onPageLoad2, true);
       content.location = TEST_URI2;
     },
-    failureFn: finishTestWithError,
+    failureFn: finishTest,
   };
 
   function onPageLoad2() {
@@ -82,7 +82,7 @@ function test()
       gBrowser.goBack();
       waitForSuccess(waitForBack);
     },
-    failureFn: finishTestWithError,
+    failureFn: finishTest,
   };
 
   let waitForBack = {
@@ -98,7 +98,7 @@ function test()
 
       waitForSuccess(waitForLocation3);
     },
-    failureFn: finishTestWithError,
+    failureFn: finishTest,
   };
 
   let waitForLocation3 = {
@@ -118,12 +118,6 @@ function test()
 
       executeSoon(finishTest);
     },
-    failureFn: finishTestWithError,
+    failureFn: finishTest,
   };
-
-  function finishTestWithError()
-  {
-    info("output content: " + hud.outputNode.textContent);
-    finishTest();
-  }
 }

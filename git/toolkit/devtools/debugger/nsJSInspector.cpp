@@ -13,8 +13,6 @@
 #include "mozilla/ModuleUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsMemory.h"
-#include "nsArray.h"
-#include "nsTArray.h"
 
 #define JSINSPECTOR_CONTRACTID \
   "@mozilla.org/jsinspector;1"
@@ -29,26 +27,21 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsJSInspector)
 
 NS_IMPL_ISUPPORTS1(nsJSInspector, nsIJSInspector)
 
-nsJSInspector::nsJSInspector() : mNestedLoopLevel(0), mRequestors(1), mLastRequestor(JSVAL_NULL)
+nsJSInspector::nsJSInspector() : mNestedLoopLevel(0)
 {
-  nsTArray<JS::Value> mRequestors;
 }
 
 nsJSInspector::~nsJSInspector()
 {
-  mRequestors.Clear();
 }
 
 NS_IMETHODIMP
-nsJSInspector::EnterNestedEventLoop(const JS::Value& requestor, uint32_t *out)
+nsJSInspector::EnterNestedEventLoop(uint32_t *out)
 {
   nsresult rv;
   nsCOMPtr<nsIJSContextStack> stack =
     do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  mLastRequestor = requestor;
-  mRequestors.AppendElement(requestor);
 
   uint32_t nestLevel = ++mNestedLoopLevel;
   if (NS_SUCCEEDED(stack->Push(nullptr))) {
@@ -67,9 +60,8 @@ nsJSInspector::EnterNestedEventLoop(const JS::Value& requestor, uint32_t *out)
   NS_ASSERTION(mNestedLoopLevel <= nestLevel,
                "nested event didn't unwind properly");
 
-  if (mNestedLoopLevel == nestLevel) {
-    mLastRequestor = mRequestors.ElementAt(--mNestedLoopLevel);
-  }
+  if (mNestedLoopLevel == nestLevel)
+    --mNestedLoopLevel;
 
   *out = mNestedLoopLevel;
   return rv;
@@ -79,11 +71,7 @@ NS_IMETHODIMP
 nsJSInspector::ExitNestedEventLoop(uint32_t *out)
 {
   if (mNestedLoopLevel > 0) {
-    mRequestors.RemoveElementAt(--mNestedLoopLevel);
-    if (mNestedLoopLevel > 0)
-      mLastRequestor = mRequestors.ElementAt(mNestedLoopLevel - 1);
-    else
-      mLastRequestor = JSVAL_NULL;
+    --mNestedLoopLevel;
   } else {
     return NS_ERROR_FAILURE;
   }
@@ -97,13 +85,6 @@ NS_IMETHODIMP
 nsJSInspector::GetEventLoopNestLevel(uint32_t *out)
 {
   *out = mNestedLoopLevel;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsJSInspector::GetLastNestRequestor(JS::Value *out)
-{
-  *out = mLastRequestor;
   return NS_OK;
 }
 
