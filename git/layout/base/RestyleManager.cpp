@@ -2015,7 +2015,7 @@ RestyleManager::DebugVerifyStyleTree(nsIFrame* aFrame)
 
 // aContent must be the content for the frame in question, which may be
 // :before/:after content
-/* static */ bool
+/* static */ void
 RestyleManager::TryStartingTransition(nsPresContext* aPresContext,
                                       nsIContent* aContent,
                                       nsStyleContext* aOldStyleContext,
@@ -2023,15 +2023,13 @@ RestyleManager::TryStartingTransition(nsPresContext* aPresContext,
                                         aNewStyleContext /* inout */)
 {
   if (!aContent || !aContent->IsElement()) {
-    return false;
+    return;
   }
 
   // Notify the transition manager.  If it starts a transition,
   // it might modify the new style context.
-  nsRefPtr<nsStyleContext> sc = *aNewStyleContext;
   aPresContext->TransitionManager()->StyleContextChanged(
     aContent->AsElement(), aOldStyleContext, aNewStyleContext);
-  return *aNewStyleContext != sc;
 }
 
 static dom::Element*
@@ -3302,13 +3300,9 @@ ElementRestyler::RestyleSelf(nsIFrame* aSelf,
         }
       }
     } else {
-      bool changedStyle =
-        RestyleManager::TryStartingTransition(mPresContext, aSelf->GetContent(),
-                                              oldContext, &newContext);
-      if (changedStyle) {
-        LOG_RESTYLE_CONTINUE("TryStartingTransition changed the new style context");
-        result = eRestyleResult_Continue;
-      }
+      RestyleManager::TryStartingTransition(mPresContext, aSelf->GetContent(),
+                                            oldContext, &newContext);
+
       CaptureChange(oldContext, newContext, assumeDifferenceHint,
                     &equalStructs);
       if (equalStructs != NS_STYLE_INHERIT_MASK) {

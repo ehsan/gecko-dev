@@ -81,11 +81,7 @@ CDMCaps::AutoLock::IsKeyUsable(const CencKeyId& aKeyId)
   mData.mMonitor.AssertCurrentThreadOwns();
   const auto& keys = mData.mKeyStatuses;
   for (size_t i = 0; i < keys.Length(); i++) {
-    if (keys[i].mId != aKeyId) {
-      continue;
-    }
-    if (keys[i].mStatus == kGMPUsable ||
-        keys[i].mStatus == kGMPOutputDownscaled) {
+    if (keys[i].mId == aKeyId && keys[i].mStatus == kGMPUsable) {
       return true;
     }
   }
@@ -110,20 +106,12 @@ CDMCaps::AutoLock::SetKeyStatus(const CencKeyId& aKeyId,
     if (mData.mKeyStatuses[index].mStatus == aStatus) {
       return false;
     }
-    auto oldStatus = mData.mKeyStatuses[index].mStatus;
     mData.mKeyStatuses[index].mStatus = aStatus;
-    if (oldStatus == kGMPUsable || oldStatus == kGMPOutputDownscaled) {
-      return true;
-    }
   } else {
     mData.mKeyStatuses.AppendElement(key);
   }
 
-  // Both kGMPUsable and kGMPOutputDownscaled are treated able to decrypt.
-  // We don't need to notify when transition happens between kGMPUsable and
-  // kGMPOutputDownscaled. Only call NotifyUsable() when we are going from
-  // ![kGMPUsable|kGMPOutputDownscaled] to [kGMPUsable|kGMPOutputDownscaled]
-  if (aStatus != kGMPUsable && aStatus != kGMPOutputDownscaled) {
+  if (aStatus != kGMPUsable) {
     return true;
   }
 

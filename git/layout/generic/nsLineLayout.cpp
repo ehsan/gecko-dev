@@ -2895,10 +2895,7 @@ FindNearestRubyBaseAncestor(nsIFrame* aFrame)
   while (aFrame && aFrame->GetType() != nsGkAtoms::rubyBaseFrame) {
     aFrame = aFrame->GetParent();
   }
-  // XXX It is possible that no ruby base ancestor is found because of
-  // some edge cases like form control or canvas inside ruby text.
-  // See bug 1138092 comment 4.
-  NS_ASSERTION(aFrame, "No ruby base ancestor?");
+  MOZ_ASSERT(aFrame, "No ruby base ancestor?");
   return aFrame;
 }
 
@@ -3069,7 +3066,7 @@ nsLineLayout::TextAlignLine(nsLineBox* aLine,
       if (firstFrame->mFrame->StyleContext()->IsInlineDescendantOfRuby()) {
         MOZ_ASSERT(!firstFrame->mJustificationAssignment.mGapsAtStart);
         nsIFrame* rubyBase = FindNearestRubyBaseAncestor(firstFrame->mFrame);
-        if (rubyBase && IsRubyAlignSpaceAround(rubyBase)) {
+        if (IsRubyAlignSpaceAround(rubyBase)) {
           firstFrame->mJustificationAssignment.mGapsAtStart = 1;
           additionalGaps++;
         }
@@ -3078,7 +3075,7 @@ nsLineLayout::TextAlignLine(nsLineBox* aLine,
       if (lastFrame->mFrame->StyleContext()->IsInlineDescendantOfRuby()) {
         MOZ_ASSERT(!lastFrame->mJustificationAssignment.mGapsAtEnd);
         nsIFrame* rubyBase = FindNearestRubyBaseAncestor(lastFrame->mFrame);
-        if (rubyBase && IsRubyAlignSpaceAround(rubyBase)) {
+        if (IsRubyAlignSpaceAround(rubyBase)) {
           lastFrame->mJustificationAssignment.mGapsAtEnd = 1;
           additionalGaps++;
         }

@@ -15,6 +15,7 @@ Cu.import("resource://gre/modules/devtools/Loader.jsm");
 const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 
 const {CssLogic} = devtools.require("devtools/styleinspector/css-logic");
+Cu.importGlobalProperties(['CSS']);
 
 window.onload = function() {
   SimpleTest.waitForExplicitFinish();
