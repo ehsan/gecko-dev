@@ -57,8 +57,6 @@
 
 #include "nsJSNPRuntime.h"
 
-using namespace mozilla::plugins::parent;
-
 static NS_DEFINE_IID(kIPluginStreamListenerIID, NS_IPLUGINSTREAMLISTENER_IID);
 
 // nsPluginStreamToFile
@@ -269,9 +267,7 @@ nsresult nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
   mInst->GetNPP(&npp);
 
   if (mStreamStarted && callbacks->destroystream) {
-    NPPAutoPusher nppPusher(npp);
-
-    PluginLibrary* lib = nsnull;
+    PRLibrary* lib = nsnull;
     lib = mInst->mLibrary;
     NPError error;
     NS_TRY_SAFE_CALL_RETURN(error, (*callbacks->destroystream)(npp, &mNPStream, reason), lib, mInst);
@@ -359,8 +355,6 @@ nsNPAPIPluginStreamListener::OnStartBinding(nsIPluginStreamInfo* pluginInfo)
   }
 
   mStreamInfo = pluginInfo;
-
-  NPPAutoPusher nppPusher(npp);
 
   NS_TRY_SAFE_CALL_RETURN(error, (*callbacks->newstream)(npp, (char*)contentType, &mNPStream, seekable, &streamType), mInst->mLibrary, mInst);
 
@@ -602,8 +596,6 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
     while (mStreamBufferByteCount > 0) {
       PRInt32 numtowrite;
       if (callbacks->writeready) {
-        NPPAutoPusher nppPusher(npp);
-
         NS_TRY_SAFE_CALL_RETURN(numtowrite, (*callbacks->writeready)(npp, &mNPStream), mInst->mLibrary, mInst);
         NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
                        ("NPP WriteReady called: this=%p, npp=%p, "
@@ -649,8 +641,6 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
         // the whole buffer
         numtowrite = mStreamBufferByteCount;
       }
-
-      NPPAutoPusher nppPusher(npp);
 
       PRInt32 writeCount = 0; // bytes consumed by plugin instance
       NS_TRY_SAFE_CALL_RETURN(writeCount, (*callbacks->write)(npp, &mNPStream, streamPosition, numtowrite, ptrStreamBuffer), mInst->mLibrary, mInst);
@@ -757,7 +747,7 @@ nsNPAPIPluginStreamListener::OnFileAvailable(nsIPluginStreamInfo* pluginInfo,
   NPP npp;
   mInst->GetNPP(&npp);
 
-  PluginLibrary* lib = nsnull;
+  PRLibrary* lib = nsnull;
   lib = mInst->mLibrary;
 
   NS_TRY_SAFE_CALL_VOID((*callbacks->asfile)(npp, &mNPStream, fileName), lib, mInst);
@@ -877,7 +867,7 @@ nsInstanceStream::~nsInstanceStream()
 NS_IMPL_ISUPPORTS1(nsNPAPIPluginInstance, nsIPluginInstance)
 
 nsNPAPIPluginInstance::nsNPAPIPluginInstance(NPPluginFuncs* callbacks,
-                                             PluginLibrary* aLibrary)
+                                       PRLibrary* aLibrary)
   : mCallbacks(callbacks),
 #ifdef XP_MACOSX
 #ifdef NP_NO_QUICKDRAW
@@ -1128,6 +1118,8 @@ nsNPAPIPluginInstance::InitializePlugin()
     }
   }
 
+  NS_ENSURE_TRUE(mCallbacks->newp, NS_ERROR_FAILURE);
+  
   // XXX Note that the NPPluginType_* enums were crafted to be
   // backward compatible...
   
@@ -1196,12 +1188,7 @@ nsNPAPIPluginInstance::InitializePlugin()
   PRBool oldVal = mInPluginInitCall;
   mInPluginInitCall = PR_TRUE;
 
-  // Need this on the stack before calling NPP_New otherwise some callbacks that
-  // the plugin may make could fail (NPN_HasProperty, for example).
-  NPPAutoPusher autopush(&mNPP);
-  nsresult newResult = mLibrary->NPP_New((char*)mimetype, &mNPP, (PRUint16)mode, count, (char**)names, (char**)values, NULL, &error);
-  if (NS_FAILED(newResult))
-    return newResult;
+  NS_TRY_SAFE_CALL_RETURN(error, (*mCallbacks->newp)((char*)mimetype, &mNPP, (PRUint16)mode, count, (char**)names, (char**)values, NULL), mLibrary,this);
 
   mInPluginInitCall = oldVal;
 
@@ -1242,8 +1229,6 @@ NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 
     PRBool oldVal = mInPluginInitCall;
     mInPluginInitCall = PR_TRUE;
-
-    NPPAutoPusher nppPusher(&mNPP);
 
     NPError error;
     NS_TRY_SAFE_CALL_RETURN(error, (*mCallbacks->setwindow)(&mNPP, (NPWindow*)window), mLibrary, this);

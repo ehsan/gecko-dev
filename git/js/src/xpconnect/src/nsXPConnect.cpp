@@ -2552,20 +2552,6 @@ nsXPConnect::GetBackstagePass(nsIXPCScriptable **bsp)
     return NS_OK;
 }
 
-/* [noscript, notxpcom] void registerGCCallback(in JSGCCallback func); */
-NS_IMETHODIMP_(void)
-nsXPConnect::RegisterGCCallback(JSGCCallback func)
-{
-    mRuntime->AddGCCallback(func);
-}
-
-/* [noscript, notxpcom] void unregisterGCCallback(in JSGCCallback func); */
-NS_IMETHODIMP_(void)
-nsXPConnect::UnregisterGCCallback(JSGCCallback func)
-{
-    mRuntime->RemoveGCCallback(func);
-}
-
 //  nsIJSContextStack and nsIThreadJSContextStack implementations
 
 /* readonly attribute PRInt32 Count; */

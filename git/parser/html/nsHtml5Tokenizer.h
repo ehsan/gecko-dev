@@ -160,6 +160,7 @@ class nsHtml5Tokenizer
     void clearStrBufAndAppendForceWrite(PRUnichar c);
     void clearStrBufForNextState();
     void appendStrBuf(PRUnichar c);
+    void appendStrBufForceWrite(PRUnichar c);
   protected:
     nsString* strBufToString();
   private:

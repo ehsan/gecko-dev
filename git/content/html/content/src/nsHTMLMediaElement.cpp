@@ -631,16 +631,13 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
 
   nsCOMPtr<nsIStreamListener> listener;
   if (ShouldCheckAllowOrigin()) {
-    nsCrossSiteListenerProxy* crossSiteListener =
-      new nsCrossSiteListenerProxy(loadListener,
-                                   NodePrincipal(),
-                                   mChannel,
-                                   PR_FALSE,
-                                   &rv);
-    listener = crossSiteListener;
-    NS_ENSURE_TRUE(crossSiteListener, NS_ERROR_OUT_OF_MEMORY);
-    NS_ENSURE_SUCCESS(rv, rv);
-    crossSiteListener->AllowHTTPResult(HTTP_REQUESTED_RANGE_NOT_SATISFIABLE_CODE);
+    listener = new nsCrossSiteListenerProxy(loadListener,
+                                            NodePrincipal(),
+                                            mChannel,
+                                            PR_FALSE,
+                                            &rv);
+    NS_ENSURE_SUCCESS(rv,rv);
+    if (!listener) return NS_ERROR_OUT_OF_MEMORY;
   } else {
     rv = nsContentUtils::GetSecurityManager()->
            CheckLoadURIWithPrincipal(NodePrincipal(),

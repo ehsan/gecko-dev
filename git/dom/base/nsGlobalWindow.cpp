@@ -419,7 +419,6 @@ public:
   NPError ShowNativeContextMenu(NPMenu* menu, void* event);
   NPBool ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                       double *destX, double *destY, NPCoordinateSpace destSpace);
-  void SendIdleEvent();
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDummyJavaPluginOwner)
 
@@ -562,11 +561,6 @@ NS_IMETHODIMP
 nsDummyJavaPluginOwner::SetEventModel(PRInt32 eventModel)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-void
-nsDummyJavaPluginOwner::SendIdleEvent()
-{
 }
 
 /**

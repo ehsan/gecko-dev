@@ -111,9 +111,6 @@ public:
     /* Returns PR_TRUE if the native drawing should be executed again */
     PRBool ShouldRenderAgain();
 
-    /* Returns PR_TRUE if double pass alpha extraction is taking place. */
-    PRBool IsDoublePass();
-
     /* Places the result to the context, if necessary */
     void PaintToContext();
 

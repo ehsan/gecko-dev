@@ -2292,7 +2292,7 @@ function SetPageProxyState(aState)
     gLastValidURLStr = gURLBar.value;
     gURLBar.addEventListener("input", UpdatePageProxyState, false);
 
-    PageProxySetIcon(gBrowser.getIcon());
+    PageProxySetIcon(gBrowser.selectedBrowser.mIconURL);
   } else if (aState == "invalid") {
     gURLBar.removeEventListener("input", UpdatePageProxyState, false);
     PageProxyClearIcon();
@@ -3102,7 +3102,7 @@ const BrowserSearch = {
       var ss = Cc["@mozilla.org/browser/search-service;1"].
                getService(Ci.nsIBrowserSearchService);
       var searchForm = ss.defaultEngine.searchForm;
-      openUILinkIn(searchForm, "current");
+      loadURI(searchForm, null, null, false);
     }
   },
 
@@ -3913,9 +3913,9 @@ var XULBrowserWindow = {
     }
   },
   
-  onLinkIconAvailable: function (aBrowser, aIconURL) {
+  onLinkIconAvailable: function (aBrowser) {
     if (gProxyFavIcon && gBrowser.userTypedValue === null)
-      PageProxySetIcon(aIconURL); // update the favicon in the URL bar
+      PageProxySetIcon(aBrowser.mIconURL); // update the favicon in the URL bar
   },
 
   onProgressChange: function (aWebProgress, aRequest,
@@ -3980,7 +3980,7 @@ var XULBrowserWindow = {
         if (aWebProgress.DOMWindow == content) {
           if (aRequest)
             this.endDocumentLoad(aRequest, aStatus);
-          if (!gBrowser.mTabbedMode && !gBrowser.getIcon())
+          if (!gBrowser.mTabbedMode && !gBrowser.selectedBrowser.mIconURL)
             gBrowser.useDefaultIcon(gBrowser.selectedTab);
         }
       }
