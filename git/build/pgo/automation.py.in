@@ -120,7 +120,7 @@ class Process(subprocess.Popen):
         try:
           subprocess.Popen(["kill", "-f", pid]).wait()
         except:
-          log.info("TEST-UNEXPECTED-FAIL | Missing 'kill' utility to kill process with pid=%s. Kill it manually!", pid)
+          log.info("ERROR FAIL Missing 'kill' utility to kill process with pid=%s. Kill it manually !", pid)
       else:
         # Windows XP and later.
         subprocess.Popen(["taskkill", "/F", "/PID", pid]).wait()
@@ -405,13 +405,13 @@ def environment(env = None, xrePath = DIST_BIN):
 # RUN THE APP #
 ###############
 
-def runApp(testURL, env, app, profileDir, extraArgs, runSSLTunnel = False, utilityPath = DIST_BIN, xrePath = DIST_BIN, certPath = CERTS_SRC_DIR):
+def runApp(testURL, env, app, profileDir, extraArgs, utilityPath = DIST_BIN, xrePath = DIST_BIN, certPath = CERTS_SRC_DIR):
   "Run the app, returning a tuple containing the status code and the time at which it was started."
-  if IS_TEST_BUILD and runSSLTunnel:
+  if (IS_TEST_BUILD):
     # create certificate database for the profile
     certificateStatus = fillCertificateDB(profileDir, certPath, utilityPath, xrePath)
     if certificateStatus != 0:
-      log.info("TEST-UNEXPECTED FAIL | Certificate integration failed")
+      log.info("ERROR FAIL Certificate integration")
       return certificateStatus
   
     # start ssltunnel to provide https:// URLs capability
@@ -439,11 +439,10 @@ def runApp(testURL, env, app, profileDir, extraArgs, runSSLTunnel = False, utili
     profileDirectory = profileDir + "/"
 
   args.extend(("-no-remote", "-profile", profileDirectory))
-  if testURL is not None:
-    if IS_CAMINO:
-      args.extend(("-url", testURL))
-    else:
-      args.append((testURL))
+  if IS_CAMINO:
+    args.extend(("-url", testURL))
+  else:
+    args.append((testURL))
   args.extend(extraArgs)
   proc = Process([cmd] + args, env = environment(env), stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
   log.info("Application pid: %d", proc.pid)
@@ -451,9 +450,9 @@ def runApp(testURL, env, app, profileDir, extraArgs, runSSLTunnel = False, utili
     log.info(line.rstrip())
   status = proc.wait()
   if status != 0:
-    log.info("TEST-UNEXPECTED-FAIL | Exited with code %d during test run", status)
+    log.info("ERROR FAIL Exited with code %d during test run", status)
 
-  if IS_TEST_BUILD and runSSLTunnel:
+  if (IS_TEST_BUILD):
     ssltunnelProcess.kill()
   
   return (status, start)
