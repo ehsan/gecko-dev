@@ -1915,7 +1915,11 @@ StoreAndNotifyEmbedVisit(VisitData& aPlace,
 History* History::gService = nullptr;
 
 History::History()
-  : mShuttingDown(false)
+  : MemoryUniReporter("explicit/history-links-hashtable",
+                      KIND_HEAP, UNITS_BYTES,
+"Memory used by the hashtable that records changes to the visited state of "
+"links.")
+  , mShuttingDown(false)
   , mShutdownMutex("History::mShutdownMutex")
   , mObservers(VISIT_OBSERVERS_INITIAL_CACHE_SIZE)
   , mRecentlyVisitedURIsNextIndex(0)
@@ -2217,17 +2221,10 @@ History::SizeOfEntryExcludingThis(KeyClass* aEntry, mozilla::MallocSizeOf aMallo
   return aEntry->array.SizeOfExcludingThis(aMallocSizeOf);
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(HistoryMallocSizeOf)
-
-NS_IMETHODIMP
-History::CollectReports(nsIHandleReportCallback* aHandleReport,
-                        nsISupports* aData)
+int64_t
+History::Amount()
 {
-  return MOZ_COLLECT_REPORT(
-    "explicit/history-links-hashtable", KIND_HEAP, UNITS_BYTES,
-    SizeOfIncludingThis(HistoryMallocSizeOf),
-    "Memory used by the hashtable that records changes to the visited state "
-    "of links.");
+  return SizeOfIncludingThis(MallocSizeOf);
 }
 
 size_t
@@ -2917,13 +2914,13 @@ History::Observe(nsISupports* aSubject, const char* aTopic,
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_ISUPPORTS5(
+NS_IMPL_ISUPPORTS_INHERITED4(
   History
+, MemoryUniReporter
 , IHistory
 , nsIDownloadHistory
 , mozIAsyncHistory
 , nsIObserver
-, nsIMemoryReporter
 )
 
 } // namespace places

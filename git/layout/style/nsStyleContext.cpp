@@ -460,11 +460,8 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
     if (this##struct_) {                                                      \
       const nsStyle##struct_* other##struct_ = aOther->Style##struct_();      \
       nsChangeHint maxDifference = nsStyle##struct_::MaxDifference();         \
-      nsChangeHint maxDifferenceNeverInherited =                              \
-        nsStyle##struct_::MaxDifferenceNeverInherited();                      \
       if ((compare ||                                                         \
-           (NS_SubtractHint(maxDifference, maxDifferenceNeverInherited) &     \
-            aParentHintsNotHandledForDescendants)) &&                         \
+           (maxDifference & aParentHintsNotHandledForDescendants)) &&         \
           !NS_IsHintSubset(maxDifference, hint) &&                            \
           this##struct_ != other##struct_) {                                  \
         NS_ASSERTION(NS_IsHintSubset(                                         \
@@ -867,15 +864,3 @@ nsStyleContext::FreeAllocations(nsPresContext *aPresContext)
     shell->FreeMisc(alloc->mSize, alloc);
   }
 }
-
-#ifdef DEBUG
-/* static */ void
-nsStyleContext::AssertStyleStructMaxDifferenceValid()
-{
-#define STYLE_STRUCT(name, checkdata_cb)                                     \
-    MOZ_ASSERT(NS_IsHintSubset(nsStyle##name::MaxDifferenceNeverInherited(), \
-                               nsStyle##name::MaxDifference()));
-#include "nsStyleStructList.h"
-#undef STYLE_STRUCT
-}
-#endif

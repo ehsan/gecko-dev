@@ -106,17 +106,17 @@ private:
 };
 
 class nsEffectiveTLDService MOZ_FINAL
-  : public nsIEffectiveTLDService
-  , public nsIMemoryReporter
+  : public mozilla::MemoryUniReporter
+  , public nsIEffectiveTLDService
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIEFFECTIVETLDSERVICE
-  NS_DECL_NSIMEMORYREPORTER
 
   nsEffectiveTLDService();
   nsresult Init();
 
+  int64_t Amount() MOZ_OVERRIDE;
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
 private:

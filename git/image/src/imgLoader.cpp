@@ -70,57 +70,57 @@ public:
     do {                                                                      \
       nsresult rv;                                                            \
       rv = callback->Callback(EmptyCString(), NS_LITERAL_CSTRING(_path),      \
-                              _kind, UNITS_BYTES, _amount,                    \
+                              _kind, nsIMemoryReporter::UNITS_BYTES, _amount, \
                               NS_LITERAL_CSTRING(_desc), closure);            \
       NS_ENSURE_SUCCESS(rv, rv);                                              \
     } while (0)
 
     REPORT("explicit/images/chrome/used/raw",
-           KIND_HEAP, chrome.mUsedRaw,
+           nsIMemoryReporter::KIND_HEAP, chrome.mUsedRaw,
            "Memory used by in-use chrome images (compressed data).");
 
     REPORT("explicit/images/chrome/used/uncompressed-heap",
-           KIND_HEAP, chrome.mUsedUncompressedHeap,
+           nsIMemoryReporter::KIND_HEAP, chrome.mUsedUncompressedHeap,
            "Memory used by in-use chrome images (uncompressed data).");
 
     REPORT("explicit/images/chrome/used/uncompressed-nonheap",
-           KIND_NONHEAP, chrome.mUsedUncompressedNonheap,
+           nsIMemoryReporter::KIND_NONHEAP, chrome.mUsedUncompressedNonheap,
            "Memory used by in-use chrome images (uncompressed data).");
 
     REPORT("explicit/images/chrome/unused/raw",
-           KIND_HEAP, chrome.mUnusedRaw,
+           nsIMemoryReporter::KIND_HEAP, chrome.mUnusedRaw,
            "Memory used by not in-use chrome images (compressed data).");
 
     REPORT("explicit/images/chrome/unused/uncompressed-heap",
-           KIND_HEAP, chrome.mUnusedUncompressedHeap,
+           nsIMemoryReporter::KIND_HEAP, chrome.mUnusedUncompressedHeap,
            "Memory used by not in-use chrome images (uncompressed data).");
 
     REPORT("explicit/images/chrome/unused/uncompressed-nonheap",
-           KIND_NONHEAP, chrome.mUnusedUncompressedNonheap,
+           nsIMemoryReporter::KIND_NONHEAP, chrome.mUnusedUncompressedNonheap,
            "Memory used by not in-use chrome images (uncompressed data).");
 
     REPORT("explicit/images/content/used/raw",
-           KIND_HEAP, content.mUsedRaw,
+           nsIMemoryReporter::KIND_HEAP, content.mUsedRaw,
            "Memory used by in-use content images (compressed data).");
 
     REPORT("explicit/images/content/used/uncompressed-heap",
-           KIND_HEAP, content.mUsedUncompressedHeap,
+           nsIMemoryReporter::KIND_HEAP, content.mUsedUncompressedHeap,
            "Memory used by in-use content images (uncompressed data).");
 
     REPORT("explicit/images/content/used/uncompressed-nonheap",
-           KIND_NONHEAP, content.mUsedUncompressedNonheap,
+           nsIMemoryReporter::KIND_NONHEAP, content.mUsedUncompressedNonheap,
            "Memory used by in-use content images (uncompressed data).");
 
     REPORT("explicit/images/content/unused/raw",
-           KIND_HEAP, content.mUnusedRaw,
+           nsIMemoryReporter::KIND_HEAP, content.mUnusedRaw,
            "Memory used by not in-use content images (compressed data).");
 
     REPORT("explicit/images/content/unused/uncompressed-heap",
-           KIND_HEAP, content.mUnusedUncompressedHeap,
+           nsIMemoryReporter::KIND_HEAP, content.mUnusedUncompressedHeap,
            "Memory used by not in-use content images (uncompressed data).");
 
     REPORT("explicit/images/content/unused/uncompressed-nonheap",
-           KIND_NONHEAP, content.mUnusedUncompressedNonheap,
+           nsIMemoryReporter::KIND_NONHEAP, content.mUnusedUncompressedNonheap,
            "Memory used by not in-use content images (uncompressed data).");
 
 #undef REPORT

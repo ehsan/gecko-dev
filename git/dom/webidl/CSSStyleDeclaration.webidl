@@ -29,9 +29,3 @@ interface CSSStyleDeclaration {
 
   readonly attribute CSSRule? parentRule;
 };
-
-// Mozilla extensions
-partial interface CSSStyleDeclaration {
-  [ChromeOnly,Throws]
-  DOMString getAuthoredPropertyValue(DOMString property);
-};
