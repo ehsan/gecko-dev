@@ -27,7 +27,6 @@ function testRegister(aToolbox)
   gDevTools.registerTool({
     id: "test-tool",
     label: "Test Tool",
-    inMenu: true,
     isTargetSupported: function() true,
     build: function() {}
   });

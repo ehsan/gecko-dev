@@ -271,25 +271,34 @@ float Axis::DisplacementWillOverscrollAmount(float aDisplacement) {
   }
 }
 
-float Axis::ScaleWillOverscrollAmount(float aScale, float aFocus) {
-  float originAfterScale = (GetOrigin() + aFocus) - (aFocus / aScale);
+Axis::Overscroll Axis::ScaleWillOverscroll(ScreenToScreenScale aScale, float aFocus) {
+  float originAfterScale = (GetOrigin() + aFocus) * aScale.scale - aFocus;
 
   bool both = ScaleWillOverscrollBothSides(aScale);
-  bool minus = originAfterScale < GetPageStart();
-  bool plus = (originAfterScale + (GetCompositionLength() / aScale)) > GetPageEnd();
+  bool minus = originAfterScale < GetPageStart() * aScale.scale;
+  bool plus = (originAfterScale + GetCompositionLength()) > GetPageEnd() * aScale.scale;
 
   if ((minus && plus) || both) {
-    // If we ever reach here it's a bug in the client code.
-    MOZ_ASSERT(false, "In an OVERSCROLL_BOTH condition in ScaleWillOverscrollAmount");
-    return 0;
+    return OVERSCROLL_BOTH;
   }
   if (minus) {
-    return originAfterScale - GetPageStart();
+    return OVERSCROLL_MINUS;
   }
   if (plus) {
-    return originAfterScale + (GetCompositionLength() / aScale) - GetPageEnd();
+    return OVERSCROLL_PLUS;
   }
-  return 0;
+  return OVERSCROLL_NONE;
+}
+
+float Axis::ScaleWillOverscrollAmount(ScreenToScreenScale aScale, float aFocus) {
+  float originAfterScale = (GetOrigin() + aFocus) * aScale.scale - aFocus;
+  switch (ScaleWillOverscroll(aScale, aFocus)) {
+  case OVERSCROLL_MINUS: return originAfterScale - GetPageStart() * aScale.scale;
+  case OVERSCROLL_PLUS: return (originAfterScale + GetCompositionLength()) -
+                               NS_lround(GetPageEnd() * aScale.scale);
+  // Don't handle OVERSCROLL_BOTH. Client code is expected to deal with it.
+  default: return 0;
+  }
 }
 
 float Axis::GetVelocity() {
@@ -329,13 +338,15 @@ float Axis::GetPageLength() {
   return GetRectLength(pageRect);
 }
 
-bool Axis::ScaleWillOverscrollBothSides(float aScale) {
+bool Axis::ScaleWillOverscrollBothSides(ScreenToScreenScale aScale) {
   const FrameMetrics& metrics = mAsyncPanZoomController->GetFrameMetrics();
 
-  CSSToScreenScale scale(metrics.mZoom.scale * aScale);
-  CSSRect cssCompositionBounds = metrics.mCompositionBounds / scale;
+  CSSRect cssContentRect = metrics.mScrollableRect;
 
-  return GetRectLength(metrics.mScrollableRect) < GetRectLength(cssCompositionBounds);
+  CSSToScreenScale scale = metrics.mZoom * aScale;
+  CSSIntRect cssCompositionBounds = RoundedIn(metrics.mCompositionBounds / scale);
+
+  return GetRectLength(cssContentRect) < GetRectLength(CSSRect(cssCompositionBounds));
 }
 
 AxisX::AxisX(AsyncPanZoomController* aAsyncPanZoomController)

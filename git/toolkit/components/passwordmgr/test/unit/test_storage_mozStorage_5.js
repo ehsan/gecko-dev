@@ -7,6 +7,8 @@
  *
  */
 
+const STORAGE_TYPE = "mozStorage";
+
 function run_test() {
 
 try {
@@ -28,11 +30,28 @@ testuser1.init("http://dummyhost.mozilla.org", "", null,
 LoginTest.deleteFile(OUTDIR, "signons.sqlite");
 
 
+/*
+ * ---------------------- Initialization ----------------------
+ * Pass in a legacy file that has problems (bad header). Initialization should
+ * throw "Initialization failed". We replace the bad file with a good one,
+ * and call getAllLogins again, which will attempt to import again and should
+ * succeed because it has a good file now.
+ */
+
 /* ========== 2 ========== */
 testnum++;
 var testdesc = "Initialization, reinitialization, & importing"
 
-// (obsolete test removed)
+var storage;
+storage = LoginTest.initStorage(INDIR, "signons-00.txt", null, null, /Initialization failed/);
+
+// Since initWithFile will not replace the DB if not passed one, we can just
+// call LoginTest.initStorage with with signons-06.txt (1 disabled, 1 login).
+// storage is already defined, so this is acceptable use (a bit hacky though)
+storage = LoginTest.initStorage(INDIR, "signons-06.txt");
+LoginTest.checkStorageData(storage, ["https://www.site.net"], [testuser1]);
+
+LoginTest.deleteFile(OUTDIR, "signons.sqlite");
 
 
 /*

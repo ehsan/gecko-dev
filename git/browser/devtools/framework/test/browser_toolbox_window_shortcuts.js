@@ -3,7 +3,7 @@
 
 let Toolbox = devtools.Toolbox;
 
-let toolbox, toolIDs, idIndex, modifiedPrefs = [];
+let toolbox, toolIDs, idIndex;
 
 function test() {
   waitForExplicitFinish();
@@ -19,18 +19,6 @@ function test() {
     for (let [id, definition] of gDevTools._tools) {
       if (definition.key) {
         toolIDs.push(id);
-
-        // Enable disabled tools
-        let pref = definition.visibilityswitch, prefValue;
-        try {
-          prefValue = Services.prefs.getBoolPref(pref);
-        } catch (e) {
-          continue;
-        }
-        if (!prefValue) {
-          modifiedPrefs.push(pref);
-          Services.prefs.setBoolPref(pref, true);
-        }
       }
     }
     let target = TargetFactory.forTab(gBrowser.selectedTab);
@@ -83,10 +71,7 @@ function tidyUp() {
   toolbox.destroy().then(function() {
     gBrowser.removeCurrentTab();
 
-    for (let pref of modifiedPrefs) {
-      Services.prefs.clearUserPref(pref);
-    }
-    toolbox = toolIDs = idIndex = modifiedPrefs = Toolbox = null;
+    toolbox = toolIDs = idIndex = Toolbox = null;
     finish();
   });
 }
