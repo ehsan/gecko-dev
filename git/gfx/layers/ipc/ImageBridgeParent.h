@@ -88,7 +88,7 @@ public:
   // Shutdown step 2
   virtual bool RecvStop() MOZ_OVERRIDE;
 
-  virtual MessageLoop* GetMessageLoop() const MOZ_OVERRIDE;
+  MessageLoop * GetMessageLoop();
 
 
   // ISurfaceAllocator

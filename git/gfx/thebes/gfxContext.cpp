@@ -16,7 +16,6 @@
 
 #include "gfxColor.h"
 #include "gfxMatrix.h"
-#include "gfxUtils.h"
 #include "gfxASurface.h"
 #include "gfxPattern.h"
 #include "gfxPlatform.h"
@@ -1958,31 +1957,34 @@ gfxContext::RoundedRectangle(const gfxRect& rect,
 #ifdef MOZ_DUMP_PAINTING
 void
 gfxContext::WriteAsPNG(const char* aFile)
-{
-  if (mDT) {
-    gfxUtils::WriteAsPNG(mDT, aFile);
+{ 
+  nsRefPtr<gfxASurface> surf = CurrentSurface();
+  if (surf) {
+    surf->WriteAsPNG(aFile);
   } else {
-    NS_WARNING("No DrawTarget found!");
+    NS_WARNING("No surface found!");
   }
 }
 
 void 
-gfxContext::DumpAsDataURI()
-{
-  if (mDT) {
-    gfxUtils::DumpAsDataURI(mDT);
+gfxContext::DumpAsDataURL()
+{ 
+  nsRefPtr<gfxASurface> surf = CurrentSurface();
+  if (surf) {
+    surf->DumpAsDataURL();
   } else {
-    NS_WARNING("No DrawTarget found!");
+    NS_WARNING("No surface found!");
   }
 }
 
 void 
-gfxContext::CopyAsDataURI()
-{
-  if (mDT) {
-    gfxUtils::CopyAsDataURI(mDT);
+gfxContext::CopyAsDataURL()
+{ 
+  nsRefPtr<gfxASurface> surf = CurrentSurface();
+  if (surf) {
+    surf->CopyAsDataURL();
   } else {
-    NS_WARNING("No DrawTarget found!");
+    NS_WARNING("No surface found!");
   }
 }
 #endif

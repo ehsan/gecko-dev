@@ -1123,7 +1123,7 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
         case 'x':
             break;
         case 'd':
-            /* This used to try to turn on the debugger. */
+            xpc_ActivateDebugMode();
             break;
         case 'f':
             if (++i == argc) {

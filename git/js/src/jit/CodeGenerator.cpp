@@ -3340,10 +3340,7 @@ CodeGenerator::generateBody()
         // blocks are created to split critical edges, and if we didn't end up
         // putting any instructions in them, we can skip them.
         if (current->isTrivial())
-            continue;
-
-        IonSpew(IonSpew_Codegen, "# block%lu%s:", i,
-                current->mir()->isLoopHeader() ? " (loop header)" : "");
+            continue; 
 
         masm.bind(current->label());
 

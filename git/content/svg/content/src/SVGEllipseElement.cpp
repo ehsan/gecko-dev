@@ -125,7 +125,7 @@ SVGEllipseElement::BuildPath()
 
   RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
 
-  EllipseToBezier(pathBuilder.get(), Point(x, y), Size(rx, ry));
+  ArcToBezier(pathBuilder.get(), Point(x, y), Size(rx, ry), 0, Float(2*M_PI), false);
 
   return pathBuilder->Finish();
 }

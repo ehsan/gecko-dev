@@ -29,6 +29,7 @@ OptimizationInfo::initNormalOptimizationInfo()
     inlineInterpreted_ = true;
     inlineNative_ = true;
     gvn_ = true;
+    gvnKind_ = GVN_Optimistic;
     licm_ = true;
     uce_ = true;
     rangeAnalysis_ = true;

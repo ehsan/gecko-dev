@@ -4132,7 +4132,7 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     bool canOverride = true;
     nsPresContext *presContext = PresContext();
     presContext->GetTheme()->
-      GetMinimumWidgetSize(presContext, this, disp->mAppearance,
+      GetMinimumWidgetSize(aRenderingContext, this, disp->mAppearance,
                            &widget, &canOverride);
 
     nsSize size;

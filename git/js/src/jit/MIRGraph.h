@@ -26,7 +26,7 @@ class MDefinitionIterator;
 
 typedef InlineListIterator<MInstruction> MInstructionIterator;
 typedef InlineListReverseIterator<MInstruction> MInstructionReverseIterator;
-typedef InlineListIterator<MPhi> MPhiIterator;
+typedef InlineForwardListIterator<MPhi> MPhiIterator;
 typedef InlineForwardListIterator<MResumePoint> MResumePointIterator;
 
 class LBlock;
@@ -189,8 +189,9 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     void replacePredecessor(MBasicBlock *old, MBasicBlock *split);
     void replaceSuccessor(size_t pos, MBasicBlock *split);
 
-    // Removes `pred` from the predecessor list. If this block defines phis,
-    // removes the entry for `pred` and updates the indices of later entries.
+    // Removes `pred` from the predecessor list.  `pred` should not be
+    // the final predecessor. If this block defines phis, removes the
+    // entry for `pred` and updates the indices of later entries.
     // This may introduce redundant phis if the new block has fewer
     // than two predecessors.
     void removePredecessor(MBasicBlock *pred);
@@ -290,9 +291,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
     MPhiIterator phisBegin() const {
         return phis_.begin();
-    }
-    MPhiIterator phisBegin(MPhi *at) const {
-        return phis_.begin(at);
     }
     MPhiIterator phisEnd() const {
         return phis_.end();
@@ -422,11 +420,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
         numDominated_ += n;
     }
 
-    // Add |child| to this block's immediately-dominated set.
     bool addImmediatelyDominatedBlock(MBasicBlock *child);
-
-    // Remove |child| from this block's immediately-dominated set.
-    void removeImmediatelyDominatedBlock(MBasicBlock *child);
 
     // This function retrieves the internal instruction associated with a
     // slot, and should not be used for normal stack operations. It is an
@@ -512,7 +506,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     CompileInfo &info_; // Each block originates from a particular script.
     InlineList<MInstruction> instructions_;
     Vector<MBasicBlock *, 1, IonAllocPolicy> predecessors_;
-    InlineList<MPhi> phis_;
+    InlineForwardList<MPhi> phis_;
     InlineForwardList<MResumePoint> resumePoints_;
     FixedList<MDefinition *> slots_;
     uint32_t stackPosition_;
@@ -571,7 +565,7 @@ class MIRGraph
       : alloc_(alloc),
         returnAccumulator_(nullptr),
         blockIdGen_(0),
-        idGen_(0),
+        idGen_(1),
         osrBlock_(nullptr),
         osrStart_(nullptr),
         numBlocks_(0),
@@ -633,7 +627,6 @@ class MIRGraph
     }
     void removeBlocksAfter(MBasicBlock *block);
     void removeBlock(MBasicBlock *block);
-    void removeBlockIncludingPhis(MBasicBlock *block);
     void moveBlockToEnd(MBasicBlock *block) {
         JS_ASSERT(block->id());
         blocks_.remove(block);

@@ -1000,7 +1000,7 @@ nsFlexContainerFrame::GenerateFlexItemForChild(
     nsIntSize widgetMinSize(0, 0);
     bool canOverride = true;
     aPresContext->GetTheme()->
-      GetMinimumWidgetSize(aPresContext, aChildFrame,
+      GetMinimumWidgetSize(childRS.rendContext, aChildFrame,
                            disp->mAppearance,
                            &widgetMinSize, &canOverride);
 

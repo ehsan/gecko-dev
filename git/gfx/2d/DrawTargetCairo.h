@@ -58,7 +58,6 @@ public:
   DrawTargetCairo();
   virtual ~DrawTargetCairo();
 
-  virtual DrawTargetType GetType() const MOZ_OVERRIDE;
   virtual BackendType GetBackendType() const { return BackendType::CAIRO; }
   virtual TemporaryRef<SourceSurface> Snapshot();
   virtual IntSize GetSize();

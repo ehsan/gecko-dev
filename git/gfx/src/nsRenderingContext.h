@@ -22,6 +22,7 @@
 #include "nsString.h"               // for nsString
 #include "nscore.h"                     // for char16_t
 
+class gfxASurface;
 class nsIntRegion;
 struct nsPoint;
 struct nsRect;
@@ -44,6 +45,7 @@ public:
 
     NS_INLINE_DECL_REFCOUNTING(nsRenderingContext)
 
+    void Init(nsDeviceContext* aContext, gfxASurface* aThebesSurface);
     void Init(nsDeviceContext* aContext, gfxContext* aThebesContext);
     void Init(nsDeviceContext* aContext, DrawTarget* aDrawTarget);
 

@@ -1046,7 +1046,7 @@ nsNativeThemeGTK::GetWidgetOverflow(nsDeviceContext* aContext,
 }
 
 NS_IMETHODIMP
-nsNativeThemeGTK::GetMinimumWidgetSize(nsPresContext* aPresContext,
+nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
                                        nsIFrame* aFrame, uint8_t aWidgetType,
                                        nsIntSize* aResult, bool* aIsOverridable)
 {

@@ -2945,7 +2945,7 @@ nsXPCComponents_Utils::NondeterministicGetWeakMapKeys(HandleValue aMap,
     return NS_OK;
 }
 
-/* [implicit_jscontext] jsval getJSTestingFunctions(); */
+/* void getDebugObject(); */
 NS_IMETHODIMP
 nsXPCComponents_Utils::GetJSTestingFunctions(JSContext *cx,
                                              MutableHandleValue retval)

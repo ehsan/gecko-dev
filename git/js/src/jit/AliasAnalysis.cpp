@@ -177,7 +177,8 @@ AliasAnalysis::analyze()
 
     // Type analysis may have inserted new instructions. Since this pass depends
     // on the instruction number ordering, all instructions are renumbered.
-    uint32_t newId = 0;
+    // We start with 1 because some passes use 0 to denote failure.
+    uint32_t newId = 1;
 
     for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
         if (mir->shouldCancel("Alias Analysis (main loop)"))

@@ -7,6 +7,8 @@
 #ifndef mozilla_dom_bluetooth_bluetoothservicebluedroid_h__
 #define mozilla_dom_bluetooth_bluetoothservicebluedroid_h__
 
+#include <hardware/bluetooth.h>
+
 #include "BluetoothCommon.h"
 #include "BluetoothService.h"
 
@@ -15,6 +17,8 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothServiceBluedroid : public BluetoothService
 {
 public:
+  static const bt_interface_t* GetBluetoothInterface();
+
   BluetoothServiceBluedroid();
   ~BluetoothServiceBluedroid();
 
