@@ -4479,7 +4479,7 @@ TraceRecorder::monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op)
         js_AbortRecording(cx, "deep abort requested");
         return JSMRS_STOP;
     }
-
+    JS_ASSERT(!JS_TRACE_MONITOR(cx).needFlush);
     JS_ASSERT(!tr->fragment->lastIns);
 
     /*
