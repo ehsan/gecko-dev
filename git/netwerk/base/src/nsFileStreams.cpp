@@ -736,11 +736,11 @@ nsSafeFileOutputStream::Finish()
 #endif
         }
         else {
-            nsAutoString targetFilename;
-            rv = mTargetFile->GetLeafName(targetFilename);
+            nsCAutoString targetFilename;
+            rv = mTargetFile->GetNativeLeafName(targetFilename);
             if (NS_SUCCEEDED(rv)) {
                 // This will replace target.
-                rv = mTempFile->MoveTo(nsnull, targetFilename);
+                rv = mTempFile->MoveToNative(nsnull, targetFilename);
                 if (NS_FAILED(rv))
                     mTempFile->Remove(PR_FALSE);
             }

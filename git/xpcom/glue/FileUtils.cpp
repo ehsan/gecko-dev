@@ -42,9 +42,6 @@
 #include <sys/stat.h>
 #elif defined(XP_WIN)
 #include <windows.h>
-#elif defined(XP_OS2)
-#define INCL_DOSFILEMGR
-#include <os2.h>
 #endif
 
 #include "nscore.h"
@@ -70,9 +67,6 @@ mozilla::fallocate(PRFileDesc *aFD, PRInt64 aLength)
 
   PR_Seek64(aFD, oldpos, PR_SEEK_SET);
   return retval;
-#elif defined(XP_OS2)
-  return aLength <= PR_UINT32_MAX
-    && 0 == DosSetFileSize(PR_FileDesc2NativeHandle(aFD), (PRUint32)aLength);
 #elif defined(XP_MACOSX)
   int fd = PR_FileDesc2NativeHandle(aFD);
   fstore_t store = {F_ALLOCATECONTIG, F_PEOFPOSMODE, 0, aLength};

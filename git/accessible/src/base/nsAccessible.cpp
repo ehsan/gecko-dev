@@ -2656,10 +2656,9 @@ nsAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
 
   if (frame->GetType() == nsAccessibilityAtoms::brFrame) {
     aText += kForcedNewLineChar;
-  } else if (nsAccUtils::MustPrune(GetParent())) {
-    // Expose the embedded object accessible as imaginary embedded object
-    // character if its parent hypertext accessible doesn't expose children to
-    // AT.
+  } else if (nsAccUtils::MustPrune(this)) {
+    // Expose imaginary embedded object character if the accessible hans't
+    // children.
     aText += kImaginaryEmbeddedObjectChar;
   } else {
     aText += kEmbeddedObjectChar;

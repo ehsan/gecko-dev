@@ -221,9 +221,6 @@ public:
                            double *destY,
                            bool *result);
 
-    NS_OVERRIDE virtual bool
-    RecvNegotiatedCarbon();
-
     NPError NPP_SetWindow(const NPWindow* aWindow);
 
     NPError NPP_GetValue(NPPVariable variable, void* retval);

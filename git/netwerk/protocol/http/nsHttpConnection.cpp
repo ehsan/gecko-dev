@@ -67,6 +67,7 @@ static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
 nsHttpConnection::nsHttpConnection()
     : mTransaction(nsnull)
     , mConnInfo(nsnull)
+    , mLock(nsnull)
     , mLastReadTime(0)
     , mIdleTimeout(0)
     , mKeepAlive(PR_TRUE) // assume to keep-alive by default
@@ -90,6 +91,11 @@ nsHttpConnection::~nsHttpConnection()
     NS_IF_RELEASE(mConnInfo);
     NS_IF_RELEASE(mTransaction);
 
+    if (mLock) {
+        PR_DestroyLock(mLock);
+        mLock = nsnull;
+    }
+
     // release our reference to the handler
     nsHttpHandler *handler = gHttpHandler;
     NS_RELEASE(handler);
@@ -102,6 +108,10 @@ nsHttpConnection::Init(nsHttpConnectionInfo *info, PRUint16 maxHangTime)
 
     NS_ENSURE_ARG_POINTER(info);
     NS_ENSURE_TRUE(!mConnInfo, NS_ERROR_ALREADY_INITIALIZED);
+
+    mLock = PR_NewLock();
+    if (!mLock)
+        return NS_ERROR_OUT_OF_MEMORY;
 
     mConnInfo = info;
     NS_ADDREF(mConnInfo);

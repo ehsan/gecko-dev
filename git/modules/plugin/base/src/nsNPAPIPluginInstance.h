@@ -146,10 +146,6 @@ public:
 
   void URLRedirectResponse(void* notifyData, NPBool allow);
 
-  // Called when the instance fails to instantiate beceause the Carbon
-  // event model is not supported.
-  void CarbonNPAPIFailure();
-
 protected:
   nsresult InitializePlugin();
 

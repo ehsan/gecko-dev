@@ -22,10 +22,11 @@
       //////////////////////////////////////////////////////////////////////////
 
       // ! - embedded object char
-      // __h__e__l__l__o__ __!__ __s__e__e__ __!__
+      // @ - imaginary object char, space is used
+      // __h__e__l__l__o__ __!__ __s__e__e__ __@__
       //  0  1  2  3  4  5  6  7  8  9 10 11 12 13
 
-      var IDs = [ "hypertext", "hypertext2" ];
+      var IDs = [ "hypertext" ];
 
       ////////////////////////////////////////////////////////////////////////
       // characterCount
@@ -37,8 +38,8 @@
 
       testText(IDs, 0, 1, "h");
       testText(IDs, 5, 7, " " + kEmbedChar);
-      testText(IDs, 10, 13, "e " + kEmbedChar);
-      testText(IDs, 0, 13, "hello " + kEmbedChar + " see " + kEmbedChar);
+      testText(IDs, 10, 13, "e  ");
+      testText(IDs, 0, 13, "hello " + kEmbedChar + " see  ");
 
       //////////////////////////////////////////////////////////////////////////
       // list
@@ -70,7 +71,6 @@
   </pre>
 
   <div id="hypertext">hello <a>friend</a> see <img></div>
-  <div id="hypertext2">hello <a>friend</a> see <input></div>
   <ol id="list"><li id="listitem">foo</li></ol>
 
 </body>
