@@ -71,18 +71,16 @@ struct PLDHashTableOps;
  * structure, for single static initialization per hash table sub-type.
  *
  * Each hash table sub-type should make its entry type a subclass of
- * PLDHashEntryHdr. The mKeyHash member contains the result of multiplying the
+ * PLDHashEntryHdr. The keyHash member contains the result of multiplying the
  * hash code returned from the hashKey callback (see below) by
  * PL_DHASH_GOLDEN_RATIO, then constraining the result to avoid the magic 0 and
- * 1 values. The stored mKeyHash value is table size invariant, and it is
- * maintained automatically -- users need never access it.
+ * 1 values. The stored keyHash value is table size invariant, and it is
+ * maintained automatically -- users should never set it, and its only uses
+ * should be via the entry macros below.
  */
 struct PLDHashEntryHdr
 {
-private:
-  friend class PLDHashTable;
-
-  PLDHashNumber mKeyHash;
+  PLDHashNumber keyHash;  /* every entry must begin like this */
 };
 
 /*
@@ -295,9 +293,7 @@ public:
   Iterator Iterate() const { return Iterator(this); }
 
 private:
-  static bool EntryIsFree(PLDHashEntryHdr* aEntry);
-
-  PLDHashNumber ComputeKeyHash(const void* aKey);
+  PLDHashNumber GetKeyHash(const void* aKey);
 
   PLDHashEntryHdr* PL_DHASH_FASTCALL
     SearchTable(const void* aKey, PLDHashNumber aKeyHash, bool aIsAdd);
@@ -341,9 +337,9 @@ typedef void (*PLDHashClearEntry)(PLDHashTable* aTable,
                                   PLDHashEntryHdr* aEntry);
 
 /*
- * Initialize a new entry, apart from mKeyHash.  This function is called when
+ * Initialize a new entry, apart from keyHash.  This function is called when
  * PL_DHashTableAdd finds no existing entry for the given key, and must add a
- * new one.  At that point, aEntry->mKeyHash is not set yet, to avoid claiming
+ * new one.  At that point, aEntry->keyHash is not set yet, to avoid claiming
  * the last free entry in a severely overloaded table.
  */
 typedef bool (*PLDHashInitEntry)(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
@@ -363,7 +359,7 @@ typedef bool (*PLDHashInitEntry)(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
  *
  * Note the reason why initEntry is optional: the default hooks (stubs) clear
  * entry storage:  On successful PL_DHashTableAdd(tbl, key), the returned entry
- * pointer addresses an entry struct whose mKeyHash member has been set
+ * pointer addresses an entry struct whose keyHash member has been set
  * non-zero, but all other entry members are still clear (null).
  * PL_DHashTableAdd callers can test such members to see whether the entry was
  * newly created by the PL_DHashTableAdd call that just succeeded.  If
@@ -390,10 +386,11 @@ struct PLDHashTableOps
 
 PLDHashNumber PL_DHashStringKey(PLDHashTable* aTable, const void* aKey);
 
-/* A minimal entry is a subclass of PLDHashEntryHdr and has void key pointer. */
-struct PLDHashEntryStub : public PLDHashEntryHdr
+/* A minimal entry contains a keyHash header and a void key pointer. */
+struct PLDHashEntryStub
 {
-  const void* key;
+  PLDHashEntryHdr hdr;
+  const void*     key;
 };
 
 PLDHashNumber PL_DHashVoidPtrKeyStub(PLDHashTable* aTable, const void* aKey);
@@ -486,11 +483,10 @@ PL_DHashTableSearch(PLDHashTable* aTable, const void* aKey);
  * aTable->mOps->initEntry is non-null and aTable->mOps->initEntry op has
  * returned false.
  *
- * Otherwise, aEntry->mKeyHash has been set so that
- * PLDHashTable::EntryIsFree(entry) is false, and it is up to the caller to
- * initialize the key and value parts of the entry sub-type, if they have not
- * been set already (i.e. if entry was not already in the table, and if the
- * optional initEntry hook was not used).
+ * Otherwise, aEntry->keyHash has been set so that PL_DHASH_ENTRY_IS_FREE(entry)
+ * is false, and it is up to the caller to initialize the key and value parts
+ * of the entry sub-type, if they have not been set already (i.e. if entry was
+ * not already in the table, and if the optional initEntry hook was not used).
  */
 PLDHashEntryHdr* PL_DHASH_FASTCALL
 PL_DHashTableAdd(PLDHashTable* aTable, const void* aKey);

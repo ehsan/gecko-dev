@@ -51,7 +51,7 @@ DocAccessibleParent::RecvShowEvent(const ShowEventData& aData)
   }
 #endif
 
-  return consumed != 0;
+  return consumed;
 }
 
 uint32_t

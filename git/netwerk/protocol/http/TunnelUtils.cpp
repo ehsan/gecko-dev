@@ -750,15 +750,6 @@ TLSFilterTransaction::IsNullTransaction()
   return mTransaction->IsNullTransaction();
 }
 
-NullHttpTransaction *
-TLSFilterTransaction::QueryNullTransaction()
-{
-  if (!mTransaction) {
-    return nullptr;
-  }
-  return mTransaction->QueryNullTransaction();
-}
-
 nsHttpTransaction *
 TLSFilterTransaction::QueryHttpTransaction()
 {

@@ -87,10 +87,6 @@ class MIRGenerator
         return !compilingAsmJS() && instrumentedProfiling();
     }
 
-    bool isOptimizationTrackingEnabled() {
-        return isProfilerInstrumentationEnabled() && !info().isAnalysis();
-    }
-
     // Whether the main thread is trying to cancel this build.
     bool shouldCancel(const char *why) {
         maybePause();

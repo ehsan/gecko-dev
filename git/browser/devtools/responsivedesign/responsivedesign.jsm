@@ -11,7 +11,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource://gre/modules/devtools/event-emitter.js");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 let { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
                                   "resource://gre/modules/SystemAppProxy.jsm");
@@ -33,8 +32,6 @@ const SLOW_RATIO = 6;
 const ROUND_RATIO = 10;
 
 const INPUT_PARSER = /(\d+)[^\d]+(\d+)/;
-
-const SHARED_L10N = new ViewHelpers.L10N("chrome://browser/locale/devtools/shared.properties");
 
 let ActiveTabs = new Map();
 
@@ -607,8 +604,7 @@ ResponsiveUI.prototype = {
    * @param aPreset associated preset.
    */
   setMenuLabel: function RUI_setMenuLabel(aMenuitem, aPreset) {
-    let size = SHARED_L10N.getFormatStr("dimensions",
-      Math.round(aPreset.width), Math.round(aPreset.height));
+    let size = Math.round(aPreset.width) + "\u00D7" + Math.round(aPreset.height);
 
     // .inputField might be not reachable yet (async XBL loading)
     if (this.menulist.inputField) {

@@ -1899,6 +1899,7 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
   }
 }
 
+
 static nsresult
 ProfileMissingDialog(nsINativeAppSupport* aNative)
 {
@@ -2201,9 +2202,7 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
       // Check that the profile to reset is the default since reset and migration are only
       // supported in that case.
       bool currentIsSelected;
-      rv = GetCurrentProfileIsDefault(aProfileSvc, lf, &currentIsSelected);
-      NS_ENSURE_SUCCESS(rv, rv);
-
+      GetCurrentProfileIsDefault(aProfileSvc, lf, &currentIsSelected);
       if (!currentIsSelected) {
         NS_WARNING("Profile reset is only supported for the default profile.");
         gDoProfileReset = gDoMigration = false;
@@ -3502,6 +3501,7 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
 
   SetShutdownChecks();
 
+
   // Enable Telemetry IO Reporting on DEBUG, nightly and local builds
 #ifdef DEBUG
   mozilla::Telemetry::InitIOReporting(gAppData->xreDirectory);
@@ -4578,7 +4578,6 @@ XRE_IsParentProcess()
   return XRE_GetProcessType() == GeckoProcessType_Default;
 }
 
-#ifdef NIGHTLY_BUILD
 static void
 LogE10sBlockedReason(const char *reason) {
   gBrowserTabsRemoteDisabledReason.Assign(NS_ConvertASCIItoUTF16(reason));
@@ -4591,7 +4590,6 @@ LogE10sBlockedReason(const char *reason) {
     console->LogStringMessage(msg.get());
   }
 }
-#endif
 
 bool
 mozilla::BrowserTabsRemoteAutostart()
@@ -4663,10 +4661,7 @@ mozilla::BrowserTabsRemoteAutostart()
 
     if (accelDisabled) {
       gBrowserTabsRemoteAutostart = false;
-
-#ifdef NIGHTLY_BUILD
       LogE10sBlockedReason("Hardware acceleration is disabled");
-#endif
     }
   }
 #endif // defined(XP_MACOSX)
@@ -4737,3 +4732,4 @@ SetupErrorHandling(const char* progname)
   // Unbuffer stdout, needed for tinderbox tests.
   setbuf(stdout, 0);
 }
+

@@ -4227,10 +4227,8 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
         }
     }
 
-    if (IsWindowClipRegionEqual(*newRects))
+    if (!StoreWindowClipRegion(*newRects))
         return NS_OK;
-
-    StoreWindowClipRegion(*newRects);
 
     if (!mGdkWindow)
         return NS_OK;

@@ -41,10 +41,8 @@ XPCWrappedNativeScope::ClearInterpositionsObserver::Observe(nsISupports *subject
     // may themselves be involved in cycles. We need to drop these strong
     // references before the cycle collector shuts down. Otherwise we'll
     // leak. This observer always runs before CC shutdown.
-    if (gInterpositionMap) {
+    if (gInterpositionMap)
         delete gInterpositionMap;
-        gInterpositionMap = nullptr;
-    }
 
     nsContentUtils::UnregisterShutdownObserver(this);
     return NS_OK;
