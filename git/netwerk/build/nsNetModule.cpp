@@ -49,8 +49,8 @@
 #endif
 
 typedef nsCategoryCache<nsIContentSniffer> ContentSnifferCache;
-ContentSnifferCache* gNetSniffers = nullptr;
-ContentSnifferCache* gDataSniffers = nullptr;
+NS_HIDDEN_(ContentSnifferCache*) gNetSniffers = nullptr;
+NS_HIDDEN_(ContentSnifferCache*) gDataSniffers = nullptr;
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -188,7 +188,7 @@ public:
     return mDoc;
   }
 
-  virtual bool IsRunningTimeout() = 0;
+  virtual NS_HIDDEN_(bool) IsRunningTimeout() = 0;
 
   // Audio API
   bool GetAudioMuted() const;
