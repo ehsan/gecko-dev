@@ -6766,10 +6766,8 @@ let gPrivateBrowsingUI = {
       }
     }
 
-    if (gURLBar &&
-        !PrivateBrowsingUtils.permanentPrivateBrowsing) {
-      // Disable switch to tab autocompletion for private windows 
-      // (not for "Always use private browsing" mode)
+    if (gURLBar) {
+      // Disable switch to tab autocompletion for private windows
       gURLBar.setAttribute("autocompletesearchparam", "");
     }
   }
@@ -6792,10 +6790,9 @@ function switchToTabHavingURI(aURI, aOpenNew) {
   // This will switch to the tab in aWindow having aURI, if present.
   function switchIfURIInWindow(aWindow) {
     // Only switch to the tab if neither the source and desination window are
-    // private and they are not in permanent private borwsing mode
-    if ((PrivateBrowsingUtils.isWindowPrivate(window) ||
-        PrivateBrowsingUtils.isWindowPrivate(aWindow)) &&
-        !PrivateBrowsingUtils.permanentPrivateBrowsing) {
+    // private.
+    if (PrivateBrowsingUtils.isWindowPrivate(window) ||
+        PrivateBrowsingUtils.isWindowPrivate(aWindow)) {
       return false;
     }
 
