@@ -94,7 +94,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mInflater = LayoutInflater.from(context);
 
         sActionItems = new ArrayList<View>();
-        Tabs.getInstance().registerOnTabsChangedListener(this);
+        Tabs.registerOnTabsChangedListener(this);
     }
 
     public void from(LinearLayout layout) {
@@ -372,10 +372,13 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     }
 
     public void updateTabs(boolean areTabsShown) {
-        if (areTabsShown)
+        if (areTabsShown) {
             mTabs.setImageLevel(TABS_EXPANDED);
-        else
+            mTabs.getBackground().setLevel(TABS_EXPANDED);
+        } else {
             mTabs.setImageLevel(TABS_CONTRACTED);
+            mTabs.getBackground().setLevel(TABS_CONTRACTED);
+        }
     }
 
     public void setProgressVisibility(boolean visible) {

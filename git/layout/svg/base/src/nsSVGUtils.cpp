@@ -1363,8 +1363,8 @@ nsSVGUtils::TransformOuterSVGPointToChildFrame(nsPoint aPoint,
   canvasDevToFrameUserSpace.Invert();
   gfxPoint devPt = gfxPoint(aPoint.x, aPoint.y) /
     aPresContext->AppUnitsPerDevPixel();
-  gfxPoint userPt = canvasDevToFrameUserSpace.Transform(devPt).Round();
-  gfxPoint appPt = userPt * aPresContext->AppUnitsPerCSSPixel();
+  gfxPoint userPt = canvasDevToFrameUserSpace.Transform(devPt);
+  gfxPoint appPt = (userPt * aPresContext->AppUnitsPerCSSPixel()).Round();
   userPt.x = clamped(appPt.x, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
   userPt.y = clamped(appPt.y, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
   // now guaranteed to be safe:
@@ -1407,15 +1407,15 @@ nsSVGUtils::HitTestRect(const gfxMatrix &aMatrix,
                         float aRX, float aRY, float aRWidth, float aRHeight,
                         float aX, float aY)
 {
-  if (aMatrix.IsSingular()) {
+  gfxRect rect(aRX, aRY, aRWidth, aRHeight);
+  if (rect.IsEmpty() || aMatrix.IsSingular()) {
     return false;
   }
-  gfxContext ctx(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
-  ctx.SetMatrix(aMatrix);
-  ctx.NewPath();
-  ctx.Rectangle(gfxRect(aRX, aRY, aRWidth, aRHeight));
-  ctx.IdentityMatrix();
-  return ctx.PointInFill(gfxPoint(aX, aY));
+  gfxMatrix toRectSpace = aMatrix;
+  toRectSpace.Invert();
+  gfxPoint p = toRectSpace.Transform(gfxPoint(aX, aY));
+  return rect.x <= p.x && p.x <= rect.XMost() &&
+         rect.y <= p.y && p.y <= rect.YMost();
 }
 
 gfxRect
@@ -1518,10 +1518,9 @@ nsSVGUtils::SetClipRect(gfxContext *aContext,
   if (aCTM.IsSingular())
     return;
 
-  gfxMatrix oldMatrix = aContext->CurrentMatrix();
+  gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(aContext);
   aContext->Multiply(aCTM);
   aContext->Clip(aRect);
-  aContext->SetMatrix(oldMatrix);
 }
 
 void
