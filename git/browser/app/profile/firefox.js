@@ -1083,6 +1083,9 @@ pref("devtools.debugger.ui.variables-searchbox-visible", false);
 // Enable the Profiler
 pref("devtools.profiler.enabled", true);
 
+// The default Profiler UI settings
+pref("devtools.profiler.ui.show-platform-data", false);
+
 // Enable the Network Monitor
 pref("devtools.netmonitor.enabled", true);
 
@@ -1122,6 +1125,7 @@ pref("devtools.gcli.eagerHelper", 2);
 // Remember the Web Console filters
 pref("devtools.webconsole.filter.network", true);
 pref("devtools.webconsole.filter.networkinfo", true);
+pref("devtools.webconsole.filter.netwarn", true);
 pref("devtools.webconsole.filter.csserror", true);
 pref("devtools.webconsole.filter.cssparser", true);
 pref("devtools.webconsole.filter.exception", true);
@@ -1137,6 +1141,7 @@ pref("devtools.webconsole.filter.secwarn", true);
 // Remember the Browser Console filters
 pref("devtools.browserconsole.filter.network", true);
 pref("devtools.browserconsole.filter.networkinfo", true);
+pref("devtools.browserconsole.filter.netwarn", true);
 pref("devtools.browserconsole.filter.csserror", true);
 pref("devtools.browserconsole.filter.cssparser", true);
 pref("devtools.browserconsole.filter.exception", true);
