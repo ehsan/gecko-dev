@@ -58,7 +58,6 @@
 
 #include "nsPresContext.h"
 #include "nsCSSRendering.h"
-#include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsIPresShell.h"
@@ -66,7 +65,6 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLBodyElement.h"
 #include "nsFrameManager.h"
-#include "nsCSSRendering.h"
 #include "nsLayoutErrors.h"
 #include "nsAutoPtr.h"
 #include "nsCSSFrameConstructor.h"
@@ -162,7 +160,7 @@ struct BCPropertyData
 };
 
 nsIFrame*
-nsTableFrame::GetParentStyleContextFrame()
+nsTableFrame::GetParentStyleContextFrame() const
 {
   // Since our parent, the table outer frame, returned this frame, we
   // must return whatever our parent would normally have returned.
@@ -213,6 +211,10 @@ nsTableFrame::Init(nsIContent*      aContent,
   const nsStyleTableBorder* tableStyle = GetStyleTableBorder();
   bool borderCollapse = (NS_STYLE_BORDER_COLLAPSE == tableStyle->mBorderCollapse);
   SetBorderCollapse(borderCollapse);
+
+  // Transforms need to affect the outer frame, not the inner frame (bug 722777)
+  mState &= ~NS_FRAME_MAY_BE_TRANSFORMED;
+
   // Create the cell map if this frame is the first-in-flow.
   if (!aPrevInFlow) {
     mCellMap = new nsTableCellMap(*this, borderCollapse);
@@ -1043,7 +1045,7 @@ nsTableFrame::InsertRowGroups(const nsFrameList::Slice& aRowGroups)
 /////////////////////////////////////////////////////////////////////////////
 // Child frame enumeration
 
-nsFrameList
+const nsFrameList&
 nsTableFrame::GetChildList(ChildListID aListID) const
 {
   if (aListID == kColGroupList) {
@@ -1268,36 +1270,34 @@ nsTableFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                const nsRect&           aDirtyRect,
                                const nsDisplayListSet& aLists)
 {
-  if (!IsVisibleInSelection(aBuilder))
-    return NS_OK;
-
   DO_GLOBAL_REFLOW_COUNT_DSP_COLOR("nsTableFrame", NS_RGB(255,128,255));
 
-  if (GetStyleVisibility()->IsVisible()) {
-    nsMargin deflate = GetDeflationForBackground(PresContext());
-    // If 'deflate' is (0,0,0,0) then we can paint the table background
-    // in its own display item, so do that to take advantage of
-    // opacity and visibility optimizations
-    if (deflate == nsMargin(0, 0, 0, 0)) {
-      nsresult rv = DisplayBackgroundUnconditional(aBuilder, aLists, false);
+  nsDisplayTableItem* item = nsnull;
+  if (IsVisibleInSelection(aBuilder)) {
+    if (GetStyleVisibility()->IsVisible()) {
+      nsMargin deflate = GetDeflationForBackground(PresContext());
+      // If 'deflate' is (0,0,0,0) then we can paint the table background
+      // in its own display item, so do that to take advantage of
+      // opacity and visibility optimizations
+      if (deflate == nsMargin(0, 0, 0, 0)) {
+        nsresult rv = DisplayBackgroundUnconditional(aBuilder, aLists, false);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    }
+    
+    // This background is created if any of the table parts are visible,
+    // or if we're doing event handling (since DisplayGenericTablePart
+    // needs the item for the |sortEventBackgrounds|-dependent code).
+    // Specific visibility decisions are delegated to the table background
+    // painter, which handles borders and backgrounds for the table.
+    if (aBuilder->IsForEventDelivery() ||
+        AnyTablePartHasBorderOrBackground(this, GetNextSibling()) ||
+        AnyTablePartHasBorderOrBackground(mColGroups.FirstChild(), nsnull)) {
+      item = new (aBuilder) nsDisplayTableBorderBackground(aBuilder, this);
+      nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
-
-  nsDisplayTableItem* item = nsnull;
-  // This background is created if any of the table parts are visible,
-  // or if we're doing event handling (since DisplayGenericTablePart
-  // needs the item for the |sortEventBackgrounds|-dependent code).
-  // Specific visibility decisions are delegated to the table background
-  // painter, which handles borders and backgrounds for the table.
-  if (aBuilder->IsForEventDelivery() ||
-      AnyTablePartHasBorderOrBackground(this, GetNextSibling()) ||
-      AnyTablePartHasBorderOrBackground(mColGroups.FirstChild(), nsnull)) {
-    item = new (aBuilder) nsDisplayTableBorderBackground(aBuilder, this);
-    nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   return DisplayGenericTablePart(aBuilder, this, aDirtyRect, aLists, item);
 }
 

@@ -102,7 +102,7 @@ using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
-using mozilla::xpconnect::memory::ReportJSRuntimeStats;
+using mozilla::xpconnect::memory::ReportJSRuntimeExplicitTreeStats;
 
 USING_WORKERS_NAMESPACE
 
@@ -155,6 +155,24 @@ SwapToISupportsArray(SmartPtr<T>& aSrc,
   dest->swap(rawSupports);
 }
 
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf, "js-worker")
+
+struct WorkerJSRuntimeStats : public JS::RuntimeStats
+{
+  WorkerJSRuntimeStats()
+   : JS::RuntimeStats(JsWorkerMallocSizeOf) { }
+
+  virtual void initExtraCompartmentStats(JSCompartment *c,
+                                         JS::CompartmentStats *cstats) MOZ_OVERRIDE
+  {
+    MOZ_ASSERT(!cstats->extra);
+    
+    // ReportJSRuntimeExplicitTreeStats expects that cstats->extra is a char pointer
+    const char *name = js::IsAtomsCompartment(c) ? "Web Worker Atoms" : "Web Worker";
+    cstats->extra = const_cast<char *>(name);
+  }
+};
+  
 class WorkerMemoryReporter : public nsIMemoryMultiReporter
 {
   WorkerPrivate* mWorkerPrivate;
@@ -226,14 +244,19 @@ public:
     return NS_OK;
   }
 
+  NS_IMETHOD GetName(nsACString &aName)
+  {
+      aName.AssignLiteral("workers");
+      return NS_OK;
+  }
+
   NS_IMETHOD
   CollectReports(nsIMemoryMultiReporterCallback* aCallback,
                  nsISupports* aClosure)
   {
     AssertIsOnMainThread();
 
-    JS::RuntimeStats rtStats(xpc::JsMallocSizeOf, xpc::GetCompartmentName,
-                             xpc::DestroyCompartmentName);
+    WorkerJSRuntimeStats rtStats;
     nsresult rv = CollectForRuntime(/* isQuick = */false, &rtStats);
     if (NS_FAILED(rv)) {
       return rv;
@@ -241,7 +264,10 @@ public:
 
     // Always report, even if we're disabled, so that we at least get an entry
     // in about::memory.
-    ReportJSRuntimeStats(rtStats, mPathPrefix, aCallback, aClosure);
+    rv = ReportJSRuntimeExplicitTreeStats(rtStats, mPathPrefix, aCallback, aClosure);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 
     return NS_OK;
   }
@@ -330,7 +356,7 @@ struct WorkerStructuredCloneCallbacks
 
     // See if this is a File object.
     {
-      nsIDOMFile* file = file::GetDOMFileFromJSObject(aCx, aObj);
+      nsIDOMFile* file = file::GetDOMFileFromJSObject(aObj);
       if (file) {
         if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_FILE, 0) &&
             JS_WriteBytes(aWriter, &file, sizeof(file))) {
@@ -342,7 +368,7 @@ struct WorkerStructuredCloneCallbacks
 
     // See if this is a Blob object.
     {
-      nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aCx, aObj);
+      nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aObj);
       if (blob) {
         nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
         if (mutableBlob && NS_SUCCEEDED(mutableBlob->SetMutable(false)) &&
@@ -1526,11 +1552,13 @@ public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    JSAutoSuspendRequest asr(aCx);
-
-    *mSucceeded = mIsQuick
-      ? JS::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), static_cast<int64_t*>(mData), xpc::JsMallocSizeOf)
-      : JS::CollectRuntimeStats(JS_GetRuntime(aCx), static_cast<JS::RuntimeStats*>(mData));
+    JSRuntime *rt = JS_GetRuntime(aCx);
+    if (mIsQuick) {
+      *static_cast<int64_t*>(mData) = JS::GetExplicitNonHeapForRuntime(rt, JsWorkerMallocSizeOf);
+      *mSucceeded = true;
+    } else {
+      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData));
+    }
 
     {
       MutexAutoLock lock(mMutex);
@@ -2500,13 +2528,8 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
 
       // We're being created outside of a window. Need to figure out the script
       // that is creating us in order for us to use relative URIs later on.
-      JSStackFrame* frame = JS_GetScriptedCaller(aCx, nsnull);
-      if (frame) {
-        JSScript* script = JS_GetFrameScript(aCx, frame);
-        if (!script) {
-          JS_ReportError(aCx, "Could not get frame script!");
-          return nsnull;
-        }
+      JSScript *script;
+      if (JS_DescribeScriptedCaller(aCx, &script, nsnull)) {
         if (NS_FAILED(NS_NewURI(getter_AddRefs(baseURI),
                                 JS_GetScriptFilename(aCx, script)))) {
           JS_ReportError(aCx, "Failed to construct base URI!");
@@ -2915,7 +2938,7 @@ WorkerPrivate::Dispatch(WorkerRunnable* aEvent, EventQueue* aQueue)
     }
 
     if (aQueue == &mControlQueue && mJSContext) {
-      JS_TriggerOperationCallback(mJSContext);
+      JS_TriggerOperationCallback(JS_GetRuntime(mJSContext));
     }
 
     mCondVar.Notify();
@@ -3138,6 +3161,8 @@ WorkerPrivate::NotifyFeatures(JSContext* aCx, Status aStatus)
 void
 WorkerPrivate::CancelAllTimeouts(JSContext* aCx)
 {
+  AssertIsOnWorkerThread();
+
   if (mTimerRunning) {
     NS_ASSERTION(mTimer, "Huh?!");
     NS_ASSERTION(!mTimeouts.IsEmpty(), "Huh?!");
@@ -3150,13 +3175,19 @@ WorkerPrivate::CancelAllTimeouts(JSContext* aCx)
       mTimeouts[index]->mCanceled = true;
     }
 
-    RunExpiredTimeouts(aCx);
+    if (!RunExpiredTimeouts(aCx)) {
+      JS_ReportPendingException(aCx);
+    }
 
-    mTimer = nsnull;
+    mTimerRunning = false;
   }
-  else {
+#ifdef DEBUG
+  else if (!mRunningExpiredTimeouts) {
     NS_ASSERTION(mTimeouts.IsEmpty(), "Huh?!");
   }
+#endif
+
+  mTimer = nsnull;
 }
 
 PRUint32
@@ -3471,7 +3502,7 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
 }
 
 bool
-WorkerPrivate::SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp,
+WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
                           bool aIsInterval)
 {
   AssertIsOnWorkerThread();
@@ -3485,8 +3516,15 @@ WorkerPrivate::SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp,
     currentStatus = mStatus;
   }
 
-  if (currentStatus > Running) {
+  // It's a script bug if setTimeout/setInterval are called from a close handler
+  // so throw an exception.
+  if (currentStatus == Closing) {
     JS_ReportError(aCx, "Cannot schedule timeouts from the close handler!");
+  }
+
+  // If the worker is trying to call setTimeout/setInterval and the parent
+  // thread has initiated the close process then just silently fail.
+  if (currentStatus >= Closing) {
     return false;
   }
 
@@ -3525,7 +3563,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp,
 
   // See if any of the optional arguments were passed.
   if (aArgc > 1) {
-    jsdouble intervalMS = 0;
+    double intervalMS = 0;
     if (!JS_ValueToNumber(aCx, argv[1], &intervalMS)) {
       return false;
     }
@@ -3533,7 +3571,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp,
 
     if (aArgc > 2 && JSVAL_IS_OBJECT(newInfo->mTimeoutVal)) {
       nsTArray<jsval> extraArgVals(aArgc - 2);
-      for (uintN index = 2; index < aArgc; index++) {
+      for (unsigned index = 2; index < aArgc; index++) {
         extraArgVals.AppendElement(argv[index]);
       }
       newInfo->mExtraArgVals.SwapElements(extraArgVals);
@@ -3629,6 +3667,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
     return true;
   }
 
+  NS_ASSERTION(mTimer, "Must have a timer!");
   NS_ASSERTION(!mTimeouts.IsEmpty(), "Should have some work to do!");
 
   bool retval = true;
@@ -3693,12 +3732,16 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
       }
     }
 
+    NS_ASSERTION(mRunningExpiredTimeouts, "Someone changed this!");
+
     // Reschedule intervals.
-    if (info->mIsInterval) {
+    if (info->mIsInterval && !info->mCanceled) {
       PRUint32 timeoutIndex = mTimeouts.IndexOf(info);
       NS_ASSERTION(timeoutIndex != PRUint32(-1),
                    "Should still be in the main list!");
 
+      // This is nasty but we have to keep the old nsAutoPtr from deleting the
+      // info we're about to re-add.
       mTimeouts[timeoutIndex].forget();
       mTimeouts.RemoveElementAt(timeoutIndex);
 
@@ -3729,8 +3772,8 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
     }
   }
 
-  // Signal the parent that we're no longer using timeouts or reschedule the
-  // timer.
+  // Either signal the parent that we're no longer using timeouts or reschedule
+  // the timer.
   if (mTimeouts.IsEmpty()) {
     if (!ModifyBusyCountFromWorker(aCx, false)) {
       retval = false;

@@ -110,8 +110,7 @@ JSClass HolderClass = {
     JSCLASS_HAS_RESERVED_SLOTS(3),
     JS_PropertyStub,        JS_PropertyStub, holder_get,      holder_set,
     JS_EnumerateStub,       JS_ResolveStub,  JS_ConvertStub,  NULL,
-    NULL,                   NULL,            NULL,            NULL,
-    NULL,                   NULL,            NULL,            NULL
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 }
@@ -160,7 +159,7 @@ EnsureExpandoObject(JSContext *cx, JSObject *holder)
     if (expando)
         return expando;
     CompartmentPrivate *priv =
-        (CompartmentPrivate *)JS_GetCompartmentPrivate(cx, js::GetObjectCompartment(holder));
+        (CompartmentPrivate *)JS_GetCompartmentPrivate(js::GetObjectCompartment(holder));
     XPCWrappedNative *wn = GetWrappedNativeFromHolder(holder);
     expando = priv->LookupExpandoObject(wn);
     if (!expando) {
@@ -447,7 +446,7 @@ nodePrincipal_getter(JSContext *cx, JSObject *wrapper, jsid id, jsval *vp)
 }
 
 static JSBool
-XrayToString(JSContext *cx, uintN argc, jsval *vp)
+XrayToString(JSContext *cx, unsigned argc, jsval *vp)
 {
     JSObject *wrapper = JS_THIS_OBJECT(cx, vp);
     if (!wrapper || !IsWrapper(wrapper) || !WrapperFactory::IsXrayWrapper(wrapper)) {
@@ -492,7 +491,7 @@ XrayToString(JSContext *cx, uintN argc, jsval *vp)
 }
 
 template <typename Base>
-XrayWrapper<Base>::XrayWrapper(uintN flags)
+XrayWrapper<Base>::XrayWrapper(unsigned flags)
   : Base(flags | WrapperFactory::IS_XRAY_WRAPPER_FLAG)
 {
 }
@@ -612,7 +611,7 @@ XrayWrapper<Base>::resolveOwnProperty(JSContext *cx, JSObject *wrapper, jsid id,
 
     desc->obj = NULL;
 
-    uintN flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
+    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
     JSObject *holder = GetHolder(wrapper);
     JSObject *expando = GetExpandoObject(holder);
 
@@ -791,6 +790,18 @@ XrayWrapper<Base>::defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
     JSObject *holder = GetHolder(wrapper);
     JSPropertyDescriptor *jsdesc = desc;
 
+    // If shadowing is forbidden, see if the id corresponds to an underlying
+    // native property.
+    if (WrapperFactory::IsShadowingForbidden(wrapper)) {
+        js::PropertyDescriptor nativeProp;
+        if (!ResolveNativeProperty(cx, wrapper, holder, id, false, &nativeProp))
+            return false;
+        if (nativeProp.obj) {
+            JS_ReportError(cx, "Permission denied to shadow native property");
+            return false;
+        }
+    }
+
     // Redirect access straight to the wrapper if we should be transparent.
     if (XrayUtils::IsTransparent(cx, wrapper)) {
         JSObject *wnObject = GetWrappedNativeObjectFromHolder(holder);
@@ -834,7 +845,7 @@ XrayWrapper<Base>::defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
 }
 
 static bool
-EnumerateNames(JSContext *cx, JSObject *wrapper, uintN flags, JS::AutoIdVector &props)
+EnumerateNames(JSContext *cx, JSObject *wrapper, unsigned flags, JS::AutoIdVector &props)
 {
     JSObject *holder = GetHolder(wrapper);
 
@@ -986,7 +997,7 @@ XrayWrapper<Base>::keys(JSContext *cx, JSObject *wrapper, JS::AutoIdVector &prop
 
 template <typename Base>
 bool
-XrayWrapper<Base>::iterate(JSContext *cx, JSObject *wrapper, uintN flags, js::Value *vp)
+XrayWrapper<Base>::iterate(JSContext *cx, JSObject *wrapper, unsigned flags, js::Value *vp)
 {
     // Skip our Base if it isn't already ProxyHandler.
     return ProxyHandler::iterate(cx, wrapper, flags, vp);
@@ -994,7 +1005,7 @@ XrayWrapper<Base>::iterate(JSContext *cx, JSObject *wrapper, uintN flags, js::Va
 
 template <typename Base>
 bool
-XrayWrapper<Base>::call(JSContext *cx, JSObject *wrapper, uintN argc, js::Value *vp)
+XrayWrapper<Base>::call(JSContext *cx, JSObject *wrapper, unsigned argc, js::Value *vp)
 {
     JSObject *holder = GetHolder(wrapper);
     XPCWrappedNative *wn = GetWrappedNativeFromHolder(holder);
@@ -1020,7 +1031,7 @@ XrayWrapper<Base>::call(JSContext *cx, JSObject *wrapper, uintN argc, js::Value 
 
 template <typename Base>
 bool
-XrayWrapper<Base>::construct(JSContext *cx, JSObject *wrapper, uintN argc,
+XrayWrapper<Base>::construct(JSContext *cx, JSObject *wrapper, unsigned argc,
                              js::Value *argv, js::Value *rval)
 {
     JSObject *holder = GetHolder(wrapper);
@@ -1053,7 +1064,7 @@ XrayWrapper<Base>::createHolder(JSContext *cx, JSObject *wrappedNative, JSObject
         return nsnull;
 
     CompartmentPrivate *priv =
-        (CompartmentPrivate *)JS_GetCompartmentPrivate(cx, js::GetObjectCompartment(holder));
+        (CompartmentPrivate *)JS_GetCompartmentPrivate(js::GetObjectCompartment(holder));
     JSObject *inner = JS_ObjectToInnerObject(cx, wrappedNative);
     XPCWrappedNative *wn = GetWrappedNative(inner);
     Value expando = ObjectOrNullValue(priv->LookupExpandoObject(wn));
@@ -1074,7 +1085,7 @@ XrayWrapper<Base>::createHolder(JSContext *cx, JSObject *wrappedNative, JSObject
     return holder;
 }
 
-XrayProxy::XrayProxy(uintN flags)
+XrayProxy::XrayProxy(unsigned flags)
   : XrayWrapper<CrossCompartmentWrapper>(flags)
 {
 }
@@ -1232,6 +1243,9 @@ bool
 XrayProxy::defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
                           js::PropertyDescriptor *desc)
 {
+    // This wouldn't be hard to support, but we don't need it right now.
+    MOZ_ASSERT(!WrapperFactory::IsShadowingForbidden(wrapper));
+
     JSObject *holder = GetHolderObject(cx, wrapper);
     if (!holder)
         return false;
@@ -1258,7 +1272,7 @@ XrayProxy::defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
 }
 
 static bool
-EnumerateProxyNames(JSContext *cx, JSObject *wrapper, uintN flags, JS::AutoIdVector &props)
+EnumerateProxyNames(JSContext *cx, JSObject *wrapper, unsigned flags, JS::AutoIdVector &props)
 {
     JSObject *obj = &js::GetProxyPrivate(wrapper).toObject();
 

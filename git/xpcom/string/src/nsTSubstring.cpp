@@ -289,16 +289,9 @@ nsTSubstring_CharT::EnsureMutable( size_type newLen )
         if ((mFlags & F_SHARED) && !nsStringBuffer::FromData(mData)->IsReadonly())
           return true;
 
-        // promote to a shared string buffer
-        char_type* prevData = mData;
-        Assign(mData, mLength);
-        return mData != prevData;
+        newLen = mLength;
       }
-    else
-      {
-        SetLength(newLen);
-        return mLength == newLen;
-      }
+    return SetLength(newLen);
   }
 
 // ---------------------------------------------------------------------------
@@ -573,11 +566,14 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
     return true;
   }
 
-void
+bool
 nsTSubstring_CharT::SetLength( size_type length )
   {
-    if (SetCapacity(length))
-      mLength = length;
+    if (!SetCapacity(length))
+      return false;
+
+    mLength = length;
+    return true;
   }
 
 void
@@ -861,5 +857,58 @@ nsTSubstring_CharT::DoAppendFloat( double aFloat, int digits )
   // locale-sensitive PR_snprintf or sprintf(3)
   Modified_cnvtf(buf, sizeof(buf), digits, aFloat);
   AppendASCII(buf);
+}
+
+size_t
+nsTSubstring_CharT::SizeOfExcludingThisMustBeUnshared(
+    nsMallocSizeOfFun mallocSizeOf) const
+{
+  if (mFlags & F_SHARED) {
+    return nsStringBuffer::FromData(mData)->
+             SizeOfIncludingThisMustBeUnshared(mallocSizeOf);
+  } 
+  if (mFlags & F_OWNED) {
+    return mallocSizeOf(mData);
+  }
+
+  // If we reach here, exactly one of the following must be true:
+  // - F_VOIDED is set, and mData points to sEmptyBuffer;
+  // - F_FIXED is set, and mData points to a buffer within a string
+  //   object (e.g. nsAutoString);
+  // - None of F_SHARED, F_OWNED, F_FIXED is set, and mData points to a buffer
+  //   owned by something else.
+  //
+  // In all three cases, we don't measure it.
+  return 0;
+}
+
+size_t
+nsTSubstring_CharT::SizeOfExcludingThisIfUnshared(
+    nsMallocSizeOfFun mallocSizeOf) const
+{
+  // This is identical to SizeOfExcludingThisMustBeUnshared except for the
+  // F_SHARED case.
+  if (mFlags & F_SHARED) {
+    return nsStringBuffer::FromData(mData)->
+             SizeOfIncludingThisIfUnshared(mallocSizeOf);
+  }
+  if (mFlags & F_OWNED) {
+    return mallocSizeOf(mData);
+  }
+  return 0;
+}
+
+size_t
+nsTSubstring_CharT::SizeOfIncludingThisMustBeUnshared(
+    nsMallocSizeOfFun mallocSizeOf) const
+{
+  return mallocSizeOf(this) + SizeOfExcludingThisMustBeUnshared(mallocSizeOf);
+}
+
+size_t
+nsTSubstring_CharT::SizeOfIncludingThisIfUnshared(
+    nsMallocSizeOfFun mallocSizeOf) const
+{
+  return mallocSizeOf(this) + SizeOfExcludingThisIfUnshared(mallocSizeOf);
 }
 

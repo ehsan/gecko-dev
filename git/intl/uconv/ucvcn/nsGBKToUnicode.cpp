@@ -217,11 +217,16 @@ NS_IMETHODIMP nsGBKToUnicode::ConvertNoBuff(const char* aSrc,
                }
              }
            }
+           aSrc += 4;
+           i += 3;
         } else {
           *aDest = UCS2_NO_MAPPING; 
+          // If the third and fourth bytes are not in the legal ranges for
+          // a four-byte sequnce, resynchronize on the second byte
+          // (which we know is in the range of LEGAL_GBK_4BYTE_SECOND_BYTE,
+          //  0x30-0x39)
+          aSrc++;
         }
-        aSrc += 4;
-        i+=3;
       }
       else if ((PRUint8) aSrc[0] == (PRUint8)0xA0 )
       {
@@ -298,8 +303,11 @@ bool nsGB18030ToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
   a3 -= (PRUint8)0x81;
   a4 -= (PRUint8)0x30;
   PRUint32 idx = (((a1 * 10 + a2 ) * 126 + a3) * 10) + a4;
+  // idx == ucs4Codepoint - 0x10000
+  if (idx > 0x000FFFFF)
+    return false;
 
-  *aOut++ = 0xD800 | (0x000003FF & (idx >> 10));
+  *aOut++ = 0xD800 | (idx >> 10);
   *aOut = 0xDC00 | (0x000003FF & idx);
 
   return true;

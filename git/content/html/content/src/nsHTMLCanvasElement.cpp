@@ -49,6 +49,7 @@
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsMathUtils.h"
+#include "nsStreamUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
@@ -216,6 +217,36 @@ nsHTMLCanvasElement::ToDataURL(const nsAString& aType, nsIVariant* aParams,
   return ToDataURLImpl(aType, aParams, aDataURL);
 }
 
+// nsHTMLCanvasElement::mozFetchAsStream
+
+NS_IMETHODIMP
+nsHTMLCanvasElement::MozFetchAsStream(nsIInputStreamCallback *aCallback,
+                                      const nsAString& aType)
+{
+  if (!nsContentUtils::IsCallerChrome())
+    return NS_ERROR_FAILURE;
+
+  nsresult rv;
+  bool fellBackToPNG = false;
+  nsCOMPtr<nsIInputStream> inputData;
+
+  rv = ExtractData(aType, EmptyString(), getter_AddRefs(inputData), fellBackToPNG);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIAsyncInputStream> asyncData = do_QueryInterface(inputData, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIThread> mainThread;
+  rv = NS_GetMainThread(getter_AddRefs(mainThread));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIInputStreamCallback> asyncCallback;
+  rv = NS_NewInputStreamReadyEvent(getter_AddRefs(asyncCallback), aCallback, mainThread);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return asyncCallback->OnInputStreamReady(asyncData);
+}
+
 nsresult
 nsHTMLCanvasElement::ExtractData(const nsAString& aType,
                                  const nsAString& aOptions,
@@ -295,7 +326,10 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   }
 
   nsAutoString type;
-  nsContentUtils::ASCIIToLower(aMimeType, type);
+  nsresult rv = nsContentUtils::ASCIIToLower(aMimeType, type);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   nsAutoString params;
 
@@ -336,8 +370,7 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   }
 
   nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = ExtractData(type, params, getter_AddRefs(stream),
-                            fallbackToPNG);
+  rv = ExtractData(type, params, getter_AddRefs(stream), fallbackToPNG);
 
   // If there are unrecognized custom parse options, we should fall back to 
   // the default values for the encoder without any options at all.
@@ -678,6 +711,8 @@ nsHTMLCanvasElement::InvalidateCanvasContent(const gfxRect* damageRect)
       // then make it a nsRect
       invalRect = nsRect(realRect.X(), realRect.Y(),
                          realRect.Width(), realRect.Height());
+
+      invalRect = invalRect.Intersect(nsRect(nsPoint(0,0), contentArea.Size()));
     }
   } else {
     invalRect = nsRect(nsPoint(0, 0), contentArea.Size());

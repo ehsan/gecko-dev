@@ -42,10 +42,11 @@
 #include "nsMediaCache.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
+#include "nsXULAppAPI.h"
 #include "nsNetUtil.h"
 #include "prio.h"
 #include "nsThreadUtils.h"
-#include "nsMediaStream.h"
+#include "MediaResource.h"
 #include "nsMathUtils.h"
 #include "prlog.h"
 #include "nsIPrivateBrowsingService.h"
@@ -176,6 +177,12 @@ public:
   nsresult ReadCacheFileAllBytes(PRInt64 aOffset, void* aData, PRInt32 aLength);
   // This will fail if all aLength bytes are not written
   nsresult WriteCacheFile(PRInt64 aOffset, const void* aData, PRInt32 aLength);
+
+  PRInt64 AllocateResourceID()
+  {
+    mReentrantMonitor.AssertCurrentThreadIn();
+    return mNextResourceID++;
+  }
 
   // mReentrantMonitor must be held, called on main thread.
   // These methods are used by the stream to set up and tear down streams,
@@ -545,8 +552,15 @@ nsMediaCache::Init()
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
   NS_ASSERTION(!mFD, "Cache file already open?");
 
+  // In single process Gecko, store the media cache in the profile directory
+  // so that multiple users can use separate media caches concurrently.
+  // In multi-process Gecko, there is no profile dir, so just store it in the
+  // system temp directory instead.
+  nsresult rv;
   nsCOMPtr<nsIFile> tmp;
-  nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmp));
+  const char* dir = (XRE_GetProcessType() == GeckoProcessType_Content) ?
+    NS_OS_TEMP_DIR : NS_APP_USER_PROFILE_LOCAL_50_DIR;
+  rv = NS_GetSpecialDirectory(dir, getter_AddRefs(tmp));
   NS_ENSURE_SUCCESS(rv,rv);
 
   nsCOMPtr<nsILocalFile> tmpFile = do_QueryInterface(tmp);
@@ -1570,7 +1584,7 @@ nsMediaCache::OpenStream(nsMediaCacheStream* aStream)
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   LOG(PR_LOG_DEBUG, ("Stream %p opened", aStream));
   mStreams.AppendElement(aStream);
-  aStream->mResourceID = mNextResourceID++;
+  aStream->mResourceID = AllocateResourceID();
 
   // Queue an update since a new stream has been opened.
   gMediaCache->QueueUpdate();
@@ -1848,6 +1862,13 @@ nsMediaCacheStream::NotifyDataEnded(nsresult aStatus)
 
   ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
 
+  if (NS_FAILED(aStatus)) {
+    // Disconnect from other streams sharing our resource, since they
+    // should continue trying to load. Our load might have been deliberately
+    // canceled and that shouldn't affect other streams.
+    mResourceID = gMediaCache->AllocateResourceID();
+  }
+
   PRInt32 blockOffset = PRInt32(mChannelOffset%BLOCK_SIZE);
   if (blockOffset > 0) {
     // Write back the partial block
@@ -1874,6 +1895,7 @@ nsMediaCacheStream::NotifyDataEnded(nsresult aStatus)
   }
 
   mChannelEnded = true;
+  gMediaCache->QueueUpdate();
 }
 
 nsMediaCacheStream::~nsMediaCacheStream()
@@ -1908,7 +1930,7 @@ nsMediaCacheStream::IsSeekable()
 }
 
 bool
-nsMediaCacheStream::AreAllStreamsForResourceSuspended(nsMediaStream** aActiveStream)
+nsMediaCacheStream::AreAllStreamsForResourceSuspended(MediaResource** aActiveStream)
 {
   ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
   nsMediaCache::ResourceStreamIterator iter(mResourceID);
@@ -1918,7 +1940,7 @@ nsMediaCacheStream::AreAllStreamsForResourceSuspended(nsMediaStream** aActiveStr
         *aActiveStream = stream->mClient;
       }
       return false;
-	}
+    }
   }
   if (aActiveStream) {
     *aActiveStream = nsnull;
@@ -2326,6 +2348,9 @@ nsMediaCacheStream::Init()
 nsresult
 nsMediaCacheStream::InitAsClone(nsMediaCacheStream* aOriginal)
 {
+  if (!aOriginal->IsAvailableForSharing())
+    return NS_ERROR_FAILURE;
+
   if (mInitialized)
     return NS_OK;
 
@@ -2368,7 +2393,7 @@ nsMediaCacheStream::InitAsClone(nsMediaCacheStream* aOriginal)
   return NS_OK;
 }
 
-nsresult nsMediaCacheStream::GetCachedRanges(nsTArray<nsByteRange>& aRanges)
+nsresult nsMediaCacheStream::GetCachedRanges(nsTArray<MediaByteRange>& aRanges)
 {
   // Take the monitor, so that the cached data ranges can't grow while we're
   // trying to loop over them.
@@ -2383,7 +2408,7 @@ nsresult nsMediaCacheStream::GetCachedRanges(nsTArray<nsByteRange>& aRanges)
     PRInt64 endOffset = GetCachedDataEnd(startOffset);
     NS_ASSERTION(startOffset < endOffset, "Buffered range must end after its start");
     // Bytes [startOffset..endOffset] are cached.
-    aRanges.AppendElement(nsByteRange(startOffset, endOffset));
+    aRanges.AppendElement(MediaByteRange(startOffset, endOffset));
     startOffset = GetNextCachedData(endOffset);
     NS_ASSERTION(startOffset == -1 || startOffset > endOffset,
       "Must have advanced to start of next range, or hit end of stream");

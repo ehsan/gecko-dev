@@ -181,6 +181,13 @@ Section "MaintenanceService"
   ; not via calling its 'install' cmdline which works by version comparison.
   CopyFiles "$EXEDIR\maintenanceservice.exe" "$INSTDIR\$TempMaintServiceName"
 
+  ; The updater.ini file is only used when performing an install or upgrade,
+  ; and only if that install or upgrade is successful.  If an old updater.ini
+  ; happened to be copied into the maintenance service installation directory
+  ; but the service was not newer, the updater.ini file would be unused.
+  ; It is used to fill the description of the service on success.
+  CopyFiles "$EXEDIR\updater.ini" "$INSTDIR\updater.ini"
+
   ; Install the application maintenance service.
   ; If a service already exists, the command line parameter will stop the
   ; service and only install itself if it is newer than the already installed
@@ -218,7 +225,9 @@ Section "MaintenanceService"
   ; this value to determine if we should show the service update pref.
   ; Since the Maintenance service can be installed either x86 or x64,
   ; always use the 64-bit registry for checking if an attempt was made.
-  SetRegView 64
+  ${If} ${RunningX64}
+    SetRegView 64
+  ${EndIf}
   WriteRegDWORD HKLM "Software\Mozilla\MaintenanceService" "Attempted" 1
   WriteRegDWORD HKLM "Software\Mozilla\MaintenanceService" "Installed" 1
 
@@ -227,7 +236,9 @@ Section "MaintenanceService"
   ; check from the service so that tests can be run.
   ; WriteRegStr HKLM "${FallbackKey}\0" "name" "Mozilla Corporation"
   ; WriteRegStr HKLM "${FallbackKey}\0" "issuer" "Thawte Code Signing CA - G2"
-  SetRegView lastused
+  ${If} ${RunningX64}
+    SetRegView lastused
+  ${EndIf}
 SectionEnd
 
 ; By renaming before deleting we improve things slightly in case
@@ -252,6 +263,8 @@ Section "Uninstall"
   ; Delete the service so that no updates will be attempted
   nsExec::Exec '"$INSTDIR\maintenanceservice.exe" uninstall'
 
+  Push "$INSTDIR\updater.ini"
+  Call un.RenameDelete
   Push "$INSTDIR\maintenanceservice.exe"
   Call un.RenameDelete
   Push "$INSTDIR\maintenanceservice_tmp.exe"
@@ -264,8 +277,12 @@ Section "Uninstall"
 
   DeleteRegKey HKLM "${MaintUninstallKey}"
 
-  SetRegView 64
+  ${If} ${RunningX64}
+    SetRegView 64
+  ${EndIf}
   DeleteRegValue HKLM "Software\Mozilla\MaintenanceService" "Installed"
   DeleteRegKey HKLM "${FallbackKey}\"
-  SetRegView lastused
+  ${If} ${RunningX64}
+    SetRegView lastused
+  ${EndIf}
 SectionEnd

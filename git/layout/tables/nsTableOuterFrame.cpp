@@ -126,7 +126,7 @@ nsTableCaptionFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 }
 
 nsIFrame*
-nsTableCaptionFrame::GetParentStyleContextFrame()
+nsTableCaptionFrame::GetParentStyleContextFrame() const
 {
   NS_PRECONDITION(mContent->GetParent(),
                   "How could we not have a parent here?");
@@ -215,7 +215,7 @@ nsTableOuterFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
-nsFrameList
+const nsFrameList&
 nsTableOuterFrame::GetChildList(ChildListID aListID) const
 {
   if (aListID == kCaptionList) {
@@ -338,8 +338,6 @@ nsTableOuterFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 {
   // No border, background or outline are painted because they all belong
   // to the inner table.
-  if (!IsVisibleInSelection(aBuilder))
-    return NS_OK;
 
   // If there's no caption, take a short cut to avoid having to create
   // the special display list set and then sort it.
@@ -380,7 +378,7 @@ nsTableOuterFrame::BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilde
 }
 
 nsIFrame*
-nsTableOuterFrame::GetParentStyleContextFrame()
+nsTableOuterFrame::GetParentStyleContextFrame() const
 {
   // The table outer frame and the (inner) table frame split the style
   // data by giving the table frame the style context associated with

@@ -50,7 +50,6 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIParser.h"
-#include "nsParserUtils.h"
 #include "nsScriptLoader.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -191,6 +190,7 @@ public:
   virtual bool IsScriptExecuting();
 
   // nsIHTMLContentSink
+  virtual bool IsAboutBlank() { return true; }
   NS_IMETHOD OpenContainer(const nsIParserNode& aNode);
   NS_IMETHOD CloseContainer(const nsHTMLTag aTag);
   NS_IMETHOD CloseMalformedContainer(const nsHTMLTag aTag);
@@ -409,7 +409,10 @@ HTMLContentSink::AddAttributes(const nsIParserNode& aNode,
   nsAutoString key;
   for (; i != limit; i += step) {
     // Get lower-cased key
-    nsContentUtils::ASCIIToLower(aNode.GetKeyAt(i), key);
+    nsresult rv = nsContentUtils::ASCIIToLower(aNode.GetKeyAt(i), key);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 
     nsCOMPtr<nsIAtom> keyAtom = do_GetAtom(key);
 
