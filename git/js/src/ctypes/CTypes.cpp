@@ -870,8 +870,7 @@ InitTypeClasses(JSContext* cx, JSObject* parent)
 
   // Attach objects representing ABI constants.
   if (!DefineABIConstant(cx, parent, "default_abi", ABI_DEFAULT) ||
-      !DefineABIConstant(cx, parent, "stdcall_abi", ABI_STDCALL) ||
-      !DefineABIConstant(cx, parent, "winapi_abi", ABI_WINAPI))
+      !DefineABIConstant(cx, parent, "stdcall_abi", ABI_STDCALL))
     return false;
 
   // Create objects representing the builtin types, and attach them to the
@@ -2128,11 +2127,8 @@ BuildTypeName(JSContext* cx, JSObject* typeObj)
       FunctionInfo* fninfo = FunctionType::GetFunctionInfo(cx, typeObj);
 
       // Add in the calling convention, if it's not cdecl.
-      ABICode abi = GetABICode(cx, fninfo->mABI);
-      if (abi == ABI_STDCALL)
+      if (GetABICode(cx, fninfo->mABI) == ABI_STDCALL)
         PrependString(result, "__stdcall ");
-      else if (abi == ABI_WINAPI)
-        PrependString(result, "WINAPI ");
 
       // Wrap the entire expression so far with parens.
       PrependString(result, "(");
@@ -2220,9 +2216,6 @@ BuildTypeSource(JSContext* cx,
       break;
     case ABI_STDCALL:
       AppendString(result, "ctypes.stdcall_abi, ");
-      break;
-    case ABI_WINAPI:
-      AppendString(result, "ctypes.winapi_abi, ");
       break;
     case INVALID_ABI:
       JS_NOT_REACHED("invalid abi");
@@ -4517,7 +4510,6 @@ GetABI(JSContext* cx, jsval abiType, ffi_abi* result)
     *result = FFI_DEFAULT_ABI;
     return true;
   case ABI_STDCALL:
-  case ABI_WINAPI:
 #if (defined(_WIN32) && !defined(_WIN64)) || defined(_OS2)
     *result = FFI_STDCALL;
     return true;
@@ -4654,8 +4646,7 @@ FunctionType::BuildSymbolName(JSContext* cx,
 
   switch (GetABICode(cx, fninfo->mABI)) {
   case ABI_DEFAULT:
-  case ABI_WINAPI:
-    // For cdecl or WINAPI functions, no mangling is necessary.
+    // For cdecl functions, no mangling is necessary.
     AppendString(result, name);
     break;
 
@@ -4848,9 +4839,6 @@ FunctionType::CreateInternal(JSContext* cx,
   return typeObj;
 }
 
-// Construct a function pointer to a JS function (see CClosure::Create()).
-// Regular function pointers are constructed directly in
-// PointerType::ConstructData().
 JSBool
 FunctionType::ConstructData(JSContext* cx,
                             JSObject* typeObj,
@@ -4865,11 +4853,6 @@ FunctionType::ConstructData(JSContext* cx,
   FunctionInfo* fninfo = FunctionType::GetFunctionInfo(cx, typeObj);
   if (fninfo->mIsVariadic) {
     JS_ReportError(cx, "Can't declare a variadic callback function");
-    return JS_FALSE;
-  }
-  if (GetABICode(cx, fninfo->mABI) == ABI_WINAPI) {
-    JS_ReportError(cx, "Can't declare a ctypes.winapi_abi callback function, "
-                   "use ctypes.stdcall_abi instead");
     return JS_FALSE;
   }
 
@@ -5168,7 +5151,6 @@ CClosure::Create(JSContext* cx,
   // Get the FunctionInfo from the FunctionType.
   FunctionInfo* fninfo = FunctionType::GetFunctionInfo(cx, typeObj);
   JS_ASSERT(!fninfo->mIsVariadic);
-  JS_ASSERT(GetABICode(cx, fninfo->mABI) != ABI_WINAPI);
 
   AutoPtr<ClosureInfo> cinfo(new ClosureInfo());
   if (!cinfo) {

@@ -56,7 +56,7 @@
 
 #include "jstypedarray.h"
 
-#if defined(USE_ANGLE)
+#if !defined(USE_GLES2) && defined(USE_ANGLE)
 // shader translator
 #include "angle/ShaderLang.h"
 #endif
@@ -2840,7 +2840,7 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
         return NS_OK;
     MakeContextCurrent();
 
-#if defined(USE_ANGLE)
+#if !defined(USE_GLES2) && defined(USE_ANGLE)
     if (shader->NeedsTranslation() && mShaderValidation) {
         ShHandle compiler = 0;
         int debugFlags = 0;
@@ -2860,16 +2860,11 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
 
         compiler = ShConstructCompiler(lang, EShSpecWebGL, &resources);
 
-        nsPromiseFlatCString src(shader->Source());
+        nsDependentCString src(shader->Source());
         const char *s = src.get();
 
-        if (!ShCompile(compiler, &s, 1, EShOptNone, debugFlags)) {
-            const char* info = ShGetInfoLog(compiler);
-            if (info) {
-                shader->SetTranslationFailure(nsDependentCString(info));
-            } else {
-                shader->SetTranslationFailure(NS_LITERAL_CSTRING("Internal error: failed to get shader info log"));
-            }
+        if (!ShCompile(compiler, &s, 1, EShOptSimple, debugFlags)) {
+            shader->SetTranslationFailure(nsDependentCString(ShGetInfoLog(compiler)));
             ShDestruct(compiler);
             return NS_OK;
         }

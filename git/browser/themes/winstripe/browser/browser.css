@@ -60,8 +60,11 @@
 
 #navigator-toolbox {
   -moz-appearance: none;
-  background-color: transparent;
   border-top: none;
+  background-color: transparent;
+}
+
+#navigator-toolbox[tabsontop="true"] {
   border-bottom: 1px solid ThreeDShadow;
 }
 
@@ -78,11 +81,7 @@
 }
 
 #nav-bar:not(:-moz-lwtheme),
-#nav-bar[collapsed="true"] + toolbar:not(:-moz-lwtheme),
-#nav-bar[collapsed="true"] + #customToolbars + #PersonalToolbar:not(:-moz-lwtheme),
-#navigator-toolbox[tabsontop="true"] > #nav-bar,
-#navigator-toolbox[tabsontop="true"]:not([customizing]) > #nav-bar[collapsed="true"] + toolbar,
-#navigator-toolbox[tabsontop="true"]:not([customizing]) > #nav-bar[collapsed="true"] + #customToolbars + #PersonalToolbar {
+#navigator-toolbox[tabsontop="true"] > #nav-bar {
   background-image: -moz-linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
 }
 
@@ -607,12 +606,6 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
   -moz-image-region: rect(0, 90px, 18px, 72px);
 }
 
-/* tabview button */
-
-#tabview-button {
-  list-style-image: url(chrome://browser/skin/tabview/tabview.png);
-}
-
 /* download manager button */
 
 #downloads-button {
@@ -851,13 +844,13 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
   background-color: hsl(92,45%,52%);
 }
 
-#identity-box:-moz-focusring {
+#identity-box:focus {
   outline: 1px dotted -moz-DialogText;
   outline-offset: -3px;
 }
 
-#identity-box.verifiedDomain:-moz-focusring,
-#identity-box.verifiedIdentity:-moz-focusring {
+#identity-box.verifiedDomain:focus ,
+#identity-box.verifiedIdentity:focus {
   outline-color: white;
 }
 
@@ -1114,12 +1107,9 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 
 #TabsToolbar:not(:-moz-lwtheme),
 #TabsToolbar[tabsontop="false"] {
-  background-image: -moz-linear-gradient(transparent, transparent 50%,
-                                         rgba(0,0,0,.05) 90%, rgba(0,0,0,.1));
-}
-
-#TabsToolbar[tabsontop="true"]:not(:-moz-lwtheme) {
   -moz-box-shadow: 0 -1px ThreeDShadow inset;
+  background-image: -moz-linear-gradient(transparent, transparent 10%,
+                                         rgba(0,0,0,.03) 50%, rgba(0,0,0,.1) 90%, rgba(0,0,0,.2));
 }
 
 .tabbrowser-tabs:-moz-system-metric(touch-enabled) {
@@ -1621,11 +1611,6 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   height: 16px;
 }
 
-.notification-anchor-icon:-moz-focusring {
-  outline: 1px dotted -moz-DialogText;
-  outline-offset: -3px;
-}
-
 #geo-notification-icon {
   list-style-image: url(chrome://browser/skin/Geolocation-16.png);
 }
@@ -1813,14 +1798,5 @@ listitem.style-section {
 
 panel[dimmed="true"] {
   opacity: 0.5;
-}
-
-/* Tab Context Menu */
-#context_tabViewMenu {
-  list-style-image: url(chrome://browser/skin/tabview/tabview-16.png);
-}
-
-#context_tabViewMenuPopup > menuitem.group {
-  padding-left: 40px;
 }
 

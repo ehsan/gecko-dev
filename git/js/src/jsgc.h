@@ -54,8 +54,6 @@
 #include "jstask.h"
 #include "jsvector.h"
 #include "jsversion.h"
-#include "jsobj.h"
-#include "jsfun.h"
 
 #if !defined JS_DUMP_CONSERVATIVE_GC_ROOTS && defined DEBUG
 # define JS_DUMP_CONSERVATIVE_GC_ROOTS 1
@@ -297,16 +295,7 @@ js_NewGCExternalString(JSContext *cx, uintN type)
 static inline JSFunction*
 js_NewGCFunction(JSContext *cx)
 {
-    JSFunction* obj = (JSFunction *)js_NewFinalizableGCThing(cx, FINALIZE_FUNCTION);
-
-#ifdef DEBUG
-    if (obj) {
-        memset((uint8 *) obj + sizeof(JSObject), JS_FREE_PATTERN,
-               sizeof(JSFunction) - sizeof(JSObject));
-    }
-#endif
-
-    return obj;
+    return (JSFunction *) js_NewFinalizableGCThing(cx, FINALIZE_FUNCTION);
 }
 
 #if JS_HAS_XML_SUPPORT

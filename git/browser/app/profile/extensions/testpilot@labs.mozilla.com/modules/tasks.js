@@ -166,6 +166,10 @@ var TestPilotTask = {
     return url + this._id;
   },
 
+  get showMoreInfoLink() {
+    return true;
+  },
+
   // event handlers:
 
   onExperimentStartup: function TestPilotTask_onExperimentStartup() {
@@ -1015,6 +1019,10 @@ TestPilotWebSurvey.prototype = {
 
   get defaultUrl() {
     return this.infoPageUrl;
+  },
+
+  get showMoreInfoLink() {
+    return false;
   },
 
   onDetailPageOpened: function TPWS_onDetailPageOpened() {

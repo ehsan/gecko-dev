@@ -51,7 +51,7 @@
 #include "nsXPCOMCID.h"
 #include "nsServiceManagerUtils.h"
 
-#include "RasterImage.h"
+#include "imgContainer.h"
 
 /* We end up pulling in windows.h because we eventually hit gfxWindowsSurface;
  * windows.h defines LoadImage, so we have to #undef it or imgLoader::LoadImage
@@ -65,7 +65,7 @@
 #include "imgRequest.h"
 #include "imgRequestProxy.h"
 #include "imgTools.h"
-#include "DiscardTracker.h"
+#include "imgDiscardTracker.h"
 
 #ifdef IMG_BUILD_DECODER_gif
 // gif
@@ -76,7 +76,6 @@
 // bmp/ico
 #include "nsBMPDecoder.h"
 #include "nsICODecoder.h"
-#include "nsIconDecoder.h"
 #endif
 
 #ifdef IMG_BUILD_DECODER_png
@@ -99,13 +98,8 @@
 #endif
 
 // objects that just require generic constructors
-namespace mozilla {
-namespace imagelib {
-NS_GENERIC_FACTORY_CONSTRUCTOR(RasterImage)
-}
-}
-using namespace mozilla::imagelib;
 
+NS_GENERIC_FACTORY_CONSTRUCTOR(imgContainer)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(imgLoader, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(imgRequestProxy)
 NS_GENERIC_FACTORY_CONSTRUCTOR(imgTools)
@@ -128,7 +122,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsJPEGEncoder)
 // bmp
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsICODecoder)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBMPDecoder)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsIconDecoder)
 #endif
 
 #ifdef IMG_BUILD_DECODER_png
@@ -141,9 +134,9 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsPNGEncoder)
 #endif
 
 NS_DEFINE_NAMED_CID(NS_IMGLOADER_CID);
+NS_DEFINE_NAMED_CID(NS_IMGCONTAINER_CID);
 NS_DEFINE_NAMED_CID(NS_IMGREQUESTPROXY_CID);
 NS_DEFINE_NAMED_CID(NS_IMGTOOLS_CID);
-NS_DEFINE_NAMED_CID(NS_RASTERIMAGE_CID);
 #ifdef IMG_BUILD_DECODER_gif
 NS_DEFINE_NAMED_CID(NS_GIFDECODER2_CID);
 #endif
@@ -156,7 +149,6 @@ NS_DEFINE_NAMED_CID(NS_JPEGENCODER_CID);
 #ifdef IMG_BUILD_DECODER_bmp
 NS_DEFINE_NAMED_CID(NS_ICODECODER_CID);
 NS_DEFINE_NAMED_CID(NS_BMPDECODER_CID);
-NS_DEFINE_NAMED_CID(NS_ICONDECODER_CID);
 #endif
 #ifdef IMG_BUILD_DECODER_png
 NS_DEFINE_NAMED_CID(NS_PNGDECODER_CID);
@@ -168,9 +160,9 @@ NS_DEFINE_NAMED_CID(NS_PNGENCODER_CID);
 
 static const mozilla::Module::CIDEntry kImageCIDs[] = {
   { &kNS_IMGLOADER_CID, false, NULL, imgLoaderConstructor, },
+  { &kNS_IMGCONTAINER_CID, false, NULL, imgContainerConstructor, },
   { &kNS_IMGREQUESTPROXY_CID, false, NULL, imgRequestProxyConstructor, },
   { &kNS_IMGTOOLS_CID, false, NULL, imgToolsConstructor, },
-  { &kNS_RASTERIMAGE_CID, false, NULL, RasterImageConstructor, },
 #ifdef IMG_BUILD_DECODER_gif
   { &kNS_GIFDECODER2_CID, false, NULL, nsGIFDecoder2Constructor, },
 #endif
@@ -183,7 +175,6 @@ static const mozilla::Module::CIDEntry kImageCIDs[] = {
 #ifdef IMG_BUILD_DECODER_bmp
   { &kNS_ICODECODER_CID, false, NULL, nsICODecoderConstructor, },
   { &kNS_BMPDECODER_CID, false, NULL, nsBMPDecoderConstructor, },
-  { &kNS_ICONDECODER_CID, false, NULL, nsIconDecoderConstructor, },
 #endif
 #ifdef IMG_BUILD_DECODER_png
   { &kNS_PNGDECODER_CID, false, NULL, nsPNGDecoderConstructor, },
@@ -196,10 +187,10 @@ static const mozilla::Module::CIDEntry kImageCIDs[] = {
 
 static const mozilla::Module::ContractIDEntry kImageContracts[] = {
   { "@mozilla.org/image/cache;1", &kNS_IMGLOADER_CID },
+  { "@mozilla.org/image/container;3", &kNS_IMGCONTAINER_CID },
   { "@mozilla.org/image/loader;1", &kNS_IMGLOADER_CID },
   { "@mozilla.org/image/request;1", &kNS_IMGREQUESTPROXY_CID },
   { "@mozilla.org/image/tools;1", &kNS_IMGTOOLS_CID },
-  { "@mozilla.org/image/rasterimage;1", &kNS_RASTERIMAGE_CID },
 #ifdef IMG_BUILD_DECODER_gif
   { "@mozilla.org/image/decoder;3?type=image/gif", &kNS_GIFDECODER2_CID },
 #endif
@@ -216,7 +207,6 @@ static const mozilla::Module::ContractIDEntry kImageContracts[] = {
   { "@mozilla.org/image/decoder;3?type=image/vnd.microsoft.icon", &kNS_ICODECODER_CID },
   { "@mozilla.org/image/decoder;3?type=image/bmp", &kNS_BMPDECODER_CID },
   { "@mozilla.org/image/decoder;3?type=image/x-ms-bmp", &kNS_BMPDECODER_CID },
-  { "@mozilla.org/image/decoder;3?type=image/icon", &kNS_ICONDECODER_CID },
 #endif
 #ifdef IMG_BUILD_DECODER_png
   { "@mozilla.org/image/decoder;3?type=image/png", &kNS_PNGDECODER_CID },
@@ -242,7 +232,6 @@ static const mozilla::Module::CategoryEntry kImageCategories[] = {
   { "Gecko-Content-Viewers", "image/vnd.microsoft.icon", "@mozilla.org/content/document-loader-factory;1" },
   { "Gecko-Content-Viewers", "image/bmp", "@mozilla.org/content/document-loader-factory;1" },
   { "Gecko-Content-Viewers", "image/x-ms-bmp", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/icon", "@mozilla.org/content/document-loader-factory;1" },
 #endif
 #ifdef IMG_BUILD_DECODER_png
   { "Gecko-Content-Viewers", "image/png", "@mozilla.org/content/document-loader-factory;1" },
@@ -269,7 +258,7 @@ static void
 imglib_Shutdown()
 {
   imgLoader::Shutdown();
-  mozilla::imagelib::DiscardTracker::Shutdown();
+  imgDiscardTracker::Shutdown();
 }
 
 static const mozilla::Module kImageModule = {

@@ -848,8 +848,9 @@ getParentCB(AtkObject *aAtkObj)
             return nsnull;
         }
 
-        nsAccessible* accParent = accWrap->GetParent();
-        if (!accParent)
+        nsCOMPtr<nsIAccessible> accParent;
+        nsresult rv = accWrap->GetParent(getter_AddRefs(accParent));
+        if (NS_FAILED(rv) || !accParent)
             return nsnull;
 
         AtkObject *parent = nsAccessibleWrap::GetAtkObject(accParent);
@@ -867,7 +868,11 @@ getChildCountCB(AtkObject *aAtkObj)
         return 0;
     }
 
-    return accWrap->GetEmbeddedChildCount();
+    // Links within hypertext accessible play role of accessible children in
+    // ATK since every embedded object is a link and text accessibles are
+    // ignored.
+    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
+    return hyperText ? hyperText->GetLinkCount() : accWrap->GetChildCount();
 }
 
 AtkObject *
@@ -883,7 +888,12 @@ refChildCB(AtkObject *aAtkObj, gint aChildIndex)
         return nsnull;
     }
 
-    nsAccessible* accChild = accWrap->GetEmbeddedChildAt(aChildIndex);
+    // Links within hypertext accessible play role of accessible children in
+    // ATK since every embedded object is a link and text accessibles are
+    // ignored.
+    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
+    nsAccessible* accChild = hyperText ? hyperText->GetLinkAt(aChildIndex) :
+                                         accWrap->GetChildAt(aChildIndex);
     if (!accChild)
         return nsnull;
 
@@ -914,7 +924,12 @@ getIndexInParentCB(AtkObject *aAtkObj)
         return -1; // No parent
     }
 
-    return parent->GetIndexOfEmbeddedChild(accWrap);
+    // Links within hypertext accessible play role of accessible children in
+    // ATK since every embedded object is a link and text accessibles are
+    // ignored.
+    nsRefPtr<nsHyperTextAccessible> hyperTextParent(do_QueryObject(parent));
+    return hyperTextParent ?
+        hyperTextParent->GetLinkIndex(accWrap) : accWrap->GetIndexInParent();
 }
 
 static void TranslateStates(PRUint32 aState, const AtkStateMap *aStateMap,
