@@ -3175,16 +3175,11 @@ GetPropertyAttributesById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
         if (obj2->isNative()) {
             JSScopeProperty *sprop = (JSScopeProperty *) prop;
 
-            if (sprop->isMethod()) {
-                desc->getter = desc->setter = JS_PropertyStub;
-                desc->value = sprop->methodValue();
-            } else {
-                desc->getter = sprop->getter();
-                desc->setter = sprop->setter();
-                desc->value = SPROP_HAS_VALID_SLOT(sprop, obj2->scope())
-                              ? obj2->lockedGetSlot(sprop->slot)
-                              : JSVAL_VOID;
-            }
+            desc->getter = sprop->getter();
+            desc->setter = sprop->setter();
+            desc->value = SPROP_HAS_VALID_SLOT(sprop, obj2->scope())
+                          ? obj2->lockedGetSlot(sprop->slot)
+                          : JSVAL_VOID;
         } else {
             if (obj->isProxy()) {
                 JSAutoResolveFlags rf(cx, flags);
