@@ -19,13 +19,13 @@
 
         <org.mozilla.gecko.home.FadedTextView
                 android:id="@+id/title"
-                style="@style/Widget.TwoLinePageRow.Title"
+                style="@style/Widget.TwoLineRow.Title"
                 android:layout_width="fill_parent"
                 android:layout_height="wrap_content"
                 gecko:fadeWidth="30dp"/>
 
-        <TextView android:id="@+id/url"
-                  style="@style/Widget.TwoLinePageRow.Url"
+        <TextView android:id="@+id/description"
+                  style="@style/Widget.TwoLineRow.Description"
                   android:layout_width="fill_parent"
                   android:layout_height="wrap_content"
                   android:drawablePadding="5dp"
