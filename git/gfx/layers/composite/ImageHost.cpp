@@ -109,9 +109,9 @@ ImageHost::Composite(EffectChain& aEffectChain,
   //XXX: We might have multiple texture sources here (e.g. 3 YCbCr textures), and we're
   // only iterating over the tiles of the first one. Are we assuming that the tiling
   // will be identical? Can we ensure that somehow?
-  BigImageIterator* it = source->AsBigImageIterator();
+  TileIterator* it = source->AsTileIterator();
   if (it) {
-    it->BeginBigImageIteration();
+    it->BeginTileIteration();
     do {
       nsIntRect tileRect = it->GetTileRect();
       gfx::Rect rect(tileRect.x, tileRect.y, tileRect.width, tileRect.height);
@@ -126,12 +126,12 @@ ImageHost::Composite(EffectChain& aEffectChain,
       }
       GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
                                 aOpacity, aTransform);
-      GetCompositor()->DrawDiagnostics(DiagnosticFlags::IMAGE | DiagnosticFlags::BIGIMAGE,
+      GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE|DIAGNOSTIC_BIGIMAGE,
                                        rect, aClipRect, aTransform, mFlashCounter);
     } while (it->NextTile());
-    it->EndBigImageIteration();
+    it->EndTileIteration();
     // layer border
-    GetCompositor()->DrawDiagnostics(DiagnosticFlags::IMAGE,
+    GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE,
                                      gfxPictureRect, aClipRect,
                                      aTransform, mFlashCounter);
   } else {
@@ -148,14 +148,14 @@ ImageHost::Composite(EffectChain& aEffectChain,
       rect = gfx::Rect(0, 0, textureSize.width, textureSize.height);
     }
 
-    if (mFrontBuffer->GetFlags() & TextureFlags::NEEDS_Y_FLIP) {
+    if (mFrontBuffer->GetFlags() & TEXTURE_NEEDS_Y_FLIP) {
       effect->mTextureCoords.y = effect->mTextureCoords.YMost();
       effect->mTextureCoords.height = -effect->mTextureCoords.height;
     }
 
     GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
                               aOpacity, aTransform);
-    GetCompositor()->DrawDiagnostics(DiagnosticFlags::IMAGE,
+    GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE,
                                      rect, aClipRect,
                                      aTransform, mFlashCounter);
   }

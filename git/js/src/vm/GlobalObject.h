@@ -592,9 +592,10 @@ class GlobalObject : public JSObject
     bool getSelfHostedFunction(JSContext *cx, HandleAtom selfHostedName, HandleAtom name,
                                unsigned nargs, MutableHandleValue funVal);
 
-    bool hasRegExpStatics() const;
-    RegExpStatics *getRegExpStatics(ExclusiveContext *cx) const;
-    RegExpStatics *getAlreadyCreatedRegExpStatics() const;
+    RegExpStatics *getRegExpStatics() const {
+        JSObject &resObj = getSlot(REGEXP_STATICS).toObject();
+        return static_cast<RegExpStatics *>(resObj.getPrivate(/* nfixed = */ 1));
+    }
 
     JSObject *getThrowTypeError() const {
         JS_ASSERT(functionObjectClassesInitialized());
