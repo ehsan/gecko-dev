@@ -302,8 +302,6 @@ jsval FASTCALL
 js_Any_getelem(JSContext* cx, JSObject* obj, JSString* idstr)
 {
     jsval v;
-    if (!JSSTRING_IS_FLAT(idstr) && !js_UndependString(cx, idstr))
-        return JSVAL_ERROR_COOKIE;
     if (!OBJ_GET_PROPERTY(cx, obj, ATOM_TO_JSID(STRING_TO_JSVAL(idstr)), &v))
         return JSVAL_ERROR_COOKIE;
     return v;
@@ -312,8 +310,6 @@ js_Any_getelem(JSContext* cx, JSObject* obj, JSString* idstr)
 bool FASTCALL
 js_Any_setelem(JSContext* cx, JSObject* obj, JSString* idstr, jsval v)
 {
-    if (!JSSTRING_IS_FLAT(idstr) && !js_UndependString(cx, idstr))
-        return false;
     return OBJ_SET_PROPERTY(cx, obj, ATOM_TO_JSID(STRING_TO_JSVAL(idstr)), &v);
 }
 
@@ -376,14 +372,7 @@ js_FastNewObject(JSContext* cx, JSObject* ctor)
     for (; i != JS_INITIAL_NSLOTS; ++i)
         obj->fslots[i] = JSVAL_VOID;
 
-    if (clasp == &js_ArrayClass) {
-        JSObjectOps* ops = clasp->getObjectOps(cx, clasp);
-        obj->map = ops->newObjectMap(cx, 1, ops, clasp, obj);
-        if (!obj->map)
-            return NULL;
-    } else {
-        obj->map = js_HoldObjectMap(cx, proto->map);
-    }
+    obj->map = js_HoldObjectMap(cx, proto->map);
     obj->dslots = NULL;
     return obj;
 }
