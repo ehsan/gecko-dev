@@ -11,6 +11,7 @@
 #include "ion/AsmJS.h"
 #include "ion/AsmJSModule.h"
 
+#include "jsobjinlines.h"
 #include "frontend/ParseNode-inl.h"
 
 using namespace js;
@@ -167,13 +168,15 @@ LoopControlMaybeLabel(ParseNode *pn)
 static inline PropertyName *
 LabeledStatementLabel(ParseNode *pn)
 {
-    return pn->as<LabeledStatement>().label();
+    JS_ASSERT(pn->isKind(PNK_COLON));
+    return pn->pn_atom->asPropertyName();
 }
 
 static inline ParseNode *
 LabeledStatementStatement(ParseNode *pn)
 {
-    return pn->as<LabeledStatement>().statement();
+    JS_ASSERT(pn->isKind(PNK_COLON));
+    return pn->expr();
 }
 
 static double
@@ -1498,8 +1501,9 @@ class MOZ_STACK_CLASS ModuleCompiler
                 JSAutoByteString name;
                 if (!js_AtomToPrintableString(cx_, func.name, &name))
                     return;
-                slowFuns.reset(JS_smprintf("%s%s:%u:%u (%ums)%s", slowFuns.get(),
+                slowFuns.reset(JS_smprintf("%s%s:%u:%u (%ums, %g%%)%s", slowFuns.get(),
                                            name.ptr(), func.line, func.column, func.ms,
+                                           double(func.ms)/double(msTotal),
                                            i+1 < slowFunctions_.length() ? ", " : ""));
                 if (!slowFuns)
                     return;
@@ -4349,7 +4353,7 @@ CheckDoWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybe
 static bool
 CheckLabel(FunctionCompiler &f, ParseNode *labeledStmt, LabelVector *maybeLabels)
 {
-    JS_ASSERT(labeledStmt->isKind(PNK_LABEL));
+    JS_ASSERT(labeledStmt->isKind(PNK_COLON));
     PropertyName *label = LabeledStatementLabel(labeledStmt);
     ParseNode *stmt = LabeledStatementStatement(labeledStmt);
 
@@ -4620,7 +4624,7 @@ CheckStatement(FunctionCompiler &f, ParseNode *stmt, LabelVector *maybeLabels)
       case PNK_WHILE:         return CheckWhile(f, stmt, maybeLabels);
       case PNK_FOR:           return CheckFor(f, stmt, maybeLabels);
       case PNK_DOWHILE:       return CheckDoWhile(f, stmt, maybeLabels);
-      case PNK_LABEL:         return CheckLabel(f, stmt, maybeLabels);
+      case PNK_COLON:         return CheckLabel(f, stmt, maybeLabels);
       case PNK_IF:            return CheckIf(f, stmt);
       case PNK_SWITCH:        return CheckSwitch(f, stmt);
       case PNK_RETURN:        return CheckReturn(f, stmt);
@@ -6260,7 +6264,7 @@ AsmJSModule::~AsmJSModule()
             if (!exitDatum.fun)
                 continue;
 
-            if (!exitDatum.fun->hasScript())
+            if (!exitDatum.fun->isInterpreted())
                 continue;
 
             JSScript *script = exitDatum.fun->nonLazyScript();

@@ -52,6 +52,7 @@
 #include "jsheaptools.h"
 
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 #include "ion/Ion.h"
 

@@ -22,8 +22,6 @@
 #include "vm/GlobalObject.h"
 
 #include "jsanalyzeinlines.h"
-
-#include "gc/Barrier-inl.h"
 #include "vm/Stack-inl.h"
 
 #ifndef jsinferinlines_h___
@@ -736,20 +734,28 @@ UseNewTypeForClone(JSFunction *fun)
      * instance a singleton type and clone the underlying script.
      */
 
-    uint32_t begin, end;
-    if (fun->hasScript()) {
-        if (!fun->nonLazyScript()->usesArgumentsAndApply)
-            return false;
-        begin = fun->nonLazyScript()->sourceStart;
-        end = fun->nonLazyScript()->sourceEnd;
-    } else {
-        if (!fun->lazyScript()->usesArgumentsAndApply())
-            return false;
-        begin = fun->lazyScript()->begin();
-        end = fun->lazyScript()->end();
+    JSScript *script = fun->nonLazyScript();
+
+    if (script->length >= 50)
+        return false;
+
+    if (script->hasConsts() || script->hasObjects() || script->hasRegexps() || fun->isHeavyweight())
+        return false;
+
+    bool hasArguments = false;
+    bool hasApply = false;
+
+    for (jsbytecode *pc = script->code;
+         pc != script->code + script->length;
+         pc += GetBytecodeLength(pc))
+    {
+        if (*pc == JSOP_ARGUMENTS)
+            hasArguments = true;
+        if (*pc == JSOP_FUNAPPLY)
+            hasApply = true;
     }
 
-    return end - begin <= 100;
+    return hasArguments && hasApply;
 }
 
 /////////////////////////////////////////////////////////////////////

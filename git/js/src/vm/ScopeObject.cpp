@@ -17,8 +17,7 @@
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 
-#include "gc/Barrier-inl.h"
-#include "vm/ScopeObject-inl.h"
+#include "ScopeObject-inl.h"
 
 using namespace js;
 using namespace js::types;

@@ -89,9 +89,9 @@ public:
     return mResolution * mDevPixelsPerCSSPixel;
   }
 
-  gfx::Point GetScrollOffsetInLayerPixels() const
+  gfxPoint GetScrollOffsetInLayerPixels() const
   {
-    return gfx::Point(
+    return gfxPoint(
       static_cast<gfx::Float>(
         mScrollOffset.x * LayersPixelsPerCSSPixel().width),
       static_cast<gfx::Float>(
@@ -118,7 +118,7 @@ public:
   //
   // This is only valid on the root layer. Nested iframes do not need this
   // metric as they do not have a displayport set. See bug 775452.
-  ScreenIntRect mCompositionBounds;
+  LayerIntRect mCompositionBounds;
 
   // ---------------------------------------------------------------------------
   // The following metrics are all in CSS pixels. They are not in any uniform

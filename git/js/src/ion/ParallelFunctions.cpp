@@ -434,8 +434,6 @@ ion::ParCallToUncompiledScript(JSFunction *func)
         JSScript *script = func->nonLazyScript();
         Spew(SpewBailouts, "Call to uncompiled script: %p:%s:%d",
              script, script->filename(), script->lineno);
-    } else if (func->isInterpretedLazy()) {
-        Spew(SpewBailouts, "Call to uncompiled lazy script");
     } else if (func->isBoundFunction()) {
         int depth = 0;
         JSFunction *target = func->getBoundFunctionTarget()->toFunction();

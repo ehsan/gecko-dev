@@ -30,6 +30,7 @@
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jstypedarrayinlines.h"
 
 #include "vm/GlobalObject-inl.h"

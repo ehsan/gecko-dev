@@ -13,7 +13,7 @@ DISABLED_EXTRA_COMPONENTS = \
   BrowserComponents.manifest \
   $(NULL)
 
-DISABLED_EXTRA_PP_COMPONENTS = \
+EXTRA_PP_COMPONENTS = \
   nsBrowserContentHandler.js \
   nsBrowserGlue.js \
   $(NULL)

@@ -9,8 +9,6 @@
 
 #include "StringObject.h"
 
-#include "jsobjinlines.h"
-
 namespace js {
 
 inline bool

@@ -42,9 +42,9 @@
 #include "jsatominlines.h"
 #include "jsboolinlines.h"
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
 #include "jsscriptinlines.h"
-
 #include "builtin/Iterator-inl.h"
 #include "ion/IonFrames-inl.h"
 #include "vm/Interpreter-inl.h"
@@ -280,9 +280,6 @@ js::ValueToCallable(JSContext *cx, const Value &v, int numToSkip, MaybeConstruct
     return NULL;
 }
 
-static JS_NEVER_INLINE bool
-Interpret(JSContext *cx, StackFrame *entryFrame);
-
 bool
 js::RunScript(JSContext *cx, StackFrame *fp)
 {
@@ -345,7 +342,7 @@ js::RunScript(JSContext *cx, StackFrame *fp)
     }
 #endif
 
-    return Interpret(cx, fp);
+    return Interpret(cx, fp) != Interpret_Error;
 }
 
 /*
@@ -988,12 +985,13 @@ js::IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
     return js_IteratorNext(cx, iterobj, rval);
 }
 
-static JS_NEVER_INLINE bool
-Interpret(JSContext *cx, StackFrame *entryFrame)
+JS_NEVER_INLINE InterpretStatus
+js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode, bool useNewType)
 {
     JSAutoResolveFlags rf(cx, RESOLVE_INFER);
 
-    gc::MaybeVerifyBarriers(cx, true);
+    if (interpMode == JSINTERP_NORMAL)
+        gc::MaybeVerifyBarriers(cx, true);
 
     JS_ASSERT(!cx->compartment()->activeAnalysis);
 
@@ -1062,6 +1060,8 @@ Interpret(JSContext *cx, StackFrame *entryFrame)
         script = (s);                                                         \
         if (script->hasAnyBreakpointsOrStepMode() || script->hasScriptCounts) \
             interrupts.enable();                                              \
+        JS_ASSERT_IF(interpMode == JSINTERP_SKIP_TRAP,                        \
+                     script->hasAnyBreakpointsOrStepMode());                  \
     JS_END_MACRO
 
     /* Repoint cx->regs to a local variable for faster access. */
@@ -1128,27 +1128,42 @@ Interpret(JSContext *cx, StackFrame *entryFrame)
     /* State communicated between non-local jumps: */
     bool interpReturnOK;
 
-    if (!entryFrame->isGeneratorFrame()) {
-        if (!entryFrame->prologue(cx))
-            goto error;
-    } else {
-        Probes::enterScript(cx, script, script->function(), entryFrame);
-    }
-    if (cx->compartment()->debugMode()) {
-        JSTrapStatus status = ScriptDebugPrologue(cx, entryFrame);
-        switch (status) {
-          case JSTRAP_CONTINUE:
-            break;
-          case JSTRAP_RETURN:
-            interpReturnOK = true;
-            goto forced_return;
-          case JSTRAP_THROW:
-          case JSTRAP_ERROR:
-            goto error;
-          default:
-            JS_NOT_REACHED("bad ScriptDebugPrologue status");
+    /* Don't call the script prologue if executing between Method and Trace JIT. */
+    if (interpMode == JSINTERP_NORMAL) {
+        StackFrame *fp = regs.fp();
+        if (!fp->isGeneratorFrame()) {
+            if (!fp->prologue(cx))
+                goto error;
+        } else {
+            Probes::enterScript(cx, script, script->function(), fp);
+        }
+        if (cx->compartment()->debugMode()) {
+            JSTrapStatus status = ScriptDebugPrologue(cx, fp);
+            switch (status) {
+              case JSTRAP_CONTINUE:
+                break;
+              case JSTRAP_RETURN:
+                interpReturnOK = true;
+                goto forced_return;
+              case JSTRAP_THROW:
+              case JSTRAP_ERROR:
+                goto error;
+              default:
+                JS_NOT_REACHED("bad ScriptDebugPrologue status");
+            }
         }
     }
+
+    /* The REJOIN mode acts like the normal mode, except the prologue is skipped. */
+    if (interpMode == JSINTERP_REJOIN)
+        interpMode = JSINTERP_NORMAL;
+
+    /*
+     * The RETHROW mode acts like a bailout mode, except that it resume an
+     * exception instead of resuming the script.
+     */
+    if (interpMode == JSINTERP_RETHROW)
+        goto error;
 
     /*
      * It is important that "op" be initialized before calling DO_OP because
@@ -1225,7 +1240,7 @@ Interpret(JSContext *cx, StackFrame *entryFrame)
         if (script->hasAnyBreakpointsOrStepMode())
             moreInterrupts = true;
 
-        if (script->hasBreakpointsAt(regs.pc)) {
+        if (script->hasBreakpointsAt(regs.pc) && interpMode != JSINTERP_SKIP_TRAP) {
             RootedValue rval(cx);
             JSTrapStatus status = Debugger::onTrap(cx, &rval);
             switch (status) {
@@ -1244,6 +1259,8 @@ Interpret(JSContext *cx, StackFrame *entryFrame)
             JS_ASSERT(status == JSTRAP_CONTINUE);
             JS_ASSERT(rval.isInt32() && rval.toInt32() == op);
         }
+
+        interpMode = JSINTERP_NORMAL;
 
         switchMask = moreInterrupts ? -1 : 0;
         switchOp = int(op);
@@ -3005,6 +3022,9 @@ END_CASE(JSOP_ARRAYPUSH)
     JS_ASSERT(&cx->regs() == &regs);
     JS_ASSERT(uint32_t(regs.pc - script->code) < script->length);
 
+    /* When rejoining, we must not err before finishing Interpret's prologue. */
+    JS_ASSERT(interpMode != JSINTERP_REJOIN);
+
     if (cx->isExceptionPending()) {
         /* Call debugger throw hooks. */
         if (cx->compartment()->debugMode()) {
@@ -3129,7 +3149,7 @@ END_CASE(JSOP_ARRAYPUSH)
   leave_on_safe_point:
 #endif
 
-    return interpReturnOK;
+    return interpReturnOK ? Interpret_Ok : Interpret_Error;
 }
 
 bool
@@ -3239,7 +3259,7 @@ js::DefFunOperation(JSContext *cx, HandleScript script, HandleObject scopeChain,
      */
     RootedFunction fun(cx, funArg);
     if (fun->isNative() || fun->environment() != scopeChain) {
-        fun = CloneFunctionObjectIfNotSingleton(cx, fun, scopeChain, TenuredObject);
+        fun = CloneFunctionObjectIfNotSingleton(cx, fun, scopeChain);
         if (!fun)
             return false;
     } else {

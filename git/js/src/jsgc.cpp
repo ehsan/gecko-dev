@@ -168,8 +168,7 @@ static const AllocKind FinalizePhaseStrings[] = {
 };
 
 static const AllocKind FinalizePhaseScripts[] = {
-    FINALIZE_SCRIPT,
-    FINALIZE_LAZY_SCRIPT
+    FINALIZE_SCRIPT
 };
 
 static const AllocKind FinalizePhaseIonCode[] = {
@@ -214,6 +213,7 @@ static const AllocKind BackgroundPhaseStrings[] = {
 };
 
 static const AllocKind BackgroundPhaseShapes[] = {
+    FINALIZE_LAZY_SCRIPT,
     FINALIZE_SHAPE,
     FINALIZE_BASE_SHAPE,
     FINALIZE_TYPE_OBJECT
@@ -1440,7 +1440,7 @@ ArenaLists::queueScriptsForSweep(FreeOp *fop)
 {
     gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_SCRIPT);
     queueForForegroundSweep(fop, FINALIZE_SCRIPT);
-    queueForForegroundSweep(fop, FINALIZE_LAZY_SCRIPT);
+    queueForBackgroundSweep(fop, FINALIZE_LAZY_SCRIPT);
 }
 
 void

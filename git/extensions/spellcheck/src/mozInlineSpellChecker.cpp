@@ -1976,23 +1976,18 @@ NS_IMPL_ISUPPORTS1(UpdateCurrentDictionaryCallback, nsIEditorSpellCheckCallback)
 
 NS_IMETHODIMP mozInlineSpellChecker::UpdateCurrentDictionary()
 {
-  // mSpellCheck is null and mPendingSpellCheck is nonnull while the spell
-  // checker is being initialized.  Calling UpdateCurrentDictionary on
-  // mPendingSpellCheck simply queues the dictionary update after the init.
-  nsCOMPtr<nsIEditorSpellCheck> spellCheck = mSpellCheck ? mSpellCheck :
-                                             mPendingSpellCheck;
-  if (!spellCheck) {
+  if (!mSpellCheck) {
     return NS_OK;
   }
 
-  if (NS_FAILED(spellCheck->GetCurrentDictionary(mPreviousDictionary))) {
+  if (NS_FAILED(mSpellCheck->GetCurrentDictionary(mPreviousDictionary))) {
     mPreviousDictionary.Truncate();
   }
 
   nsRefPtr<UpdateCurrentDictionaryCallback> cb =
     new UpdateCurrentDictionaryCallback(this, mDisabledAsyncToken);
   NS_ENSURE_STATE(cb);
-  nsresult rv = spellCheck->UpdateCurrentDictionary(cb);
+  nsresult rv = mSpellCheck->UpdateCurrentDictionary(cb);
   if (NS_FAILED(rv)) {
     cb = nullptr;
     NS_ENSURE_SUCCESS(rv, rv);

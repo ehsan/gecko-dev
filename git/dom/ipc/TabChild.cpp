@@ -348,10 +348,11 @@ TabChild::Observe(nsISupports *aSubject,
         // the top-left of the page.
         mLastMetrics.mZoom = gfxSize(1.0, 1.0);
         mLastMetrics.mViewport = CSSRect(CSSPoint(), kDefaultViewportSize);
-        mLastMetrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
-        CSSToScreenScale resolution =
+        // I don't know what units mInnerSize is in, hence FromUnknownRect
+        mLastMetrics.mCompositionBounds = LayerIntRect::FromUnknownRect(
+          gfx::IntRect(0, 0, mInnerSize.width, mInnerSize.height));
+        mLastMetrics.mResolution =
           AsyncPanZoomController::CalculateResolution(mLastMetrics);
-        mLastMetrics.mResolution = gfxSize(resolution.scale, resolution.scale);
         mLastMetrics.mScrollOffset = CSSPoint(0, 0);
         utils->SetResolution(mLastMetrics.mResolution.width,
                              mLastMetrics.mResolution.height);
@@ -589,7 +590,9 @@ TabChild::HandlePossibleViewportChange()
   FrameMetrics metrics(mLastMetrics);
   metrics.mViewport = CSSRect(CSSPoint(), viewport);
   metrics.mScrollableRect = CSSRect(CSSPoint(), pageSize);
-  metrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
+  // I don't know what units mInnerSize is in, hence FromUnknownRect
+  metrics.mCompositionBounds = LayerIntRect::FromUnknownRect(
+    gfx::IntRect(0, 0, mInnerSize.width, mInnerSize.height));
 
   // Changing the zoom when we're not doing a first paint will get ignored
   // by AsyncPanZoomController and causes a blurry flash.
@@ -620,13 +623,14 @@ TabChild::HandlePossibleViewportChange()
     // new CSS viewport, so we know that there's no velocity, acceleration, and
     // we have no idea how long painting will take.
     metrics, gfx::Point(0.0f, 0.0f), gfx::Point(0.0f, 0.0f), 0.0);
-  CSSToScreenScale resolution = AsyncPanZoomController::CalculateResolution(metrics);
+  gfxSize resolution = AsyncPanZoomController::CalculateResolution(metrics);
   // XXX is this actually hysteresis?  This calculation is not well
   // understood.  It's taken from the previous JS implementation.
   gfxFloat hysteresis/*?*/ =
     gfxFloat(oldBrowserWidth) / gfxFloat(oldScreenWidth);
-  metrics.mResolution = gfxSize(resolution.scale * hysteresis,
-                                resolution.scale * hysteresis);
+  resolution.width *= hysteresis;
+  resolution.height *= hysteresis;
+  metrics.mResolution = resolution;
   utils->SetResolution(metrics.mResolution.width, metrics.mResolution.height);
 
   // Force a repaint with these metrics. This, among other things, sets the
@@ -1409,8 +1413,7 @@ TabChild::RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size, const 
     mOuterRect.height = rect.height;
 
     mOrientation = orientation;
-    mInnerSize = ScreenIntSize::FromUnknownSize(
-      gfx::IntSize(size.width, size.height));
+    mInnerSize = size;
     mWidget->Resize(0, 0, size.width, size.height,
                     true);
 
@@ -1527,9 +1530,9 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
     utils->SetScrollPositionClampingScrollPortSize(
       cssCompositedRect.width, cssCompositedRect.height);
     ScrollWindowTo(window, aFrameMetrics.mScrollOffset);
-    CSSToScreenScale resolution = AsyncPanZoomController::CalculateResolution(
+    gfxSize resolution = AsyncPanZoomController::CalculateResolution(
       aFrameMetrics);
-    utils->SetResolution(resolution.scale, resolution.scale);
+    utils->SetResolution(resolution.width, resolution.height);
 
     nsCOMPtr<nsIDOMDocument> domDoc;
     nsCOMPtr<nsIDOMElement> docElement;

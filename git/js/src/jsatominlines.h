@@ -11,7 +11,6 @@
 #include "mozilla/RangedPtr.h"
 
 #include "jsatom.h"
-#include "jscntxt.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"

@@ -20,7 +20,6 @@
 #include "builtin/Object.h"
 #include "builtin/RegExp.h"
 
-#include "jscompartmentinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/GlobalObject-inl.h"

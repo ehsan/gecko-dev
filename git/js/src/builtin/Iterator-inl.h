@@ -8,6 +8,7 @@
 #define Iterator_inl_h_
 
 #include "jsiter.h"
+#include "jsobjinlines.h"
 
 inline bool
 JSObject::isPropertyIterator() const

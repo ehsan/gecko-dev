@@ -34,7 +34,7 @@ EXTRA_COMPONENTS = \
 		messageWakeupService.manifest \
 		$(NULL)
 
-DISABLED_EXTRA_PP_COMPONENTS = \
+EXTRA_PP_COMPONENTS = \
 		contentSecurityPolicy.js \
 		$(NULL)
 

@@ -14,8 +14,6 @@
 #include "vm/GlobalObject.h"
 
 #include "jsinferinlines.h"
-#include "jsobjinlines.h"
-
 #include "frontend/ParseMaps-inl.h"
 #include "frontend/ParseNode-inl.h"
 #include "frontend/Parser-inl.h"
@@ -76,15 +74,6 @@ CheckArgumentsWithinEval(JSContext *cx, Parser<FullParseHandler> &parser, Handle
     return true;
 }
 
-inline bool
-CanLazilyParse(JSContext *cx, const CompileOptions &options)
-{
-    return options.canLazilyParse &&
-        options.compileAndGo &&
-        options.sourcePolicy == CompileOptions::SAVE_SOURCE &&
-        !cx->compartment()->debugMode();
-}
-
 JSScript *
 frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
                         HandleScript evalCaller,
@@ -113,7 +102,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
         return NULL;
     if (options.filename && !ss->setFilename(cx, options.filename))
         return NULL;
-
+    
     JS::RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss));
     if (!sourceObject)
         return NULL;
@@ -131,20 +120,27 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
         break;
     }
 
-    bool canLazilyParse = CanLazilyParse(cx, options);
-
     Maybe<Parser<SyntaxParseHandler> > syntaxParser;
-    if (canLazilyParse) {
+    if (options.canLazilyParse) {
         syntaxParser.construct(cx, options, chars, length, /* foldConstants = */ false,
                                (Parser<SyntaxParseHandler> *) NULL,
                                (LazyScript *) NULL);
     }
 
     Parser<FullParseHandler> parser(cx, options, chars, length, /* foldConstants = */ true,
-                                    canLazilyParse ? &syntaxParser.ref() : NULL, NULL);
+                                    options.canLazilyParse ? &syntaxParser.ref() : NULL, NULL);
     parser.sct = sct;
 
     GlobalSharedContext globalsc(cx, scopeChain, StrictModeFromContext(cx));
+
+    // Syntax parsing may cause us to restart processing of top level
+    // statements in the script. Use Maybe<> so that the parse context can be
+    // reset when this occurs.
+    Maybe<ParseContext<FullParseHandler> > pc;
+
+    pc.construct(&parser, (GenericParseContext *) NULL, &globalsc, staticLevel, /* bodyid = */ 0);
+    if (!pc.ref().init())
+        return NULL;
 
     bool savedCallerFun =
         options.compileAndGo &&
@@ -171,15 +167,6 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
     BytecodeEmitter bce(/* parent = */ NULL, &parser, &globalsc, script, options.forEval, evalCaller,
                         !!globalScope, options.lineno, emitterMode);
     if (!bce.init())
-        return NULL;
-
-    // Syntax parsing may cause us to restart processing of top level
-    // statements in the script. Use Maybe<> so that the parse context can be
-    // reset when this occurs.
-    Maybe<ParseContext<FullParseHandler> > pc;
-
-    pc.construct(&parser, (GenericParseContext *) NULL, &globalsc, staticLevel, /* bodyid = */ 0);
-    if (!pc.ref().init())
         return NULL;
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
@@ -326,34 +313,32 @@ bool
 frontend::CompileLazyFunction(JSContext *cx, HandleFunction fun, LazyScript *lazy,
                               const jschar *chars, size_t length)
 {
-    JS_ASSERT(cx->compartment() == fun->compartment());
-
-    CompileOptions options(cx, lazy->version());
+    CompileOptions options(cx);
     options.setPrincipals(cx->compartment()->principals)
-           .setOriginPrincipals(lazy->originPrincipals())
-           .setFileAndLine(lazy->source()->filename(), lazy->lineno())
+           .setOriginPrincipals(lazy->parent()->originPrincipals)
+           .setVersion(lazy->parent()->getVersion())
+           .setFileAndLine(lazy->parent()->filename(), lazy->lineno())
            .setColumn(lazy->column())
-           .setCompileAndGo(true)
+           .setCompileAndGo(lazy->parent()->compileAndGo)
            .setNoScriptRval(false)
            .setSelfHostingMode(false);
 
     Parser<FullParseHandler> parser(cx, options, chars, length,
                                     /* foldConstants = */ true, NULL, lazy);
 
-    RootedObject enclosingScope(cx, lazy->parentFunction());
+    RootedObject enclosingScope(cx, lazy->parent()->function());
 
-    ParseNode *pn = parser.standaloneLazyFunction(fun, lazy->staticLevel(), lazy->strict());
+    ParseNode *pn = parser.standaloneLazyFunction(fun, lazy->parent()->staticLevel + 1,
+                                                  lazy->strict());
     if (!pn)
         return false;
 
-    if (!NameFunctions(cx, pn))
+    JS::RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, lazy->source()));
+    if (!sourceObject)
         return false;
 
-    JS::RootedScriptSource sourceObject(cx, lazy->sourceObject());
-    JS_ASSERT(sourceObject);
-
     Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false,
-                                                  options, lazy->staticLevel(),
+                                                  options, lazy->parent()->staticLevel + 1,
                                                   sourceObject, lazy->begin(), lazy->end()));
     if (!script)
         return false;
@@ -362,11 +347,11 @@ frontend::CompileLazyFunction(JSContext *cx, HandleFunction fun, LazyScript *laz
 
     if (lazy->directlyInsideEval())
         script->directlyInsideEval = true;
-    if (lazy->usesArgumentsAndApply())
-        script->usesArgumentsAndApply = true;
+
+    bool hasGlobalScope = lazy->parent()->compileAndGo;
 
     BytecodeEmitter bce(/* parent = */ NULL, &parser, pn->pn_funbox, script, options.forEval,
-                        /* evalCaller = */ NullPtr(), /* hasGlobalScope = */ true,
+                        /* evalCaller = */ NullPtr(), hasGlobalScope,
                         options.lineno, BytecodeEmitter::LazyFunction);
     if (!bce.init())
         return false;
@@ -400,10 +385,8 @@ frontend::CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, CompileO
             return false;
     }
 
-    bool canLazilyParse = CanLazilyParse(cx, options);
-
     Maybe<Parser<SyntaxParseHandler> > syntaxParser;
-    if (canLazilyParse) {
+    if (options.canLazilyParse) {
         syntaxParser.construct(cx, options, chars, length, /* foldConstants = */ false,
                                (Parser<SyntaxParseHandler> *) NULL,
                                (LazyScript *) NULL);
@@ -412,7 +395,7 @@ frontend::CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, CompileO
     JS_ASSERT(!options.forEval);
 
     Parser<FullParseHandler> parser(cx, options, chars, length, /* foldConstants = */ true,
-                                    canLazilyParse ? &syntaxParser.ref() : NULL, NULL);
+                                    options.canLazilyParse ? &syntaxParser.ref() : NULL, NULL);
     parser.sct = &sct;
 
     JS_ASSERT(fun);

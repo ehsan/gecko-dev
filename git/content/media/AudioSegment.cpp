@@ -171,7 +171,7 @@ AudioSegment::WriteTo(AudioStream* aOutput)
         if (channelData.Length() > outputChannels) {
           // Down-mix.
           DownmixAndInterleave(channelData, c.mBufferFormat, duration,
-                               c.mVolume, outputChannels, buf.Elements());
+                               c.mVolume, channelData.Length(), buf.Elements());
         } else {
           InterleaveAndConvertBuffer(channelData.Elements(), c.mBufferFormat,
                                      duration, c.mVolume,

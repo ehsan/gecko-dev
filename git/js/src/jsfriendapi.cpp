@@ -13,7 +13,6 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsgc.h"
-#include "jsobj.h"
 #include "jswrapper.h"
 #include "jsweakmap.h"
 #include "jswatchpoint.h"

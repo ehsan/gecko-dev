@@ -21,6 +21,7 @@
 #include "vm/StringBuffer.h"
 
 #include "jsboolinlines.h"
+#include "jsobjinlines.h"
 
 #include "vm/BooleanObject-inl.h"
 #include "vm/GlobalObject-inl.h"

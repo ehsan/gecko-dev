@@ -39,7 +39,3 @@ MODULE = 'browsercomps'
 EXTRA_COMPONENTS += [
     'BrowserComponents.manifest',
 ]
-EXTRA_PP_COMPONENTS += [
-    'nsBrowserContentHandler.js',
-    'nsBrowserGlue.js',
-]

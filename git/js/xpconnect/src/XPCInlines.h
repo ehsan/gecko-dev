@@ -121,7 +121,9 @@ inline XPCWrappedNativeProto*
 XPCCallContext::GetProto() const
 {
     CHECK_STATE(HAVE_OBJECT);
-    return mWrapper ? mWrapper->GetProto() : nullptr;
+    if (mWrapper)
+        return mWrapper->GetProto();
+    return mFlattenedJSObject ? GetSlimWrapperProto(mFlattenedJSObject) : nullptr;
 }
 
 inline JSBool

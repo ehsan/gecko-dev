@@ -7,8 +7,6 @@
 #ifndef js_ion_registerallocator_h__
 #define js_ion_registerallocator_h__
 
-#include "mozilla/Attributes.h"
-
 #include "Ion.h"
 #include "MIR.h"
 #include "MIRGraph.h"
@@ -142,7 +140,7 @@ struct AllocationIntegrityState
 class CodePosition
 {
   private:
-    MOZ_CONSTEXPR CodePosition(const uint32_t &bits)
+    CodePosition(const uint32_t &bits)
       : bits_(bits)
     { }
 
@@ -161,7 +159,7 @@ class CodePosition
         OUTPUT
     };
 
-    MOZ_CONSTEXPR CodePosition() : bits_(0)
+    CodePosition() : bits_(0)
     { }
 
     CodePosition(uint32_t instruction, SubPosition where) {

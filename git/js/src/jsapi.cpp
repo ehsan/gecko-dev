@@ -77,6 +77,7 @@
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/Interpreter-inl.h"
@@ -5288,10 +5289,10 @@ AutoFile::open(JSContext *cx, const char *filename)
 }
 
 
-JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
+JS::CompileOptions::CompileOptions(JSContext *cx)
     : principals(NULL),
       originPrincipals(NULL),
-      version(version != JSVERSION_UNKNOWN ? version : cx->findVersion()),
+      version(cx->findVersion()),
       versionSet(false),
       utf8(false),
       filename(NULL),

@@ -48,8 +48,8 @@ struct ViewTransform {
   operator gfx3DMatrix() const
   {
     return
-      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0) *
-      gfx3DMatrix::ScalingMatrix(mXScale, mYScale, 1);
+      gfx3DMatrix::ScalingMatrix(mXScale, mYScale, 1) *
+      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0);
   }
 
   nsIntPoint mTranslation;
@@ -168,7 +168,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
   nsIntPoint scrollOffset =
     aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
   // metricsScrollOffset is in layer coordinates.
-  gfx::Point metricsScrollOffset = aMetrics->GetScrollOffsetInLayerPixels();
+  gfxPoint metricsScrollOffset = aMetrics->GetScrollOffsetInLayerPixels();
   nsIntPoint roundedMetricsScrollOffset =
     nsIntPoint(NS_lround(metricsScrollOffset.x), NS_lround(metricsScrollOffset.y));
 
@@ -178,8 +178,8 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
     // synchronously scrolled for identifying a scroll area before it is
     // being actively scrolled.
     nsIntPoint scrollCompensation(
-      (scrollOffset.x / aTempScaleX - roundedMetricsScrollOffset.x),
-      (scrollOffset.y / aTempScaleY - roundedMetricsScrollOffset.y));
+      (scrollOffset.x / aTempScaleX - roundedMetricsScrollOffset.x) * aConfig.mXScale,
+      (scrollOffset.y / aTempScaleY - roundedMetricsScrollOffset.y) * aConfig.mYScale);
 
     return ViewTransform(-scrollCompensation, aConfig.mXScale, aConfig.mYScale);
   } else {
@@ -297,8 +297,8 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
     // Alter the shadow transform of fixed position layers in the situation
     // that the view transform's scroll position doesn't match the actual
     // scroll position, due to asynchronous layer scrolling.
-    float offsetX = layerTransform.mTranslation.x;
-    float offsetY = layerTransform.mTranslation.y;
+    float offsetX = layerTransform.mTranslation.x / layerTransform.mXScale;
+    float offsetY = layerTransform.mTranslation.y / layerTransform.mYScale;
     ReverseTranslate(shadowTransform, gfxPoint(offsetX, offsetY));
     const nsIntRect* clipRect = shadow->GetShadowClipRect();
     if (clipRect) {
@@ -790,11 +790,12 @@ RenderFrameParent::NotifyInputEvent(const nsInputEvent& aEvent,
 }
 
 void
-RenderFrameParent::NotifyDimensionsChanged(ScreenIntSize size)
+RenderFrameParent::NotifyDimensionsChanged(int width, int height)
 {
   if (mPanZoomController) {
+    // I don't know what units width/height are in, hence FromUnknownRect
     mPanZoomController->UpdateCompositionBounds(
-      ScreenIntRect(ScreenIntPoint(), size));
+      LayerIntRect::FromUnknownRect(gfx::IntRect(0, 0, width, height)));
   }
 }
 
@@ -957,7 +958,7 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   ContainerLayer* container = GetRootLayer();
   if (aBuilder->IsForEventDelivery() && container) {
     ViewTransform offset =
-      ViewTransform(GetContentRectLayerOffset(aFrame, aBuilder));
+      ViewTransform(GetContentRectLayerOffset(aFrame, aBuilder), 1, 1);
     BuildListForLayer(container, mFrameLoader, offset,
                       aBuilder, *aLists.Content(), aFrame);
   } else {

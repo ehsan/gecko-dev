@@ -110,6 +110,10 @@ endif # ifndef .PYMAKE
 
 _VPATH_SRCS = $(abspath $<)
 
+ifdef EXTRA_DSO_LIBS
+EXTRA_DSO_LIBS	:= $(call EXPAND_MOZLIBNAME,$(EXTRA_DSO_LIBS))
+endif
+
 ################################################################################
 # Testing frameworks support
 ################################################################################
