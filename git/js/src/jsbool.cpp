@@ -54,7 +54,6 @@
 #include "jsstr.h"
 #include "jsvector.h"
 
-#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -78,28 +77,28 @@ Class js_BooleanClass = {
 static JSBool
 bool_toSource(JSContext *cx, uintN argc, Value *vp)
 {
-    bool b;
-    if (!GetPrimitiveThis(cx, vp, &b))
-        return false;
-
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
+        return JS_FALSE;
     char buf[32];
-    JS_snprintf(buf, sizeof buf, "(new Boolean(%s))", JS_BOOLEAN_STR(b));
+    JS_snprintf(buf, sizeof buf, "(new %s(%s))",
+                js_BooleanClass.name,
+                JS_BOOLEAN_STR(primp->toBoolean()));
     JSString *str = JS_NewStringCopyZ(cx, buf);
     if (!str)
-        return false;
+        return JS_FALSE;
     vp->setString(str);
-    return true;
+    return JS_TRUE;
 }
 #endif
 
 static JSBool
 bool_toString(JSContext *cx, uintN argc, Value *vp)
 {
-    bool b;
-    if (!GetPrimitiveThis(cx, vp, &b))
-        return false;
-
-    JSAtom *atom = cx->runtime->atomState.booleanAtoms[b ? 1 : 0];
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
+        return JS_FALSE;
+    JSAtom *atom = cx->runtime->atomState.booleanAtoms[primp->toBoolean() ? 1 : 0];
     JSString *str = ATOM_TO_STRING(atom);
     if (!str)
         return JS_FALSE;
@@ -110,21 +109,20 @@ bool_toString(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 bool_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
-    bool b;
-    if (!GetPrimitiveThis(cx, vp, &b))
-        return false;
-
-    vp->setBoolean(b);
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
+        return JS_FALSE;
+    *vp = *primp;
     return JS_TRUE;
 }
 
 static JSFunctionSpec boolean_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  bool_toSource,  0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_toSource_str,  bool_toSource,  0, JSFUN_THISP_BOOLEAN),
 #endif
-    JS_FN(js_toString_str,  bool_toString,  0, JSFUN_PRIMITIVE_THIS),
-    JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_PRIMITIVE_THIS),
-    JS_FN(js_toJSON_str,    bool_valueOf,   0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_toString_str,  bool_toString,  0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toJSON_str,    bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
     JS_FS_END
 };
 

@@ -666,10 +666,7 @@ GetOutlineInnerRect(nsIFrame* aFrame)
     (aFrame->Properties().Get(nsIFrame::OutlineInnerRectProperty()));
   if (savedOutlineInnerRect)
     return *savedOutlineInnerRect;
-  // FIXME (bug 599652): We probably want something narrower than either
-  // overflow rect here, but for now use the visual overflow in order to
-  // be consistent with ComputeOutlineAndEffectsRect in nsFrame.cpp.
-  return aFrame->GetVisualOverflowRect();
+  return aFrame->GetOverflowRect();
 }
 
 void
@@ -1118,7 +1115,7 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
   }
 
   nsRect frameRect =
-    nativeTheme ? aForFrame->GetVisualOverflowRectRelativeToSelf() + aFrameArea.TopLeft() : aFrameArea;
+    nativeTheme ? aForFrame->GetOverflowRectRelativeToSelf() + aFrameArea.TopLeft() : aFrameArea;
   gfxRect frameGfxRect(nsLayoutUtils::RectToGfxRect(frameRect, twipsPerPixel));
   frameGfxRect.Round();
 

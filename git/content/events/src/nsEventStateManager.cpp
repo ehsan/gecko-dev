@@ -2808,8 +2808,8 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
   // Most of the events we handle below require a frame.
   // Add special cases here.
-  if (!mCurrentTarget && aEvent->message != NS_MOUSE_BUTTON_UP &&
-      aEvent->message != NS_MOUSE_BUTTON_DOWN) {
+  if (!mCurrentTarget &&
+      aEvent->message != NS_MOUSE_BUTTON_UP) {
     return NS_OK;
   }
 

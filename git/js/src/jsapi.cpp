@@ -1148,13 +1148,11 @@ JS_SetCompartmentCallback(JSRuntime *rt, JSCompartmentCallback callback)
 }
 
 JS_PUBLIC_API(JSWrapObjectCallback)
-JS_SetWrapObjectCallbacks(JSRuntime *rt,
-                          JSWrapObjectCallback callback,
-                          JSPreWrapCallback precallback)
+JS_SetWrapObjectCallback(JSContext *cx, JSWrapObjectCallback callback)
 {
+    JSRuntime *rt = cx->runtime;
     JSWrapObjectCallback old = rt->wrapObjectCallback;
     rt->wrapObjectCallback = callback;
-    rt->preWrapObjectCallback = precallback;
     return old;
 }
 
@@ -1187,10 +1185,8 @@ bool
 JSAutoEnterCompartment::enter(JSContext *cx, JSObject *target)
 {
     JS_ASSERT(!call);
-    if (cx->compartment == target->getCompartment()) {
-        call = reinterpret_cast<JSCrossCompartmentCall*>(1);
+    if (cx->compartment == target->getCompartment(cx))
         return true;
-    }
     call = JS_EnterCrossCompartmentCall(cx, target);
     return call != NULL;
 }
@@ -1232,100 +1228,6 @@ JS_WrapValue(JSContext *cx, jsval *vp)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_TransplantWrapper(JSContext *cx, JSObject *wrapper, JSObject *target)
-{
-    JS_ASSERT(wrapper->isWrapper());
-
-    /*
-     * This function is called when a window is navigating. In that case, we
-     * need to "move" the window from wrapper's compartment to target's
-     * compartment.
-     */
-    JSCompartment *destination = target->getCompartment();
-    if (wrapper->getCompartment() == destination) {
-        // If the wrapper is in the same compartment as the destination, then
-        // we know that we won't find wrapper in the destination's cross
-        // compartment map and that the same object will continue to work.
-        if (!wrapper->swap(cx, target))
-            return NULL;
-        return wrapper;
-    }
-
-    JSObject *obj;
-    WrapperMap &map = destination->crossCompartmentWrappers;
-    Value wrapperv = ObjectValue(*wrapper);
-
-    // There might already be a wrapper for the window in the new compartment.
-    if (WrapperMap::Ptr p = map.lookup(wrapperv)) {
-        // If there is, make it the primary outer window proxy around the
-        // inner (accomplished by swapping target's innards with the old,
-        // possibly security wrapper, innards).
-        obj = &p->value.toObject();
-        map.remove(p);
-        if (!obj->swap(cx, target))
-            return NULL;
-    } else {
-        // Otherwise, this is going to be our outer window proxy in the new
-        // compartment.
-        obj = target;
-    }
-
-    // Now, iterate through other scopes looking for references to the old
-    // outer window. They need to be updated to point at the new outer window.
-    // They also might transition between different types of security wrappers
-    // based on whether the new compartment is same origin with them.
-    Value targetv = ObjectValue(*obj);
-    WrapperVector &vector = cx->runtime->compartments;
-    AutoValueVector toTransplant(cx);
-    toTransplant.reserve(vector.length());
-
-    for (JSCompartment **p = vector.begin(), **end = vector.end(); p != end; ++p) {
-        WrapperMap &pmap = (*p)->crossCompartmentWrappers;
-        if (WrapperMap::Ptr wp = pmap.lookup(wrapperv)) {
-            // We found a wrapper. Remember and root it.
-            toTransplant.append(wp->value);
-        }
-    }
-
-    for (Value *begin = toTransplant.begin(), *end = toTransplant.end(); begin != end; ++begin) {
-        JSObject *wobj = &begin->toObject();
-        JSCompartment *wcompartment = wobj->compartment();
-        WrapperMap &pmap = wcompartment->crossCompartmentWrappers;
-        JS_ASSERT(pmap.lookup(wrapperv));
-        pmap.remove(wrapperv);
-
-        // First, we wrap it in the new compartment. This will return a
-        // new wrapper.
-        AutoCompartment ac(cx, wobj);
-        JSObject *tobj = obj;
-        if (!ac.enter() || !wcompartment->wrap(cx, &tobj))
-            return NULL;
-
-        // Now, because we need to maintain object identity, we do a brain
-        // transplant on the old object. At the same time, we update the
-        // entry in the compartment's wrapper map to point to the old
-        // wrapper.
-        JS_ASSERT(tobj != wobj);
-        if (!wobj->swap(cx, tobj))
-            return NULL;
-        pmap.put(targetv, ObjectValue(*wobj));
-    }
-
-    // Lastly, update the old outer window proxy to point to the new one.
-    {
-        AutoCompartment ac(cx, wrapper);
-        JSObject *tobj = obj;
-        if (!ac.enter() || !JS_WrapObject(cx, &tobj))
-            return NULL;
-        if (!wrapper->swap(cx, tobj))
-            return NULL;
-        wrapper->getCompartment()->crossCompartmentWrappers.put(targetv, wrapperv);
-    }
-
-    return obj;
-}
-
-JS_PUBLIC_API(JSObject *)
 JS_GetGlobalObject(JSContext *cx)
 {
     return cx->globalObject;
@@ -1337,8 +1239,8 @@ JS_SetGlobalObject(JSContext *cx, JSObject *obj)
     CHECK_REQUEST(cx);
 
     cx->globalObject = obj;
-    if (!cx->hasfp())
-        cx->resetCompartment();
+    if (!cx->maybefp())
+        cx->compartment = obj ? obj->getCompartment(cx) : cx->runtime->defaultCompartment;
 }
 
 class AutoResolvingEntry {
@@ -2914,12 +2816,14 @@ JS_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 JS_PUBLIC_API(void *)
 JS_GetPrivate(JSContext *cx, JSObject *obj)
 {
+    assertSameCompartment(cx, obj);
     return obj->getPrivate();
 }
 
 JS_PUBLIC_API(JSBool)
 JS_SetPrivate(JSContext *cx, JSObject *obj, void *data)
 {
+    assertSameCompartment(cx, obj);
     obj->setPrivate(data);
     return true;
 }
@@ -3010,10 +2914,13 @@ JS_NewGlobalObject(JSContext *cx, JSClass *clasp)
     CHECK_REQUEST(cx);
     JS_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
     JSObject *obj = NewNonFunction<WithProto::Given>(cx, Valueify(clasp), NULL, NULL);
-    if (!obj)
+    if (!obj ||
+        !js_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_COMPARTMENT,
+                            PrivateValue(cx->compartment))) {
         return NULL;
+    }
 
-    /* Construct a regexp statics object for this global object. */
+    /* FIXME: comment. */
     JSObject *res = regexp_statics_construct(cx);
     if (!res ||
         !js_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_REGEXP_STATICS,
@@ -3117,6 +3024,8 @@ JS_DeepFreezeObject(JSContext *cx, JSObject *obj)
     /* Walk slots in obj and if any value is a non-null object, seal it. */
     for (uint32 i = 0, n = obj->slotSpan(); i < n; ++i) {
         const Value &v = obj->getSlot(i);
+        if (i == JSSLOT_PRIVATE && (obj->getClass()->flags & JSCLASS_HAS_PRIVATE))
+            continue;
         if (v.isPrimitive())
             continue;
         if (!JS_DeepFreezeObject(cx, &v.toObject()))
@@ -3622,8 +3531,8 @@ GetPropertyDescriptorById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
         if (obj2->isProxy()) {
             JSAutoResolveFlags rf(cx, flags);
             return own
-                   ? JSProxy::getOwnPropertyDescriptor(cx, obj2, id, false, desc)
-                   : JSProxy::getPropertyDescriptor(cx, obj2, id, false, desc);
+                   ? JSProxy::getOwnPropertyDescriptor(cx, obj2, id, desc)
+                   : JSProxy::getPropertyDescriptor(cx, obj2, id, desc);
         }
         if (!obj2->getAttributes(cx, id, &desc->attrs))
             return false;
@@ -3916,7 +3825,8 @@ JS_Enumerate(JSContext *cx, JSObject *obj)
  * + native case here uses a Shape *, but that iterates in reverse!
  * + so we make non-native match, by reverse-iterating after JS_Enumerating
  */
-const uint32 JSSLOT_ITER_INDEX = 0;
+const uint32 JSSLOT_ITER_INDEX = JSSLOT_PRIVATE + 1;
+JS_STATIC_ASSERT(JSSLOT_ITER_INDEX < JS_INITIAL_NSLOTS);
 
 static void
 prop_iter_finalize(JSContext *cx, JSObject *obj)
@@ -3925,7 +3835,7 @@ prop_iter_finalize(JSContext *cx, JSObject *obj)
     if (!pdata)
         return;
 
-    if (obj->getSlot(JSSLOT_ITER_INDEX).toInt32() >= 0) {
+    if (obj->fslots[JSSLOT_ITER_INDEX].toInt32() >= 0) {
         /* Non-native case: destroy the ida enumerated when obj was created. */
         JSIdArray *ida = (JSIdArray *) pdata;
         JS_DestroyIdArray(cx, ida);
@@ -3939,7 +3849,7 @@ prop_iter_trace(JSTracer *trc, JSObject *obj)
     if (!pdata)
         return;
 
-    if (obj->getSlot(JSSLOT_ITER_INDEX).toInt32() < 0) {
+    if (obj->fslots[JSSLOT_ITER_INDEX].toInt32() < 0) {
         /* Native case: just mark the next property to visit. */
         ((Shape *) pdata)->trace(trc);
     } else {
@@ -4005,7 +3915,7 @@ JS_NewPropertyIterator(JSContext *cx, JSObject *obj)
 
     /* iterobj cannot escape to other threads here. */
     iterobj->setPrivate(const_cast<void *>(pdata));
-    iterobj->getSlotRef(JSSLOT_ITER_INDEX).setInt32(index);
+    iterobj->fslots[JSSLOT_ITER_INDEX].setInt32(index);
     return iterobj;
 }
 
@@ -4019,7 +3929,7 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
 
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, iterobj);
-    i = iterobj->getSlot(JSSLOT_ITER_INDEX).toInt32();
+    i = iterobj->fslots[JSSLOT_ITER_INDEX].toInt32();
     if (i < 0) {
         /* Native case: private data is a property tree node pointer. */
         obj = iterobj->getParent();
@@ -4626,7 +4536,6 @@ JS_NewScriptObject(JSContext *cx, JSScript *script)
      * described in the comment for JSScript::u.object.
      */
     JS_ASSERT(script->u.object);
-    JS_ASSERT(script != JSScript::emptyScript());
     return script->u.object;
 }
 
@@ -4963,22 +4872,6 @@ JS_CallFunctionValue(JSContext *cx, JSObject *obj, jsval fval, uintN argc, jsval
     return ok;
 }
 
-namespace JS {
-
-JS_PUBLIC_API(bool)
-Call(JSContext *cx, jsval thisv, jsval fval, uintN argc, jsval *argv, jsval *rval)
-{
-    JSBool ok;
-
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, thisv, fval, JSValueArray(argv, argc));
-    ok = ExternalInvoke(cx, Valueify(thisv), Valueify(fval), argc, Valueify(argv), Valueify(rval));
-    LAST_FRAME_CHECKS(cx, ok);
-    return ok;
-}
-
-} // namespace JS
-
 JS_PUBLIC_API(JSObject *)
 JS_New(JSContext *cx, JSObject *ctor, uintN argc, jsval *argv)
 {
@@ -5080,7 +4973,6 @@ JS_RestoreFrameChain(JSContext *cx, JSStackFrame *fp)
     if (!fp)
         return;
     cx->restoreSegment();
-    cx->resetCompartment();
 }
 
 /************************************************************************/

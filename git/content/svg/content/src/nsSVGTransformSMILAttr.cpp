@@ -62,15 +62,9 @@ nsSVGTransformSMILAttr::ValueFromString(const nsAString& aStr,
     "aValue should have been cleared before calling ValueFromString");
 
   const nsAttrValue* typeAttr = aSrcElement->GetAnimAttr(nsGkAtoms::type);
-  const nsIAtom* transformType = nsGkAtoms::translate;
-  if (typeAttr) {
-    if (typeAttr->Type() != nsAttrValue::eAtom) {
-      // Recognized values of |type| are parsed as an atom -- so if we have
-      // something other than an atom, then it means our |type| was invalid.
-      return NS_ERROR_FAILURE;
-    }
-    transformType = typeAttr->GetAtomValue();
-  }
+  const nsIAtom* transformType = typeAttr
+                               ? typeAttr->GetAtomValue()
+                               : nsGkAtoms::translate;
 
   ParseValue(aStr, transformType, aValue);
   aPreventCachingOfSandwich = PR_FALSE;

@@ -244,7 +244,7 @@ UpdateDepth(JSContext *cx, JSCodeGenerator *cg, ptrdiff_t target)
         JS_ASSERT(nuses == 0);
         blockObj = cg->objectList.lastbox->object;
         JS_ASSERT(blockObj->isStaticBlock());
-        JS_ASSERT(blockObj->getSlot(JSSLOT_BLOCK_DEPTH).isUndefined());
+        JS_ASSERT(blockObj->fslots[JSSLOT_BLOCK_DEPTH].isUndefined());
 
         OBJ_SET_BLOCK_DEPTH(cx, blockObj, cg->stackDepth);
         ndefs = OBJ_BLOCK_COUNT(cx, blockObj);
@@ -1650,8 +1650,9 @@ js_LexicalLookup(JSTreeContext *tc, JSAtom *atom, jsint *slotp, JSStmtInfo *stmt
             JS_ASSERT(shape->hasShortID());
 
             if (slotp) {
-                JS_ASSERT(obj->getSlot(JSSLOT_BLOCK_DEPTH).isInt32());
-                *slotp = obj->getSlot(JSSLOT_BLOCK_DEPTH).toInt32() + shape->shortid;
+                JS_ASSERT(obj->fslots[JSSLOT_BLOCK_DEPTH].isInt32());
+                *slotp = obj->fslots[JSSLOT_BLOCK_DEPTH].toInt32() +
+                         shape->shortid;
             }
             return stmt;
         }
@@ -3716,10 +3717,15 @@ bad:
 JSBool
 js_EmitFunctionScript(JSContext *cx, JSCodeGenerator *cg, JSParseNode *body)
 {
+    CG_SWITCH_TO_PROLOG(cg);
+    JS_ASSERT(CG_NEXT(cg) == CG_BASE(cg));
+    if (js_Emit1(cx, cg, JSOP_BEGIN) < 0)
+        return false;
+    CG_SWITCH_TO_MAIN(cg);
+
     if (cg->flags & TCF_FUN_IS_GENERATOR) {
-        /* JSOP_GENERATOR must be the first instruction. */
+        /* JSOP_GENERATOR must be the first real instruction. */
         CG_SWITCH_TO_PROLOG(cg);
-        JS_ASSERT(CG_NEXT(cg) == CG_BASE(cg));
         if (js_Emit1(cx, cg, JSOP_GENERATOR) < 0)
             return false;
         CG_SWITCH_TO_MAIN(cg);
@@ -4454,15 +4460,8 @@ EmitFunctionDefNop(JSContext *cx, JSCodeGenerator *cg, uintN index)
 static bool
 EmitNewInit(JSContext *cx, JSCodeGenerator *cg, JSProtoKey key, JSParseNode *pn, int sharpnum)
 {
-    /*
-     * Watch for overflow on the initializer size.  This isn't problematic because
-     * (a) we'll be reporting an error for the initializer shortly, and (b)
-     * the count is only used as a hint for the interpreter and JITs, and does not
-     * need to be correct.
-     */
-    uint16 count = (pn->pn_count >= JS_BIT(16)) ? JS_BIT(16) - 1 : pn->pn_count;
-
-    EMIT_UINT16PAIR_IMM_OP(JSOP_NEWINIT, (uint16) key, count);
+    if (js_Emit2(cx, cg, JSOP_NEWINIT, (jsbytecode) key) < 0)
+        return false;
 #if JS_HAS_SHARP_VARS
     if (cg->hasSharps()) {
         if (pn->pn_count != 0)
@@ -6526,10 +6525,12 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
          * interpose the lambda-initialized method read barrier -- see the code
          * in jsinterp.cpp for JSOP_LAMBDA followed by JSOP_{SET,INIT}PROP.
          *
-         * Then (or in a call case that has no explicit reference-base
-         * object) we emit JSOP_PUSH to produce the |this| slot required
-         * for calls (which non-strict mode functions will box into the
-         * global object).
+         * Then (or in a call case that has no explicit reference-base object)
+         * we emit JSOP_NULL as a placeholder local GC root to hold the |this|
+         * parameter: in the operator new case, the newborn instance; in the
+         * base-less call case, a cookie meaning "use the global object as the
+         * |this| value" (or in ES5 strict mode, "use undefined", so we should
+         * use JSOP_PUSH instead of JSOP_NULL -- see bug 514570).
          */
         pn2 = pn->pn_head;
         switch (pn2->pn_type) {
@@ -6551,18 +6552,22 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             if (pn2->pn_op == JSOP_XMLNAME) {
                 if (!EmitXMLName(cx, pn2, JSOP_CALLXMLNAME, cg))
                     return JS_FALSE;
-                callop = true;          /* suppress JSOP_PUSH after */
+                callop = true;          /* suppress JSOP_NULL after */
                 break;
             }
 #endif
             /* FALL THROUGH */
           default:
+            /*
+             * Push null as a placeholder for the global object, per ECMA-262
+             * 11.2.3 step 6.
+             */
             if (!js_EmitTree(cx, cg, pn2))
                 return JS_FALSE;
-            callop = false;             /* trigger JSOP_PUSH after */
+            callop = false;             /* trigger JSOP_NULL after */
             break;
         }
-        if (!callop && js_Emit1(cx, cg, JSOP_PUSH) < 0)
+        if (!callop && js_Emit1(cx, cg, JSOP_NULL) < 0)
             return JS_FALSE;
 
         /* Remember start of callable-object bytecode for decompilation hint. */

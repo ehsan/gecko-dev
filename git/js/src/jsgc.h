@@ -72,43 +72,11 @@ js_TraceXML(JSTracer *trc, JSXML* thing);
 namespace js {
 namespace gc {
 
-/*
- * The kind of GC thing with a finalizer. The external strings follow the
- * ordinary string to simplify js_GetExternalStringGCType.
- */
-enum FinalizeKind {
-    FINALIZE_OBJECT0,
-    FINALIZE_OBJECT2,
-    FINALIZE_OBJECT4,
-    FINALIZE_OBJECT8,
-    FINALIZE_OBJECT12,
-    FINALIZE_OBJECT16,
-    FINALIZE_OBJECT_LAST = FINALIZE_OBJECT16,
-    FINALIZE_FUNCTION,
-#if JS_HAS_XML_SUPPORT
-    FINALIZE_XML,
-#endif
-    FINALIZE_SHORT_STRING,
-    FINALIZE_STRING,
-    FINALIZE_EXTERNAL_STRING0,
-    FINALIZE_EXTERNAL_STRING1,
-    FINALIZE_EXTERNAL_STRING2,
-    FINALIZE_EXTERNAL_STRING3,
-    FINALIZE_EXTERNAL_STRING4,
-    FINALIZE_EXTERNAL_STRING5,
-    FINALIZE_EXTERNAL_STRING6,
-    FINALIZE_EXTERNAL_STRING7,
-    FINALIZE_EXTERNAL_STRING_LAST = FINALIZE_EXTERNAL_STRING7,
-    FINALIZE_LIMIT
-};
-
-const uintN JS_FINALIZE_OBJECT_LIMIT = 6;
-const uintN JS_EXTERNAL_STRING_LIMIT = 8;
-
 /* Every arena has a header. */
+template <typename T>
 struct ArenaHeader {
     JSCompartment   *compartment;
-    Arena<FreeCell> *next;
+    Arena<T>        *next;
     FreeCell        *freeList;
     unsigned        thingKind;
     bool            isUsed;
@@ -140,12 +108,12 @@ struct Arena {
     static const size_t ArenaSize = 4096;
 
     struct AlignedArenaHeader {
-        T align[(sizeof(ArenaHeader) + sizeof(T) - 1) / sizeof(T)];
+        T align[(sizeof(ArenaHeader<T>) + sizeof(T) - 1) / sizeof(T)];
     };
 
     /* We want things in the arena to be aligned, so align the header. */
     union {
-        ArenaHeader aheader;
+        ArenaHeader<T> aheader;
         AlignedArenaHeader align;
     };
 
@@ -156,7 +124,7 @@ struct Arena {
     inline Chunk *chunk() const;
     inline size_t arenaIndex() const;
 
-    inline ArenaHeader *header() { return &aheader; };
+    inline ArenaHeader<T> *header() { return &aheader; };
 
     inline MarkingDelay *getMarkingDelay() const;
     inline ArenaBitmap *bitmap() const;
@@ -164,9 +132,9 @@ struct Arena {
     inline ConservativeGCTest mark(T *thing, JSTracer *trc);
     void markDelayedChildren(JSTracer *trc);
     inline bool inFreeList(void *thing) const;
-    inline T *getAlignedThing(void *thing);
+    inline T *getAlignedThing(T *thing);
 #ifdef DEBUG
-    inline bool assureThingIsAligned(void *thing);
+    bool assureThingIsAligned(T *thing);
 #endif
 
     void init(JSCompartment *compartment, unsigned thingKind);
@@ -230,60 +198,55 @@ struct MarkingDelay {
 };
 
 struct EmptyArenaLists {
-    /* Arenas with no internal freelist prepared. */
-    Arena<FreeCell> *cellFreeList;
-
-    /* Arenas with internal freelists prepared for a given finalize kind. */
-    Arena<FreeCell> *freeLists[FINALIZE_LIMIT];
+    Arena<FreeCell>      *cellFreeList;
+    Arena<JSObject>      *objectFreeList;
+    Arena<JSString>      *stringFreeList;
+    Arena<JSShortString> *shortStringFreeList;
+    Arena<JSFunction>    *functionFreeList;
 
     void init() {
-        PodZero(this);
+        cellFreeList        = NULL;
+        objectFreeList      = NULL;
+        stringFreeList      = NULL;
+        shortStringFreeList = NULL;
+        functionFreeList    = NULL;
     }
 
     Arena<FreeCell> *getOtherArena() {
-        Arena<FreeCell> *arena = cellFreeList;
-        if (arena) {
-            cellFreeList = arena->header()->next;
+        Arena<FreeCell> *arena = NULL;
+        if ((arena = (Arena<FreeCell> *)cellFreeList)) {
+            cellFreeList = cellFreeList->header()->next;
+            return arena;
+        } else if ((arena = (Arena<FreeCell> *)objectFreeList)) {
+            objectFreeList = objectFreeList->header()->next;
+            return arena;
+        } else if ((arena = (Arena<FreeCell> *)stringFreeList)) {
+            stringFreeList = stringFreeList->header()->next;
+            return arena;
+        } else if ((arena = (Arena<FreeCell> *)shortStringFreeList)) {
+            shortStringFreeList = shortStringFreeList->header()->next;
+            return arena;
+        } else {
+            JS_ASSERT(functionFreeList);
+            arena = (Arena<FreeCell> *)functionFreeList;
+            functionFreeList = functionFreeList->header()->next;
             return arena;
         }
-        for (int i = 0; i < FINALIZE_LIMIT; i++) {
-            if ((arena = (Arena<FreeCell> *) freeLists[i])) {
-                freeLists[i] = freeLists[i]->header()->next;
-                return arena;
-            }
-        }
-        JS_NOT_REACHED("No arena");
-        return NULL;
     }
 
     template <typename T>
-    inline Arena<T> *getTypedFreeList(unsigned thingKind);
+    Arena<T> *getTypedFreeList();
 
     template <typename T>
-    inline Arena<T> *getNext(JSCompartment *comp, unsigned thingKind);
+    Arena<T> *getNext(JSCompartment *comp, unsigned thingKind);
 
     template <typename T>
-    inline void insert(Arena<T> *arena);
+    void insert(Arena<T> *arena);
 };
 
-template <typename T>
-inline Arena<T> *
-EmptyArenaLists::getTypedFreeList(unsigned thingKind) {
-    JS_ASSERT(thingKind < FINALIZE_LIMIT);
-    if (thingKind >= FINALIZE_EXTERNAL_STRING0)
-        thingKind = FINALIZE_STRING;
-    Arena<T> *arena = (Arena<T>*) freeLists[thingKind];
-    if (arena) {
-        freeLists[thingKind] = freeLists[thingKind]->header()->next;
-        return arena;
-    }
-    return NULL;
-}
-
 template<typename T>
-inline Arena<T> *
-EmptyArenaLists::getNext(JSCompartment *comp, unsigned thingKind) {
-    Arena<T> *arena = getTypedFreeList<T>(thingKind);
+Arena<T> *EmptyArenaLists::getNext(JSCompartment *comp, unsigned thingKind) {
+    Arena<T> *arena = getTypedFreeList<T>();
     if (arena) {
         JS_ASSERT(arena->header()->isUsed == false);
         JS_ASSERT(arena->header()->thingSize == sizeof(T));
@@ -296,17 +259,6 @@ EmptyArenaLists::getNext(JSCompartment *comp, unsigned thingKind) {
     JS_ASSERT(arena->header()->isUsed == false);
     arena->init(comp, thingKind);
     return arena;
-}
-
-template <typename T>
-inline void
-EmptyArenaLists::insert(Arena<T> *arena) {
-    unsigned thingKind = arena->header()->thingKind;
-    JS_ASSERT(thingKind < FINALIZE_LIMIT);
-    if (thingKind >= FINALIZE_EXTERNAL_STRING0)
-        thingKind = FINALIZE_STRING;
-    arena->header()->next = freeLists[thingKind];
-    freeLists[thingKind] = (Arena<FreeCell> *) arena;
 }
 
 /* The chunk header (located at the end of the chunk to preserve arena alignment). */
@@ -414,25 +366,6 @@ Arena<T>::bitmap() const
     return &chunk()->bitmaps[arenaIndex()];
 }
 
-template <typename T>
-inline T *
-Arena<T>::getAlignedThing(void *thing)
-{
-    jsuword start = reinterpret_cast<jsuword>(&t.things[0]);
-    jsuword offset = reinterpret_cast<jsuword>(thing) - start;
-    offset -= offset % aheader.thingSize;
-    return reinterpret_cast<T *>(start + offset);
-}
-
-#ifdef DEBUG
-template <typename T>
-inline bool
-Arena<T>::assureThingIsAligned(void *thing)
-{
-    return (getAlignedThing(thing) == thing);
-}
-#endif
-
 static void
 AssertValidColor(const void *thing, uint32 color)
 {
@@ -467,6 +400,30 @@ GetArena(Cell *cell)
     return reinterpret_cast<Arena<T> *>(cell->arena());
 }
 
+/*
+ * The kind of GC thing with a finalizer. The external strings follow the
+ * ordinary string to simplify js_GetExternalStringGCType.
+ */
+enum JSFinalizeGCThingKind {
+    FINALIZE_OBJECT,
+    FINALIZE_FUNCTION,
+#if JS_HAS_XML_SUPPORT
+    FINALIZE_XML,
+#endif
+    FINALIZE_SHORT_STRING,
+    FINALIZE_STRING,
+    FINALIZE_EXTERNAL_STRING0,
+    FINALIZE_EXTERNAL_STRING1,
+    FINALIZE_EXTERNAL_STRING2,
+    FINALIZE_EXTERNAL_STRING3,
+    FINALIZE_EXTERNAL_STRING4,
+    FINALIZE_EXTERNAL_STRING5,
+    FINALIZE_EXTERNAL_STRING6,
+    FINALIZE_EXTERNAL_STRING7,
+    FINALIZE_EXTERNAL_STRING_LAST = FINALIZE_EXTERNAL_STRING7,
+    FINALIZE_LIMIT
+};
+
 #define JSTRACE_XML         2
 
 /*
@@ -481,11 +438,12 @@ const size_t GC_ARENA_ALLOCATION_TRIGGER = 30 * js::GC_CHUNK_SIZE;
 
 /*
  * A GC is triggered once the number of newly allocated arenas 
- * is GC_HEAP_GROWTH_FACTOR times the number of live arenas after
- * the last GC starting after the lower limit of
- * GC_ARENA_ALLOCATION_TRIGGER.
+ * is 1.5 times the number of live arenas after the last GC.
+ * (Starting after the lower limit of GC_ARENA_ALLOCATION_TRIGGER)
  */
-const float GC_HEAP_GROWTH_FACTOR = 3.0f;
+const float GC_HEAP_GROWTH_FACTOR = 3;
+
+const uintN JS_EXTERNAL_STRING_LIMIT = 8;
 
 static inline size_t
 GetFinalizableTraceKind(size_t thingKind)
@@ -493,12 +451,7 @@ GetFinalizableTraceKind(size_t thingKind)
     JS_STATIC_ASSERT(JS_EXTERNAL_STRING_LIMIT == 8);
 
     static const uint8 map[FINALIZE_LIMIT] = {
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT0 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT2 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT4 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT8 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT12 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT16 */
+        JSTRACE_OBJECT,     /* FINALIZE_OBJECT */
         JSTRACE_OBJECT,     /* FINALIZE_FUNCTION */
 #if JS_HAS_XML_SUPPORT      /* FINALIZE_XML */
         JSTRACE_XML,
@@ -562,22 +515,22 @@ extern bool
 checkArenaListsForThing(JSCompartment *comp, jsuword thing);
 #endif
 
-/* The arenas in a list have uniform kind. */
+template <typename T>
 struct ArenaList {
-    Arena<FreeCell>       *head;          /* list start */
-    Arena<FreeCell>       *cursor;        /* arena with free things */
+    Arena<T>       *head;          /* list start */
+    Arena<T>       *cursor;        /* arena with free things */
 
     inline void init() {
         head = NULL;
         cursor = NULL;
     }
 
-    inline Arena<FreeCell> *getNextWithFreeList() {
-        Arena<FreeCell> *a;
+    inline Arena<T> *getNextWithFreeList() {
+        Arena<T> *a;
         while (cursor != NULL) {
-            ArenaHeader *aheader = cursor->header();
+            ArenaHeader<T> *aheader = cursor->header();
             a = cursor;
-            cursor = aheader->next;
+            cursor = (Arena<T> *)aheader->next;
             if (aheader->freeList)
                 return a;
         }
@@ -585,9 +538,8 @@ struct ArenaList {
     }
 
 #ifdef DEBUG
-    template <typename T>
     bool arenasContainThing(void *thing) {
-        for (Arena<T> *a = (Arena<T> *) head; a; a = (Arena<T> *) a->header()->next) {
+        for (Arena<T> *a = head; a; a = (Arena<T> *)a->header()->next) {
             JS_ASSERT(a->header()->isUsed);
             if (thing >= &a->t.things[0] && thing < &a->t.things[a->ThingsPerArena])
                 return true;
@@ -596,14 +548,14 @@ struct ArenaList {
     }
 #endif
 
-    inline void insert(Arena<FreeCell> *a) {
+    inline void insert(Arena<T> *a) {
         a->header()->next = head;
         head = a;
     }
 
     void releaseAll() {
         while (head) {
-            Arena<FreeCell> *next = head->header()->next;
+            Arena<T> *next = head->header()->next;
             head->chunk()->releaseArena(head);
             head = next;
         }
@@ -716,6 +668,7 @@ CheckGCFreeListLink(js::gc::FreeCell *cell)
     JS_ASSERT_IF(cell->link, cell < cell->link);
 }
 
+template <typename T>
 extern bool
 RefillFinalizableFreeList(JSContext *cx, unsigned thingKind);
 
@@ -828,7 +781,12 @@ typedef enum JSGCInvocationKind {
      * Called from js_DestroyContext for last JSContext in a JSRuntime, when
      * it is imperative that rt->gcPoke gets cleared early in js_GC.
      */
-    GC_LAST_CONTEXT     = 1
+    GC_LAST_CONTEXT     = 1,
+
+    /*
+     * Flag bit telling js_GC that the caller has already acquired rt->gcLock.
+     */
+    GC_LOCK_HELD        = 0x10
 } JSGCInvocationKind;
 
 extern void
@@ -1078,11 +1036,5 @@ NewCompartment(JSContext *cx, JSPrincipals *principals);
 
 } /* namespace js */
 } /* namespace gc */
-
-inline JSCompartment *
-JSObject::getCompartment() const
-{
-    return compartment();
-}
 
 #endif /* jsgc_h___ */

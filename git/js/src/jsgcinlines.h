@@ -55,50 +55,6 @@
 # define METER_IF(condition, x) ((void) 0)
 #endif
 
-namespace js {
-namespace gc {
-
-/* Capacity for slotsToThingKind */
-const size_t SLOTS_TO_THING_KIND_LIMIT = 17;
-
-/* Get the best kind to use when making an object with the given slot count. */
-static inline FinalizeKind
-GetGCObjectKind(size_t numSlots)
-{
-    extern FinalizeKind slotsToThingKind[];
-
-    if (numSlots >= SLOTS_TO_THING_KIND_LIMIT)
-        return FINALIZE_OBJECT0;
-    return slotsToThingKind[numSlots];
-}
-
-/* Get the number of fixed slots and initial capacity associated with a kind. */
-static inline size_t
-GetGCKindSlots(FinalizeKind thingKind)
-{
-    /* Using a switch in hopes that thingKind will usually be a compile-time constant. */
-    switch (thingKind) {
-      case FINALIZE_OBJECT0:
-        return 0;
-      case FINALIZE_OBJECT2:
-        return 2;
-      case FINALIZE_OBJECT4:
-        return 4;
-      case FINALIZE_OBJECT8:
-        return 8;
-      case FINALIZE_OBJECT12:
-        return 12;
-      case FINALIZE_OBJECT16:
-        return 16;
-      default:
-        JS_NOT_REACHED("Bad object finalize kind");
-        return 0;
-    }
-}
-
-} /* namespace gc */
-} /* namespace js */
-
 /*
  * Allocates a new GC thing. After a successful allocation the caller must
  * fully initialize the thing before calling any function that can potentially
@@ -124,7 +80,7 @@ NewFinalizableGCThing(JSContext *cx, unsigned thingKind)
             CheckGCFreeListLink(cell);
             return (T *)cell;
         }
-        if (!RefillFinalizableFreeList(cx, thingKind))
+        if (!RefillFinalizableFreeList<T>(cx, thingKind))
             return NULL;
     } while (true);
 }
@@ -133,13 +89,9 @@ NewFinalizableGCThing(JSContext *cx, unsigned thingKind)
 #undef METER_IF
 
 inline JSObject *
-js_NewGCObject(JSContext *cx, js::gc::FinalizeKind kind)
+js_NewGCObject(JSContext *cx)
 {
-    JS_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
-    JSObject *obj = NewFinalizableGCThing<JSObject>(cx, kind);
-    if (obj)
-        obj->capacity = js::gc::GetGCKindSlots(kind);
-    return obj;
+     return NewFinalizableGCThing<JSObject>(cx, js::gc::FINALIZE_OBJECT);
 }
 
 inline JSString *
@@ -151,7 +103,7 @@ js_NewGCString(JSContext *cx)
 inline JSShortString *
 js_NewGCShortString(JSContext *cx)
 {
-    return NewFinalizableGCThing<JSShortString>(cx, js::gc::FINALIZE_SHORT_STRING);
+    return (JSShortString *) NewFinalizableGCThing<JSShortString>(cx, js::gc::FINALIZE_SHORT_STRING);
 }
 
 inline JSString *
@@ -165,10 +117,7 @@ js_NewGCExternalString(JSContext *cx, uintN type)
 inline JSFunction*
 js_NewGCFunction(JSContext *cx)
 {
-    JSFunction *fun = NewFinalizableGCThing<JSFunction>(cx, js::gc::FINALIZE_FUNCTION);
-    if (fun)
-        fun->capacity = JSObject::FUN_CLASS_RESERVED_SLOTS;
-    return fun;
+    return NewFinalizableGCThing<JSFunction>(cx, js::gc::FINALIZE_FUNCTION);
 }
 
 #if JS_HAS_XML_SUPPORT
@@ -231,12 +180,7 @@ MarkObject(JSTracer *trc, JSObject &obj, const char *name)
     JS_ASSERT(&obj);
     JS_SET_TRACING_NAME(trc, name);
     JS_ASSERT(GetArena<JSObject>((Cell *)&obj)->assureThingIsAligned(&obj) ||
-              GetArena<JSObject_Slots2>((Cell *)&obj)->assureThingIsAligned(&obj) ||
-              GetArena<JSObject_Slots4>((Cell *)&obj)->assureThingIsAligned(&obj) ||
-              GetArena<JSObject_Slots8>((Cell *)&obj)->assureThingIsAligned(&obj) ||
-              GetArena<JSObject_Slots12>((Cell *)&obj)->assureThingIsAligned(&obj) ||
-              GetArena<JSObject_Slots16>((Cell *)&obj)->assureThingIsAligned(&obj) ||
-              GetArena<JSFunction>((Cell *)&obj)->assureThingIsAligned(&obj));
+              GetArena<JSFunction>((Cell *)&obj)->assureThingIsAligned((JSFunction *)&obj));
     Mark(trc, &obj);
 }
 
@@ -252,16 +196,25 @@ MarkChildren(JSTracer *trc, JSObject *obj)
         MarkObject(trc, *proto, "proto");
     if (JSObject *parent = obj->getParent())
         MarkObject(trc, *parent, "parent");
-
-    if (obj->emptyShapes) {
-        int count = FINALIZE_OBJECT_LAST - FINALIZE_OBJECT0 + 1;
-        for (int i = 0; i < count; i++) {
-            if (obj->emptyShapes[i])
-                obj->emptyShapes[i]->trace(trc);
-        }
-    }
+    if (obj->emptyShape)
+        obj->emptyShape->trace(trc);
 
     /* Delegate to ops or the native marking op. */
+    TraceOp op = obj->getOps()->trace;
+    (op ? op : js_TraceObject)(trc, obj);
+}
+
+static inline void
+MarkChildren(JSTracer *trc, JSFunction *fun)
+{
+    JSObject *obj = reinterpret_cast<JSObject *>(fun);
+    if (!obj->map)
+        return;
+    if (JSObject *proto = obj->getProto())
+        MarkObject(trc, *proto, "proto");
+
+    if (JSObject *parent = obj->getParent())
+        MarkObject(trc, *parent, "parent");
     TraceOp op = obj->getOps()->trace;
     (op ? op : js_TraceObject)(trc, obj);
 }
@@ -285,6 +238,12 @@ MarkChildren(JSTracer *trc, JSXML *xml)
 {
     js_TraceXML(trc, xml);
 }
+#endif
+
+#if JS_STACK_GROWTH_DIRECTION > 0
+# define JS_CHECK_STACK_SIZE(limit, lval)  ((jsuword)(lval) < limit)
+#else
+# define JS_CHECK_STACK_SIZE(limit, lval)  ((jsuword)(lval) > limit)
 #endif
 
 static inline bool

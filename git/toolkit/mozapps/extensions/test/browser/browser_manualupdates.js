@@ -91,7 +91,7 @@ add_test(function() {
     is(gManagerWindow.gViewController.currentViewId, "addons://updates/available", "Available Updates view should be the current view");
     run_next_test();
   }, true);
-  EventUtils.synthesizeMouseAtCenter(gAvailableCategory, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(gAvailableCategory, 2, 2, { }, gManagerWindow);
 });
 
 
@@ -152,14 +152,14 @@ add_test(function() {
         run_next_test();
 
       }, false);
-      EventUtils.synthesizeMouseAtCenter(item._relNotesToggle, { }, gManagerWindow);
+      EventUtils.synthesizeMouse(item._relNotesToggle, 2, 2, { }, gManagerWindow);
       is_element_visible(item._relNotesLoading, "Release notes loading message should be visible");
 
     }, false);
-    EventUtils.synthesizeMouseAtCenter(item._relNotesToggle, { }, gManagerWindow);
+    EventUtils.synthesizeMouse(item._relNotesToggle, 2, 2, { }, gManagerWindow);
 
   }, false);
-  EventUtils.synthesizeMouseAtCenter(item._relNotesToggle, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(item._relNotesToggle, 2, 2, { }, gManagerWindow);
   is_element_visible(item._relNotesLoading, "Release notes loading message should be visible");
 });
 
@@ -184,5 +184,5 @@ add_test(function() {
     }
   };
   install.addTestListener(listener);
-  EventUtils.synthesizeMouseAtCenter(updateBtn, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(updateBtn, 2, 2, { }, gManagerWindow);
 });

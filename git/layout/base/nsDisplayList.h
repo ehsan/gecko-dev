@@ -659,12 +659,6 @@ public:
     return mToReferenceFrame;
   }
 
-  /**
-   * Checks if this display item (or any children) contains text that might 
-   * be rendered with subpixel antialiasing.
-   */
-  virtual PRBool HasText() { return PR_FALSE; }
-
 protected:
   friend class nsDisplayList;
   
@@ -1121,14 +1115,6 @@ public:
     mPaint(mFrame, aCtx, mVisibleRect, ToReferenceFrame());
   }
   NS_DISPLAY_DECL_NAME(mName, mType)
-
-  virtual PRBool HasText() {
-    if (mType == nsDisplayItem::TYPE_HEADER_FOOTER) {
-      return PR_TRUE;
-    } else {
-      return PR_FALSE;
-    }
-  }
 protected:
   PaintCallback mPaint;
 #ifdef DEBUG
@@ -1323,7 +1309,11 @@ public:
 #endif
 
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+  {
+    // FIXME: Consider border-radius.
+    aOutFrames->AppendElement(mFrame);
+  }
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion);
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
@@ -1427,7 +1417,11 @@ public:
 #endif
 
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+  {
+    // FIXME: Consider border-radius.
+    aOutFrames->AppendElement(mFrame);
+  }
   NS_DISPLAY_DECL_NAME("EventReceiver", TYPE_EVENT_RECEIVER)
 };
 
@@ -1473,8 +1467,6 @@ public:
     return PR_FALSE;
   }
   NS_DISPLAY_DECL_NAME("WrapList", TYPE_WRAP_LIST)
-
-  virtual PRBool HasText();
                                     
   virtual nsDisplayList* GetList() { return &mList; }
   
@@ -1758,8 +1750,6 @@ public:
 #endif
 
   NS_DISPLAY_DECL_NAME("nsDisplayTransform", TYPE_TRANSFORM);
-
-  virtual PRBool HasText() { return mStoredList.HasText(); }
 
 #ifdef NS_DEBUG
   nsDisplayWrapList* GetStoredList() { return &mStoredList; }

@@ -413,10 +413,8 @@ static PRBool GetFilenameAndExtensionFromChannel(nsIChannel* aChannel,
 }
 
 /**
- * Obtains the directory to use.  This tends to vary per platform, and
- * needs to be consistent throughout our codepaths. For platforms where
- * helper apps use the downloads directory, this should be kept in
- * sync with nsDownloadManager.cpp
+ * Obtains the download directory to use.  This tends to vary per platform, and
+ * needs to be consistent throughout our codepaths.
  */
 static nsresult GetDownloadDirectory(nsIFile **_directory)
 {
@@ -464,10 +462,6 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 #elif defined(ANDROID)
-  // On mobile devices, we are avoiding exposing users to the file
-  // system, and don't save downloads to temp directories
-
-  // On Android we only return something if we have and SD-card
   char* sdcard = getenv("EXTERNAL_STORAGE");
   nsresult rv;
   if (sdcard) {
@@ -475,18 +469,14 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
     rv = NS_NewNativeLocalFile(nsDependentCString(sdcard),
                                PR_TRUE, getter_AddRefs(ldir));
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = ldir->Append(NS_LITERAL_STRING("downloads"));
-    NS_ENSURE_SUCCESS(rv, rv);
     dir = ldir;
+    
   }
   else {
-    return NS_ERROR_FAILURE;
+    rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(dir));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-#elif defined(MAEMO)
-  nsresult rv = dirService->Get(NS_UNIX_XDG_DOCUMENTS_DIR,
-                       NS_GET_IID(nsILocalFile),
-                       getter_AddRefs(downloadDir));
-  NS_ENSURE_SUCCESS(rv, rv);
+  
 #else
   // On all other platforms, we default to the systems temporary directory.
   nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(dir));

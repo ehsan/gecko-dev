@@ -178,8 +178,7 @@ public:
     // override bounds because the list item focus ring may extend outside
     // the nsSelectsAreaFrame
     nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
-    return listFrame->GetVisualOverflowRect() +
-           aBuilder->ToReferenceFrame(listFrame);
+    return listFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(listFrame);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx) {

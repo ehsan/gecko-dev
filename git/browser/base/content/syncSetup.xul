@@ -112,7 +112,7 @@
                  accesskey="&setup.emailAddress.accesskey;"
                  control="weaveEmail"/>
           <textbox id="weaveEmail"
-                   oninput="gSyncSetup.onEmailInput()"/>
+                   onchange="gSyncSetup.onEmailChange()"/>
         </row>
         <row id="emailFeedbackRow" align="center" hidden="true">
           <spacer/>
@@ -160,7 +160,7 @@
           <label value="&signIn.serverURL.label;"
                  accesskey="&signIn.serverURL.accesskey;"
                  control="weaveServerURL"/>
-          <textbox id="weaveServerURL" oninput="gSyncSetup.onServerInput()"/>
+          <textbox id="weaveServerURL" onchange="gSyncSetup.onServerChange()"/>
         </row>
         <row id="serverFeedbackRow" align="center" hidden="true">
           <spacer/>
