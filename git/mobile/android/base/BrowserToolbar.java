@@ -60,7 +60,6 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout.LayoutParams;
 import android.widget.TextView;
 import android.widget.TextSwitcher;
 import android.widget.ViewSwitcher.ViewFactory;
@@ -173,18 +172,6 @@ public class BrowserToolbar {
 
         mFavicon = (ImageButton) mLayout.findViewById(R.id.favicon);
         mSiteSecurity = (ImageButton) mLayout.findViewById(R.id.site_security);
-        mSiteSecurity.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                int[] lockLocation = new int[2];
-                view.getLocationOnScreen(lockLocation);
-                LayoutParams lockLayoutParams = (LayoutParams) view.getLayoutParams();
-
-                // Calculate the left margin for the arrow based on the position of the lock icon.
-                int leftMargin = lockLocation[0] - lockLayoutParams.rightMargin;
-                GeckoApp.mSiteIdentityPopup.show(leftMargin);
-            }
-        });
-
         mProgressSpinner = (AnimationDrawable) resources.getDrawable(R.drawable.progress_spinner);
         
         mStop = (ImageButton) mLayout.findViewById(R.id.stop);
@@ -335,9 +322,9 @@ public class BrowserToolbar {
     public void setSecurityMode(String mode) {
         mTitleCanExpand = false;
 
-        if (mode.equals(SiteIdentityPopup.IDENTIFIED)) {
+        if (mode.equals("identified")) {
             mSiteSecurity.setImageLevel(1);
-        } else if (mode.equals(SiteIdentityPopup.VERIFIED)) {
+        } else if (mode.equals("verified")) {
             mSiteSecurity.setImageLevel(2);
         } else {
             mSiteSecurity.setImageLevel(0);

@@ -138,7 +138,6 @@ abstract public class GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     public static DoorHangerPopup mDoorHangerPopup;
-    public static SiteIdentityPopup mSiteIdentityPopup;
     public static FormAssistPopup mFormAssistPopup;
     public Favicons mFavicons;
 
@@ -666,7 +665,7 @@ abstract public class GeckoApp
         tab.setContentType(contentType);
         tab.updateFavicon(null);
         tab.updateFaviconURL(null);
-        tab.updateIdentityData(null);
+        tab.updateSecurityMode("unknown");
         tab.removeTransientDoorHangers();
         tab.setHasTouchListeners(false);
         tab.setCheckerboardColor(Color.WHITE);
@@ -678,7 +677,7 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.setTitle(uri);
                     mBrowserToolbar.setFavicon(null);
-                    mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
+                    mBrowserToolbar.setSecurityMode("unknown");
                     mDoorHangerPopup.updatePopup();
                     mBrowserToolbar.setShadowVisibility(!(tab.getURL().startsWith("about:")));
 
@@ -689,17 +688,17 @@ abstract public class GeckoApp
         });
     }
 
-    void handleSecurityChange(final int tabId, final JSONObject identityData) {
+    void handleSecurityChange(final int tabId, final String mode) {
         final Tab tab = Tabs.getInstance().getTab(tabId);
         if (tab == null)
             return;
 
-        tab.updateIdentityData(identityData);
+        tab.updateSecurityMode(mode);
         
         mMainHandler.post(new Runnable() { 
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab))
-                    mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
+                    mBrowserToolbar.setSecurityMode(mode);
             }
         });
     }
@@ -872,9 +871,9 @@ abstract public class GeckoApp
                 handleLocationChange(tabId, uri, documentURI, contentType, sameDocument);
             } else if (event.equals("Content:SecurityChange")) {
                 final int tabId = message.getInt("tabID");
-                final JSONObject identity = message.getJSONObject("identity");
-                Log.i(LOGTAG, "Security Mode - " + identity.getString("mode"));
-                handleSecurityChange(tabId, identity);
+                final String mode = message.getString("mode");
+                Log.i(LOGTAG, "Security Mode - " + mode);
+                handleSecurityChange(tabId, mode);
             } else if (event.equals("Content:StateChange")) {
                 final int tabId = message.getInt("tabID");
                 final String uri = message.getString("uri");
@@ -1205,7 +1204,7 @@ abstract public class GeckoApp
             return;
 
         tab.setState("about:home".equals(uri) ? Tab.STATE_SUCCESS : Tab.STATE_LOADING);
-        tab.updateIdentityData(null);
+        tab.updateSecurityMode("unknown");
         if (Tabs.getInstance().isSelectedTab(tab))
             getLayerController().getView().getRenderer().resetCheckerboard();
         mMainHandler.post(new Runnable() {
@@ -1666,7 +1665,6 @@ abstract public class GeckoApp
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
 
         mDoorHangerPopup = new DoorHangerPopup(this);
-        mSiteIdentityPopup = new SiteIdentityPopup(this);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - UI almost up");
@@ -1957,9 +1955,6 @@ abstract public class GeckoApp
         // Undo whatever we did in onPause.
         super.onResume();
 
-        if (mSiteIdentityPopup != null)
-            mSiteIdentityPopup.dismiss();
-
         int newOrientation = getResources().getConfiguration().orientation;
 
         if (mOrientation != newOrientation) {
@@ -2086,8 +2081,6 @@ abstract public class GeckoApp
             mOrientation = newConfig.orientation;
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
-            if (mSiteIdentityPopup != null)
-                mSiteIdentityPopup.dismiss();
             refreshActionBar();
         }
     }
@@ -2555,11 +2548,6 @@ abstract public class GeckoApp
     public void onBackPressed() {
         if (mDoorHangerPopup.isShowing()) {
             mDoorHangerPopup.dismiss();
-            return;
-        }
-
-        if (mSiteIdentityPopup.isShowing()) {
-            mSiteIdentityPopup.dismiss();
             return;
         }
 

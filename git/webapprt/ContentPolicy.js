@@ -16,7 +16,6 @@ const allowedOrigins = [
   "https://www.facebook.com",
   "https://accounts.google.com",
   "https://www.google.com",
-  "https://twitter.com",
   "https://api.twitter.com",
 ];
 
