@@ -5,7 +5,7 @@
 
 /* Test version downgrade MAR security check */
 
-const TEST_ID = "0113-VDC";
+const TEST_ID = "0113";
 
 // We don't actually care if the MAR has any data, we only care about the
 // application return code and update.status result.
@@ -20,9 +20,6 @@ function run_test() {
 
   // Setup an old version MAR file
   do_register_cleanup(cleanupUpdaterTest);
-
-  adjustGeneralPaths();
-
   setupUpdaterTest(MAR_OLD_VERSION_FILE);
 
   // Apply the MAR
