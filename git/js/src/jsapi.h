@@ -41,6 +41,8 @@
 
 /************************************************************************/
 
+#define JS_Assert MOZ_Assert
+
 #ifdef __cplusplus
 namespace JS {
 
@@ -1406,10 +1408,23 @@ typedef JSBool
  *
  * The *objp out parameter, on success, should be null to indicate that id
  * was not resolved; and non-null, referring to obj or one of its prototypes,
- * if id was resolved.  The hook may assume *objp is null on entry.
+ * if id was resolved.
  *
  * This hook instead of JSResolveOp is called via the JSClass.resolve member
  * if JSCLASS_NEW_RESOLVE is set in JSClass.flags.
+ *
+ * Setting JSCLASS_NEW_RESOLVE and JSCLASS_NEW_RESOLVE_GETS_START further
+ * extends this hook by passing in the starting object on the prototype chain
+ * via *objp.  Thus a resolve hook implementation may define the property id
+ * being resolved in the object in which the id was first sought, rather than
+ * in a prototype object whose class led to the resolve hook being called.
+ *
+ * When using JSCLASS_NEW_RESOLVE_GETS_START, the resolve hook must therefore
+ * null *objp to signify "not resolved".  With only JSCLASS_NEW_RESOLVE and no
+ * JSCLASS_NEW_RESOLVE_GETS_START, the hook can assume *objp is null on entry.
+ * This is not good practice, but enough existing hook implementations count
+ * on it that we can't break compatibility by passing the starting object in
+ * *objp without a new JSClass flag.
  */
 typedef JSBool
 (* JSNewResolveOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
@@ -3345,7 +3360,7 @@ JSVAL_TRACE_KIND(jsval v)
  * kind argument is one of JSTRACE_OBJECT, JSTRACE_STRING or a tag denoting
  * internal implementation-specific traversal kind. In the latter case the only
  * operations on thing that the callback can do is to call JS_TraceChildren or
- * JS_GetTraceThingInfo.
+ * DEBUG-only JS_PrintTraceThingInfo.
  *
  * If eagerlyTraceWeakMaps is true, when we trace a WeakMap visit all
  * of its mappings.  This should be used in cases where the tracer
@@ -3475,14 +3490,14 @@ JS_TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind);
 extern JS_PUBLIC_API(void)
 JS_TraceRuntime(JSTracer *trc);
 
+#ifdef DEBUG
+
 extern JS_PUBLIC_API(void)
-JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
-                     void *thing, JSGCTraceKind kind, JSBool includeDetails);
+JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
+                       void *thing, JSGCTraceKind kind, JSBool includeDetails);
 
 extern JS_PUBLIC_API(const char *)
 JS_GetTraceEdgeName(JSTracer *trc, char *buffer, int bufferSize);
-
-#ifdef DEBUG
 
 /*
  * DEBUG-only method to dump the object graph of heap-allocated things.
@@ -3648,7 +3663,10 @@ struct JSClass {
 #define JSCLASS_NEW_ENUMERATE           (1<<1)  /* has JSNewEnumerateOp hook */
 #define JSCLASS_NEW_RESOLVE             (1<<2)  /* has JSNewResolveOp hook */
 #define JSCLASS_PRIVATE_IS_NSISUPPORTS  (1<<3)  /* private is (nsISupports *) */
-/* (1<<4) is unused */
+#define JSCLASS_NEW_RESOLVE_GETS_START  (1<<4)  /* JSNewResolveOp gets starting
+                                                   object in prototype chain
+                                                   passed in via *objp in/out
+                                                   parameter */
 #define JSCLASS_IMPLEMENTS_BARRIERS     (1<<5)  /* Correctly implements GC read
                                                    and write barriers */
 #define JSCLASS_DOCUMENT_OBSERVER       (1<<6)  /* DOM document observer */
@@ -3932,7 +3950,10 @@ extern JS_PUBLIC_API(JSBool)
 JS_GetObjectId(JSContext *cx, JSObject *obj, jsid *idp);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals);
+JS_NewGlobalObject(JSContext *cx, JSClass *clasp);
+
+extern JS_PUBLIC_API(JSObject *)
+JS_NewCompartmentAndGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
@@ -5675,6 +5696,10 @@ extern JS_PUBLIC_API(JSObject *)
 JS_NewObjectForConstructor(JSContext *cx, JSClass *clasp, const jsval *vp);
 
 /************************************************************************/
+
+#ifdef DEBUG
+#define JS_GC_ZEAL 1
+#endif
 
 #ifdef JS_GC_ZEAL
 #define JS_DEFAULT_ZEAL_FREQ 100

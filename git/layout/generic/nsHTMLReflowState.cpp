@@ -26,7 +26,7 @@
 #include "nsBidiUtils.h"
 #include "nsFontInflationData.h"
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 #undef NOISY_VERTICAL_ALIGN
 #else
 #undef NOISY_VERTICAL_ALIGN

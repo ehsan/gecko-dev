@@ -23,7 +23,10 @@ HOST_PROGRAM = szip
 
 HOST_CPPSRCS = \
   szip.cpp \
+  Assertions.cpp \
   $(NULL)
+
+VPATH += $(topsrcdir)/mfbt
 
 HOST_LIBS = -lz
 

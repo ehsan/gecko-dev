@@ -10,10 +10,13 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-bug-601177-log-levels.html";
 
-function performTest()
+let msgs;
+
+function onContentLoaded()
 {
   let hudId = HUDService.getHudIdByWindow(content);
   let HUD = HUDService.hudReferences[hudId];
+  msgs = HUD.outputNode.querySelectorAll(".hud-msg-node");
 
   findEntry(HUD, "hud-networkinfo", "test-bug-601177-log-levels.html",
             "found test-bug-601177-log-levels.html");
@@ -35,6 +38,8 @@ function performTest()
   findEntry(HUD, "hud-jswarn", "foobarBug601177strictError",
             "found strict error");
 
+  msgs = null;
+  Services.prefs.setBoolPref("javascript.options.strict", false);
   finishTest();
 }
 
@@ -46,37 +51,21 @@ function findEntry(aHUD, aClass, aString, aMessage)
 
 function test()
 {
-  Services.prefs.setBoolPref("javascript.options.strict", true);
-
-  registerCleanupFunction(function() {
-    Services.prefs.clearUserPref("javascript.options.strict");
-  });
-
   addTab("data:text/html;charset=utf-8,Web Console test for bug 601177: log levels");
 
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
+  Services.prefs.setBoolPref("javascript.options.strict", true);
 
-    openConsole(null, function(hud) {
-      browser.addEventListener("load", function onLoad2() {
-        browser.removeEventListener("load", onLoad2, true);
-        waitForSuccess({
-          name: "all messages displayed",
-          validatorFn: function()
-          {
-            return hud.outputNode.itemCount >= 7;
-          },
-          successFn: performTest,
-          failureFn: function() {
-            info("itemCount: " + hud.outputNode.itemCount);
-            finishTest();
-          },
-        });
-      }, true);
+  browser.addEventListener("load", function(aEvent) {
+    browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-      expectUncaughtException();
-      content.location = TEST_URI;
-    });
+    openConsole();
+
+    browser.addEventListener("load", function(aEvent) {
+      browser.removeEventListener(aEvent.type, arguments.callee, true);
+      executeSoon(onContentLoaded);
+    }, true);
+    expectUncaughtException();
+    content.location = TEST_URI;
   }, true);
 }
 

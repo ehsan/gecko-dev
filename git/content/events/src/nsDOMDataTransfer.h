@@ -18,7 +18,6 @@
 #include "nsAutoPtr.h"
 #include "nsIFile.h"
 #include "nsDOMFile.h"
-#include "mozilla/Attributes.h"
 
 class nsITransferable;
 
@@ -35,7 +34,7 @@ struct TransferItem {
   nsCOMPtr<nsIVariant> mData;
 };
 
-class nsDOMDataTransfer MOZ_FINAL : public nsIDOMDataTransfer
+class nsDOMDataTransfer : public nsIDOMDataTransfer
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

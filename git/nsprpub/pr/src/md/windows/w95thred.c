@@ -183,7 +183,6 @@ typedef struct tagTHREADNAME_INFO
 void
 _PR_MD_SET_CURRENT_THREAD_NAME(const char *name)
 {
-#ifdef _MSC_VER
    THREADNAME_INFO info;
 
    if (!IsDebuggerPresent())
@@ -201,7 +200,6 @@ _PR_MD_SET_CURRENT_THREAD_NAME(const char *name)
                      (ULONG_PTR*)&info);
    } __except(EXCEPTION_CONTINUE_EXECUTION) {
    }
-#endif
 }
 
 void

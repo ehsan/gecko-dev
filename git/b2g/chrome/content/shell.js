@@ -69,6 +69,8 @@ function addPermissions(urls) {
 }
 
 var shell = {
+  isDebug: false,
+
   get contentBrowser() {
     delete this.contentBrowser;
     return this.contentBrowser = document.getElementById('homescreen');
@@ -84,10 +86,6 @@ var shell = {
     return Services.prefs.getCharPref('browser.homescreenURL');
   },
 
-  get manifestURL() {
-    return Services.prefs.getCharPref('browser.manifestURL');
-   },
-
   start: function shell_start() {
     let homeURL = this.homeURL;
     if (!homeURL) {
@@ -95,21 +93,6 @@ var shell = {
       alert(msg);
       return;
     }
-
-    let manifestURL = this.manifestURL;
-    // <html:iframe id="homescreen"
-    //              mozbrowser="true" mozallowfullscreen="true"
-    //              style="overflow: hidden; -moz-box-flex: 1; border: none;"
-    //              src="data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;'>"/>
-    let browserFrame =
-      document.createElementNS('http://www.w3.org/1999/xhtml', 'html:iframe');
-    browserFrame.setAttribute('id', 'homescreen');
-    browserFrame.setAttribute('mozbrowser', 'true');
-    browserFrame.setAttribute('mozapp', manifestURL);
-    browserFrame.setAttribute('mozallowfullscreen', 'true');
-    browserFrame.setAttribute('style', "overflow: hidden; -moz-box-flex: 1; border: none;");
-    browserFrame.setAttribute('src', "data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;");
-    document.getElementById('shell').appendChild(browserFrame);
 
     ['keydown', 'keypress', 'keyup'].forEach((function listenKey(type) {
       window.addEventListener(type, this, false, true);
@@ -119,7 +102,7 @@ var shell = {
     window.addEventListener('MozApplicationManifest', this);
     window.addEventListener('mozfullscreenchange', this);
     window.addEventListener('sizemodechange', this);
-    this.contentBrowser.addEventListener('mozbrowserloadstart', this, true);
+    this.contentBrowser.addEventListener('load', this, true);
 
     // Until the volume can be set from the content side, set it to a
     // a specific value when the device starts. This way the front-end
@@ -139,18 +122,21 @@ var shell = {
 
     addPermissions(domains.split(","));
 
+    // Load webapi.js as a frame script
+    let webapiUrl = 'chrome://browser/content/webapi.js';
+    try {
+      messageManager.loadFrameScript(webapiUrl, true);
+    } catch (e) {
+      dump('shell.js: Error loading ' + webapiUrl + ' as a frame script: ' + e + '\n');
+    }
+
     CustomEventManager.init();
+
     WebappsHelper.init();
 
-    // XXX could factor out into a settings->pref map.  Not worth it yet.
-    SettingsListener.observe("debug.fps.enabled", false, function(value) {
-      Services.prefs.setBoolPref("layers.acceleration.draw-fps", value);
-    });
-    SettingsListener.observe("debug.paint-flashing.enabled", false, function(value) {
-      Services.prefs.setBoolPref("nglayout.debug.paint_flashing", value);
-    });
-
-    this.contentBrowser.src = homeURL;
+    let browser = this.contentBrowser;
+    browser.homePage = homeURL;
+    browser.goHome();
   },
 
   stop: function shell_stop() {
@@ -159,14 +145,27 @@ var shell = {
       window.removeEventListener(type, this, true, true);
     }).bind(this));
 
+    window.addEventListener('MozApplicationManifest', this);
     window.removeEventListener('MozApplicationManifest', this);
     window.removeEventListener('mozfullscreenchange', this);
     window.removeEventListener('sizemodechange', this);
-    this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
+    this.contentBrowser.removeEventListener('load', this, true);
 
 #ifndef MOZ_WIDGET_GONK
     delete Services.audioManager;
 #endif
+  },
+
+  toggleDebug: function shell_toggleDebug() {
+    this.isDebug = !this.isDebug;
+
+    if (this.isDebug) {
+      Services.prefs.setBoolPref("layers.acceleration.draw-fps", true);
+      Services.prefs.setBoolPref("nglayout.debug.paint_flashing", true);
+    } else {
+      Services.prefs.setBoolPref("layers.acceleration.draw-fps", false);
+      Services.prefs.setBoolPref("nglayout.debug.paint_flashing", false);
+    }
   },
  
   changeVolume: function shell_changeVolume(delta) {
@@ -193,7 +192,6 @@ var shell = {
   },
 
   forwardKeyToContent: function shell_forwardKeyToContent(evt) {
-    let content = shell.contentBrowser.contentWindow;
     let generatedEvent = content.document.createEvent('KeyboardEvent');
     generatedEvent.initKeyEvent(evt.type, true, true, evt.view, evt.ctrlKey,
                                 evt.altKey, evt.shiftKey, evt.metaKey,
@@ -203,7 +201,6 @@ var shell = {
   },
 
   handleEvent: function shell_handleEvent(evt) {
-    let content = this.contentBrowser.contentWindow;
     switch (evt.type) {
       case 'keydown':
       case 'keyup':
@@ -212,10 +209,15 @@ var shell = {
         // to the content, let's react on some of the keyup events.
         if (evt.type == 'keyup' && evt.eventPhase == evt.BUBBLING_PHASE) {
           switch (evt.keyCode) {
+            case evt.DOM_VK_F5:
+              if (Services.prefs.getBoolPref('b2g.keys.search.enabled'))
+                this.toggleDebug();
+              break;
+  
             case evt.DOM_VK_PAGE_DOWN:
               this.changeVolume(-1);
               break;
-
+  
             case evt.DOM_VK_PAGE_UP:
               this.changeVolume(1);
               break;
@@ -242,16 +244,13 @@ var shell = {
         break;
       case 'sizemodechange':
         if (window.windowState == window.STATE_MINIMIZED) {
-          this.contentBrowser.setVisible(false);
+          this.contentBrowser.docShell.isActive = false;
         } else {
-          this.contentBrowser.setVisible(true);
+          this.contentBrowser.docShell.isActive = true;
         }
         break;
-      case 'mozbrowserloadstart':
-        if (content.document.location == 'about:blank')
-          return;
-
-        this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
+      case 'load':
+        this.contentBrowser.removeEventListener('load', this, true);
 
         let chromeWindow = window.QueryInterface(Ci.nsIDOMChromeWindow);
         chromeWindow.browserDOMWindow = new nsBrowserAccess();
@@ -309,7 +308,6 @@ nsBrowserAccess.prototype = {
 
   openURI: function openURI(uri, opener, where, context) {
     // TODO This should be replaced by an 'open-browser-window' intent
-    let content = shell.contentBrowser.contentWindow;
     let contentWindow = content.wrappedJSObject;
     if (!('getApplicationManager' in contentWindow))
       return null;
@@ -381,7 +379,6 @@ nsBrowserAccess.prototype = {
 var CustomEventManager = {
   init: function custevt_init() {
     window.addEventListener("ContentStart", (function(evt) {
-      let content = shell.contentBrowser.contentWindow;
       content.addEventListener("mozContentEvent", this, false, true);
     }).bind(this), false);
   },
@@ -432,7 +429,6 @@ var AlertsHelper = {
   showAlertNotification: function alert_showAlertNotification(imageUrl, title, text, textClickable, 
                                                               cookie, alertListener, name) {
     let id = this.registerListener(cookie, alertListener);
-    let content = shell.contentBrowser.contentWindow;
     shell.sendEvent(content, "mozChromeEvent", { type: "desktop-notification", id: id, icon: imageUrl, 
                                                  title: title, text: text } );
   }
@@ -469,7 +465,6 @@ var WebappsHelper = {
   },
 
   observe: function webapps_observe(subject, topic, data) {
-    let content = shell.contentBrowser.contentWindow;
     let json = JSON.parse(data);
     switch(topic) {
       case "webapps-launch":
@@ -503,7 +498,7 @@ function startDebugger() {
 
   let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
   try {
-    DebuggerServer.openListener(port);
+    DebuggerServer.openListener(port, false);
   } catch (e) {
     dump('Unable to start debugger server: ' + e + '\n');
   }
@@ -585,74 +580,3 @@ window.addEventListener('ContentStart', function(evt) {
   });
 })();
 
-// This is the backend for Gaia's screenshot feature.
-// Gaia requests a screenshot by sending a mozContentEvent with
-// detail.type set to 'save-screenshot'.  Then we take a screenshot
-// save it in device storage (external) and send a mozChromeEvent with
-// detail.type set to 'saved-screenshot' and detail.filename set to
-// the filename.
-window.addEventListener('ContentStart', function ss_onContentStart() {
-  let content = shell.contentBrowser.contentWindow;
-  content.addEventListener('mozContentEvent', function ss_onMozContentEvent(e) {
-    if (e.detail.type !== 'save-screenshot')
-      return;
-
-    try {
-      var canvas = document.createElementNS('http://www.w3.org/1999/xhtml',
-                                            'canvas');
-      var width = window.innerWidth;
-      var height = window.innerHeight;
-      canvas.setAttribute('width', width);
-      canvas.setAttribute('height', height);
-
-      var context = canvas.getContext('2d');
-      var flags =
-        context.DRAWWINDOW_DRAW_CARET |
-        context.DRAWWINDOW_DRAW_VIEW |
-        context.DRAWWINDOW_USE_WIDGET_LAYERS;
-      context.drawWindow(window, 0, 0, width, height,
-                         'rgb(255,255,255)', flags);
-
-      var filename = 'screenshots/' +
-        new Date().toISOString().slice(0,-5).replace(/[:T]/g, '-') +
-        '.png';
-
-      var file = canvas.mozGetAsFile(filename, 'image/png');
-      var storage = navigator.getDeviceStorage('pictures')[0];
-      if (!storage) { // If we don't have an SD card to save to, send an error
-        shell.sendEvent(content, 'mozChromeEvent', {
-          type: 'save-screenshot-no-card'
-        });
-        return;
-      }
-
-      var saveRequest = storage.addNamed(file, filename);
-      saveRequest.onsuccess = function ss_onsuccess() {
-        try {
-          shell.sendEvent(content, 'mozChromeEvent', {
-            type: 'save-screenshot-success',
-            filename: filename
-          });
-        } catch(e) {
-          dump('exception in onsuccess ' + e + '\n');
-        }
-      };
-      saveRequest.onerror = function ss_onerror() {
-        try {
-          shell.sendEvent(content, 'mozChromeEvent', {
-            type: 'save-screenshot-error',
-            error: saveRequest.error.name
-          });
-        } catch(e) {
-          dump('exception in onerror ' + e + '\n');
-        }
-      };
-    } catch(e) {
-      dump('exception while saving screenshot: ' + e + '\n');
-      shell.sendEvent(content, 'mozChromeEvent', {
-        type: 'save-screenshot-error',
-        error: String(e)
-      });
-    }
-  });
-});

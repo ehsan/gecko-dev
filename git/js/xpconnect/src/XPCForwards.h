@@ -16,6 +16,7 @@ class XPCJSRuntime;
 class XPCContext;
 class XPCCallContext;
 
+class XPCPerThreadData;
 class XPCJSThrower;
 class XPCJSStack;
 
@@ -46,6 +47,7 @@ class NativeSetMap;
 class IID2ThisTranslatorMap;
 class XPCNativeScriptableSharedMap;
 class XPCWrappedNativeProtoMap;
+class WrappedNative2WrapperMap;
 class JSObject2JSObjectMap;
 
 class nsXPCComponents;

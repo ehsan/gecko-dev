@@ -698,7 +698,7 @@ nsTableCellMap::GetNumCellsOriginatingInCol(PRInt32 aColIndex) const
   }
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 void
 nsTableCellMap::Dump(char* aString) const
 {
@@ -2526,7 +2526,7 @@ void nsCellMap::ExpandZeroColSpans(nsTableCellMap& aMap)
     }
   }
 }
-#ifdef DEBUG
+#ifdef NS_DEBUG
 void nsCellMap::Dump(bool aIsBorderCollapse) const
 {
   printf("\n  ***** START GROUP CELL MAP DUMP ***** %p\n", (void*)this);

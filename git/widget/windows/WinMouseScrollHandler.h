@@ -17,11 +17,10 @@ class nsWindow;
 class nsGUIEvent;
 class nsMouseScrollEvent;
 struct nsIntPoint;
+struct nsModifierKeyState;
 
 namespace mozilla {
 namespace widget {
-
-class ModifierKeyState;
 
 class MouseScrollHandler {
 public:
@@ -88,7 +87,7 @@ private:
    *
    * @param aMessage    Handling message.
    */
-  static ModifierKeyState GetModifierKeyState(UINT aMessage);
+  static nsModifierKeyState GetModifierKeyState(UINT aMessage);
 
   /**
    * MozGetMessagePos() returns the mouse cursor position when GetMessage()
@@ -206,7 +205,7 @@ private:
   ScrollTargetInfo GetScrollTargetInfo(
                      nsWindow* aWindow,
                      const EventInfo& aEvent,
-                     const ModifierKeyState& aModiferKeyState);
+                     const nsModifierKeyState& aModiferKeyState);
 
   class EventInfo {
   public:
@@ -296,7 +295,7 @@ private:
     bool InitMouseScrollEvent(nsWindow* aWindow,
                               nsMouseScrollEvent& aMouseScrollEvent,
                               const ScrollTargetInfo& aScrollTargetInfo,
-                              const ModifierKeyState& aModKeyState);
+                              const nsModifierKeyState& aModKeyState);
 
     /**
      * InitMousePixelScrollEvent() initializes NS_MOUSE_PIXEL_SCROLL event and
@@ -315,7 +314,7 @@ private:
     bool InitMousePixelScrollEvent(nsWindow* aWindow,
                                    nsMouseScrollEvent& aPixelScrollEvent,
                                    const ScrollTargetInfo& aScrollTargetInfo,
-                                   const ModifierKeyState& aModKeyState);
+                                   const nsModifierKeyState& aModKeyState);
 
   private:
     static PRInt32 RoundDelta(double aDelta);

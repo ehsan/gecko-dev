@@ -21,7 +21,7 @@ EXTRA_PP_COMPONENTS = \
   FirefoxProfileMigrator.js \
   $(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
+ifeq ($(OS_ARCH)_$(GNU_CXX),WINNT_)
 CPPSRCS += nsIEHistoryEnumerator.cpp
 
 EXTRA_PP_COMPONENTS += IEProfileMigrator.js \

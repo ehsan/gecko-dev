@@ -17,7 +17,6 @@ public class FindProcThread extends Thread {
     boolean bStillRunning = true;
 
     public FindProcThread(ContextWrapper ctx, String sProcessName) {
-        super("FindProcThread");
         this.contextWrapper = ctx;
         this.sProcNameToFind = sProcessName;
         this.bFoundIt = false;

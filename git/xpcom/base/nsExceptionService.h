@@ -51,7 +51,7 @@ public:
 
   static PRUintn tlsIndex;
   static void ThreadDestruct( void *data );
-#ifdef DEBUG
+#ifdef NS_DEBUG
   static PRInt32 totalInstances;
 #endif
 

@@ -23,8 +23,6 @@ SYNC_PP_RES_XML=res/xml/sync_syncadapter.xml res/xml/sync_options.xml
 FENNEC_JAVA_FILES = \
   AboutHomeContent.java \
   AboutHomeSection.java \
-  AndroidImport.java \
-  AndroidImportPreference.java \
   AlertNotification.java \
   AwesomeBar.java \
   AwesomeBarTabs.java \
@@ -65,8 +63,6 @@ FENNEC_JAVA_FILES = \
   GeckoThread.java \
   GlobalHistory.java \
   GeckoViewsFactory.java \
-  INIParser.java \
-  INISection.java \
   LinkPreference.java \
   LinkTextView.java \
   MenuItemActionBar.java \
@@ -90,7 +86,6 @@ FENNEC_JAVA_FILES = \
   TabsTray.java \
   TabsAccessor.java \
   Telemetry.java \
-  WebAppAllocator.java \
   gfx/BitmapUtils.java \
   gfx/BufferedCairoImage.java \
   gfx/CairoGLInfo.java \
@@ -141,8 +136,6 @@ endif
 
 FENNEC_PP_JAVA_FILES = \
   App.java \
-  WebApp.java \
-  WebApps.java \
   GeckoActivity.java \
   LauncherShortcuts.java \
   NotificationHandler.java \
@@ -256,7 +249,6 @@ RES_LAYOUT = \
   res/layout/doorhanger.xml \
   res/layout/find_in_page_content.xml \
   res/layout/gecko_app.xml \
-  res/layout/web_app.xml \
   res/layout/launch_app_list.xml \
   res/layout/launch_app_listitem.xml \
   res/layout/menu_item.xml \
@@ -267,12 +259,12 @@ RES_LAYOUT = \
   res/layout/site_setting_title.xml \
   res/layout/setup_screen.xml \
   res/layout/site_identity_popup.xml \
+  res/layout/reader_popup.xml \
   res/layout/remote_tabs.xml \
   res/layout/remote_tabs_child.xml \
   res/layout/remote_tabs_group.xml \
   res/layout/tabs_counter.xml \
   res/layout/tabs_panel.xml \
-  res/layout/tabs_panel_toolbar.xml \
   res/layout/tabs_row.xml \
   res/layout/tabs_tray.xml \
   res/layout/list_item_header.xml \
@@ -294,7 +286,7 @@ RES_LAYOUT_XLARGE = \
   res/layout-xlarge/gecko_app.xml \
   res/layout-xlarge/remote_tabs_child.xml \
   res/layout-xlarge/remote_tabs_group.xml \
-  res/layout-xlarge/tabs_panel_toolbar.xml \
+  res/layout-xlarge/tabs_panel.xml \
   res/layout-xlarge/tabs_row.xml \
   $(NULL)
 
@@ -303,7 +295,7 @@ RES_LAYOUT_SW600DP = \
   res/layout-sw600dp/gecko_app.xml \
   res/layout-sw600dp/remote_tabs_child.xml \
   res/layout-sw600dp/remote_tabs_group.xml \
-  res/layout-sw600dp/tabs_panel_toolbar.xml \
+  res/layout-sw600dp/tabs_panel.xml \
   res/layout-sw600dp/tabs_row.xml \
   $(NULL)
 
@@ -383,8 +375,6 @@ RES_DRAWABLE_BASE = \
   res/drawable/ic_menu_reload.png \
   res/drawable/ic_menu_save_as_pdf.png \
   res/drawable/ic_menu_share.png \
-  res/drawable/ic_menu_reading_list_add.png \
-  res/drawable/ic_menu_reading_list_remove.png \
   res/drawable/ic_menu_forward.png \
   res/drawable/remote_tabs_off.png \
   res/drawable/remote_tabs_on.png \
@@ -392,10 +382,7 @@ RES_DRAWABLE_BASE = \
   res/drawable/tab_close.png \
   res/drawable/tab_thumbnail_default.png \
   res/drawable/tab_thumbnail_shadow.png \
-  res/drawable/tabs_carat_contracted.png \
-  res/drawable/tabs_carat_expanded.png \
-  res/drawable/tabs_expanded_normal.png \
-  res/drawable/tabs_expanded_pressed.png \
+  res/drawable/tabs_carat.png \
   res/drawable/tabs_normal.png \
   res/drawable/tabs_pressed.png \
   res/drawable/address_bar_back_button.xml \
@@ -465,8 +452,6 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/ic_menu_reload.png \
   res/drawable-hdpi/ic_menu_save_as_pdf.png \
   res/drawable-hdpi/ic_menu_share.png \
-  res/drawable-hdpi/ic_menu_reading_list_add.png \
-  res/drawable-hdpi/ic_menu_reading_list_remove.png \
   res/drawable-hdpi/ic_menu_forward.png \
   res/drawable-hdpi/remote_tabs_off.png \
   res/drawable-hdpi/remote_tabs_on.png \
@@ -474,10 +459,7 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/tab_close.png \
   res/drawable-hdpi/tab_thumbnail_default.png \
   res/drawable-hdpi/tab_thumbnail_shadow.png \
-  res/drawable-hdpi/tabs_carat_contracted.png \
-  res/drawable-hdpi/tabs_carat_expanded.png \
-  res/drawable-hdpi/tabs_expanded_normal.png \
-  res/drawable-hdpi/tabs_expanded_pressed.png \
+  res/drawable-hdpi/tabs_carat.png \
   res/drawable-hdpi/tabs_normal.png \
   res/drawable-hdpi/tabs_pressed.png \
   res/drawable-hdpi/address_bar_texture_port.png \
@@ -515,8 +497,6 @@ RES_DRAWABLE_MDPI_V11 = \
   res/drawable-mdpi-v11/ic_menu_reload.png \
   res/drawable-mdpi-v11/ic_menu_save_as_pdf.png \
   res/drawable-mdpi-v11/ic_menu_share.png \
-  res/drawable-mdpi-v11/ic_menu_reading_list_add.png \
-  res/drawable-mdpi-v11/ic_menu_reading_list_remove.png \
   res/drawable-mdpi-v11/ic_menu_forward.png \
   res/drawable-mdpi-v11/menu.png \
   res/drawable-mdpi-v11/menu_panel_bg.9.png \
@@ -539,8 +519,6 @@ RES_DRAWABLE_HDPI_V11 = \
   res/drawable-hdpi-v11/ic_menu_reload.png \
   res/drawable-hdpi-v11/ic_menu_save_as_pdf.png \
   res/drawable-hdpi-v11/ic_menu_share.png \
-  res/drawable-hdpi-v11/ic_menu_reading_list_add.png \
-  res/drawable-hdpi-v11/ic_menu_reading_list_remove.png \
   res/drawable-hdpi-v11/ic_menu_forward.png \
   res/drawable-hdpi-v11/menu.png \
   res/drawable-hdpi-v11/menu_panel_bg.9.png \
@@ -580,18 +558,13 @@ RES_DRAWABLE_XHDPI_V11 = \
   res/drawable-xhdpi-v11/ic_menu_reload.png \
   res/drawable-xhdpi-v11/ic_menu_save_as_pdf.png \
   res/drawable-xhdpi-v11/ic_menu_share.png \
-  res/drawable-xhdpi-v11/ic_menu_reading_list_add.png \
-  res/drawable-xhdpi-v11/ic_menu_reading_list_remove.png \
   res/drawable-xhdpi-v11/remote_tabs_off.png \
   res/drawable-xhdpi-v11/remote_tabs_on.png \
   res/drawable-xhdpi-v11/tab_new.png \
   res/drawable-xhdpi-v11/tab_close.png \
   res/drawable-xhdpi-v11/tab_thumbnail_default.png \
   res/drawable-xhdpi-v11/tab_thumbnail_shadow.png \
-  res/drawable-xhdpi-v11/tabs_carat_contracted.png \
-  res/drawable-xhdpi-v11/tabs_carat_expanded.png \
-  res/drawable-xhdpi-v11/tabs_expanded_normal.png \
-  res/drawable-xhdpi-v11/tabs_expanded_pressed.png \
+  res/drawable-xhdpi-v11/tabs_carat.png \
   res/drawable-xhdpi-v11/tabs_normal.png \
   res/drawable-xhdpi-v11/tabs_pressed.png \
   res/drawable-xhdpi-v11/address_bar_texture_port.png \
@@ -636,10 +609,7 @@ RES_DRAWABLE_LAND_MDPI_V14 = \
   res/drawable-land-mdpi-v14/remote_tabs_off.png \
   res/drawable-land-mdpi-v14/remote_tabs_on.png \
   res/drawable-land-mdpi-v14/tab_new.png \
-  res/drawable-land-mdpi-v14/tabs_carat_contracted.png \
-  res/drawable-land-mdpi-v14/tabs_carat_expanded.png \
-  res/drawable-land-mdpi-v14/tabs_expanded_normal.png \
-  res/drawable-land-mdpi-v14/tabs_expanded_pressed.png \
+  res/drawable-land-mdpi-v14/tabs_carat.png \
   res/drawable-land-mdpi-v14/tabs_normal.png \
   res/drawable-land-mdpi-v14/tabs_pressed.png \
   res/drawable-land-mdpi-v14/urlbar_stop.png \
@@ -657,10 +627,7 @@ RES_DRAWABLE_LAND_HDPI_V14 = \
   res/drawable-land-hdpi-v14/remote_tabs_off.png \
   res/drawable-land-hdpi-v14/remote_tabs_on.png \
   res/drawable-land-hdpi-v14/tab_new.png \
-  res/drawable-land-hdpi-v14/tabs_carat_contracted.png \
-  res/drawable-land-hdpi-v14/tabs_carat_expanded.png \
-  res/drawable-land-hdpi-v14/tabs_expanded_normal.png \
-  res/drawable-land-hdpi-v14/tabs_expanded_pressed.png \
+  res/drawable-land-hdpi-v14/tabs_carat.png \
   res/drawable-land-hdpi-v14/tabs_normal.png \
   res/drawable-land-hdpi-v14/tabs_pressed.png \
   res/drawable-land-hdpi-v14/urlbar_stop.png \
@@ -678,10 +645,7 @@ RES_DRAWABLE_LAND_XHDPI_V14 = \
   res/drawable-land-xhdpi-v14/remote_tabs_off.png \
   res/drawable-land-xhdpi-v14/remote_tabs_on.png \
   res/drawable-land-xhdpi-v14/tab_new.png \
-  res/drawable-land-xhdpi-v14/tabs_carat_contracted.png \
-  res/drawable-land-xhdpi-v14/tabs_carat_expanded.png \
-  res/drawable-land-xhdpi-v14/tabs_expanded_normal.png \
-  res/drawable-land-xhdpi-v14/tabs_expanded_pressed.png \
+  res/drawable-land-xhdpi-v14/tabs_carat.png \
   res/drawable-land-xhdpi-v14/tabs_normal.png \
   res/drawable-land-xhdpi-v14/tabs_pressed.png \
   res/drawable-land-xhdpi-v14/urlbar_stop.png \
@@ -707,10 +671,7 @@ RES_DRAWABLE_XLARGE_MDPI = \
   res/drawable-xlarge-mdpi/remote_tabs_off.png \
   res/drawable-xlarge-mdpi/remote_tabs_on.png \
   res/drawable-xlarge-mdpi/tab_new.png \
-  res/drawable-xlarge-mdpi/tabs_carat_contracted.png \
-  res/drawable-xlarge-mdpi/tabs_carat_expanded.png \
-  res/drawable-xlarge-mdpi/tabs_expanded_normal.png \
-  res/drawable-xlarge-mdpi/tabs_expanded_pressed.png \
+  res/drawable-xlarge-mdpi/tabs_carat.png \
   res/drawable-xlarge-mdpi/tabs_normal.png \
   res/drawable-xlarge-mdpi/tabs_pressed.png \
   res/drawable-xlarge-mdpi/urlbar_stop.png \
@@ -735,10 +696,7 @@ RES_DRAWABLE_XLARGE_HDPI = \
   res/drawable-xlarge-hdpi/remote_tabs_off.png \
   res/drawable-xlarge-hdpi/remote_tabs_on.png \
   res/drawable-xlarge-hdpi/tab_new.png \
-  res/drawable-xlarge-hdpi/tabs_carat_contracted.png \
-  res/drawable-xlarge-hdpi/tabs_carat_expanded.png \
-  res/drawable-xlarge-hdpi/tabs_expanded_normal.png \
-  res/drawable-xlarge-hdpi/tabs_expanded_pressed.png \
+  res/drawable-xlarge-hdpi/tabs_carat.png \
   res/drawable-xlarge-hdpi/tabs_normal.png \
   res/drawable-xlarge-hdpi/tabs_pressed.png \
   res/drawable-xlarge-hdpi/urlbar_stop.png \
@@ -763,10 +721,7 @@ RES_DRAWABLE_XLARGE_XHDPI = \
   res/drawable-xlarge-xhdpi/remote_tabs_off.png \
   res/drawable-xlarge-xhdpi/tab_new.png \
   res/drawable-xlarge-xhdpi/remote_tabs_on.png \
-  res/drawable-xlarge-xhdpi/tabs_carat_contracted.png \
-  res/drawable-xlarge-xhdpi/tabs_carat_expanded.png \
-  res/drawable-xlarge-xhdpi/tabs_expanded_normal.png \
-  res/drawable-xlarge-xhdpi/tabs_expanded_pressed.png \
+  res/drawable-xlarge-xhdpi/tabs_carat.png \
   res/drawable-xlarge-xhdpi/tabs_normal.png \
   res/drawable-xlarge-xhdpi/tabs_pressed.png \
   res/drawable-xlarge-xhdpi/urlbar_stop.png \
@@ -792,10 +747,7 @@ RES_DRAWABLE_SW600DP_MDPI = \
   res/drawable-sw600dp-mdpi/remote_tabs_off.png \
   res/drawable-sw600dp-mdpi/remote_tabs_on.png \
   res/drawable-sw600dp-mdpi/tab_new.png \
-  res/drawable-sw600dp-mdpi/tabs_carat_contracted.png \
-  res/drawable-sw600dp-mdpi/tabs_carat_expanded.png \
-  res/drawable-sw600dp-mdpi/tabs_expanded_normal.png \
-  res/drawable-sw600dp-mdpi/tabs_expanded_pressed.png \
+  res/drawable-sw600dp-mdpi/tabs_carat.png \
   res/drawable-sw600dp-mdpi/tabs_normal.png \
   res/drawable-sw600dp-mdpi/tabs_pressed.png \
   res/drawable-sw600dp-mdpi/urlbar_stop.png \
@@ -820,10 +772,7 @@ RES_DRAWABLE_SW600DP_HDPI = \
   res/drawable-sw600dp-hdpi/remote_tabs_off.png \
   res/drawable-sw600dp-hdpi/remote_tabs_on.png \
   res/drawable-sw600dp-hdpi/tab_new.png \
-  res/drawable-sw600dp-hdpi/tabs_carat_contracted.png \
-  res/drawable-sw600dp-hdpi/tabs_carat_expanded.png \
-  res/drawable-sw600dp-hdpi/tabs_expanded_normal.png \
-  res/drawable-sw600dp-hdpi/tabs_expanded_pressed.png \
+  res/drawable-sw600dp-hdpi/tabs_carat.png \
   res/drawable-sw600dp-hdpi/tabs_normal.png \
   res/drawable-sw600dp-hdpi/tabs_pressed.png \
   res/drawable-sw600dp-hdpi/urlbar_stop.png \
@@ -848,10 +797,7 @@ RES_DRAWABLE_SW600DP_XHDPI = \
   res/drawable-sw600dp-xhdpi/remote_tabs_off.png \
   res/drawable-sw600dp-xhdpi/remote_tabs_on.png \
   res/drawable-sw600dp-xhdpi/tab_new.png \
-  res/drawable-sw600dp-xhdpi/tabs_carat_contracted.png \
-  res/drawable-sw600dp-xhdpi/tabs_carat_expanded.png \
-  res/drawable-sw600dp-xhdpi/tabs_expanded_normal.png \
-  res/drawable-sw600dp-xhdpi/tabs_expanded_pressed.png \
+  res/drawable-sw600dp-xhdpi/tabs_carat.png \
   res/drawable-sw600dp-xhdpi/tabs_normal.png \
   res/drawable-sw600dp-xhdpi/tabs_pressed.png \
   res/drawable-sw600dp-xhdpi/urlbar_stop.png \
@@ -913,8 +859,6 @@ MOZ_ANDROID_DRAWABLES += \
   mobile/android/base/resources/drawable/site_security_level.xml                \
   mobile/android/base/resources/drawable/suggestion_selector.xml                \
   mobile/android/base/resources/drawable/tabs_button.xml                        \
-  mobile/android/base/resources/drawable/tabs_button_contracted.xml             \
-  mobile/android/base/resources/drawable/tabs_button_expanded.xml               \
   mobile/android/base/resources/drawable/tabs_level.xml                         \
   mobile/android/base/resources/drawable/tabs_tray_bg_repeat.xml                \
   mobile/android/base/resources/drawable/tabs_tray_selected_bg_repeat.xml       \
@@ -1009,29 +953,11 @@ android-preqs = \
   Makefile.in \
   $(call mkdir_deps,db,sync/repositories/android) \
   $(SYNC_MANIFEST_FRAGMENTS) \
-  WebAppManifestFragment.xml.in \
-  WebAppsFragments.java \
   $(NULL)
 
 $(android-tgts): % : %.in $(android-preqs)
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-             $(AUTOMATION_PPARGS) -DOBJDIR="`pwd`" $(DEFINES) $(ACDEFINES) $< > $@
-
-# Add a predefined number of WebApp<num> classes to the WebApps class.
-# These are used so that each webapp can launch in its own process
-# Keep this number in sync with the max web apps in WebAppAllocator.java
-NUM_WEB_APPS=10
-WebAppManifestFragment.xml.in: WebAppManifestFragment.xml.frag
-	@rm -f $@
-	@for n in `$(PYTHON) -c "for x in range($(NUM_WEB_APPS)): print x"`; do \
-		cat $< | sed s,@APPNUM@,$$n,g >> $@ ; \
-	done
-
-WebAppsFragments.java: WebAppsFragment.java.frag
-	@rm -f $@
-	@for n in `$(PYTHON) -c "for x in range($(NUM_WEB_APPS)): print x"`; do \
-		cat $< | sed s,@APPNUM@,$$n,g >> $@ ; \
-	done
+             $(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
 
 res/drawable/icon.png: $(MOZ_APP_ICON)
 	$(NSINSTALL) -D res/drawable

@@ -22,7 +22,6 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "mozilla/dom/DOMJSClass.h"
-#include "nsMathUtils.h"
 
 class nsIPrincipal;
 class nsIXPConnectWrappedJS;
@@ -220,8 +219,6 @@ class nsIMemoryMultiReporterCallback;
 
 namespace xpc {
 
-bool DeferredRelease(nsISupports *obj);
-
 // If these functions return false, then an exception will be set on cx.
 bool Base64Encode(JSContext *cx, JS::Value val, JS::Value *out);
 bool Base64Decode(JSContext *cx, JS::Value val, JS::Value *out);
@@ -236,7 +233,9 @@ bool NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
 
 nsIPrincipal *GetCompartmentPrincipal(JSCompartment *compartment);
 
+#ifdef DEBUG
 void DumpJSHeap(FILE* file);
+#endif
 
 void SetLocationForGlobal(JSObject *global, const nsACString& location);
 void SetLocationForGlobal(JSObject *global, nsIURI *locationURI);
@@ -268,7 +267,7 @@ nsresult
 ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                                  const nsACString &pathPrefix,
                                  nsIMemoryMultiReporterCallback *cb,
-                                 nsISupports *closure, size_t *rtTotal = NULL);
+                                 nsISupports *closure);
 
 /**
  * Convert a jsval to PRInt64. Return true on success.
@@ -285,12 +284,7 @@ ValueToInt64(JSContext *cx, JS::Value v, int64_t *result)
         double doubleval;
         if (!JS_ValueToNumber(cx, v, &doubleval))
             return false;
-        // Be careful with non-finite doubles
-        if (NS_finite(doubleval))
-            // XXXbz this isn't quite right either; need to do the mod thing
-            *result = static_cast<int64_t>(doubleval);
-        else
-            *result = 0;
+        *result = static_cast<int64_t>(doubleval);
     }
     return true;
 }
@@ -310,12 +304,7 @@ ValueToUint64(JSContext *cx, JS::Value v, uint64_t *result)
         double doubleval;
         if (!JS_ValueToNumber(cx, v, &doubleval))
             return false;
-        // Be careful with non-finite doubles
-        if (NS_finite(doubleval))
-            // XXXbz this isn't quite right either; need to do the mod thing
-            *result = static_cast<uint64_t>(doubleval);
-        else
-            *result = 0;
+        *result = static_cast<uint64_t>(doubleval);
     }
     return true;
 }

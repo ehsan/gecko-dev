@@ -2480,6 +2480,7 @@ mjit::Compiler::jsop_stricteq(JSOp op)
         JS_ASSERT(reg2 != tmpReg);
 
         /* JSString::isAtom === (lengthAndFlags & ATOM_MASK == 0) */
+        JS_STATIC_ASSERT(JSString::ATOM_FLAGS == 0);
         Imm32 atomMask(JSString::ATOM_MASK);
 
         masm.load32(Address(reg1, JSString::offsetOfLengthAndFlags()), tmpReg);
@@ -2655,11 +2656,11 @@ mjit::Compiler::jsop_initprop()
 
     JSObject *holder;
     JSProperty *prop = NULL;
-    Rooted<jsid> id(cx, NameToId(name));
 #ifdef DEBUG
     bool res =
 #endif
-    LookupPropertyWithFlags(cx, baseobj, id, JSRESOLVE_QUALIFIED, &holder, &prop);
+    LookupPropertyWithFlags(cx, baseobj, RootedId(cx, NameToId(name)),
+                            JSRESOLVE_QUALIFIED, &holder, &prop);
     JS_ASSERT(res && prop && holder == baseobj);
 
     RegisterID objReg = frame.copyDataIntoReg(obj);

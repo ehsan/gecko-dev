@@ -187,7 +187,7 @@ SetOperator(OperatorData*   aOperatorData,
   nsStringKey key(value);
   gOperatorTable->Put(&key, aOperatorData);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_LossyConvertUTF16toASCII str(aAttributes);
 #endif
   // Loop over the space-delimited list of attributes to get the name:value pairs

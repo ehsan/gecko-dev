@@ -80,23 +80,8 @@ public abstract class ServerSyncStage implements
       // Fall through; null engineSettings will pass below.
     }
 
-    // We can be disabled by the server's meta/global record, or malformed in the server's meta/global record.
     // We catch the subclasses of MetaGlobalException to trigger various resets and wipes in execute().
-    boolean enabledInMetaGlobal = session.engineIsEnabled(this.getEngineName(), engineSettings);
-    if (!enabledInMetaGlobal) {
-      Logger.debug(LOG_TAG, "Stage " + this.getEngineName() + " disabled by server meta/global.");
-      return false;
-    }
-
-    // We can also be disabled just for this sync.
-    if (session.config.stagesToSync == null) {
-      return true;
-    }
-    boolean enabledThisSync = session.config.stagesToSync.contains(this.getEngineName()); // For ServerSyncStage, stage name == engine name.
-    if (!enabledThisSync) {
-      Logger.debug(LOG_TAG, "Stage " + this.getEngineName() + " disabled just for this sync.");
-    }
-    return enabledThisSync;
+    return session.engineIsEnabled(this.getEngineName(), engineSettings);
   }
 
   protected EngineSettings getEngineSettings() throws NonObjectJSONException, IOException, ParseException {
@@ -175,7 +160,7 @@ public abstract class ServerSyncStage implements
    * Reset timestamps and possibly set syncID.
    * @param syncID if non-null, new syncID to persist.
    */
-  protected void resetLocal(String syncID) {
+  public void resetLocal(String syncID) {
     // Clear both timestamps.
     SynchronizerConfiguration config;
     try {
@@ -452,7 +437,7 @@ public abstract class ServerSyncStage implements
 
     try {
       if (!this.isEnabled()) {
-        Logger.info(LOG_TAG, "Skipping stage " + name + ".");
+        Logger.info(LOG_TAG, "Stage " + name + " disabled; skipping.");
         session.advance();
         return;
       }

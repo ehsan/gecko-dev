@@ -10,7 +10,6 @@
 #include "nsCOMPtr.h"
 #include <ole2.h>
 #include <oleidl.h>
-#include "mozilla/Attributes.h"
 
 //class nsIDragSource;
 
@@ -18,7 +17,7 @@
  * nsNativeDragSource implements the IDropSource interface and gets
  * most of its behavior from the associated adapter (m_dragDrop).
  */
-class nsNativeDragSource MOZ_FINAL : public IDropSource
+class nsNativeDragSource : public IDropSource
 {
 public:
 

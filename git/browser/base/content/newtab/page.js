@@ -80,22 +80,16 @@ let gPage = {
    * @param aValue Whether the New Tab Page is enabled or not.
    */
   _updateAttributes: function Page_updateAttributes(aValue) {
+    let selector = "#newtab-scrollbox, #newtab-toggle, #newtab-grid";
+    let nodes = document.querySelectorAll(selector);
+
     // Set the nodes' states.
-    let nodeSelector = "#newtab-scrollbox, #newtab-toggle, #newtab-grid";
-    for (let node of document.querySelectorAll(nodeSelector)) {
+    for (let i = 0; i < nodes.length; i++) {
+      let node = nodes[i];
       if (aValue)
         node.removeAttribute("page-disabled");
       else
         node.setAttribute("page-disabled", "true");
-    }
-
-    // Enables/disables the control and link elements.
-    let inputSelector = ".newtab-control, .newtab-link";
-    for (let input of document.querySelectorAll(inputSelector)) {
-      if (aValue) 
-        input.removeAttribute("tabindex");
-      else
-        input.setAttribute("tabindex", "-1");
     }
 
     // Update the toggle button's title.

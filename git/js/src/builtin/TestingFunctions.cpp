@@ -482,14 +482,10 @@ static JSClass FinalizeCounterClass = {
 static JSBool
 MakeFinalizeObserver(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JSObject *scope = JS_GetGlobalForScopeChain(cx);
-    if (!scope)
-        return false;
-
-    JSObject *obj = JS_NewObjectWithGivenProto(cx, &FinalizeCounterClass, NULL, scope);
+    JSObject *obj = JS_NewObjectWithGivenProto(cx, &FinalizeCounterClass, NULL,
+                                               JS_GetGlobalObject(cx));
     if (!obj)
         return false;
-
     *vp = OBJECT_TO_JSVAL(obj);
     return true;
 }
@@ -576,8 +572,6 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "    3: Collect when the window paints (browser only)\n"
 "    4: Verify write barriers between instructions\n"
 "    5: Verify write barriers between paints\n"
-"    6: Verify stack rooting (ignoring XML and Reflect)\n"
-"    7: Verify stack rooting (all roots)\n"
 "  Period specifies that collection happens every n allocations.\n"),
 
     JS_FN_HELP("schedulegc", ScheduleGC, 1, 0,

@@ -88,19 +88,21 @@ let Manager = {
    */
   receiveMessage: function Manager_receiveMessage(aMessage)
   {
-    if (!_alive || !aMessage.json) {
+    if (!_alive) {
       return;
     }
 
-    if (aMessage.name == "WebConsole:Init" && !this.hudId) {
-      this._onInit(aMessage.json);
-      return;
-    }
-    if (aMessage.json.hudId != this.hudId) {
+    if (!aMessage.json || (aMessage.name != "WebConsole:Init" &&
+                           aMessage.json.hudId != this.hudId)) {
+      Cu.reportError("Web Console content script: received message " +
+                     aMessage.name + " from wrong hudId!");
       return;
     }
 
     switch (aMessage.name) {
+      case "WebConsole:Init":
+        this._onInit(aMessage.json);
+        break;
       case "WebConsole:EnableFeature":
         this.enableFeature(aMessage.json.feature, aMessage.json);
         break;
@@ -497,7 +499,7 @@ let Manager = {
       NetworkResponseListener = ConsoleProgressListener = null;
 
     XPCOMUtils = gConsoleStorage = WebConsoleUtils = l10n = JSPropertyProvider =
-      null;
+      NetworkHelper = NetUtil = activityDistributor = null;
   },
 };
 
@@ -1284,8 +1286,17 @@ let ConsoleListener = {
       return;
     }
 
-    if (!this.isCategoryAllowed(aScriptError.category)) {
-      return;
+    switch (aScriptError.category) {
+      // We ignore chrome-originating errors as we only care about content.
+      case "XPConnect JavaScript":
+      case "component javascript":
+      case "chrome javascript":
+      case "chrome registration":
+      case "XBL":
+      case "XBL Prototype Handler":
+      case "XBL Content Sink":
+      case "xbl javascript":
+        return;
     }
 
     let errorWindow =
@@ -1296,33 +1307,6 @@ let ConsoleListener = {
     }
 
     Manager.sendMessage("WebConsole:PageError", { pageError: aScriptError });
-  },
-
-
-  /**
-   * Check if the given script error category is allowed to be tracked or not.
-   * We ignore chrome-originating errors as we only care about content.
-   *
-   * @param string aCategory
-   *        The nsIScriptError category you want to check.
-   * @return boolean
-   *         True if the category is allowed to be logged, false otherwise.
-   */
-  isCategoryAllowed: function CL_isCategoryAllowed(aCategory)
-  {
-    switch (aCategory) {
-      case "XPConnect JavaScript":
-      case "component javascript":
-      case "chrome javascript":
-      case "chrome registration":
-      case "XBL":
-      case "XBL Prototype Handler":
-      case "XBL Content Sink":
-      case "xbl javascript":
-        return false;
-    }
-
-    return true;
   },
 
   /**
@@ -1342,15 +1326,14 @@ let ConsoleListener = {
 
     (errors.value || []).forEach(function(aError) {
       if (!(aError instanceof Ci.nsIScriptError) ||
-          aError.innerWindowID != innerWindowId ||
-          !this.isCategoryAllowed(aError.category)) {
+          aError.innerWindowID != innerWindowId) {
         return;
       }
 
       let remoteMessage = WebConsoleUtils.cloneObject(aError);
       remoteMessage._type = "PageError";
       result.push(remoteMessage);
-    }, this);
+    });
 
     return result;
   },

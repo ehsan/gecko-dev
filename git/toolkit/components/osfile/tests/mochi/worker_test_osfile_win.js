@@ -43,6 +43,7 @@ function isnot(a, b, description) {
 function test_init() {
   ok(true, "Starting test_init");
   importScripts("resource:///modules/osfile.jsm");
+  OS.Win.File._init();
 }
 
 function test_OpenClose() {

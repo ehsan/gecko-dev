@@ -11,13 +11,12 @@
 #include "nsString.h"
 #include "jspubtd.h"
 #include "Types.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace dom {
 namespace sms {
 
-class SmsMessage MOZ_FINAL : public nsIDOMMozSmsMessage
+class SmsMessage : public nsIDOMMozSmsMessage
 {
 public:
   NS_DECL_ISUPPORTS

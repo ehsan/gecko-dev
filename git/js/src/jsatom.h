@@ -410,10 +410,10 @@ js_DumpAtoms(JSContext *cx, FILE *fp);
 
 #endif
 
-namespace js {
+inline bool
+js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp);
 
-inline JSAtom *
-ToAtom(JSContext *cx, const js::Value &v);
+namespace js {
 
 bool
 InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,

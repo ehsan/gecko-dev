@@ -65,7 +65,6 @@ public:
   {
     NS_ASSERTION(mNodeInfo,
                  "No nsINodeInfo passed to nsIContent, PREPARE TO CRASH!!!");
-    SetNodeIsContent();
   }
 #endif // MOZILLA_INTERNAL_API
 
@@ -254,57 +253,58 @@ public:
    * Get the namespace that this element's tag is defined in
    * @return the namespace
    */
-  inline PRInt32 GetNameSpaceID() const
+  PRInt32 GetNameSpaceID() const
   {
     return mNodeInfo->NamespaceID();
+  }
+
+  /**
+   * Get the tag for this element. This will always return a non-null
+   * atom pointer (as implied by the naming of the method).
+   */
+  nsIAtom *Tag() const
+  {
+    return mNodeInfo->NameAtom();
   }
 
   /**
    * Get the NodeInfo for this element
    * @return the nodes node info
    */
-  inline nsINodeInfo* NodeInfo() const
+  nsINodeInfo *NodeInfo() const
   {
     return mNodeInfo;
   }
 
-  inline bool IsInNamespace(PRInt32 aNamespace) const
-  {
+  inline bool IsInNamespace(PRInt32 aNamespace) const {
     return mNodeInfo->NamespaceID() == aNamespace;
   }
 
-  inline bool IsHTML() const
-  {
+  inline bool IsHTML() const {
     return IsInNamespace(kNameSpaceID_XHTML);
   }
 
-  inline bool IsHTML(nsIAtom* aTag) const
-  {
+  inline bool IsHTML(nsIAtom* aTag) const {
     return mNodeInfo->Equals(aTag, kNameSpaceID_XHTML);
   }
 
-  inline bool IsSVG() const
-  {
+  inline bool IsSVG() const {
     return IsInNamespace(kNameSpaceID_SVG);
   }
 
-  inline bool IsSVG(nsIAtom* aTag) const
-  {
+  inline bool IsSVG(nsIAtom* aTag) const {
     return mNodeInfo->Equals(aTag, kNameSpaceID_SVG);
   }
 
-  inline bool IsXUL() const
-  {
+  inline bool IsXUL() const {
     return IsInNamespace(kNameSpaceID_XUL);
   }
 
-  inline bool IsMathML() const
-  {
+  inline bool IsMathML() const {
     return IsInNamespace(kNameSpaceID_MathML);
   }
 
-  inline bool IsMathML(nsIAtom* aTag) const
-  {
+  inline bool IsMathML(nsIAtom* aTag) const {
     return mNodeInfo->Equals(aTag, kNameSpaceID_MathML);
   }
 

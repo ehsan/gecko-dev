@@ -42,8 +42,7 @@ function test1a() {
   ok(!popupNotification, "Test 1a, Should not have a click-to-play notification");
   var plugin = gTestBrowser.contentWindow.addPlugin();
 
-  var condition = function() PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
-  waitForCondition(condition, test1b, "Test 1a, Waited too long for plugin notification");
+  setTimeout(test1b, 500);
 }
 
 function test1b() {
@@ -54,7 +53,7 @@ function test1b() {
   ok(!objLoadingContent.activated, "Test 1b, Plugin should not be activated");
 
   popupNotification.mainAction.callback();
-  test1c();
+  setTimeout(test1c, 500);
 }
 
 function test1c() {
@@ -62,9 +61,7 @@ function test1c() {
   ok(!popupNotification, "Test 1c, Should not have a click-to-play notification");
   var plugin = gTestBrowser.contentWindow.addPlugin();
 
-  var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-  var condition = function() objLoadingContent.activated;
-  waitForCondition(condition, test1d, "Test 1c, Waited too long for plugin activation");
+  setTimeout(test1d, 500);
 }
 
 function test1d() {
@@ -85,9 +82,7 @@ function test1e() {
   ok(!popupNotification, "Test 1e, Should not have a click-to-play notification");
   var plugin = gTestBrowser.contentWindow.addPlugin();
 
-  var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-  var condition = function() objLoadingContent.activated;
-  waitForCondition(condition, test1f, "Test 1e, Waited too long for plugin activation");
+  setTimeout(test1f, 500);
 }
 
 function test1f() {
@@ -98,10 +93,8 @@ function test1f() {
   ok(objLoadingContent.activated, "Test 1f, Plugin should be activated");
 
   gTestBrowser.contentWindow.history.replaceState({}, "", "replacedState");
-  var plugin = gTestBrowser.contentWindow.addPlugin();
-  var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-  var condition = function() objLoadingContent.activated;
-  waitForCondition(condition, test1g, "Test 1f, Waited too long for plugin activation");
+  gTestBrowser.contentWindow.addPlugin();
+  setTimeout(test1g, 500);
 }
 
 function test1g() {

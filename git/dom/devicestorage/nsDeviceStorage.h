@@ -19,9 +19,8 @@ class nsPIDOMWindow;
 #include "nsString.h"
 #include "nsWeakPtr.h"
 #include "nsInterfaceHashtable.h"
-#include "mozilla/Attributes.h"
 
-class nsDOMDeviceStorage MOZ_FINAL : public nsIDOMDeviceStorage
+class nsDOMDeviceStorage : public nsIDOMDeviceStorage
 {
 public:
   NS_DECL_ISUPPORTS

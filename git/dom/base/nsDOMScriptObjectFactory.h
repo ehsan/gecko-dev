@@ -23,10 +23,9 @@
 #include "nsIExceptionService.h"
 #include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h" // for misplaced NS_STID_ macros.
-#include "mozilla/Attributes.h"
 
-class nsDOMScriptObjectFactory MOZ_FINAL : public nsIDOMScriptObjectFactory,
-                                           public nsIObserver
+class nsDOMScriptObjectFactory : public nsIDOMScriptObjectFactory,
+                                 public nsIObserver
 {
 public:
   nsDOMScriptObjectFactory();
@@ -49,7 +48,7 @@ public:
                                   const nsCID *aConstructorCID);
 };
 
-class nsDOMExceptionProvider MOZ_FINAL : public nsIExceptionProvider
+class nsDOMExceptionProvider : public nsIExceptionProvider
 {
 public:
   NS_DECL_ISUPPORTS

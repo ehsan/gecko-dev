@@ -27,7 +27,7 @@ ia2AccessibleHypertext::QueryInterface(REFIID iid, void** ppv)
     return E_NOINTERFACE;
   }
 
-  return ia2AccessibleText::QueryInterface(iid, ppv);
+  return CAccessibleText::QueryInterface(iid, ppv);
 }
 
 // IAccessibleHypertext

@@ -537,8 +537,7 @@ js::LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *resu
 
             if (JSEqualityOp eq = l->getClass()->ext.equality) {
                 JSBool res;
-                Rooted<JSObject*> lobj(cx, l);
-                if (!eq(cx, lobj, &rval, &res))
+                if (!eq(cx, RootedObject(cx, l), &rval, &res))
                     return false;
                 *result = !!res;
                 return true;
@@ -709,7 +708,7 @@ js::UnwindScope(JSContext *cx, uint32_t stackDepth)
     StackFrame *fp = cx->fp();
     JS_ASSERT(stackDepth <= cx->regs().stackDepth());
 
-    for (ScopeIter si(fp, cx); !si.done(); ++si) {
+    for (ScopeIter si(fp); !si.done(); si = si.enclosing()) {
         switch (si.type()) {
           case ScopeIter::Block:
             if (si.staticBlock().stackDepth() < stackDepth)
@@ -923,7 +922,7 @@ js::AssertValidPropertyCacheHit(JSContext *cx,
     uint64_t sample = cx->runtime->gcNumber;
     PropertyCacheEntry savedEntry = *entry;
 
-    RootedPropertyName name(cx, GetNameFromBytecode(cx, pc, JSOp(*pc)));
+    RootedPropertyName name(cx, GetNameFromBytecode(cx, pc, JSOp(*pc), js_CodeSpec[*pc]));
     RootedObject start(cx, start_);
 
     JSObject *obj, *pobj;
@@ -984,8 +983,7 @@ IteratorMore(JSContext *cx, JSObject *iterobj, bool *cond, Value *rval)
             return true;
         }
     }
-    Rooted<JSObject*> iobj(cx, iterobj);
-    if (!js_IteratorMore(cx, iobj, rval))
+    if (!js_IteratorMore(cx, RootedObject(cx, iterobj), rval))
         return false;
     *cond = rval->isTrue();
     return true;

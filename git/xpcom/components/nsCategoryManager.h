@@ -12,7 +12,6 @@
 #include "nsClassHashtable.h"
 #include "nsICategoryManager.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
 
 #define NS_CATEGORYMANAGER_CLASSNAME     "Category Manager"
 
@@ -93,7 +92,7 @@ private:
  *
  * This implementation is thread-safe.
  */
-class nsCategoryManager MOZ_FINAL
+class nsCategoryManager
   : public nsICategoryManager
 {
 public:

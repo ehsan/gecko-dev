@@ -26,7 +26,6 @@
 #include "npapi.h"
 #include "base/thread.h"
 #include "prenv.h"
-#include "mozilla/Attributes.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -98,7 +97,6 @@ nsBaseWidget::nsBaseWidget()
 , mZIndex(0)
 , mSizeMode(nsSizeMode_Normal)
 , mPopupLevel(ePopupLevelTop)
-, mPopupType(ePopupTypeAny)
 {
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets++;
@@ -210,7 +208,6 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
     mWindowType = aInitData->mWindowType;
     mBorderStyle = aInitData->mBorderStyle;
     mPopupLevel = aInitData->mPopupLevel;
-    mPopupType = aInitData->mPopupHint;
   }
 
   if (aParent) {
@@ -808,12 +805,8 @@ nsBaseWidget::GetShouldAccelerate()
   bool accelerateByDefault = false;
 #endif
 
-  // We don't want to accelerate small popup windows like menu, but we still 
-  // want to accelerate xul panels that may contain arbitrarily complex content.
-  bool isSmallPopup = ((mWindowType == eWindowType_popup) && 
-                      (mPopupType != ePopupTypePanel));
   // we should use AddBoolPrefVarCache
-  bool disableAcceleration = isSmallPopup || 
+  bool disableAcceleration = (mWindowType == eWindowType_popup) || 
     Preferences::GetBool("layers.acceleration.disabled", false);
   mForceLayersAcceleration =
     Preferences::GetBool("layers.acceleration.force-enabled", false);
@@ -1496,7 +1489,7 @@ static void debug_SetCachedBoolPref(const char * aPrefName,bool aValue)
 }
 
 //////////////////////////////////////////////////////////////
-class Debug_PrefObserver MOZ_FINAL : public nsIObserver {
+class Debug_PrefObserver : public nsIObserver {
   public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER

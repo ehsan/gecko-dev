@@ -40,7 +40,7 @@ CPPSRCS		= \
 		XPCRuntimeService.cpp  \
 		XPCStack.cpp \
 		XPCString.cpp \
-		XPCJSContextStack.cpp \
+		XPCThreadContext.cpp \
 		XPCThrower.cpp \
 		XPCWrappedJS.cpp \
 		XPCVariant.cpp \

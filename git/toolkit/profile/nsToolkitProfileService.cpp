@@ -382,8 +382,12 @@ nsToolkitProfileService::Init()
     rv = gDirServiceProvider->GetUserLocalDataDirectory(getter_AddRefs(mTempData));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = mAppData->Clone(getter_AddRefs(mListFile));
+    nsCOMPtr<nsIFile> listFile;
+    rv = mAppData->Clone(getter_AddRefs(listFile));
     NS_ENSURE_SUCCESS(rv, rv);
+
+    mListFile = do_QueryInterface(listFile);
+    NS_ENSURE_TRUE(listFile, NS_ERROR_NO_INTERFACE);
 
     rv = mListFile->AppendNative(NS_LITERAL_CSTRING("profiles.ini"));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -395,7 +399,7 @@ nsToolkitProfileService::Init()
     }
 
     PRInt64 size;
-    rv = mListFile->GetFileSize(&size);
+    rv = listFile->GetFileSize(&size);
     if (NS_FAILED(rv) || !size) {
         return NS_OK;
     }
@@ -638,16 +642,16 @@ nsToolkitProfileService::CreateDefaultProfileForApp(const nsACString& aProfileNa
                                                   &aAppName,
                                                   &aVendorName);
     NS_ENSURE_SUCCESS(rv, rv);
-
+ 
     nsCOMPtr<nsIFile> profilesini;
     appData->Clone(getter_AddRefs(profilesini));
     rv = profilesini->AppendNative(NS_LITERAL_CSTRING("profiles.ini"));
     NS_ENSURE_SUCCESS(rv, rv);
-
+  
     bool exists = false;
     profilesini->Exists(&exists);
     NS_ENSURE_FALSE(exists, NS_ERROR_ALREADY_INITIALIZED);
-
+    
     nsIFile* profileDefaultsDir = aProfileDefaultsDir;
     rv = CreateProfileInternal(nsnull, nsnull,
                                NS_LITERAL_CSTRING("default"),
@@ -655,7 +659,7 @@ nsToolkitProfileService::CreateDefaultProfileForApp(const nsACString& aProfileNa
                                &profileDefaultsDir, true, aResult);
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_STATE(*aResult);
-
+  
     nsCOMPtr<nsIFile> rootDir;
     (*aResult)->GetRootDir(getter_AddRefs(rootDir));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -663,12 +667,12 @@ nsToolkitProfileService::CreateDefaultProfileForApp(const nsACString& aProfileNa
     nsCAutoString profileDir;
     rv = rootDir->GetRelativeDescriptor(appData, profileDir);
     NS_ENSURE_SUCCESS(rv, rv);
-
+  
     nsCString ini;
     ini.SetCapacity(512);
     ini.AppendASCII("[General]\n");
     ini.AppendASCII("StartWithLastProfile=1\n\n");
-
+  
     ini.AppendASCII("[Profile0]\n");
     ini.AppendASCII("Name=default\n");
     ini.AppendASCII("IsRelative=1\n");
@@ -676,11 +680,11 @@ nsToolkitProfileService::CreateDefaultProfileForApp(const nsACString& aProfileNa
     ini.Append(profileDir);
     ini.AppendASCII("\n");
     ini.AppendASCII("Default=1\n\n");
-
+  
     FILE* writeFile;
     rv = profilesini->OpenANSIFileDesc("w", &writeFile);
     NS_ENSURE_SUCCESS(rv, rv);
-
+    
     if (fwrite(ini.get(), sizeof(char), ini.Length(), writeFile) !=
         ini.Length()) {
         rv = NS_ERROR_UNEXPECTED;
@@ -723,10 +727,14 @@ nsToolkitProfileService::CreateProfileInternal(nsIFile* aRootDir,
 
     nsCAutoString dirName;
     if (!rootDir) {
-        rv = gDirServiceProvider->GetUserProfilesRootDir(getter_AddRefs(rootDir),
+        nsCOMPtr<nsIFile> file;
+        rv = gDirServiceProvider->GetUserProfilesRootDir(getter_AddRefs(file),
                                                          aProfileName, aAppName,
                                                          aVendorName);
         NS_ENSURE_SUCCESS(rv, rv);
+
+        rootDir = do_QueryInterface(file);
+        NS_ENSURE_TRUE(rootDir, NS_ERROR_UNEXPECTED);
 
         dirName = aName;
         SaltProfileName(dirName);
@@ -745,11 +753,16 @@ nsToolkitProfileService::CreateProfileInternal(nsIFile* aRootDir,
             localDir = aRootDir;
         }
         else {
-            rv = gDirServiceProvider->GetUserProfilesLocalDir(getter_AddRefs(localDir),
+            nsCOMPtr<nsIFile> file;
+            bool dummy;
+            rv = gDirServiceProvider->GetUserProfilesLocalDir(getter_AddRefs(file),
                                                               aProfileName,
                                                               aAppName,
                                                               aVendorName);
             NS_ENSURE_SUCCESS(rv, rv);
+
+            localDir = do_QueryInterface(file);
+            NS_ENSURE_TRUE(localDir, NS_ERROR_UNEXPECTED);
 
             // use same salting
             if (NS_IsNativeUTF8()) {
@@ -799,7 +812,7 @@ nsToolkitProfileService::CreateProfileInternal(nsIFile* aRootDir,
             NS_ENSURE_SUCCESS(rv, rv);
         }
         rv = rootDir->SetPermissions(0700);
-#ifndef ANDROID
+#ifndef ANDROID      
         // If the profile is on the sdcard, this will fail but its non-fatal
         NS_ENSURE_SUCCESS(rv, rv);
 #endif
@@ -927,7 +940,7 @@ nsToolkitProfileFactory::CreateInstance(nsISupports* aOuter, const nsID& aIID,
     if (aOuter)
         return NS_ERROR_NO_AGGREGATION;
 
-    nsCOMPtr<nsIToolkitProfileService> profileService =
+    nsCOMPtr<nsIToolkitProfileService> profileService = 
         nsToolkitProfileService::gService;
     if (!profileService) {
         nsresult rv = NS_NewToolkitProfileService(getter_AddRefs(profileService));

@@ -46,7 +46,6 @@
 #include "nsMimeTypes.h"
 
 #include "nsDocLoader.h"
-#include "mozilla/Attributes.h"
 
 #include "mozilla/FunctionTimer.h"
 #ifdef NS_FUNCTION_TIMER
@@ -75,7 +74,7 @@ PRLogModuleInfo* nsURILoader::mLog = nsnull;
  * Each instance remains alive until its target URL has been loaded
  * (or aborted).
  */
-class nsDocumentOpenInfo MOZ_FINAL : public nsIStreamListener
+class nsDocumentOpenInfo : public nsIStreamListener
 {
 public:
   // Needed for nsCOMPtr to work right... Don't call this!

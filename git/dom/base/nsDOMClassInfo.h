@@ -26,7 +26,6 @@ class DOMSVGStringList;
 class DOMSVGTransformList;
 }
 class nsGlobalWindow;
-class nsICanvasRenderingContextInternal;
 class nsIDOMDocument;
 class nsIDOMHTMLOptionsCollection;
 class nsIDOMSVGLength;
@@ -71,7 +70,7 @@ struct nsDOMClassInfoData
   PRUint32 mInterfacesBitmap;
   bool mChromeOnly;
   bool mDisabled;
-#ifdef DEBUG
+#ifdef NS_DEBUG
   PRUint32 mDebugID;
 #endif
 };
@@ -121,6 +120,8 @@ public:
   {
     return new nsDOMClassInfo(aData);
   }
+
+  static nsresult ThrowJSException(JSContext *cx, nsresult aResult);
 
   /*
    * The following two functions exist because of the way that Xray wrappers
@@ -364,10 +365,15 @@ public:
 
     return NS_OK;
   }
-  virtual PRUint32 GetScriptableFlags()
+  NS_IMETHOD GetScriptableFlags(PRUint32 *aFlags)
   {
-    return nsDOMGenericSH::GetScriptableFlags() |
-           nsIXPCScriptable::WANT_POSTCREATE;
+    PRUint32 flags;
+    nsresult rv = nsDOMGenericSH::GetScriptableFlags(&flags);
+    if (NS_SUCCEEDED(rv)) {
+      *aFlags = flags | nsIXPCScriptable::WANT_POSTCREATE;
+    }
+
+    return rv;
   }
 #endif
   NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
@@ -480,28 +486,6 @@ public:
   }
 };
 
-// scriptable helper for new-binding objects without wrapper caches
-
-class nsNewDOMBindingNoWrapperCacheSH : public nsDOMGenericSH
-{
-protected:
-  nsNewDOMBindingNoWrapperCacheSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
-  {
-  }
-
-  virtual ~nsNewDOMBindingNoWrapperCacheSH()
-  {
-  }
-
-public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsNewDOMBindingNoWrapperCacheSH(aData);
-  }
-};
 
 // DOM Node helper, this class deals with setting the parent for the
 // wrappers
@@ -562,6 +546,8 @@ public:
                        JSObject *globalObj, JSObject **parentObj);
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj);
+  NS_IMETHOD Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                       JSObject *obj, bool *_retval);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -1528,6 +1514,40 @@ public:
   }
 };
 
+class nsWebGLViewportHandlerSH : public nsDOMGenericSH
+{
+protected:
+  nsWebGLViewportHandlerSH(nsDOMClassInfoData *aData) : nsDOMGenericSH(aData)
+  {
+  }
+
+  virtual ~nsWebGLViewportHandlerSH()
+  {
+  }
+
+public:
+  NS_IMETHOD PostCreatePrototype(JSContext * cx, JSObject * proto) {
+    nsresult rv = nsDOMGenericSH::PostCreatePrototype(cx, proto);
+    if (NS_SUCCEEDED(rv)) {
+      if (!::JS_DefineProperty(cx, proto, "VIEWPORT", INT_TO_JSVAL(0x0BA2),
+                               nsnull, nsnull, JSPROP_ENUMERATE))
+      {
+        return NS_ERROR_UNEXPECTED;
+      }
+    }
+    return rv;
+  }
+
+  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
+                       JSObject *globalObj, JSObject **parentObj);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsWebGLViewportHandlerSH(aData);
+  }
+};
+
+
 // Template for SVGXXXList helpers
  
 template<class ListInterfaceType, class ListType>
@@ -1574,60 +1594,6 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsSVGStringListSH(aData);
-  }
-};
-
-template<class T, class BaseType = T>
-class nsNewDOMBindingSH : public nsDOMGenericSH
-{
-protected:
-  nsNewDOMBindingSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
-  {
-  }
-
-  virtual ~nsNewDOMBindingSH()
-  {
-  }
-
-public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsNewDOMBindingSH<T, BaseType>(aData);
-  }
-};
-
-class nsWebGLViewportHandlerSH
-  : public nsNewDOMBindingSH<nsICanvasRenderingContextInternal>
-{
-protected:
-  nsWebGLViewportHandlerSH(nsDOMClassInfoData *aData)
-    : nsNewDOMBindingSH<nsICanvasRenderingContextInternal>(aData)
-  {
-  }
-
-  virtual ~nsWebGLViewportHandlerSH()
-  {
-  }
-
-public:
-  NS_IMETHOD PostCreatePrototype(JSContext * cx, JSObject * proto) {
-    nsresult rv = nsDOMGenericSH::PostCreatePrototype(cx, proto);
-    if (NS_SUCCEEDED(rv)) {
-      if (!::JS_DefineProperty(cx, proto, "VIEWPORT", INT_TO_JSVAL(0x0BA2),
-                               nsnull, nsnull, JSPROP_ENUMERATE))
-      {
-        return NS_ERROR_UNEXPECTED;
-      }
-    }
-    return rv;
-  }
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsWebGLViewportHandlerSH(aData);
   }
 };
 

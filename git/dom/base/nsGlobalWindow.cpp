@@ -62,8 +62,6 @@
 #include "nsAutoJSValHolder.h"
 #include "nsDOMMediaQueryList.h"
 #include "mozilla/dom/workers/Workers.h"
-#include "nsJSPrincipals.h"
-#include "mozilla/Attributes.h"
 
 // Interfaces Needed
 #include "nsIFrame.h"
@@ -257,7 +255,7 @@ static TimeStamp            gLastRecordedRecentTimeouts;
 PRInt32 gTimeoutCnt                                    = 0;
 #endif
 
-#if !(defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
+#if !(defined(NS_DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
 static bool                 gDOMWindowDumpEnabled      = false;
 #endif
 
@@ -415,7 +413,7 @@ static const char sPopStatePrefStr[] = "browser.history.allowPopState";
 /**
  * An object implementing the window.URL property.
  */
-class nsDOMMozURLProperty MOZ_FINAL : public nsIDOMMozURLProperty
+class nsDOMMozURLProperty : public nsIDOMMozURLProperty
 {
 public:
   nsDOMMozURLProperty(nsGlobalWindow* aWindow)
@@ -495,7 +493,7 @@ nsDOMMozURLProperty::RevokeObjectURL(const nsAString& aURL)
  * An indirect observer object that means we don't have to implement nsIObserver
  * on nsGlobalWindow, where any script could see it.
  */
-class nsGlobalWindowObserver MOZ_FINAL : public nsIObserver {
+class nsGlobalWindowObserver : public nsIObserver {
 public:
   nsGlobalWindowObserver(nsGlobalWindow* aWindow) : mWindow(aWindow) {}
   NS_DECL_ISUPPORTS
@@ -540,7 +538,7 @@ nsTimeout::~nsTimeout()
   MOZ_COUNT_DTOR(nsTimeout);
 }
 
-NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(nsTimeout)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsTimeout)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_NATIVE_0(nsTimeout)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTimeout)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mWindow,
@@ -713,7 +711,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
   gRefCnt++;
 
   if (gRefCnt == 1) {
-#if !(defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
+#if !(defined(NS_DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
     Preferences::AddBoolVarCache(&gDOMWindowDumpEnabled,
                                  "browser.dom.window.dump.enabled");
 #endif
@@ -1090,7 +1088,6 @@ nsGlobalWindow::FreeInnerObjects()
   }
 
   if (mScreen) {
-    mScreen->Reset();
     mScreen = nsnull;
   }
 
@@ -1228,7 +1225,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
   for (nsTimeout* timeout = tmp->FirstTimeout();
        tmp->IsTimeout(timeout);
        timeout = timeout->Next()) {
-    cb.NoteNativeChild(timeout, NS_CYCLE_COLLECTION_PARTICIPANT(nsTimeout));
+    cb.NoteNativeChild(timeout, &NS_CYCLE_COLLECTION_NAME(nsTimeout));
   }
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLocalStorage)
@@ -1539,7 +1536,7 @@ nsGlobalWindow::GetPopupControlState() const
 #define WINDOWSTATEHOLDER_IID \
 {0x0b917c3e, 0xbd50, 0x4683, {0xaf, 0xc9, 0xc7, 0x81, 0x07, 0xae, 0x33, 0x26}}
 
-class WindowStateHolder MOZ_FINAL : public nsISupports
+class WindowStateHolder : public nsISupports
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(WINDOWSTATEHOLDER_IID)
@@ -1835,14 +1832,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     if (!JS_RefreshCrossCompartmentWrappers(cx, mJSObject)) {
       return NS_ERROR_FAILURE;
     }
-
-    // Inner windows are only reused for same-origin principals, but the principals
-    // don't necessarily match exactly. Update the principal on the compartment to
-    // match the new document.
-    // NB: We don't just call currentInner->RefreshCompartmentPrincipals() here
-    // because we haven't yet set its mDoc to aDocument.
-    JS_SetCompartmentPrincipals(js::GetObjectCompartment(currentInner->mJSObject),
-                                nsJSPrincipals::get(aDocument->NodePrincipal()));
   } else {
     if (aState) {
       newInnerWindow = wsh->GetInnerWindow();
@@ -2058,7 +2047,9 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
                                            html_doc);
   }
 
-  aDocument->SetScriptGlobalObject(newInnerWindow);
+  if (aDocument) {
+    aDocument->SetScriptGlobalObject(newInnerWindow);
+  }
 
   if (!aState) {
     if (reUseInnerWindow) {
@@ -2074,7 +2065,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         ::JS_DeleteProperty(cx, currentInner->mJSObject, "document");
       }
     } else {
-      newInnerWindow->InnerSetNewDocument(aDocument);
+      rv = newInnerWindow->InnerSetNewDocument(aDocument);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       // Initialize DOM classes etc on the inner window.
       rv = mContext->InitClasses(newInnerWindow->mJSObject);
@@ -2154,14 +2146,14 @@ nsGlobalWindow::ClearStatus()
   SetDefaultStatus(EmptyString());
 }
 
-void
+nsresult
 nsGlobalWindow::InnerSetNewDocument(nsIDocument* aDocument)
 {
   NS_PRECONDITION(IsInnerWindow(), "Must only be called on inner windows");
-  MOZ_ASSERT(aDocument);
 
 #ifdef PR_LOGGING
-  if (gDOMLeakPRLog && PR_LOG_TEST(gDOMLeakPRLog, PR_LOG_DEBUG)) {
+  if (aDocument && gDOMLeakPRLog &&
+      PR_LOG_TEST(gDOMLeakPRLog, PR_LOG_DEBUG)) {
     nsIURI *uri = aDocument->GetDocumentURI();
     nsCAutoString spec;
     if (uri)
@@ -2185,6 +2177,8 @@ nsGlobalWindow::InnerSetNewDocument(nsIDocument* aDocument)
 
   // Clear our mutation bitfield.
   mMutationBits = 0;
+
+  return NS_OK;
 }
 
 void
@@ -4278,15 +4272,6 @@ nsGlobalWindow::DispatchCustomEvent(const char *aEventName)
   return defaultActionEnabled;
 }
 
-void
-nsGlobalWindow::RefreshCompartmentPrincipal()
-{
-  FORWARD_TO_INNER(RefreshCompartmentPrincipal, (), /* void */ );
-
-  JS_SetCompartmentPrincipals(js::GetObjectCompartment(mJSObject),
-                              nsJSPrincipals::get(mDoc->NodePrincipal()));
-}
-
 static already_AddRefed<nsIDocShellTreeItem>
 GetCallerDocShellTreeItem()
 {
@@ -4464,7 +4449,7 @@ nsGlobalWindow::GetFullScreen(bool* aFullScreen)
 bool
 nsGlobalWindow::DOMWindowDumpEnabled()
 {
-#if !(defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
+#if !(defined(NS_DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
   // In optimized builds we check a pref that controls if we should
   // enable output from dump() or not, in debug builds it's always
   // enabled.
@@ -8631,7 +8616,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
                                   aJSCallerContext, aReturn),
                    NS_ERROR_NOT_INITIALIZED);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   PRUint32 argc = 0;
   if (argv)
       argv->GetLength(&argc);
@@ -8656,7 +8641,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
   NS_ASSERTION(mDocShell, "Must have docshell here");
 
   const bool checkForPopup = !nsContentUtils::IsCallerChrome() &&
-    !IsPartOfApp() && !aDialog && !WindowExists(aName, !aCalledNoScript);
+    !aDialog && !WindowExists(aName, !aCalledNoScript);
 
   // Note: it's very important that this be an nsXPIDLCString, since we want
   // .get() on it to return nsnull until we write stuff to it.  The window

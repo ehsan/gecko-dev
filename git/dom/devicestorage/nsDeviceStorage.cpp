@@ -17,13 +17,12 @@
 #include "mozilla/Preferences.h"
 #include "nsJSUtils.h"
 #include "DictionaryHelpers.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla::dom;
 
 #include "nsDirectoryServiceDefs.h"
 
-class DeviceStorageFile MOZ_FINAL : public nsISupports {
+class DeviceStorageFile : public nsISupports {
 public:
 
   nsCOMPtr<nsIFile> mFile;
@@ -139,23 +138,15 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType, const PRInt32 aIn
   nsCOMPtr<nsIProperties> dirService = do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
   NS_ASSERTION(dirService, "Must have directory service");
 
-#ifdef MOZ_WIDGET_GONK
-  // check that /sdcard exists, if it doesn't go no further.
-  NS_NewLocalFile(NS_LITERAL_STRING("/sdcard"), false, getter_AddRefs(f));
-  bool check = false;
-  f->Exists(&check);
-  if (!check) {
-    mFile = nsnull;
-    return typeResult;
-  }
-  f = nsnull;
-#endif
-
   // Picture directory
   if (aType.Equals(NS_LITERAL_STRING("pictures"))) {
 #ifdef MOZ_WIDGET_GONK
     if (aIndex == 0) {
+      NS_NewLocalFile(NS_LITERAL_STRING("/data/pictures"), false, getter_AddRefs(f));
+    }
+    else if (aIndex == 1) {
       NS_NewLocalFile(NS_LITERAL_STRING("/sdcard/DCIM"), false, getter_AddRefs(f));
+      typeResult = DEVICE_STORAGE_TYPE_EXTERNAL;
     }
 #elif defined (MOZ_WIDGET_COCOA)
     if (aIndex == 0) {
@@ -172,7 +163,11 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType, const PRInt32 aIn
   if (aType.Equals(NS_LITERAL_STRING("videos"))) {
 #ifdef MOZ_WIDGET_GONK
     if (aIndex == 0) {
-      NS_NewLocalFile(NS_LITERAL_STRING("/sdcard/Movies"), false, getter_AddRefs(f));
+      NS_NewLocalFile(NS_LITERAL_STRING("/data/videos"), false, getter_AddRefs(f));
+    }
+    else if (aIndex == 1) {
+      NS_NewLocalFile(NS_LITERAL_STRING("/sdcard/videos"), false, getter_AddRefs(f));
+      typeResult = DEVICE_STORAGE_TYPE_EXTERNAL;
     }
 #elif defined (MOZ_WIDGET_COCOA)
     if (aIndex == 0) {
@@ -189,7 +184,11 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType, const PRInt32 aIn
   if (aType.Equals(NS_LITERAL_STRING("music"))) {
 #ifdef MOZ_WIDGET_GONK
     if (aIndex == 0) {
-      NS_NewLocalFile(NS_LITERAL_STRING("/sdcard/Music"), false, getter_AddRefs(f));
+      NS_NewLocalFile(NS_LITERAL_STRING("/data/music"), false, getter_AddRefs(f));
+    }
+    else if (aIndex == 1) {
+      NS_NewLocalFile(NS_LITERAL_STRING("/sdcard/music"), false, getter_AddRefs(f));
+      typeResult = DEVICE_STORAGE_TYPE_EXTERNAL;
     }
 #elif defined (MOZ_WIDGET_COCOA)
     if (aIndex == 0) {
@@ -329,7 +328,7 @@ protected:
   friend class ContinueCursorEvent;
 };
 
-class DeviceStorageCursorRequest MOZ_FINAL : public nsIContentPermissionRequest
+class DeviceStorageCursorRequest : public nsIContentPermissionRequest
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -888,7 +887,7 @@ private:
   nsRefPtr<DOMRequest> mRequest;
 };
 
-class DeviceStorageRequest MOZ_FINAL : public nsIContentPermissionRequest, public nsIRunnable
+class DeviceStorageRequest : public nsIContentPermissionRequest, public nsIRunnable
 {
 public:
 
@@ -937,7 +936,7 @@ public:
 
   NS_IMETHOD GetUri(nsIURI * *aRequestingURI)
   {
-    NS_IF_ADDREF(*aRequestingURI = mURI);
+    NS_ADDREF(*aRequestingURI = mURI);
     return NS_OK;
   }
 

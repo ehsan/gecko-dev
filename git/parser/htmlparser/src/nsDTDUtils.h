@@ -226,7 +226,7 @@ public:
 
 protected:
   nsFixedSizeAllocator mArenaPool;
-#ifdef  DEBUG
+#ifdef  NS_DEBUG
   int mTotals[eToken_last-1];
 #endif
 };
@@ -314,7 +314,7 @@ public:
   nsTokenAllocator  *mTokenAllocator;
   nsNodeAllocator   *mNodeAllocator;
 
-#ifdef  DEBUG
+#ifdef  NS_DEBUG
   enum { eMaxTags = MAX_REFLOW_DEPTH };
   eHTMLTags       mXTags[eMaxTags];
 #endif

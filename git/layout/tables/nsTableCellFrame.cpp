@@ -889,7 +889,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
     InvalidateFrameSubtree();
   }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   DebugCheckChildSize(firstKid, kidSize, availSize);
 #endif
 

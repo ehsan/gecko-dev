@@ -577,7 +577,7 @@
       </method>
     </implementation>
 
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
     <handlers>
       <handler event="DOMMouseScroll">
       <![CDATA[

@@ -173,24 +173,24 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 
   bool isHit = false;
 
-  nsRefPtr<gfxContext> tmpCtx =
+  nsRefPtr<gfxContext> context =
     new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  GeneratePath(tmpCtx, GetCanvasTM());
+  GeneratePath(context);
   gfxPoint userSpacePoint =
-    tmpCtx->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
-                                  PresContext()->AppUnitsToGfxUnits(aPoint.y)));
+    context->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
+                                   PresContext()->AppUnitsToGfxUnits(aPoint.y)));
 
   if (fillRule == NS_STYLE_FILL_RULE_EVENODD)
-    tmpCtx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
+    context->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
   else
-    tmpCtx->SetFillRule(gfxContext::FILL_RULE_WINDING);
+    context->SetFillRule(gfxContext::FILL_RULE_WINDING);
 
   if (hitTestFlags & SVG_HIT_TEST_FILL)
-    isHit = tmpCtx->PointInFill(userSpacePoint);
+    isHit = context->PointInFill(userSpacePoint);
   if (!isHit && (hitTestFlags & SVG_HIT_TEST_STROKE)) {
-    SetupCairoStrokeHitGeometry(tmpCtx);
-    isHit = tmpCtx->PointInStroke(userSpacePoint);
+    SetupCairoStrokeHitGeometry(context);
+    isHit = context->PointInStroke(userSpacePoint);
   }
 
   if (isHit && nsSVGUtils::HitTestClip(this, aPoint))
@@ -265,12 +265,9 @@ nsSVGPathGeometryFrame::NotifySVGChanged(PRUint32 aFlags)
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
-  // Ancestor changes can't affect how we render from the perspective of
-  // any rendering observers that we may have, so we don't need to
-  // invalidate them. We also don't need to invalidate ourself, since our
-  // changed ancestor will have invalidated its entire area, which includes
-  // our area.
-  nsSVGUtils::ScheduleBoundsUpdate(this);
+  if (!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS)) {
+    nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
+  }
 }
 
 SVGBBox
@@ -284,11 +281,11 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
     return bbox;
   }
 
-  nsRefPtr<gfxContext> tmpCtx =
+  nsRefPtr<gfxContext> context =
     new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  GeneratePath(tmpCtx, aToBBoxUserspace);
-  tmpCtx->IdentityMatrix();
+  GeneratePath(context, &aToBBoxUserspace);
+  context->IdentityMatrix();
 
   // Be careful when replacing the following logic to get the fill and stroke
   // extents independently (instead of computing the stroke extents from the
@@ -302,7 +299,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
   // # If the stroke is very thin, cairo won't paint any stroke, and so the
   //   stroke bounds that it will return will be empty.
 
-  gfxRect pathExtents = tmpCtx->GetUserPathExtent();
+  gfxRect pathExtents = context->GetUserPathExtent();
 
   // Account for fill:
   if ((aFlags & nsSVGUtils::eBBoxIncludeFill) != 0 &&
@@ -314,7 +311,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
   // Account for stroke:
   if ((aFlags & nsSVGUtils::eBBoxIncludeStroke) != 0 &&
       ((aFlags & nsSVGUtils::eBBoxIgnoreStrokeIfNone) == 0 || HasStroke())) {
-    // We can't use tmpCtx->GetUserStrokeExtent() since it doesn't work for
+    // We can't use context->GetUserStrokeExtent() since it doesn't work for
     // device space extents. Instead we approximate the stroke extents from
     // pathExtents using PathExtentsToMaxStrokeExtents.
     if (pathExtents.Width() <= 0 && pathExtents.Height() <= 0) {
@@ -322,10 +319,10 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
       // bounds depending on the value of stroke-linecap. We need to fix up
       // pathExtents before it can be used with PathExtentsToMaxStrokeExtents
       // though, because if pathExtents is empty, its position will not have
-      // been set. Happily we can use tmpCtx->GetUserStrokeExtent() to find
+      // been set. Happily we can use context->GetUserStrokeExtent() to find
       // the center point of the extents even though it gets the extents wrong.
-      SetupCairoStrokeGeometry(tmpCtx);
-      pathExtents.MoveTo(tmpCtx->GetUserStrokeExtent().Center());
+      SetupCairoStrokeGeometry(context);
+      pathExtents.MoveTo(context->GetUserStrokeExtent().Center());
       pathExtents.SizeTo(0, 0);
     }
     bbox.UnionEdges(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents,
@@ -461,12 +458,9 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext)
   /* save/restore the state so we don't screw up the xform */
   gfx->Save();
 
-  GeneratePath(gfx, GetCanvasTM());
+  GeneratePath(gfx);
 
   if (renderMode != SVGAutoRenderState::NORMAL) {
-    NS_ABORT_IF_FALSE(renderMode == SVGAutoRenderState::CLIP ||
-                      renderMode == SVGAutoRenderState::CLIP_MASK,
-                      "Unknown render mode");
     gfx->Restore();
 
     if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
@@ -498,15 +492,22 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext)
 
 void
 nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
-                                     const gfxMatrix &aTransform)
+                                     const gfxMatrix *aOverrideTransform)
 {
-  if (aTransform.IsSingular()) {
+  gfxMatrix matrix;
+  if (aOverrideTransform) {
+    matrix = *aOverrideTransform;
+  } else {
+    matrix = GetCanvasTM();
+  }
+
+  if (matrix.IsSingular()) {
     aContext->IdentityMatrix();
     aContext->NewPath();
     return;
   }
 
-  aContext->Multiply(aTransform);
+  aContext->Multiply(matrix);
 
   // Hack to let SVGPathData::ConstructPath know if we have square caps:
   const nsStyleSVG* style = GetStyleSVG();

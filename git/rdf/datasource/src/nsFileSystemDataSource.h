@@ -14,13 +14,12 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
 #if defined(XP_UNIX) || defined(XP_OS2) || defined(XP_WIN)
 #define USE_NC_EXTENSION
 #endif
 
-class FileSystemDataSource MOZ_FINAL : public nsIRDFDataSource
+class FileSystemDataSource : public nsIRDFDataSource
 {
 public:
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS

@@ -17,7 +17,6 @@
 #include "nsTArray.h"
 #include "rdf.h"
 #include "rdfutil.h"
-#include "mozilla/Attributes.h"
 
 #include "rdfIDataSource.h"
 
@@ -1009,7 +1008,7 @@ nsRDFXMLSerializer::SerializeEpilogue(nsIOutputStream* aStream)
     return rdf_BlockingWrite(aStream, NS_LITERAL_CSTRING("</RDF:RDF>\n"));
 }
 
-class QNameCollector MOZ_FINAL : public rdfITripleVisitor {
+class QNameCollector : public rdfITripleVisitor {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_RDFITRIPLEVISITOR

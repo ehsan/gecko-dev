@@ -340,10 +340,7 @@ ContactManager.prototype = {
 
         // Fire oncontactchange event
         if (this._oncontactchange) {
-          let event = new this._window.MozContactChangeEvent("contactchanged", {
-            contactID: msg.contactID,
-            reason: req.reason
-          });
+          let event = new MozContactEvent(msg.contactID, req.reason);
           this._oncontactchange.handleEvent(event);
         }
         break;
@@ -442,6 +439,33 @@ ContactManager.prototype = {
                                      classDescription: "ContactManager",
                                      interfaces: [nsIDOMContactManager],
                                      flags: nsIClassInfo.DOM_OBJECT})
+}
+
+// MozContactEvent object
+function MozContactEvent(aContactID, aReason) {
+  debug("ContactEventConstr: " + aContactID + ", " + aReason);
+  this._contactID = aContactID;
+  this._reason = aReason;
+}
+
+MozContactEvent.prototype = {
+  get contactID() {
+    return this._contactID;
+  },
+
+  get reason() {
+    return this._reason;
+  },
+
+  classID: Components.ID("{a8cd4ba0-93d1-11e1-b0c4-0800200c9a66}"),
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMContactEvent]),
+
+  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{a8cd4ba0-93d1-11e1-b0c4-0800200c9a66}"),
+                                    contractID: "@mozilla.org/contact-event;1",
+                                    interfaces: [Ci.mozIDOMContactEvent],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
+                                    classDescription: "Contact Change Event"})
 }
 
 const NSGetFactory = XPCOMUtils.generateNSGetFactory(

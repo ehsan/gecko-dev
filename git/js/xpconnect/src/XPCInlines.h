@@ -54,6 +54,13 @@ XPCCallContext::GetRuntime() const
     return mXPCContext->GetRuntime();
 }
 
+inline XPCPerThreadData*
+XPCCallContext::GetThreadData() const
+{
+    CHECK_STATE(HAVE_CONTEXT);
+    return mThreadData;
+}
+
 inline XPCContext*
 XPCCallContext::GetXPCContext() const
 {
@@ -255,28 +262,28 @@ inline jsid
 XPCCallContext::GetResolveName() const
 {
     CHECK_STATE(HAVE_CONTEXT);
-    return XPCJSRuntime::Get()->GetResolveName();
+    return mThreadData->GetResolveName();
 }
 
 inline jsid
 XPCCallContext::SetResolveName(jsid name)
 {
     CHECK_STATE(HAVE_CONTEXT);
-    return XPCJSRuntime::Get()->SetResolveName(name);
+    return mThreadData->SetResolveName(name);
 }
 
 inline XPCWrappedNative*
 XPCCallContext::GetResolvingWrapper() const
 {
     CHECK_STATE(HAVE_OBJECT);
-    return XPCJSRuntime::Get()->GetResolvingWrapper();
+    return mThreadData->GetResolvingWrapper();
 }
 
 inline XPCWrappedNative*
 XPCCallContext::SetResolvingWrapper(XPCWrappedNative* w)
 {
     CHECK_STATE(HAVE_OBJECT);
-    return XPCJSRuntime::Get()->SetResolvingWrapper(w);
+    return mThreadData->SetResolvingWrapper(w);
 }
 
 inline PRUint16

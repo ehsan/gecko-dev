@@ -1631,11 +1631,11 @@ PR_IMPLEMENT(PRStatus) PR_SetCurrentThreadName(const char *name)
         return PR_FAILURE;
 
     PR_Free(thread->name);
-    nameLen = strlen(name);
-    thread->name = (char *)PR_Malloc(nameLen + 1);
+    nameLen = strlen(name) + 1;
+    thread->name = (char *)PR_Malloc(nameLen);
     if (!thread->name)
         return PR_FAILURE;
-    memcpy(thread->name, name, nameLen + 1);
+    memcpy(thread->name, name, nameLen);
 
 #if defined(OPENBSD) || defined(FREEBSD)
     result = pthread_set_name_np(thread->id, name);
@@ -1657,16 +1657,9 @@ PR_IMPLEMENT(PRStatus) PR_SetCurrentThreadName(const char *name)
         return PR_SUCCESS;
 
 #define SETNAME_LENGTH_CONSTRAINT 15
-#define SETNAME_FRAGMENT1_LENGTH (SETNAME_LENGTH_CONSTRAINT >> 1)
-#define SETNAME_FRAGMENT2_LENGTH \
-    (SETNAME_LENGTH_CONSTRAINT - SETNAME_FRAGMENT1_LENGTH - 1)
     char name_dup[SETNAME_LENGTH_CONSTRAINT + 1];
-    if (nameLen > SETNAME_LENGTH_CONSTRAINT) {
-        memcpy(name_dup, name, SETNAME_FRAGMENT1_LENGTH);
-        name_dup[SETNAME_FRAGMENT1_LENGTH] = '~';
-        memcpy(name_dup + SETNAME_FRAGMENT1_LENGTH + 1,
-               name + nameLen - SETNAME_FRAGMENT2_LENGTH,
-               SETNAME_FRAGMENT2_LENGTH);
+    if (nameLen > SETNAME_LENGTH_CONSTRAINT + 1) {
+        memcpy(name_dup, name, SETNAME_LENGTH_CONSTRAINT);
         name_dup[SETNAME_LENGTH_CONSTRAINT] = '\0';
         name = name_dup;
     }

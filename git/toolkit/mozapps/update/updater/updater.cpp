@@ -750,7 +750,7 @@ static int rename_file(const NS_tchar *spath, const NS_tchar *dpath,
     if (allowDirs && !S_ISDIR(spathInfo.st_mode)) {
       LOG(("rename_file: path present, but not a file: " LOG_S ", err: %d\n",
            spath, errno));
-      return UNEXPECTED_FILE_OPERATION_ERROR;
+      return UNEXPECTED_ERROR;
     } else {
       LOG(("rename_file: proceeding to rename the directory\n"));
     }
@@ -937,7 +937,7 @@ RemoveFile::Prepare()
 
   if (!S_ISREG(fileInfo.st_mode)) {
     LOG(("path present, but not a file: " LOG_S "\n", mFile));
-    return UNEXPECTED_FILE_OPERATION_ERROR;
+    return UNEXPECTED_ERROR;
   }
 
   NS_tchar *slash = (NS_tchar *) NS_tstrrchr(mFile, NS_T('/'));
@@ -1046,7 +1046,7 @@ RemoveDir::Prepare()
 
   if (!S_ISDIR(dirInfo.st_mode)) {
     LOG(("path present, but not a directory: " LOG_S "\n", mDir));
-    return UNEXPECTED_FILE_OPERATION_ERROR;
+    return UNEXPECTED_ERROR;
   }
 
   rv = NS_taccess(mDir, W_OK);
@@ -1238,7 +1238,7 @@ PatchFile::LoadSourceFile(FILE* ofile)
   if (PRUint32(os.st_size) != header.slen) {
     LOG(("LoadSourceFile: destination file size %d does not match expected size %d\n",
          PRUint32(os.st_size), header.slen));
-    return UNEXPECTED_FILE_OPERATION_ERROR;
+    return UNEXPECTED_ERROR;
   }
 
   buf = (unsigned char *) malloc(header.slen);
@@ -2431,19 +2431,6 @@ int NS_main(int argc, NS_tchar **argv)
         useService = IsLocalFile(argv[0], isLocal) && isLocal;
       }
 
-      // If we have unprompted elevation we should NOT use the service
-      // for the update. Service updates happen with the SYSTEM account
-      // which has more privs than we need to update with.
-      // Windows 8 provides a user interface so users can configure this
-      // behavior and it can be configured in the registry in all Windows
-      // versions that support UAC.
-      if (useService) {
-        BOOL unpromptedElevation;
-        if (IsUnpromptedElevation(unpromptedElevation)) {
-          useService = !unpromptedElevation;
-        }
-      }
-
       // Make sure the service registry entries for the instsallation path
       // are available.  If not don't use the service.
       if (useService) {
@@ -2756,7 +2743,6 @@ int NS_main(int argc, NS_tchar **argv)
       // multiple times before giving up.
       const int max_retries = 10;
       int retries = 1;
-      DWORD lastWriteError = 0;
       do {
         // By opening a file handle wihout FILE_SHARE_READ to the callback
         // executable, the OS will prevent launching the process while it is
@@ -2769,10 +2755,10 @@ int NS_main(int argc, NS_tchar **argv)
         if (callbackFile != INVALID_HANDLE_VALUE)
           break;
 
-        lastWriteError = GetLastError();
+        DWORD lastError = GetLastError();
         LOG(("NS_main: callback app open attempt %d failed. " \
              "File: " LOG_S ". Last error: %d\n", retries,
-             targetPath, lastWriteError));
+             targetPath, lastError));
 
         Sleep(100);
       } while (++retries <= max_retries);
@@ -2783,13 +2769,7 @@ int NS_main(int argc, NS_tchar **argv)
         LOG(("NS_main: file in use - failed to exclusively open executable " \
              "file: " LOG_S "\n", argv[callbackIndex]));
         LogFinish();
-        if (ERROR_ACCESS_DENIED == lastWriteError) {
-          WriteStatusFile(WRITE_ERROR_ACCESS_DENIED);
-        } else if (ERROR_SHARING_VIOLATION == lastWriteError) {
-          WriteStatusFile(WRITE_ERROR_SHARING_VIOLATION);
-        } else {
-          WriteStatusFile(WRITE_ERROR_CALLBACK_APP);
-        }
+        WriteStatusFile(WRITE_ERROR);
         NS_tremove(gCallbackBackupPath);
         EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
         LaunchCallbackApp(argv[4],
@@ -2938,7 +2918,7 @@ ActionList::Prepare()
   // actually done. See bug 327140.
   if (mCount == 0) {
     LOG(("empty action list\n"));
-    return UNEXPECTED_MAR_ERROR;
+    return UNEXPECTED_ERROR;
   }
 
   Action *a = mFirst;
@@ -3098,7 +3078,7 @@ int add_dir_entries(const NS_tchar *dirpath, ActionList *list)
   if (!dir) {
     LOG(("add_dir_entries error on opendir: " LOG_S ", err: %d\n", searchpath,
          errno));
-    return UNEXPECTED_FILE_OPERATION_ERROR;
+    return UNEXPECTED_ERROR;
   }
 
   while (readdir_r(dir, (dirent *)&ent_buf, &ent) == 0 && ent) {
@@ -3112,7 +3092,7 @@ int add_dir_entries(const NS_tchar *dirpath, ActionList *list)
     int test = stat64(foundpath, &st_buf);
     if (test) {
       closedir(dir);
-      return UNEXPECTED_FILE_OPERATION_ERROR;
+      return UNEXPECTED_ERROR;
     }
     if (S_ISDIR(st_buf.st_mode)) {
       NS_tsnprintf(foundpath, sizeof(foundpath)/sizeof(foundpath[0]),
@@ -3185,7 +3165,7 @@ int add_dir_entries(const NS_tchar *dirpath, ActionList *list)
   if (!(ftsdir = fts_open(pathargv,
                           FTS_PHYSICAL | FTS_NOSTAT | FTS_XDEV | FTS_NOCHDIR,
                           NULL)))
-    return UNEXPECTED_FILE_OPERATION_ERROR;
+    return UNEXPECTED_ERROR;
 
   while ((ftsdirEntry = fts_read(ftsdir)) != NULL) {
     NS_tchar foundpath[MAXPATHLEN];
@@ -3249,13 +3229,13 @@ int add_dir_entries(const NS_tchar *dirpath, ActionList *list)
         // Fall through
 
       case FTS_ERR:
-        rv = UNEXPECTED_FILE_OPERATION_ERROR;
+        rv = UNEXPECTED_ERROR;
         LOG(("add_dir_entries: fts_read() error: " LOG_S ", err: %d\n",
              ftsdirEntry->fts_path, ftsdirEntry->fts_errno));
         break;
 
       case FTS_DC:
-        rv = UNEXPECTED_FILE_OPERATION_ERROR;
+        rv = UNEXPECTED_ERROR;
         LOG(("add_dir_entries: fts_read() returned FT_DC: " LOG_S "\n",
              ftsdirEntry->fts_path));
         break;

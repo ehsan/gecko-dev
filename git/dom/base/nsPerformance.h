@@ -11,7 +11,6 @@
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
 
 class nsIDocument;
 class nsIURI;
@@ -19,7 +18,7 @@ class nsDOMNavigationTiming;
 class nsITimedChannel;
 
 // Script "performance.timing" object
-class nsPerformanceTiming MOZ_FINAL : public nsIDOMPerformanceTiming
+class nsPerformanceTiming : public nsIDOMPerformanceTiming
 {
 public:
   nsPerformanceTiming(nsDOMNavigationTiming* aDOMTiming, nsITimedChannel* aChannel);
@@ -32,7 +31,7 @@ private:
 };
 
 // Script "performance.navigation" object
-class nsPerformanceNavigation MOZ_FINAL : public nsIDOMPerformanceNavigation
+class nsPerformanceNavigation : public nsIDOMPerformanceNavigation
 {
 public:
   nsPerformanceNavigation(nsDOMNavigationTiming* data);
@@ -44,7 +43,7 @@ private:
 };
 
 // Script "performance" object
-class nsPerformance MOZ_FINAL : public nsIDOMPerformance
+class nsPerformance : public nsIDOMPerformance
 {
 public:
   nsPerformance(nsDOMNavigationTiming* aDOMTiming, nsITimedChannel* aChannel);

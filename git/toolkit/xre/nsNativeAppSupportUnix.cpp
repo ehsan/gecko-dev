@@ -399,7 +399,6 @@ nsNativeAppSupportUnix::Start(bool *aRetVal)
 {
   NS_ASSERTION(gAppData, "gAppData must not be null.");
 
-#if (MOZ_WIDGET_GTK == 2)
   if (gtk_major_version < MIN_GTK_MAJOR_VERSION ||
       (gtk_major_version == MIN_GTK_MAJOR_VERSION && gtk_minor_version < MIN_GTK_MINOR_VERSION)) {
     GtkWidget* versionErrDialog = gtk_message_dialog_new(NULL,
@@ -416,7 +415,6 @@ nsNativeAppSupportUnix::Start(bool *aRetVal)
     gtk_widget_destroy(versionErrDialog);
     exit(0);
   }
-#endif
 
 #if (MOZ_PLATFORM_MAEMO == 5)
   /* zero state out. */
@@ -461,7 +459,7 @@ nsNativeAppSupportUnix::Start(bool *aRetVal)
 
   *aRetVal = true;
 
-#if defined(MOZ_X11) && (MOZ_WIDGET_GTK == 2)
+#ifdef MOZ_X11
 
   PRLibrary *gnomeuiLib = PR_LoadLibrary("libgnomeui-2.so.0");
   if (!gnomeuiLib)
@@ -484,7 +482,7 @@ nsNativeAppSupportUnix::Start(bool *aRetVal)
     return NS_OK;
   }
 
-#endif /* MOZ_X11 && (MOZ_WIDGET_GTK == 2) */
+#endif /* MOZ_X11 */
 
 #ifdef ACCESSIBILITY
   // We will load gail, atk-bridge by ourself later
@@ -495,11 +493,11 @@ nsNativeAppSupportUnix::Start(bool *aRetVal)
   setenv(accEnv, "0", 1);
 #endif
 
-#if defined(MOZ_X11) && (MOZ_WIDGET_GTK == 2)
+#ifdef MOZ_X11
   if (!gnome_program_get()) {
     gnome_program_init("Gecko", "1.0", libgnomeui_module_info_get(), gArgc, gArgv, NULL);
   }
-#endif /* MOZ_X11 && (MOZ_WIDGET_GTK == 2) */
+#endif /* MOZ_X11 */
 
 #ifdef ACCESSIBILITY
   if (accOldValue) { 
@@ -513,8 +511,7 @@ nsNativeAppSupportUnix::Start(bool *aRetVal)
   // gnome_program_init causes atexit handlers to be registered. Strange
   // crashes will occur if these libraries are unloaded.
 
-  // TODO GTK3 - see Bug 694570 - Stop using libgnome and libgnomeui on Linux
-#if defined(MOZ_X11) && (MOZ_WIDGET_GTK == 2)
+#ifdef MOZ_X11
   gnome_client_set_restart_command = (_gnome_client_set_restart_command_fn)
     PR_FindFunctionSymbol(gnomeuiLib, "gnome_client_set_restart_command");
 
@@ -557,7 +554,7 @@ nsNativeAppSupportUnix::Start(bool *aRetVal)
   if (argv1) {
     gnome_client_set_restart_command(client, 1, &argv1);
   }
-#endif /* MOZ_X11 && (MOZ_WIDGET_GTK == 2) */
+#endif /* MOZ_X11 */
 
   return NS_OK;
 }

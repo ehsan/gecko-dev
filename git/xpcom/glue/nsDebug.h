@@ -17,6 +17,7 @@
 #include "nsXPCOM.h"
 
 #ifdef DEBUG
+#define NS_DEBUG
 #include "prprf.h"
 #endif
 
@@ -131,7 +132,7 @@
 #define NS_BREAK()                                            \
   NS_DebugBreak(NS_DEBUG_BREAK, nsnull, nsnull, __FILE__, __LINE__)
 
-#else /* DEBUG */
+#else /* NS_DEBUG */
 
 /**
  * The non-debug version of these macros do not evaluate the
@@ -149,7 +150,7 @@
 #define NS_ABORT()                     PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
 #define NS_BREAK()                     PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
 
-#endif /* ! DEBUG */
+#endif /* ! NS_DEBUG */
 
 /******************************************************************************
 ** Macros for static assertions.  These are used by the sixgill tool.
@@ -228,7 +229,7 @@
 
 /******************************************************************************
 ** Macros for terminating execution when an unrecoverable condition is
-** reached.  These need to be compiled regardless of the DEBUG flag. 
+** reached.  These need to be compiled regardless of the NS_DEBUG flag. 
 ******************************************************************************/
 
 /**
@@ -242,7 +243,7 @@
 
 /* Macros for checking the trueness of an expression passed in within an 
  * interface implementation.  These need to be compiled regardless of the */
-/* DEBUG flag
+/* NS_DEBUG flag
 ******************************************************************************/
 
 #define NS_ENSURE_TRUE(x, ret)                                \

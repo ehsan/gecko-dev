@@ -130,7 +130,7 @@ private:
   bool mCreating;
 };
 
-class FinishHelper MOZ_FINAL : public nsIRunnable
+class FinishHelper : public nsIRunnable
 {
   friend class LockedFile;
 

@@ -8,6 +8,7 @@ var testGenerator = testSteps();
 function testSteps()
 {
   const name = this.window ? window.location.pathname : "Splendid Test";
+  const description = "My Test Database";
   const objectStoreInfo = [
     { name: "1", options: { keyPath: null } },
     { name: "2", options: { keyPath: null, autoIncrement: true } },
@@ -25,10 +26,9 @@ function testSteps()
     { name: undefined }
   ];
 
-  let request = mozIndexedDB.open(name, 1);
+  let request = mozIndexedDB.open(name, 1, description);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  request.onsuccess = unexpectedSuccessHandler;
   let event = yield;
 
   let db = event.target.result;
@@ -98,11 +98,6 @@ function testSteps()
     }
     is(found, true, "transaction has correct objectStoreNames list");
   }
-
-  request.onsuccess = grabEventAndContinueHandler;
-  request.onupgradeneeded = unexpectedSuccessHandler;
-
-  event = yield;
 
   finishTest();
   yield;

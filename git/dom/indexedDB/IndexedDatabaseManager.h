@@ -7,7 +7,10 @@
 #ifndef mozilla_dom_indexeddb_indexeddatabasemanager_h__
 #define mozilla_dom_indexeddb_indexeddatabasemanager_h__
 
+#include "mozilla/dom/indexedDB/FileManager.h"
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBDatabase.h"
+#include "mozilla/dom/indexedDB/IDBRequest.h"
 
 #include "mozilla/Mutex.h"
 
@@ -24,17 +27,14 @@
 #define INDEXEDDB_MANAGER_CONTRACTID "@mozilla.org/dom/indexeddb/manager;1"
 
 class mozIStorageQuotaCallback;
-class nsIAtom;
 class nsIFile;
 class nsITimer;
-class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
+
 class CheckQuotaHelper;
-class FileManager;
-class IDBDatabase;
 
 class IndexedDatabaseManager MOZ_FINAL : public nsIIndexedDatabaseManager,
                                          public nsIObserver
@@ -74,29 +74,26 @@ public:
 
   static bool IsClosed();
 
-  typedef void
-  (*WaitingOnDatabasesCallback)(nsTArray<nsRefPtr<IDBDatabase> >&, void*);
+  typedef void (*WaitingOnDatabasesCallback)(nsTArray<nsRefPtr<IDBDatabase> >&, void*);
 
   // Acquire exclusive access to the database given (waits for all others to
   // close).  If databases need to close first, the callback will be invoked
   // with an array of said databases.
   nsresult AcquireExclusiveAccess(IDBDatabase* aDatabase,
-                                  const nsACString& aOrigin,
                                   AsyncConnectionHelper* aHelper,
                                   WaitingOnDatabasesCallback aCallback,
                                   void* aClosure)
   {
     NS_ASSERTION(aDatabase, "Need a DB here!");
-    return AcquireExclusiveAccess(aOrigin, aDatabase, aHelper, nsnull,
+    return AcquireExclusiveAccess(aDatabase->Origin(), aDatabase, aHelper,
                                   aCallback, aClosure);
   }
-
-  nsresult AcquireExclusiveAccess(const nsACString& aOrigin,
-                                  nsIRunnable* aRunnable,
+  nsresult AcquireExclusiveAccess(const nsACString& aOrigin, 
+                                  AsyncConnectionHelper* aHelper,
                                   WaitingOnDatabasesCallback aCallback,
                                   void* aClosure)
   {
-    return AcquireExclusiveAccess(aOrigin, nsnull, nsnull, aRunnable, aCallback,
+    return AcquireExclusiveAccess(aOrigin, nsnull, aHelper, aCallback,
                                   aClosure);
   }
 
@@ -200,10 +197,9 @@ private:
   IndexedDatabaseManager();
   ~IndexedDatabaseManager();
 
-  nsresult AcquireExclusiveAccess(const nsACString& aOrigin,
+  nsresult AcquireExclusiveAccess(const nsACString& aOrigin, 
                                   IDBDatabase* aDatabase,
                                   AsyncConnectionHelper* aHelper,
-                                  nsIRunnable* aRunnable,
                                   WaitingOnDatabasesCallback aCallback,
                                   void* aClosure);
 
@@ -230,54 +226,23 @@ private:
   // IndexedDatabaseManager that the job has been completed.
   class OriginClearRunnable MOZ_FINAL : public nsIRunnable
   {
-    enum CallbackState {
-      // Not yet run.
-      Pending = 0,
-
-      // Running on the main thread in the callback for OpenAllowed.
-      OpenAllowed,
-
-      // Running on the IO thread.
-      IO,
-
-      // Running on the main thread after all work is done.
-      Complete
-    };
-
   public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIRUNNABLE
 
-    OriginClearRunnable(const nsACString& aOrigin)
+    OriginClearRunnable(const nsACString& aOrigin,
+                        nsIThread* aThread)
     : mOrigin(aOrigin),
-      mCallbackState(Pending)
+      mThread(aThread),
+      mFirstCallback(true)
     { }
 
-    void AdvanceState()
-    {
-      switch (mCallbackState) {
-        case Pending:
-          mCallbackState = OpenAllowed;
-          return;
-        case OpenAllowed:
-          mCallbackState = IO;
-          return;
-        case IO:
-          mCallbackState = Complete;
-          return;
-        default:
-          NS_NOTREACHED("Can't advance past Complete!");
-      }
-    }
-
-    static void InvalidateOpenedDatabases(
-                                   nsTArray<nsRefPtr<IDBDatabase> >& aDatabases,
-                                   void* aClosure);
-
-  private:
     nsCString mOrigin;
-    CallbackState mCallbackState;
+    nsCOMPtr<nsIThread> mThread;
+    bool mFirstCallback;
   };
+
+  bool IsClearOriginPending(const nsACString& origin);
 
   // Responsible for calculating the amount of space taken up by databases of a
   // certain origin. Created when nsIIDBIndexedDatabaseManager::GetUsageForURI
@@ -290,22 +255,6 @@ private:
   // IndexedDatabaseManager that the job has been completed.
   class AsyncUsageRunnable MOZ_FINAL : public nsIRunnable
   {
-    enum CallbackState {
-      // Not yet run.
-      Pending = 0,
-
-      // Running on the main thread in the callback for OpenAllowed.
-      OpenAllowed,
-
-      // Running on the IO thread.
-      IO,
-
-      // Running on the main thread after all work is done.
-      Complete,
-
-      // Running on the main thread after skipping the work
-      Shortcut
-    };
   public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIRUNNABLE
@@ -317,25 +266,6 @@ private:
     // Sets the canceled flag so that the callback is never called.
     void Cancel();
 
-    void AdvanceState()
-    {
-      switch (mCallbackState) {
-        case Pending:
-          mCallbackState = OpenAllowed;
-          return;
-        case OpenAllowed:
-          mCallbackState = IO;
-          return;
-        case IO:
-          mCallbackState = Complete;
-          return;
-        default:
-          NS_NOTREACHED("Can't advance past Complete!");
-      }
-    }
-
-    nsresult TakeShortcut();
-
     // Run calls the RunInternal method and makes sure that we always dispatch
     // to the main thread in case of an error.
     inline nsresult RunInternal();
@@ -345,12 +275,10 @@ private:
 
     nsCOMPtr<nsIURI> mURI;
     nsCString mOrigin;
-
     nsCOMPtr<nsIIndexedDatabaseUsageCallback> mCallback;
     PRUint64 mUsage;
     PRUint64 mFileUsage;
     PRInt32 mCanceled;
-    CallbackState mCallbackState;
   };
 
   // Called when AsyncUsageRunnable has finished its Run() method.
@@ -373,7 +301,6 @@ private:
     const nsCString mOrigin;
     nsCOMPtr<nsIAtom> mId;
     nsRefPtr<AsyncConnectionHelper> mHelper;
-    nsCOMPtr<nsIRunnable> mRunnable;
     nsTArray<nsCOMPtr<nsIRunnable> > mDelayedRunnables;
     nsTArray<nsRefPtr<IDBDatabase> > mDatabases;
   };
@@ -389,8 +316,7 @@ private:
     {
       NS_ASSERTION(mOp, "Why don't we have a runnable?");
       NS_ASSERTION(mOp->mDatabases.IsEmpty(), "We're here too early!");
-      NS_ASSERTION(mOp->mHelper || mOp->mRunnable,
-                   "What are we supposed to do when we're done?");
+      NS_ASSERTION(mOp->mHelper, "What are we supposed to do when we're done?");
       NS_ASSERTION(mCountdown, "Wrong countdown!");
     }
 
@@ -435,26 +361,7 @@ private:
     nsString mFilePath;
   };
 
-  static nsresult RunSynchronizedOp(IDBDatabase* aDatabase,
-                                    SynchronizedOp* aOp);
-
-  SynchronizedOp* FindSynchronizedOp(const nsACString& aOrigin,
-                                     nsIAtom* aId)
-  {
-    for (PRUint32 index = 0; index < mSynchronizedOps.Length(); index++) {
-      const nsAutoPtr<SynchronizedOp>& currentOp = mSynchronizedOps[index];
-      if (currentOp->mOrigin == aOrigin &&
-          (!currentOp->mId || currentOp->mId == aId)) {
-        return currentOp;
-      }
-    }
-    return nsnull;
-  }
-
-  bool IsClearOriginPending(const nsACString& aOrigin)
-  {
-    return !!FindSynchronizedOp(aOrigin, nsnull);
-  }
+  static nsresult DispatchHelper(AsyncConnectionHelper* aHelper);
 
   // Maintains a list of live databases per origin.
   nsClassHashtable<nsCStringHashKey, nsTArray<IDBDatabase*> > mLiveDatabases;

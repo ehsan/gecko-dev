@@ -9,7 +9,6 @@
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 #include "nsIDOMEventListener.h"
-#include "mozilla/Attributes.h"
 
 //
 // <maction> -- bind actions to a subexpression
@@ -61,7 +60,7 @@ private:
   void MouseOver();
   void MouseOut();
 
-  class MouseListener MOZ_FINAL : public nsIDOMEventListener
+  class MouseListener : public nsIDOMEventListener
   {
     NS_DECL_ISUPPORTS
     NS_DECL_NSIDOMEVENTLISTENER

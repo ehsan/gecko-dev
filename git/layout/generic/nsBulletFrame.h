@@ -67,7 +67,7 @@ public:
                               const nsDisplayListSet& aLists);
   virtual nsIAtom* GetType() const;
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
@@ -130,6 +130,7 @@ protected:
   nsRefPtr<nsBulletListener> mListener;
 
   nsSize mIntrinsicSize;
+  nsSize mComputedSize;
   PRInt32 mOrdinal;
   bool mTextIsRTL;
 

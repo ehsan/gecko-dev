@@ -140,7 +140,7 @@ static void RefreshContentFrames(nsPresContext* aPresContext, nsIContent * aStar
 
 // Formerly the nsIFrameDebug interface
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 static bool gShowFrameBorders = false;
 
 void nsFrame::ShowFrameBorders(bool aEnable)
@@ -499,7 +499,7 @@ nsFrame::Init(nsIContent*      aContent,
     mState |= NS_FRAME_MAY_BE_TRANSFORMED;
   }
 
-  if (nsLayoutUtils::FontSizeInflationEnabled(PresContext()) || !GetParent()
+  if (nsLayoutUtils::FontSizeInflationEnabled(PresContext())
 #ifdef DEBUG
       // We have assertions that check inflation invariants even when
       // font size inflation is not enabled.
@@ -1607,7 +1607,7 @@ BuildDisplayListWithOverflowClip(nsDisplayListBuilder* aBuilder, nsIFrame* aFram
   return aFrame->OverflowClip(aBuilder, set, aSet, aClipRect, aClipRadii);
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 static void PaintDebugBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
   nsRect r(aPt, aFrame->GetSize());
@@ -1873,7 +1873,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   // The element's outline items need to all come before any child outline
   // items.
   set.Outlines()->SortByContentOrder(aBuilder, GetContent());
-#ifdef DEBUG
+#ifdef NS_DEBUG
   DisplayDebugBorders(aBuilder, this, set);
 #endif
   resultList.AppendToTop(set.Outlines());
@@ -2101,7 +2101,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
         rv = aBuilder->DisplayCaret(child, dirty, aLists.Content());
       }
     }
-#ifdef DEBUG
+#ifdef NS_DEBUG
     DisplayDebugBorders(aBuilder, child, aLists);
 #endif
     return rv;
@@ -2157,7 +2157,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     list.AppendToTop(pseudoStack.Content());
     list.AppendToTop(pseudoStack.Outlines());
     extraPositionedDescendants.AppendToTop(pseudoStack.PositionedDescendants());
-#ifdef DEBUG
+#ifdef NS_DEBUG
     DisplayDebugBorders(aBuilder, child, aLists);
 #endif
   }
@@ -4655,7 +4655,7 @@ nsIFrame::InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
 {
   nsSVGEffects::InvalidateDirectRenderingObservers(this);
   if (nsSVGIntegrationUtils::UsingEffectsForFrame(this)) {
-    nsRect r = nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(this,
+    nsRect r = nsSVGIntegrationUtils::GetInvalidAreaForChangedSource(this,
             aDamageRect + nsPoint(aX, aY));
     /* Rectangle is now in our own local space, so aX and aY are effectively
      * zero.  Thus we'll pretend that the entire time this was in our own
@@ -4924,7 +4924,7 @@ ComputeOutlineAndEffectsRect(nsIFrame* aFrame, bool* aAnyOutlineOrEffects,
       aFrame->Properties().
         Set(nsIFrame::PreEffectsBBoxProperty(), new nsRect(r));
     }
-    r = nsSVGIntegrationUtils::ComputePostEffectsVisualOverflowRect(aFrame, r);
+    r = nsSVGIntegrationUtils::ComputeFrameEffectsRect(aFrame, r);
   }
 
   return r;
@@ -4999,14 +4999,6 @@ nsIFrame::GetVisualOverflowRectRelativeToSelf() const
       return preTransformOverflows->VisualOverflow();
   }
   return GetVisualOverflowRect();
-}
-
-nsRect
-nsIFrame::GetPreEffectsVisualOverflowRect() const
-{
-  nsRect* r = static_cast<nsRect*>
-    (Properties().Get(nsIFrame::PreEffectsBBoxProperty()));
-  return r ? *r : GetVisualOverflowRectRelativeToSelf();
 }
 
 /* virtual */ bool
@@ -5216,7 +5208,7 @@ nsIFrame::GetContainingBlock() const
   return GetNearestBlockContainer(GetParent());
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 
 PRInt32 nsFrame::ContentIndexInContainer(const nsIFrame* aFrame)
 {
@@ -5468,7 +5460,7 @@ nsIFrame::GetConstFrameSelection() const
   return PresContext()->PresShell()->ConstFrameSelection();
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 NS_IMETHODIMP
 nsFrame::DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent)
 {
@@ -8043,7 +8035,7 @@ nsFrame::GetBoxName(nsAutoString& aName)
 }
 #endif
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 static void
 GetTagName(nsFrame* aFrame, nsIContent* aContent, PRIntn aResultSize,
            char* aResult)

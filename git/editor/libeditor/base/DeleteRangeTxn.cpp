@@ -5,7 +5,9 @@
 
 #include "DeleteRangeTxn.h"
 #include "nsIDOMRange.h"
+#include "nsIDOMCharacterData.h"
 #include "nsIDOMNodeList.h"
+#include "nsISelection.h"
 #include "DeleteTextTxn.h"
 #include "DeleteElementTxn.h"
 #include "nsIContentIterator.h"
@@ -16,7 +18,7 @@
 
 using namespace mozilla;
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 static bool gNoisy = false;
 #endif
 
@@ -55,7 +57,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DeleteRangeTxn)
 NS_INTERFACE_MAP_END_INHERITING(EditAggregateTxn)
 
-NS_IMETHODIMP DeleteRangeTxn::Init(nsEditor *aEditor,
+NS_IMETHODIMP DeleteRangeTxn::Init(nsIEditor *aEditor, 
                                    nsIDOMRange *aRange,
                                    nsRangeUpdater *aRangeUpdater)
 {
@@ -110,7 +112,7 @@ NS_IMETHODIMP DeleteRangeTxn::Init(nsEditor *aEditor,
 
 NS_IMETHODIMP DeleteRangeTxn::DoTransaction(void)
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy) { printf("Do Delete Range\n"); }
 #endif
 
@@ -171,7 +173,7 @@ NS_IMETHODIMP DeleteRangeTxn::DoTransaction(void)
 
 NS_IMETHODIMP DeleteRangeTxn::UndoTransaction(void)
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy) { printf("Undo Delete Range\n"); }
 #endif
 
@@ -182,7 +184,7 @@ NS_IMETHODIMP DeleteRangeTxn::UndoTransaction(void)
 
 NS_IMETHODIMP DeleteRangeTxn::RedoTransaction(void)
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy) { printf("Redo Delete Range\n"); }
 #endif
 

@@ -16,7 +16,6 @@ DWORD WaitForProcessExit(LPCWSTR filename, DWORD maxSeconds);
 BOOL DoesFallbackKeyExist();
 BOOL IsLocalFile(LPCWSTR file, BOOL &isLocal);
 DWORD StartServiceCommand(int argc, LPCWSTR* argv);
-BOOL IsUnpromptedElevation(BOOL &isUnpromptedElevation);
 
 #define SVC_NAME L"MozillaMaintenance"
 

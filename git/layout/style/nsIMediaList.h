@@ -16,7 +16,6 @@
 #include "nsTArray.h"
 #include "nsIAtom.h"
 #include "nsCSSValue.h"
-#include "mozilla/Attributes.h"
 
 class nsPresContext;
 class nsCSSStyleSheet;
@@ -143,7 +142,7 @@ private:
   nsTArray<nsMediaExpression> mExpressions;
 };
 
-class nsMediaList MOZ_FINAL : public nsIDOMMediaList {
+class nsMediaList : public nsIDOMMediaList {
 public:
   nsMediaList();
 

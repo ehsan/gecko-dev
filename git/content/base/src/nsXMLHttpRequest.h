@@ -182,7 +182,7 @@ public:
   static already_AddRefed<nsXMLHttpRequest>
   Constructor(JSContext* aCx,
               nsISupports* aGlobal,
-              const mozilla::dom::Nullable<mozilla::dom::MozXMLHttpRequestParameters>& aParams,
+              const mozilla::dom::Optional<jsval>& aParams,
               ErrorResult& aRv)
   {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal);
@@ -194,9 +194,12 @@ public:
 
     nsRefPtr<nsXMLHttpRequest> req = new nsXMLHttpRequest();
     req->Construct(principal->GetPrincipal(), window);
-    if (!aParams.IsNull()) {
-      const mozilla::dom::MozXMLHttpRequestParameters& params = aParams.Value();
-      req->InitParameters(params.mozAnon, params.mozSystem);
+    if (aParams.WasPassed()) {
+      nsresult rv = req->InitParameters(aCx, &aParams.Value());
+      if (NS_FAILED(rv)) {
+        aRv.Throw(rv);
+        return req.forget();
+      }
     }
     return req.forget();
   }
@@ -214,7 +217,6 @@ public:
 
   // Initialize XMLHttpRequestParameter object.
   nsresult InitParameters(JSContext* aCx, const jsval* aParams);
-  void InitParameters(bool aAnon, bool aSystem);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -370,60 +372,63 @@ private:
   };
 
   static nsresult GetRequestBody(nsIVariant* aVariant,
+                                 JSContext* aCx,
                                  const Nullable<RequestBody>& aBody,
                                  nsIInputStream** aResult,
                                  nsACString& aContentType,
                                  nsACString& aCharset);
 
-  nsresult Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody);
-  nsresult Send(const Nullable<RequestBody>& aBody)
+  // XXXbz once the nsIVariant bits here go away, we can remove the
+  // implicitJSContext bits in Bindings.conf.
+  nsresult Send(JSContext *aCx, nsIVariant* aVariant, const Nullable<RequestBody>& aBody);
+  nsresult Send(JSContext *aCx, const Nullable<RequestBody>& aBody)
   {
-    return Send(nsnull, aBody);
+    return Send(aCx, nsnull, aBody);
   }
-  nsresult Send(const RequestBody& aBody)
+  nsresult Send(JSContext *aCx, const RequestBody& aBody)
   {
-    return Send(Nullable<RequestBody>(aBody));
+    return Send(aCx, Nullable<RequestBody>(aBody));
   }
 
 public:
-  void Send(ErrorResult& aRv)
+  void Send(JSContext *aCx, ErrorResult& aRv)
   {
-    aRv = Send(Nullable<RequestBody>());
+    aRv = Send(aCx, Nullable<RequestBody>());
   }
-  void Send(mozilla::dom::ArrayBuffer& aArrayBuffer, ErrorResult& aRv)
+  void Send(JSContext *aCx, mozilla::dom::ArrayBuffer& aArrayBuffer, ErrorResult& aRv)
   {
-    aRv = Send(RequestBody(&aArrayBuffer));
+    aRv = Send(aCx, RequestBody(&aArrayBuffer));
   }
-  void Send(nsIDOMBlob* aBlob, ErrorResult& aRv)
+  void Send(JSContext *aCx, nsIDOMBlob* aBlob, ErrorResult& aRv)
   {
     NS_ASSERTION(aBlob, "Null should go to string version");
-    aRv = Send(RequestBody(aBlob));
+    aRv = Send(aCx, RequestBody(aBlob));
   }
-  void Send(nsIDocument* aDoc, ErrorResult& aRv)
+  void Send(JSContext *aCx, nsIDocument* aDoc, ErrorResult& aRv)
   {
     NS_ASSERTION(aDoc, "Null should go to string version");
-    aRv = Send(RequestBody(aDoc));
+    aRv = Send(aCx, RequestBody(aDoc));
   }
-  void Send(const nsAString& aString, ErrorResult& aRv)
+  void Send(JSContext *aCx, const nsAString& aString, ErrorResult& aRv)
   {
     if (DOMStringIsNull(aString)) {
-      Send(aRv);
+      Send(aCx, aRv);
     }
     else {
-      aRv = Send(RequestBody(aString));
+      aRv = Send(aCx, RequestBody(aString));
     }
   }
-  void Send(nsIDOMFormData* aFormData, ErrorResult& aRv)
+  void Send(JSContext *aCx, nsIDOMFormData* aFormData, ErrorResult& aRv)
   {
     NS_ASSERTION(aFormData, "Null should go to string version");
-    aRv = Send(RequestBody(aFormData));
+    aRv = Send(aCx, RequestBody(aFormData));
   }
-  void Send(nsIInputStream* aStream, ErrorResult& aRv)
+  void Send(JSContext *aCx, nsIInputStream* aStream, ErrorResult& aRv)
   {
     NS_ASSERTION(aStream, "Null should go to string version");
-    aRv = Send(RequestBody(aStream));
+    aRv = Send(aCx, RequestBody(aStream));
   }
-  void SendAsBinary(const nsAString& aBody, ErrorResult& aRv);
+  void SendAsBinary(JSContext *aCx, const nsAString& aBody, ErrorResult& aRv);
 
   void Abort();
 

@@ -492,7 +492,6 @@ nsDOMWindowUtils::SendMouseEventToWindow(const nsAString& aType,
                                          PRInt32 aModifiers,
                                          bool aIgnoreRootScrollFrame)
 {
-  SAMPLE_LABEL("nsDOMWindowUtils", "SendMouseEventToWindow");
   return SendMouseEventCommon(aType, aX, aY, aButton, aClickCount, aModifiers,
                               aIgnoreRootScrollFrame, true);
 }
@@ -1006,8 +1005,7 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
                                          float aY,
                                          PRUint32 aDirection,
                                          PRFloat64 aDelta,
-                                         PRInt32 aModifiers,
-                                         PRUint32 aClickCount)
+                                         PRInt32 aModifiers)
 {
   if (!IsUniversalXPConnectCapable()) {
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -1038,14 +1036,11 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
     msg = NS_SIMPLE_GESTURE_TAP;
   else if (aType.EqualsLiteral("MozPressTapGesture"))
     msg = NS_SIMPLE_GESTURE_PRESSTAP;
-  else if (aType.EqualsLiteral("MozEdgeUIGesture"))
-    msg = NS_SIMPLE_GESTURE_EDGEUI;
   else
     return NS_ERROR_FAILURE;
  
   nsSimpleGestureEvent event(true, msg, widget, aDirection, aDelta);
   event.modifiers = GetWidgetModifiers(aModifiers);
-  event.clickCount = aClickCount;
   event.time = PR_IntervalNow();
 
   nsPresContext* presContext = GetPresContext();
@@ -1826,13 +1821,13 @@ nsDOMWindowUtils::GetParent(const JS::Value& aObject,
     return NS_ERROR_XPC_BAD_CONVERT_JS;
   }
 
-  JS::Rooted<JSObject*> parent(aCx, JS_GetParent(JSVAL_TO_OBJECT(aObject)));
+  JSObject* parent = JS_GetParent(JSVAL_TO_OBJECT(aObject));
   *aParent = OBJECT_TO_JSVAL(parent);
 
   // Outerize if necessary.
   if (parent) {
     if (JSObjectOp outerize = js::GetObjectClass(parent)->ext.outerObject) {
-      *aParent = OBJECT_TO_JSVAL(outerize(aCx, parent));
+      *aParent = OBJECT_TO_JSVAL(outerize(aCx, JS::RootedObject(aCx, parent)));
     }
   }
 

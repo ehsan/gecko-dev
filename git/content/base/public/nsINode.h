@@ -373,7 +373,13 @@ public:
    * for which IsElement() is true.  This is defined inline in Element.h.
    */
   mozilla::dom::Element* AsElement();
-  const mozilla::dom::Element* AsElement() const;
+
+  /**
+   * Return whether the node is a content node
+   */
+  bool IsContent() const {
+    return IsNodeOfType(eCONTENT);
+  }
 
   /**
    * Return this node as nsIContent.  Should only be used for nodes for which
@@ -475,17 +481,6 @@ public:
   const nsString& LocalName() const
   {
     return mNodeInfo->LocalName();
-  }
-
-  /**
-   * Get the tag for this element. This will always return a non-null atom
-   * pointer (as implied by the naming of the method).  For elements this is
-   * the non-namespaced tag, and for other nodes it's something like "#text",
-   * "#comment", "#document", etc.
-   */
-  nsIAtom* Tag() const
-  {
-    return mNodeInfo->NameAtom();
   }
 
   nsINode*
@@ -1170,8 +1165,6 @@ public:
   bool Contains(const nsINode* aOther) const;
   nsresult Contains(nsIDOMNode* aOther, bool* aReturn);
 
-  bool UnoptimizableCCNode() const;
-
 private:
 
   nsIContent* GetNextNodeImpl(const nsINode* aRoot,
@@ -1289,8 +1282,6 @@ private:
     ElementHasPointerLock,
     // Set if the node may have DOMMutationObserver attached to it.
     NodeMayHaveDOMMutationObserver,
-    // Set if node is Content
-    NodeIsContent,
     // Guard value
     BooleanFlagCount
   };
@@ -1320,7 +1311,6 @@ public:
     { return GetBoolFlag(NodeHasRenderingObservers); }
   void SetHasRenderingObservers(bool aValue)
     { SetBoolFlag(NodeHasRenderingObservers, aValue); }
-  bool IsContent() const { return GetBoolFlag(NodeIsContent); }
   bool HasID() const { return GetBoolFlag(ElementHasID); }
   bool MayHaveStyle() const { return GetBoolFlag(ElementMayHaveStyle); }
   bool HasName() const { return GetBoolFlag(ElementHasName); }
@@ -1359,7 +1349,6 @@ public:
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }
   void SetInDocument() { SetBoolFlag(IsInDocument); }
-  void SetNodeIsContent() { SetBoolFlag(NodeIsContent); }
   void ClearInDocument() { ClearBoolFlag(IsInDocument); }
   void SetIsElement() { SetBoolFlag(NodeIsElement); }
   void ClearIsElement() { ClearBoolFlag(NodeIsElement); }

@@ -35,7 +35,6 @@
 #include "nsGUIEvent.h"
 #include "nsContentUtils.h"
 #include "nsRefreshDriver.h"
-#include "mozilla/Attributes.h"
 
 class nsRange;
 class nsIDragService;
@@ -431,7 +430,7 @@ protected:
   friend class nsPresShellEventCB;
 
   bool mCaretEnabled;
-#ifdef DEBUG
+#ifdef NS_DEBUG
   nsStyleSet* CloneStyleSet(nsStyleSet* aSet);
   bool VerifyIncrementalReflow();
   bool mInVerifyReflow;
@@ -597,7 +596,7 @@ protected:
   // Check if aEvent is a mouse event and record the mouse location for later
   // synth mouse moves.
   void RecordMouseLocation(nsGUIEvent* aEvent);
-  class nsSynthMouseMoveEvent MOZ_FINAL : public nsARefreshObserver {
+  class nsSynthMouseMoveEvent : public nsARefreshObserver {
   public:
     nsSynthMouseMoveEvent(PresShell* aPresShell, bool aFromScroll)
       : mPresShell(aPresShell), mFromScroll(aFromScroll) {

@@ -14,7 +14,6 @@
 #include "nsIDOMSVGTransformList.h"
 #include "nsTArray.h"
 #include "SVGTransformList.h"
-#include "mozilla/Attributes.h"
 
 class nsIDOMSVGTransform;
 class nsSVGElement;
@@ -31,8 +30,8 @@ class DOMSVGTransform;
  *
  * See the architecture comment in DOMSVGAnimatedTransformList.h.
  */
-class DOMSVGTransformList MOZ_FINAL : public nsIDOMSVGTransformList,
-                                      public nsWrapperCache
+class DOMSVGTransformList : public nsIDOMSVGTransformList,
+                            public nsWrapperCache
 {
   friend class DOMSVGTransform;
 

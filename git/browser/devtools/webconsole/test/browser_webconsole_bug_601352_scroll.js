@@ -55,13 +55,10 @@ function consoleOpened(HUD) {
     name: "console output displayed",
     validatorFn: function()
     {
-      return HUD.outputNode.itemCount >= 103;
+      return HUD.outputNode.itemCount == 103;
     },
     successFn: performTest,
-    failureFn: function() {
-      info("itemCount: " + HUD.outputNode.itemCount);
-      finishTest();
-    },
+    failureFn: finishTest,
   });
 }
 

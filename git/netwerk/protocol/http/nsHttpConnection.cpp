@@ -349,7 +349,8 @@ nsHttpConnection::Activate(nsAHttpTransaction *trans, PRUint8 caps, PRInt32 pri)
 
     // need to handle HTTP CONNECT tunnels if this is the first time if
     // we are tunneling through a proxy
-    if (mConnInfo->UsingConnect() && !mCompletedProxyConnect) {
+    if (((mConnInfo->UsingSSL() && mConnInfo->UsingHttpProxy()) ||
+         mConnInfo->ShouldForceConnectMethod()) && !mCompletedProxyConnect) {
         rv = SetupProxyConnect();
         if (NS_FAILED(rv))
             goto failed_activation;
@@ -636,7 +637,7 @@ nsHttpConnection::SupportsPipelining(nsHttpResponseHead *responseHead)
         return false;
 
     // assuming connection is HTTP/1.1 with keep-alive enabled
-    if (mConnInfo->UsingHttpProxy() && !mConnInfo->UsingConnect()) {
+    if (mConnInfo->UsingHttpProxy() && !mConnInfo->UsingSSL()) {
         // XXX check for bad proxy servers...
         return true;
     }
@@ -1365,20 +1366,6 @@ nsHttpConnection::OnSocketReadable()
     bool again = true;
 
     do {
-        if (!mProxyConnectInProgress && !mNPNComplete) {
-            // Unless we are setting up a tunnel via CONNECT, prevent reading
-            // from the socket until the results of NPN
-            // negotiation are known (which is determined from the write path).
-            // If the server speaks SPDY it is likely the readable data here is
-            // a spdy settings frame and without NPN it would be misinterpreted
-            // as HTTP/*
-
-            LOG(("nsHttpConnection::OnSocketReadable %p return due to inactive "
-                 "tunnel setup but incomplete NPN state\n", this));
-            rv = NS_OK;
-            break;
-        }
-
         rv = mTransaction->WriteSegments(this, nsIOService::gDefaultSegmentSize, &n);
         if (NS_FAILED(rv)) {
             // if the transaction didn't want to take any more data, then

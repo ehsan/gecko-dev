@@ -63,7 +63,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGPatternFrame)
 /* virtual */ void
 nsSVGPatternFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsSVGEffects::InvalidateDirectRenderingObservers(this);
+  nsSVGEffects::InvalidateRenderingObservers(this);
   nsSVGPatternFrameBase::DidSetStyleContext(aOldStyleContext);
 }
 
@@ -82,7 +82,7 @@ nsSVGPatternFrame::AttributeChanged(PRInt32         aNameSpaceID,
        aAttribute == nsGkAtoms::height ||
        aAttribute == nsGkAtoms::preserveAspectRatio ||
        aAttribute == nsGkAtoms::viewBox)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   if (aNameSpaceID == kNameSpaceID_XLink &&
@@ -91,7 +91,7 @@ nsSVGPatternFrame::AttributeChanged(PRInt32         aNameSpaceID,
     Properties().Delete(nsSVGEffects::HrefProperty());
     mNoHRefURI = false;
     // And update whoever references us
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return nsSVGPatternFrameBase::AttributeChanged(aNameSpaceID,

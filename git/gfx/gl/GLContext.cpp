@@ -66,9 +66,6 @@ static const char *sExtensionNames[] = {
     "GL_OES_standard_derivatives",
     "GL_EXT_texture_filter_anisotropic",
     "GL_EXT_texture_compression_s3tc",
-    "GL_EXT_texture_compression_dxt1",
-    "GL_ANGLE_texture_compression_dxt3",
-    "GL_ANGLE_texture_compression_dxt5",
     "GL_EXT_framebuffer_blit",
     "GL_ANGLE_framebuffer_blit",
     "GL_EXT_framebuffer_multisample",
@@ -469,12 +466,12 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
         if (IsExtensionSupported(OES_EGL_image)) {
             SymLoadStruct imageSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fImageTargetTexture2D, { "EGLImageTargetTexture2DOES", nsnull } },
+                { (PRFuncPtr*) &mSymbols.fImageTargetTexture2D, { "glEGLImageTargetTexture2DOES", nsnull } },
                 { nsnull, { nsnull } },
             };
 
             if (!LoadSymbols(&imageSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports OES_EGL_image without supplying its functions.");
+                NS_ERROR("GL supports ARB_sync without supplying its functions.");
 
                 MarkExtensionUnsupported(OES_EGL_image);
                 mSymbols.fImageTargetTexture2D = nsnull;
@@ -1278,12 +1275,7 @@ GLContext::ChooseGLFormats(ContextFormat& aCF)
     GLFormats formats;
 
     if (aCF.alpha) {
-        if (mIsGLES2 && IsExtensionSupported(EXT_texture_format_BGRA8888)) {
-            formats.texColor = LOCAL_GL_BGRA;
-        } else {
-            formats.texColor = LOCAL_GL_RGBA;
-        }
-
+        formats.texColor = LOCAL_GL_RGBA;
         if (mIsGLES2 && !IsExtensionSupported(OES_rgb8_rgba8)) {
             formats.rbColor = LOCAL_GL_RGBA4;
             aCF.red = aCF.green = aCF.blue = aCF.alpha = 4;
@@ -2263,6 +2255,7 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
     }
 
     GLenum format;
+    GLenum internalformat;
     GLenum type;
     PRInt32 pixelSize = gfxASurface::BytePerPixelFromFormat(imageSurface->Format());
     ShaderProgramType shader;
@@ -2300,6 +2293,8 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
 
     PRInt32 stride = imageSurface->Stride();
 
+    internalformat = mIsGLES2 ? format : LOCAL_GL_RGBA;
+
     nsIntRegionRectIterator iter(paintRegion);
     const nsIntRect *iterRect;
 
@@ -2331,7 +2326,7 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
         } else {
             TexImage2D(LOCAL_GL_TEXTURE_2D,
                        0,
-                       format,
+                       internalformat,
                        iterRect->width,
                        iterRect->height,
                        stride,
@@ -2368,7 +2363,7 @@ GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
 {
     if (mIsGLES2) {
 
-        NS_ASSERTION(format == (GLenum)internalformat,
+        NS_ASSERTION(format == internalformat,
                     "format and internalformat not the same for glTexImage2D on GLES2");
 
         if (!CanUploadNonPowerOfTwo()
@@ -2949,9 +2944,11 @@ RemoveNamesFromArray(GLContext *aOrigin, GLsizei aCount, GLuint *aNames, nsTArra
         if (name == 0)
             continue;
 
+        bool found = false;
         for (PRUint32 i = 0; i < aArray.Length(); ++i) {
             if (aArray[i].name == name) {
                 aArray.RemoveElementAt(i);
+                found = true;
                 break;
             }
         }

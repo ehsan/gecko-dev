@@ -22,6 +22,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
                                jsval *rval      /* = nsnull    */)
     :   mState(INIT_FAILED),
         mXPC(nsXPConnect::GetXPConnect()),
+        mThreadData(nsnull),
         mXPCContext(nsnull),
         mJSContext(cx),
         mContextPopRequired(false),
@@ -41,6 +42,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
                                XPCWrappedNativeTearOff* tearOff)
     :   mState(INIT_FAILED),
         mXPC(nsXPConnect::GetXPConnect()),
+        mThreadData(nsnull),
         mXPCContext(nsnull),
         mJSContext(cx),
         mContextPopRequired(false),
@@ -69,7 +71,12 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
     if (!mXPC)
         return;
 
-    XPCJSContextStack* stack = XPCJSRuntime::Get()->GetJSContextStack();
+    mThreadData = XPCPerThreadData::GetData(mJSContext);
+
+    if (!mThreadData)
+        return;
+
+    XPCJSContextStack* stack = mThreadData->GetJSContextStack();
 
     if (!stack) {
         // If we don't have a stack we're probably in shutdown.
@@ -116,8 +123,8 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
     mXPCContext = XPCContext::GetXPCContext(mJSContext);
     mPrevCallerLanguage = mXPCContext->SetCallingLangType(mCallerLanguage);
 
-    // hook into call context chain.
-    mPrevCallContext = XPCJSRuntime::Get()->SetCallContext(this);
+    // hook into call context chain for our thread
+    mPrevCallContext = mThreadData->SetCallContext(this);
 
     // We only need to addref xpconnect once so only do it if this is the first
     // context in the chain.
@@ -144,6 +151,8 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
                                                                 &mFlattenedJSObject,
                                                                 &mTearOff);
         if (mWrapper) {
+            DEBUG_CheckWrapperThreadSafety(mWrapper);
+
             mFlattenedJSObject = mWrapper->GetFlatJSObject();
 
             if (mTearOff)
@@ -276,6 +285,7 @@ XPCCallContext::SystemIsBeingShutDown()
     // can be making this call on one thread for call contexts on another
     // thread.
     NS_WARNING("Shutting Down XPConnect even through there is a live XPCCallContext");
+    mThreadData = nsnull;
     mXPCContext = nsnull;
     mState = SYSTEM_SHUTDOWN;
     if (mPrevCallContext)
@@ -291,8 +301,12 @@ XPCCallContext::~XPCCallContext()
     if (mXPCContext) {
         mXPCContext->SetCallingLangType(mPrevCallerLanguage);
 
-        DebugOnly<XPCCallContext*> old = XPCJSRuntime::Get()->SetCallContext(mPrevCallContext);
+#ifdef DEBUG
+        XPCCallContext* old = mThreadData->SetCallContext(mPrevCallContext);
         NS_ASSERTION(old == this, "bad pop from per thread data");
+#else
+        (void) mThreadData->SetCallContext(mPrevCallContext);
+#endif
 
         shouldReleaseXPC = mPrevCallContext == nsnull;
     }
@@ -302,7 +316,7 @@ XPCCallContext::~XPCCallContext()
         JS_EndRequest(mJSContext);
 
     if (mContextPopRequired) {
-        XPCJSContextStack* stack = XPCJSRuntime::Get()->GetJSContextStack();
+        XPCJSContextStack* stack = mThreadData->GetJSContextStack();
         NS_ASSERTION(stack, "bad!");
         if (stack) {
             DebugOnly<JSContext*> poppedCX = stack->Pop();
@@ -316,7 +330,8 @@ XPCCallContext::~XPCCallContext()
             printf("!xpc - doing deferred destruction of JSContext @ %p\n",
                    mJSContext);
 #endif
-            NS_ASSERTION(!XPCJSRuntime::Get()->GetJSContextStack()->
+            NS_ASSERTION(!mThreadData->GetJSContextStack() ||
+                         !mThreadData->GetJSContextStack()->
                          DEBUG_StackHasJSContext(mJSContext),
                          "JSContext still in threadjscontextstack!");
 
@@ -469,7 +484,8 @@ XPCCallContext::GetLanguage(PRUint16 *aResult)
 void
 XPCLazyCallContext::AssertContextIsTopOfStack(JSContext* cx)
 {
-    XPCJSContextStack* stack = XPCJSRuntime::Get()->GetJSContextStack();
+    XPCPerThreadData* tls = XPCPerThreadData::GetData(cx);
+    XPCJSContextStack* stack = tls->GetJSContextStack();
 
     JSContext *topJSContext = stack->Peek();
     NS_ASSERTION(cx == topJSContext, "wrong context on XPCJSContextStack!");

@@ -63,7 +63,7 @@ IsDOMClass(const JSClass* clasp)
 inline bool
 IsDOMClass(const js::Class* clasp)
 {
-  return IsDOMClass(Jsvalify(clasp));
+  return clasp->flags & JSCLASS_IS_DOMJSCLASS;
 }
 
 template <class T>
@@ -211,8 +211,6 @@ TraceProtoOrIfaceCache(JSTracer* trc, JSObject* obj)
 {
   MOZ_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_DOM_GLOBAL);
 
-  if (!HasProtoOrIfaceArray(obj))
-    return;
   JSObject** protoOrIfaceArray = GetProtoOrIfaceArray(obj);
   for (size_t i = 0; i < kProtoOrIfaceCacheCount; ++i) {
     JSObject* proto = protoOrIfaceArray[i];
@@ -341,42 +339,6 @@ WrapNewBindingObject(JSContext* cx, JSObject* scope, const SmartPtr<T>& value,
   return WrapNewBindingObject(cx, scope, value.get(), vp);
 }
 
-template <class T>
-inline bool
-WrapNewBindingNonWrapperCachedObject(JSContext* cx, JSObject* scope, T* value,
-                                     JS::Value* vp)
-{
-  // We try to wrap in the compartment of the underlying object of "scope"
-  JSObject* obj;
-  {
-    // scope for the JSAutoEnterCompartment so that we restore the
-    // compartment before we call JS_WrapValue.
-    JSAutoEnterCompartment ac;
-    if (js::IsWrapper(scope)) {
-      scope = xpc::Unwrap(cx, scope, false);
-      if (!scope || !ac.enter(cx, scope)) {
-        return false;
-      }
-    }
-
-    obj = value->WrapObject(cx, scope);
-  }
-
-  // We can end up here in all sorts of compartments, per above.  Make
-  // sure to JS_WrapValue!
-  *vp = JS::ObjectValue(*obj);
-  return JS_WrapValue(cx, vp);
-}
-
-// Helper for smart pointers (nsAutoPtr/nsRefPtr/nsCOMPtr).
-template <template <typename> class SmartPtr, typename T>
-inline bool
-WrapNewBindingNonWrapperCachedObject(JSContext* cx, JSObject* scope,
-                                     const SmartPtr<T>& value, JS::Value* vp)
-{
-  return WrapNewBindingNonWrapperCachedObject(cx, scope, value.get(), vp);
-}
-
 /**
  * A method to handle new-binding wrap failure, by possibly falling back to
  * wrapping as a non-new-binding object.
@@ -450,8 +412,9 @@ FindEnumStringIndex(JSContext* cx, JS::Value v, const EnumEntry* values, bool* o
     }
   }
 
-  *ok = true;
-  return -1;
+  // XXX we don't know whether we're on the main thread, so play it safe
+  *ok = Throw<false>(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
+  return 0;
 }
 
 inline nsWrapperCache*
@@ -501,13 +464,13 @@ template<class T>
 inline nsISupports*
 GetParentPointer(T* aObject)
 {
-  return ToSupports(aObject);
+  return aObject;
 }
 
 inline nsISupports*
 GetParentPointer(const ParentObject& aObject)
 {
-  return ToSupports(aObject.mObject);
+  return aObject.mObject;
 }
 
 // Only set allowNativeWrapper to false if you really know you need it, if in
@@ -861,25 +824,6 @@ class Sequence : public AutoFallibleTArray<T, 16>
 {
 public:
   Sequence() : AutoFallibleTArray<T, 16>() {}
-};
-
-// Class for holding the type of members of a union. The union type has an enum
-// to keep track of which of its UnionMembers has been constructed.
-template<class T>
-class UnionMember {
-    AlignedStorage2<T> storage;
-
-public:
-    T& SetValue() {
-      new (storage.addr()) T();
-      return *storage.addr();
-    }
-    const T& Value() const {
-      return *storage.addr();
-    }
-    void Destroy() {
-      storage.addr()->~T();
-    }
 };
 
 } // namespace dom

@@ -81,7 +81,6 @@ BrowserRootActor.prototype = {
 
     // Walk over open browser windows.
     let e = windowMediator.getEnumerator("navigator:browser");
-    let top = windowMediator.getMostRecentWindow("navigator:browser");
     let selected;
     while (e.hasMoreElements()) {
       let win = e.getNext();
@@ -94,7 +93,7 @@ BrowserRootActor.prototype = {
       let selectedBrowser = win.getBrowser().selectedBrowser;
       let browsers = win.getBrowser().browsers;
       for each (let browser in browsers) {
-        if (browser == selectedBrowser && win == top) {
+        if (browser == selectedBrowser) {
           selected = actorList.length;
         }
         let actor = this._tabActors.get(browser);

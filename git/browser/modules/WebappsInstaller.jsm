@@ -42,10 +42,10 @@ let WebappsInstaller = {
       shell.install();
     } catch (ex) {
       Cu.reportError("Error installing app: " + ex);
-      return null;
+      return false;
     }
 
-    return shell;
+    return true;
   }
 }
 
@@ -107,20 +107,16 @@ function NativeApp(aData) {
   }
   this.shortDescription = sanitize(shortDesc);
 
-  this.appcacheDefined = (app.manifest.appcache_path != undefined);
-
   this.manifest = app.manifest;
 
-  // The app registry is the Firefox profile from which the app
-  // was installed.
-  this.registryFolder = Services.dirsvc.get("ProfD", Ci.nsIFile);
+  this.profileFolder = Services.dirsvc.get("ProfD", Ci.nsIFile);
 
   this.webappJson = {
-    "registryDir": this.registryFolder.path,
+    "registryDir": this.profileFolder.path,
     "app": app
   };
 
-  this.runtimeFolder = Services.dirsvc.get("GreD", Ci.nsIFile);
+  this.processFolder = Services.dirsvc.get("CurProcD", Ci.nsIFile);
 }
 
 #ifdef XP_WIN
@@ -129,8 +125,8 @@ function NativeApp(aData) {
  *
  * The Windows installation process will generate the following files:
  *
- * ${FolderName} = protocol;app-origin[;port]
- *                 e.g.: subdomain.example.com;http;85
+ * ${FolderName} = app-origin;protocol;port
+ *                 e.g.: subdomain.example.com;http;-1
  *
  * %APPDATA%/${FolderName}
  *   - webapp.ini
@@ -174,7 +170,6 @@ WinNativeApp.prototype = {
       this._createConfigFiles();
       this._createShortcutFiles();
       this._writeSystemKeys();
-      this._createAppProfile();
     } catch (ex) {
       this._removeInstallation();
       throw(ex);
@@ -196,8 +191,8 @@ WinNativeApp.prototype = {
     }
 
     // The ${InstallDir} format is as follows:
+    //  host of the app origin + ";" +
     //  protocol
-    //  + ";" + host of the app origin
     //  + ";" + port (only if port is not default)
     this.installDir = Services.dirsvc.get("AppData", Ci.nsIFile);
     let installDirLeaf = this.launchURI.scheme
@@ -286,28 +281,14 @@ WinNativeApp.prototype = {
   },
 
   /**
-   * Creates the profile to be used for this app.
-   */
-  _createAppProfile: function() {
-    if (!this.appcacheDefined)
-      return;
-
-    let profSvc = Cc["@mozilla.org/toolkit/profile-service;1"]
-                    .getService(Ci.nsIToolkitProfileService);
-
-    this.appProfile = profSvc.createDefaultProfileForApp(this.installDir.leafName,
-                                                         null, null);
-  },
-
-  /**
    * Copy the pre-built files into their destination folders.
    */
   _copyPrebuiltFiles: function() {
-    let webapprt = this.runtimeFolder.clone();
+    let webapprt = this.processFolder.clone();
     webapprt.append("webapprt-stub.exe");
     webapprt.copyTo(this.installDir, this.appNameAsFilename + ".exe");
 
-    let uninstaller = this.runtimeFolder.clone();
+    let uninstaller = this.processFolder.clone();
     uninstaller.append("webapp-uninstaller.exe");
     uninstaller.copyTo(this.uninstallDir, this.uninstallerFile.leafName);
   },
@@ -332,7 +313,7 @@ WinNativeApp.prototype = {
     writer.setString("Webapp", "Name", this.appName);
     writer.setString("Webapp", "Profile", this.installDir.leafName);
     writer.setString("Webapp", "Executable", this.appNameAsFilename);
-    writer.setString("WebappRT", "InstallDir", this.runtimeFolder.path);
+    writer.setString("WebappRT", "InstallDir", this.processFolder.path);
     writer.writeFile(null, Ci.nsIINIParserWriter.WRITE_UTF16);
 
     // ${UninstallDir}/shortcuts_log.ini
@@ -514,7 +495,6 @@ MacNativeApp.prototype = {
       this._createDirectoryStructure();
       this._copyPrebuiltFiles();
       this._createConfigFiles();
-      this._createAppProfile();
     } catch (ex) {
       this._removeInstallation(false);
       throw(ex);
@@ -553,19 +533,8 @@ MacNativeApp.prototype = {
     this.resourcesDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
   },
 
-  _createAppProfile: function() {
-    if (!this.appcacheDefined)
-      return;
-
-    let profSvc = Cc["@mozilla.org/toolkit/profile-service;1"]
-                    .getService(Ci.nsIToolkitProfileService);
-
-    this.appProfile = profSvc.createDefaultProfileForApp(this.appProfileDir.leafName,
-                                                         null, null);
-  },
-
   _copyPrebuiltFiles: function() {
-    let webapprt = this.runtimeFolder.clone();
+    let webapprt = this.processFolder.clone();
     webapprt.append("webapprt-stub");
     webapprt.copyTo(this.macOSDir, "webapprt");
   },
@@ -726,7 +695,6 @@ LinuxNativeApp.prototype = {
       this._createDirectoryStructure();
       this._copyPrebuiltFiles();
       this._createConfigFiles();
-      this._createAppProfile();
     } catch (ex) {
       this._removeInstallation();
       throw(ex);
@@ -751,20 +719,9 @@ LinuxNativeApp.prototype = {
   },
 
   _copyPrebuiltFiles: function() {
-    let webapprtPre = this.runtimeFolder.clone();
+    let webapprtPre = this.processFolder.clone();
     webapprtPre.append(this.webapprt.leafName);
     webapprtPre.copyTo(this.installDir, this.webapprt.leafName);
-  },
-
-  _createAppProfile: function() {
-    if (!this.appcacheDefined)
-      return;
-
-    let profSvc = Cc["@mozilla.org/toolkit/profile-service;1"]
-                    .getService(Ci.nsIToolkitProfileService);
-
-    return profSvc.createDefaultProfileForApp(this.installDir.leafName,
-                                              null, null);
   },
 
   _createConfigFiles: function() {
@@ -783,7 +740,7 @@ LinuxNativeApp.prototype = {
     let writer = factory.createINIParser(webappINI).QueryInterface(Ci.nsIINIParserWriter);
     writer.setString("Webapp", "Name", this.appName);
     writer.setString("Webapp", "Profile", this.uniqueName);
-    writer.setString("WebappRT", "InstallDir", this.runtimeFolder.path);
+    writer.setString("WebappRT", "InstallDir", this.processFolder.path);
     writer.writeFile();
 
     // $XDG_DATA_HOME/applications/owa-<webappuniquename>.desktop

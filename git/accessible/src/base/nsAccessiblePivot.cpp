@@ -118,8 +118,7 @@ nsAccessiblePivot::SetPosition(nsIAccessible* aPosition)
   mPosition.swap(secondPosition);
   PRInt32 oldStart = mStartOffset, oldEnd = mEndOffset;
   mStartOffset = mEndOffset = -1;
-  NotifyOfPivotChange(secondPosition, oldStart, oldEnd,
-                      nsIAccessiblePivot::REASON_NONE);
+  NotifyPivotChanged(secondPosition, oldStart, oldEnd);
 
   return NS_OK;
 }
@@ -156,11 +155,7 @@ nsAccessiblePivot::SetTextRange(nsIAccessibleText* aTextAccessible,
                  (aStartOffset >= 0 || (aStartOffset != -1 && aEndOffset != -1)),
                  NS_ERROR_INVALID_ARG);
 
-  nsRefPtr<Accessible> acc(do_QueryObject(aTextAccessible));
-  if (!acc)
-    return NS_ERROR_INVALID_ARG;
-
-  HyperTextAccessible* newPosition = acc->AsHyperText();
+  nsRefPtr<HyperTextAccessible> newPosition = do_QueryObject(aTextAccessible);
   if (!newPosition || !IsRootDescendant(newPosition))
     return NS_ERROR_INVALID_ARG;
 
@@ -175,10 +170,9 @@ nsAccessiblePivot::SetTextRange(nsIAccessibleText* aTextAccessible,
   mEndOffset = aEndOffset;
 
   nsRefPtr<Accessible> oldPosition = mPosition.forget();
-  mPosition = newPosition;
+  mPosition = newPosition.forget();
 
-  NotifyOfPivotChange(oldPosition, oldStart, oldEnd,
-                      nsIAccessiblePivot::REASON_TEXT);
+  NotifyPivotChanged(oldPosition, oldStart, oldEnd);
 
   return NS_OK;
 }
@@ -205,8 +199,9 @@ nsAccessiblePivot::MoveNext(nsIAccessibleTraversalRule* aRule,
     SearchForward(anchor, aRule, (aArgc > 1) ? aIncludeStart : false, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (accessible)
-    *aResult = MovePivotInternal(accessible, nsIAccessiblePivot::REASON_NEXT);
+  *aResult = accessible;
+  if (*aResult)
+    MovePivotInternal(accessible);
 
   return NS_OK;
 }
@@ -232,8 +227,9 @@ nsAccessiblePivot::MovePrevious(nsIAccessibleTraversalRule* aRule,
     SearchBackward(anchor, aRule, (aArgc > 1) ? aIncludeStart : false, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (accessible)
-    *aResult = MovePivotInternal(accessible, nsIAccessiblePivot::REASON_PREV);
+  *aResult = accessible;
+  if (*aResult)
+    MovePivotInternal(accessible);
 
   return NS_OK;
 }
@@ -251,8 +247,9 @@ nsAccessiblePivot::MoveFirst(nsIAccessibleTraversalRule* aRule, bool* aResult)
   Accessible* accessible = SearchForward(mRoot, aRule, true, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (accessible)
-    *aResult = MovePivotInternal(accessible, nsIAccessiblePivot::REASON_FIRST);
+  *aResult = accessible;
+  if (*aResult)
+    MovePivotInternal(accessible);
 
   return NS_OK;
 }
@@ -279,8 +276,9 @@ nsAccessiblePivot::MoveLast(nsIAccessibleTraversalRule* aRule, bool* aResult)
   accessible = SearchBackward(lastAccessible, aRule, true, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (accessible)
-    *aResult = MovePivotInternal(accessible, nsAccessiblePivot::REASON_LAST);
+  *aResult = accessible;
+  if (*aResult)
+    MovePivotInternal(accessible);
 
   return NS_OK;
 }
@@ -305,51 +303,6 @@ nsAccessiblePivot::MovePreviousByText(TextBoundaryType aBoundary, bool* aResult)
   *aResult = false;
 
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsAccessiblePivot::MoveToPoint(nsIAccessibleTraversalRule* aRule,
-                               PRInt32 aX, PRInt32 aY, bool aIgnoreNoMatch,
-                               bool* aResult)
-{
-  NS_ENSURE_ARG_POINTER(aResult);
-  NS_ENSURE_ARG_POINTER(aRule);
-
-  *aResult = false;
-
-  if (mRoot && mRoot->IsDefunct())
-    return NS_ERROR_NOT_IN_TREE;
-
-  RuleCache cache(aRule);
-  Accessible* match = nsnull;
-  Accessible* child = mRoot->ChildAtPoint(aX, aY, Accessible::eDeepestChild);
-  while (child && mRoot != child) {
-    PRUint16 filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
-    nsresult rv = cache.ApplyFilter(child, &filtered);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Ignore any matching nodes that were below this one
-    if (filtered & nsIAccessibleTraversalRule::FILTER_IGNORE_SUBTREE)
-      match = nsnull;
-
-    // Match if no node below this is a match
-    if ((filtered & nsIAccessibleTraversalRule::FILTER_MATCH) && !match) {
-      PRInt32 childX, childY, childWidth, childHeight;
-      child->GetBounds(&childX, &childY, &childWidth, &childHeight);
-      // Double-check child's bounds since the deepest child may have been out
-      // of bounds. This assures we don't return a false positive.
-      if (aX >= childX && aX < childX + childWidth &&
-          aY >= childY && aY < childY + childHeight)
-        match = child;
-    }
-
-    child = child->Parent();
-  }
-
-  if (match || !aIgnoreNoMatch)
-    *aResult = MovePivotInternal(match, nsIAccessiblePivot::REASON_POINT);
-
-  return NS_OK;
 }
 
 // Observer functions
@@ -390,16 +343,15 @@ nsAccessiblePivot::IsRootDescendant(Accessible* aAccessible)
   return false;
 }
 
-bool
-nsAccessiblePivot::MovePivotInternal(Accessible* aPosition,
-                                     PivotMoveReason aReason)
+void
+nsAccessiblePivot::MovePivotInternal(Accessible* aPosition)
 {
   nsRefPtr<Accessible> oldPosition = mPosition.forget();
   mPosition = aPosition;
   PRInt32 oldStart = mStartOffset, oldEnd = mEndOffset;
   mStartOffset = mEndOffset = -1;
 
-  return NotifyOfPivotChange(oldPosition, oldStart, oldEnd, aReason);
+  NotifyPivotChanged(oldPosition, oldStart, oldEnd);
 }
 
 Accessible*
@@ -520,22 +472,15 @@ nsAccessiblePivot::SearchForward(Accessible* aAccessible,
   return nsnull;
 }
 
-bool
-nsAccessiblePivot::NotifyOfPivotChange(Accessible* aOldPosition,
-                                       PRInt32 aOldStart, PRInt32 aOldEnd,
-                                       PRInt16 aReason)
+void
+nsAccessiblePivot::NotifyPivotChanged(Accessible* aOldPosition,
+                                      PRInt32 aOldStart, PRInt32 aOldEnd)
 {
-  if (aOldPosition == mPosition &&
-      aOldStart == mStartOffset && aOldEnd == mEndOffset)
-    return false;
-
   nsTObserverArray<nsCOMPtr<nsIAccessiblePivotObserver> >::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
     nsIAccessiblePivotObserver* obs = iter.GetNext();
-    obs->OnPivotChanged(this, aOldPosition, aOldStart, aOldEnd, aReason);
+    obs->OnPivotChanged(this, aOldPosition, aOldStart, aOldEnd);
   }
-
-  return true;
 }
 
 nsresult

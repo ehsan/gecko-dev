@@ -20,7 +20,6 @@
 #include "nsAutoPtr.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
-#include "mozilla/Attributes.h"
 
 class nsPresContext;
 class nsIPresShell;
@@ -46,7 +45,7 @@ public:
   virtual void WillRefresh(mozilla::TimeStamp aTime) = 0;
 };
 
-class nsRefreshDriver MOZ_FINAL : public nsITimerCallback {
+class nsRefreshDriver : public nsITimerCallback {
 public:
   nsRefreshDriver(nsPresContext *aPresContext);
   ~nsRefreshDriver();

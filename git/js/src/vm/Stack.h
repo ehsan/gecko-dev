@@ -591,7 +591,7 @@ class StackFrame
 
     bool hasArgs() const { return isNonEvalFunctionFrame(); }
     inline Value &unaliasedFormal(unsigned i, MaybeCheckAliasing = CHECK_ALIASING);
-    inline Value &unaliasedActual(unsigned i, MaybeCheckAliasing = CHECK_ALIASING);
+    inline Value &unaliasedActual(unsigned i);
     template <class Op> inline void forEachUnaliasedActual(Op op);
 
     inline unsigned numFormalArgs() const;
@@ -706,24 +706,26 @@ class StackFrame
     }
 
     /*
-     * Get the frame's current bytecode, assuming 'this' is in 'stack'. Beware,
-     * as the name implies, pcQuadratic can lead to quadratic behavior in loops
-     * such as:
+     * Get the frame's current bytecode, assuming |this| is in |cx|. next is
+     * frame whose prev == this, NULL if not known or if this == cx->fp().
+     * If the frame is inside an inline call made within the pc, the pc will
+     * be that of the outermost call and the state of any inlined frame(s) is
+     * returned through pinlined.
+     *
+     * Beware, as the name implies, pcQuadratic can lead to quadratic behavior
+     * in loops such as:
      *
      *   for ( ...; fp; fp = fp->prev())
      *     ... fp->pcQuadratic(cx->stack);
      *
-     * This can be avoided in three ways:
-     *  - use ScriptFrameIter, it has O(1) iteration
-     *  - if you know the next frame (i.e., next s.t. next->prev == fp
-     *  - pcQuadratic will only iterate maxDepth frames (before giving up and
-     *    returning fp->script->code), making it O(1), but incorrect.
+     * Using next can avoid this, but in most cases prefer ScriptFrameIter;
+     * it is amortized O(1).
      */
 
-    jsbytecode *pcQuadratic(const ContextStack &stack, size_t maxDepth = SIZE_MAX);
+    jsbytecode *pcQuadratic(const ContextStack &stack, StackFrame *next = NULL,
+                            InlinedSite **pinlined = NULL);
 
-    /* Return the previous frame's pc. Unlike pcQuadratic, this is O(1). */
-    jsbytecode *prevpc(InlinedSite **pinlined = NULL) {
+    jsbytecode *prevpc(InlinedSite **pinlined) {
         if (flags_ & HAS_PREVPC) {
             if (pinlined)
                 *pinlined = prevInline_;
@@ -976,9 +978,8 @@ class StackFrame
         DoPostBarrier = true,
         NoPostBarrier = false
     };
-    template <TriggerPostBarriers doPostBarrier>
-    void copyFrameAndValues(JSContext *cx, Value *vp, StackFrame *otherfp,
-                            const Value *othervp, Value *othersp);
+    template <class T, class U, TriggerPostBarriers doPostBarrier>
+    void copyFrameAndValues(JSContext *cx, T *vp, StackFrame *otherfp, U *othervp, Value *othersp);
 
     JSGenerator *maybeSuspendedGenerator(JSRuntime *rt);
 
@@ -1010,22 +1011,9 @@ class StackFrame
         return !!(flags_ & CONSTRUCTING);
     }
 
-    /*
-     * These two queries should not be used in general: the presence/absence of
-     * the call/args object is determined by the static(ish) properties of the
-     * JSFunction/JSScript. These queries should only be performed when probing
-     * a stack frame that may be in the middle of the prologue (during which
-     * time the call/args object are created).
-     */
-
     bool hasCallObj() const {
         JS_ASSERT(isStrictEvalFrame() || fun()->isHeavyweight());
         return flags_ & HAS_CALL_OBJ;
-    }
-
-    bool hasArgsObj() const {
-        JS_ASSERT(script()->needsArgsObj());
-        return flags_ & HAS_ARGS_OBJ;
     }
 
     /*
@@ -1372,7 +1360,7 @@ class StackSegment
     bool contains(const FrameRegs *regs) const;
     bool contains(const CallArgsList *call) const;
 
-    StackFrame *computeNextFrame(const StackFrame *fp, size_t maxDepth) const;
+    StackFrame *computeNextFrame(const StackFrame *fp) const;
 
     Value *end() const;
 

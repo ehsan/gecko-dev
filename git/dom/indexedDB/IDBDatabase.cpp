@@ -243,10 +243,6 @@ IDBDatabase::Invalidate()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (IsInvalidated()) {
-    return;
-  }
-
   // Make sure we're closed too.
   Close();
 
@@ -475,7 +471,8 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
   DatabaseInfo* databaseInfo = transaction->DBInfo();
 
   mozilla::dom::IDBObjectStoreParameters params;
-  KeyPath keyPath(0);
+  nsString keyPath;
+  keyPath.SetIsVoid(true);
   nsTArray<nsString> keyPathArray;
 
   nsresult rv;
@@ -486,17 +483,58 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
       return rv;
     }
 
-    // We need a default value here, which the XPIDL dictionary stuff doesn't
-    // support.  WebIDL shall save us all!
-    JSBool hasProp = false;
-    JSObject* obj = JSVAL_TO_OBJECT(aOptions);
-    if (!JS_HasProperty(aCx, obj, "keyPath", &hasProp)) {
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
+    // Get keyPath
+    jsval val = params.keyPath;
+    if (!JSVAL_IS_VOID(val) && !JSVAL_IS_NULL(val)) {
+      if (!JSVAL_IS_PRIMITIVE(val) &&
+          JS_IsArrayObject(aCx, JSVAL_TO_OBJECT(val))) {
 
-    if (NS_FAILED(KeyPath::Parse(aCx, hasProp ? params.keyPath : JSVAL_NULL,
-                                 &keyPath))) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
+        JSObject* obj = JSVAL_TO_OBJECT(val);
+
+        uint32_t length;
+        if (!JS_GetArrayLength(aCx, obj, &length)) {
+          return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+        }
+
+        if (!length) {
+          return NS_ERROR_DOM_SYNTAX_ERR;
+        }
+
+        keyPathArray.SetCapacity(length);
+
+        for (uint32_t index = 0; index < length; index++) {
+          jsval val;
+          JSString* jsstr;
+          nsDependentJSString str;
+          if (!JS_GetElement(aCx, obj, index, &val) ||
+              !(jsstr = JS_ValueToString(aCx, val)) ||
+              !str.init(aCx, jsstr)) {
+            return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+          }
+
+          if (!IDBObjectStore::IsValidKeyPath(aCx, str)) {
+            return NS_ERROR_DOM_SYNTAX_ERR;
+          }
+
+          keyPathArray.AppendElement(str);
+        }
+
+        NS_ASSERTION(!keyPathArray.IsEmpty(), "This shouldn't have happened!");
+      }
+      else {
+        JSString* jsstr;
+        nsDependentJSString str;
+        if (!(jsstr = JS_ValueToString(aCx, val)) ||
+            !str.init(aCx, jsstr)) {
+          return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+        }
+
+        if (!IDBObjectStore::IsValidKeyPath(aCx, str)) {
+          return NS_ERROR_DOM_SYNTAX_ERR;
+        }
+
+        keyPath = str;
+      }
     }
   }
 
@@ -504,7 +542,8 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
     return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
   }
 
-  if (!keyPath.IsAllowedForObjectStore(params.autoIncrement)) {
+  if (params.autoIncrement &&
+      ((!keyPath.IsVoid() && keyPath.IsEmpty()) || !keyPathArray.IsEmpty())) {
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
 
@@ -513,6 +552,7 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
   guts.name = aName;
   guts.id = databaseInfo->nextObjectStoreId++;
   guts.keyPath = keyPath;
+  guts.keyPathArray = keyPathArray;
   guts.autoIncrement = params.autoIncrement;
 
   nsRefPtr<IDBObjectStore> objectStore;
@@ -859,12 +899,23 @@ CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   rv = stmt->BindStringByName(NS_LITERAL_CSTRING("name"), mObjectStore->Name());
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  const KeyPath& keyPath = mObjectStore->GetKeyPath();
-  if (keyPath.IsValid()) {
-    nsAutoString keyPathSerialization;
-    keyPath.SerializeToString(keyPathSerialization);
+  if (mObjectStore->UsesKeyPathArray()) {
+    // We use a comma in the beginning to indicate that it's an array of
+    // key paths. This is to be able to tell a string-keypath from an
+    // array-keypath which contains only one item.
+    // It also makes serializing easier :-)
+    nsAutoString keyPath;
+    const nsTArray<nsString>& keyPaths = mObjectStore->KeyPathArray();
+    for (PRUint32 i = 0; i < keyPaths.Length(); ++i) {
+      keyPath.Append(NS_LITERAL_STRING(",") + keyPaths[i]);
+    }
     rv = stmt->BindStringByName(NS_LITERAL_CSTRING("key_path"),
-                                keyPathSerialization);
+                                keyPath);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  }
+  else if (mObjectStore->HasKeyPath()) {
+    rv = stmt->BindStringByName(NS_LITERAL_CSTRING("key_path"),
+                                mObjectStore->KeyPath());
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
   else {

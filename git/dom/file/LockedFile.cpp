@@ -506,39 +506,18 @@ LockedFile::GetActive(bool* aActive)
 }
 
 NS_IMETHODIMP
-LockedFile::GetLocation(JSContext* aCx,
-                        jsval* aLocation)
+LockedFile::GetLocation(PRUint64* aLocation)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  if (mLocation == LL_MAXUINT) {
-    *aLocation = JSVAL_NULL;
-  }
-  else if (!JS_NewNumberValue(aCx, double(mLocation), aLocation)) {
-    return NS_ERROR_FAILURE;
-  }
-
+  *aLocation = mLocation;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-LockedFile::SetLocation(JSContext* aCx,
-                        const jsval& aLocation)
+LockedFile::SetLocation(PRUint64 aLocation)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  // Null means the end-of-file.
-  if (JSVAL_IS_NULL(aLocation)) {
-    mLocation = LL_MAXUINT;
-    return NS_OK;
-  }
-
-  uint64_t location;
-  if (!xpc::ValueToUint64(aCx, aLocation, &location)) {
-    return NS_ERROR_TYPE_ERR;
-  }
-
-  mLocation = location;
+  mLocation = aLocation;
   return NS_OK;
 }
 
@@ -597,10 +576,6 @@ LockedFile::ReadAsArrayBuffer(PRUint64 aSize,
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mLocation == LL_MAXUINT) {
-    return NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR;
-  }
-
   if (!aSize) {
     return NS_ERROR_TYPE_ERR;
   }
@@ -637,10 +612,6 @@ LockedFile::ReadAsText(PRUint64 aSize,
 
   if (!IsOpen()) {
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
-  }
-
-  if (mLocation == LL_MAXUINT) {
-    return NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR;
   }
 
   if (!aSize) {
@@ -691,7 +662,7 @@ LockedFile::Append(const jsval& aValue,
 }
 
 NS_IMETHODIMP
-LockedFile::Truncate(PRUint64 aSize,
+LockedFile::Truncate(PRUint64 aLocation,
                      PRUint8 aOptionalArgCount,
                      nsIDOMFileRequest** _retval)
 {
@@ -705,19 +676,6 @@ LockedFile::Truncate(PRUint64 aSize,
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
   }
 
-  PRUint64 location;
-  if (aOptionalArgCount) {
-    // Just in case someone calls us from C++
-    NS_ASSERTION(aSize != LL_MAXUINT, "Passed wrong size!");
-    location = aSize;
-  }
-  else {
-    if (mLocation == LL_MAXUINT) {
-      return NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR;
-    }
-    location = mLocation;
-  }
-
   // Do nothing if the window is closed
   if (!GetOwner()) {
     return NS_OK;
@@ -726,6 +684,8 @@ LockedFile::Truncate(PRUint64 aSize,
   nsRefPtr<FileRequest> fileRequest = GenerateFileRequest();
   NS_ENSURE_TRUE(fileRequest, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
+  PRUint64 location = aOptionalArgCount ? aLocation : mLocation;
+
   nsRefPtr<TruncateHelper> helper =
     new TruncateHelper(this, fileRequest, location);
 
@@ -733,7 +693,7 @@ LockedFile::Truncate(PRUint64 aSize,
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
   if (aOptionalArgCount) {
-    mLocation = aSize;
+    mLocation = aLocation;
   }
 
   fileRequest.forget(_retval);
@@ -858,10 +818,6 @@ LockedFile::WriteOrAppend(const jsval& aValue,
 
   if (mMode != READ_WRITE) {
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
-  }
-
-  if (!aAppend && mLocation == LL_MAXUINT) {
-    return NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR;
   }
 
   // Do nothing if the window is closed

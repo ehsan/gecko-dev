@@ -102,8 +102,12 @@ public:
         // We should have something by now.
         MOZ_ASSERT(sinfo);
 
-        // Grab the flags.
-        return sinfo->GetScriptableFlags();
+        // Grab the flags. This should not fail.
+        PRUint32 flags;
+        mozilla::DebugOnly<nsresult> rv = sinfo->GetScriptableFlags(&flags);
+        MOZ_ASSERT(NS_SUCCEEDED(rv));
+
+        return flags;
     }
 
     nsWrapperCache *GetWrapperCache()

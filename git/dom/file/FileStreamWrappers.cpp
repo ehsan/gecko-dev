@@ -9,7 +9,6 @@
 #include "nsIFileStorage.h"
 #include "nsISeekableStream.h"
 #include "nsIStandardFileStream.h"
-#include "mozilla/Attributes.h"
 
 #include "FileHelper.h"
 
@@ -17,7 +16,7 @@ USING_FILE_NAMESPACE
 
 namespace {
 
-class ProgressRunnable MOZ_FINAL : public nsIRunnable
+class ProgressRunnable : public nsIRunnable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -38,7 +37,7 @@ private:
   PRUint64 mProgressMax;
 };
 
-class CloseRunnable MOZ_FINAL : public nsIRunnable
+class CloseRunnable : public nsIRunnable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -52,7 +51,7 @@ private:
   nsRefPtr<FileHelper> mFileHelper;
 };
 
-class DestroyRunnable MOZ_FINAL : public nsIRunnable
+class DestroyRunnable : public nsIRunnable
 {
 public:
   NS_DECL_ISUPPORTS

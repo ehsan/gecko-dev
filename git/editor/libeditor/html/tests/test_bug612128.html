@@ -26,11 +26,11 @@ addLoadEvent(function() {
   document.querySelector("input").focus();
   var threw = false;
   try {
-    is(document.execCommand("inserthtml", null, "<span>f" + "oo</span>"),
-       false, "The insertHTML command should return false");
+    document.execCommand("inserthtml", null, "<span>f" + "oo</span>");
   } catch (e) {
-    ok(false, "insertHTML should not throw here");
+    threw = true;
   }
+  ok(threw, "The inserthtml command should fail");
   is(document.querySelectorAll("span").length, 0, "No span element should be injected inside the page");
   is(document.body.innerHTML.indexOf("f" + "oo"), -1, "No text should be injected inside the page");
   SimpleTest.finish();

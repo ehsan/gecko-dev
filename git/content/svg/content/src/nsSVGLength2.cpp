@@ -177,14 +177,13 @@ nsSVGLength2::GetAxisLength(nsSVGSVGElement *aCtx) const
 float
 nsSVGLength2::GetAxisLength(nsIFrame *aNonSVGFrame) const
 {
-  gfxSize size =
-    nsSVGIntegrationUtils::GetSVGCoordContextForNonSVGFrame(aNonSVGFrame);
+  gfxRect rect = nsSVGIntegrationUtils::GetSVGRectForNonSVGFrame(aNonSVGFrame);
   float length;
   switch (mCtxType) {
-  case nsSVGUtils::X: length = size.width; break;
-  case nsSVGUtils::Y: length = size.height; break;
+  case nsSVGUtils::X: length = rect.Width(); break;
+  case nsSVGUtils::Y: length = rect.Height(); break;
   case nsSVGUtils::XY:
-    length = nsSVGUtils::ComputeNormalizedHypotenuse(size.width, size.height);
+    length = nsSVGUtils::ComputeNormalizedHypotenuse(rect.Width(), rect.Height());
     break;
   default:
     NS_NOTREACHED("Unknown axis type");

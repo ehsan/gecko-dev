@@ -8,13 +8,11 @@
 #ifndef jsgc_root_h__
 #define jsgc_root_h__
 
-#ifdef __cplusplus
-
-#include "mozilla/TypeTraits.h"
-
 #include "jspubtd.h"
 
 #include "js/Utility.h"
+
+#ifdef __cplusplus
 
 namespace JS {
 
@@ -75,11 +73,9 @@ template <typename T>
 class Handle
 {
   public:
-    /* Creates a handle from a handle of a type convertible to T. */
-    template <typename S>
-    Handle(Handle<S> handle,
-           typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0)
-    {
+    /* Copy handles of different types, with implicit coercion. */
+    template <typename S> Handle(Handle<S> handle) {
+        testAssign<S>();
         ptr = reinterpret_cast<const T *>(handle.address());
     }
 
@@ -100,10 +96,7 @@ class Handle
      * Construct a handle from an explicitly rooted location. This is the
      * normal way to create a handle, and normally happens implicitly.
      */
-    template <typename S>
-    inline
-    Handle(Rooted<S> &root,
-           typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
+    template <typename S> inline Handle(const Rooted<S> &root);
 
     const T *address() const { return ptr; }
     T value() const { return *ptr; }
@@ -115,6 +108,16 @@ class Handle
     Handle() {}
 
     const T *ptr;
+
+    template <typename S>
+    void testAssign() {
+#ifdef DEBUG
+        T a = RootMethods<T>::initial();
+        S b = RootMethods<S>::initial();
+        a = b;
+        (void)a;
+#endif
+    }
 };
 
 typedef Handle<JSObject*>    HandleObject;
@@ -142,7 +145,7 @@ class Rooted
 {
     void init(JSContext *cx_, T initial)
     {
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
+#ifdef JSGC_ROOT_ANALYSIS
         ContextFriendFields *cx = ContextFriendFields::get(cx_);
 
         ThingRootKind kind = RootMethods<T>::kind();
@@ -160,15 +163,24 @@ class Rooted
     Rooted(JSContext *cx) { init(cx, RootMethods<T>::initial()); }
     Rooted(JSContext *cx, T initial) { init(cx, initial); }
 
+    /*
+     * This method is only necessary due to an obscure C++98 requirement (that
+     * there be an accessible, usable copy constructor when passing a temporary
+     * to an implicitly-called constructor for use with a const-ref parameter).
+     * (Head spinning yet?)  We can remove this when we build the JS engine
+     * with -std=c++11.
+     */
+    operator Handle<T> () const { return Handle<T>(*this); }
+
     ~Rooted()
     {
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
+#ifdef JSGC_ROOT_ANALYSIS
         JS_ASSERT(*stack == this);
         *stack = prev;
 #endif
     }
 
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
+#ifdef JSGC_ROOT_ANALYSIS
     Rooted<T> *previous() { return prev; }
 #endif
 
@@ -194,7 +206,7 @@ class Rooted
 
   private:
 
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
+#ifdef JSGC_ROOT_ANALYSIS
     Rooted<T> **stack, *prev;
 #endif
     T ptr;
@@ -205,9 +217,9 @@ class Rooted
 
 template<typename T> template <typename S>
 inline
-Handle<T>::Handle(Rooted<S> &root,
-                  typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
+Handle<T>::Handle(const Rooted<S> &root)
 {
+    testAssign<S>();
     ptr = reinterpret_cast<const T *>(root.address());
 }
 
@@ -297,7 +309,7 @@ class SkipRoot
  * Hook for dynamic root analysis. Checks the native stack and poisons
  * references to GC things which have not been rooted.
  */
-#if  defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+#if defined(JSGC_ROOT_ANALYSIS) && defined(DEBUG) && !defined(JS_THREADSAFE)
 void CheckStackRoots(JSContext *cx);
 inline void MaybeCheckStackRoots(JSContext *cx) { CheckStackRoots(cx); }
 #else

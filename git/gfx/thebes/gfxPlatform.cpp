@@ -388,16 +388,6 @@ gfxPlatform::~gfxPlatform()
 }
 
 already_AddRefed<gfxASurface>
-gfxPlatform::CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                         gfxASurface::gfxContentType aContentType)
-{ 
-  nsRefPtr<gfxASurface> newSurface;
-  newSurface = new gfxImageSurface(aSize, OptimalFormatForContent(aContentType));
-
-  return newSurface.forget();
-}
-
-already_AddRefed<gfxASurface>
 gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
                            gfxASurface::gfxImageFormat format)
 {
@@ -569,6 +559,13 @@ gfxPlatform::GetScaledFontForFont(gfxFont *aFont)
   return scaledFont;
 }
 
+cairo_user_data_key_t kDrawSourceSurface;
+static void
+DataSourceSurfaceDestroy(void *dataSourceSurface)
+{
+  static_cast<DataSourceSurface*>(dataSourceSurface)->Release();
+}
+
 UserDataKey kThebesSurfaceKey;
 void
 DestroyThebesSurface(void *data)
@@ -608,12 +605,11 @@ gfxPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
     IntSize size = data->GetSize();
     gfxASurface::gfxImageFormat format = OptimalFormatForContent(ContentForFormat(data->GetFormat()));
 
-    // We need to make a copy here because data might change its data under us
-    nsRefPtr<gfxImageSurface> imageSurf = new gfxImageSurface(gfxIntSize(size.width, size.height), format, false);
- 
-    bool resultOfCopy = imageSurf->CopyFrom(source);
-    NS_ASSERTION(resultOfCopy, "Failed to copy surface.");
-    surf = imageSurf;
+    surf =
+      new gfxImageSurface(data->GetData(), gfxIntSize(size.width, size.height),
+                          data->Stride(), format);
+
+    surf->SetData(&kDrawSourceSurface, data.forget().drop(), DataSourceSurfaceDestroy);
   }
 
   // add a reference to be held by the drawTarget
@@ -1451,17 +1447,7 @@ gfxPlatform::Optimal2DFormatForContent(gfxASurface::gfxContentType aContent)
 {
   switch (aContent) {
   case gfxASurface::CONTENT_COLOR:
-    switch (GetOffscreenFormat()) {
-    case gfxASurface::ImageFormatARGB32:
-      return mozilla::gfx::FORMAT_B8G8R8A8;
-    case gfxASurface::ImageFormatRGB24:
-      return mozilla::gfx::FORMAT_B8G8R8X8;
-    case gfxASurface::ImageFormatRGB16_565:
-      return mozilla::gfx::FORMAT_R5G6B5;
-    default:
-      NS_NOTREACHED("unknown gfxImageFormat for CONTENT_COLOR");
-      return mozilla::gfx::FORMAT_B8G8R8A8;
-    }
+    return mozilla::gfx::FORMAT_B8G8R8X8;
   case gfxASurface::CONTENT_ALPHA:
     return mozilla::gfx::FORMAT_A8;
   case gfxASurface::CONTENT_COLOR_ALPHA:

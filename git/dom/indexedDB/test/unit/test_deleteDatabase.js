@@ -57,8 +57,8 @@ function testSteps()
     ok(!(event.newVersion === 0), "newVersion should be null");
     db.close();
     db2.close();
-    db.onversionchange = unexpectedSuccessHandler;
-    db2.onversionchange = unexpectedSuccessHandler;
+    db.onversionchange = errorHandler;
+    db2.onversionchange = errorHandler;
   };
 
   // The IDB spec doesn't guarantee the order that onversionchange will fire

@@ -4861,11 +4861,6 @@
               StrCpy $AddStartMenuSC "1"
             ${EndIf}
 
-            ReadINIStr $R8 $R7 "Install" "MaintenanceService"
-            ${If} $R8 == "false"
-              StrCpy $InstallMaintenanceService "0"
-            ${EndIf}
-
             !ifndef NO_STARTMENU_DIR
               ReadINIStr $R8 $R7 "Install" "StartMenuDirectoryName"
               ${If} $R8 != ""

@@ -257,12 +257,3 @@ nsAccVirtualCursorChangeEvent::GetOldEndOffset(PRInt32* aOldEndOffset)
     static_cast<AccVCChangeEvent*>(mEvent.get())->OldEndOffset();
   return NS_OK;
 }
-
-NS_IMETHODIMP
-nsAccVirtualCursorChangeEvent::GetReason(PRInt16* aReason)
-{
-  NS_ENSURE_ARG_POINTER(aReason);
-
-  *aReason = static_cast<AccVCChangeEvent*>(mEvent.get())->Reason();
-  return NS_OK;
-}

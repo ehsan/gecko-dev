@@ -6,12 +6,11 @@
 #include "nsIQueryContentEventResult.h"
 #include "nsString.h"
 #include "nsRect.h"
-#include "mozilla/Attributes.h"
 
 class nsQueryContentEvent;
 class nsIWidget;
 
-class nsQueryContentEventResult MOZ_FINAL : public nsIQueryContentEventResult
+class nsQueryContentEventResult : public nsIQueryContentEventResult
 {
 public:
   nsQueryContentEventResult();

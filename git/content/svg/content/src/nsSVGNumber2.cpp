@@ -12,9 +12,8 @@
 #include "nsSMILValue.h"
 #include "nsSMILFloatType.h"
 #include "nsIDOMSVGNumber.h"
-#include "mozilla/Attributes.h"
 
-class DOMSVGNumber MOZ_FINAL : public nsIDOMSVGNumber
+class DOMSVGNumber : public nsIDOMSVGNumber
 {
 public:
   NS_DECL_ISUPPORTS

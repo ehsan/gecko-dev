@@ -23,7 +23,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Attributes.h"
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -159,7 +158,7 @@ public:
   }
 };
 
-class EventListener MOZ_FINAL : public nsIDOMEventListener
+class EventListener : public nsIDOMEventListener
 {
   nsCOMPtr<nsIAppShell> mAppShell;
 

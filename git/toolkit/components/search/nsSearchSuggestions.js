@@ -7,6 +7,7 @@ const SEARCH_RESPONSE_SUGGESTION_JSON = "application/x-suggestions+json";
 const BROWSER_SUGGEST_PREF = "browser.search.suggest.enabled";
 const XPCOM_SHUTDOWN_TOPIC              = "xpcom-shutdown";
 const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
+const SEARCH_BUNDLE = "chrome://global/locale/search/search.properties";
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -20,7 +21,6 @@ const HTTP_SERVICE_UNAVAILABLE   = 503;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/nsFormAutoCompleteResult.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 
 /**
  * SuggestAutoComplete is a base class that implements nsIAutoCompleteSearch
@@ -37,18 +37,31 @@ SuggestAutoComplete.prototype = {
 
   _init: function() {
     this._addObservers();
-    this._suggestEnabled = Services.prefs.getBoolPref(BROWSER_SUGGEST_PREF);
+    this._loadSuggestPref();
   },
 
-  get _suggestionLabel() {
-    delete this._suggestionLabel;
-    let bundle = Services.strings.createBundle("chrome://global/locale/search/search.properties");
-    return this._suggestionLabel = bundle.GetStringFromName("suggestion_label");
+  /**
+   * this._strings is the string bundle for message internationalization.
+   */
+  get _strings() {
+    if (!this.__strings) {
+      var sbs = Cc["@mozilla.org/intl/stringbundle;1"].
+                getService(Ci.nsIStringBundleService);
+
+      this.__strings = sbs.createBundle(SEARCH_BUNDLE);
+    }
+    return this.__strings;
   },
+  __strings: null,
 
   /**
    * Search suggestions will be shown if this._suggestEnabled is true.
    */
+  _loadSuggestPref: function SAC_loadSuggestPref() {
+    var prefService = Cc["@mozilla.org/preferences-service;1"].
+                      getService(Ci.nsIPrefBranch);
+    this._suggestEnabled = prefService.getBoolPref(BROWSER_SUGGEST_PREF);
+  },
   _suggestEnabled: null,
 
   /*************************************************************************
@@ -338,7 +351,7 @@ SuggestAutoComplete.prototype = {
 
     // if we have any suggestions, put a label at the top
     if (comments.length > 0)
-      comments[0] = this._suggestionLabel;
+      comments[0] = this._strings.GetStringFromName("suggestion_label");
 
     // now put the history results above the suggestions
     var finalResults = historyResults.concat(results);
@@ -399,6 +412,9 @@ SuggestAutoComplete.prototype = {
     if (!previousResult)
       this._formHistoryResult = null;
 
+    var searchService = Cc["@mozilla.org/browser/search-service;1"].
+                        getService(Ci.nsIBrowserSearchService);
+
     // If there's an existing request, stop it. There is no smart filtering
     // here as there is when looking through history/form data because the
     // result set returned by the server is different for every typed value -
@@ -408,7 +424,7 @@ SuggestAutoComplete.prototype = {
 
     this._listener = listener;
 
-    var engine = Services.search.currentEngine;
+    var engine = searchService.currentEngine;
 
     this._checkForEngineSwitch(engine);
 
@@ -465,7 +481,7 @@ SuggestAutoComplete.prototype = {
   observe: function SAC_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case NS_PREFBRANCH_PREFCHANGE_TOPIC_ID:
-        this._suggestEnabled = Services.prefs.getBoolPref(BROWSER_SUGGEST_PREF);
+        this._loadSuggestPref();
         break;
       case XPCOM_SHUTDOWN_TOPIC:
         this._removeObservers();
@@ -474,15 +490,23 @@ SuggestAutoComplete.prototype = {
   },
 
   _addObservers: function SAC_addObservers() {
-    Services.prefs.addObserver(BROWSER_SUGGEST_PREF, this, false);
+    var prefService2 = Cc["@mozilla.org/preferences-service;1"].
+                       getService(Ci.nsIPrefBranch);
+    prefService2.addObserver(BROWSER_SUGGEST_PREF, this, false);
 
-    Services.obs.addObserver(this, XPCOM_SHUTDOWN_TOPIC, false);
+    var os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    os.addObserver(this, XPCOM_SHUTDOWN_TOPIC, false);
   },
 
   _removeObservers: function SAC_removeObservers() {
-    Services.prefs.removeObserver(BROWSER_SUGGEST_PREF, this);
+    var prefService2 = Cc["@mozilla.org/preferences-service;1"].
+                       getService(Ci.nsIPrefBranch);
+    prefService2.removeObserver(BROWSER_SUGGEST_PREF, this);
 
-    Services.obs.removeObserver(this, XPCOM_SHUTDOWN_TOPIC);
+    var os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    os.removeObserver(this, XPCOM_SHUTDOWN_TOPIC);
   },
 
   // nsISupports

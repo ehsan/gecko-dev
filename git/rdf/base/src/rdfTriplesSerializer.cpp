@@ -19,9 +19,8 @@
 
 #include "nsIRDFResource.h"
 #include "nsIRDFLiteral.h"
-#include "mozilla/Attributes.h"
 
-class TriplesVisitor MOZ_FINAL : public rdfITripleVisitor
+class TriplesVisitor : public rdfITripleVisitor
 {
 public:
     TriplesVisitor(nsIOutputStream* aOut) : mOut(aOut) {}
@@ -97,7 +96,7 @@ TriplesVisitor::Visit(nsIRDFNode *aSubject, nsIRDFResource *aPredicate,
     return mOut->Write(".\n", 2, &wroteCount);
 }
 
-class rdfTriplesSerializer MOZ_FINAL : public rdfISerializer
+class rdfTriplesSerializer : public rdfISerializer
 {
 public:
   NS_DECL_ISUPPORTS

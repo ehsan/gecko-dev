@@ -34,7 +34,6 @@
 #include "nsIDOMTouchEvent.h"
 #include "nsIInlineEventHandlers.h"
 #include "mozilla/CORSMode.h"
-#include "mozilla/Attributes.h"
 
 #include "nsISMILAttr.h"
 
@@ -63,7 +62,7 @@ typedef PRUptrdiff PtrBits;
  * and Item to its existing child list.
  * @see nsIDOMNodeList
  */
-class nsChildContentList MOZ_FINAL : public nsINodeList
+class nsChildContentList : public nsINodeList
 {
 public:
   nsChildContentList(nsINode* aNode)
@@ -127,7 +126,7 @@ private:
  * A class that implements nsIWeakReference
  */
 
-class nsNodeWeakReference MOZ_FINAL : public nsIWeakReference
+class nsNodeWeakReference : public nsIWeakReference
 {
 public:
   nsNodeWeakReference(nsINode* aNode)
@@ -155,7 +154,7 @@ private:
 /**
  * Tearoff to use for nodes to implement nsISupportsWeakReference
  */
-class nsNodeSupportsWeakRefTearoff MOZ_FINAL : public nsISupportsWeakReference
+class nsNodeSupportsWeakRefTearoff : public nsISupportsWeakReference
 {
 public:
   nsNodeSupportsWeakRefTearoff(nsINode* aNode)
@@ -178,7 +177,7 @@ private:
 /**
  * A tearoff class for nsGenericElement to implement NodeSelector
  */
-class nsNodeSelectorTearoff MOZ_FINAL : public nsIDOMNodeSelector
+class nsNodeSelectorTearoff : public nsIDOMNodeSelector
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -777,13 +776,6 @@ protected:
    */
   virtual void GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent);
 
-  /**
-   * Retrieve the size of the padding rect of this element.
-   *
-   * @param aSize the size of the padding rect
-   */
-  nsIntSize GetPaddingRectSize();
-
   nsIFrame* GetStyledFrame();
 
   virtual mozilla::dom::Element* GetNameSpaceElement()
@@ -1046,7 +1038,7 @@ _elementName::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const        \
 /**
  * Tearoff class to implement nsITouchEventReceiver
  */
-class nsTouchEventReceiverTearoff MOZ_FINAL : public nsITouchEventReceiver
+class nsTouchEventReceiverTearoff : public nsITouchEventReceiver
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -1066,7 +1058,7 @@ private:
 /**
  * Tearoff class to implement nsIInlineEventHandlers
  */
-class nsInlineEventHandlersTearoff MOZ_FINAL : public nsIInlineEventHandlers
+class nsInlineEventHandlersTearoff : public nsIInlineEventHandlers
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

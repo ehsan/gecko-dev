@@ -12,7 +12,7 @@
 #include "mozilla/SSE.h"
 #include "mozilla/arm.h"
 
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
 #include <gtk/gtk.h>
 #endif
 

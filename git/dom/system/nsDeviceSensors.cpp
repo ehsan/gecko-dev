@@ -17,7 +17,6 @@
 #include "nsIServiceManager.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 using namespace hal;
@@ -30,7 +29,7 @@ using namespace hal;
 static const nsTArray<nsIDOMWindow*>::index_type NoIndex =
   nsTArray<nsIDOMWindow*>::NoIndex;
 
-class nsDeviceSensorData MOZ_FINAL : public nsIDeviceSensorData
+class nsDeviceSensorData : public nsIDeviceSensorData
 {
 public:
   NS_DECL_ISUPPORTS

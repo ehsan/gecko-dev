@@ -172,24 +172,18 @@ DOMWifiManager.prototype = {
 
   _fireStatusChangeEvent: function StatusChangeEvent() {
     if (this._onStatusChange) {
-      debug("StatusChangeEvent");
-      var event = new this._window.MozWifiStatusChangeEvent("statusChangeEvent",
-                                                            { network: this._currentNetwork,
-                                                              status: this._connectionStatus
-                                                            });
+      var event = new WifiStatusChangeEvent(this._currentNetwork,
+                                            this._connectionStatus);
       this._onStatusChange.handleEvent(event);
     }
   },
 
   _fireConnectionInfoUpdate: function connectionInfoUpdate(info) {
     if (this._onConnectionInfoUpdate) {
-      debug("ConnectionInfoEvent");
-      var evt = new this._window.MozWifiConnectionInfoEvent("connectionInfoEvent",
-                                                            { network: this._currentNetwork,
-                                                              signalStrength: info.signalStrength,
-                                                              relSignalStrength: info.relSignalStrength,
-                                                              linkSpeed: info.linkSpeed
-                                                            });
+      var evt = new ConnectionInfoUpdate(this._currentNetwork,
+                                         info.signalStrength,
+                                         info.relSignalStrength,
+                                         info.linkSpeed);
       this._onConnectionInfoUpdate.handleEvent(evt);
     }
   },
@@ -256,6 +250,38 @@ DOMWifiManager.prototype = {
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     this._onConnectionInfoUpdate = callback;
   }
+};
+
+function WifiStatusChangeEvent(network, status) {
+  this.network = network;
+  this.status = status;
+}
+
+WifiStatusChangeEvent.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMWifiStatusChangeEvent]),
+
+  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{f28c1ae7-4db7-4a4d-bb06-737eb04ad700}"),
+                                    contractID: "@mozilla.org/wifi/statechange-event;1",
+                                    interfaces: [Ci.nsIDOMWifiStatusChangeEvent],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
+                                    classDescription: "Wifi State Change Event"})
+};
+
+function ConnectionInfoUpdate(network, signalStrength, relSignalStrength, linkSpeed) {
+  this.network = network;
+  this.signalStrength = signalStrength;
+  this.relSignalStrength = relSignalStrength;
+  this.linkSpeed = linkSpeed;
+}
+
+ConnectionInfoUpdate.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMWifiConnectionInfoEvent]),
+
+  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{aba4c481-7ea2-464a-b14c-7254a5c99454}"),
+                                    contractID: "@mozilla.org/wifi/connectioninfo-event;1",
+                                    interfaces: [Ci.nsIDOMWifiConnectionInfoEvent],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
+                                    classDescription: "Wifi Connection Info Event"})
 };
 
 const NSGetFactory = XPCOMUtils.generateNSGetFactory([DOMWifiManager]);

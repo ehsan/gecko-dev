@@ -10,12 +10,11 @@
 #include "nsIDOMNode.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
 /**
  * A class for evaluating an XPath expression string
  */
-class nsXPathNSResolver MOZ_FINAL : public nsIDOMXPathNSResolver
+class nsXPathNSResolver : public nsIDOMXPathNSResolver
 {
 public:
     nsXPathNSResolver(nsIDOMNode* aNode);

@@ -9,7 +9,6 @@
 #include "nsAutoPtr.h"
 #include "nsIAtom.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
 class nsXULTemplateResultXML;
 class nsXMLBindingValues;
@@ -43,7 +42,7 @@ struct nsXMLBinding {
  * a collection of <binding> descriptors. This object is refcounted by
  * nsXMLBindingValues objects and the query processor.
  */
-class nsXMLBindingSet MOZ_FINAL
+class nsXMLBindingSet
 {
 public:
 

@@ -624,18 +624,39 @@ XPC_WN_NoHelper_Finalize(js::FreeOp *fop, JSObject *obj)
 }
 
 static void
-TraceInsideSlimWrapper(JSTracer *trc, JSObject *obj)
+TraceScopeJSObjects(JSTracer *trc, XPCWrappedNativeScope* scope)
 {
-    GetSlimWrapperProto(obj)->TraceSelf(trc);
+    scope->TraceSelf(trc);
 }
 
-/*
- * General comment about XPConnect tracing: Given a C++ object |wrapper| and its
- * corresponding JS object |obj|, calling |wrapper->TraceSelf| will ask the JS
- * engine to mark |obj|. Eventually, this will lead to the trace hook being
- * called for |obj|. The trace hook should call |wrapper->TraceInside|, which
- * should mark any JS objects held by |wrapper| as members.
- */
+static void
+TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper)
+{
+    // NOTE: It might be nice to also do the wrapper->Mark() call here too
+    // when we are called during the marking phase of JS GC to mark the
+    // wrapper's and wrapper's proto's interface sets.
+    //
+    // We currently do that in the GC callback code. The reason we don't do that
+    // here is because the bits used in that marking do unpleasant things to the
+    // member counts in the interface and interface set objects. Those counts
+    // are used in the DealWithDyingGCThings calls that are part of this JS GC
+    // marking phase. By doing these calls later during our GC callback we
+    // avoid that problem. Arguably this could be changed. But it ain't broke.
+    //
+    // However, we do need to call the wrapper's TraceJS so that
+    // it can be sure that its (potentially shared) JSClass is traced. The
+    // danger is that a live wrapper might not be in a wrapper map and thus
+    // won't be fully marked in the GC callback. This can happen if there is
+    // a security exception during wrapper creation or if during wrapper
+    // creation it is determined that the wrapper is not needed. In those cases
+    // the wrapper can never actually be used from JS code - so resources like
+    // the interface set will never be accessed. But the JS engine will still
+    // need to use the JSClass. So, some marking is required for protection.
+
+    wrapper->TraceJS(trc);
+
+    TraceScopeJSObjects(trc, wrapper->GetScope());
+}
 
 static void
 MarkWrappedNative(JSTracer *trc, JSObject *obj)
@@ -654,9 +675,9 @@ MarkWrappedNative(JSTracer *trc, JSObject *obj)
 
     if (wrapper) {
         if (wrapper->IsValid())
-            wrapper->TraceInside(trc);
+             TraceForValidWrapper(trc, wrapper);
     } else if (obj2) {
-        TraceInsideSlimWrapper(trc, obj2);
+        GetSlimWrapperProto(obj2)->TraceJS(trc);
     }
 }
 
@@ -1276,6 +1297,11 @@ private:
 JSObject*
 XPC_WN_JSOp_ThisObject(JSContext *cx, JSHandleObject obj)
 {
+    // None of the wrappers we could potentially hand out are threadsafe so
+    // just hand out the given object.
+    if (!XPCPerThreadData::IsMainThread(cx))
+        return obj;
+
     return JS_ObjectToOuterObject(cx, obj);
 }
 
@@ -1581,7 +1607,7 @@ XPC_WN_Shared_Proto_Trace(JSTracer *trc, JSObject *obj)
     XPCWrappedNativeProto* p =
         (XPCWrappedNativeProto*) xpc_GetJSPrivate(obj);
     if (p)
-        p->TraceInside(trc);
+        TraceScopeJSObjects(trc, p->GetScope());
 }
 
 /*****************************************************/

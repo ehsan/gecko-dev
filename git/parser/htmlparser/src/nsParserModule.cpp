@@ -20,13 +20,13 @@
 #include "nsSAXLocator.h"
 #include "nsSAXXMLReader.h"
 
-#if defined(DEBUG)
+#if defined(NS_DEBUG)
 #include "nsExpatDriver.h"
 #endif
 
 //----------------------------------------------------------------------
 
-#if defined(DEBUG)
+#if defined(NS_DEBUG)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsExpatDriver)
 #endif
 
@@ -37,7 +37,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsParserService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSAXAttributes)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSAXXMLReader)
 
-#if defined(DEBUG)
+#if defined(NS_DEBUG)
 NS_DEFINE_NAMED_CID(NS_EXPAT_DRIVER_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_PARSER_CID);
@@ -47,7 +47,7 @@ NS_DEFINE_NAMED_CID(NS_SAXATTRIBUTES_CID);
 NS_DEFINE_NAMED_CID(NS_SAXXMLREADER_CID);
 
 static const mozilla::Module::CIDEntry kParserCIDs[] = {
-#if defined(DEBUG)
+#if defined(NS_DEBUG)
   { &kNS_EXPAT_DRIVER_CID, false, NULL, nsExpatDriverConstructor },
 #endif
   { &kNS_PARSER_CID, false, NULL, nsParserConstructor },
@@ -76,7 +76,7 @@ Initialize()
     nsHTMLTags::ReleaseTable();
     return rv;
   }
-#ifdef DEBUG
+#ifdef NS_DEBUG
   CheckElementTable();
 #endif
   CNewlineToken::AllocNewline();

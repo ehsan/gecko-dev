@@ -12,7 +12,6 @@
 #include "nsPrintObject.h"
 #include "nsPrintData.h"
 #include "nsFrameList.h"
-#include "mozilla/Attributes.h"
 
 // Interfaces
 #include "nsIDocument.h"
@@ -33,7 +32,7 @@ class nsIWeakReference;
 // nsPrintEngine Class
 //
 //------------------------------------------------------------------------
-class nsPrintEngine MOZ_FINAL : public nsIObserver
+class nsPrintEngine : public nsIObserver
 {
 public:
   // nsISupports interface...

@@ -306,14 +306,7 @@ Tester.prototype = {
     var headPath = currentTestDirPath + "/head.js";
     try {
       this._scriptLoader.loadSubScript(headPath, this.currentTest.scope);
-    } catch (ex) {
-      // Ignore if no head.js exists, but report all other errors.  Note this
-      // will also ignore an existing head.js attempting to import a missing
-      // module - see bug 755558 for why this strategy is preferred anyway.
-      if (ex.toString() != 'Error opening input stream (invalid filename?)') {
-       this.currentTest.addResult(new testResult(false, "head.js import threw an exception", ex, false));
-      }
-    }
+    } catch (ex) { /* no head */ }
 
     // Import the test script.
     try {

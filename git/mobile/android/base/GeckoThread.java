@@ -73,22 +73,14 @@ public class GeckoThread extends Thread {
 
         // find the right intent type
         final String action = mIntent.getAction();
-        String type = action.startsWith(GeckoApp.ACTION_WEBAPP_PREFIX) ? "-webapp" :
+        String type = GeckoApp.ACTION_WEBAPP.equals(action) ? "-webapp" :
                       GeckoApp.ACTION_BOOKMARK.equals(action) ? "-bookmark" :
                       null;
 
-        String args = mIntent.getStringExtra("args");
-
-        // if this isn't the default BrowserApp, send the apps default profile to gecko
-        if (!(app instanceof BrowserApp)) {
-            String profile = app.getDefaultProfileName();
-            args = (args != null ? args : "") + "-P " + profile;
-        }
-
         // and then fire us up
-        Log.i(LOGTAG, "RunGecko - URI = " + mUri + " args = " + args);
+        Log.i(LOGTAG, "RunGecko - URI = " + mUri);
         GeckoAppShell.runGecko(app.getApplication().getPackageResourcePath(),
-                               args,
+                               mIntent.getStringExtra("args"),
                                mUri,
                                type,
                                mRestoreMode);

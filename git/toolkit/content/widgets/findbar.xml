@@ -185,7 +185,7 @@
       <xul:label anonid="find-label" class="findbar-find-fast" control="findbar-textbox"/>
       <xul:textbox class="findbar-textbox findbar-find-fast" anonid="findbar-textbox"
                    xbl:inherits="flash"/>
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
       <xul:toolbarbutton anonid="find-previous"
                          class="findbar-find-previous tabbable"
                          label="&previous.label;"
@@ -203,7 +203,7 @@
                          oncommand="onFindAgainCommand(false);"
                          disabled="true"
                          xbl:inherits="accesskey=findnextaccesskey"/>
-#ifndef MOZ_WIDGET_GTK
+#ifndef MOZ_WIDGET_GTK2
       <xul:toolbarbutton anonid="find-previous"
                          class="findbar-find-previous tabbable"
                          label="&previous.label;"

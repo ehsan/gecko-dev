@@ -236,8 +236,10 @@ nsHttpTransaction::Init(PRUint8 caps,
     mRequestHead = requestHead;
 
     // make sure we eliminate any proxy specific headers from 
-    // the request if we are using CONNECT
-    bool pruneProxyHeaders = cinfo->UsingConnect();
+    // the request if we are talking HTTPS via a SSL tunnel.
+    bool pruneProxyHeaders = 
+        cinfo->ShouldForceConnectMethod() ||
+        (cinfo->UsingSSL() && cinfo->UsingHttpProxy());
     
     mReqHeaderBuf.Truncate();
     requestHead->Flatten(mReqHeaderBuf, pruneProxyHeaders);

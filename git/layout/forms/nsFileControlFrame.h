@@ -43,7 +43,7 @@ public:
   
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
@@ -84,7 +84,6 @@ protected:
     MouseListener(nsFileControlFrame* aFrame)
      : mFrame(aFrame) 
     {}
-    virtual ~MouseListener() {}
 
     void ForgetFrame() {
       mFrame = nsnull;

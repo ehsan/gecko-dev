@@ -58,11 +58,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
     }
 
     //gA11yEventDumpToConsole = true; // debug stuff
-    function doPreTest()
-    {
-      var imgMap = document.getElementById("imgmap");
-      waitForImageMap(imgMap, doTest);
-    }
 
     var gQueue = null;
     function doTest()
@@ -95,6 +90,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
 
       //////////////////////////////////////////////////////////////////////////
       // image map and its link children
+      ensureImageMapTree("imgmap");
 
       var imageMapHyperlinkAcc = getAccessible("imgmap",
                                                [nsIAccessibleHyperLink]);
@@ -243,9 +239,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
     }
 
     SimpleTest.waitForExplicitFinish();
-    addA11yLoadEvent(doPreTest);
+    addA11yLoadEvent(doTest);
   </script>
-
 </head>
 <body><a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=418368">Mozilla Bug 418368</a
   ><p id="display"></p

@@ -15,32 +15,13 @@ XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
   return Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
 });
 
-// Makes sure that we expose correctly chrome JS objects to content.
-function wrapObjectIn(aObject, aCtxt) {
-  let res = Cu.createObjectIn(aCtxt);
-  let propList = { };
-  for (let prop in aObject) {
-    propList[prop] = {
-      enumerable: true,
-      configurable: true,
-      writable: true,
-      value: (typeof(aObject[prop]) == "object") ? wrapObjectIn(aObject[prop], aCtxt)
-                                                 : aObject[prop]
-    }
-  }
-  Object.defineProperties(res, propList);
-  Cu.makeObjectPropsNormal(res);
-  return res;
-};
-
 function convertAppsArray(aApps, aWindow) {
-  let apps = Cu.createArrayIn(aWindow);
+  let apps = new Array();
   for (let i = 0; i < aApps.length; i++) {
     let app = aApps[i];
-    apps.push(createApplicationObject(aWindow, app.origin, app.manifest, app.manifestURL, 
-                                      app.receipts, app.installOrigin, app.installTime));
+    apps.push(new WebappsApplication(aWindow, app.origin, app.manifest, app.manifestURL, 
+                                     app.receipts, app.installOrigin, app.installTime));
   }
-
   return apps;
 }
 
@@ -49,12 +30,6 @@ function WebappsRegistry() {
 
 WebappsRegistry.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
-  __exposedProps__: {
-                      install: 'r',
-                      getSelf: 'r',
-                      getInstalled: 'r',
-                      mgmt: 'r'
-                     },
 
   /** from https://developer.mozilla.org/en/OpenWebApps/The_Manifest
    * only the name property is mandatory
@@ -82,8 +57,8 @@ WebappsRegistry.prototype = {
     let app = msg.app;
     switch (aMessage.name) {
       case "Webapps:Install:Return:OK":
-        Services.DOMRequest.fireSuccess(req, createApplicationObject(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
-                                                                     app.installOrigin, app.installTime));
+        Services.DOMRequest.fireSuccess(req, new WebappsApplication(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
+                                                app.installOrigin, app.installTime));
         break;
       case "Webapps:Install:Return:KO":
         Services.DOMRequest.fireError(req, "DENIED");
@@ -91,8 +66,8 @@ WebappsRegistry.prototype = {
       case "Webapps:GetSelf:Return:OK":
         if (msg.apps.length) {
           app = msg.apps[0];
-          Services.DOMRequest.fireSuccess(req, createApplicationObject(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
-                                                                       app.installOrigin, app.installTime));
+          Services.DOMRequest.fireSuccess(req, new WebappsApplication(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
+                                                  app.installOrigin, app.installTime));
         } else {
           Services.DOMRequest.fireSuccess(req, null);
         }
@@ -206,57 +181,63 @@ WebappsRegistry.prototype = {
 /**
   * mozIDOMApplication object
   */
+function WebappsApplication(aWindow, aOrigin, aManifest, aManifestURL, aReceipts, aInstallOrigin, aInstallTime) {
+  this._origin = aOrigin;
+  this._manifest = aManifest;
+  this._manifestURL = aManifestURL;
+  this._receipts = aReceipts;
+  this._installOrigin = aInstallOrigin;
+  this._installTime = aInstallTime;
 
-function createApplicationObject(aWindow, aOrigin, aManifest, aManifestURL, aReceipts, aInstallOrigin, aInstallTime) {
-  let app = Cc["@mozilla.org/webapps/application;1"].createInstance(Ci.mozIDOMApplication);
-  app.wrappedJSObject.init(aWindow, aOrigin, aManifest, aManifestURL, aReceipts, aInstallOrigin, aInstallTime);
-  return app;
-}
-
-function WebappsApplication() {
-  this.wrappedJSObject = this;
+  this.initHelper(aWindow, ["Webapps:Uninstall:Return:OK", "Webapps:Uninstall:Return:KO"]);
 }
 
 WebappsApplication.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
+  _origin: null,
+  _manifest: null,
+  _manifestURL: null,
+  _receipts: [],
+  _installOrigin: null,
+  _installTime: 0,
   __exposedProps__: {
                       origin: 'r',
                       manifest: 'r',
                       manifestURL: 'r',
                       installOrigin: 'r',
                       installTime: 'r',
-                      status: 'r',
-                      progress: 'r',
-                      onprogress: 'rw',
                       launch: 'r',
                       receipts: 'r',
                       uninstall: 'r'
                      },
 
-  init: function(aWindow, aOrigin, aManifest, aManifestURL, aReceipts, aInstallOrigin, aInstallTime) {
-    this.origin = aOrigin;
-    this.manifest = wrapObjectIn(aManifest, aWindow);
-    this.manifestURL = aManifestURL;
-    this.receipts = aReceipts;
-    this.installOrigin = aInstallOrigin;
-    this.installTime = aInstallTime;
-    this.status = "installed";
-    this.progress = NaN;
-    this._onprogress = null;
-    this.initHelper(aWindow, ["Webapps:Uninstall:Return:OK", "Webapps:Uninstall:Return:KO", "Webapps:OfflineCache"]);
+  get origin() {
+    return this._origin;
   },
 
-  set onprogress(aCallback) {
-    this._onprogress = aCallback;
+  get manifest() {
+    return this._manifest;
   },
 
-  get onprogress() {
-    return this._onprogress;
+  get manifestURL() {
+    return this._manifestURL;
+  },
+
+  get receipts() {
+    return this._receipts;
+  },
+
+  get installOrigin() {
+    return this._installOrigin;
+  },
+  
+  get installTime() {
+    return this._installTime;
   },
 
   launch: function(aStartPoint) {
     let request = this.createRequest();
-    cpmm.sendAsyncMessage("Webapps:Launch", { origin: this.origin,
+    cpmm.sendAsyncMessage("Webapps:Launch", { origin: this._origin,
                                               startPoint: aStartPoint || "",
                                               oid: this._id,
                                               requestID: this.getRequestId(request) });
@@ -265,39 +246,26 @@ WebappsApplication.prototype = {
 
   uninstall: function() {
     let request = this.createRequest();
-    cpmm.sendAsyncMessage("Webapps:Uninstall", { origin: this.origin,
+    cpmm.sendAsyncMessage("Webapps:Uninstall", { origin: this._origin,
                                                  oid: this._id,
                                                  requestID: this.getRequestId(request) });
     return request;
   },
 
-  uninit: function() {
-    this._onprogress = null;
-  },
-
   receiveMessage: function(aMessage) {
     var msg = aMessage.json;
-    let req = this.takeRequest(msg.requestID);
-    if ((msg.oid != this._id || !req) && aMessage.name !== "Webapps:OfflineCache")
+    let req = this.getRequest(msg.requestID);
+    if (msg.oid != this._id || !req)
       return;
     switch (aMessage.name) {
       case "Webapps:Uninstall:Return:OK":
         Services.DOMRequest.fireSuccess(req, msg.origin);
         break;
       case "Webapps:Uninstall:Return:KO":
-        Services.DOMRequest.fireError(req, "NOT_INSTALLED");
-        break;
-      case "Webapps:OfflineCache":
-        if (msg.manifest != this.manifestURL)
-          return;
-        
-        this.status = msg.status;
-        if (this._onprogress) {
-          let event = new this._window.MozApplicationEvent("applicationinstall", { application: this });
-          this._onprogress.handleEvent(event);
-        }
+        Services.DOMRequest.fireError(req, msg.origin);
         break;
     }
+    this.removeRequest(msg.requestID);
   },
 
   classID: Components.ID("{723ed303-7757-4fb0-b261-4f78b1f6bd22}"),
@@ -334,11 +302,6 @@ function WebappsApplicationMgmt(aWindow) {
 
 WebappsApplicationMgmt.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
-  __exposedProps__: {
-                      getAll: 'r',
-                      oninstall: 'rw',
-                      onuninstall: 'rw'
-                     },
 
   uninit: function() {
     this._oninstall = null;
@@ -393,16 +356,14 @@ WebappsApplicationMgmt.prototype = {
       case "Webapps:Install:Return:OK":
         if (this._oninstall) {
           let app = msg.app;
-          let event = new this._window.MozApplicationEvent("applicationinstall", 
-                           { application : createApplicationObject(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
-                                                                  app.installOrigin, app.installTime) });
+          let event = new WebappsApplicationEvent(new WebappsApplication(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
+                                                app.installOrigin, app.installTime));
           this._oninstall.handleEvent(event);
         }
         break;
       case "Webapps:Uninstall:Return:OK":
         if (this._onuninstall) {
-          let event = new this._window.MozApplicationEvent("applicationuninstall", 
-                           { application : createApplicationObject(this._window, msg.origin, null, null, null, null, 0) });
+          let event = new WebappsApplicationEvent(new WebappsApplication(this._window, msg.origin, null, null, null, null, 0));
           this._onuninstall.handleEvent(event);
         }
         break;
@@ -419,6 +380,29 @@ WebappsApplicationMgmt.prototype = {
                                     interfaces: [Ci.mozIDOMApplicationMgmt],
                                     flags: Ci.nsIClassInfo.DOM_OBJECT,
                                     classDescription: "Webapps Application Mgmt"})
+}
+
+/**
+  * mozIDOMApplicationEvent object
+  */
+function WebappsApplicationEvent(aApp) {
+  this._app = aApp;
+}
+
+WebappsApplicationEvent.prototype = {
+  get application() {
+    return this._app;
+  },
+
+  classID: Components.ID("{5bc42b2a-9acc-49d5-a336-c353c8125e48}"),
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplicationEvent]),
+
+  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{8c1bca96-266f-493a-8d57-ec7a95098c15}"),
+                                    contractID: "@mozilla.org/webapps/application-event;1",
+                                    interfaces: [Ci.mozIDOMApplicationEvent],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
+                                    classDescription: "Webapps Application Event"})
 }
 
 const NSGetFactory = XPCOMUtils.generateNSGetFactory([WebappsRegistry, WebappsApplication]);

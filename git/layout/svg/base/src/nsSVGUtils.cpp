@@ -19,7 +19,6 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsComputedDOMStyle.h"
 #include "nsContentUtils.h"
-#include "nsDisplayList.h"
 #include "nsFrameList.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
@@ -581,32 +580,100 @@ nsSVGUtils::GetNearestSVGViewport(nsIFrame *aFrame)
 
 nsRect
 nsSVGUtils::GetPostFilterVisualOverflowRect(nsIFrame *aFrame,
-                                            const nsRect &aPreFilterRect)
+                                            const nsRect &aUnfilteredRect)
 {
   NS_ABORT_IF_FALSE(aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT,
                     "Called on invalid frame type");
 
   nsSVGFilterFrame *filter = nsSVGEffects::GetFilterFrame(aFrame);
   if (!filter) {
-    return aPreFilterRect;
+    return aUnfilteredRect;
   }
 
-  return filter->GetPostFilterBounds(aFrame, nsnull, &aPreFilterRect) -
-           aFrame->GetPosition();
+  PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
+  nsIntRect unfilteredRect =
+    aUnfilteredRect.ToOutsidePixels(appUnitsPerDevPixel);
+  nsIntRect rect = filter->GetFilterBBox(aFrame, nsnull, &unfilteredRect);
+  nsRect r = rect.ToAppUnits(appUnitsPerDevPixel) - aFrame->GetPosition();
+  return r;
 }
 
+nsRect
+nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
+{
+  PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
+  nsIntRect rect = aRect.ToOutsidePixels(appUnitsPerDevPixel);
+
+  while (aFrame) {
+    if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
+      break;
+
+    nsSVGFilterFrame *filter = nsSVGEffects::GetFilterFrame(aFrame);
+    if (filter) {
+      // When we are under AttributeChanged, we can no longer get the old bbox
+      // by calling GetBBox(), and we need that to set up the filter region
+      // with the correct position. :-(
+      //rect = filter->GetInvalidationBBox(aFrame, rect);
+
+      // XXX [perf] As a horrible workaround, for now we just invalidate the
+      // entire area of the nearest viewport establishing frame that doesnt
+      // have overflow:visible. See bug 463939.
+      nsSVGDisplayContainerFrame* viewportFrame = GetNearestSVGViewport(aFrame);
+      while (viewportFrame && !viewportFrame->GetStyleDisplay()->IsScrollableOverflow()) {
+        viewportFrame = GetNearestSVGViewport(viewportFrame);
+      }
+      if (!viewportFrame) {
+        viewportFrame = GetOuterSVGFrame(aFrame);
+      }
+      if (viewportFrame->GetType() == nsGkAtoms::svgOuterSVGFrame) {
+        nsRect r = viewportFrame->GetVisualOverflowRect();
+        // GetOverflowRect is relative to our border box, but we need it
+        // relative to our content box.
+        r.MoveBy(viewportFrame->GetPosition() - viewportFrame->GetContentRect().TopLeft());
+        return r;
+      }
+      NS_ASSERTION(viewportFrame->GetType() == nsGkAtoms::svgInnerSVGFrame,
+                   "Wrong frame type");
+      nsSVGInnerSVGFrame* innerSvg = do_QueryFrame(static_cast<nsIFrame*>(viewportFrame));
+      nsSVGDisplayContainerFrame* innerSvgParent = do_QueryFrame(viewportFrame->GetParent());
+      float x, y, width, height;
+      static_cast<nsSVGSVGElement*>(innerSvg->GetContent())->
+        GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
+      gfxRect bounds = GetCanvasTM(innerSvgParent).
+                         TransformBounds(gfxRect(x, y, width, height));
+      bounds.RoundOut();
+      nsIntRect r;
+      if (gfxUtils::GfxRectToIntRect(bounds, &r)) {
+        rect = r;
+      } else {
+        NS_NOTREACHED("Not going to invalidate the correct area");
+      }
+      aFrame = viewportFrame;
+    }
+    aFrame = aFrame->GetParent();
+  }
+
+  nsRect r = rect.ToAppUnits(appUnitsPerDevPixel);
+  if (aFrame) {
+    NS_ASSERTION(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG,
+                 "outer SVG frame expected");
+    r.MoveBy(aFrame->GetContentRect().TopLeft() - aFrame->GetPosition());
+  }
+  return r;
+}
+
+#ifdef DEBUG
 bool
 nsSVGUtils::OuterSVGIsCallingUpdateBounds(nsIFrame *aFrame)
 {
   return nsSVGUtils::GetOuterSVGFrame(aFrame)->IsCallingUpdateBounds();
 }
+#endif
 
 void
-nsSVGUtils::InvalidateBounds(nsIFrame *aFrame, bool aDuringUpdate,
-                             const nsRect *aBoundsSubArea, PRUint32 aFlags)
+nsSVGUtils::InvalidateBounds(nsIFrame *aFrame, bool aDuringUpdate)
 {
-  NS_ABORT_IF_FALSE(aFrame->IsFrameOfType(nsIFrame::eSVG) &&
-                    !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG),
+  NS_ABORT_IF_FALSE(aFrame->IsFrameOfType(nsIFrame::eSVG),
                     "Passed bad frame!");
 
   NS_ASSERTION(aDuringUpdate == OuterSVGIsCallingUpdateBounds(aFrame),
@@ -640,73 +707,42 @@ nsSVGUtils::InvalidateBounds(nsIFrame *aFrame, bool aDuringUpdate,
     return;
   }
 
-  // Okay, so now we pass the area that needs to be invalidated up our parent
-  // chain, accounting for filter effects and transforms as we go, until we
-  // reach our nsSVGOuterSVGFrame where we can invalidate:
+  // XXXSDL we want to reduce the bounds when passing through inner-<svg>
+  // and <use>, etc.
 
-  nsRect invalidArea;
-  if (aBoundsSubArea) {
-    invalidArea = *aBoundsSubArea;
-  } else {
-    invalidArea = aFrame->GetVisualOverflowRect();
-    // GetVisualOverflowRect() already includes filter effects and transforms,
-    // so advance to our parent before the loop below:
-    invalidArea += aFrame->GetPosition();
-    aFrame = aFrame->GetParent();
-  }
-
-  PRInt32 appUnitsPerCSSPx = aFrame->PresContext()->AppUnitsPerCSSPixel();
-
-  while (aFrame) {
-    if ((aFrame->GetStateBits() & NS_FRAME_IS_DIRTY)) {
-      // This ancestor frame has already been invalidated, so nothing to do.
+  nsSVGOuterSVGFrame* outerSVGFrame = GetOuterSVGFrame(aFrame);
+  NS_ASSERTION(outerSVGFrame, "no outer svg frame");
+  if (outerSVGFrame) {
+    nsISVGChildFrame *svgFrame = do_QueryFrame(aFrame);
+    if (!svgFrame)
       return;
-    }
-    if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG) {
-      break;
-    }
-    if (aFrame->GetType() == nsGkAtoms::svgInnerSVGFrame &&
-        aFrame->GetStyleDisplay()->IsScrollableOverflow()) {
-      // Clip rect to the viewport established by this inner-<svg>:
-      float x, y, width, height;
-      static_cast<nsSVGSVGElement*>(aFrame->GetContent())->
-        GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
-      if (width <= 0.0f || height <= 0.0f) {
-        return; // Nothing to invalidate
-      }
-      nsRect viewportRect =
-        nsLayoutUtils::RoundGfxRectToAppRect(gfxRect(0.0, 0.0, width, height),
-                                             appUnitsPerCSSPx);
-      invalidArea = invalidArea.Intersect(viewportRect);
-      if (invalidArea.IsEmpty()) {
-        return; // Nothing to invalidate
-      }
-    }
-    nsSVGFilterFrame *filterFrame = nsSVGEffects::GetFilterFrame(aFrame);
-    if (filterFrame) {
-      invalidArea =
-        filterFrame->GetPostFilterDirtyArea(aFrame, invalidArea);
-    }
-    if (aFrame->IsTransformed()) {
-      invalidArea =
-        nsDisplayTransform::TransformRect(invalidArea, aFrame, nsPoint(0, 0));
-    }
-    invalidArea += aFrame->GetPosition();
-    aFrame = aFrame->GetParent();
+
+    // Note that filters can paint even if the element being filtered has empty
+    // bounds, so we don't return early for that. Specifically, filters can be
+    // given an explicit size that doesn't depend on the bbox of the element
+    // being filtered, and then feFlood can be used to fill that area with paint.
+    nsRect rect = FindFilterInvalidation(aFrame, svgFrame->GetCoveredRegion());
+    outerSVGFrame->Invalidate(rect);
   }
+}
 
-  if (!aFrame) {
-    // We seem to be able to get here, even though SVG frames are never created
-    // without an ancestor nsSVGOuterSVGFrame. See bug 767996.
-    return;
+static void
+MarkDirtyBitsOnDescendants(nsIFrame *aFrame)
+{
+  NS_ABORT_IF_FALSE(aFrame->IsFrameOfType(nsIFrame::eSVG),
+                    "Passed bad frame!");
+
+  nsIFrame* kid = aFrame->GetFirstPrincipalChild();
+  while (kid) {
+    nsISVGChildFrame* svgkid = do_QueryFrame(kid);
+    if (svgkid &&
+        !(kid->GetStateBits() &
+          (NS_STATE_SVG_NONDISPLAY_CHILD | NS_FRAME_IS_DIRTY))) {
+      MarkDirtyBitsOnDescendants(kid);
+      kid->AddStateBits(NS_FRAME_IS_DIRTY);
+    }
+    kid = kid->GetNextSibling();
   }
-
-  NS_ASSERTION(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG,
-               "SVG frames must always have an nsSVGOuterSVGFrame ancestor!");
-  invalidArea.MoveBy(aFrame->GetContentRect().TopLeft() - aFrame->GetPosition());
-
-  static_cast<nsSVGOuterSVGFrame*>(aFrame)->InvalidateWithFlags(invalidArea,
-                                                                aFlags);
 }
 
 void
@@ -736,6 +772,10 @@ nsSVGUtils::ScheduleBoundsUpdate(nsIFrame *aFrame)
     // hasn't yet had its initial reflow.
     return;
   }
+
+  // XXXSDL once we store bounds on containers, we will not need to
+  // mark our descendants dirty.
+  MarkDirtyBitsOnDescendants(aFrame);
 
   nsSVGOuterSVGFrame *outerSVGFrame = nsnull;
 
@@ -1019,7 +1059,7 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame)
   // XXX yuck, we really need a common interface for GetCanvasTM
 
   if (!aFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFrame);
+    return nsSVGIntegrationUtils::GetInitialMatrix(aFrame);
   }
 
   nsIAtom* type = aFrame->GetType();
@@ -1033,21 +1073,6 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame)
   }
 
   return static_cast<nsSVGGeometryFrame*>(aFrame)->GetCanvasTM();
-}
-
-gfxMatrix
-nsSVGUtils::GetUserToCanvasTM(nsIFrame *aFrame)
-{
-  nsISVGChildFrame* svgFrame = do_QueryFrame(aFrame);
-  NS_ASSERTION(svgFrame, "bad frame");
-
-  gfxMatrix tm;
-  if (svgFrame) {
-    nsSVGElement *content = static_cast<nsSVGElement*>(aFrame->GetContent());
-    tm = content->PrependLocalTransformsTo(GetCanvasTM(aFrame->GetParent()),
-                                           nsSVGElement::eUserSpaceToParent);
-  }
-  return tm;
 }
 
 void 
@@ -1201,19 +1226,6 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
   if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
     complexEffects = true;
     gfx->Save();
-    if (!(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      // aFrame has a valid visual overflow rect, so clip to it before calling
-      // PushGroup() to minimize the size of the surfaces we'll composite:
-      gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(gfx);
-      gfx->Multiply(GetCanvasTM(aFrame));
-      nsRect overflowRect = aFrame->GetVisualOverflowRectRelativeToSelf();
-      if (aFrame->IsFrameOfType(nsIFrame::eSVGGeometry)) {
-        // Unlike containers, leaf frames do not include GetPosition() in
-        // GetCanvasTM().
-        overflowRect = overflowRect + aFrame->GetPosition();
-      }
-      aContext->IntersectClip(overflowRect);
-    }
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
@@ -1227,28 +1239,8 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
 
   /* Paint the child */
   if (filterFrame) {
-    nsRect* dirtyRect = nsnull;
-    nsRect tmpDirtyRect;
-    if (aDirtyRect) {
-      // aDirtyRect is in outer-<svg> device pixels, but the filter code needs
-      // it in frame space.
-      gfxMatrix userToDeviceSpace = GetUserToCanvasTM(aFrame);
-      if (userToDeviceSpace.IsSingular()) {
-        return;
-      }
-      gfxMatrix deviceToUserSpace = userToDeviceSpace;
-      deviceToUserSpace.Invert();
-      gfxRect dirtyBounds = deviceToUserSpace.TransformBounds(
-                              gfxRect(aDirtyRect->x, aDirtyRect->y,
-                                      aDirtyRect->width, aDirtyRect->height));
-      tmpDirtyRect =
-        nsLayoutUtils::RoundGfxRectToAppRect(
-          dirtyBounds, aFrame->PresContext()->AppUnitsPerCSSPixel()) -
-        aFrame->GetPosition();
-      dirtyRect = &tmpDirtyRect;
-    }
     SVGPaintCallback paintCallback;
-    filterFrame->PaintFilteredFrame(aContext, aFrame, &paintCallback, dirtyRect);
+    filterFrame->FilterPaint(aContext, aFrame, &paintCallback, aDirtyRect);
   } else {
     svgChildFrame->PaintSVG(aContext, aDirtyRect);
   }
@@ -1415,15 +1407,15 @@ nsSVGUtils::HitTestRect(const gfxMatrix &aMatrix,
                         float aRX, float aRY, float aRWidth, float aRHeight,
                         float aX, float aY)
 {
-  gfxRect rect(aRX, aRY, aRWidth, aRHeight);
-  if (rect.IsEmpty() || aMatrix.IsSingular()) {
+  if (aMatrix.IsSingular()) {
     return false;
   }
-  gfxMatrix toRectSpace = aMatrix;
-  toRectSpace.Invert();
-  gfxPoint p = toRectSpace.Transform(gfxPoint(aX, aY));
-  return rect.x <= p.x && p.x <= rect.XMost() &&
-         rect.y <= p.y && p.y <= rect.YMost();
+  gfxContext ctx(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  ctx.SetMatrix(aMatrix);
+  ctx.NewPath();
+  ctx.Rectangle(gfxRect(aRX, aRY, aRWidth, aRHeight));
+  ctx.IdentityMatrix();
+  return ctx.PointInFill(gfxPoint(aX, aY));
 }
 
 gfxRect
@@ -1526,9 +1518,10 @@ nsSVGUtils::SetClipRect(gfxContext *aContext,
   if (aCTM.IsSingular())
     return;
 
-  gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(aContext);
+  gfxMatrix oldMatrix = aContext->CurrentMatrix();
   aContext->Multiply(aCTM);
   aContext->Clip(aRect);
+  aContext->SetMatrix(oldMatrix);
 }
 
 void

@@ -708,8 +708,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   padding: 3px 7px;
 }
 
-@navbarLargeIcons@ .toolbarbutton-1[type=menu]:not(#back-button):not(#forward-button):not(#feed-button) > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1[type=menu] > .toolbarbutton-text /* hack for add-ons that forcefully display the label */ {
+@navbarLargeIcons@ .toolbarbutton-1[type=menu]:not(#back-button):not(#forward-button):not(#feed-button) > .toolbarbutton-icon {
   -moz-padding-end: 17px;
 }
 
@@ -1446,6 +1445,10 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
   list-style-image: url(chrome://browser/skin/identity-icons-https-ev.png);
 }
 
+.mixedContent > #page-proxy-favicon[pageproxystate="valid"] {
+  list-style-image: url(chrome://browser/skin/identity-icons-https-mixed.png);
+}
+
 #identity-box:hover > #page-proxy-favicon {
   -moz-image-region: rect(0, 32px, 16px, 16px);
 }
@@ -1673,18 +1676,18 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
 }
 
 .panel-promo-box {
-  margin: 10px -10px -10px;
-  padding: 8px 10px;
-  border-top: 1px solid ThreeDShadow;
-  background-image: -moz-linear-gradient(hsla(0,0%,0%,.15), hsla(0,0%,0%,.08) 6px);
-  border-bottom-left-radius: 3px;
-  border-bottom-right-radius: 3px;
+  margin: 16px 0 -2px;
 }
 
 @media (-moz-windows-default-theme) {
   .panel-promo-box {
-    border-top-style: none;
-    background: #f1f5fb;
+    margin: 8px -16px -16px;
+    padding: 8px 16px;
+%ifndef WINSTRIPE_AERO
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+%endif
+    background-color: #f1f5fb;
     color: GrayText;
     box-shadow: 0px 1px 2px rgb(204,214,234) inset;
   }

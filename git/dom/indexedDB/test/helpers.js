@@ -7,52 +7,12 @@ var testGenerator = testSteps();
 
 function executeSoon(aFun)
 {
-  let comp = SpecialPowers.wrap(Components);
-
-  let thread = comp.classes["@mozilla.org/thread-manager;1"]
-                   .getService(comp.interfaces.nsIThreadManager)
-                   .mainThread;
-
-  thread.dispatch({
-    run: function() {
-      aFun();
-    }
-  }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
-}
-
-function clearAllDatabases(callback) {
-  function runCallback() {
-    SimpleTest.executeSoon(function () { callback(); });
-  }
-
-  if (!SpecialPowers.isMainProcess()) {
-    runCallback();
-    return;
-  }
-
-  let comp = SpecialPowers.wrap(Components);
-
-  let idbManager =
-    comp.classes["@mozilla.org/dom/indexeddb/manager;1"]
-        .getService(comp.interfaces.nsIIndexedDatabaseManager);
-
-  let uri = SpecialPowers.getDocumentURIObject(document);
-
-  idbManager.clearDatabasesForURI(uri);
-  idbManager.getUsageForURI(uri, function(uri, usage, fileUsage) {
-    if (usage) {
-      throw new Error("getUsageForURI returned non-zero usage after " +
-                      "clearing all databases!");
-    }
-    runCallback();
-  });
+  SimpleTest.executeSoon(aFun);
 }
 
 if (!window.runTest) {
   window.runTest = function(limitedQuota)
   {
-    SimpleTest.waitForExplicitFinish();
-
     allowIndexedDB();
     if (limitedQuota) {
       denyUnlimitedQuota();
@@ -61,7 +21,8 @@ if (!window.runTest) {
       allowUnlimitedQuota();
     }
 
-    clearAllDatabases(function () { testGenerator.next(); });
+    SimpleTest.waitForExplicitFinish();
+    testGenerator.next();
   }
 }
 
@@ -72,7 +33,6 @@ function finishTest()
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
-    //clearAllDatabases(function() { SimpleTest.finish(); });
     SimpleTest.finish();
   });
 }
@@ -122,20 +82,17 @@ function unexpectedSuccessHandler()
   finishTest();
 }
 
-function ExpectError(name, preventDefault)
+function ExpectError(name)
 {
   this._name = name;
-  this._preventDefault = preventDefault;
 }
 ExpectError.prototype = {
   handleEvent: function(event)
   {
     is(event.type, "error", "Got an error event");
     is(event.target.error.name, this._name, "Expected error was thrown.");
-    if (this._preventDefault) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+    event.preventDefault();
+    event.stopPropagation();
     grabEventAndContinueHandler(event);
   }
 };

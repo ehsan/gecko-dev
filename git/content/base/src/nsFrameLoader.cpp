@@ -15,7 +15,6 @@
 
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMHTMLFrameElement.h"
-#include "nsIDOMMozBrowserFrame.h"
 #include "nsIDOMWindow.h"
 #include "nsIPresShell.h"
 #include "nsIContent.h"
@@ -652,16 +651,6 @@ AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem, nsIContent* aOwningContent,
   isContent = value.LowerCaseEqualsLiteral("content") ||
     StringBeginsWith(value, NS_LITERAL_STRING("content-"),
                      nsCaseInsensitiveStringComparator());
-
-  // Force mozbrowser frames to always be typeContent, even if the
-  // mozbrowser interfaces are disabled.
-  nsCOMPtr<nsIDOMMozBrowserFrame> mozbrowser =
-    do_QueryInterface(aOwningContent);
-  if (mozbrowser) {
-    bool isMozbrowser = false;
-    mozbrowser->GetMozbrowser(&isMozbrowser);
-    isContent |= isMozbrowser;
-  }
 
   if (isContent) {
     // The web shell's type is content.
@@ -1505,6 +1494,13 @@ nsFrameLoader::MaybeCreateDocShell()
     mDocShell->SetChromeEventHandler(chromeEventHandler);
   }
 
+  nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+  if (OwnerIsBrowserFrame() && os) {
+    mDocShell->SetIsBrowserFrame(true);
+    os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
+                        "in-process-browser-frame-shown", NULL);
+  }
+
   // This is nasty, this code (the do_GetInterface(mDocShell) below)
   // *must* come *after* the above call to
   // mDocShell->SetChromeEventHandler() for the global window to get
@@ -1530,22 +1526,6 @@ nsFrameLoader::MaybeCreateDocShell()
   }
 
   EnsureMessageManager();
-
-  if (OwnerIsBrowserFrame()) {
-    mDocShell->SetIsBrowserFrame(true);
-
-    nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-    if (os) {
-      os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                          "in-process-browser-frame-shown", NULL);
-    }
-
-    if (mMessageManager) {
-      mMessageManager->LoadFrameScript(
-        NS_LITERAL_STRING("chrome://global/content/BrowserElementChild.js"),
-        /* allowDelayedLoad = */ true);
-    }
-  }
 
   return NS_OK;
 }
@@ -1908,8 +1888,7 @@ nsFrameLoader::TryRemoteBrowser()
 
   ContentParent* parent = ContentParent::GetNewOrUsed();
   NS_ASSERTION(parent->IsAlive(), "Process parent should be alive; something is very wrong!");
-  mRemoteBrowser = parent->CreateTab(chromeFlags,
-                                     /* aIsBrowserFrame = */ OwnerIsBrowserFrame());
+  mRemoteBrowser = parent->CreateTab(chromeFlags);
   if (mRemoteBrowser) {
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mOwnerContent);
     mRemoteBrowser->SetOwnerElement(element);

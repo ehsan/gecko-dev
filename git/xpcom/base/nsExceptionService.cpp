@@ -49,7 +49,7 @@ public:
   nsCOMPtr<nsIException> mCurrentException;
   nsExceptionManager *mNextThread; // not ref-counted.
   nsExceptionService *mService; // not ref-counted
-#ifdef DEBUG
+#ifdef NS_DEBUG
   static PRInt32 totalInstances;
 #endif
 
@@ -58,7 +58,7 @@ private:
 };
 
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 PRInt32 nsExceptionManager::totalInstances = 0;
 #endif
 
@@ -73,7 +73,7 @@ nsExceptionManager::nsExceptionManager(nsExceptionService *svc) :
   mService(svc)
 {
   /* member initializers and constructor code */
-#ifdef DEBUG
+#ifdef NS_DEBUG
   PR_ATOMIC_INCREMENT(&totalInstances);
 #endif
 }
@@ -81,9 +81,9 @@ nsExceptionManager::nsExceptionManager(nsExceptionService *svc) :
 nsExceptionManager::~nsExceptionManager()
 {
   /* destructor code */
-#ifdef DEBUG
+#ifdef NS_DEBUG
   PR_ATOMIC_DECREMENT(&totalInstances);
-#endif // DEBUG
+#endif // NS_DEBUG
 }
 
 /* void setCurrentException (in nsIException error); */
@@ -117,7 +117,7 @@ PRUintn nsExceptionService::tlsIndex = BAD_TLS_INDEX;
 Mutex *nsExceptionService::sLock = nsnull;
 nsExceptionManager *nsExceptionService::firstThread = nsnull;
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 PRInt32 nsExceptionService::totalInstances = 0;
 #endif
 
@@ -129,7 +129,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsExceptionService,
 nsExceptionService::nsExceptionService()
   : mProviders(4, true) /* small, thread-safe hashtable */
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (PR_ATOMIC_INCREMENT(&totalInstances)!=1) {
     NS_ERROR("The nsExceptionService is a singleton!");
   }
@@ -154,7 +154,7 @@ nsExceptionService::~nsExceptionService()
 {
   Shutdown();
   /* destructor code */
-#ifdef DEBUG
+#ifdef NS_DEBUG
   PR_ATOMIC_DECREMENT(&totalInstances);
 #endif
 }

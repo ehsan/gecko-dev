@@ -10,6 +10,7 @@
 
 #include "nsIXPConnect.h"
 
+#include "nsDOMClassInfo.h"
 #include "nsJSUtils.h"
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
@@ -89,7 +90,9 @@ ThrowException(JSContext* aCx,
                nsresult aErrorCode)
 {
   NS_ASSERTION(NS_FAILED(aErrorCode), "Not an error code!");
-  xpc::Throw(aCx, aErrorCode);
+  if (!JS_IsExceptionPending(aCx)) {
+    nsDOMClassInfo::ThrowJSException(aCx, aErrorCode);
+  }
 }
 
 inline

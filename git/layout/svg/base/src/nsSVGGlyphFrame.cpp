@@ -317,10 +317,8 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
   }
 
   if (renderMode != SVGAutoRenderState::NORMAL) {
-    NS_ABORT_IF_FALSE(renderMode == SVGAutoRenderState::CLIP ||
-                      renderMode == SVGAutoRenderState::CLIP_MASK,
-                      "Unknown render mode");
-    gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(gfx);
+
+    gfxMatrix matrix = gfx->CurrentMatrix();
     SetupGlobalTransform(gfx);
 
     CharacterIterator iter(this, true);
@@ -338,6 +336,7 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
       DrawCharacters(&iter, gfx, gfxFont::GLYPH_PATH);
     }
 
+    gfx->SetMatrix(matrix);
     return NS_OK;
   }
 
@@ -369,10 +368,10 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
     return nsnull;
   }
 
-  nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
-  SetupGlobalTransform(tmpCtx);
+  nsRefPtr<gfxContext> context = MakeTmpCtx();
+  SetupGlobalTransform(context);
   CharacterIterator iter(this, true);
-  iter.SetInitialMatrix(tmpCtx);
+  iter.SetInitialMatrix(context);
 
   // The SVG 1.1 spec says that text is hit tested against the character cells
   // of the text, not the fill and stroke. See the section starting "For text
@@ -388,17 +387,17 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
     gfxTextRun::Metrics metrics =
     mTextRun->MeasureText(i, iter.ClusterLength(),
                           gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
-    iter.SetupForMetrics(tmpCtx);
-    tmpCtx->Rectangle(metrics.mBoundingBox);
+    iter.SetupForMetrics(context);
+    context->Rectangle(metrics.mBoundingBox);
   }
 
   gfxPoint userSpacePoint =
-    tmpCtx->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
-                                  PresContext()->AppUnitsToGfxUnits(aPoint.y)));
+    context->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
+                                   PresContext()->AppUnitsToGfxUnits(aPoint.y)));
 
   bool isHit = false;
   if (hitTestFlags & SVG_HIT_TEST_FILL || hitTestFlags & SVG_HIT_TEST_STROKE) {
-    isHit = tmpCtx->PointInFill(userSpacePoint);
+    isHit = context->PointInFill(userSpacePoint);
   }
 
   // If isHit is false, we may also want to fill and stroke the text to check
@@ -506,14 +505,11 @@ nsSVGGlyphFrame::NotifySVGChanged(PRUint32 aFlags)
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
-  // Ancestor changes can't affect how we render from the perspective of
-  // any rendering observers that we may have, so we don't need to
-  // invalidate them. We also don't need to invalidate ourself, since our
-  // changed ancestor will have invalidated its entire area, which includes
-  // our area.
-  // XXXjwatt: seems to me that our ancestor's change could change our glyph
-  // metrics, in which case we should call NotifyGlyphMetricsChange instead.
-  nsSVGUtils::ScheduleBoundsUpdate(this);
+  // XXXjwatt: seems to me that this could change the glyph metrics,
+  // in which case we should call NotifyGlyphMetricsChange instead.
+  if (!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS)) {
+    nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
+  }
 
   if (aFlags & TRANSFORM_CHANGED) {
     ClearTextRun();

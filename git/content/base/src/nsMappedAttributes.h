@@ -14,13 +14,12 @@
 #include "nsAttrAndChildArray.h"
 #include "nsMappedAttributeElement.h"
 #include "nsIStyleRule.h"
-#include "mozilla/Attributes.h"
 
 class nsIAtom;
 class nsHTMLStyleSheet;
 class nsRuleWalker;
 
-class nsMappedAttributes MOZ_FINAL : public nsIStyleRule
+class nsMappedAttributes : public nsIStyleRule
 {
 public:
   nsMappedAttributes(nsHTMLStyleSheet* aSheet,

@@ -31,27 +31,7 @@ enum XMLHttpRequestResponseType {
   "moz-blob"
 };
 
-/**
- * Parameters for instantiating an XMLHttpRequest. They are passed as an
- * optional argument to the constructor:
- *
- *  new XMLHttpRequest({anon: true, system: true});
- */
-dictionary MozXMLHttpRequestParameters
-{
-  /**
-   * If true, the request will be sent without cookie and authentication
-   * headers.
-   */
-  boolean mozAnon = false;
-
-  /**
-   * If true, the same origin policy will not be enforced on the request.
-   */
-  boolean mozSystem = false;
-};
-
-[Constructor(optional MozXMLHttpRequestParameters? params = null)]
+[Constructor(optional any params)]
 interface XMLHttpRequest : XMLHttpRequestEventTarget {
   // event handler
   [TreatNonCallableAsNull] attribute Function? onreadystatechange;

@@ -8,13 +8,12 @@
 
 #include "nsIDOMWindowUtils.h"
 #include "nsEvent.h"
-#include "mozilla/Attributes.h"
 
 class nsGlobalWindow;
 class nsIPresShell;
 
-class nsDOMWindowUtils MOZ_FINAL : public nsIDOMWindowUtils,
-                                   public nsSupportsWeakReference
+class nsDOMWindowUtils : public nsIDOMWindowUtils,
+                         public nsSupportsWeakReference
 {
 public:
   nsDOMWindowUtils(nsGlobalWindow *aWindow);

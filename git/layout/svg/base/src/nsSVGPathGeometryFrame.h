@@ -85,7 +85,8 @@ protected:
   NS_IMETHOD_(bool) IsDisplayContainer() { return false; }
 
 protected:
-  void GeneratePath(gfxContext *aContext, const gfxMatrix &aTransform);
+  void GeneratePath(gfxContext *aContext,
+                    const gfxMatrix *aOverrideTransform = nsnull);
 
 private:
   void Render(nsRenderingContext *aContext);

@@ -173,7 +173,7 @@ TelemetryPing.prototype = {
   // Generate a unique id once per session so the server can cope with
   // duplicate submissions.
   _uuid: generateUUID(),
-  // Regex that matches histograms we care about during startup.
+  // Regex that matches histograms we carea bout during startup.
   _startupHistogramRegex: /SQLITE|HTTP|SPDY|CACHE|DNS/,
   _slowSQLStartup: {},
   _prevSession: null,
@@ -462,21 +462,22 @@ TelemetryPing.prototype = {
 
     let slug = (isTestPing ? reason : this._uuid);
     payloadObj.info = this.getMetadata(reason);
-    return { slug: slug, payload: JSON.stringify(payloadObj) };
+    return { previous: false, slug: slug, payload: JSON.stringify(payloadObj) };
   },
 
   getPayloads: function getPayloads(reason) {
     function payloadIter() {
-      yield this.getCurrentSessionPayloadAndSlug(reason);
-
       if (this._pendingPings.length > 0) {
         let data = this._pendingPings.pop();
+        data.previous = true;
         // Send persisted pings to the test URL too.
         if (reason == "test-ping") {
           data.slug = reason;
         }
         yield data;
       }
+
+      yield this.getCurrentSessionPayloadAndSlug(reason);
     }
 
     let payloadIterWithThis = payloadIter.bind(this);
@@ -489,48 +490,12 @@ TelemetryPing.prototype = {
   send: function send(reason, server) {
     // populate histograms one last time
     this.gatherMemory();
-    this.sendPingsFromIterator(server, reason,
-                               Iterator(this.getPayloads(reason)));
+    for (let data in this.getPayloads(reason)) {
+      this.doPing(server, data.slug, data.payload, !data.previous);
+    }
   },
 
-  /**
-   * What we want to do is the following:
-   *
-   * for data in getPayloads(reason):
-   *   if sending ping data to server failed:
-   *     break;
-   *
-   * but we can't do that, since XMLHttpRequest is async.  What we do
-   * instead is let this function control the essential looping logic
-   * and provide callbacks for XMLHttpRequest when a request has
-   * finished.
-   */
-  sendPingsFromIterator: function sendPingsFromIterator(server, reason, i) {
-    function finishPings(reason) {
-      if (reason == "test-ping") {
-        Services.obs.notifyObservers(null, "telemetry-test-xhr-complete", null);
-      }
-    }
-
-    let data = null;
-    try {
-      data = i.next();
-    } catch (e if e instanceof StopIteration) {
-      finishPings(reason);
-      return;
-    }
-    function onSuccess() {
-      this.sendPingsFromIterator(server, reason, i);
-    }
-    function onError() {
-      // Notify that testing is complete, even if we didn't send everything.
-      finishPings(reason);
-    }
-    this.doPing(server, data.slug, data.payload,
-                onSuccess.bind(this), onError.bind(this));
-  },
-
-  doPing: function doPing(server, slug, payload, onSuccess, onError) {
+  doPing: function doPing(server, slug, payload, recordSuccess) {
     let submitPath = "/submit/telemetry/" + slug;
     let url = server + submitPath;
     let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
@@ -543,23 +508,27 @@ TelemetryPing.prototype = {
     let startTime = new Date();
     let file = this.savedHistogramsFile();
 
-    function finishRequest(success) {
-      let hping = Telemetry.getHistogramById("TELEMETRY_PING");
-      let hsuccess = Telemetry.getHistogramById("TELEMETRY_SUCCESS");
+    function finishRequest(channel) {
+      let success = false;
+      try {
+        success = channel.QueryInterface(Ci.nsIHttpChannel).requestSucceeded;
+      } catch(e) {
+      }
+      if (recordSuccess) {
+        let hping = Telemetry.getHistogramById("TELEMETRY_PING");
+        let hsuccess = Telemetry.getHistogramById("TELEMETRY_SUCCESS");
 
-      hsuccess.add(success);
-      hping.add(new Date() - startTime);
-
+        hsuccess.add(success);
+        hping.add(new Date() - startTime);
+      }
       if (success && file.exists()) {
         file.remove(true);
       }
+      if (slug == "test-ping" && recordSuccess)
+        Services.obs.notifyObservers(null, "telemetry-test-xhr-complete", null);
     }
-
-    function handler(success, callback) {
-      return function(event) { finishRequest(success); callback() };
-    }
-    request.addEventListener("error", handler(false, onError), false);
-    request.addEventListener("load", handler(true, onSuccess), false);
+    request.addEventListener("error", function(aEvent) finishRequest(request.channel), false);
+    request.addEventListener("load", function(aEvent) finishRequest(request.channel), false);
 
     request.setRequestHeader("Content-Encoding", "gzip");
     let payloadStream = Cc["@mozilla.org/io/string-input-stream;1"]

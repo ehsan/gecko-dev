@@ -10,12 +10,11 @@
 #include "nsIRDFResource.h"
 #include "nsIXULTemplateResult.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
 
 /**
  * A single result of a query from mozstorage
  */
-class nsXULTemplateResultStorage MOZ_FINAL : public nsIXULTemplateResult
+class nsXULTemplateResultStorage : public nsIXULTemplateResult
 {
 public:
     NS_DECL_ISUPPORTS

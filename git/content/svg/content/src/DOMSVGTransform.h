@@ -15,7 +15,6 @@
 #include "nsIDOMSVGTransform.h"
 #include "nsTArray.h"
 #include "SVGTransform.h"
-#include "mozilla/Attributes.h"
 
 class nsSVGElement;
 
@@ -39,7 +38,7 @@ class DOMSVGMatrix;
 /**
  * DOM wrapper for an SVG transform. See DOMSVGLength.h.
  */
-class DOMSVGTransform MOZ_FINAL : public nsIDOMSVGTransform
+class DOMSVGTransform : public nsIDOMSVGTransform
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOMSVGTRANSFORM_IID)

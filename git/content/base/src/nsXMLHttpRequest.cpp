@@ -76,7 +76,6 @@
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "nsIDOMFormData.h"
 #include "DictionaryHelpers.h"
-#include "mozilla/Attributes.h"
 
 #include "nsWrapperCacheInlines.h"
 #include "nsStreamListenerWrapper.h"
@@ -549,40 +548,32 @@ nsXMLHttpRequest::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
 nsresult
 nsXMLHttpRequest::InitParameters(JSContext* aCx, const jsval* aParams)
 {
-  XMLHttpRequestParameters params;
-  nsresult rv = params.Init(aCx, aParams);
+  XMLHttpRequestParameters* params = new XMLHttpRequestParameters();
+  nsresult rv = params->Init(aCx, aParams);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  InitParameters(params.mozAnon, params.mozSystem);
-  return NS_OK;
-}
-
-void
-nsXMLHttpRequest::InitParameters(bool aAnon, bool aSystem)
-{
   // Check for permissions.
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetOwner());
-  if (!window || !window->GetDocShell()) {
-    return;
-  }
+  NS_ENSURE_TRUE(window && window->GetDocShell(), NS_OK);
 
   // Chrome is always allowed access, so do the permission check only
   // for non-chrome pages.
   if (!nsContentUtils::IsCallerChrome()) {
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(window->GetExtantDocument());
-    if (!doc) {
-      return;
-    }
+    NS_ENSURE_TRUE(doc, NS_OK);
 
     nsCOMPtr<nsIURI> uri;
     doc->NodePrincipal()->GetURI(getter_AddRefs(uri));
+
     if (!nsContentUtils::URIIsChromeOrInPref(uri, "dom.systemXHR.whitelist")) {
-      return;
+      return NS_OK;
     }
   }
 
-  mIsAnon = aAnon;
-  mIsSystem = aSystem;
+  mIsAnon = params->mozAnon;
+  mIsSystem = params->mozSystem;
+
+  return NS_OK;
 }
 
 void
@@ -1085,14 +1076,14 @@ nsXMLHttpRequest::StaticAssertions()
     #_uc " should match")
 
   ASSERT_ENUM_EQUAL(_empty, DEFAULT);
-  ASSERT_ENUM_EQUAL(Arraybuffer, ARRAYBUFFER);
-  ASSERT_ENUM_EQUAL(Blob, BLOB);
-  ASSERT_ENUM_EQUAL(Document, DOCUMENT);
-  ASSERT_ENUM_EQUAL(Json, JSON);
-  ASSERT_ENUM_EQUAL(Text, TEXT);
-  ASSERT_ENUM_EQUAL(Moz_chunked_text, CHUNKED_TEXT);
-  ASSERT_ENUM_EQUAL(Moz_chunked_arraybuffer, CHUNKED_ARRAYBUFFER);
-  ASSERT_ENUM_EQUAL(Moz_blob, MOZ_BLOB);
+  ASSERT_ENUM_EQUAL(arraybuffer, ARRAYBUFFER);
+  ASSERT_ENUM_EQUAL(blob, BLOB);
+  ASSERT_ENUM_EQUAL(document, DOCUMENT);
+  ASSERT_ENUM_EQUAL(json, JSON);
+  ASSERT_ENUM_EQUAL(text, TEXT);
+  ASSERT_ENUM_EQUAL(moz_chunked_text, CHUNKED_TEXT);
+  ASSERT_ENUM_EQUAL(moz_chunked_arraybuffer, CHUNKED_ARRAYBUFFER);
+  ASSERT_ENUM_EQUAL(moz_blob, MOZ_BLOB);
 #undef ASSERT_ENUM_EQUAL
 }
 #endif
@@ -2504,15 +2495,15 @@ nsXMLHttpRequest::ChangeStateToDone()
 }
 
 NS_IMETHODIMP
-nsXMLHttpRequest::SendAsBinary(const nsAString &aBody)
+nsXMLHttpRequest::SendAsBinary(const nsAString &aBody, JSContext *aCx)
 {
   ErrorResult rv;
-  SendAsBinary(aBody, rv);
+  SendAsBinary(aCx, aBody, rv);
   return rv.ErrorCode();
 }
 
 void
-nsXMLHttpRequest::SendAsBinary(const nsAString &aBody,
+nsXMLHttpRequest::SendAsBinary(JSContext *aCx, const nsAString &aBody,
                                ErrorResult& aRv)
 {
   char *data = static_cast<char*>(NS_Alloc(aBody.Length() + 1));
@@ -2550,7 +2541,7 @@ nsXMLHttpRequest::SendAsBinary(const nsAString &aBody,
     return;
   }
 
-  aRv = Send(variant);
+  aRv = Send(variant, aCx);
 }
 
 static nsresult
@@ -2641,7 +2632,7 @@ GetRequestBody(ArrayBuffer* aArrayBuffer, nsIInputStream** aResult,
 }
 
 static nsresult
-GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult,
+GetRequestBody(nsIVariant* aBody, JSContext *aCx, nsIInputStream** aResult,
                nsACString& aContentType, nsACString& aCharset)
 {
   *aResult = nsnull;
@@ -2688,27 +2679,12 @@ GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult,
 
     // ArrayBuffer?
     jsval realVal;
-    nsCxPusher pusher;
-    JSAutoEnterCompartment ac;
     JSObject* obj;
-
-    // If there's a context on the stack, we can just use it. Otherwise, we need
-    // to use the safe js context (and push it into the stack, so that it's
-    // visible to cx-less functions that we might call here).
-    JSContext* cx = nsContentUtils::GetCurrentJSContext();
-    if (!cx) {
-      cx = nsContentUtils::GetSafeJSContext();
-      if (!pusher.Push(cx)) {
-        return NS_ERROR_FAILURE;
-      }
-    }
-
     nsresult rv = aBody->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
         (obj = JSVAL_TO_OBJECT(realVal)) &&
-        ac.enter(cx, obj) &&
-        (JS_IsArrayBufferObject(obj, cx))) {
-      ArrayBuffer buf(cx, obj);
+        (JS_IsArrayBufferObject(obj, aCx))) {
+      ArrayBuffer buf(aCx, obj);
       return GetRequestBody(&buf, aResult, aContentType, aCharset);
     }
   }
@@ -2734,13 +2710,13 @@ GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult,
 
 /* static */
 nsresult
-nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant,
+nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant, JSContext *aCx,
                                  const Nullable<RequestBody>& aBody,
                                  nsIInputStream** aResult,
                                  nsACString& aContentType, nsACString& aCharset)
 {
   if (aVariant) {
-    return ::GetRequestBody(aVariant, aResult, aContentType, aCharset);
+    return ::GetRequestBody(aVariant, aCx, aResult, aContentType, aCharset);
   }
 
   const RequestBody& body = aBody.Value();
@@ -2791,13 +2767,13 @@ nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant,
 
 /* void send (in nsIVariant aBody); */
 NS_IMETHODIMP
-nsXMLHttpRequest::Send(nsIVariant *aBody)
+nsXMLHttpRequest::Send(nsIVariant *aBody, JSContext *aCx)
 {
-  return Send(aBody, Nullable<RequestBody>());
+  return Send(aCx, aBody, Nullable<RequestBody>());
 }
 
 nsresult
-nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
+nsXMLHttpRequest::Send(JSContext *aCx, nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
 {
   NS_ENSURE_TRUE(mPrincipal, NS_ERROR_NOT_INITIALIZED);
 
@@ -2921,7 +2897,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
     nsCAutoString defaultContentType;
     nsCOMPtr<nsIInputStream> postDataStream;
 
-    rv = GetRequestBody(aVariant, aBody, getter_AddRefs(postDataStream),
+    rv = GetRequestBody(aVariant, aCx, aBody, getter_AddRefs(postDataStream),
                         defaultContentType, charset);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3570,7 +3546,7 @@ nsXMLHttpRequest::ChangeState(PRUint32 aState, bool aBroadcast)
  * Simple helper class that just forwards the redirect callback back
  * to the nsXMLHttpRequest.
  */
-class AsyncVerifyRedirectCallbackForwarder MOZ_FINAL : public nsIAsyncVerifyRedirectCallback
+class AsyncVerifyRedirectCallbackForwarder : public nsIAsyncVerifyRedirectCallback
 {
 public:
   AsyncVerifyRedirectCallbackForwarder(nsXMLHttpRequest *xhr)

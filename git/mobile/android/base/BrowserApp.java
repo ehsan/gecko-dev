@@ -292,21 +292,12 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void refreshChrome() {
-        // Only ICS phones use a smaller action-bar in landscape mode.
-        if (Build.VERSION.SDK_INT >= 14 && !isTablet()) {
-            int index = mMainLayout.indexOfChild(mBrowserToolbar.getLayout());
-            mMainLayout.removeViewAt(index);
-
-            LinearLayout actionBar = (LinearLayout) LayoutInflater.from(mAppContext).inflate(R.layout.browser_toolbar, null);
-            actionBar.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
-                                                                    (int) mAppContext.getResources().getDimension(R.dimen.browser_toolbar_height)));
-            mMainLayout.addView(actionBar, index);
-            mBrowserToolbar.from(actionBar);
+        if (Build.VERSION.SDK_INT >= 11) {
+            mBrowserToolbar.requestLayout();
             mBrowserToolbar.refresh();
+            invalidateOptionsMenu();
+            mTabsPanel.refresh();
         }
-
-        invalidateOptionsMenu();
-        mTabsPanel.refresh();
     }
 
     void addTab() {
@@ -326,18 +317,12 @@ abstract public class BrowserApp extends GeckoApp
             return;
 
         mTabsPanel.show(panel);
+        mBrowserToolbar.updateTabs(true);
     }
 
     public void hideTabs() {
         mTabsPanel.hide();
-    }
-
-    public boolean autoHideTabs() {
-        if (!isTablet() && areTabsShown()) {
-            hideTabs();
-            return true;
-        }
-        return false;
+        mBrowserToolbar.updateTabs(false);
     }
 
     public boolean areTabsShown() {
@@ -379,11 +364,6 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void onPropertyAnimationStart() {
-        mMainHandler.post(new Runnable() {
-            public void run() {
-                mBrowserToolbar.updateTabs(true);
-            }
-        });
     }
 
     @Override
@@ -396,9 +376,6 @@ abstract public class BrowserApp extends GeckoApp
                     mGeckoLayout.scrollTo(0, 0);
                     mGeckoLayout.requestLayout();
                 }
-
-                if (!mTabsPanel.isShown())
-                    mBrowserToolbar.updateTabs(false);
             }
         });
     }
@@ -555,77 +532,5 @@ abstract public class BrowserApp extends GeckoApp
           mBrowserToolbar.hide();
       else
           mBrowserToolbar.show();
-    }
-
-    @Override
-    public boolean onPrepareOptionsMenu(Menu aMenu)
-    {
-        if (aMenu == null)
-            return false;
-
-        if (!sIsGeckoReady)
-            aMenu.findItem(R.id.settings).setEnabled(false);
-
-        Tab tab = Tabs.getInstance().getSelectedTab();
-        MenuItem bookmark = aMenu.findItem(R.id.bookmark);
-        MenuItem forward = aMenu.findItem(R.id.forward);
-        MenuItem share = aMenu.findItem(R.id.share);
-        MenuItem readingList = aMenu.findItem(R.id.reading_list);
-        MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
-        MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
-        MenuItem findInPage = aMenu.findItem(R.id.find_in_page);
-        MenuItem desktopMode = aMenu.findItem(R.id.desktop_mode);
-
-        if (tab == null || tab.getURL() == null) {
-            bookmark.setEnabled(false);
-            forward.setEnabled(false);
-            share.setEnabled(false);
-            readingList.setEnabled(false);
-            saveAsPDF.setEnabled(false);
-            findInPage.setEnabled(false);
-            return true;
-        }
-
-        bookmark.setEnabled(true);
-        bookmark.setCheckable(true);
-        
-        if (tab.isBookmark()) {
-            bookmark.setChecked(true);
-            bookmark.setIcon(R.drawable.ic_menu_bookmark_remove);
-        } else {
-            bookmark.setChecked(false);
-            bookmark.setIcon(R.drawable.ic_menu_bookmark_add);
-        }
-
-        readingList.setEnabled(tab.getReaderEnabled());
-        readingList.setCheckable(true);
-
-        if (tab.isReadingListItem()) {
-            readingList.setChecked(true);
-            readingList.setIcon(R.drawable.ic_menu_reading_list_remove);
-        } else {
-            readingList.setChecked(false);
-            readingList.setIcon(R.drawable.ic_menu_reading_list_add);
-        }
-
-        forward.setEnabled(tab.canDoForward());
-        desktopMode.setChecked(tab.getDesktopMode());
-
-        // Disable share menuitem for about:, chrome:, file:, and resource: URIs
-        String scheme = Uri.parse(tab.getURL()).getScheme();
-        share.setEnabled(!(scheme.equals("about") || scheme.equals("chrome") ||
-                           scheme.equals("file") || scheme.equals("resource")));
-
-        // Disable save as PDF for about:home and xul pages
-        saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
-                               tab.getContentType().equals("application/vnd.mozilla.xul+xml")));
-
-        // Disable find in page for about:home, since it won't work on Java content
-        if (!tab.getURL().equals("about:home"))
-            findInPage.setEnabled(true);
-
-        charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
-
-        return true;
     }
 }

@@ -22,7 +22,6 @@
 #include "nsIReflowCallback.h"
 #include "nsThreadUtils.h"
 #include "nsStyleConsts.h"
-#include "mozilla/Attributes.h"
 
 // X.h defines KeyPress
 #ifdef KeyPress
@@ -269,10 +268,10 @@ private:
   CloseMenuMode mCloseMenuMode;
 };
 
-class nsXULPopupManager MOZ_FINAL : public nsIDOMEventListener,
-                                    public nsIRollupListener,
-                                    public nsITimerCallback,
-                                    public nsIObserver
+class nsXULPopupManager : public nsIDOMEventListener,
+                          public nsIRollupListener,
+                          public nsITimerCallback,
+                          public nsIObserver
 {
 
 public:
@@ -290,7 +289,6 @@ public:
   virtual bool ShouldRollupOnMouseWheelEvent();
   virtual bool ShouldRollupOnMouseActivate();
   virtual PRUint32 GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
-  virtual void NotifyGeometryChange() {}
 
   static nsXULPopupManager* sInstance;
 

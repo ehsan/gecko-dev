@@ -40,7 +40,6 @@
 #include "nsCrossSiteListenerProxy.h"
 #include "nsDOMError.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -64,10 +63,10 @@ getSpec(nsIChannel* aChannel, nsAString& aSpec)
     AppendUTF8toUTF16(spec, aSpec);
 }
 
-class txStylesheetSink MOZ_FINAL : public nsIXMLContentSink,
-                                   public nsIExpatSink,
-                                   public nsIStreamListener,
-                                   public nsIInterfaceRequestor
+class txStylesheetSink : public nsIXMLContentSink,
+                         public nsIExpatSink,
+                         public nsIStreamListener,
+                         public nsIInterfaceRequestor
 {
 public:
     txStylesheetSink(txStylesheetCompiler* aCompiler, nsIParser* aParser);
@@ -364,7 +363,7 @@ txStylesheetSink::GetInterface(const nsIID& aIID, void** aResult)
     return NS_ERROR_NO_INTERFACE;
 }
 
-class txCompileObserver MOZ_FINAL : public txACompileObserver
+class txCompileObserver : public txACompileObserver
 {
 public:
     txCompileObserver(txMozillaXSLTProcessor* aProcessor,
@@ -597,7 +596,7 @@ handleNode(nsINode* aNode, txStylesheetCompiler* aCompiler)
     return NS_OK;
 }
 
-class txSyncCompileObserver MOZ_FINAL : public txACompileObserver
+class txSyncCompileObserver : public txACompileObserver
 {
 public:
     txSyncCompileObserver(txMozillaXSLTProcessor* aProcessor);

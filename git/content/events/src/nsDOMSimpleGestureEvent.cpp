@@ -59,15 +59,6 @@ nsDOMSimpleGestureEvent::GetDelta(PRFloat64 *aDelta)
   return NS_OK;
 }
 
-/* readonly attribute unsigned long clickCount; */
-NS_IMETHODIMP
-nsDOMSimpleGestureEvent::GetClickCount(PRUint32 *aClickCount)
-{
-  NS_ENSURE_ARG_POINTER(aClickCount);
-  *aClickCount = static_cast<nsSimpleGestureEvent*>(mEvent)->clickCount;
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
                                                 bool aCanBubbleArg,
@@ -85,8 +76,7 @@ nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
                                                 PRUint16 aButton,
                                                 nsIDOMEventTarget* aRelatedTarget,
                                                 PRUint32 aDirectionArg,
-                                                PRFloat64 aDeltaArg,
-                                                PRUint32 aClickCountArg)
+                                                PRFloat64 aDeltaArg)
 {
   nsresult rv = nsDOMMouseEvent::InitMouseEvent(aTypeArg,
                                                 aCanBubbleArg,
@@ -108,7 +98,6 @@ nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
   nsSimpleGestureEvent* simpleGestureEvent = static_cast<nsSimpleGestureEvent*>(mEvent);
   simpleGestureEvent->direction = aDirectionArg;
   simpleGestureEvent->delta = aDeltaArg;
-  simpleGestureEvent->clickCount = aClickCountArg;
 
   return NS_OK;
 }

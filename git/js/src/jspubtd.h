@@ -248,15 +248,15 @@ struct ContextFriendFields {
         return reinterpret_cast<ContextFriendFields *>(cx);
     }
 
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
+#ifdef JSGC_ROOT_ANALYSIS
+
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
      */
     Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
-#endif
 
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+#ifdef DEBUG
     /*
      * Stack allocated list of stack locations which hold non-relocatable
      * GC heap pointers (where the target is rooted somewhere else) or integer
@@ -267,6 +267,8 @@ struct ContextFriendFields {
      */
     SkipRoot *skipGCRooters;
 #endif
+
+#endif /* JSGC_ROOT_ANALYSIS */
 };
 
 } /* namespace JS */

@@ -1122,14 +1122,7 @@ InspectorUI.prototype = {
   deleteNode: function IUI_deleteNode()
   {
     let selection = this.selection;
-
-    let root = selection.ownerDocument.documentElement;
-    if (selection === root) {
-      // We can't delete the root element.
-      return;
-    }
-
-    let parent = selection.parentNode;
+    let parent = this.selection.parentNode;
 
     // remove the node from the treepanel
     if (this.treePanel.isOpen())
@@ -1157,11 +1150,6 @@ InspectorUI.prototype = {
    */
   inspectNode: function IUI_inspectNode(aNode, aScroll)
   {
-    if (aNode.ownerDocument === this.chromeDoc) {
-      // This should never happen, but just in case, we don't let the inspector
-      // inspect browser nodes.
-      return;
-    }
     this.select(aNode, true, true);
     this.highlighter.highlight(aNode, aScroll);
   },
@@ -1234,7 +1222,7 @@ InspectorUI.prototype = {
 
   /**
    * Destroy the InspectorUI instance. This is called by the InspectorUI API
-   * "user", see gBrowserInit.onUnload() in browser.js.
+   * "user", see BrowserShutdown() in browser.js.
    */
   destroy: function IUI_destroy()
   {

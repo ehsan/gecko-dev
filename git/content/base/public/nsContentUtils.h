@@ -1572,7 +1572,6 @@ public:
                                                       nsresult* aRv);
 
   static JSContext *GetCurrentJSContext();
-  static JSContext *GetSafeJSContext();
 
   /**
    * Case insensitive comparison between two strings. However it only ignores
@@ -2046,9 +2045,7 @@ public:
                                         Element* aRoot,
                                         PRInt32& aOutStartOffset,
                                         PRInt32& aOutEndOffset);
-
-  static nsIEditor* GetHTMLEditor(nsPresContext* aPresContext);
-
+  
 private:
   static bool InitializeEventTable();
 
@@ -2161,7 +2158,7 @@ typedef nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
   nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz),        \
-                                NS_CYCLE_COLLECTION_PARTICIPANT(clazz))
+                                &NS_CYCLE_COLLECTION_NAME(clazz))
 
 #define NS_DROP_JS_OBJECTS(obj, clazz)                                         \
   nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))

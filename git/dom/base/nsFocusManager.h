@@ -11,7 +11,6 @@
 #include "nsIObserver.h"
 #include "nsIContent.h"
 #include "nsIWidget.h"
-#include "mozilla/Attributes.h"
 
 #define FOCUSMETHOD_MASK 0xF000
 #define FOCUSMETHODANDRING_MASK 0xF0F000
@@ -21,6 +20,12 @@
 class nsIDocShellTreeItem;
 class nsPIDOMWindow;
 
+namespace mozilla {
+namespace dom {
+  class TabParent;
+}
+}
+
 struct nsDelayedBlurOrFocusEvent;
 
 /**
@@ -28,9 +33,9 @@ struct nsDelayedBlurOrFocusEvent;
  * which receives key events.
  */
 
-class nsFocusManager MOZ_FINAL : public nsIFocusManager,
-                                 public nsIObserver,
-                                 public nsSupportsWeakReference
+class nsFocusManager : public nsIFocusManager,
+                       public nsIObserver,
+                       public nsSupportsWeakReference
 {
   typedef mozilla::widget::InputContextAction InputContextAction;
 
@@ -407,6 +412,12 @@ protected:
                               nsIDocument* aDocument,
                               bool aIsForDocNavigation,
                               bool aCheckVisibility);
+
+  /**
+   * Get the TabParent associated with aContent if it is a remote browser,
+   * or null in all other cases.
+   */
+  mozilla::dom::TabParent* GetRemoteForContent(nsIContent* aContent);
 
   /**
    * Get the last docshell child of aItem and return it in aResult.

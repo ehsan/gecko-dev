@@ -10,23 +10,16 @@ function test() {
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
 
-    openConsole(null, function(hud) {
+    openConsole(null, function() {
       content.location.reload();
-
-      waitForSuccess({
-        name: "network message displayed",
-        validatorFn: function()
-        {
-          return hud.outputNode.querySelector(".webconsole-msg-network");
-        },
-        successFn: performTest,
-        failureFn: finishTest,
-      });
+      browser.addEventListener("load", tabLoaded, true);
     });
   }, true);
 }
 
-function performTest() {
+function tabLoaded() {
+  browser.removeEventListener("load", tabLoaded, true);
+
   let hudId = HUDService.getHudIdByWindow(content);
   let HUD = HUDService.hudReferences[hudId];
 

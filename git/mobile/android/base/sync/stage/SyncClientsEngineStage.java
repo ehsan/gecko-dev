@@ -44,7 +44,6 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   private static final String LOG_TAG = "SyncClientsEngineStage";
 
   public static final String COLLECTION_NAME       = "clients";
-  public static final String STAGE_NAME            = COLLECTION_NAME;
   public static final int CLIENTS_TTL_REFRESH      = 604800000;   // 7 days in milliseconds.
   public static final int MAX_UPLOAD_FAILURE_COUNT = 5;
 
@@ -325,15 +324,6 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
   @Override
   public void execute() throws NoSuchStageException {
-    // We can be disabled just for this sync.
-    boolean disabledThisSync = session.config.stagesToSync != null &&
-                               !session.config.stagesToSync.contains(STAGE_NAME);
-    if (disabledThisSync) {
-      Logger.debug(LOG_TAG, "Stage " + STAGE_NAME + " disabled just for this sync.");
-      session.advance();
-      return;
-    }
-
     if (shouldDownload()) {
       downloadClientRecords();   // Will kick off upload, too…
     } else {
@@ -408,7 +398,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     CommandProcessor processor = CommandProcessor.getProcessor();
 
     for (Object o : commands) {
-      processor.processCommand(session, new ExtendedJSONObject((JSONObject) o));
+      processor.processCommand(new ExtendedJSONObject((JSONObject) o));
     }
   }
 

@@ -12,7 +12,6 @@
 #include "nsIDOMEventTarget.h"
 // Helper Classes
 #include "nsCOMPtr.h"
-#include "mozilla/Attributes.h"
 
 //
 // class nsPrintPreviewListener
@@ -22,7 +21,7 @@
 // with the DOM with AddChromeListeners() and removing itself with
 // RemoveChromeListeners().
 //
-class nsPrintPreviewListener MOZ_FINAL : public nsIDOMEventListener
+class nsPrintPreviewListener : public nsIDOMEventListener
 
 {
 public:

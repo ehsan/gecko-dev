@@ -17,7 +17,7 @@ namespace js {
 
 inline
 SharedContext::SharedContext(JSContext *cx, JSObject *scopeChain, JSFunction *fun,
-                             FunctionBox *funbox)
+                             FunctionBox *funbox, unsigned staticLevel)
   : context(cx),
     bodyid(0),
     blockidGen(0),
@@ -27,7 +27,8 @@ SharedContext::SharedContext(JSContext *cx, JSObject *scopeChain, JSFunction *fu
     fun_(cx, fun),
     funbox_(funbox),
     scopeChain_(cx, scopeChain),
-    bindings(),
+    staticLevel(staticLevel),
+    bindings(cx),
     bindingsRoot(cx, &bindings),
     cxFlags(cx)
 {
@@ -62,9 +63,8 @@ SharedContext::argumentsLocal() const
 }
 
 inline
-TreeContext::TreeContext(Parser *prs, SharedContext *sc, unsigned staticLevel)
+TreeContext::TreeContext(Parser *prs, SharedContext *sc)
   : sc(sc),
-    staticLevel(staticLevel),
     parenDepth(0),
     yieldCount(0),
     blockNode(NULL),

@@ -16,10 +16,15 @@
 
   <script type="application/javascript" src="chrome://browser/content/settings.js"/>
   <script type="application/javascript" src="chrome://browser/content/shell.js"/>
-
+ 
 #ifndef ANDROID
   <!-- this script handles the screen argument for desktop builds -->
   <script type="application/javascript" src="chrome://browser/content/screen.js"/>
 #endif
-  <!-- The html:iframe containing the UI is created here. -->
+  <browser id="homescreen"
+           type="content-primary"
+           flex="1"
+           style="overflow: hidden;"
+           src="data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;'>"/>
 </window>
+

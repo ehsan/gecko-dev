@@ -294,12 +294,7 @@ LayoutView.prototype = {
     let clientRect = node.getBoundingClientRect();
     let width = Math.round(clientRect.width);
     let height = Math.round(clientRect.height);
-
-    let elt = this.doc.querySelector("#element-size");
-    let newLabel = width + "x" + height;
-    if (elt.textContent != newLabel) {
-      elt.textContent = newLabel;
-    }
+    this.doc.querySelector("#element-size").textContent =  width + "x" + height;
 
     // If the view is closed, no need to do anything more.
     if (!this.isOpen) return;

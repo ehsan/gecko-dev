@@ -16,7 +16,7 @@
 #define UNICODE_LIMIT     0x110000
 
 
-const nsCharProps1&
+nsCharProps1
 GetCharProps1(PRUint32 aCh)
 {
     if (aCh < UNICODE_BMP_LIMIT) {
@@ -30,15 +30,13 @@ GetCharProps1(PRUint32 aCh)
     }
 
     // Default values for unassigned
-    static const nsCharProps1 undefined = {
-        0,       // Index to mirrored char offsets
-        0,       // Hangul Syllable type
-        0        // Combining class
-    };
+    nsCharProps1 undefined = {0,       // Index to mirrored char offsets
+                              0,       // Hangul Syllable type
+                              0};      // Combining class
     return undefined;
 }
 
-const nsCharProps2&
+nsCharProps2
 GetCharProps2(PRUint32 aCh)
 {
     if (aCh < UNICODE_BMP_LIMIT) {
@@ -53,14 +51,13 @@ GetCharProps2(PRUint32 aCh)
 
     NS_NOTREACHED("Getting CharProps for codepoint outside Unicode range");
     // Default values for unassigned
-    static const nsCharProps2 undefined = {
+    nsCharProps2 undefined = {
         MOZ_SCRIPT_UNKNOWN,                      // Script code
         0,                                       // East Asian Width
         HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED,  // General Category
         eCharType_LeftToRight,                   // Bidi Category
         mozilla::unicode::XIDMOD_NOT_CHARS,      // Xidmod
-        -1,                                      // Numeric Value
-        mozilla::unicode::HVT_NotHan             // Han variant
+        -1                                       // Numeric Value
     };
     return undefined;
 }

@@ -250,7 +250,8 @@ nsWindow::Destroy(void)
     if (IsTopLevel())
         gTopLevelWindows.RemoveElement(this);
 
-    SetParent(nsnull);
+    if (mParent)
+        mParent->mChildren.RemoveElement(this);
 
     nsBaseWidget::OnDestroy();
 
@@ -842,9 +843,10 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                     if (!preventDefaultActions && ae->Count() == 2) {
                         target->OnGestureEvent(ae);
                     }
-
+#ifndef MOZ_ONLY_TOUCH_EVENTS
                     if (!preventDefaultActions && ae->Count() < 2)
-                        target->OnMouseEvent(ae);
+                        target->OnMotionEvent(ae);
+#endif
                 }
             }
             break;
@@ -1287,12 +1289,10 @@ nsWindow::GetNativeData(PRUint32 aDataType)
 }
 
 void
-nsWindow::OnMouseEvent(AndroidGeckoEvent *ae)
+nsWindow::OnMotionEvent(AndroidGeckoEvent *ae)
 {
     PRUint32 msg;
-    PRInt16 buttons = nsMouseEvent::eLeftButtonFlag;
     switch (ae->Action() & AndroidMotionEvent::ACTION_MASK) {
-#ifndef MOZ_ONLY_TOUCH_EVENTS
         case AndroidMotionEvent::ACTION_DOWN:
             msg = NS_MOUSE_BUTTON_DOWN;
             break;
@@ -1304,14 +1304,6 @@ nsWindow::OnMouseEvent(AndroidGeckoEvent *ae)
         case AndroidMotionEvent::ACTION_UP:
         case AndroidMotionEvent::ACTION_CANCEL:
             msg = NS_MOUSE_BUTTON_UP;
-            break;
-#endif
-
-        case AndroidMotionEvent::ACTION_HOVER_ENTER:
-        case AndroidMotionEvent::ACTION_HOVER_MOVE:
-        case AndroidMotionEvent::ACTION_HOVER_EXIT:
-            msg = NS_MOUSE_MOVE;
-            buttons = 0;
             break;
 
         default:

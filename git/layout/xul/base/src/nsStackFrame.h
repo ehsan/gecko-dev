@@ -24,7 +24,7 @@ public:
   friend nsIFrame* NS_NewStackFrame(nsIPresShell* aPresShell,
                                     nsStyleContext* aContext);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("Stack"), aResult);

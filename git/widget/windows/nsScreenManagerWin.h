@@ -11,7 +11,6 @@
 #include <windows.h>
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
-#include "mozilla/Attributes.h"
 
 class nsIScreen;
 
@@ -27,7 +26,7 @@ public:
   nsCOMPtr<nsIScreen> mScreen;
 };
 
-class nsScreenManagerWin MOZ_FINAL : public nsIScreenManager
+class nsScreenManagerWin : public nsIScreenManager
 {
 public:
   nsScreenManagerWin ( );

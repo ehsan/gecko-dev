@@ -68,9 +68,6 @@ function testPageLoad()
 
 function testPageLoadBody()
 {
-  let loaded = false;
-  let requestCallbackInvoked = false;
-
   // Turn on logging of request bodies and check again.
   hud.saveRequestAndResponseBodies = true;
   requestCallback = function() {
@@ -80,21 +77,8 @@ function testPageLoadBody()
 
     lastRequest = null;
     requestCallback = null;
-    requestCallbackInvoked = true;
-
-    if (loaded) {
-      executeSoon(testXhrGet);
-    }
+    executeSoon(testXhrGet);
   };
-
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    loaded = true;
-
-    if (requestCallbackInvoked) {
-      executeSoon(testXhrGet);
-    }
-  }, true);
 
   content.location.reload();
 }

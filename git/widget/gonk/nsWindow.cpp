@@ -267,7 +267,6 @@ nsWindow::Create(nsIWidget *aParent,
 
     nsWindow *parent = (nsWindow *)aNativeParent;
     mParent = parent;
-    mVisible = false;
 
     if (!aNativeParent) {
         mBounds = sVirtualBounds;
@@ -605,13 +604,7 @@ nsScreenGonk::GetAvailRect(PRInt32 *outLeft,  PRInt32 *outTop,
 static uint32_t
 ColorDepth()
 {
-    switch (gNativeWindow->getDevice()->format) {
-    case GGL_PIXEL_FORMAT_RGB_565:
-        return 16;
-    case GGL_PIXEL_FORMAT_RGBA_8888:
-        return 32;
-    }
-    return 24; // GGL_PIXEL_FORMAT_RGBX_8888
+    return gNativeWindow->getDevice()->format == GGL_PIXEL_FORMAT_RGB_565 ? 16 : 24;
 }
 
 NS_IMETHODIMP

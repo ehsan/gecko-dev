@@ -8,11 +8,10 @@
 
 #include "nsIStandardFileStream.h"
 
-#include "mozilla/dom/file/File.h"
 #include "nsDOMClassInfoID.h"
 
 #include "FileStream.h"
-#include "IDBDatabase.h"
+#include "mozilla/dom/file/File.h"
 
 USING_INDEXEDDB_NAMESPACE
 

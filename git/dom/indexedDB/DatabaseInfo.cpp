@@ -70,7 +70,6 @@ ObjectStoreInfo::ObjectStoreInfo(ObjectStoreInfo& aOther)
 
 IndexInfo::IndexInfo()
 : id(LL_MININT),
-  keyPath(0),
   unique(false),
   multiEntry(false)
 {
@@ -81,6 +80,7 @@ IndexInfo::IndexInfo(const IndexInfo& aOther)
 : name(aOther.name),
   id(aOther.id),
   keyPath(aOther.keyPath),
+  keyPathArray(aOther.keyPathArray),
   unique(aOther.unique),
   multiEntry(aOther.multiEntry)
 {
@@ -105,16 +105,6 @@ ObjectStoreInfo::~ObjectStoreInfo()
 }
 
 IndexUpdateInfo::IndexUpdateInfo()
-: indexId(0),
-  indexUnique(false)
-{
-  MOZ_COUNT_CTOR(IndexUpdateInfo);
-}
-
-IndexUpdateInfo::IndexUpdateInfo(const IndexUpdateInfo& aOther)
-: indexId(aOther.indexId),
-  indexUnique(aOther.indexUnique),
-  value(aOther.value)
 {
   MOZ_COUNT_CTOR(IndexUpdateInfo);
 }
@@ -123,7 +113,6 @@ IndexUpdateInfo::~IndexUpdateInfo()
 {
   MOZ_COUNT_DTOR(IndexUpdateInfo);
 }
-
 #endif /* NS_BUILD_REFCNT_LOGGING */
 
 // static

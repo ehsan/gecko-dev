@@ -11,7 +11,6 @@
 #include "nsIDOMDOMError.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsContentUtils.h"
-#include "mozilla/Attributes.h"
 
 #include "nsCOMPtr.h"
 
@@ -58,7 +57,7 @@ protected:
   virtual void UnrootResultVal();
 };
 
-class DOMRequestService MOZ_FINAL : public nsIDOMRequestService
+class DOMRequestService : public nsIDOMRequestService
 {
 public:
   NS_DECL_ISUPPORTS

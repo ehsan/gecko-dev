@@ -13,7 +13,6 @@
 #include "nsIDOMSVGLength.h"
 #include "nsTArray.h"
 #include "SVGLength.h"
-#include "mozilla/Attributes.h"
 
 class nsSVGElement;
 
@@ -66,7 +65,7 @@ namespace mozilla {
  * if-else as appropriate. The bug for doing that work is:
  * https://bugzilla.mozilla.org/show_bug.cgi?id=571734
  */
-class DOMSVGLength MOZ_FINAL : public nsIDOMSVGLength
+class DOMSVGLength : public nsIDOMSVGLength
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOMSVGLENGTH_IID)

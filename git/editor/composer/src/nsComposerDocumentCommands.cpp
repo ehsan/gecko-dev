@@ -184,9 +184,12 @@ nsSetDocumentStateCommand::IsCommandEnabled(const char * aCommandName,
                                             nsISupports *refCon,
                                             bool *outCmdEnabled)
 {
-  // These commands are always enabled
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
-  *outCmdEnabled = true;
+  nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
+  if (editor)
+    return editor->GetIsSelectionEditable(outCmdEnabled);
+
+  *outCmdEnabled = false;
   return NS_OK;
 }
 

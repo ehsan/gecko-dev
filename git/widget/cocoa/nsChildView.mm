@@ -304,20 +304,20 @@ nsresult nsChildView::Create(nsIWidget *aParent,
     // inherit the top-level window. NS_NATIVE_WIDGET is always a NSView
     // regardless of if we're asking a window or a view (for compatibility
     // with windows).
-    mParentView = (NSView<mozView>*)aParent->GetNativeData(NS_NATIVE_WIDGET); 
+    mParentView = (NSView*)aParent->GetNativeData(NS_NATIVE_WIDGET); 
     mParentWidget = aParent;   
   } else {
     // This is the normal case. When we're the root widget of the view hiararchy,
     // aNativeParent will be the contentView of our window, since that's what
     // nsCocoaWindow returns when asked for an NS_NATIVE_VIEW.
-    mParentView = reinterpret_cast<NSView<mozView>*>(aNativeParent);
+    mParentView = reinterpret_cast<NSView*>(aNativeParent);
   }
   
   // create our parallel NSView and hook it up to our parent. Recall
   // that NS_NATIVE_WIDGET is the NSView.
   NSRect r;
   nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
-  mView = [(NSView<mozView>*)CreateCocoaView(r) retain];
+  mView = [CreateCocoaView(r) retain];
   if (!mView) return NS_ERROR_FAILURE;
 
   [(ChildView*)mView setIsPluginView:(mWindowType == eWindowType_plugin)];
@@ -709,7 +709,7 @@ nsChildView::ReparentNativeWidget(nsIWidget* aNewParent)
     return NS_OK;
 
   NSView<mozView>* newParentView =
-   (NSView<mozView>*)aNewParent->GetNativeData(NS_NATIVE_WIDGET); 
+   (NSView*)aNewParent->GetNativeData(NS_NATIVE_WIDGET); 
   NS_ENSURE_TRUE(newParentView, NS_ERROR_FAILURE);
 
   // we hold a ref to mView, so this is safe
@@ -838,7 +838,6 @@ NS_IMETHODIMP nsChildView::Move(PRInt32 aX, PRInt32 aY)
   if (mVisible)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange(gRollupListener);
   ReportMoveEvent();
 
   return NS_OK;
@@ -863,7 +862,6 @@ NS_IMETHODIMP nsChildView::Resize(PRInt32 aWidth, PRInt32 aHeight, bool aRepaint
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange(gRollupListener);
   ReportSizeEvent();
 
   return NS_OK;
@@ -896,7 +894,6 @@ NS_IMETHODIMP nsChildView::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt3
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange(gRollupListener);
   if (isMoving) {
     ReportMoveEvent();
     if (mOnDestroyCalled)
@@ -3710,26 +3707,17 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 
   // Some scrolling devices supports pixel scrolling, e.g. a Macbook
-  // touchpad or a Mighty Mouse. On those devices, [theEvent deviceDeltaX/Y]
-  // contains the amount of pixels to scroll. Since Lion this has changed 
-  // to [theEvent scrollingDeltaX/Y].
+  // touchpad or a Mighty Mouse. On those devices, [event deviceDeltaX/Y]
+  // contains the amount of pixels to scroll. 
   if (inAxis & nsMouseScrollEvent::kIsVertical) {
     scrollDelta       = -[theEvent deltaY];
     if (checkPixels && (scrollDelta == 0 || scrollDelta != floor(scrollDelta))) {
-      if ([theEvent respondsToSelector:@selector(scrollingDeltaY)]) {
-        scrollDeltaPixels = -[theEvent scrollingDeltaY];
-      } else {
-        scrollDeltaPixels = -[theEvent deviceDeltaY];
-      }
+      scrollDeltaPixels = -[theEvent deviceDeltaY];
     }
   } else if (inAxis & nsMouseScrollEvent::kIsHorizontal) {
     scrollDelta       = -[theEvent deltaX];
     if (checkPixels && (scrollDelta == 0 || scrollDelta != floor(scrollDelta))) {
-      if ([theEvent respondsToSelector:@selector(scrollingDeltaX)]) {
-        scrollDeltaPixels = -[theEvent scrollingDeltaX];
-      } else {
-        scrollDeltaPixels = -[theEvent deviceDeltaX];
-      }
+      scrollDeltaPixels = -[theEvent deviceDeltaX];
     }
   } else {
     return; // caller screwed up

@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 package org.mozilla.gecko.sync.setup.activities;
 
 import java.util.List;
@@ -9,23 +5,22 @@ import java.util.List;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.sync.CommandProcessor;
 import org.mozilla.gecko.sync.CommandRunner;
-import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
 import org.mozilla.gecko.sync.setup.Constants;
-import org.mozilla.gecko.sync.stage.SyncClientsEngineStage;
-import org.mozilla.gecko.sync.syncadapter.SyncAdapter;
-
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
+import android.view.View.OnClickListener;
+import android.view.Window;
+import android.widget.Button;
 import android.widget.ListView;
-import android.widget.Toast;
 
 public class SendTabActivity extends Activity {
   public static final String LOG_TAG = "SendTabActivity";
@@ -59,12 +54,12 @@ public class SendTabActivity extends Activity {
     enableSend(false);
   }
 
-  private static void registerDisplayURICommand() {
+  private void registerDisplayURICommand() {
     final CommandProcessor processor = CommandProcessor.getProcessor();
     processor.registerCommand("displayURI", new CommandRunner(3) {
       @Override
-      public void executeCommand(final GlobalSession session, List<String> args) {
-        CommandProcessor.displayURI(args, session.getContext());
+      public void executeCommand(List<String> args) {
+        CommandProcessor.displayURI(args, getApplicationContext());
       }
     });
   }
@@ -111,26 +106,26 @@ public class SendTabActivity extends Activity {
         for (int i = 0; i < guids.length; i++) {
           processor.sendURIToClientForDisplay(uri, guids[i], title, getAccountGUID(), getApplicationContext());
         }
-
-        Logger.info(LOG_TAG, "Requesting immediate clients stage sync.");
-        SyncAdapter.requestImmediateSync(localAccount, new String[] { SyncClientsEngineStage.COLLECTION_NAME });
       }
     }.start();
 
-    notifyAndFinish();
+    openDialog();
   }
 
-  /**
-   * Notify the user that tabs were sent and then finish the activity.
-   * <p>
-   * This is a bit of a misnomer: we wrote "displayURI" commands to the local
-   * command database, and they will be sent on next sync. There is no way to
-   * verify that the commands were successfully received by the intended remote
-   * client, so we lie and say they were sent.
-   */
-  private void notifyAndFinish() {
-    Toast.makeText(this, R.string.sync_text_tab_sent, Toast.LENGTH_LONG).show();
-    finish();
+  private void openDialog() {
+    final Dialog dialog = new Dialog(this);
+    dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+    dialog.setContentView(R.layout.sync_custom_popup);
+    Button button = (Button) dialog.findViewById(R.id.continue_browsing);
+    button.setOnClickListener(new OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        dialog.dismiss();
+        finish();
+      }
+    });
+
+    dialog.show();
   }
 
   public void enableSend(boolean shouldEnable) {

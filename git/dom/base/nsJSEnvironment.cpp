@@ -40,6 +40,7 @@
 #include "nsXPCOMCIDInternal.h"
 #include "nsIXULRuntime.h"
 
+#include "nsDOMClassInfo.h"
 #include "xpcpublic.h"
 
 #include "jsdbgapi.h"           // for JS_ClearWatchPointsForObject
@@ -77,7 +78,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/Attributes.h"
 
 #include "sampler.h"
 
@@ -190,7 +190,7 @@ static nsIScriptSecurityManager *sSecurityManager;
 
 static bool sGCOnMemoryPressure;
 
-class nsMemoryPressureObserver MOZ_FINAL : public nsIObserver
+class nsMemoryPressureObserver : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
@@ -1676,7 +1676,7 @@ nsJSContext::JSObjectFromInterface(nsISupports* aTarget, JSObject* aScope, JSObj
   nsresult rv = nsContentUtils::WrapNative(mContext, aScope, aTarget, &v);
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   nsCOMPtr<nsISupports> targetSupp = do_QueryInterface(aTarget);
   nsCOMPtr<nsISupports> native =
     nsContentUtils::XPConnect()->GetNativeOfWrapper(mContext,
@@ -2216,7 +2216,7 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
         if (rv == NS_ERROR_NO_INTERFACE) {
           // something else - probably an event object or similar -
           // just wrap it.
-#ifdef DEBUG
+#ifdef NS_DEBUG
           // but first, check its not another nsISupportsPrimitive, as
           // these are now deprecated for use with script contexts.
           nsCOMPtr<nsISupportsPrimitive> prim(do_QueryInterface(arg));
@@ -3699,7 +3699,7 @@ NS_DOMReadStructuredClone(JSContext* cx,
   }
 
   // Don't know what this is. Bail.
-  xpc::Throw(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
+  nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
   return nsnull;
 }
 
@@ -3733,7 +3733,7 @@ NS_DOMWriteStructuredClone(JSContext* cx,
   }
 
   // Don't know what this is. Bail.
-  xpc::Throw(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
+  nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
   return JS_FALSE;
 }
 
@@ -3742,7 +3742,7 @@ NS_DOMStructuredCloneError(JSContext* cx,
                            uint32_t errorid)
 {
   // We don't currently support any extensions to structured cloning.
-  xpc::Throw(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
+  nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
 }
 
 //static
@@ -3925,7 +3925,7 @@ nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime)
 // to/from nsISupports.
 // When consumed by non-JS (eg, another script language), conversion is done
 // on-the-fly.
-class nsJSArgArray MOZ_FINAL : public nsIJSArgArray {
+class nsJSArgArray : public nsIJSArgArray {
 public:
   nsJSArgArray(JSContext *aContext, PRUint32 argc, jsval *argv, nsresult *prv);
   ~nsJSArgArray();
