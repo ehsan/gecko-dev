@@ -35,7 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <Carbon/Carbon.h>
+#include <Script.h>
+#include <TextCommon.h>
 #include "nsIPlatformCharset.h"
 #include "pratom.h"
 #include "nsGREResProperties.h"

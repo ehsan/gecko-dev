@@ -40,7 +40,7 @@
 #include "nsISupports.idl"
 
 %{ C++
-#include <Carbon/Carbon.h>
+#include <PMApplication.h>
 %}
 
 /**

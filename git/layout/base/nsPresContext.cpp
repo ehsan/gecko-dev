@@ -227,6 +227,8 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   if (aType == eContext_Galley) {
     mMedium = nsGkAtoms::screen;
   } else {
+    SetBackgroundImageDraw(PR_FALSE);
+    SetBackgroundColorDraw(PR_FALSE);
     mMedium = nsGkAtoms::print;
     mPaginated = PR_TRUE;
   }

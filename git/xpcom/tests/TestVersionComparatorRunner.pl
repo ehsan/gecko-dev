@@ -1,3 +1,4 @@
+#!/usr/bin/perl -w
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -11,14 +12,15 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is Mozilla code.
+# The Original Code is Mozilla XPCOM Tests.
 #
-# The Initial Developer of the Original Code is the Mozilla Corporation.
-# Portions created by the Initial Developer are Copyright (C) 2007
+# The Initial Developer of the Original Code is
+# Benjamin Smedberg <benjamin@smedbergs.us>.
+#
+# Portions created by the Initial Developer are Copyright (C) 2005
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#  Chris Double <chris.double@double.co.nz>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,38 +36,64 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
+my $executable = shift;
 
-include $(DEPTH)/config/autoconf.mk
+@comparisons = (
+  "0.9",
+  "0.9.1",
+  "1.0pre1",
+  "1.0pre2",
+  "1.0",
+  "1.1pre",
+  "1.1pre1a",
+  "1.1pre1",
+  "1.1pre10a",
+  "1.1pre10",
+  "1.1",
+  "1.1.0.1",
+  "1.1.1",
+  "1.1.*",
+  "1.*",
+  "2.0",
+  "2.1",
+  "3.0.-1",
+  "3.0"
+);
 
-DEFINES += -DHAVE_CONFIG_H
+@equality = (
+  "1.1pre",
+  "1.1pre0",
+  "1.0+"
+);
 
-MODULE		= oggplay
-LIBRARY_NAME	= oggplay
-FORCE_STATIC_LIB= 1
+# Do the comparisons in both directions
 
-EXPORTS		= \
-		oggplay_private.h \
-		oggplay_buffer.h \
-		oggplay_callback.h \
-		oggplay_data.h \
-		oggplay_private.h \
-		std_semaphore.h \
-		$(NULL)
+sub run_testprog {
+    my ($executable, $args, $expected) = @_;
 
-CSRCS		= \
-		oggplay.c \
-		oggplay_callback.c \
-		oggplay_query.c \
-		oggplay_data.c \
-		oggplay_callback_info.c \
-		oggplay_buffer.c \
-		oggplay_seek.c \
-		oggplay_yuv2rgb.c \
-		oggplay_tools.c \
-		$(NULL)
+    my $result = `$executable $args`;
+    $result =~ s/\r|\n//g;
 
-include $(topsrcdir)/config/rules.mk
+    if ($result ne $expected) {
+	print STDERR "Testing '$args' expected '$expected', got '$result'.\n";
+	exit 1;
+    }
+}
+
+for (my $i = 0; $i < scalar(@comparisons) - 1; ++$i) {
+    run_testprog($executable,
+		 "$comparisons[$i] $comparisons[$i + 1]",
+		 "$comparisons[$i] < $comparisons[$i + 1]");
+    run_testprog($executable,
+		 "$comparisons[$i + 1] $comparisons[$i]",
+		 "$comparisons[$i + 1] > $comparisons[$i]");
+}
+
+for (my $i = 0; $i < scalar(@equality) - 1; ++$i) {
+    run_testprog($executable,
+		 "$equality[$i] $equality[$i + 1]",
+		 "$equality[$i] = $equality[$i + 1]");
+}
+
+print "All comparisons OK\n";
+exit 0;

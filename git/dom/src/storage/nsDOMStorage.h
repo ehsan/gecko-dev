@@ -44,7 +44,6 @@
 #include "nscore.h"
 #include "nsAutoPtr.h"
 #include "nsIDOMStorage.h"
-#include "nsIDOMStorage2.h"
 #include "nsIDOMStorageList.h"
 #include "nsIDOMStorageItem.h"
 #include "nsInterfaceHashtable.h"
@@ -62,7 +61,6 @@
 #endif
 
 class nsDOMStorage;
-class nsIDOMStorage2;
 class nsDOMStorageItem;
 
 class nsDOMStorageEntry : public nsVoidPtrHashKey
@@ -125,7 +123,7 @@ class nsDOMStorage : public nsIDOMStorage,
 {
 public:
   nsDOMStorage();
-  nsDOMStorage(nsDOMStorage& aThat);
+  nsDOMStorage(const nsAString& aDomain, PRBool aUseDB);
   virtual ~nsDOMStorage();
 
   // nsISupports
@@ -135,17 +133,11 @@ public:
   // nsIDOMStorage
   NS_DECL_NSIDOMSTORAGE
 
-  // Helpers for implementing nsIDOMStorage2
-  nsresult GetItem(const nsAString& key, nsAString& aData);
-  nsresult Clear();
-
   // nsPIDOMStorage
-  virtual nsresult InitAsLocalStorage(nsIPrincipal *aPrincipal);
-  virtual nsresult InitAsGlobalStorage(const nsACString &aDomainDemanded);
-  virtual nsresult InitAsSessionStorage(nsIURI* aURI);
+  virtual void Init(const nsAString& aDomain, PRBool aUseDB);
   virtual already_AddRefed<nsIDOMStorage> Clone();
   virtual nsTArray<nsString> *GetKeys();
-  virtual const nsCString &Domain();
+  virtual const nsString &Domain();
   virtual PRBool CanAccess(nsIPrincipal *aPrincipal);
 
   // If true, the contents of the storage should be stored in the
@@ -173,7 +165,8 @@ public:
   nsresult
   GetDBValue(const nsAString& aKey,
              nsAString& aValue,
-             PRBool* aSecure);
+             PRBool* aSecure,
+             nsAString& aOwner);
 
   // set the value corresponding to a key in the storage. If
   // aSecure is false, then attempts to modify a secure value
@@ -200,7 +193,6 @@ public:
 protected:
 
   friend class nsDOMStorageManager;
-  friend class nsDOMStorage2;
 
   static nsresult InitDB();
 
@@ -208,8 +200,6 @@ protected:
   nsresult CacheKeysFromDB();
 
   void BroadcastChangeNotification();
-
-  PRBool CanAccessSystem(nsIPrincipal *aPrincipal);
 
   // true if the storage database should be used for values
   PRPackedBool mUseDB;
@@ -221,66 +211,18 @@ protected:
   // make sure this stays up to date.
   PRPackedBool mSessionOnly;
 
-  // true if this storage was initialized as a localStorage object.  localStorage
-  // objects are scoped to scheme/host/port in the database, while globalStorage
-  // objects are scoped just to host.  this flag also tells the manager to map
-  // this storage also in mLocalStorages hash table.
-  PRPackedBool mLocalStorage;
-
   // true if items from the database are cached
   PRPackedBool mItemsCached;
 
   // domain this store is associated with
-  nsCString mDomain;
+  nsString mDomain;
 
   // the key->value item pairs
   nsTHashtable<nsSessionStorageEntry> mItems;
 
-  // keys are used for database queries.
-  // see comments of the getters bellow.
-  nsCString mScopeDBKey;
-  nsCString mQuotaDomainDBKey;
-
-public:
-  // e.g. "moc.rab.oof.:" or "moc.rab.oof.:http:80" depending
-  // on association with a domain (globalStorage) or
-  // an origin (localStorage).
-  nsCString& GetScopeDBKey() {return mScopeDBKey;}
-
-  // e.g. "moc.rab.%" - reversed eTLD+1 subpart of the domain or
-  // (in future) reversed offline application allowed domain.
-  nsCString& GetQuotaDomainDBKey() {return mQuotaDomainDBKey;}
-
- #ifdef MOZ_STORAGE
-   static nsDOMStorageDB* gStorageDB;
- #endif
-};
-
-class nsDOMStorage2 : public nsIDOMStorage2,
-                      public nsPIDOMStorage
-{
-public:
-  // nsISupports
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage2)
-
-  NS_DECL_NSIDOMSTORAGE2
-
-  // nsPIDOMStorage
-  virtual nsresult InitAsLocalStorage(nsIPrincipal *aPrincipal);
-  virtual nsresult InitAsGlobalStorage(const nsACString &aDomainDemanded);
-  virtual nsresult InitAsSessionStorage(nsIURI* aURI);
-  virtual already_AddRefed<nsIDOMStorage> Clone();
-  virtual nsTArray<nsString> *GetKeys();
-  virtual const nsCString &Domain();
-  virtual PRBool CanAccess(nsIPrincipal *aPrincipal);
-
-private:
-  // storages bound to an origin hold the principal to
-  // make security checks against it
-  nsCOMPtr<nsIPrincipal> mPrincipal;
-
-  nsRefPtr<nsDOMStorage> mStorage;
+#ifdef MOZ_STORAGE
+  static nsDOMStorageDB* gStorageDB;
+#endif
 };
 
 class nsDOMStorageList : public nsIDOMStorageList
@@ -305,8 +247,8 @@ public:
    * Check whether aCurrentDomain has access to aRequestedDomain
    */
   static PRBool
-  CanAccessDomain(const nsACString& aRequestedDomain,
-                  const nsACString& aCurrentDomain);
+  CanAccessDomain(const nsAString& aRequestedDomain,
+                  const nsAString& aCurrentDomain);
 
 protected:
 
@@ -321,8 +263,8 @@ protected:
    * @param aNoCurrentDomainCheck true to skip domain comparison
    */
   nsIDOMStorage*
-  GetStorageForDomain(const nsACString& aRequestedDomain,
-                      const nsACString& aCurrentDomain,
+  GetStorageForDomain(const nsAString& aRequestedDomain,
+                      const nsAString& aCurrentDomain,
                       PRBool aNoCurrentDomainCheck,
                       nsresult* aResult);
 
@@ -330,10 +272,10 @@ protected:
    * Convert the domain into an array of its component parts.
    */
   static PRBool
-  ConvertDomainToArray(const nsACString& aDomain,
-                       nsTArray<nsCString>* aArray);
+  ConvertDomainToArray(const nsAString& aDomain,
+                       nsTArray<nsString>* aArray);
 
-  nsInterfaceHashtable<nsCStringHashKey, nsIDOMStorage> mStorages;
+  nsInterfaceHashtable<nsStringHashKey, nsIDOMStorage> mStorages;
 };
 
 class nsDOMStorageItem : public nsIDOMStorageItem,

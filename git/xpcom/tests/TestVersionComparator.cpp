@@ -1,4 +1,3 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,18 +11,19 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla XPCOM.
  *
  * The Initial Developer of the Original Code is
- *   Neil Deakin <enndeakin@sympatico.ca>
- * Portions created by the Initial Developer are Copyright (C) 2006
+ * Benjamin Smedberg <benjamin@smedbergs.us>.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,29 +35,29 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "domstubs.idl"
+#include "nsVersionComparator.h"
 
-/**
- * Interface for a client side storage. See
- * http://www.whatwg.org/specs/web-apps/current-work/#scs-client-side
- * for more information.
- *
- * Allows access to contextual storage areas.
- */
+#include <stdio.h>
 
-interface nsIDOMStorage;
-interface nsIDOMStorageList;
-
-[scriptable, uuid(55E9C181-2476-47CF-97F8-EFDAAF7B6F7A)]
-interface nsIDOMStorageWindow : nsISupports
+int main(int argc, char **argv)
 {
-  /**
-   * Session storage for the current browsing context.
-   */
-  readonly attribute nsIDOMStorage sessionStorage;
+  if (argc != 3) {
+    fprintf(stderr, "Usage: %s <versionA> <versionB>\n", argv[0]);
+    return 1;
+  }
 
-  /**
-   * Global storage, accessible by domain.
-   */
-  readonly attribute nsIDOMStorageList globalStorage;
-};
+  PRInt32 i = NS_CompareVersions(argv[1], argv[2]);
+
+  const char *format;
+
+  if (i < 0)
+    format = "%s < %s\n";
+  else if (i > 0)
+    format = "%s > %s\n";
+  else
+    format = "%s = %s\n";
+
+  fprintf(stdout, format, argv[1], argv[2]);
+  return 0;
+}
+
