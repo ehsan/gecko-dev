@@ -305,7 +305,7 @@ void
 StoreBuffer::setAboutToOverflow()
 {
     aboutToOverflow = true;
-    runtime->triggerOperationCallback(JSRuntime::TriggerCallbackMainThread);
+    runtime->triggerOperationCallback();
 }
 
 bool

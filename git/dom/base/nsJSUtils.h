@@ -15,11 +15,14 @@
 
 #include "mozilla/Assertions.h"
 
+#include "nsISupports.h"
 #include "jsapi.h"
 #include "nsString.h"
 
+class nsIDOMEventListener;
 class nsIScriptContext;
 class nsIScriptGlobalObject;
+class nsIPrincipal;
 
 class nsJSUtils
 {

@@ -6,7 +6,6 @@
 #ifndef mozilla_imagelib_DiscardTracker_h_
 #define mozilla_imagelib_DiscardTracker_h_
 
-#include "mozilla/Atomics.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/TimeStamp.h"
 #include "prlock.h"
@@ -112,7 +111,7 @@ class DiscardTracker
     static nsCOMPtr<nsITimer> sTimer;
     static bool sInitialized;
     static bool sTimerOn;
-    static mozilla::Atomic<int32_t> sDiscardRunnablePending;
+    static int32_t sDiscardRunnablePending;
     static int64_t sCurrentDecodedImageBytes;
     static uint32_t sMinDiscardTimeoutMs;
     static uint32_t sMaxDecodedImageKB;

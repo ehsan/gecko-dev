@@ -63,7 +63,7 @@ PL_DHashStubEnumRemove(PLDHashTable    *table,
  *
  *     // ALLOW_MEMMOVE can we move this class with memmove(), or do we have
  *     // to use the copy constructor?
- *     enum { ALLOW_MEMMOVE = true/false };
+ *     enum { ALLOW_MEMMOVE = PR_(TRUE or FALSE) };
  *   }</pre>
  *
  * @see nsInterfaceHashtable

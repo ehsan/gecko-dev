@@ -40,7 +40,6 @@
 #include "nsNetUtil.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsIXULRuntime.h"
-#include "nsTextFormatter.h"
 
 #include "xpcpublic.h"
 

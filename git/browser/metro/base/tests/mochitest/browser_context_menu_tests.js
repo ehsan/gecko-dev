@@ -332,7 +332,7 @@ gTests.push({
 
     // invoke selection context menu
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(browserwin, span);
+    sendContextMenuClick(225, 310);
     yield promise;
 
     // should be visible and at a specific position
@@ -342,7 +342,7 @@ gTests.push({
     let notification = notificationBox.getNotificationWithValue("popup-blocked");
     let notificationHeight = notification.boxObject.height;
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 0, 15, 175, 190);
+    checkContextMenuPositionRange(ContextMenuUI._panel, 65, 80, notificationHeight +  155, notificationHeight + 180);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();

@@ -251,7 +251,7 @@ JSRope::getCharsNonDestructiveInternal(ThreadSafeContext *cx, ScopedJSFreePtr<js
 
 template<JSRope::UsingBarrier b>
 JSFlatString *
-JSRope::flattenInternal(ExclusiveContext *maybecx)
+JSRope::flattenInternal(JSContext *maybecx)
 {
     /*
      * Perform a depth-first dag traversal, splatting each node's characters
@@ -393,7 +393,7 @@ JSRope::flattenInternal(ExclusiveContext *maybecx)
 }
 
 JSFlatString *
-JSRope::flatten(ExclusiveContext *maybecx)
+JSRope::flatten(JSContext *maybecx)
 {
 #if JSGC_INCREMENTAL
     if (zone()->needsBarrier())
@@ -471,7 +471,7 @@ JSDependentString::getCharsZNonDestructive(ThreadSafeContext *cx, ScopedJSFreePt
 }
 
 JSFlatString *
-JSDependentString::undepend(ExclusiveContext *cx)
+JSDependentString::undepend(JSContext *cx)
 {
     JS_ASSERT(JSString::isDependent());
 
@@ -502,7 +502,7 @@ JSDependentString::undepend(ExclusiveContext *cx)
 }
 
 JSStableString *
-JSInlineString::uninline(ExclusiveContext *maybecx)
+JSInlineString::uninline(JSContext *maybecx)
 {
     JS_ASSERT(isInline());
     size_t n = length();
@@ -571,8 +571,8 @@ ScopedThreadSafeStringInspector::ensureChars(ThreadSafeContext *cx)
     if (chars_)
         return true;
 
-    if (cx->isExclusiveContext()) {
-        JSLinearString *linear = str_->ensureLinear(cx->asExclusiveContext());
+    if (cx->isJSContext()) {
+        JSLinearString *linear = str_->ensureLinear(cx->asJSContext());
         if (!linear)
             return false;
         chars_ = linear->chars();

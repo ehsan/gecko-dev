@@ -6,6 +6,7 @@
 #ifndef nsDOMWindowUtils_h_
 #define nsDOMWindowUtils_h_
 
+#include "nsAutoPtr.h"
 #include "nsWeakReference.h"
 
 #include "nsIDOMWindowUtils.h"

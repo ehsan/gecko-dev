@@ -20,7 +20,6 @@
 #include "frontend/Parser.h"
 #include "jit/AsmJSLink.h"
 #include "jit/AsmJSModule.h"
-#include "jit/AsmJSSignalHandlers.h"
 #include "jit/CodeGenerator.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
@@ -6295,6 +6294,9 @@ Warn(JSContext *cx, int code, const char *str)
     return JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, js_GetErrorMessage,
                                         NULL, code, str ? str : "");
 }
+
+extern bool
+EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt);
 
 bool
 js::CompileAsmJS(JSContext *cx, AsmJSParser &parser, ParseNode *stmtList, bool *validated)

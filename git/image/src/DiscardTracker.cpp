@@ -8,6 +8,7 @@
 #include "RasterImage.h"
 #include "DiscardTracker.h"
 #include "mozilla/Preferences.h"
+#include "pratom.h"
 
 namespace mozilla {
 namespace image {
@@ -18,7 +19,7 @@ static const char* sDiscardTimeoutPref = "image.mem.min_discard_timeout_ms";
 /* static */ nsCOMPtr<nsITimer> DiscardTracker::sTimer;
 /* static */ bool DiscardTracker::sInitialized = false;
 /* static */ bool DiscardTracker::sTimerOn = false;
-/* static */ Atomic<int32_t> DiscardTracker::sDiscardRunnablePending(0);
+/* static */ int32_t DiscardTracker::sDiscardRunnablePending = 0;
 /* static */ int64_t DiscardTracker::sCurrentDecodedImageBytes = 0;
 /* static */ uint32_t DiscardTracker::sMinDiscardTimeoutMs = 10000;
 /* static */ uint32_t DiscardTracker::sMaxDecodedImageKB = 42 * 1024;
@@ -31,7 +32,7 @@ static const char* sDiscardTimeoutPref = "image.mem.min_discard_timeout_ms";
 NS_IMETHODIMP
 DiscardTracker::DiscardRunnable::Run()
 {
-  sDiscardRunnablePending = 0;
+  PR_ATOMIC_SET(&sDiscardRunnablePending, 0);
 
   DiscardTracker::DiscardNow();
   return NS_OK;
@@ -293,7 +294,7 @@ DiscardTracker::MaybeDiscardSoon()
   if (sCurrentDecodedImageBytes > sMaxDecodedImageKB * 1024 &&
       !sDiscardableImages.isEmpty()) {
     // Check if the value of sDiscardRunnablePending used to be false
-    if (!sDiscardRunnablePending.exchange(1)) {
+    if (!PR_ATOMIC_SET(&sDiscardRunnablePending, 1)) {
       nsRefPtr<DiscardRunnable> runnable = new DiscardRunnable();
       NS_DispatchToMainThread(runnable);
     }

@@ -484,54 +484,53 @@ exports.testTabsEvent_onClose = function(test) {
 // TEST: onClose event handler when a window is closed
 exports.testTabsEvent_onCloseWindow = function(test) {
   test.waitUntilDone();
-  let closeCount = 0;
-  let individualCloseCount = 0;
 
-  openBrowserWindow(function(window) {
-    tabs.on("close", function listener() {
-      if (++closeCount == 4) {
-        tabs.removeListener("close", listener);
-      }
-    });
-
-    function endTest() {
-      if (++individualCloseCount < 3) {
-        return;
-      }
-
-      test.assertEqual(closeCount, 4, "Correct number of close events received");
-      test.assertEqual(individualCloseCount, 3,
-                       "Each tab with an attached onClose listener received a close " +
-                       "event when the window was closed");
-
-      test.done();
+  openBrowserWindow(function(window, browser) {
+    let closeCount = 0, individualCloseCount = 0;
+    function listener() {
+      closeCount++;
     }
+    tabs.on('close', listener);
 
     // One tab is already open with the window
     let openTabs = 1;
     function testCasePossiblyLoaded() {
       if (++openTabs == 4) {
-        window.close();
+        beginCloseWindow();
       }
     }
 
     tabs.open({
       url: "data:text/html;charset=utf-8,tab2",
-      onOpen: testCasePossiblyLoaded,
-      onClose: endTest
+      onOpen: function() testCasePossiblyLoaded(),
+      onClose: function() individualCloseCount++
     });
 
     tabs.open({
       url: "data:text/html;charset=utf-8,tab3",
-      onOpen: testCasePossiblyLoaded,
-      onClose: endTest
+      onOpen: function() testCasePossiblyLoaded(),
+      onClose: function() individualCloseCount++
     });
 
     tabs.open({
       url: "data:text/html;charset=utf-8,tab4",
-      onOpen: testCasePossiblyLoaded,
-      onClose: endTest
+      onOpen: function() testCasePossiblyLoaded(),
+      onClose: function() individualCloseCount++
     });
+
+    function beginCloseWindow() {
+      closeBrowserWindow(window, function testFinished() {
+        tabs.removeListener("close", listener);
+
+        test.assertEqual(closeCount, 4, "Correct number of close events received");
+        test.assertEqual(individualCloseCount, 3,
+                         "Each tab with an attached onClose listener received a close " +
+                         "event when the window was closed");
+
+        test.done();
+      });
+    }
+
   });
 }
 
@@ -844,20 +843,18 @@ exports['test window focus changes active tab'] = function(test) {
     let win2 = openBrowserWindow(function() {
       test.pass("window 2 is open");
 
-      focus(win2).then(function() {
-        tabs.on("activate", function onActivate(tab) {
-          tabs.removeListener("activate", onActivate);
-          test.pass("activate was called on windows focus change.");
-          test.assertEqual(tab.url, url1, 'the activated tab url is correct');
+      tabs.on("activate", function onActivate(tab) {
+        tabs.removeListener("activate", onActivate);
+        test.pass("activate was called on windows focus change.");
+        test.assertEqual(tab.url, url1, 'the activated tab url is correct');
 
-          close(win2).then(function() {
-            test.pass('window 2 was closed');
-            return close(win1);
-          }).then(test.done.bind(test));
-        });
-
-        win1.focus();
+        close(win2).then(function() {
+          test.pass('window 2 was closed');
+          return close(win1);
+        }).then(test.done.bind(test));
       });
+
+      win1.focus();
     }, "data:text/html;charset=utf-8,test window focus changes active tab</br><h1>Window #2");
   }, url1);
 };

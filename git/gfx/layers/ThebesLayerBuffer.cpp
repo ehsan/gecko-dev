@@ -684,6 +684,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       }
     }
 
+    MOZ_ASSERT(!IsAzureBuffer());
     mBuffer = destBuffer.forget();
     mDTBuffer = nullptr;
     mBufferRect = destBufferRect;
