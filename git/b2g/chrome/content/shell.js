@@ -1048,11 +1048,9 @@ let RemoteDebugger = {
       DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webapps.js");
       DebuggerServer.registerModule("devtools/server/actors/device");
 
-#ifdef MOZ_WIDGET_GONK
       DebuggerServer.onConnectionChange = function(what) {
         AdbController.updateState();
       }
-#endif
     }
 
     let path = Services.prefs.getCharPref("devtools.debugger.unix-domain-socket") ||
@@ -1078,8 +1076,10 @@ let RemoteDebugger = {
 }
 
 let KeyboardHelper = {
-  handleEvent: function keyboard_handleEvent(detail) {
-    Keyboard.setLayouts(detail.layouts);
+  handleEvent: function keyboard_handleEvent(aMessage) {
+    let data = aMessage.data;
+
+    Keyboard.setLayouts(data.layouts);
   }
 };
 

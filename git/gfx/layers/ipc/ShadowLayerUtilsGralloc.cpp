@@ -216,6 +216,7 @@ int64_t GrallocReporter::sAmount = 0;
 
 GrallocBufferActor::GrallocBufferActor()
 : mAllocBytes(0)
+, mDeprecatedTextureHost(nullptr)
 {
   static bool registered;
   if (!registered) {
@@ -266,27 +267,18 @@ GrallocBufferActor::Create(const gfxIntSize& aSize,
   return actor;
 }
 
-// used only for hacky fix for bug 862324
+// used only for hacky fix in gecko 23 for bug 862324
 void GrallocBufferActor::ActorDestroy(ActorDestroyReason)
 {
-  for (size_t i = 0; i < mDeprecatedTextureHosts.Length(); i++) {
-    mDeprecatedTextureHosts[i]->ForgetBuffer();
+  if (mDeprecatedTextureHost) {
+    mDeprecatedTextureHost->ForgetBuffer();
   }
 }
 
-// used only for hacky fix for bug 862324
-void GrallocBufferActor::AddDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost)
+// used only for hacky fix in gecko 23 for bug 862324
+void GrallocBufferActor::SetDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost)
 {
-  mDeprecatedTextureHosts.AppendElement(aDeprecatedTextureHost);
-}
-
-// used only for hacky fix for bug 862324
-void GrallocBufferActor::RemoveDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost)
-{
-  mDeprecatedTextureHosts.RemoveElement(aDeprecatedTextureHost);
-  // that should be the only occurence, otherwise we'd leak this TextureHost...
-  // assert that that's not happening.
-  MOZ_ASSERT(!mDeprecatedTextureHosts.Contains(aDeprecatedTextureHost));
+  mDeprecatedTextureHost = aDeprecatedTextureHost;
 }
 
 /*static*/ already_AddRefed<TextureImage>
