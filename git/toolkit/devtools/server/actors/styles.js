@@ -769,12 +769,7 @@ var StyleRuleFront = protocol.FrontClass(StyleRuleActor, {
       return this._form.href;
     }
     let sheet = this.parentStyleSheet;
-    return sheet.href;
-  },
-
-  get nodeHref() {
-    let sheet = this.parentStyleSheet;
-    return sheet ? sheet.nodeHref : "";
+    return sheet.href || sheet.nodeHref;
   },
 
   get location()
