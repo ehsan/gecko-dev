@@ -396,11 +396,7 @@ ThreadActor.prototype = {
   },
 
   /**
-   * Set a breakpoint using the jsdbg2 API. If the line on which the breakpoint
-   * is being set contains no code, then the breakpoint will slide down to the
-   * next line that has runnable code. In this case the server breakpoint cache
-   * will be updated, so callers that iterate over the breakpoint cache should
-   * take that into account.
+   * Set a breakpoint using the jsdbg2 API.
    *
    * @param object aLocation
    *        The location of the breakpoint as specified in the protocol.
@@ -424,20 +420,16 @@ ThreadActor.prototype = {
     }
 
     let location = { url: aLocation.url, line: aLocation.line };
-    // Get the list of cached breakpoints in this URL.
-    let scriptBreakpoints = this._breakpointStore[location.url];
     let bpActor;
-    if (scriptBreakpoints &&
-        scriptBreakpoints[location.line] &&
-        scriptBreakpoints[location.line].actor) {
-      bpActor = scriptBreakpoints[location.line].actor;
+    if (this._breakpointStore[location.url] &&
+        this._breakpointStore[location.url][location.line] &&
+        this._breakpointStore[location.url][location.line].actor) {
+      bpActor = this._breakpointStore[location.url][location.line].actor;
     }
     if (!bpActor) {
       bpActor = new BreakpointActor(this, location);
       this._hooks.addToBreakpointPool(bpActor);
-      if (scriptBreakpoints[location.line]) {
-        scriptBreakpoints[location.line].actor = bpActor;
-      }
+      this._breakpointStore[location.url][location.line].actor = bpActor;
     }
 
     if (!script) {
@@ -458,23 +450,15 @@ ThreadActor.prototype = {
     if (offsets.length == 0) {
       // No code at that line in any script, skipping forward.
       let lines = script.getAllOffsets();
-      let oldLine = aLocation.line;
-      for (let line = oldLine; line < lines.length; ++line) {
+      for (let line = aLocation.line; line < lines.length; ++line) {
         if (lines[line]) {
           for (let i = 0; i < lines[line].length; i++) {
             script.setBreakpoint(lines[line][i], bpActor);
             codeFound = true;
           }
-          actualLocation = {
-            url: aLocation.url,
-            line: line,
-            column: aLocation.column
-          };
+          actualLocation = aLocation;
+          actualLocation.line = line;
           bpActor.location = actualLocation;
-          // Update the cache as well.
-          scriptBreakpoints[line] = scriptBreakpoints[oldLine];
-          scriptBreakpoints[line].line = line;
-          delete scriptBreakpoints[oldLine];
           break;
         }
       }
@@ -945,10 +929,7 @@ ThreadActor.prototype = {
     // Set any stored breakpoints.
     let existing = this._breakpointStore[aScript.url];
     if (existing) {
-      // Iterate over the lines backwards, so that sliding breakpoints don't
-      // affect the loop.
-      for (let line = existing.length - 1; line >= 0; line--) {
-        let bp = existing[line];
+      for (let bp of existing) {
         if (bp) {
           this._setBreakpoint(bp);
         }
