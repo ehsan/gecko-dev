@@ -59,7 +59,6 @@ include $(topsrcdir)/build/automation-build.mk
 
 _PGO_FILES = 	\
   automation.py \
-  $(CURDIR)/automationutils.py \
   profileserver.py \
   genpgocert.py \
   index.html \
@@ -75,7 +74,7 @@ profileserver.py: profileserver.py.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $^ > $@
 	chmod +x $@
 
-GARBAGE += profileserver.py genpgocert.py
+GARBAGE += automation.py profileserver.py genpgocert.py
 
 libs:: $(_PGO_FILES)
 	$(INSTALL) $^ $(_PROFILE_DIR)

@@ -296,10 +296,6 @@ nsNavHistory::QueryStringToQueries(const nsACString& aQueryString,
                                    PRUint32* aResultCount,
                                    nsINavHistoryQueryOptions** aOptions)
 {
-  NS_ENSURE_ARG_POINTER(aQueries);
-  NS_ENSURE_ARG_POINTER(aResultCount);
-  NS_ENSURE_ARG_POINTER(aOptions);
-
   *aQueries = nsnull;
   *aResultCount = 0;
   nsCOMPtr<nsNavHistoryQueryOptions> options;
@@ -366,9 +362,6 @@ nsNavHistory::QueriesToQueryString(nsINavHistoryQuery **aQueries,
                                    nsINavHistoryQueryOptions* aOptions,
                                    nsACString& aQueryString)
 {
-  NS_ENSURE_ARG(aQueries);
-  NS_ENSURE_ARG(aOptions);
-
   nsCOMPtr<nsNavHistoryQueryOptions> options = do_QueryInterface(aOptions);
   NS_ENSURE_TRUE(options, NS_ERROR_INVALID_ARG);
 

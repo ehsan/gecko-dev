@@ -106,11 +106,10 @@ NS_NewMenuPopupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContext)
   :nsBoxFrame(aShell, aContext),
   mCurrentMenu(nsnull),
-  mPrefSize(-1, -1),
-  mPopupType(ePopupTypePanel),
-  mPopupState(ePopupClosed),
   mPopupAlignment(POPUPALIGNMENT_NONE),
   mPopupAnchor(POPUPALIGNMENT_NONE),
+  mPopupType(ePopupTypePanel),
+  mPopupState(ePopupClosed),
   mIsOpenChanged(PR_FALSE),
   mIsContextMenu(PR_FALSE),
   mAdjustOffsetForContextMenu(PR_FALSE),
@@ -118,7 +117,8 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mMenuCanOverlapOSBar(PR_FALSE),
   mShouldAutoPosition(PR_TRUE),
   mConsumeRollupEvent(nsIPopupBoxObject::ROLLUP_DEFAULT),
-  mInContentShell(PR_TRUE)
+  mInContentShell(PR_TRUE),
+  mPrefSize(-1, -1)
 {
   if (sDefaultLevelParent >= 0)
     return;

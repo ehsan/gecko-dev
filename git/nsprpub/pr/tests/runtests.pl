@@ -319,7 +319,6 @@ $prog = shift;  # Program to test
 "lltest",
 "lock",
 "lockfile",
-"logfile",
 "logger",
 "many_cv",
 "multiwait",

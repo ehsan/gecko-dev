@@ -49,7 +49,7 @@ function SignonsStartup() {
   kSignonBundle = document.getElementById("signonBundle");
   document.getElementById("togglePasswords").label = kSignonBundle.getString("showPasswords");
   document.getElementById("togglePasswords").accessKey = kSignonBundle.getString("showPasswordsAccessKey");
-  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielAll");
+  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielAll");
   LoadSignons();
 
   // filter the table if requested by caller
@@ -167,19 +167,14 @@ function DeleteAllSignons() {
 }
 
 function TogglePasswordVisible() {
-  if (showingPasswords || ConfirmShowPasswords()) {
-    showingPasswords = !showingPasswords;
-    document.getElementById("togglePasswords").label = kSignonBundle.getString(showingPasswords ? "hidePasswords" : "showPasswords");
-    document.getElementById("togglePasswords").accessKey = kSignonBundle.getString(showingPasswords ? "hidePasswordsAccessKey" : "showPasswordsAccessKey");
-    document.getElementById("passwordCol").hidden = !showingPasswords;
-    _filterPasswords();
-  }
+  if (!showingPasswords && !ConfirmShowPasswords())
+    return;
 
-  // Notify observers that the password visibility toggling is
-  // completed.  (Mostly useful for tests)
-  Components.classes["@mozilla.org/observer-service;1"]
-            .getService(Components.interfaces.nsIObserverService)
-            .notifyObservers(null, "passwordmgr-password-toggle-complete", null);
+  showingPasswords = !showingPasswords;
+  document.getElementById("togglePasswords").label = kSignonBundle.getString(showingPasswords ? "hidePasswords" : "showPasswords");
+  document.getElementById("togglePasswords").accessKey = kSignonBundle.getString(showingPasswords ? "hidePasswordsAccessKey" : "showPasswordsAccessKey");
+  document.getElementById("passwordCol").hidden = !showingPasswords;
+  _filterPasswords();
 }
 
 function AskUserShowPasswords() {
@@ -274,7 +269,7 @@ function SignonClearFilter() {
   }
   signonsTreeView._lastSelectedRanges = [];
 
-  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielAll");
+  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielAll");
 }
 
 function FocusFilterBox() {
@@ -344,5 +339,5 @@ function _filterPasswords()
   if (signonsTreeView.rowCount > 0)
     signonsTreeView.selection.select(0);
 
-  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielFiltered");
+  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielFiltered");
 }
