@@ -291,8 +291,6 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
         jsval args[1] = {OBJECT_TO_JSVAL(id)};
         success = JS_CallFunctionValue(cx, jsobj, fun, 1, args, &retval);
 
-        JS_SetOptions(cx, oldOpts);
-
         if(!success)
         {
             NS_ASSERTION(JS_IsExceptionPending(cx),
@@ -301,49 +299,33 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
             jsval jsexception;
             AUTO_MARK_JSVAL(ccx, jsexception);
 
-            if(JS_GetPendingException(cx, &jsexception))
+            if(JS_GetPendingException(cx, &jsexception) &&
+               JSVAL_IS_OBJECT(jsexception))
             {
-                nsresult rv;
-                if(JSVAL_IS_OBJECT(jsexception))
+                nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+
+                nsXPConnect::GetXPConnect()->
+                    GetWrappedNativeOfJSObject(ccx,
+                                               JSVAL_TO_OBJECT(jsexception),
+                                               getter_AddRefs(wrapper));
+
+                if(wrapper)
                 {
-                    // XPConnect may have constructed an object to represent a
-                    // C++ QI failure. See if that is the case.
-                    nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-
-                    nsXPConnect::GetXPConnect()->
-                        GetWrappedNativeOfJSObject(ccx,
-                                                   JSVAL_TO_OBJECT(jsexception),
-                                                   getter_AddRefs(wrapper));
-
-                    if(wrapper)
+                    nsresult rv;
+                    nsCOMPtr<nsIException> exception =
+                        do_QueryWrappedNative(wrapper);
+                    if(exception && NS_SUCCEEDED(exception->GetResult(&rv)) &&
+                       rv == NS_NOINTERFACE)
                     {
-                        nsCOMPtr<nsIException> exception =
-                            do_QueryWrappedNative(wrapper);
-                        if(exception &&
-                           NS_SUCCEEDED(exception->GetResult(&rv)) &&
-                           rv == NS_NOINTERFACE)
-                        {
-                            JS_ClearPendingException(cx);
-                        }
-                    }
-                }
-                else if(JSVAL_IS_NUMBER(jsexception))
-                {
-                    // JS often throws an nsresult.
-                    if(JSVAL_IS_DOUBLE(jsexception))
-                        rv = (nsresult)(*JSVAL_TO_DOUBLE(jsexception));
-                    else
-                        rv = (nsresult)(JSVAL_TO_INT(jsexception));
-
-                    if(rv == NS_NOINTERFACE)
                         JS_ClearPendingException(cx);
+                    }
                 }
             }
 
-            // Don't report if reporting was disabled by someone else.
-            if(!(oldOpts & JSOPTION_DONT_REPORT_UNCAUGHT))
-                JS_ReportPendingException(cx);
+            JS_ReportPendingException(cx);
         }
+
+        JS_SetOptions(cx, oldOpts);
     }
 
     if(success)
