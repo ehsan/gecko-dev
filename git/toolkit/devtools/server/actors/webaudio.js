@@ -45,32 +45,18 @@ const NODE_ROUTING_METHODS = [
 const NODE_PROPERTIES = {
   "OscillatorNode": {
     "type": {},
-    "frequency": {
-      "param": true
-    },
-    "detune": {
-      "param": true
-    }
+    "frequency": {},
+    "detune": {}
   },
   "GainNode": {
-    "gain": {
-      "param": true
-    }
+    "gain": {}
   },
   "DelayNode": {
-    "delayTime": {
-      "param": true
-    }
+    "delayTime": {}
   },
-  // TODO deal with figuring out adding `detune` AudioParam
-  // for AudioBufferSourceNode, which is in the spec
-  // but not yet added in implementation
-  // bug 1116852
   "AudioBufferSourceNode": {
     "buffer": { "Buffer": true },
-    "playbackRate": {
-      "param": true,
-    },
+    "playbackRate": {},
     "loop": {},
     "loopStart": {},
     "loopEnd": {}
@@ -93,37 +79,19 @@ const NODE_PROPERTIES = {
     "normalize": {},
   },
   "DynamicsCompressorNode": {
-    "threshold": {
-      "param": true
-    },
-    "knee": {
-      "param": true
-    },
-    "ratio": {
-      "param": true
-    },
+    "threshold": {},
+    "knee": {},
+    "ratio": {},
     "reduction": {},
-    "attack": {
-      "param": true
-    },
-    "release": {
-      "param": true
-    }
+    "attack": {},
+    "release": {}
   },
   "BiquadFilterNode": {
     "type": {},
-    "frequency": {
-      "param": true
-    },
-    "Q": {
-      "param": true
-    },
-    "detune": {
-      "param": true
-    },
-    "gain": {
-      "param": true
-    }
+    "frequency": {},
+    "Q": {},
+    "detune": {},
+    "gain": {}
   },
   "WaveShaperNode": {
     "curve": { "Float32Array": true },
@@ -433,13 +401,13 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
 
   getAutomationData: method(function (paramName) {
     let timeline = this.automation[paramName];
-    if (!timeline) {
-      return null;
-    }
-
     let events = timeline.events;
     let values = [];
     let i = 0;
+
+    if (!timeline) {
+      return null;
+    }
 
     if (!timeline.events.length) {
       return { events, values };
@@ -453,9 +421,9 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
     let scale = timeDelta / AUTOMATION_GRANULARITY;
 
     for (; i < AUTOMATION_GRANULARITY; i++) {
-      let delta = firstEvent.time + (i * scale);
-      let value = timeline.getValueAtTime(delta);
-      values.push({ delta, value });
+      let t = firstEvent.time + (i * scale);
+      let value = timeline.getValueAtTime(t);
+      values.push({ t, value });
     }
 
     // If the last event is setTargetAtTime, the automation
@@ -464,9 +432,9 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
     // until we're "close enough" to the target.
     if (lastEvent.type === "setTargetAtTime") {
       for (; i < AUTOMATION_GRANULARITY_MAX; i++) {
-        let delta = firstEvent.time + (++i * scale);
-        let value = timeline.getValueAtTime(delta);
-        values.push({ delta, value });
+        let t = firstEvent.time + (++i * scale);
+        let value = timeline.getValueAtTime(t);
+        values.push({ t, value });
       }
     }
 

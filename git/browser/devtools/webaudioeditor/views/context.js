@@ -38,6 +38,7 @@ let ContextView = {
   initialize: function() {
     this._onGraphNodeClick = this._onGraphNodeClick.bind(this);
     this._onThemeChange = this._onThemeChange.bind(this);
+    this._onNodeSelect = this._onNodeSelect.bind(this);
     this._onStartContext = this._onStartContext.bind(this);
     this._onEvent = this._onEvent.bind(this);
 
@@ -45,6 +46,7 @@ let ContextView = {
     $('#graph-target').addEventListener('click', this._onGraphNodeClick, false);
 
     window.on(EVENTS.THEME_CHANGE, this._onThemeChange);
+    window.on(EVENTS.UI_INSPECTOR_NODE_SET, this._onNodeSelect);
     window.on(EVENTS.START_CONTEXT, this._onStartContext);
     gAudioNodes.on("*", this._onEvent);
   },
@@ -60,6 +62,7 @@ let ContextView = {
     }
     $('#graph-target').removeEventListener('click', this._onGraphNodeClick, false);
     window.off(EVENTS.THEME_CHANGE, this._onThemeChange);
+    window.off(EVENTS.UI_INSPECTOR_NODE_SET, this._onNodeSelect);
     window.off(EVENTS.START_CONTEXT, this._onStartContext);
     gAudioNodes.off("*", this._onEvent);
   },
@@ -109,6 +112,7 @@ let ContextView = {
    * Makes the corresponding graph node appear "focused", removing
    * focused styles from all other nodes. If no `actorID` specified,
    * make all nodes appear unselected.
+   * Called from UI_INSPECTOR_NODE_SELECT.
    */
   focusNode: function (actorID) {
     // Remove class "selected" from all nodes
@@ -268,6 +272,10 @@ let ContextView = {
     }
   },
 
+  _onNodeSelect: function (eventName, id) {
+    this.focusNode(id);
+  },
+
   /**
    * Fired when the devtools theme changes.
    */
@@ -292,9 +300,6 @@ let ContextView = {
     if (!node)
       return;
 
-    let id = node.getAttribute("data-id");
-
-    this.focusNode(id);
-    window.emit(EVENTS.UI_SELECT_NODE, id);
+    window.emit(EVENTS.UI_SELECT_NODE, node.getAttribute("data-id"));
   }
 };
