@@ -50,8 +50,14 @@
 #include "nsSVGFilterInstance.h"
 
 nsIFrame*
-NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGFilterElement> filter = do_QueryInterface(aContent);
+  if (!filter) {
+    NS_ERROR("Can't create frame! Content is not an SVG filter");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGFilterFrame(aContext);
 }
 
@@ -293,19 +299,6 @@ nsSVGFilterFrame::GetFilterBBox(nsIFrame *aTarget, const nsIntRect *aSourceBBox)
   return nsIntRect();
 }
   
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGFilterFrame::Init(nsIContent* aContent,
-                       nsIFrame* aParent,
-                       nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGFilterElement> filter = do_QueryInterface(aContent);
-  NS_ASSERTION(filter, "Content is not an SVG filter");
-
-  return nsSVGFilterFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
-
 nsIAtom *
 nsSVGFilterFrame::GetType() const
 {

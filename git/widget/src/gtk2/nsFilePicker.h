@@ -42,7 +42,7 @@
 
 #include "nsBaseFilePicker.h"
 #include "nsString.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
 
 class nsIWidget;
@@ -89,8 +89,8 @@ protected:
   nsString  mDefault;
   nsString  mDefaultExtension;
 
-  nsTArray<nsCString> mFilters;
-  nsTArray<nsCString> mFilterNames;
+  nsCStringArray mFilters;
+  nsCStringArray mFilterNames;
 
 private:
   static nsILocalFile *mPrevDisplayDirectory;

@@ -43,7 +43,8 @@
  */
 
 #include "gtkxtbin.h"
-#include <gtk/gtk.h>
+#include <gtk/gtkcontainer.h>
+#include <gtk/gtkmain.h>
 #include <gdk/gdkx.h>
 #include <glib.h>
 #include <assert.h>

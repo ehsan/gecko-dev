@@ -47,6 +47,7 @@ typedef nsContainerFrame nsSVGContainerFrameBase;
 class nsSVGContainerFrame : public nsSVGContainerFrameBase
 {
   friend nsIFrame* NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
+                                           nsIContent* aContent,
                                            nsStyleContext* aContext);
 protected:
   nsSVGContainerFrame(nsStyleContext* aContext) :

@@ -106,7 +106,7 @@ var ZoomManager = {
   get zoomValues ZoomManager_get_zoomValues() {
     var zoomValues = this._prefBranch.getCharPref("toolkit.zoomManager.zoomValues")
                                      .split(",").map(parseFloat);
-    zoomValues.sort(function (a, b) a - b);
+    zoomValues.sort();
 
     while (zoomValues[0] < this.MIN)
       zoomValues.shift();

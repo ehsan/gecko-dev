@@ -46,8 +46,14 @@
 #include "gfxContext.h"
 
 nsIFrame*
-NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGMarkerElement> marker = do_QueryInterface(aContent);
+  if (!marker) {
+    NS_ASSERTION(marker, "Can't create frame! Content is not an SVG marker");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGMarkerFrame(aContext);
 }
 
@@ -74,19 +80,6 @@ nsSVGMarkerFrame::AttributeChanged(PRInt32  aNameSpaceID,
   return nsSVGMarkerFrameBase::AttributeChanged(aNameSpaceID,
                                                 aAttribute, aModType);
 }
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGMarkerFrame::Init(nsIContent* aContent,
-                       nsIFrame* aParent,
-                       nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGMarkerElement> marker = do_QueryInterface(aContent);
-  NS_ASSERTION(marker, "Content is not an SVG marker");
-
-  return nsSVGMarkerFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 nsIAtom *
 nsSVGMarkerFrame::GetType() const

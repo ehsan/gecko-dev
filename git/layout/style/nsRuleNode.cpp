@@ -27,7 +27,6 @@
  *   L. David Baron <dbaron@dbaron.org>
  *   Christian Biesinger <cbiesinger@web.de>
  *   Michael Ventnor <m.ventnor@gmail.com>
- *   Keith Rarick <kr@xph.us>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -167,17 +166,11 @@ static nsString& Unquote(nsString& aString)
   return aString;
 }
 
-static inline nscoord ScaleCoord(const nsCSSValue &aValue, float factor)
-{
-  return NSToCoordRoundWithClamp(aValue.GetFloatValue() * factor);
-}
-
 static nscoord CalcLengthWith(const nsCSSValue& aValue,
                               nscoord aFontSize,
                               const nsStyleFont* aStyleFont,
                               nsStyleContext* aStyleContext,
                               nsPresContext* aPresContext,
-                              PRBool aUseProvidedRootEmSize,
                               // aUseUserFontSet should always be PR_TRUE
                               // except when called from
                               // CalcLengthWithInitialFont.
@@ -206,33 +199,8 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
     aFontSize = aStyleFont->mFont.size;
   }
   switch (unit) {
-    case eCSSUnit_RootEM: {
-      nscoord rootFontSize;
-
-      if (aUseProvidedRootEmSize) {
-        // We should use the provided aFontSize as the reference length to
-        // scale. This only happens when we are calculating something on the
-        // root element, in which case aFontSize is already the value we want.
-        rootFontSize = aFontSize;
-      } else {
-        // This is not the root element or we are calculating something other
-        // than font size, so rem is relative to the root element's font size.
-        nsRefPtr<nsStyleContext> rootStyle;
-        const nsStyleFont *rootStyleFont = aStyleFont;
-        nsIContent* docElement = aPresContext->Document()->GetRootContent();
-
-        rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
-                                                              nsnull);
-        if (rootStyle) {
-          rootStyleFont = rootStyle->GetStyleFont();
-          rootFontSize = rootStyleFont->mFont.size;
-        }
-      }
-
-      return ScaleCoord(aValue, float(rootFontSize));
-    }
     case eCSSUnit_EM: {
-      return ScaleCoord(aValue, float(aFontSize));
+      return NSToCoordRoundWithClamp(aValue.GetFloatValue() * float(aFontSize));
       // XXX scale against font metrics height instead?
     }
     case eCSSUnit_XHeight: {
@@ -242,7 +210,7 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
         aPresContext->GetMetricsFor(font, aUseUserFontSet);
       nscoord xHeight;
       fm->GetXHeight(xHeight);
-      return ScaleCoord(aValue, float(xHeight));
+      return NSToCoordRoundWithClamp(aValue.GetFloatValue() * float(xHeight));
     }
     case eCSSUnit_Char: {
       nsFont font = aStyleFont->mFont;
@@ -253,8 +221,9 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
       gfxFloat zeroWidth = (tfm->GetThebesFontGroup()->GetFontAt(0)
                             ->GetMetrics().zeroOrAveCharWidth);
 
-      return ScaleCoord(aValue, NS_ceil(aPresContext->AppUnitsPerDevPixel() *
-                                        zeroWidth));
+      return NSToCoordRoundWithClamp(aValue.GetFloatValue() *
+                            NS_ceil(aPresContext->AppUnitsPerDevPixel() *
+                                    zeroWidth));
     }
     default:
       NS_NOTREACHED("unexpected unit");
@@ -272,7 +241,7 @@ nsRuleNode::CalcLength(const nsCSSValue& aValue,
   NS_ASSERTION(aStyleContext, "Must have style data");
 
   return CalcLengthWith(aValue, -1, nsnull, aStyleContext, aPresContext,
-                        PR_FALSE, PR_TRUE, aInherited);
+                        PR_TRUE, aInherited);
 }
 
 /* Inline helper function to redirect requests to CalcLength. */
@@ -292,7 +261,7 @@ nsRuleNode::CalcLengthWithInitialFont(nsPresContext* aPresContext,
   nsStyleFont defaultFont(aPresContext);
   PRBool inherited;
   return CalcLengthWith(aValue, -1, &defaultFont, nsnull, aPresContext,
-                        PR_TRUE, PR_FALSE, inherited);
+                        PR_FALSE, inherited);
 }
 
 #define SETCOORD_NORMAL                 0x01   // N
@@ -2320,7 +2289,6 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
                         nscoord aParentSize,
                         nscoord aScriptLevelAdjustedParentSize,
                         PRBool aUsedStartStruct,
-                        PRBool aAtRoot,
                         PRBool& aInherited)
 {
   PRBool zoom = PR_FALSE;
@@ -2376,7 +2344,7 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
     // for scriptlevel changes. A scriptlevel change between us and the parent
     // is simply ignored.
     *aSize = CalcLengthWith(aFontData.mSize, aParentSize, aParentFont, nsnull,
-                            aPresContext, aAtRoot, PR_TRUE, aInherited);
+                            aPresContext, PR_TRUE, aInherited);
     zoom = aFontData.mSize.IsFixedLengthUnit() ||
            aFontData.mSize.GetUnit() == eCSSUnit_Pixel;
   }
@@ -2450,7 +2418,6 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
 {
   const nsFont* defaultVariableFont =
     aPresContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID);
-  PRBool atRoot = !aContext->GetParent();
 
   // -moz-system-font: enum (never inherit!)
   nsFont systemFont;
@@ -2620,7 +2587,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     // 
     aFont->mScriptMinSize =
       CalcLengthWith(aFontData.mScriptMinSize, aParentFont->mSize, aParentFont,
-                     nsnull, aPresContext, atRoot, PR_TRUE, aInherited);
+                     nsnull, aPresContext, PR_TRUE, aInherited);
   }
 
   // -moz-script-size-multiplier: factor, inherit, initial
@@ -2659,7 +2626,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
 #endif
   SetFontSize(aPresContext, aFontData, aFont, aParentFont, &aFont->mSize,
               systemFont, aParentFont->mSize, scriptLevelAdjustedParentSize,
-              aUsedStartStruct, atRoot, aInherited);
+              aUsedStartStruct, aInherited);
 #ifdef MOZ_MATHML
   if (aParentFont->mSize == aParentFont->mScriptUnconstrainedSize &&
       scriptLevelAdjustedParentSize == scriptLevelAdjustedUnconstrainedParentSize) {
@@ -2674,7 +2641,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
                 &aFont->mScriptUnconstrainedSize, systemFont,
                 aParentFont->mScriptUnconstrainedSize,
                 scriptLevelAdjustedUnconstrainedParentSize,
-                aUsedStartStruct, atRoot, aInherited);
+                aUsedStartStruct, aInherited);
   }
   NS_ASSERTION(aFont->mScriptUnconstrainedSize <= aFont->mSize,
                "scriptminsize should never be making things bigger");

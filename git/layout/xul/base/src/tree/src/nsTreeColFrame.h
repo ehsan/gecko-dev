@@ -41,14 +41,18 @@
 class nsITreeBoxObject;
 
 nsIFrame* NS_NewTreeColFrame(nsIPresShell* aPresShell, 
-                             nsStyleContext* aContext);
+                             nsStyleContext* aContext,
+                             PRBool aIsRoot = PR_FALSE,
+                             nsIBoxLayout* aLayoutManager = nsnull);
 
 class nsTreeColFrame : public nsBoxFrame
 {
 public:
   nsTreeColFrame(nsIPresShell* aPresShell,
-                 nsStyleContext* aContext):
-    nsBoxFrame(aPresShell, aContext) {}
+                 nsStyleContext* aContext,
+                 PRBool aIsRoot = nsnull,
+                 nsIBoxLayout* aLayoutManager = nsnull):
+    nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager) {}
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
@@ -67,8 +71,9 @@ public:
   virtual void SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
                          PRBool aRemoveOverflowArea = PR_FALSE);
 
-  friend nsIFrame* NS_NewTreeColFrame(nsIPresShell* aPresShell,
-                                      nsStyleContext* aContext);
+  friend nsIFrame* NS_NewTreeColFrame(nsIPresShell* aPresShell, 
+                                      PRBool aIsRoot,
+                                      nsIBoxLayout* aLayoutManager);
 
 protected:
   virtual ~nsTreeColFrame();

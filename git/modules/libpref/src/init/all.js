@@ -238,9 +238,6 @@ pref("browser.fixup.alternate.prefix", "www.");
 pref("browser.fixup.alternate.suffix", ".com");
 pref("browser.fixup.hide_user_pass", true);
 
-// Location Bar AutoComplete
-pref("browser.urlbar.autocomplete.enabled", true);
-
 // Print header customization
 // Use the following codes:
 // &T - Title

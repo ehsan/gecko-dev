@@ -131,7 +131,6 @@ XPIDLSRCS	= \
 ifdef MOZ_SMIL
 XPIDLSRCS	+= \
 		nsIDOMSVGAnimateElement.idl \
-		nsIDOMSVGAnimateTransformElement.idl \
 		nsIDOMSVGAnimationElement.idl \
 		nsIDOMSVGSetElement.idl \
 		$(NULL)

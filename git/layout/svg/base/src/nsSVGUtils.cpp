@@ -1442,18 +1442,6 @@ nsSVGUtils::AdjustMatrixForUnits(nsIDOMSVGMatrix *aMatrix,
   return retval;
 }
 
-nsIFrame*
-nsSVGUtils::GetFirstNonAAncestorFrame(nsIFrame* aStartFrame)
-{
-  for (nsIFrame *ancestorFrame = aStartFrame; ancestorFrame;
-       ancestorFrame = ancestorFrame->GetParent()) {
-    if (ancestorFrame->GetType() != nsGkAtoms::svgAFrame) {
-      return ancestorFrame;
-    }
-  }
-  return nsnull;
-}
-
 #ifdef DEBUG
 void
 nsSVGUtils::WritePPM(const char *fname, gfxImageSurface *aSurface)

@@ -55,12 +55,6 @@
 nsIFrame*
 NS_NewLegendFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-#ifdef DEBUG
-  const nsStyleDisplay* disp = aContext->GetStyleDisplay();
-  NS_ASSERTION(!disp->IsAbsolutelyPositioned() && !disp->IsFloating(),
-               "Legends should not be positioned and should not float");
-#endif
-
   nsIFrame* f = new (aPresShell) nsLegendFrame(aContext);
   if (f) {
     f->AddStateBits(NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);

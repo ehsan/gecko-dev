@@ -179,8 +179,11 @@ InitDialog(HWND hDlg)
   if (!GetStringsFile(filename))
     return;
 
+  char path[MAX_PATH];
+  WideCharToMultiByte(CP_UTF8, 0, filename, -1, path,
+                      sizeof(path)/sizeof(path[0]), NULL, NULL );
   StringTable uiStrings;
-  if (ReadStrings(filename, &uiStrings) != OK)
+  if (ReadStrings(path, &uiStrings) != OK)
     return;
 
   WCHAR szwTitle[MAX_TEXT_LEN];

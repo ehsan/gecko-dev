@@ -292,9 +292,8 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
   }
 
   // If additive animation isn't required or isn't supported, set the value.
-  if (!IsAdditive() || NS_FAILED(aResult.SandwichAdd(result))) {
+  if (!IsAdditive() || NS_FAILED(aResult.Add(result)))
     aResult = result;
-  }
 }
 
 PRInt8

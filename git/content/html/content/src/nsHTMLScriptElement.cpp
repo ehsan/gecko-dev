@@ -55,7 +55,6 @@
 #include "nsIDOMDocument.h"
 #include "nsContentErrors.h"
 #include "nsIArray.h"
-#include "nsTArray.h"
 #include "nsDOMJSUtils.h"
 
 //
@@ -82,7 +81,7 @@ protected:
   nsIDOMHTMLScriptElement *mOuter;
 
   // Javascript argument names must be ASCII...
-  nsTArray<nsCString> mArgNames;
+  nsCStringArray mArgNames;
 
   // The event name is kept UCS2 for 'quick comparisions'...
   nsString mEventName;
@@ -144,7 +143,7 @@ nsresult nsHTMLScriptEventHandler::ParseEventString(const nsAString &aValue)
   NS_LossyConvertUTF16toASCII sig(Substring(next, end));
 
   // Store each (comma separated) argument in mArgNames
-  ParseString(sig, ',', mArgNames);
+  mArgNames.ParseString(sig.get(), ",");
 
   return NS_OK;
 }
@@ -257,7 +256,7 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
   const char*  stackArgs[kMaxArgsOnStack];
 
   args = stackArgs;
-  argc = PRInt32(mArgNames.Length());
+  argc = mArgNames.Count();
 
   // If there are too many arguments then allocate the array from the heap
   // otherwise build it up on the stack...
@@ -267,7 +266,7 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
   }
 
   for(i=0; i<argc; i++) {
-    args[i] = mArgNames[i].get();
+    args[i] = mArgNames[i]->get();
   }
 
   // Null terminate for good luck ;-)

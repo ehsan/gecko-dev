@@ -43,12 +43,12 @@
 #include "nsIEventStateManager.h"
 
 nsIFrame*
-NS_NewXULLabelFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewXULLabelFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags)
 {
   nsXULLabelFrame* it = new (aPresShell) nsXULLabelFrame(aContext);
   
-  if (it)
-    it->SetFlags(NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
+  if (it != nsnull)
+    it->SetFlags(aFlags);
 
   return it;
 }

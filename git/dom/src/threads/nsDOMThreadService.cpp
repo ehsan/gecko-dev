@@ -60,7 +60,6 @@
 #include "nsPIDOMWindow.h"
 
 // Other includes
-#include "jscntxt.h"
 #include "nsAutoLock.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
@@ -489,11 +488,6 @@ DOMWorkerErrorReporter(JSContext* aCx,
     return;
   }
 
-  if (worker->mErrorHandlerRecursionCount == 2) {
-    // We've somehow ended up in a recursive onerror loop. Bail out.
-    return;
-  }
-
   nsresult rv;
   nsCOMPtr<nsIScriptError> scriptError =
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
@@ -514,36 +508,27 @@ DOMWorkerErrorReporter(JSContext* aCx,
                          column, aReport->flags, "DOM Worker javascript");
   NS_ENSURE_SUCCESS(rv,);
 
-  // Don't call the error handler if we're out of stack space.
-  if (aReport->errorNumber != JSMSG_SCRIPT_STACK_QUOTA &&
-      aReport->errorNumber != JSMSG_OVER_RECURSED) {
-    // Try the onerror handler for the worker's scope.
-    nsCOMPtr<nsIDOMEventListener> handler =
-      worker->mInnerHandler->GetOnXListener(NS_LITERAL_STRING("error"));
+  // Try the onerror handler for the worker's scope.
+  nsCOMPtr<nsIDOMEventListener> handler =
+    worker->mInnerHandler->GetOnXListener(NS_LITERAL_STRING("error"));
 
-    if (handler) {
-      nsRefPtr<nsDOMWorkerErrorEvent> event(new nsDOMWorkerErrorEvent());
-      if (event) {
-        rv = event->InitErrorEvent(NS_LITERAL_STRING("error"), PR_FALSE, PR_TRUE,
-                                   nsDependentString(message), filename,
-                                   aReport->lineno);
-        if (NS_SUCCEEDED(rv)) {
-          NS_ASSERTION(worker->GetInnerScope(), "Null scope!");
-          event->SetTarget(worker->GetInnerScope());
+  if (handler) {
+    nsRefPtr<nsDOMWorkerErrorEvent> event(new nsDOMWorkerErrorEvent());
+    NS_ENSURE_TRUE(event,);
 
-          NS_ASSERTION(worker->mErrorHandlerRecursionCount >= 0,
-                       "Bad recursion count logic!");
-          worker->mErrorHandlerRecursionCount++;
+    rv = event->InitErrorEvent(NS_LITERAL_STRING("error"), PR_FALSE, PR_TRUE,
+                               nsDependentString(message), filename,
+                               aReport->lineno);
+    NS_ENSURE_SUCCESS(rv,);
 
-          handler->HandleEvent(static_cast<nsDOMWorkerEvent*>(event));
+    NS_ASSERTION(worker->GetInnerScope(), "Null scope!");
+    event->SetTarget(worker->GetInnerScope());
 
-          worker->mErrorHandlerRecursionCount--;
+    rv = handler->HandleEvent(static_cast<nsDOMWorkerEvent*>(event));
+    NS_ENSURE_SUCCESS(rv,);
 
-          if (event->PreventDefaultCalled()) {
-            return;
-          }
-        }
-      }
+    if (event->PreventDefaultCalled()) {
+      return;
     }
   }
 
@@ -852,25 +837,6 @@ nsDOMThreadService::CreateJSContext()
   nsresult rv = nsContentUtils::XPConnect()->
     SetSecurityManagerForJSContext(cx, gWorkerSecurityManager, 0);
   NS_ENSURE_SUCCESS(rv, nsnull);
-
-  PRUint32 stackDummy;
-  jsuword stackLimit, currentStackAddr = (jsuword)&stackDummy;
-
-  // 256k stack space.
-  const jsuword kStackSize = 0x40000;
-
-#if JS_STACK_GROWTH_DIRECTION < 0
-  stackLimit = (currentStackAddr > kStackSize) ?
-               currentStackAddr - kStackSize :
-               0;
-#else
-  stackLimit = (currentStackAddr + kStackSize > currentStackAddr) ?
-               currentStackAddr + kStackSize :
-               (jsuword) -1;
-#endif
-
-  JS_SetThreadStackLimit(cx, stackLimit);
-  JS_SetScriptStackQuota(cx, 100*1024*1024);
 
   return cx.forget();
 }

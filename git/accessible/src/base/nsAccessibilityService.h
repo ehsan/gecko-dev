@@ -269,8 +269,7 @@ static const char kRoleNames[][20] = {
   "listbox option",      //ROLE_OPTION
   "listbox rich option", //ROLE_RICH_OPTION
   "listbox",             //ROLE_LISTBOX
-  "flat equation",       //ROLE_FLAT_EQUATION  
-  "gridcell"             //ROLE_GRID_CELL
+  "flat equation"        //ROLE_FLAT_EQUATION  
 };
 
 /**
