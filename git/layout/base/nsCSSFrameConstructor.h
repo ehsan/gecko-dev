@@ -158,9 +158,7 @@ public:
   void EndUpdate();
   void RecalcQuotesAndCounters();
 
-  // Gets called when the presshell is destroying itself and also
-  // when we tear down our frame tree to reconstruct it
-  void WillDestroyFrameTree();
+  void WillDestroyFrameTree(PRBool aDestroyingPresShell);
 
   // Get an integer that increments every time there is a style change
   // as a result of a change to the :hover content state.
