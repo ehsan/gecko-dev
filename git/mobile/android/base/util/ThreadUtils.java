@@ -182,13 +182,6 @@ public final class ThreadUtils {
         }
     }
 
-    public static boolean isOnGeckoThread() {
-        if (sGeckoThread != null) {
-            return isOnThread(sGeckoThread);
-        }
-        return false;
-    }
-
     public static boolean isOnUiThread() {
         return isOnThread(getUiThread());
     }

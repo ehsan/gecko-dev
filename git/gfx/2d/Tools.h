@@ -103,11 +103,11 @@ struct AlignedArray
   {
   }
 
-  explicit MOZ_ALWAYS_INLINE AlignedArray(size_t aCount, bool aZero = false)
+  explicit MOZ_ALWAYS_INLINE AlignedArray(size_t aCount)
     : mStorage(nullptr)
     , mCount(0)
   {
-    Realloc(aCount, aZero);
+    Realloc(aCount);
   }
 
   MOZ_ALWAYS_INLINE ~AlignedArray()
@@ -138,7 +138,7 @@ struct AlignedArray
     mPtr = nullptr;
   }
 
-  MOZ_ALWAYS_INLINE void Realloc(size_t aCount, bool aZero = false)
+  MOZ_ALWAYS_INLINE void Realloc(size_t aCount)
   {
     delete [] mStorage;
     CheckedInt32 storageByteCount =
@@ -151,11 +151,7 @@ struct AlignedArray
     }
     // We don't create an array of T here, since we don't want ctors to be
     // invoked at the wrong places if we realign below.
-    if (aZero) {
-      mStorage = static_cast<uint8_t *>(calloc(1, storageByteCount.value()));
-    } else {
-      mStorage = new (std::nothrow) uint8_t[storageByteCount.value()];
-    }
+    mStorage = new (std::nothrow) uint8_t[storageByteCount.value()];
     if (!mStorage) {
       mStorage = nullptr;
       mPtr = nullptr;

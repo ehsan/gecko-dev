@@ -40,7 +40,6 @@ std::string Utf16ToUtf8(const WCHAR* str) {
 }
 
 BOOL CALLBACK WindowsEnumerationHandler(HWND hwnd, LPARAM param) {
-  assert(IsGUIThread(false));
   WindowCapturer::WindowList* list =
       reinterpret_cast<WindowCapturer::WindowList*>(param);
 
@@ -142,7 +141,6 @@ bool WindowCapturerWin::IsAeroEnabled() {
 }
 
 bool WindowCapturerWin::GetWindowList(WindowList* windows) {
-  assert(IsGUIThread(false));
   WindowList result;
   LPARAM param = reinterpret_cast<LPARAM>(&result);
   if (!EnumWindows(&WindowsEnumerationHandler, param))
@@ -152,7 +150,6 @@ bool WindowCapturerWin::GetWindowList(WindowList* windows) {
 }
 
 bool WindowCapturerWin::SelectWindow(WindowId id) {
-  assert(IsGUIThread(false));
   HWND window = reinterpret_cast<HWND>(id);
   if (!IsWindow(window) || !IsWindowVisible(window) || IsIconic(window))
     return false;
@@ -162,7 +159,6 @@ bool WindowCapturerWin::SelectWindow(WindowId id) {
 }
 
 bool WindowCapturerWin::BringSelectedWindowToFront() {
-  assert(IsGUIThread(false));
   if (!window_)
     return false;
 
@@ -180,7 +176,6 @@ void WindowCapturerWin::Start(Callback* callback) {
 }
 
 void WindowCapturerWin::Capture(const DesktopRegion& region) {
-  assert(IsGUIThread(false));
   if (!window_) {
     LOG(LS_ERROR) << "Window hasn't been selected: " << GetLastError();
     callback_->OnCaptureCompleted(NULL);

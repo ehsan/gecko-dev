@@ -154,10 +154,6 @@ public:
   {
     return mRawPtr == aOther.mRawPtr;
   }
-  bool operator!() const
-  {
-    return !mRawPtr;
-  }
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsMainThreadPtrHolder<T>)
 
@@ -229,9 +225,7 @@ public:
     }
     return *mPtr == *aOther.mPtr;
   }
-  bool operator!() const {
-    return !mPtr || !*mPtr;
-  }
+  bool operator!() { return !mPtr; }
 };
 
 #endif

@@ -99,28 +99,10 @@ CloneRegExpObject(JSContext *cx, JSObject *obj);
  */
 class RegExpShared
 {
-  public:
-    enum CompilationMode {
-        Normal,
-        MatchOnly
-    };
-
-  private:
     friend class RegExpCompartment;
     friend class RegExpStatics;
 
     typedef frontend::TokenStream TokenStream;
-
-    struct RegExpCompilation
-    {
-        HeapPtrJitCode jitCode;
-        uint8_t *byteCode;
-
-        RegExpCompilation() : byteCode(nullptr) {}
-        ~RegExpCompilation() { js_free(byteCode); }
-
-        bool compiled() const { return jitCode || byteCode; }
-    };
 
     /* Source to the RegExp, for lazy compilation. */
     HeapPtrAtom        source;
@@ -130,41 +112,27 @@ class RegExpShared
     bool               canStringMatch;
     bool               marked_;
 
-    RegExpCompilation  compilationArray[4];
-
-    static int CompilationIndex(CompilationMode mode, bool latin1) {
-        switch (mode) {
-          case Normal:    return latin1 ? 0 : 1;
-          case MatchOnly: return latin1 ? 2 : 3;
-        }
-        MOZ_CRASH();
-    }
+    HeapPtrJitCode     jitCodeLatin1;
+    HeapPtrJitCode     jitCodeTwoByte;
+    uint8_t            *byteCodeLatin1;
+    uint8_t            *byteCodeTwoByte;
 
     // Tables referenced by JIT code.
     Vector<uint8_t *, 0, SystemAllocPolicy> tables;
 
     /* Internal functions. */
-    bool compile(JSContext *cx, HandleLinearString input, CompilationMode mode);
-    bool compile(JSContext *cx, HandleAtom pattern, HandleLinearString input, CompilationMode mode);
+    bool compile(JSContext *cx, HandleLinearString input);
+    bool compile(JSContext *cx, HandleAtom pattern, HandleLinearString input);
 
-    bool compileIfNecessary(JSContext *cx, HandleLinearString input, CompilationMode mode);
-
-    const RegExpCompilation &compilation(CompilationMode mode, bool latin1) const {
-        return compilationArray[CompilationIndex(mode, latin1)];
-    }
-
-    RegExpCompilation &compilation(CompilationMode mode, bool latin1) {
-        return compilationArray[CompilationIndex(mode, latin1)];
-    }
+    bool compileIfNecessary(JSContext *cx, HandleLinearString input);
 
   public:
     RegExpShared(JSAtom *source, RegExpFlag flags);
     ~RegExpShared();
 
-    // Execute this RegExp on input starting from searchIndex, filling in
-    // matches if specified and otherwise only determining if there is a match.
-    RegExpRunStatus execute(JSContext *cx, HandleLinearString input, size_t searchIndex,
-                            MatchPairs *matches);
+    /* Primary interface: run this regular expression on the given string. */
+    RegExpRunStatus execute(JSContext *cx, HandleLinearString input, size_t *lastIndex,
+                            MatchPairs &matches);
 
     // Register a table with this RegExpShared, and take ownership.
     bool addTable(uint8_t *table) {
@@ -188,12 +156,29 @@ class RegExpShared
     bool multiline() const              { return flags & MultilineFlag; }
     bool sticky() const                 { return flags & StickyFlag; }
 
-    bool isCompiled(CompilationMode mode, bool latin1) const {
-        return compilation(mode, latin1).compiled();
+    bool hasJitCodeLatin1() const {
+        return jitCodeLatin1 != nullptr;
+    }
+    bool hasJitCodeTwoByte() const {
+        return jitCodeTwoByte != nullptr;
+    }
+    bool hasByteCodeLatin1() const {
+        return byteCodeLatin1 != nullptr;
+    }
+    bool hasByteCodeTwoByte() const {
+        return byteCodeTwoByte != nullptr;
+    }
+    uint8_t *maybeByteCode(bool latin1) const {
+        return latin1 ? byteCodeLatin1 : byteCodeTwoByte;
+    }
+
+    bool isCompiled(bool latin1) const {
+        if (latin1)
+            return hasJitCodeLatin1() || hasByteCodeLatin1();
+        return hasJitCodeTwoByte() || hasByteCodeTwoByte();
     }
     bool isCompiled() const {
-        return isCompiled(Normal, true) || isCompiled(Normal, false)
-            || isCompiled(MatchOnly, true) || isCompiled(MatchOnly, false);
+        return isCompiled(true) || isCompiled(false);
     }
 
     void trace(JSTracer *trc);

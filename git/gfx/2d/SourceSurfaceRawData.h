@@ -56,12 +56,10 @@ public:
   virtual SurfaceFormat GetFormat() const { return mFormat; }
 
   bool Init(const IntSize &aSize,
-            SurfaceFormat aFormat,
-            bool aZero);
+            SurfaceFormat aFormat);
   bool InitWithStride(const IntSize &aSize,
                       SurfaceFormat aFormat,
-                      int32_t aStride,
-                      bool aZero);
+                      int32_t aStride);
 
 private:
   AlignedArray<uint8_t> mArray;

@@ -14,4 +14,3 @@ correctly handling the case where the system crashes.
    mozprocess
    mozrunner
    mozcrash
-   mozdebug

@@ -106,7 +106,7 @@ jit::NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame, Compil
     return inspector;
 }
 
-IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp,
+IonBuilder::IonBuilder(CompileCompartment *comp,
                        const JitCompileOptions &options, TempAllocator *temp,
                        MIRGraph *graph, types::CompilerConstraintList *constraints,
                        BaselineInspector *inspector, CompileInfo *info,
@@ -115,7 +115,6 @@ IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp,
                        uint32_t loopDepth)
   : MIRGenerator(comp, options, temp, graph, info, optimizationInfo),
     backgroundCodegen_(nullptr),
-    analysisContext(analysisContext),
     baselineFrame_(baselineFrame),
     constraints_(constraints),
     analysis_(*temp, info->script()),
@@ -140,15 +139,13 @@ IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp,
     failedShapeGuard_(info->script()->failedShapeGuard()),
     nonStringIteration_(false),
     lazyArguments_(nullptr),
-    inlineCallInfo_(nullptr),
-    maybeFallbackFunctionGetter_(nullptr)
+    inlineCallInfo_(nullptr)
 {
     script_ = info->script();
     pc = info->startPC();
     abortReason_ = AbortReason_Disable;
 
     JS_ASSERT(script()->hasBaselineScript() == (info->executionMode() != ArgumentsUsageAnalysis));
-    JS_ASSERT(!!analysisContext == (info->executionMode() == DefinitePropertiesAnalysis));
 
     if (!info->executionModeIsAnalysis())
         script()->baselineScript()->setIonCompiledOrInlined();
@@ -157,7 +154,6 @@ IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp,
 void
 IonBuilder::clearForBackEnd()
 {
-    JS_ASSERT(!analysisContext);
     baselineFrame_ = nullptr;
 
     // The caches below allocate data from the malloc heap. Release this before
@@ -177,7 +173,7 @@ IonBuilder::abort(const char *message, ...)
     va_start(ap, message);
     abortFmt(message, ap);
     va_end(ap);
-    JitSpew(JitSpew_IonAbort, "aborted @ %s:%d", script()->filename(), PCToLineNumber(script(), pc));
+    JitSpew(JitSpew_Abort, "aborted @ %s:%d", script()->filename(), PCToLineNumber(script(), pc));
 #endif
     return false;
 }
@@ -187,7 +183,7 @@ IonBuilder::spew(const char *message)
 {
     // Don't call PCToLineNumber in release builds.
 #ifdef DEBUG
-    JitSpew(JitSpew_IonMIR, "%s @ %s:%d", message, script()->filename(), PCToLineNumber(script(), pc));
+    JitSpew(JitSpew_MIR, "%s @ %s:%d", message, script()->filename(), PCToLineNumber(script(), pc));
 #endif
 }
 
@@ -349,22 +345,6 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
 
     if (!target->isInterpreted())
         return DontInline(nullptr, "Non-interpreted target");
-
-    // Allow constructing lazy scripts when performing the definite properties
-    // analysis, as baseline has not been used to warm the caller up yet.
-    if (target->isInterpreted() && info().executionMode() == DefinitePropertiesAnalysis) {
-        RootedScript script(analysisContext, target->getOrCreateScript(analysisContext));
-        if (!script)
-            return InliningDecision_Error;
-
-        if (!script->hasBaselineScript() && script->canBaselineCompile()) {
-            MethodStatus status = BaselineCompile(analysisContext, script);
-            if (status == Method_Error)
-                return InliningDecision_Error;
-            if (status != Method_Compiled)
-                return InliningDecision_DontInline;
-        }
-    }
 
     if (!target->hasScript())
         return DontInline(nullptr, "Lazy script");
@@ -653,15 +633,15 @@ IonBuilder::build()
 
 #ifdef DEBUG
     if (info().executionModeIsAnalysis()) {
-        JitSpew(JitSpew_IonScripts, "Analyzing script %s:%d (%p) %s",
+        JitSpew(JitSpew_Scripts, "Analyzing script %s:%d (%p) %s",
                 script()->filename(), script()->lineno(), (void *)script(),
                 ExecutionModeString(info().executionMode()));
     } else if (info().executionMode() == SequentialExecution && script()->hasIonScript()) {
-        JitSpew(JitSpew_IonScripts, "Recompiling script %s:%d (%p) (warmup-counter=%d, level=%s)",
+        JitSpew(JitSpew_Scripts, "Recompiling script %s:%d (%p) (warmup-counter=%d, level=%s)",
                 script()->filename(), script()->lineno(), (void *)script(),
                 (int)script()->getWarmUpCount(), OptimizationLevelString(optimizationInfo().level()));
     } else {
-        JitSpew(JitSpew_IonScripts, "Compiling script %s:%d (%p) (warmup-counter=%d, level=%s)",
+        JitSpew(JitSpew_Scripts, "Compiling script %s:%d (%p) (warmup-counter=%d, level=%s)",
                 script()->filename(), script()->lineno(), (void *)script(),
                 (int)script()->getWarmUpCount(), OptimizationLevelString(optimizationInfo().level()));
     }
@@ -752,9 +732,6 @@ IonBuilder::build()
     if (!traverseBytecode())
         return false;
 
-    // Discard unreferenced & pre-allocated resume points.
-    replaceMaybeFallbackFunctionGetter(nullptr);
-
     if (!maybeAddOsrTypeBarriers())
         return false;
 
@@ -815,7 +792,7 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
 
     inlineCallInfo_ = &callInfo;
 
-    JitSpew(JitSpew_IonScripts, "Inlining script %s:%d (%p)",
+    JitSpew(JitSpew_Scripts, "Inlining script %s:%d (%p)",
             script()->filename(), script()->lineno(), (void *)script());
 
     callerBuilder_ = callerBuilder;
@@ -911,9 +888,6 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
 
     if (!traverseBytecode())
         return false;
-
-    // Discard unreferenced & pre-allocated resume points.
-    replaceMaybeFallbackFunctionGetter(nullptr);
 
     return true;
 }
@@ -1041,7 +1015,7 @@ IonBuilder::initScopeChain(MDefinition *callee)
 bool
 IonBuilder::initArgumentsObject()
 {
-    JitSpew(JitSpew_IonMIR, "%s:%d - Emitting code to initialize arguments object! block=%p",
+    JitSpew(JitSpew_MIR, "%s:%d - Emitting code to initialize arguments object! block=%p",
                               script()->filename(), script()->lineno(), current);
     JS_ASSERT(info().needsArgsObj());
     MCreateArgumentsObject *argsObj = MCreateArgumentsObject::New(alloc(), current->scopeChain());
@@ -2100,9 +2074,6 @@ IonBuilder::restartLoop(CFGState state)
 
     MBasicBlock *header = state.loop.entry;
 
-    // Discard unreferenced & pre-allocated resume points.
-    replaceMaybeFallbackFunctionGetter(nullptr);
-
     // Remove all blocks in the loop body other than the header, which has phis
     // of the appropriate type and incoming edges to preserve.
     graph().removeBlocksAfter(header);
@@ -3141,61 +3112,55 @@ IonBuilder::replaceTypeSet(MDefinition *subject, types::TemporaryTypeSet *type, 
 bool
 IonBuilder::detectAndOrStructure(MPhi *ins, bool *branchIsAnd)
 {
-    // Look for a triangle pattern:
-    //
-    //       initialBlock
-    //         /     |
-    // branchBlock   |
-    //         \     |
-    //        testBlock
-    //
-    // Where ins is a phi from testBlock which combines two values
-    // pushed onto the stack by initialBlock and branchBlock.
+    // TODO bug 1034184: enable this again
+    return false;
 
-    if (ins->numOperands() != 2)
+    if (current->numPredecessors() != 1)
         return false;
 
-    MBasicBlock *testBlock = ins->block();
-    MOZ_ASSERT(testBlock->numPredecessors() == 2);
-
+    MTest *initialTest;
     MBasicBlock *initialBlock;
     MBasicBlock *branchBlock;
-    if (testBlock->getPredecessor(0)->lastIns()->isTest()) {
-        initialBlock = testBlock->getPredecessor(0);
-        branchBlock = testBlock->getPredecessor(1);
-    } else if (testBlock->getPredecessor(1)->lastIns()->isTest()) {
-        initialBlock = testBlock->getPredecessor(1);
-        branchBlock = testBlock->getPredecessor(0);
-    } else {
+    MBasicBlock *testBlock = ins->block();
+
+    // If *branchIsAnd is true, then the phi is an AND. Else it is an OR.
+    *branchIsAnd = true;
+    // We need to first detect the triangular structure.
+    if (testBlock->numPredecessors() != 2)
         return false;
+
+    if (testBlock->getPredecessor(0)->lastIns()->isTest())
+        initialBlock = testBlock->getPredecessor(0);
+    else if (testBlock->getPredecessor(1)->lastIns()->isTest())
+        initialBlock = testBlock->getPredecessor(1);
+    else
+        return false;
+
+    initialTest = initialBlock->lastIns()->toTest();
+
+    if (initialTest->ifTrue() == testBlock) {
+        branchBlock = initialTest->ifFalse();
+        *branchIsAnd = false;
+    } else {
+        branchBlock = initialTest->ifTrue();
     }
 
-    if (branchBlock->numSuccessors() != 1)
+    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != testBlock)
         return false;
 
-    if (branchBlock->numPredecessors() != 1 || branchBlock->getPredecessor(0) != initialBlock)
+    if (branchBlock->numPredecessors() != 1)
         return false;
 
-    if (initialBlock->numSuccessors() != 2)
-        return false;
+    MPhi *phi = ins->toPhi();
 
-    MDefinition *branchResult = ins->getOperand(testBlock->indexForPredecessor(branchBlock));
-    MDefinition *initialResult = ins->getOperand(testBlock->indexForPredecessor(initialBlock));
+    MDefinition *branchResult = phi->getOperand(testBlock->indexForPredecessor(branchBlock));
+    MDefinition *initialResult = phi->getOperand(testBlock->indexForPredecessor(initialBlock));
 
     if (branchBlock->stackDepth() != initialBlock->stackDepth())
         return false;
     if (branchBlock->stackDepth() != testBlock->stackDepth() + 1)
         return false;
     if (branchResult != branchBlock->peek(-1) || initialResult != initialBlock->peek(-1))
-        return false;
-
-    MTest *initialTest = initialBlock->lastIns()->toTest();
-    bool branchIsTrue = branchBlock == initialTest->ifTrue();
-    if (initialTest->input() == ins->getOperand(0))
-        *branchIsAnd = branchIsTrue != (testBlock->getPredecessor(0) == branchBlock);
-    else if (initialTest->input() == ins->getOperand(1))
-        *branchIsAnd = branchIsTrue != (testBlock->getPredecessor(1) == branchBlock);
-    else
         return false;
 
     return true;
@@ -4219,16 +4184,10 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     AutoAccumulateReturns aar(graph(), returns);
 
     // Build the graph.
-    IonBuilder inlineBuilder(analysisContext, compartment, options, &alloc(), &graph(), constraints(),
+    IonBuilder inlineBuilder(compartment, options, &alloc(), &graph(), constraints(),
                              &inspector, info, &optimizationInfo(), nullptr, inliningDepth_ + 1,
                              loopDepth_);
     if (!inlineBuilder.buildInline(this, outerResumePoint, callInfo)) {
-        if (analysisContext && analysisContext->isExceptionPending()) {
-            JitSpew(JitSpew_IonAbort, "Inline builder raised exception.");
-            abortReason_ = AbortReason_Error;
-            return false;
-        }
-
         // Inlining the callee failed. Mark the callee as uninlineable only if
         // the inlining was aborted for a non-exception reason.
         if (inlineBuilder.abortReason_ == AbortReason_Disable) {
@@ -4585,7 +4544,6 @@ IonBuilder::inlineCallsite(ObjectVector &targets, ObjectVector &originals,
     // If so, the cache may be movable to a fallback path, with a dispatch
     // instruction guarding on the incoming TypeObject.
     WrapMGetPropertyCache propCache(getInlineableGetPropertyCache(callInfo));
-    keepFallbackFunctionGetter(propCache.get());
 
     // Inline single targets -- unless they derive from a cache, in which case
     // avoiding the cache and guarding is still faster.
@@ -6460,8 +6418,6 @@ IonBuilder::testSingletonProperty(JSObject *obj, PropertyName *name)
             return nullptr;
 
         types::TypeObjectKey *objType = types::TypeObjectKey::get(obj);
-        if (analysisContext)
-            objType->ensureTrackedProperty(analysisContext, NameToId(name));
 
         if (objType->unknownProperties())
             return nullptr;
@@ -6543,8 +6499,6 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
             types::TypeObjectKey *object = types->getObject(i);
             if (!object)
                 continue;
-            if (analysisContext)
-                object->ensureTrackedProperty(analysisContext, NameToId(name));
 
             const Class *clasp = object->clasp();
             if (!ClassHasEffectlessLookup(clasp, name) || ClassHasResolveHook(compartment, clasp, name))
@@ -6752,8 +6706,6 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
     }
 
     types::TypeObjectKey *staticType = types::TypeObjectKey::get(staticObject);
-    if (analysisContext)
-        staticType->ensureTrackedProperty(analysisContext, NameToId(name));
 
     if (staticType->unknownProperties()) {
         *psucceeded = false;
@@ -6772,7 +6724,7 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
     }
 
     types::TemporaryTypeSet *types = bytecodeTypes(pc);
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), staticType,
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), staticType,
                                                        name, types, /* updateObserved = */ true);
 
     JSObject *singleton = types->getSingleton();
@@ -7588,8 +7540,7 @@ IonBuilder::getElemTryCache(bool *emitted, MDefinition *obj, MDefinition *index)
     // Emit GetElementCache.
 
     types::TemporaryTypeSet *types = bytecodeTypes(pc);
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), obj,
-                                                       nullptr, types);
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), obj, nullptr, types);
 
     // Always add a barrier if the index might be a string or symbol, so that
     // the cache can attach stubs for particular properties.
@@ -7637,8 +7588,7 @@ IonBuilder::jsop_getelem_dense(MDefinition *obj, MDefinition *index)
         AddObjectsForPropertyRead(obj, nullptr, types);
     }
 
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), obj,
-                                                       nullptr, types);
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), obj, nullptr, types);
     bool needsHoleCheck = !ElementAccessIsPacked(constraints(), obj);
 
     // Reads which are on holes in the object do not have to bail out if
@@ -8767,14 +8717,6 @@ IonBuilder::testCommonGetterSetter(types::TemporaryTypeSet *types, PropertyName 
     return addShapeGuard(wrapper, lastProperty, Bailout_ShapeGuard);
 }
 
-void
-IonBuilder::replaceMaybeFallbackFunctionGetter(MGetPropertyCache *cache)
-{
-    // Discard the last prior resume point of the previous MGetPropertyCache.
-    WrapMGetPropertyCache rai(maybeFallbackFunctionGetter_);
-    maybeFallbackFunctionGetter_ = cache;
-}
-
 bool
 IonBuilder::annotateGetPropertyCache(MDefinition *obj, MGetPropertyCache *getPropCache,
                                      types::TemporaryTypeSet *objTypes,
@@ -8856,7 +8798,6 @@ IonBuilder::annotateGetPropertyCache(MDefinition *obj, MGetPropertyCache *getPro
         if (!resumePoint)
             return false;
         inlinePropTable->setPriorResumePoint(resumePoint);
-        replaceMaybeFallbackFunctionGetter(getPropCache);
         current->pop();
     }
     return true;
@@ -8963,8 +8904,7 @@ IonBuilder::jsop_getprop(PropertyName *name)
     if (!getPropTryArgumentsCallee(&emitted, obj, name) || emitted)
         return emitted;
 
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
-                                                       obj, name, types);
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), obj, name, types);
 
     // Always use a call if we are performing analysis and
     // not actually emitting code, to simplify later analysis. Also skip deeper
@@ -9646,8 +9586,7 @@ IonBuilder::getPropTryInnerize(bool *emitted, MDefinition *obj, PropertyName *na
 
     // Passing the inner object to GetProperty IC is safe, see the
     // needsOuterizedThisObject check in IsCacheableGetPropCallNative.
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
-                                                       inner, name, types);
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), inner, name, types);
     if (!getPropTryCache(emitted, inner, name, barrier, types) || *emitted)
         return *emitted;
 

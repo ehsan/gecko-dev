@@ -107,12 +107,11 @@ MessageLoop::MessageLoop(Type type)
       next_sequence_num_(0) {
   DCHECK(!current()) << "should only have one message loop per thread";
   lazy_tls_ptr.Pointer()->Set(this);
-
-  switch (type_) {
-  case TYPE_MOZILLA_UI:
+  if (type_ == TYPE_MOZILLA_UI) {
     pump_ = new mozilla::ipc::MessagePump();
     return;
-  case TYPE_MOZILLA_CHILD:
+  }
+  if (type_ == TYPE_MOZILLA_CHILD) {
     pump_ = new mozilla::ipc::MessagePumpForChildProcess();
     // There is a MessageLoop Run call from XRE_InitChildProcess
     // and another one from MessagePumpForChildProcess. The one
@@ -121,14 +120,10 @@ MessageLoop::MessageLoop(Type type)
     // Idle tasks.
     run_depth_base_ = 2;
     return;
-  case TYPE_MOZILLA_NONMAINTHREAD:
+  }
+  if (type_ == TYPE_MOZILLA_NONMAINTHREAD) {
     pump_ = new mozilla::ipc::MessagePumpForNonMainThreads();
     return;
-#if defined(OS_WIN)
-  case TYPE_MOZILLA_NONMAINUITHREAD:
-    pump_ = new mozilla::ipc::MessagePumpForNonMainUIThreads();
-    return;
-#endif
   }
 
 #if defined(OS_WIN)

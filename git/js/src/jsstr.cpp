@@ -2056,8 +2056,8 @@ IsRegExpMetaChar(char16_t c)
 }
 
 template <typename CharT>
-bool
-js::HasRegExpMetaChars(const CharT *chars, size_t length)
+static inline bool
+HasRegExpMetaChars(const CharT *chars, size_t length)
 {
     for (size_t i = 0; i < length; ++i) {
         if (IsRegExpMetaChar(chars[i]))
@@ -2066,20 +2066,16 @@ js::HasRegExpMetaChars(const CharT *chars, size_t length)
     return false;
 }
 
-template bool
-js::HasRegExpMetaChars<Latin1Char>(const Latin1Char *chars, size_t length);
-
-template bool
-js::HasRegExpMetaChars<char16_t>(const char16_t *chars, size_t length);
-
 bool
-js::StringHasRegExpMetaChars(JSLinearString *str)
+js::StringHasRegExpMetaChars(JSLinearString *str, size_t beginOffset, size_t endOffset)
 {
+    JS_ASSERT(beginOffset + endOffset <= str->length());
+
     AutoCheckCannotGC nogc;
     if (str->hasLatin1Chars())
-        return HasRegExpMetaChars(str->latin1Chars(nogc), str->length());
+        return HasRegExpMetaChars(str->latin1Chars(nogc) + beginOffset, str->length() - beginOffset - endOffset);
 
-    return HasRegExpMetaChars(str->twoByteChars(nogc), str->length());
+    return HasRegExpMetaChars(str->twoByteChars(nogc) + beginOffset, str->length() - beginOffset - endOffset);
 }
 
 namespace {
@@ -2286,8 +2282,9 @@ static bool
 DoMatchLocal(JSContext *cx, CallArgs args, RegExpStatics *res, HandleLinearString input,
              RegExpShared &re)
 {
+    size_t i = 0;
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    RegExpRunStatus status = re.execute(cx, input, 0, &matches);
+    RegExpRunStatus status = re.execute(cx, input, &i, matches);
     if (status == RegExpRunStatus_Error)
         return false;
 
@@ -2367,7 +2364,8 @@ DoMatchGlobal(JSContext *cx, CallArgs args, RegExpStatics *res, HandleLinearStri
             return false;
 
         // Steps 8f(i-ii), minus "lastIndex" updates (see above).
-        RegExpRunStatus status = re.execute(cx, input, searchIndex, &matches);
+        size_t nextSearchIndex = searchIndex;
+        RegExpRunStatus status = re.execute(cx, input, &nextSearchIndex, matches);
         if (status == RegExpRunStatus_Error)
             return false;
 
@@ -2379,7 +2377,7 @@ DoMatchGlobal(JSContext *cx, CallArgs args, RegExpStatics *res, HandleLinearStri
         MatchPair &match = matches[0];
 
         // Steps 8f(iii)(1-3).
-        searchIndex = match.isEmpty() ? match.limit + 1 : match.limit;
+        searchIndex = match.isEmpty() ? nextSearchIndex + 1 : nextSearchIndex;
 
         // Step 8f(iii)(4-5).
         JSLinearString *str = NewDependentString(cx, input, match.start, match.length());
@@ -2512,8 +2510,9 @@ js::str_search(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     /* Per ECMAv5 15.5.4.12 (5) The last index property is ignored and left unchanged. */
+    size_t i = 0;
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    RegExpRunStatus status = g.regExp().execute(cx, linearStr, 0, &matches);
+    RegExpRunStatus status = g.regExp().execute(cx, linearStr, &i, matches);
     if (status == RegExpRunStatus_Error)
         return false;
 
@@ -2609,8 +2608,9 @@ static bool
 DoMatchForReplaceLocal(JSContext *cx, RegExpStatics *res, HandleLinearString linearStr,
                        RegExpShared &re, ReplaceData &rdata)
 {
+    size_t i = 0;
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    RegExpRunStatus status = re.execute(cx, linearStr, 0, &matches);
+    RegExpRunStatus status = re.execute(cx, linearStr, &i, matches);
     if (status == RegExpRunStatus_Error)
         return false;
 
@@ -2629,25 +2629,24 @@ DoMatchForReplaceGlobal(JSContext *cx, RegExpStatics *res, HandleLinearString li
 {
     size_t charsLen = linearStr->length();
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    for (size_t count = 0, searchIndex = 0; searchIndex <= charsLen; ++count) {
+    for (size_t count = 0, i = 0; i <= charsLen; ++count) {
         if (!CheckForInterrupt(cx))
             return false;
 
-        RegExpRunStatus status = re.execute(cx, linearStr, searchIndex, &matches);
+        RegExpRunStatus status = re.execute(cx, linearStr, &i, matches);
         if (status == RegExpRunStatus_Error)
             return false;
 
         if (status == RegExpRunStatus_Success_NotFound)
             break;
 
-        MatchPair &match = matches[0];
-        searchIndex = match.isEmpty() ? match.limit + 1 : match.limit;
-
         if (!res->updateFromMatchPairs(cx, linearStr, matches))
             return false;
 
         if (!ReplaceRegExp(cx, res, rdata))
             return false;
+        if (!res->matched())
+            ++i;
     }
 
     return true;
@@ -3246,7 +3245,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
         if (!CheckForInterrupt(cx))
             return false;
 
-        RegExpRunStatus status = re.execute(cx, flatStr, startIndex, &matches);
+        RegExpRunStatus status = re.execute(cx, flatStr, &startIndex, matches);
         if (status == RegExpRunStatus_Error)
             return false;
         if (status == RegExpRunStatus_Success_NotFound)
@@ -3260,9 +3259,10 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
         }
 
         lazyIndex = lastIndex;
-        lastIndex = match.limit;
+        lastIndex = startIndex;
 
-        startIndex = match.isEmpty() ? match.limit + 1 : match.limit;
+        if (match.isEmpty())
+            startIndex++;
 
         /* Non-global removal executes at most once. */
         if (!re.global())
@@ -3823,7 +3823,7 @@ class SplitRegExpMatcher
                     SplitMatchResult *result) const
     {
         ScopedMatchPairs matches(&cx->tempLifoAlloc());
-        RegExpRunStatus status = re.execute(cx, str, index, &matches);
+        RegExpRunStatus status = re.execute(cx, str, &index, matches);
         if (status == RegExpRunStatus_Error)
             return false;
 
@@ -3838,7 +3838,7 @@ class SplitRegExpMatcher
         JSSubString sep;
         res->getLastMatch(&sep);
 
-        result->setResult(sep.length, matches[0].limit);
+        result->setResult(sep.length, index);
         return true;
     }
 };

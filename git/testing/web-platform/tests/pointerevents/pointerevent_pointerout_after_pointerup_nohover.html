@@ -22,27 +22,23 @@
             add_completion_callback(showPointerTypes);
 
             var eventTested = false;
-            var pointerup_event = null;
+            var isPointerupReceived = false;
             var detected_pointertypes = {};
 
             function run() {
                 var target0 = document.getElementById("target0");
 
                 on_event(target0, "pointerup", function (event) {
-                    pointerup_event = event;
+                    isPointerupReceived = true;
                 });
 
-                // For input devices that do not support hover, a pointerout event must follow the pointerup event.
-                // TA: 3.6
+                // When touch, a device that does not support hover, after firing the pointerup event the pointerout event must be dispatched.
+                // TA: 7.5
                 on_event(target0, "pointerout", function (event) {
                     if(event.pointerType == 'touch') {
                         detected_pointertypes[event.pointerType] = true;
-                        if(pointerup_event != null) {
+                        if(isPointerupReceived) {
                             if(eventTested == false) {
-                                test_pointerout.step(function() {
-                                    assert_equals(event.pointerType, pointerup_event.pointerType, "pointerType is same for pointerup and pointerout");
-                                    assert_equals(event.isPrimary, pointerup_event.isPrimary, "isPrimary is same for pointerup and pointerout");
-                                });
                                 eventTested = true;
                                 test_pointerout.done();
                             }

@@ -21,7 +21,6 @@ import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.SuggestedSites;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.home.HomeContextMenuInfo.RemoveItemType;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.TopSitesGridView.TopSitesGridContextMenuInfo;
 import org.mozilla.gecko.util.Clipboard;
@@ -249,11 +248,15 @@ public abstract class HomeFragment extends Fragment {
         }
 
         if (itemId == R.id.home_remove) {
-            // For Top Sites grid items, position is required in case item is Pinned.
-            final int position = info instanceof TopSitesGridContextMenuInfo ? info.position : -1;
+            if (info instanceof TopSitesGridContextMenuInfo) {
+                (new RemoveItemByUrlTask(context, info.url, info.position)).execute();
+                return true;
+            }
 
-            (new RemoveItemByUrlTask(context, info.url, info.itemType, position)).execute();
-            return true;
+            if (info.isInReadingList() || info.hasBookmarkId() || info.hasHistoryId()) {
+                (new RemoveItemByUrlTask(context, info.url)).execute();
+                return true;
+            }
         }
 
         return false;
@@ -313,6 +316,7 @@ public abstract class HomeFragment extends Fragment {
         return mCanLoadHint;
     }
 
+
     protected abstract void load();
 
     protected boolean canLoad() {
@@ -328,22 +332,27 @@ public abstract class HomeFragment extends Fragment {
         mIsLoaded = true;
     }
 
-    protected static class RemoveItemByUrlTask extends UIAsyncTask.WithoutParams<Void> {
+    private static class RemoveItemByUrlTask extends UIAsyncTask.WithoutParams<Void> {
         private final Context mContext;
         private final String mUrl;
-        private final RemoveItemType mType;
         private final int mPosition;
 
         /**
-         * Remove bookmark/history/reading list type item by url, and also unpin the
+         * Remove bookmark/history/reading list item by url.
+         */
+        public RemoveItemByUrlTask(Context context, String url) {
+            this(context, url, -1);
+        }
+
+        /**
+         * Remove bookmark/history/reading list item by url, and also unpin the
          * Top Sites grid item at index <code>position</code>.
          */
-        public RemoveItemByUrlTask(Context context, String url, RemoveItemType type, int position) {
+        public RemoveItemByUrlTask(Context context, String url, int position) {
             super(ThreadUtils.getBackgroundHandler());
 
             mContext = context;
             mUrl = url;
-            mType = type;
             mPosition = position;
         }
 
@@ -358,34 +367,22 @@ public abstract class HomeFragment extends Fragment {
                 }
             }
 
-            switch(mType) {
-                case BOOKMARKS:
-                    BrowserDB.removeBookmarksWithURL(cr, mUrl);
-                    break;
+            BrowserDB.removeBookmarksWithURL(cr, mUrl);
+            BrowserDB.removeHistoryEntry(cr, mUrl);
 
-                case HISTORY:
-                    BrowserDB.removeHistoryEntry(cr, mUrl);
-                    break;
+            BrowserDB.removeReadingListItemWithURL(cr, mUrl);
 
-                case READING_LIST:
-                    BrowserDB.removeReadingListItemWithURL(cr, mUrl);
-
-                    final JSONObject json = new JSONObject();
-                    try {
-                        json.put("url", mUrl);
-                        json.put("notify", false);
-                    } catch (JSONException e) {
-                        Log.e(LOGTAG, "error building JSON arguments");
-                    }
-
-                    GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Remove", json.toString());
-                    GeckoAppShell.sendEventToGecko(e);
-                    break;
-
-                default:
-                    Log.e(LOGTAG, "Can't remove item type " + mType.toString());
-                    break;
+            final JSONObject json = new JSONObject();
+            try {
+                json.put("url", mUrl);
+                json.put("notify", false);
+            } catch (JSONException e) {
+                Log.e(LOGTAG, "error building JSON arguments");
             }
+
+            GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Remove", json.toString());
+            GeckoAppShell.sendEventToGecko(e);
+
             return null;
         }
 

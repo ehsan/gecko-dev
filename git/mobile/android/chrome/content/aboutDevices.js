@@ -93,16 +93,16 @@ var Devices = {
     }
   },
 
-  _fixedDeviceForType: function(type, ip) {
-    let fixedDevice = {};
+  _fixedTargetForType: function(type, ip) {
+    let fixedTarget = {};
     if (type == "roku") {
-      fixedDevice.target = "roku:ecp";
-      fixedDevice.location = "http://" + ip + ":8060";
+      fixedTarget.target = "roku:ecp";
+      fixedTarget.location = "http://" + ip + ":8060";
     } else if (type == "chromecast") {
-      fixedDevice.target = "urn:dial-multiscreen-org:service:dial:1";
-      fixedDevice.location = "http://" + ip + ":8008";
+      fixedTarget.target = "urn:dial-multiscreen-org:service:dial:1";
+      fixedTarget.location = "http://" + ip + ":8008";
     }
-    return fixedDevice;
+    return fixedTarget;
   },
 
   connectManually: function(evt) {
@@ -114,20 +114,20 @@ var Devices = {
       return;
     }
 
-    let fixedDevices = [];
+    let fixedTargets = [];
     try {
-      fixedDevices = JSON.parse(Services.prefs.getCharPref("browser.casting.fixedDevices"));
+      fixedTargets = JSON.parse(Services.prefs.getCharPref("browser.casting.fixedTargets"));
     } catch (e) {}
 
     let type = document.getElementById("type").value;
-    let fixedDevice = this._fixedDeviceForType(type, ip.value);
+    let fixedTarget = this._fixedTargetForType(type, ip.value);
 
     // Early abort if we're already looking for this target.
-    if (fixedDevices.indexOf(fixedDevice) > -1)
+    if (fixedTargets.indexOf(fixedTarget) > -1)
       return;
 
-    fixedDevices.push(fixedDevice);
-    Services.prefs.setCharPref("browser.casting.fixedDevices", JSON.stringify(fixedDevices));
+    fixedTargets.push(fixedTarget);
+    Services.prefs.setCharPref("browser.casting.fixedTargets", JSON.stringify(fixedTargets));
 
     // The backend does not yet listen for pref changes, so we trigger a scan.
     this.updateDeviceList();

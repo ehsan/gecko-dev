@@ -37,7 +37,6 @@
 
 #include "mozilla/gfx/2D.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/Move.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
@@ -189,21 +188,21 @@ class ScaleRequest
 public:
   ScaleRequest(RasterImage* aImage,
                const nsIntSize& aSize,
-               RawAccessFrameRef&& aSrcRef)
-    : weakImage(aImage)
-    , srcRef(Move(aSrcRef))
-    , srcRect(srcRef->GetRect())
-    , dstSize(aSize)
+               imgFrame* aSrcFrame)
+    : dstSize(aSize)
+    , dstLocked(false)
     , done(false)
     , stopped(false)
   {
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(!srcRef->GetIsPaletted());
+    MOZ_ASSERT(!aSrcFrame->GetIsPaletted());
     MOZ_ASSERT(aSize.width > 0 && aSize.height > 0);
+
+    weakImage = aImage;
+    srcRect = aSrcFrame->GetRect();
   }
 
   // This can only be called on the main thread.
-  bool AcquireResources()
+  bool GetSurfaces(imgFrame* srcFrame)
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -212,68 +211,80 @@ public:
       return false;
     }
 
-    if (!dstFrame) {
+    bool success = false;
+    if (!dstLocked) {
       // We need to hold a lock onto the RasterImage object itself so that
       // it (and its associated imgFrames) aren't marked as discardable.
-      if (NS_FAILED(image->LockImage())) {
-        return false;
+      bool imgLocked = NS_SUCCEEDED(image->LockImage());
+      bool srcLocked = NS_SUCCEEDED(srcFrame->LockImageData());
+      srcSurface = srcFrame->GetSurface();
+
+      dstLocked = NS_SUCCEEDED(dstFrame->LockImageData());
+      dstSurface = dstFrame->GetSurface();
+
+      success = imgLocked && srcLocked && dstLocked && srcSurface && dstSurface;
+
+      if (success) {
+        srcData = srcFrame->GetImageData();
+        dstData = dstFrame->GetImageData();
+        srcStride = srcFrame->GetImageBytesPerRow();
+        dstStride = dstFrame->GetImageBytesPerRow();
+        srcFormat = srcFrame->GetFormat();
       }
 
-      // We'll need a destination frame. It's unconditionally ARGB32 because
-      // that's what the scaler outputs.
-      nsRefPtr<imgFrame> tentativeDstFrame = new imgFrame();
-      nsresult rv =
-        tentativeDstFrame->Init(0, 0, dstSize.width, dstSize.height,
-                                SurfaceFormat::B8G8R8A8);
-      if (NS_FAILED(rv)) {
-        return false;
+      // We have references to the surfaces, so we don't need to leave
+      // the source frame (that we don't own) locked. We'll unlock the
+      // destination frame in ReleaseSurfaces(), below.
+      if (srcLocked) {
+        success = NS_SUCCEEDED(srcFrame->UnlockImageData()) && success;
       }
-
-      // We need a strong reference to the raw data for the destination frame.
-      // (We already got one for the source frame in the constructor.)
-      RawAccessFrameRef tentativeDstRef = tentativeDstFrame->RawAccessRef();
-      if (!tentativeDstRef) {
-        return false;
-      }
-
-      dstFrame = tentativeDstFrame.forget();
-      dstRef = Move(tentativeDstRef);
     }
 
-    return true;
+    return success;
   }
 
   // This can only be called on the main thread.
-  void ReleaseResources()
+  bool ReleaseSurfaces()
   {
     MOZ_ASSERT(NS_IsMainThread());
 
     nsRefPtr<RasterImage> image = weakImage.get();
-    if (image) {
-      image->UnlockImage();
+    if (!image) {
+      return false;
     }
 
-    if (DiscardingEnabled() && dstFrame) {
-      dstFrame->SetDiscardable();
-    }
+    bool success = false;
+    if (dstLocked) {
+      if (DiscardingEnabled())
+        dstFrame->SetDiscardable();
+      success = NS_SUCCEEDED(dstFrame->UnlockImageData());
+      success = success && NS_SUCCEEDED(image->UnlockImage());
 
-    // Release everything except dstFrame, which we keep around for RasterImage
-    // to retrieve.
-    srcRef.reset();
-    dstRef.reset();
+      dstLocked = false;
+      srcData = nullptr;
+      dstData = nullptr;
+      srcSurface = nullptr;
+      dstSurface = nullptr;
+    }
+    return success;
   }
 
-  // These values may only be modified on the main thread.
+  // These values may only be touched on the main thread.
   WeakPtr<RasterImage> weakImage;
   nsRefPtr<imgFrame> dstFrame;
-  RawAccessFrameRef srcRef;
-  RawAccessFrameRef dstRef;
+  RefPtr<SourceSurface> srcSurface;
+  RefPtr<SourceSurface> dstSurface;
 
-  // Below are the values that may be modified on the scaling thread.
+  // Below are the values that may be touched on the scaling thread.
+  uint8_t* srcData;
+  uint8_t* dstData;
   nsIntRect srcRect;
   nsIntSize dstSize;
+  uint32_t srcStride;
+  uint32_t dstStride;
+  SurfaceFormat srcFormat;
+  bool dstLocked;
   bool done;
-
   // This boolean is accessed from both threads simultaneously without locking.
   // That's safe because stopping a ScaleRequest is strictly an optimization;
   // if we're not cache-coherent, at worst we'll do extra work.
@@ -289,12 +300,10 @@ public:
 
   NS_IMETHOD Run()
   {
-    // Grab the weak image pointer before the request releases it.
-    nsRefPtr<RasterImage> image = mScaleRequest->weakImage.get();
+    // ScaleWorker is finished with this request, so we can unlock the data now.
+    mScaleRequest->ReleaseSurfaces();
 
-    // ScaleWorker is finished with this request, so release everything that we
-    // don't need anymore.
-    mScaleRequest->ReleaseResources();
+    nsRefPtr<RasterImage> image = mScaleRequest->weakImage.get();
 
     if (image) {
       RasterImage::ScaleStatus status;
@@ -319,36 +328,36 @@ class ScaleRunner : public nsRunnable
 public:
   ScaleRunner(RasterImage* aImage,
               const nsIntSize& aSize,
-              RawAccessFrameRef&& aSrcRef)
+              imgFrame* aSrcFrame)
   {
-    nsAutoPtr<ScaleRequest> req(new ScaleRequest(aImage, aSize, Move(aSrcRef)));
-    if (!req->AcquireResources()) {
+    nsAutoPtr<ScaleRequest> request(new ScaleRequest(aImage, aSize, aSrcFrame));
+
+    // Destination is unconditionally ARGB32 because that's what the scaler
+    // outputs.
+    request->dstFrame = new imgFrame();
+    nsresult rv = request->dstFrame->Init(0, 0, request->dstSize.width, request->dstSize.height,
+                                          SurfaceFormat::B8G8R8A8);
+
+    if (NS_FAILED(rv) || !request->GetSurfaces(aSrcFrame)) {
       return;
     }
 
-    aImage->ScalingStart(req);
-    mScaleRequest = req;
+    aImage->ScalingStart(request);
+
+    mScaleRequest = request;
   }
 
   NS_IMETHOD Run()
   {
-    ScaleRequest* req = mScaleRequest.get();
+    // An alias just for ease of typing
+    ScaleRequest* request = mScaleRequest;
 
-    if (!req->stopped) {
-      // Collect information from the frames that we need to scale.
-      uint8_t* srcData = req->srcRef->GetImageData();
-      uint8_t* dstData = req->dstRef->GetImageData();
-      uint32_t srcStride = req->srcRef->GetImageBytesPerRow();
-      uint32_t dstStride = req->dstRef->GetImageBytesPerRow();
-      SurfaceFormat srcFormat = req->srcRef->GetFormat();
-
-      // Actually do the scaling.
-      req->done =
-        gfx::Scale(srcData, req->srcRect.width, req->srcRect.height, srcStride,
-                   dstData, req->dstSize.width, req->dstSize.height, dstStride,
-                   srcFormat);
+    if (!request->stopped) {
+      request->done = gfx::Scale(request->srcData, request->srcRect.width, request->srcRect.height, request->srcStride,
+                                 request->dstData, request->dstSize.width, request->dstSize.height, request->dstStride,
+                                 request->srcFormat);
     } else {
-      req->done = false;
+      request->done = false;
     }
 
     // OK, we've got a new scaled image. Let's get the main thread to unlock and
@@ -854,9 +863,7 @@ RasterImage::CopyFrame(uint32_t aWhichFrame,
 
   IntSize size(mSize.width, mSize.height);
   RefPtr<DataSourceSurface> surf =
-    Factory::CreateDataSourceSurface(size,
-                                     SurfaceFormat::B8G8R8A8,
-                                     /* aZero = */ true);
+    Factory::CreateDataSourceSurface(size, SurfaceFormat::B8G8R8A8);
   if (NS_WARN_IF(!surf)) {
     return nullptr;
   }
@@ -2615,8 +2622,8 @@ RasterImage::RequestScale(imgFrame* aFrame, nsIntSize aSize)
   }
 
   // We also can't scale if we can't lock the image data for this frame.
-  RawAccessFrameRef frameRef = aFrame->RawAccessRef();
-  if (!frameRef) {
+  if (NS_FAILED(aFrame->LockImageData())) {
+    aFrame->UnlockImageData();
     return;
   }
 
@@ -2625,7 +2632,7 @@ RasterImage::RequestScale(imgFrame* aFrame, nsIntSize aSize)
     mScaleRequest->stopped = true;
   }
 
-  nsRefPtr<ScaleRunner> runner = new ScaleRunner(this, aSize, Move(frameRef));
+  nsRefPtr<ScaleRunner> runner = new ScaleRunner(this, aSize, aFrame);
   if (runner->IsOK()) {
     if (!sScaleWorkerThread) {
       NS_NewNamedThread("Image Scaler", getter_AddRefs(sScaleWorkerThread));
@@ -2634,6 +2641,8 @@ RasterImage::RequestScale(imgFrame* aFrame, nsIntSize aSize)
 
     sScaleWorkerThread->Dispatch(runner, NS_DISPATCH_NORMAL);
   }
+
+  aFrame->UnlockImageData();
 }
 
 bool

@@ -121,7 +121,7 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
     Vector<int32_t, 0, SystemAllocPolicy> registers;
     if (!registers.growByUninitialized(numRegisters))
         return RegExpRunStatus_Error;
-    for (size_t i = 0; i < (size_t) numRegisters; i++)
+    for (size_t i = 0; i < matches->length() * 2; i++)
         registers[i] = -1;
 
     while (true) {
@@ -184,8 +184,7 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
           BYTECODE(FAIL)
             return RegExpRunStatus_Success_NotFound;
           BYTECODE(SUCCEED)
-            if (matches)
-                memcpy(matches->pairsRaw(), registers.begin(), matches->length() * 2 * sizeof(int32_t));
+            memcpy(matches->pairsRaw(), registers.begin(), matches->length() * 2 * sizeof(int32_t));
             return RegExpRunStatus_Success;
           BYTECODE(ADVANCE_CP)
             current += insn >> BYTECODE_SHIFT;

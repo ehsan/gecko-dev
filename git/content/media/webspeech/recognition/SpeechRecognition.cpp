@@ -313,7 +313,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
  * Returns the number of samples that were processed.
  */
 uint32_t
-SpeechRecognition::ProcessAudioSegment(AudioSegment* aSegment, TrackRate aTrackRate)
+SpeechRecognition::ProcessAudioSegment(AudioSegment* aSegment)
 {
   AudioSegment::ChunkIterator iterator(*aSegment);
   uint32_t samples = 0;
@@ -324,7 +324,7 @@ SpeechRecognition::ProcessAudioSegment(AudioSegment* aSegment, TrackRate aTrackR
     iterator.Next();
   }
 
-  mRecognitionService->ProcessAudioSegment(aSegment, aTrackRate);
+  mRecognitionService->ProcessAudioSegment(aSegment);
   return samples;
 }
 
@@ -400,7 +400,7 @@ SpeechRecognition::StartedAudioCapture(SpeechEvent* aEvent)
   SetState(STATE_ESTIMATING);
 
   mEndpointer.SetEnvironmentEstimationMode();
-  mEstimationSamples += ProcessAudioSegment(aEvent->mAudioSegment, aEvent->mTrackRate);
+  mEstimationSamples += ProcessAudioSegment(aEvent->mAudioSegment);
 
   DispatchTrustedEvent(NS_LITERAL_STRING("audiostart"));
   if (mCurrentState == STATE_ESTIMATING) {
@@ -424,7 +424,7 @@ SpeechRecognition::WaitForEstimation(SpeechEvent* aEvent)
 {
   SetState(STATE_ESTIMATING);
 
-  mEstimationSamples += ProcessAudioSegment(aEvent->mAudioSegment, aEvent->mTrackRate);
+  mEstimationSamples += ProcessAudioSegment(aEvent->mAudioSegment);
   if (mEstimationSamples > kESTIMATION_SAMPLES) {
     mEndpointer.SetUserInputMode();
     SetState(STATE_WAITING_FOR_SPEECH);
@@ -436,7 +436,7 @@ SpeechRecognition::DetectSpeech(SpeechEvent* aEvent)
 {
   SetState(STATE_WAITING_FOR_SPEECH);
 
-  ProcessAudioSegment(aEvent->mAudioSegment, aEvent->mTrackRate);
+  ProcessAudioSegment(aEvent->mAudioSegment);
   if (mEndpointer.DidStartReceivingSpeech()) {
     mSpeechDetectionTimer->Cancel();
     SetState(STATE_RECOGNIZING);
@@ -449,7 +449,7 @@ SpeechRecognition::WaitForSpeechEnd(SpeechEvent* aEvent)
 {
   SetState(STATE_RECOGNIZING);
 
-  ProcessAudioSegment(aEvent->mAudioSegment, aEvent->mTrackRate);
+  ProcessAudioSegment(aEvent->mAudioSegment);
   if (mEndpointer.speech_input_complete()) {
     DispatchTrustedEvent(NS_LITERAL_STRING("speechend"));
 
@@ -828,7 +828,7 @@ SpeechRecognition::CreateAudioSegment(nsTArray<nsRefPtr<SharedBuffer>>& aChunks)
 void
 SpeechRecognition::FeedAudioData(already_AddRefed<SharedBuffer> aSamples,
                                  uint32_t aDuration,
-                                 MediaStreamListener* aProvider, TrackRate aTrackRate)
+                                 MediaStreamListener* aProvider)
 {
   NS_ASSERTION(!NS_IsMainThread(),
                "FeedAudioData should not be called in the main thread");
@@ -876,7 +876,6 @@ SpeechRecognition::FeedAudioData(already_AddRefed<SharedBuffer> aSamples,
   nsRefPtr<SpeechEvent> event = new SpeechEvent(this, EVENT_AUDIO_DATA);
   event->mAudioSegment = segment;
   event->mProvider = aProvider;
-  event->mTrackRate = aTrackRate;
   NS_DispatchToMainThread(event);
 
   return;

@@ -2740,8 +2740,11 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
     if (!script)
         return false;
 
-    if (!jit::IsIonEnabled(cx) || !jit::IsBaselineEnabled(cx) || !script->canBaselineCompile())
+    if (!jit::IsIonEnabled(cx) || !jit::IsBaselineEnabled(cx) ||
+        !script->compileAndGo() || !script->canBaselineCompile())
+    {
         return true;
+    }
 
     static const uint32_t MAX_SCRIPT_SIZE = 2000;
     if (script->length() > MAX_SCRIPT_SIZE)
@@ -2789,7 +2792,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
     BaselineInspector inspector(script);
     const JitCompileOptions options(cx);
 
-    IonBuilder builder(cx, CompileCompartment::get(cx->compartment()), options, &temp, &graph, constraints,
+    IonBuilder builder(CompileCompartment::get(cx->compartment()), options, &temp, &graph, constraints,
                        &inspector, &info, optimizationInfo, /* baselineFrame = */ nullptr);
 
     if (!builder.build()) {
@@ -2979,7 +2982,7 @@ jit::AnalyzeArgumentsUsage(JSContext *cx, JSScript *scriptArg)
         return true;
     }
 
-    if (!jit::IsIonEnabled(cx))
+    if (!jit::IsIonEnabled(cx) || !script->compileAndGo())
         return true;
 
     static const uint32_t MAX_SCRIPT_SIZE = 10000;
@@ -3016,7 +3019,7 @@ jit::AnalyzeArgumentsUsage(JSContext *cx, JSScript *scriptArg)
     BaselineInspector inspector(script);
     const JitCompileOptions options(cx);
 
-    IonBuilder builder(nullptr, CompileCompartment::get(cx->compartment()), options, &temp, &graph, constraints,
+    IonBuilder builder(CompileCompartment::get(cx->compartment()), options, &temp, &graph, constraints,
                        &inspector, &info, optimizationInfo, /* baselineFrame = */ nullptr);
 
     if (!builder.build()) {

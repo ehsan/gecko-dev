@@ -408,32 +408,6 @@ GetFrameTime() {
   return sFrameTime;
 }
 
-class MOZ_STACK_CLASS StateChangeNotificationBlocker {
-public:
-  StateChangeNotificationBlocker(AsyncPanZoomController* aApzc)
-    : mApzc(aApzc)
-  {
-    ReentrantMonitorAutoEnter lock(mApzc->mMonitor);
-    mInitialState = mApzc->mState;
-    mApzc->mNotificationBlockers++;
-  }
-
-  ~StateChangeNotificationBlocker()
-  {
-    AsyncPanZoomController::PanZoomState newState;
-    {
-      ReentrantMonitorAutoEnter lock(mApzc->mMonitor);
-      mApzc->mNotificationBlockers--;
-      newState = mApzc->mState;
-    }
-    mApzc->DispatchStateChangeNotification(mInitialState, newState);
-  }
-
-private:
-  AsyncPanZoomController* mApzc;
-  AsyncPanZoomController::PanZoomState mInitialState;
-};
-
 class FlingAnimation: public AsyncPanZoomAnimation {
 public:
   FlingAnimation(AsyncPanZoomController& aApzc,
@@ -840,14 +814,6 @@ AsyncPanZoomController::AssertOnControllerThread() {
   MOZ_ASSERT(sControllerThread == PR_GetCurrentThread());
 }
 
-void
-AsyncPanZoomController::AssertOnCompositorThread()
-{
-  if (GetThreadAssertionsEnabled()) {
-    Compositor::AssertOnCompositorThread();
-  }
-}
-
 /*static*/ void
 AsyncPanZoomController::InitializeGlobalState()
 {
@@ -874,6 +840,7 @@ AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
      mRefPtrMonitor("RefPtrMonitor"),
      mSharingFrameMetricsAcrossProcesses(false),
      mMonitor("AsyncPanZoomController"),
+     mState(NOTHING),
      mX(MOZ_THIS_IN_INITIALIZER_LIST()),
      mY(MOZ_THIS_IN_INITIALIZER_LIST()),
      mPanDirRestricted(false),
@@ -883,8 +850,6 @@ AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
      mLastAsyncScrollOffset(0, 0),
      mCurrentAsyncScrollOffset(0, 0),
      mAsyncScrollTimeoutTask(nullptr),
-     mState(NOTHING),
-     mNotificationBlockers(0),
      mTouchBlockBalance(0),
      mTreeManager(aTreeManager),
      mAPZCId(sAsyncPanZoomControllerCount++),
@@ -905,7 +870,9 @@ AsyncPanZoomController::~AsyncPanZoomController() {
 PCompositorParent*
 AsyncPanZoomController::GetSharedFrameMetricsCompositor()
 {
-  AssertOnCompositorThread();
+  if (GetThreadAssertionsEnabled()) {
+    Compositor::AssertOnCompositorThread();
+  }
 
   if (mSharingFrameMetricsAcrossProcesses) {
     const CompositorParent::LayerTreeState* state = CompositorParent::GetIndirectShadowTree(mLayersId);
@@ -932,8 +899,6 @@ AsyncPanZoomController::GetGestureEventListener() const {
 void
 AsyncPanZoomController::Destroy()
 {
-  AssertOnCompositorThread();
-
   CancelAnimation();
 
   mTouchBlockQueue.Clear();
@@ -1309,10 +1274,7 @@ nsEventStatus AsyncPanZoomController::OnTouchEnd(const MultiTouchInput& aEvent) 
     mX.SetVelocity(0);
     mY.SetVelocity(0);
     // Clear our state so that we don't stay in the PANNING state
-    // if DispatchFling() gives the fling to somone else. However,
-    // don't send the state change notification until we've determined
-    // what our final state is to avoid notification churn.
-    StateChangeNotificationBlocker blocker(this);
+    // if DispatchFling() gives the fling to somone else.
     SetState(NOTHING);
     APZC_LOG("%p starting a fling animation\n", this);
     // Make a local copy of the tree manager pointer and check that it's not
@@ -2395,8 +2357,6 @@ AsyncPanZoomController::FireAsyncScrollOnTimeout()
 bool AsyncPanZoomController::UpdateAnimation(const TimeStamp& aSampleTime,
                                              Vector<Task*>* aOutDeferredTasks)
 {
-  AssertOnCompositorThread();
-
   // This function may get called multiple with the same sample time, because
   // there may be multiple layers with this APZC, and each layer invokes this
   // function during composition. However we only want to do one animation step
@@ -2469,13 +2429,6 @@ void AsyncPanZoomController::GetOverscrollTransform(Matrix4x4* aTransform) const
 
 bool AsyncPanZoomController::AdvanceAnimations(const TimeStamp& aSampleTime)
 {
-  AssertOnCompositorThread();
-
-  // Don't send any state-change notifications until the end of the function,
-  // because we may go through some intermediate states while we finish
-  // animations and start new ones.
-  StateChangeNotificationBlocker blocker(this);
-
   // The eventual return value of this function. The compositor needs to know
   // whether or not to advance by a frame as soon as it can. For example, if a
   // fling is happening, it has to keep compositing so that the animation is
@@ -2621,8 +2574,6 @@ Matrix4x4 AsyncPanZoomController::GetTransformToLastDispatchedPaint() const {
 }
 
 void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetrics, bool aIsFirstPaint) {
-  AssertOnCompositorThread();
-
   ReentrantMonitorAutoEnter lock(mMonitor);
   bool isDefault = mFrameMetrics.IsDefault();
 
@@ -3034,8 +2985,8 @@ AsyncPanZoomController::GetAllowedTouchBehavior(ScreenIntPoint& aPoint) {
   return AllowedTouchBehavior::UNKNOWN;
 }
 
-void AsyncPanZoomController::SetState(PanZoomState aNewState)
-{
+void AsyncPanZoomController::SetState(PanZoomState aNewState) {
+
   PanZoomState oldState;
 
   // Intentional scoping for mutex
@@ -3045,24 +2996,11 @@ void AsyncPanZoomController::SetState(PanZoomState aNewState)
     mState = aNewState;
   }
 
-  DispatchStateChangeNotification(oldState, aNewState);
-}
-
-void AsyncPanZoomController::DispatchStateChangeNotification(PanZoomState aOldState,
-                                                             PanZoomState aNewState)
-{
-  { // scope the lock
-    ReentrantMonitorAutoEnter lock(mMonitor);
-    if (mNotificationBlockers > 0) {
-      return;
-    }
-  }
-
   if (nsRefPtr<GeckoContentController> controller = GetGeckoContentController()) {
-    if (!IsTransformingState(aOldState) && IsTransformingState(aNewState)) {
+    if (!IsTransformingState(oldState) && IsTransformingState(aNewState)) {
       controller->NotifyAPZStateChange(
           GetGuid(), APZStateChange::TransformBegin);
-    } else if (IsTransformingState(aOldState) && !IsTransformingState(aNewState)) {
+    } else if (IsTransformingState(oldState) && !IsTransformingState(aNewState)) {
       controller->NotifyAPZStateChange(
           GetGuid(), APZStateChange::TransformEnd);
     }

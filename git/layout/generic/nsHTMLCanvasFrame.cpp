@@ -241,8 +241,6 @@ nsHTMLCanvasFrame::Reflow(nsPresContext*           aPresContext,
 
 // FIXME taken from nsImageFrame, but then had splittable frame stuff
 // removed.  That needs to be fixed.
-// XXXdholbert As in nsImageFrame, this function's clients should probably
-// just be calling GetContentRectRelativeToSelf().
 nsRect 
 nsHTMLCanvasFrame::GetInnerArea() const
 {
@@ -261,7 +259,7 @@ nsHTMLCanvasFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                               nsDisplayItem* aItem,
                               const ContainerLayerParameters& aContainerParameters)
 {
-  nsRect area = GetContentRectRelativeToSelf() + aItem->ToReferenceFrame();
+  nsRect area = GetContentRect() - GetPosition() + aItem->ToReferenceFrame();
   HTMLCanvasElement* element = static_cast<HTMLCanvasElement*>(GetContent());
   nsIntSize canvasSize = GetCanvasSize();
 
