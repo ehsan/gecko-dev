@@ -1052,27 +1052,9 @@ nsPluginHost::PluginExistsForType(const char* aMimeType)
 }
 
 NS_IMETHODIMP
-nsPluginHost::GetPluginTagForType(const nsACString& aMimeType,
-                                  nsIPluginTag** aResult)
-{
-  nsPluginTag* plugin = FindPluginForType(aMimeType.Data(), true);
-  if (!plugin) {
-    plugin = FindPluginForType(aMimeType.Data(), false);
-  }
-  if (!plugin) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  NS_ADDREF(*aResult = plugin);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsPluginHost::GetStateForType(const nsACString &aMimeType, uint32_t* aResult)
 {
   nsPluginTag *plugin = FindPluginForType(aMimeType.Data(), true);
-  if (!plugin) {
-    plugin = FindPluginForType(aMimeType.Data(), false);
-  }
   if (!plugin) {
     return NS_ERROR_UNEXPECTED;
   }
@@ -1080,7 +1062,7 @@ nsPluginHost::GetStateForType(const nsACString &aMimeType, uint32_t* aResult)
   return plugin->GetEnabledState(aResult);
 }
 
-NS_IMETHODIMP
+nsresult
 nsPluginHost::GetBlocklistStateForType(const char *aMimeType, uint32_t *aState)
 {
   nsPluginTag *plugin = FindPluginForType(aMimeType, true);
