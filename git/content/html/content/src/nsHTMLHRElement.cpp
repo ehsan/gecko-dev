@@ -280,15 +280,13 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
 
       // If it would be noticeable, set the border radius to
-      // 10000px on all corners; this triggers the clamping to make
-      // circular ends.  This assumes the <hr> isn't larger than
-      // that in *both* dimensions.
+      // 100% on all corners
       nsCSSCornerSizes& corners = aData->mMarginData->mBorderRadius;
 
       NS_FOR_CSS_FULL_CORNERS(c) {
         nsCSSValue& dimen = corners.GetCorner(c);
         if (dimen.GetUnit() == eCSSUnit_Null) {
-          dimen.SetFloatValue(10000.0f, eCSSUnit_Pixel);
+          dimen.SetPercentValue(1.0f);
         }
       }
     }

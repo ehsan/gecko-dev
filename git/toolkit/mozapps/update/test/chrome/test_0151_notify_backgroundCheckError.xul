@@ -30,10 +30,11 @@ const TESTS = [ {
 } ];
 
 function runTest() {
-  debugDump("entering");
+  debugDump("Entering runTest");
 
   let url = URL_UPDATE + "?xmlMalformed=1";
   setUpdateURLOverride(url);
+  debugDump("Update URL: " + url);
 
   errorsPrefObserver.init(PREF_APP_UPDATE_BACKGROUNDERRORS,
                           PREF_APP_UPDATE_BACKGROUNDMAXERRORS);

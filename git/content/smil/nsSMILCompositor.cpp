@@ -158,8 +158,7 @@ nsSMILCompositor::CreateSMILAttr()
       return new nsSMILCSSProperty(propId, mKey.mElement.get());
     }
   } else {
-    return mKey.mElement->GetAnimatedAttr(mKey.mAttributeNamespaceID,
-                                          mKey.mAttributeName);
+    return mKey.mElement->GetAnimatedAttr(mKey.mAttributeName);
   }
   return nsnull;
 }

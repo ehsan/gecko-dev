@@ -268,7 +268,7 @@ nsIFrame::GetClientRect(nsRect& aClientRect)
 }
 
 void
-nsBox::SetBounds(nsBoxLayoutState& aState, const nsRect& aRect, PRBool aRemoveOverflowAreas)
+nsBox::SetBounds(nsBoxLayoutState& aState, const nsRect& aRect, PRBool aRemoveOverflowArea)
 {
     NS_BOX_ASSERTION(this, aRect.width >=0 && aRect.height >= 0, "SetBounds Size < 0");
 
@@ -288,9 +288,9 @@ nsBox::SetBounds(nsBoxLayoutState& aState, const nsRect& aRect, PRBool aRemoveOv
 
     // Nuke the overflow area. The caller is responsible for restoring
     // it if necessary.
-    if (aRemoveOverflowAreas) {
+    if (aRemoveOverflowArea && HasOverflowRect()) {
       // remove the previously stored overflow area
-      ClearOverflowRects();
+      ClearOverflowRect();
     }
 
     if (!(flags & NS_FRAME_NO_MOVE_VIEW))
@@ -610,29 +610,28 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
 
   flags |= stateFlags;
 
-  nsRect visualOverflow;
+  nsRect rect(nsPoint(0, 0), GetSize());
 
   if (ComputesOwnOverflowArea()) {
-    visualOverflow = GetVisualOverflowRect();
+    rect = GetOverflowRect();
   }
   else {
-    nsRect rect(nsPoint(0, 0), GetSize());
-    nsOverflowAreas overflowAreas(rect, rect);
     if (!DoesClipChildren() && !IsCollapsed(aState)) {
       // See if our child frames caused us to overflow after being laid
       // out. If so, store the overflow area.  This normally can't happen
       // in XUL, but it can happen with the CSS 'outline' property and
       // possibly with other exotic stuff (e.g. relatively positioned
       // frames in HTML inside XUL).
-      for (nsIFrame* kid = GetChildBox(); kid; kid = kid->GetNextBox()) {
-        nsOverflowAreas kidOverflow =
-          kid->GetOverflowAreas() + kid->GetPosition();
-        overflowAreas.UnionWith(kidOverflow);
+      nsIFrame* box = GetChildBox();
+      while (box) {
+        nsRect bounds = box->GetOverflowRect() + box->GetPosition();
+        rect.UnionRect(rect, bounds);
+
+        box = box->GetNextBox();
       }
     }
 
-    FinishAndStoreOverflow(overflowAreas, GetSize());
-    visualOverflow = overflowAreas.VisualOverflow();
+    FinishAndStoreOverflow(&rect, GetSize());
   }
 
   nsIView* view = GetView();
@@ -643,7 +642,7 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
                              presContext, 
                              this,
                              view,
-                             visualOverflow,
+                             &rect,
                              flags);
   } 
 
@@ -661,7 +660,7 @@ nsIFrame::Redraw(nsBoxLayoutState& aState,
   if (aDamageRect)
     damageRect = *aDamageRect;
   else
-    damageRect = GetVisualOverflowRect();
+    damageRect = GetOverflowRect();
 
   Invalidate(damageRect);
   // nsStackLayout, at least, expects us to repaint descendants even

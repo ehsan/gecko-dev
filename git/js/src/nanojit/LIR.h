@@ -491,8 +491,18 @@ namespace nanojit
         NanoAssert(op == LIR_xt || op == LIR_xf);
         return LOpcode(op ^ 1);
     }
-    inline LOpcode invertCmpOpcode(LOpcode op) {
-        NanoAssert(isCmpOpcode(op));
+    inline LOpcode invertCmpIOpcode(LOpcode op) {
+        NanoAssert(isCmpIOpcode(op));
+        return LOpcode(op ^ 1);
+    }
+#ifdef NANOJIT_64BIT
+    inline LOpcode invertCmpQOpcode(LOpcode op) {
+        NanoAssert(isCmpQOpcode(op));
+        return LOpcode(op ^ 1);
+    }
+#endif
+    inline LOpcode invertCmpDOpcode(LOpcode op) {
+        NanoAssert(isCmpDOpcode(op));
         return LOpcode(op ^ 1);
     }
 
@@ -537,7 +547,7 @@ namespace nanojit
 
     inline RegisterMask rmask(Register r)
     {
-        return RegisterMask(1) << REGNUM(r);
+        return RegisterMask(1) << r;
     }
 
     //-----------------------------------------------------------------------
@@ -646,7 +656,7 @@ namespace nanojit
     private:
         // SharedFields: fields shared by all LIns kinds.
         //
-        // The .inReg, .regnum, .inAr and .arIndex fields form a "reservation"
+        // The .inReg, .reg, .inAr and .arIndex fields form a "reservation"
         // that is used temporarily during assembly to record information
         // relating to register allocation.  See class RegAlloc for more
         // details.  Note: all combinations of .inReg/.inAr are possible, ie.
@@ -658,7 +668,7 @@ namespace nanojit
         //
         struct SharedFields {
             uint32_t inReg:1;           // if 1, 'reg' is active
-            uint32_t regnum:7;
+            Register reg:7;
             uint32_t inAr:1;            // if 1, 'arIndex' is active
             uint32_t isResultLive:1;    // if 1, the instruction's result is live
 
@@ -748,12 +758,7 @@ namespace nanojit
         }
         Register deprecated_getReg() {
             NanoAssert(isExtant());
-            if (isInReg()) {
-                Register r = { sharedFields.regnum };
-                return r;
-            } else { 
-                return deprecated_UnknownReg;
-            }
+            return ( isInReg() ? sharedFields.reg : deprecated_UnknownReg );
         }
         uint32_t deprecated_getArIndex() {
             NanoAssert(isExtant());
@@ -777,12 +782,11 @@ namespace nanojit
         }
         Register getReg() {
             NanoAssert(isInReg());
-            Register r = { sharedFields.regnum };
-            return r;
+            return sharedFields.reg;
         }
         void setReg(Register r) {
             sharedFields.inReg = 1;
-            sharedFields.regnum = REGNUM(r);
+            sharedFields.reg = r;
         }
         void clearReg() {
             sharedFields.inReg = 0;
@@ -1672,36 +1676,10 @@ namespace nanojit
     private:
         Allocator& alloc;
 
-        // A small string-wrapper class, required because we need '==' to
-        // compare string contents, not string pointers, when strings are used
-        // as keys in CountMap.
-        struct Str {
-            Allocator& alloc;
-            char* s;
-
-            Str(Allocator& alloc_, const char* s_) : alloc(alloc_) {
-                s = new (alloc) char[1+strlen(s_)];
-                strcpy(s, s_);
-            }
-
-            bool operator==(const Str& str) const {
-                return (0 == strcmp(this->s, str.s));
-            }
-        };
-
-        // Similar to 'struct Str' -- we need to hash the string's contents,
-        // not its pointer.
-        template<class K> struct StrHash {
-            static size_t hash(const Str &k) {
-                // (const void*) cast is required by ARM RVCT 2.2
-                return murmurhash((const void*)k.s, strlen(k.s));
-            }
-        };
-
-        template <class Key, class H=DefaultHash<Key> >
-        class CountMap: public HashMap<Key, int, H> {
+        template <class Key>
+        class CountMap: public HashMap<Key, int> {
         public:
-            CountMap(Allocator& alloc) : HashMap<Key, int, H>(alloc, 128) {}
+            CountMap(Allocator& alloc) : HashMap<Key, int>(alloc) {}
             int add(Key k) {
                 int c = 1;
                 if (this->containsKey(k)) {
@@ -1714,7 +1692,7 @@ namespace nanojit
 
         CountMap<int> lircounts;
         CountMap<const CallInfo *> funccounts;
-        CountMap<Str, StrHash<Str> > namecounts;
+        CountMap<const char *> namecounts;
 
         void addNameWithSuffix(LIns* i, const char *s, int suffix, bool ignoreOneSuffix);
 

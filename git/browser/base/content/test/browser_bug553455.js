@@ -21,19 +21,15 @@ var gApp = document.getElementById("bundle_brand").getString("brandShortName");
 var gVersion = Services.appinfo.version;
 
 function wait_for_notification(aCallback) {
-  info("Waiting for notification");
   PopupNotifications.panel.addEventListener("popupshown", function() {
     PopupNotifications.panel.removeEventListener("popupshown", arguments.callee, false);
-    info("Saw notification");
     aCallback(PopupNotifications.panel);
   }, false);
 }
 
 function wait_for_install_dialog(aCallback) {
-  info("Waiting for install dialog");
   Services.wm.addListener({
     onOpenWindow: function(aXULWindow) {
-      info("Install dialog opened, waiting for load");
       Services.wm.removeListener(this);
 
       var domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -45,7 +41,6 @@ function wait_for_install_dialog(aCallback) {
 
         // Allow other window load listeners to execute before passing to callback
         executeSoon(function() {
-          info("Saw install dialog");
           // Override the countdown timer on the accept button
           var button = domwindow.document.documentElement.getButton("accept");
           button.disabled = false;
@@ -548,8 +543,9 @@ function test_renotify_installed() {
               is(notification.id, "addon-install-complete-notification", "Should have seen the second install complete");
 
               AddonManager.getAllInstalls(function(aInstalls) {
-              is(aInstalls.length, 1, "Should be one pending installs");
+              is(aInstalls.length, 2, "Should be two pending installs");
                 aInstalls[0].cancel();
+                aInstalls[1].cancel();
 
                 gBrowser.removeTab(gBrowser.selectedTab);
                 runNextTest();
@@ -567,12 +563,7 @@ function test_renotify_installed() {
 }
 ];
 
-var gTestStart = null;
-
 function runNextTest() {
-  if (gTestStart)
-    info("Test part took " + (Date.now() - gTestStart) + "ms");
-
   AddonManager.getAllInstalls(function(aInstalls) {
     is(aInstalls.length, 0, "Should be no active installs");
 
@@ -584,13 +575,11 @@ function runNextTest() {
     }
 
     info("Running " + TESTS[0].name);
-    gTestStart = Date.now();
     TESTS.shift()();
   });
 };
 
 function test() {
-  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   Services.prefs.setBoolPref("extensions.logging.enabled", true);

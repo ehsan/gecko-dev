@@ -68,11 +68,11 @@ nsNativeTheme::GetPresShell(nsIFrame* aFrame)
   return context ? context->GetPresShell() : nsnull;
 }
 
-nsEventStates
+PRInt32
 nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
 {
   if (!aFrame)
-    return nsEventStates();
+    return 0;
 
   PRBool isXULCheckboxRadio = 
     (aWidgetType == NS_THEME_CHECKBOX ||
@@ -82,14 +82,14 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
     aFrame = aFrame->GetParent();
 
   if (!aFrame->GetContent())
-    return nsEventStates();
+    return 0;
 
   nsIPresShell *shell = GetPresShell(aFrame);
   if (!shell)
-    return nsEventStates();
+    return 0;
 
   nsIEventStateManager* esm = shell->GetPresContext()->EventStateManager();
-  nsEventStates flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
+  PRInt32 flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
   
   if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
     if (IsFocused(aFrame))
@@ -260,7 +260,7 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
 }
 
 bool
-nsNativeTheme::IsDisabled(nsIFrame* aFrame, nsEventStates aEventStates)
+nsNativeTheme::IsDisabled(nsIFrame* aFrame, PRInt32 aEventStates)
 {
   if (!aFrame) {
     return false;
@@ -272,7 +272,7 @@ nsNativeTheme::IsDisabled(nsIFrame* aFrame, nsEventStates aEventStates)
   }
 
   if (content->IsHTML()) {
-    return aEventStates.HasState(NS_EVENT_STATE_DISABLED);
+    return (aEventStates & NS_EVENT_STATE_DISABLED);
   }
 
   // For XML/XUL elements, an attribute must be equal to the literal
@@ -316,7 +316,7 @@ nsNativeTheme::GetScrollbarButtonType(nsIFrame* aFrame)
 nsNativeTheme::TreeSortDirection
 nsNativeTheme::GetTreeSortDirection(nsIFrame* aFrame)
 {
-  if (!aFrame || !aFrame->GetContent())
+  if (!aFrame)
     return eTreeSortDirection_Natural;
 
   static nsIContent::AttrValuesArray strings[] =

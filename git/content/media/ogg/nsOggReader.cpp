@@ -115,7 +115,7 @@ nsOggReader::~nsOggReader()
   MOZ_COUNT_DTOR(nsOggReader);
 }
 
-nsresult nsOggReader::Init(nsBuiltinDecoderReader* aCloneDonor) {
+nsresult nsOggReader::Init() {
   PRBool init = mCodecStates.Init();
   NS_ASSERTION(init, "Failed to initialize mCodecStates");
   if (!init) {
@@ -353,15 +353,15 @@ nsresult nsOggReader::DecodeVorbis(nsTArray<nsAutoPtr<SoundData> >& aChunks,
     return NS_ERROR_FAILURE;
   }
 
-  VorbisPCMValue** pcm = 0;
+  float** pcm = 0;
   PRInt32 samples = 0;
   PRUint32 channels = mVorbisState->mInfo.channels;
   while ((samples = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
-    SoundDataValue* buffer = new SoundDataValue[samples * channels];
-    for (PRUint32 j = 0; j < channels; ++j) {
-      VorbisPCMValue* channel = pcm[j];
-      for (PRUint32 i = 0; i < PRUint32(samples); ++i) {
-        buffer[i*channels + j] = MOZ_CONVERT_VORBIS_SAMPLE(channel[i]);
+    float* buffer = new float[samples * channels];
+    float* p = buffer;
+    for (PRUint32 i = 0; i < PRUint32(samples); ++i) {
+      for (PRUint32 j = 0; j < channels; ++j) {
+        *p++ = pcm[j][i];
       }
     }
 

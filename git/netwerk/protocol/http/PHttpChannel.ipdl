@@ -94,7 +94,7 @@ parent:
   Cancel(nsresult status);
 
   // Reports approval/veto of redirect by child process redirect observers
-  Redirect2Verify(nsresult result, RequestHeaderTuples changedHeaders);
+  Redirect2Result(nsresult result, RequestHeaderTuples changedHeaders);
 
   // For document loads we keep this protocol open after child's
   // OnStopRequest, and send this msg (instead of __delete__) to allow
@@ -115,8 +115,6 @@ parent:
   // as foreign, we will end up in the same situation and reload again and
   // again, indefinitely.
   MarkOfflineCacheEntryAsForeign();
-
-  __delete__();
 
 child:
   OnStartRequest(nsHttpResponseHead  responseHead,
@@ -143,12 +141,11 @@ child:
   CancelEarly(nsresult status);
 
   // Called to initiate content channel redirect, starts talking to sinks
-  // on the content process and reports result via Redirect2Verify above
+  // on the content process and reports result via OnRedirect2Result above
   Redirect1Begin(PHttpChannel       newChannel,
                  URI                newUri,
                  PRUint32           redirectFlags,
                  nsHttpResponseHead responseHead);
-
   // Called if redirect successful so that child can complete setup.
   Redirect3Complete();
 
@@ -156,9 +153,8 @@ child:
   AssociateApplicationCache(nsCString groupID,
                             nsCString clientID);
 
-  // Tell child to delete channel (all IPDL deletes must be done from child to
-  // avoid races: see bug 591708).
-  DeleteSelf();
+both:
+  __delete__();
 };
 
 

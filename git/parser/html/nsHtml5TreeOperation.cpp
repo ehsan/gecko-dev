@@ -360,7 +360,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
 
           // the manual notification code is based on nsGenericElement
           
-          nsEventStates stateMask = node->IntrinsicState();
+          PRUint32 stateMask = PRUint32(node->IntrinsicState());
           nsNodeUtils::AttributeWillChange(node, 
                                            nsuri,
                                            localName,
@@ -382,8 +382,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
             }
           }
           
-          stateMask ^= node->IntrinsicState();
-          if (!stateMask.IsEmpty() && document) {
+          stateMask ^= PRUint32(node->IntrinsicState());
+          if (stateMask && document) {
             MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, PR_TRUE);
             document->ContentStatesChanged(node, nsnull, stateMask);
           }
