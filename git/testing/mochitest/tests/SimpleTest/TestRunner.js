@@ -71,7 +71,6 @@ TestRunner._toggle = function(el) {
 **/
 TestRunner._makeIframe = function (url, retry) {
     var iframe = $('testframe');
-    window.scrollTo(0, $('indicator').offsetTop);
     if (url != "about:blank" && (!document.hasFocus() ||
         document.activeElement != iframe)) {
         // typically calling ourselves from setTimeout is sufficient
@@ -85,10 +84,9 @@ TestRunner._makeIframe = function (url, retry) {
 
         var frameWindow = $('testframe').contentWindow.wrappedJSObject ||
                           $('testframe').contentWindow;
-        frameWindow.SimpleTest.ok(false, "Unable to restore focus ("+
-            (document.hasFocus() ? document.activeElement : "[none]")+
-            "), expect failures and timeouts.");
+        frameWindow.SimpleTest.ok(false, "Unable to restore focus, expect failures and timeouts.");
     }
+    window.scrollTo(0, $('indicator').offsetTop);
     iframe.src = url;
     iframe.name = url; 
     iframe.width = "500";

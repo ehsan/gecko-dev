@@ -437,9 +437,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_HTMLAudioElement_id,
 #endif
 
-  // DOM Traversal NodeIterator class
-  eDOMClassInfo_NodeIterator_id,
-
   // This one better be the last one in this list
   eDOMClassInfoIDCount
 };

@@ -1263,11 +1263,15 @@ nsBindingManager::WalkRules(nsStyleSet* aStyleSet,
       }
     }
 
-    if (content->IsRootOfNativeAnonymousSubtree()) {
-      break; // Deliberately cut off style inheritance here.
+    nsIContent* parent = content->GetBindingParent();
+    if (parent == content) {
+      NS_ASSERTION(content->IsNativeAnonymous(), "Unexpected binding parent");
+                             
+      break; // The anonymous content case is often deliberately hacked to
+             // return itself to cut off style inheritance here.  Do that.
     }
 
-    content = content->GetBindingParent();
+    content = parent;
   } while (content);
 
   // If "content" is non-null that means we cut off inheritance at some point
