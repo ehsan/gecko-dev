@@ -3960,7 +3960,7 @@ nsEventListenerThisTranslator::TranslateThis(nsISupports *aInitialThis,
   NS_ENSURE_TRUE(event, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<EventTarget> target = event->InternalDOMEvent()->GetCurrentTarget();
-  target.forget(_retval);
+  *_retval = target.forget().get();
   return NS_OK;
 }
 

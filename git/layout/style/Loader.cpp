@@ -1177,7 +1177,7 @@ Loader::CreateSheet(nsIURI* aURI,
       NS_ASSERTION(sheet->IsComplete() || aSheetState != eSheetComplete,
                    "Sheet thinks it's not complete while we think it is");
 
-      *aSheet = sheet->Clone(nullptr, nullptr, nullptr, nullptr).take();
+      *aSheet = sheet->Clone(nullptr, nullptr, nullptr, nullptr).get();
       if (*aSheet && fromCompleteSheets &&
           !sheet->GetOwnerNode() && !sheet->GetParentSheet()) {
         // The sheet we're cloning isn't actually referenced by

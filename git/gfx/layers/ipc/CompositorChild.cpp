@@ -84,7 +84,7 @@ CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
     return nullptr;
   }
   // We release this ref in ActorDestroy().
-  return sCompositor = child.forget().take();
+  return sCompositor = child.forget().get();
 }
 
 /*static*/ CompositorChild*

@@ -1320,7 +1320,7 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
   if (aOptionalArgCount > 2) {
     ErrorResult rv;
     *aReturn = Open(cx, aContentTypeOrUrl, aReplaceOrName, aFeatures,
-                    false, rv).take();
+                    false, rv).get();
     return rv.ErrorCode();
   }
 
@@ -1335,7 +1335,7 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
     replace = aReplaceOrName;
   }
   ErrorResult rv;
-  *aReturn = Open(cx, type, replace, rv).take();
+  *aReturn = Open(cx, type, replace, rv).get();
   return rv.ErrorCode();
 }
 
@@ -1910,7 +1910,7 @@ NS_IMETHODIMP
 nsHTMLDocument::GetElementsByName(const nsAString& aElementName,
                                   nsIDOMNodeList** aReturn)
 {
-  *aReturn = GetElementsByName(aElementName).take();
+  *aReturn = GetElementsByName(aElementName).get();
   return NS_OK;
 }
 
@@ -1970,8 +1970,7 @@ static void* CreateTokens(nsINode* aRootNode, const nsString* types)
       ++iter;
     } while (iter != end && !nsContentUtils::IsHTMLWhitespace(*iter));
 
-    nsCOMPtr<nsIAtom> token = do_GetAtom(Substring(start, iter));
-    tokens->AppendElement(token);
+    tokens->AppendElement(do_GetAtom(Substring(start, iter)));
 
     // skip whitespace
     while (iter != end && nsContentUtils::IsHTMLWhitespace(*iter)) {
@@ -1984,7 +1983,7 @@ static void* CreateTokens(nsINode* aRootNode, const nsString* types)
 NS_IMETHODIMP
 nsHTMLDocument::GetItems(const nsAString& types, nsIDOMNodeList** aReturn)
 {
-  *aReturn = GetItems(types).take();
+  *aReturn = GetItems(types).get();
   return NS_OK;
 }
 
@@ -2154,7 +2153,7 @@ NS_IMETHODIMP
 nsHTMLDocument::GetSelection(nsISelection** aReturn)
 {
   ErrorResult rv;
-  *aReturn = GetSelection(rv).take();
+  *aReturn = GetSelection(rv).get();
   return rv.ErrorCode();
 }
 

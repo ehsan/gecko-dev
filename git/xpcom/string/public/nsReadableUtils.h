@@ -16,7 +16,7 @@
 #include "nsAString.h"
 #endif
 
-#include "nsTArrayForwardDeclare.h"
+template<class E> class nsTArray;
 
 inline size_t Distance( const nsReadingIterator<char16_t>& start, const nsReadingIterator<char16_t>& end )
   {

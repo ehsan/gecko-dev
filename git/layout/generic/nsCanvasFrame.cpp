@@ -266,8 +266,7 @@ nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
 
   if (surf) {
     BlitSurface(dest, destRect, surf);
-    frame->Properties().Set(nsIFrame::CachedBackgroundImage(),
-                            surf.forget().take());
+    frame->Properties().Set(nsIFrame::CachedBackgroundImage(), surf.forget().get());
   }
   if (dt) {
     BlitSurface(dest->GetDrawTarget(), destRect, dt);

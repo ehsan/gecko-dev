@@ -31,7 +31,6 @@
 #include <algorithm>
 #include "Http2Compression.h"
 #include "mozilla/ChaosMode.h"
-#include "mozilla/unused.h"
 
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
@@ -334,7 +333,7 @@ nsHttpConnectionMgr::DoShiftReloadConnectionCleanup(nsHttpConnectionInfo *aCI)
     nsresult rv = PostEvent(&nsHttpConnectionMgr::OnMsgDoShiftReloadConnectionCleanup,
                             0, connInfo);
     if (NS_SUCCEEDED(rv))
-        unused << connInfo.forget();
+        connInfo.forget();
     return rv;
 }
 
@@ -409,7 +408,7 @@ nsHttpConnectionMgr::SpeculativeConnect(nsHttpConnectionInfo *ci,
     nsresult rv =
         PostEvent(&nsHttpConnectionMgr::OnMsgSpeculativeConnect, 0, args);
     if (NS_SUCCEEDED(rv))
-        unused << args.forget();
+        args.forget();
     return rv;
 }
 
@@ -504,9 +503,9 @@ nsHttpConnectionMgr::UpdateRequestTokenBucket(EventTokenBucket *aBucket)
     // Call From main thread when a new EventTokenBucket has been made in order
     // to post the new value to the socket thread.
     nsresult rv = PostEvent(&nsHttpConnectionMgr::OnMsgUpdateRequestTokenBucket,
-                            0, bucket);
+                            0, bucket.get());
     if (NS_SUCCEEDED(rv))
-        unused << bucket.forget();
+        bucket.forget();
     return rv;
 }
 
@@ -3106,7 +3105,7 @@ nsHalfOpenSocket::OnOutputStreamReady(nsIAsyncOutputStream *out)
             nsRefPtr<nsHttpConnection> copy(conn);
             // forget() to effectively addref because onmsg*() will drop a ref
             gHttpHandler->ConnMgr()->OnMsgReclaimConnection(
-                0, conn.forget().take());
+                0, conn.forget().get());
         }
     }
 

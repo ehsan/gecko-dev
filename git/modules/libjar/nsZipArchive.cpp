@@ -213,7 +213,7 @@ nsresult nsZipHandle::Init(nsIFile *file, nsZipHandle **ret, PRFileDesc **aFd)
   handle->mFile.Init(file);
   handle->mLen = (uint32_t) size;
   handle->mFileData = buf;
-  handle.forget(ret);
+  *ret = handle.forget().get();
   return NS_OK;
 }
 
@@ -235,7 +235,7 @@ nsresult nsZipHandle::Init(nsZipArchive *zip, const char *entry,
   handle->mFile.Init(zip, entry);
   handle->mLen = handle->mBuf->Length();
   handle->mFileData = handle->mBuf->Buffer();
-  handle.forget(ret);
+  *ret = handle.forget().get();
   return NS_OK;
 }
 

@@ -257,15 +257,13 @@ class ErrorCallbackRunnable : public nsRunnable
 {
 public:
   ErrorCallbackRunnable(
-    nsCOMPtr<nsIDOMGetUserMediaSuccessCallback>& aSuccess,
-    nsCOMPtr<nsIDOMGetUserMediaErrorCallback>& aError,
+    already_AddRefed<nsIDOMGetUserMediaSuccessCallback> aSuccess,
+    already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError,
     const nsAString& aErrorMsg, uint64_t aWindowID);
   NS_IMETHOD Run();
 private:
-  ~ErrorCallbackRunnable();
-
-  nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> mSuccess;
-  nsCOMPtr<nsIDOMGetUserMediaErrorCallback> mError;
+  already_AddRefed<nsIDOMGetUserMediaSuccessCallback> mSuccess;
+  already_AddRefed<nsIDOMGetUserMediaErrorCallback> mError;
   const nsString mErrorMsg;
   uint64_t mWindowID;
   nsRefPtr<MediaManager> mManager; // get ref to this when creating the runnable
@@ -324,8 +322,7 @@ public:
     nsString log;
 
     log.AssignASCII(errorLog, strlen(errorLog));
-    nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> success;
-    NS_DispatchToMainThread(new ErrorCallbackRunnable(success, mError,
+    NS_DispatchToMainThread(new ErrorCallbackRunnable(nullptr, mError.forget(),
       log, mWindowID));
     return NS_OK;
   }
@@ -427,7 +424,7 @@ private:
   nsRefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe
   bool mFinish;
   uint64_t mWindowID;
-  nsCOMPtr<nsIDOMGetUserMediaErrorCallback> mError;
+  nsRefPtr<nsIDOMGetUserMediaErrorCallback> mError;
 };
 
 typedef nsTArray<nsRefPtr<GetUserMediaCallbackMediaStreamListener> > StreamListeners;

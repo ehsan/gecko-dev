@@ -1067,8 +1067,7 @@ nsGonkCameraControl::SetupVideoMode(const nsAString& aProfile)
   mMediaProfiles = MediaProfiles::getInstance();
 
   nsAutoCString profile = NS_ConvertUTF16toUTF8(aProfile);
-  // XXXkhuey are we leaking?
-  mRecorderProfile = GetGonkRecorderProfileManager().take()->Get(profile.get());
+  mRecorderProfile = GetGonkRecorderProfileManager().get()->Get(profile.get());
   if (!mRecorderProfile) {
     DOM_CAMERA_LOGE("Recorder profile '%s' is not supported\n", profile.get());
     return NS_ERROR_INVALID_ARG;

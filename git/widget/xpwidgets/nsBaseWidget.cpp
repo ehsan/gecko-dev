@@ -36,14 +36,12 @@
 #include "prdtoa.h"
 #include "prenv.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/unused.h"
 #include "nsContentUtils.h"
 #include "gfxPrefs.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/MouseEvents.h"
 #include "GLConsts.h"
 #include "LayerScope.h"
-#include "mozilla/unused.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -191,8 +189,8 @@ void nsBaseWidget::DestroyCompositor()
                                    mCompositorChild));
     // The DestroyCompositor task we just added to the MessageLoop will handle
     // releasing mCompositorParent and mCompositorChild.
-    unused << mCompositorParent.forget();
-    unused << mCompositorChild.forget();
+    mCompositorParent.forget();
+    mCompositorChild.forget();
   }
 }
 

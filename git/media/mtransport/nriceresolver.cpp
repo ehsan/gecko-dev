@@ -174,7 +174,7 @@ int NrIceResolver::resolve(nr_resolver_resource *resource,
   // Instead, we return an addref'ed reference to PendingResolution itself,
   // which in turn holds the request and coordinates between cancel and
   // OnLookupComplete to release it only once.
-  pr.forget(handle);
+  *handle = pr.forget().get();
 
   _status=0;
 abort:

@@ -473,7 +473,7 @@ LayerManagerD3D10::CreateOptimalSurface(const IntSize &aSize,
   }
 
   surface->SetData(&gKeyD3D10Texture,
-                   texture.forget().take(),
+                   texture.forget().get(),
                    ReleaseTexture);
 
   return surface.forget();

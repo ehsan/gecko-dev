@@ -25,7 +25,6 @@
 #include "mozilla/TimeStamp.h"
 #include "nsContentListDeclarations.h"
 #include "nsMathUtils.h"
-#include "nsTArrayForwardDeclare.h"
 #include "Units.h"
 
 #if defined(XP_WIN)
@@ -103,6 +102,7 @@ struct JSRuntime;
 struct nsIntMargin;
 
 template<class E> class nsCOMArray;
+template<class E> class nsTArray;
 template<class K, class V> class nsDataHashtable;
 template<class K, class V> class nsRefPtrHashtable;
 template<class T> class nsReadingIterator;

@@ -12,8 +12,7 @@ namespace mozilla {
 
 using namespace layers;
 
-VideoFrame::VideoFrame(already_AddRefed<Image>& aImage,
-                       const gfxIntSize& aIntrinsicSize)
+VideoFrame::VideoFrame(already_AddRefed<Image> aImage, const gfxIntSize& aIntrinsicSize)
   : mImage(aImage), mIntrinsicSize(aIntrinsicSize), mForceBlack(false)
 {}
 
@@ -45,8 +44,7 @@ VideoChunk::~VideoChunk()
 {}
 
 void
-VideoSegment::AppendFrame(already_AddRefed<Image>&& aImage,
-                          TrackTicks aDuration,
+VideoSegment::AppendFrame(already_AddRefed<Image> aImage, TrackTicks aDuration,
                           const IntSize& aIntrinsicSize)
 {
   VideoChunk* chunk = AppendChunk(aDuration);

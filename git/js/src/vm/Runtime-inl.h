@@ -62,8 +62,7 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::Initi
     // Trigger an identical allocation to the one that notified us of OOM
     // so that we trigger the right kind of GC automatically.
     if (allowGC) {
-        mozilla::DebugOnly<JSObject *> obj =
-            js::gc::AllocateObjectForCacheHit<allowGC>(cx, entry->kind, heap);
+        JSObject *obj = js::gc::AllocateObjectForCacheHit<allowGC>(cx, entry->kind, heap);
         JS_ASSERT(!obj);
         return nullptr;
     }

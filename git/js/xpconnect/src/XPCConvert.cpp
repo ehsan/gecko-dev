@@ -911,7 +911,7 @@ XPCConvert::NativeInterface2JSObject(MutableHandleValue d,
     if (!allowNativeWrapper) {
         d.set(v);
         if (dest)
-            strongWrapper.forget(dest);
+            *dest = strongWrapper.forget().get();
         if (pErr)
             *pErr = NS_OK;
         return true;
@@ -928,14 +928,14 @@ XPCConvert::NativeInterface2JSObject(MutableHandleValue d,
     if (dest) {
         // The strongWrapper still holds the original flat object.
         if (flat == original) {
-            strongWrapper.forget(dest);
+            *dest = strongWrapper.forget().get();
         } else {
             nsRefPtr<XPCJSObjectHolder> objHolder =
                 XPCJSObjectHolder::newHolder(flat);
             if (!objHolder)
                 return false;
 
-            objHolder.forget(dest);
+            *dest = objHolder.forget().get();
         }
     }
 

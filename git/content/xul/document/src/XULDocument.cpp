@@ -1220,7 +1220,7 @@ XULDocument::GetElementsByAttribute(const nsAString& aAttribute,
                                     const nsAString& aValue,
                                     nsIDOMNodeList** aReturn)
 {
-    *aReturn = GetElementsByAttribute(aAttribute, aValue).take();
+    *aReturn = GetElementsByAttribute(aAttribute, aValue).get();
     return NS_OK;
 }
 
@@ -1249,7 +1249,7 @@ XULDocument::GetElementsByAttributeNS(const nsAString& aNamespaceURI,
 {
     ErrorResult rv;
     *aReturn = GetElementsByAttributeNS(aNamespaceURI, aAttribute,
-                                        aValue, rv).take();
+                                        aValue, rv).get();
     return rv.ErrorCode();
 }
 
@@ -4778,7 +4778,7 @@ XULDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
 {
     ErrorResult rv;
     nsCOMPtr<Element> el = do_QueryInterface(aElement);
-    *aResult = GetBoxObjectFor(el, rv).take();
+    *aResult = GetBoxObjectFor(el, rv).get();
     return rv.ErrorCode();
 }
 

@@ -48,7 +48,6 @@
 #include "ScriptSettings.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Likely.h"
-#include "mozilla/unused.h"
 
 // Other Classes
 #include "nsEventListenerManager.h"
@@ -3943,7 +3942,7 @@ NS_IMETHODIMP
 nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
 {
   ErrorResult rv;
-  *aContent = GetContentInternal(rv).take();
+  *aContent = GetContentInternal(rv).get();
 
   return rv.ErrorCode();
 }
@@ -11668,7 +11667,7 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     }
 
     // The timeout is now also held in the timer's closure.
-    unused << copy.forget();
+    copy.forget();
   } else {
     // If we are frozen, however, then we instead simply set
     // timeout->mTimeRemaining to be the "time remaining" in the timeout (i.e.,

@@ -53,7 +53,7 @@ NotifyPaintEvent::GetRegion()
 NS_IMETHODIMP
 NotifyPaintEvent::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
-  *aResult = BoundingClientRect().take();
+  *aResult = BoundingClientRect().get();
   return NS_OK;
 }
 
@@ -72,7 +72,7 @@ NotifyPaintEvent::BoundingClientRect()
 NS_IMETHODIMP
 NotifyPaintEvent::GetClientRects(nsIDOMClientRectList** aResult)
 {
-  *aResult = ClientRects().take();
+  *aResult = ClientRects().get();
   return NS_OK;
 }
 

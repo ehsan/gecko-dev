@@ -37,7 +37,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Option)
 namespace mozilla {
 namespace dom {
 
-HTMLOptionElement::HTMLOptionElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
+HTMLOptionElement::HTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mSelectedChanged(false),
     mIsSelected(false),
@@ -363,12 +363,12 @@ HTMLOptionElement::Option(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  already_AddRefed<nsINodeInfo> nodeInfo =
+  nsCOMPtr<nsINodeInfo> nodeInfo =
     doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nullptr,
                                         kNameSpaceID_XHTML,
                                         nsIDOMNode::ELEMENT_NODE);
 
-  nsRefPtr<HTMLOptionElement> option = new HTMLOptionElement(nodeInfo);
+  nsRefPtr<HTMLOptionElement> option = new HTMLOptionElement(nodeInfo.forget());
 
   if (aText.WasPassed()) {
     // Create a new text node and append it to the option

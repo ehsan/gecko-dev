@@ -875,7 +875,7 @@ RasterImage::CopyFrame(uint32_t aWhichFrame,
   ctx.SetPattern(pattern);
   ctx.Fill();
 
-  imgsurface.forget(_retval);
+  *_retval = imgsurface.forget().get();
   return NS_OK;
 }
 

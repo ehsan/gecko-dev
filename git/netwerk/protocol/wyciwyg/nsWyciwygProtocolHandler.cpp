@@ -129,7 +129,7 @@ nsWyciwygProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
   if (NS_FAILED(rv))
     return rv;
 
-  channel.forget(result);
+  *result = channel.forget().get();
   return NS_OK;
 }
 

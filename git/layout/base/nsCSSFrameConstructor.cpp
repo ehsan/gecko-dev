@@ -2448,11 +2448,10 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     // function in general.
     // Use a null PendingBinding, since our binding is not in fact pending.
     static const FrameConstructionData rootSVGData = FCDATA_DECL(0, nullptr);
-    already_AddRefed<nsStyleContext> extraRef =
-      nsRefPtr<nsStyleContext>(styleContext).forget();
+    nsRefPtr<nsStyleContext> extraRef(styleContext);
     FrameConstructionItem item(&rootSVGData, aDocElement,
                                aDocElement->Tag(), kNameSpaceID_SVG,
-                               nullptr, extraRef, true, nullptr);
+                               nullptr, extraRef.forget(), true, nullptr);
 
     nsFrameItems frameItems;
     contentFrame = ConstructOuterSVG(state, item, mDocElementContainingBlock,
@@ -2482,11 +2481,10 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     // function in general.
     // Use a null PendingBinding, since our binding is not in fact pending.
     static const FrameConstructionData rootTableData = FCDATA_DECL(0, nullptr);
-    already_AddRefed<nsStyleContext> extraRef =
-      nsRefPtr<nsStyleContext>(styleContext).forget();
+    nsRefPtr<nsStyleContext> extraRef(styleContext);
     FrameConstructionItem item(&rootTableData, aDocElement,
                                aDocElement->Tag(), kNameSpaceID_None,
-                               nullptr, extraRef, true, nullptr);
+                               nullptr, extraRef.forget(), true, nullptr);
 
     nsFrameItems frameItems;
     // if the document is a table then just populate it.
@@ -5081,11 +5079,12 @@ nsCSSFrameConstructor::AddPageBreakItem(nsIContent* aContent,
                                         nsStyleContext* aMainStyleContext,
                                         FrameConstructionItemList& aItems)
 {
+  nsRefPtr<nsStyleContext> pseudoStyle;
   // Use the same parent style context that |aMainStyleContext| has, since
   // that's easier to re-resolve and it doesn't matter in practice.
   // (Getting different parents can result in framechange hints, e.g.,
   // for user-modify.)
-  nsRefPtr<nsStyleContext> pseudoStyle =
+  pseudoStyle =
     mPresShell->StyleSet()->
       ResolveAnonymousBoxStyle(nsCSSAnonBoxes::pageBreak,
                                aMainStyleContext->GetParent());
@@ -5099,8 +5098,8 @@ nsCSSFrameConstructor::AddPageBreakItem(nsIContent* aContent,
   // Lie about the tag and namespace so we don't trigger anything
   // interesting during frame construction.
   aItems.AppendItem(&sPageBreakData, aContent, nsCSSAnonBoxes::pageBreak,
-                    kNameSpaceID_None, nullptr, pseudoStyle.forget(),
-                    true, nullptr);
+                    kNameSpaceID_None, nullptr, pseudoStyle.forget(), true,
+                    nullptr);
 }
 
 void
@@ -8951,7 +8950,7 @@ nsCSSFrameConstructor::CreateNeededAnonFlexItems(
     nsIAtom* pseudoType = nsCSSAnonBoxes::anonymousFlexItem;
     nsStyleContext* parentStyle = aParentFrame->StyleContext();
     nsIContent* parentContent = aParentFrame->GetContent();
-    already_AddRefed<nsStyleContext> wrapperStyle =
+    nsRefPtr<nsStyleContext> wrapperStyle =
       mPresShell->StyleSet()->ResolveAnonymousBoxStyle(pseudoType, parentStyle);
 
     static const FrameConstructionData sBlockFormattingContextFCData =
@@ -8967,7 +8966,7 @@ nsCSSFrameConstructor::CreateNeededAnonFlexItems(
                                 iter.item().mNameSpaceID,
                                 // no pending binding
                                 nullptr,
-                                wrapperStyle,
+                                wrapperStyle.forget(),
                                 true, nullptr);
 
     newItem->mIsAllInline = newItem->mHasInlineEnds =
@@ -9159,7 +9158,7 @@ nsCSSFrameConstructor::CreateNeededTablePseudos(nsFrameConstructorState& aState,
       pseudoType = nsCSSAnonBoxes::inlineTable;
     }
 
-    already_AddRefed<nsStyleContext> wrapperStyle =
+    nsRefPtr<nsStyleContext> wrapperStyle =
       mPresShell->StyleSet()->ResolveAnonymousBoxStyle(pseudoType, parentStyle);
     FrameConstructionItem* newItem =
       new FrameConstructionItem(&pseudoData.mFCData,
@@ -9173,7 +9172,7 @@ nsCSSFrameConstructor::CreateNeededTablePseudos(nsFrameConstructorState& aState,
                                 iter.item().mNameSpaceID,
                                 // no pending binding
                                 nullptr,
-                                wrapperStyle,
+                                wrapperStyle.forget(),
                                 true, nullptr);
 
     // Here we're cheating a tad... technically, table-internal items should be

@@ -5,7 +5,6 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/unused.h"
 
 #include "nsSVGElement.h"
 
@@ -50,7 +49,6 @@
 #include "nsAttrValueOrString.h"
 #include "nsSMILAnimationController.h"
 #include "mozilla/dom/SVGElementBinding.h"
-#include "mozilla/unused.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -63,7 +61,7 @@ static_assert(sizeof(void*) == sizeof(nullptr),
               "nullptr should be the correct size");
 
 nsresult
-NS_NewSVGElement(Element **aResult, already_AddRefed<nsINodeInfo>&& aNodeInfo)
+NS_NewSVGElement(Element **aResult, already_AddRefed<nsINodeInfo> aNodeInfo) 
 {
   nsRefPtr<nsSVGElement> it = new nsSVGElement(aNodeInfo);
   nsresult rv = it->Init();
@@ -84,7 +82,7 @@ nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
   {nullptr, 0}
 };
 
-nsSVGElement::nsSVGElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
+nsSVGElement::nsSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGElementBase(aNodeInfo)
 {
 }
@@ -101,7 +99,7 @@ nsSVGElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 NS_IMETHODIMP
 nsSVGElement::GetClassName(nsISupports** aClassName)
 {
-  *aClassName = ClassName().take();
+  *aClassName = ClassName().get();
   return NS_OK;
 }
 
@@ -1365,7 +1363,7 @@ nsSVGElement::UpdateAnimatedContentStyleRule()
                   SMIL_MAPPED_ATTR_STYLERULE_ATOM,
                   animContentStyleRule.get(),
                   ReleaseStyleRule);
-    unused << animContentStyleRule.forget();
+    animContentStyleRule.forget();
     NS_ABORT_IF_FALSE(rv == NS_OK,
                       "SetProperty failed (or overwrote something)");
   }

@@ -143,9 +143,7 @@
           "set": [
             ["dom.mozBrowserFramesEnabled", true]
           ]
-        }, function() {
-          SimpleTest.waitForFocus(runTest);
-        });
+        }, runTest);
       });
     </script>
   </body>

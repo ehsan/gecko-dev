@@ -768,7 +768,7 @@ ContentChild::AllocPBrowserChild(const IPCTabContext& aContext,
     nsRefPtr<TabChild> child = TabChild::Create(this, tc.GetTabContext(), aChromeFlags);
 
     // The ref here is released in DeallocPBrowserChild.
-    return child.forget().take();
+    return child.forget().get();
 }
 
 bool

@@ -1829,7 +1829,7 @@ HTMLMediaElement::MozCaptureStream(ErrorResult& aRv)
 NS_IMETHODIMP HTMLMediaElement::MozCaptureStream(nsIDOMMediaStream** aStream)
 {
   ErrorResult rv;
-  *aStream = MozCaptureStream(rv).take();
+  *aStream = MozCaptureStream(rv).get();
   return rv.ErrorCode();
 }
 
@@ -1848,7 +1848,7 @@ HTMLMediaElement::MozCaptureStreamUntilEnded(ErrorResult& aRv)
 NS_IMETHODIMP HTMLMediaElement::MozCaptureStreamUntilEnded(nsIDOMMediaStream** aStream)
 {
   ErrorResult rv;
-  *aStream = MozCaptureStreamUntilEnded(rv).take();
+  *aStream = MozCaptureStreamUntilEnded(rv).get();
   return rv.ErrorCode();
 }
 
@@ -1961,7 +1961,7 @@ HTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
   return nullptr;
 }
 
-HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
+HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mSrcStreamListener(nullptr),
     mCurrentLoadID(0),

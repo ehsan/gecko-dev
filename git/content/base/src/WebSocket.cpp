@@ -1412,7 +1412,7 @@ WebSocket::GetLoadGroup(nsILoadGroup** aLoadGroup)
     nsContentUtils::GetDocumentFromScriptContext(sc);
 
   if (doc) {
-    *aLoadGroup = doc->GetDocumentLoadGroup().take();
+    *aLoadGroup = doc->GetDocumentLoadGroup().get();  // already_AddRefed
   }
 
   return NS_OK;

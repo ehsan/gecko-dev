@@ -478,7 +478,7 @@ void
 Element::GetElementsByTagName(const nsAString& aLocalName,
                               nsIDOMHTMLCollection** aResult)
 {
-  *aResult = GetElementsByTagName(aLocalName).take();
+  *aResult = GetElementsByTagName(aLocalName).get();
 }
 
 nsIFrame*
@@ -1052,8 +1052,7 @@ nsresult
 Element::GetElementsByClassName(const nsAString& aClassNames,
                                 nsIDOMHTMLCollection** aResult)
 {
-  *aResult =
-    nsContentUtils::GetElementsByClassName(this, aClassNames).take();
+  *aResult = nsContentUtils::GetElementsByClassName(this, aClassNames).get();
   return NS_OK;
 }
 

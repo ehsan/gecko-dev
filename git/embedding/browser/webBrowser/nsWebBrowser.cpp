@@ -321,7 +321,7 @@ NS_IMETHODIMP nsWebBrowser::GetContainerWindow(nsIWebBrowserChrome** aTopWindow)
    NS_ENSURE_ARG_POINTER(aTopWindow);
 
    if(mDocShellTreeOwner) {
-      *aTopWindow = mDocShellTreeOwner->GetWebBrowserChrome().take();
+      *aTopWindow = mDocShellTreeOwner->GetWebBrowserChrome().get();
    } else {
       *aTopWindow = nullptr;
    }

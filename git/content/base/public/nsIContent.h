@@ -53,10 +53,11 @@ public:
   // If you're using the external API, the only thing you can know about
   // nsIContent is that it exists with an IID
 
-  nsIContent(already_AddRefed<nsINodeInfo>& aNodeInfo)
+  nsIContent(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsINode(aNodeInfo)
   {
-    MOZ_ASSERT(mNodeInfo);
+    NS_ASSERTION(mNodeInfo,
+                 "No nsINodeInfo passed to nsIContent, PREPARE TO CRASH!!!");
     SetNodeIsContent();
   }
 #endif // MOZILLA_INTERNAL_API

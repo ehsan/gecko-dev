@@ -186,7 +186,7 @@ DesktopNotification::Init()
                             NS_LITERAL_CSTRING("desktop-notification"),
                             NS_LITERAL_CSTRING("unused"),
                             emptyOptions));
-    child->SendPContentPermissionRequestConstructor(copy.forget().take(),
+    child->SendPContentPermissionRequestConstructor(copy.forget().get(),
                                                     permArray,
                                                     IPC::Principal(mPrincipal));
 

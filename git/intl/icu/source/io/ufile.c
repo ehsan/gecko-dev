@@ -43,7 +43,7 @@ static UFILE*
 finit_owner(FILE         *f,
               const char *locale,
               const char *codepage,
-              UBool       take
+              UBool       takeOwnership
               )
 {
     UErrorCode status = U_ZERO_ERROR;
@@ -94,7 +94,7 @@ finit_owner(FILE         *f,
     /* else result->fConverter is already memset'd to NULL. */
 
     if(U_SUCCESS(status)) {
-        result->fOwnFile = take;
+        result->fOwnFile = takeOwnership;
     }
     else {
 #if !UCONFIG_NO_FORMATTING

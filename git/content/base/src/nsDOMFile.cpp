@@ -256,7 +256,7 @@ nsDOMFileBase::Slice(int64_t aStart, int64_t aEnd,
   
   // Create the new file
   *aBlob = CreateSlice((uint64_t)aStart, (uint64_t)(aEnd - aStart),
-                       aContentType).take();
+                       aContentType).get();
 
   return *aBlob ? NS_OK : NS_ERROR_UNEXPECTED;
 }

@@ -137,31 +137,29 @@ nsNameSpaceManager::GetNameSpaceID(const nsAString& aURI)
 
 nsresult
 NS_NewElement(Element** aResult,
-              already_AddRefed<nsINodeInfo>&& aNodeInfo,
-              FromParser aFromParser)
+              already_AddRefed<nsINodeInfo> aNodeInfo, FromParser aFromParser)
 {
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  int32_t ns = ni->NamespaceID();
+  int32_t ns = aNodeInfo.get()->NamespaceID();
   if (ns == kNameSpaceID_XHTML) {
-    return NS_NewHTMLElement(aResult, ni.forget(), aFromParser);
+    return NS_NewHTMLElement(aResult, aNodeInfo, aFromParser);
   }
 #ifdef MOZ_XUL
   if (ns == kNameSpaceID_XUL) {
-    return NS_NewXULElement(aResult, ni.forget());
+    return NS_NewXULElement(aResult, aNodeInfo);
   }
 #endif
   if (ns == kNameSpaceID_MathML) {
-    return NS_NewMathMLElement(aResult, ni.forget());
+    return NS_NewMathMLElement(aResult, aNodeInfo);
   }
   if (ns == kNameSpaceID_SVG) {
-    return NS_NewSVGElement(aResult, ni.forget(), aFromParser);
+    return NS_NewSVGElement(aResult, aNodeInfo, aFromParser);
   }
-  if (ns == kNameSpaceID_XBL && ni->Equals(nsGkAtoms::children)) {
-    NS_ADDREF(*aResult = new XBLChildrenElement(ni.forget()));
+  if (ns == kNameSpaceID_XBL && aNodeInfo.get()->Equals(nsGkAtoms::children)) {
+    NS_ADDREF(*aResult = new XBLChildrenElement(aNodeInfo));
     return NS_OK;
   }
 
-  return NS_NewXMLElement(aResult, ni.forget());
+  return NS_NewXMLElement(aResult, aNodeInfo);
 }
 
 bool

@@ -812,11 +812,8 @@ nsDataObj::GetDib(const nsACString& inFlavor,
     // This might not be necessary any more, but could be useful for backwards
     // compatibility.
     nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
-    if ( ptr ) {
-      nsCOMPtr<nsISupports> supports;
-      ptr->GetData(getter_AddRefs(supports));
-      image = do_QueryInterface(supports);
-    }
+    if ( ptr )
+      ptr->GetData(getter_AddRefs(image));
   }
   
   if ( image ) {
@@ -1362,11 +1359,8 @@ HRESULT nsDataObj::DropFile(FORMATETC& aFE, STGMEDIUM& aSTG)
   if (!file)
   {
     nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
-    if (ptr) {
-      nsCOMPtr<nsISupports> supports;
-      ptr->GetData(getter_AddRefs(supports));
-      file = do_QueryInterface(supports);
-    }
+    if (ptr)
+      ptr->GetData(getter_AddRefs(file));
   }
 
   if (!file)
@@ -1429,11 +1423,8 @@ HRESULT nsDataObj::DropImage(FORMATETC& aFE, STGMEDIUM& aSTG)
       // This might not be necessary any more, but could be useful for backwards
       // compatibility.
       nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
-      if (ptr) {
-        nsCOMPtr<nsISupports> supports;
-        ptr->GetData(getter_AddRefs(supports));
-        image = do_QueryInterface(supports);
-      }
+      if (ptr)
+        ptr->GetData(getter_AddRefs(image));
     }
 
     if (!image) 

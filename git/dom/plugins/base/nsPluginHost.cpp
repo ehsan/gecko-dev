@@ -3300,7 +3300,7 @@ nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
     inStream->Close();
     outStream->Close();
     if (NS_SUCCEEDED(rv))
-      tempFile.forget(aTmpFile);
+      *aTmpFile = tempFile.forget().get();
   }
   return rv;
 }

@@ -11,12 +11,13 @@
 #define nsFlexContainerFrame_h___
 
 #include "nsContainerFrame.h"
-#include "nsTArrayForwardDeclare.h"
 
 nsIFrame* NS_NewFlexContainerFrame(nsIPresShell* aPresShell,
                                    nsStyleContext* aContext);
 
 typedef nsContainerFrame nsFlexContainerFrameSuper;
+
+template <class T> class nsTArray;
 
 class nsFlexContainerFrame : public nsFlexContainerFrameSuper {
 public:

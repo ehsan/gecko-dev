@@ -12,7 +12,6 @@
 #include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
-#include "nsTArrayForwardDeclare.h"
 #include "FrameLayerBuilder.h"
 
 namespace mozilla {
@@ -25,6 +24,7 @@ class LayerManager;
 class nsAString;
 class nsPresContext;
 class nsDisplayItem;
+template <class T> class nsTArray;
 
 nsIFrame* NS_NewVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 

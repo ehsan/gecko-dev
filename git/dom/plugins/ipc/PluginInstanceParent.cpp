@@ -823,7 +823,7 @@ PluginInstanceParent::BeginUpdateBackground(const nsIntRect& aRect,
     RefPtr<gfx::DrawTarget> dt = gfxPlatform::GetPlatform()->
       CreateDrawTargetForSurface(mBackground, gfx::IntSize(sz.width, sz.height));
     nsRefPtr<gfxContext> ctx = new gfxContext(dt);
-    ctx.forget(aCtx);
+    *aCtx = ctx.forget().get();
 
     return NS_OK;
 }

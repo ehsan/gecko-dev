@@ -314,7 +314,7 @@ xptiInterfaceEntry::GetInfoForParam(uint16_t methodIndex,
     if(NS_FAILED(rv))
         return rv;
 
-    *info = entry->InterfaceInfo().take();
+    *info = entry->InterfaceInfo().get();
 
     return NS_OK;
 }
@@ -570,7 +570,7 @@ xptiInterfaceInfo::BuildParent()
                  !mParent &&
                  mEntry->Parent(),
                 "bad BuildParent call");
-    mParent = mEntry->Parent()->InterfaceInfo().take();
+    mParent = mEntry->Parent()->InterfaceInfo().get();
     return true;
 }
 

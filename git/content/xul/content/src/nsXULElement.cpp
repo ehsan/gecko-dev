@@ -293,31 +293,28 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype,
 }
 
 nsresult
-NS_NewXULElement(Element** aResult, already_AddRefed<nsINodeInfo>&& aNodeInfo)
+NS_NewXULElement(Element** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
 {
-    nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
+    NS_PRECONDITION(aNodeInfo.get(), "need nodeinfo for non-proto Create");
 
-    NS_PRECONDITION(ni, "need nodeinfo for non-proto Create");
-
-    nsIDocument* doc = ni->GetDocument();
+    nsIDocument* doc = aNodeInfo.get()->GetDocument();
     if (doc && !doc->AllowXULXBL()) {
+        nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
         return NS_ERROR_NOT_AVAILABLE;
     }
 
-    NS_ADDREF(*aResult = new nsXULElement(ni.forget()));
+    NS_ADDREF(*aResult = new nsXULElement(aNodeInfo));
 
     return NS_OK;
 }
 
 void
-NS_TrustedNewXULElement(nsIContent** aResult,
-                        already_AddRefed<nsINodeInfo>&& aNodeInfo)
+NS_TrustedNewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
 {
-    nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-    NS_PRECONDITION(ni, "need nodeinfo for non-proto Create");
+    NS_PRECONDITION(aNodeInfo.get(), "need nodeinfo for non-proto Create");
 
     // Create an nsXULElement with the specified namespace and tag.
-    NS_ADDREF(*aResult = new nsXULElement(ni.forget()));
+    NS_ADDREF(*aResult = new nsXULElement(aNodeInfo));
 }
 
 //----------------------------------------------------------------------
@@ -419,7 +416,7 @@ nsXULElement::GetElementsByAttribute(const nsAString& aAttribute,
                                      const nsAString& aValue,
                                      nsIDOMNodeList** aReturn)
 {
-    *aReturn = GetElementsByAttribute(aAttribute, aValue).take();
+    *aReturn = GetElementsByAttribute(aAttribute, aValue).get();
     return NS_OK;
 }
 
@@ -448,7 +445,7 @@ nsXULElement::GetElementsByAttributeNS(const nsAString& aNamespaceURI,
 {
     ErrorResult rv;
     *aReturn =
-        GetElementsByAttributeNS(aNamespaceURI, aAttribute, aValue, rv).take();
+        GetElementsByAttributeNS(aNamespaceURI, aAttribute, aValue, rv).get();
     return rv.ErrorCode();
 }
 
@@ -1225,7 +1222,7 @@ NS_IMETHODIMP
 nsXULElement::GetResource(nsIRDFResource** aResource)
 {
     ErrorResult rv;
-    *aResource = GetResource(rv).take();
+    *aResource = GetResource(rv).get();
     return rv.ErrorCode();
 }
 
@@ -1251,7 +1248,7 @@ nsXULElement::GetResource(ErrorResult& rv)
 NS_IMETHODIMP
 nsXULElement::GetDatabase(nsIRDFCompositeDataSource** aDatabase)
 {
-    *aDatabase = GetDatabase().take();
+    *aDatabase = GetDatabase().get();
     return NS_OK;
 }
 
@@ -1272,7 +1269,7 @@ nsXULElement::GetDatabase()
 NS_IMETHODIMP
 nsXULElement::GetBuilder(nsIXULTemplateBuilder** aBuilder)
 {
-    *aBuilder = GetBuilder().take();
+    *aBuilder = GetBuilder().get();
     return NS_OK;
 }
 
@@ -1366,7 +1363,7 @@ NS_IMETHODIMP
 nsXULElement::GetBoxObject(nsIBoxObject** aResult)
 {
     ErrorResult rv;
-    *aResult = GetBoxObject(rv).take();
+    *aResult = GetBoxObject(rv).get();
     return rv.ErrorCode();
 }
 
@@ -1469,7 +1466,7 @@ nsXULElement::LoadSrc()
 nsresult
 nsXULElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
 {
-    *aFrameLoader = GetFrameLoader().take();
+    *aFrameLoader = GetFrameLoader().get();
     return NS_OK;
 }
 
@@ -2247,9 +2244,7 @@ nsXULPrototypeElement::Deserialize(nsIObjectInputStream* aStream,
                       rv = tmp;
                     }
                 } else {
-                    nsCOMPtr<nsISupports> supports;
-                    tmp = aStream->ReadObject(true, getter_AddRefs(supports));
-                    script->mSrcURI = do_QueryInterface(supports);
+                    tmp = aStream->ReadObject(true, getter_AddRefs(script->mSrcURI));
                     if (NS_FAILED(tmp)) {
                       rv = tmp;
                     }

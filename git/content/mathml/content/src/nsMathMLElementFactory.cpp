@@ -11,12 +11,11 @@ using namespace mozilla::dom;
 
 // MathML Element Factory (declared in nsContentCreatorFunctions.h)
 nsresult
-NS_NewMathMLElement(Element** aResult, already_AddRefed<nsINodeInfo>&& aNodeInfo)
+NS_NewMathMLElement(Element** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
 {
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  ni->SetIDAttributeAtom(nsGkAtoms::id);
+  aNodeInfo.get()->SetIDAttributeAtom(nsGkAtoms::id);
 
-  nsMathMLElement* it = new nsMathMLElement(ni.forget());
+  nsMathMLElement* it = new nsMathMLElement(aNodeInfo);
 
   NS_ADDREF(*aResult = it);
   return NS_OK;

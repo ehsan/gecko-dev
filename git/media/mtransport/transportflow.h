@@ -49,8 +49,7 @@
 
 namespace mozilla {
 
-class TransportFlow : public nsISupports,
-                      public sigslot::has_slots<> {
+class TransportFlow : public sigslot::has_slots<> {
  public:
   TransportFlow()
     : id_("(anonymous)"),
@@ -99,7 +98,7 @@ class TransportFlow : public nsISupports,
 
   bool Contains(TransportLayer *layer) const;
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportFlow)
 
  private:
   DISALLOW_COPY_ASSIGN(TransportFlow);
