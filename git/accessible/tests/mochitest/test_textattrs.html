@@ -28,13 +28,29 @@
      * @param aStartOffset      the start offset where text attributes are
      *                          applied
      * @param aEndOffset        the end offset where text attribute are applied
+     * @param aDefAttrs         the list of default text attributes (name/value
+     *                          pairs)
      */
     function testTextAttrs(aID, aOffset,
-                           aAttrs, aStartOffset, aEndOffset)
+                           aAttrs, aStartOffset, aEndOffset, aDefAttrs)
     {
-      var accessible = getTextAccessible(aID);
-      if (!accessible)
+      var node = document.getElementById(aID);
+      if (!node) {
+        ok(false, "Can't get the element with ID " + aID);
         return;
+      }
+
+      var accessible = null;
+      try {
+        accessible = gAccRetrieval.getAccessibleFor(node);
+        accessible.QueryInterface(nsIAccessibleText);
+      } catch (e) {
+      }
+
+      if (!accessible) {
+        ok(false, "Can't query nsIAccessibleText interface for " + aID);
+        return;
+      }
 
       var startOffset = { value: -1 };
       var endOffset = { value: -1 };
@@ -58,20 +74,6 @@
           "Wrong end offset" + errorMsg);
 
       compareTextAttrs(errorMsg, attrs, aAttrs);
-   }
-
-   /**
-    * Test default text attributes.
-    *
-    * @param aID               the ID of DOM element having text accessible
-    * @param aDefAttrs         the list of default text attributes (name/value
-    *                          pairs)
-    */
-   function testDefaultTextAttrs(aID, aDefAttrs)
-   {
-     var accessible = getTextAccessible(aID);
-     if (!accessible)
-       return;
 
       var defAttrs = null;
       try{
@@ -84,29 +86,7 @@
         return;
       }
 
-      var errorMsg = ". Getting default attributes for " + aID;
       compareTextAttrs(errorMsg, defAttrs, aDefAttrs);
-    }
-
-    function getTextAccessible(aID)
-    {
-      var node = document.getElementById(aID);
-      if (!node) {
-        ok(false, "Can't get the element with ID " + aID);
-        return;
-      }
-
-      var accessible = null;
-      try {
-        accessible = gAccRetrieval.getAccessibleFor(node);
-        accessible.QueryInterface(nsIAccessibleText);
-      } catch (e) {
-      }
-
-      if (!accessible)
-        ok(false, "Can't query nsIAccessibleText interface for " + aID);
-
-      return accessible;
     }
 
     function compareTextAttrs(aErrorMsg, aAttrs, aExpectedAttrs)
@@ -118,7 +98,7 @@
 
         if (!(prop.key in aExpectedAttrs))
           ok(false,
-             "Unexpected attribute '" + prop.key + "' having '" + prop.value + "'" + aErrorMsg);
+             "Unexpected attribute '" + prop.key + "' " + aErrorMsg);
         else
           is(prop.value, aExpectedAttrs[prop.key],
              "Attribute '" + prop.key + " 'has wrong value" + aErrorMsg);
@@ -187,17 +167,17 @@
             "font-family": "Lucida Grande",
             "text-position": "baseline"
           };
-          testDefaultTextAttrs(ID, defAttrs);
 
-          var attrs = { };
+          var attrs = { "background-color": "transparent" };
           var misspelledAttrs = {
+            "background-color": "transparent",
             "invalid": "spelling"
           };
 
-          testTextAttrs(ID, 0, attrs, 0, 11);
-          testTextAttrs(ID, 11, misspelledAttrs, 11, 17);
-          testTextAttrs(ID, 17, attrs, 17, 18);
-          testTextAttrs(ID, 18, misspelledAttrs, 18, 22);
+          testTextAttrs(ID, 0, attrs, 0, 11, defAttrs);
+          testTextAttrs(ID, 11, misspelledAttrs, 11, 17, defAttrs);
+          testTextAttrs(ID, 17, attrs, 17, 18, defAttrs);
+          testTextAttrs(ID, 18, misspelledAttrs, 18, 22, defAttrs);
 
           is(gA11yEventObserver.mTextAttrChangedEventCounter, 2,
              "Wrong count of 'text attribute changed' events for " + ID);
@@ -222,7 +202,7 @@
         "font-style": "normal",
         "text-align": "start",
         "font-size": "16px",
-        "background-color": "rgb(255, 255, 255)",
+        "background-color": "transparent",
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
@@ -230,16 +210,14 @@
         "text-position": "baseline"
       };
 
-      testDefaultTextAttrs(ID, defAttrs);
-
       var attrs = {};
-      testTextAttrs(ID, 0, attrs, 0, 7);
+      testTextAttrs(ID, 0, attrs, 0, 7, defAttrs);
 
       attrs = {"font-weight": "401"};
-      testTextAttrs(ID, 7, attrs, 7, 11);
+      testTextAttrs(ID, 7, attrs, 7, 11, defAttrs);
 
       attrs = {};
-      testTextAttrs(ID, 12, attrs, 11, 18);
+      testTextAttrs(ID, 12, attrs, 11, 18, defAttrs);
 
       //////////////////////////////////////////////////////////////////////////
       // area2
@@ -248,7 +226,7 @@
         "font-style": "normal",
         "text-align": "start",
         "font-size": "16px",
-        "background-color": "rgb(255, 255, 255)",
+        "background-color": "transparent",
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
@@ -256,22 +234,20 @@
         "text-position": "baseline"
       };
 
-      testDefaultTextAttrs(ID, defAttrs);
-
       attrs = {};
-      testTextAttrs(ID, 0, attrs, 0, 7);
+      testTextAttrs(ID, 0, attrs, 0, 7, defAttrs);
 
       attrs = {"font-weight": "401"};
-      testTextAttrs(ID, 7, attrs, 7, 12);
+      testTextAttrs(ID, 7, attrs, 7, 12, defAttrs);
 
       attrs = {"font-style": "italic", "font-weight": "401"};
-      testTextAttrs(ID, 13, attrs, 12, 19);
+      testTextAttrs(ID, 13, attrs, 12, 19, defAttrs);
 
       attrs = {"font-weight": "401"};
-      testTextAttrs(ID, 20, attrs, 19, 23);
+      testTextAttrs(ID, 20, attrs, 19, 23, defAttrs);
 
       attrs = {};
-      testTextAttrs(ID, 24, attrs, 23, 30);
+      testTextAttrs(ID, 24, attrs, 23, 30, defAttrs);
 
       //////////////////////////////////////////////////////////////////////////
       // area3
@@ -280,7 +256,7 @@
         "font-style": "normal",
         "text-align": "start",
         "font-size": "16px",
-        "background-color": "rgb(0, 0, 255)",
+        "background-color": "transparent",
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
@@ -288,19 +264,14 @@
         "text-position": "baseline"
       };
 
-      testDefaultTextAttrs(ID, defAttrs);
-
       attrs = {"color": "rgb(0, 128, 0)"};
-      testTextAttrs(ID, 0, attrs, 0, 6);
+      testTextAttrs(ID, 0, attrs, 0, 6, defAttrs);
 
       attrs = {"color": "rgb(255, 0, 0)"};
-      testTextAttrs(ID, 6, attrs, 6, 26);
+      testTextAttrs(ID, 6, attrs, 6, 26, defAttrs);
 
       attrs = {"color": "rgb(0, 128, 0)"};
-      testTextAttrs(ID, 26, attrs, 26, 27);
-
-      attrs = {"color": "rgb(0, 128, 0)", "background-color": "rgb(255, 255, 0)"};
-      testTextAttrs(ID, 27, attrs, 27, 50);
+      testTextAttrs(ID, 26, attrs, 26, 50, defAttrs);
 
       //////////////////////////////////////////////////////////////////////////
       // area4
@@ -309,7 +280,7 @@
         "font-style": "normal",
         "text-align": "start",
         "font-size": "16px",
-        "background-color": "rgb(255, 255, 255)",
+        "background-color": "transparent",
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
@@ -317,16 +288,14 @@
         "text-position": "baseline"
       };
 
-      testDefaultTextAttrs(ID, defAttrs);
-
       attrs = {"color": "rgb(0, 128, 0)"};
-      testTextAttrs(ID, 0, attrs, 0, 16);
+      testTextAttrs(ID, 0, attrs, 0, 16, defAttrs);
 
       attrs = {"color": "rgb(255, 0, 0)"};
-      testTextAttrs(ID, 16, attrs, 16, 33);
+      testTextAttrs(ID, 16, attrs, 16, 33, defAttrs);
 
       attrs = {"color": "rgb(0, 128, 0)"};
-      testTextAttrs(ID, 34, attrs, 33, 46);
+      testTextAttrs(ID, 34, attrs, 33, 46, defAttrs);
 
       //////////////////////////////////////////////////////////////////////////
       // area5
@@ -335,7 +304,7 @@
         "font-style": "normal",
         "text-align": "start",
         "font-size": "16px",
-        "background-color": "rgb(255, 255, 255)",
+        "background-color": "transparent",
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
@@ -343,19 +312,17 @@
         "text-position": "baseline"
       };
 
-      testDefaultTextAttrs(ID, defAttrs);
-
       attrs = {"color": "rgb(0, 128, 0)"};
-      testTextAttrs(ID, 0, attrs, 0, 5);
+      testTextAttrs(ID, 0, attrs, 0, 5, defAttrs);
 
       attrs = {};
-      testTextAttrs(ID, 7, attrs, 5, 8);
+      testTextAttrs(ID, 7, attrs, 5, 8, defAttrs);
 
       attrs = {"color": "rgb(255, 0, 0)"};
-      testTextAttrs(ID, 9, attrs, 8, 11);
+      testTextAttrs(ID, 9, attrs, 8, 11, defAttrs);
 
       attrs = {};
-      testTextAttrs(ID, 11, attrs, 11, 18);
+      testTextAttrs(ID, 11, attrs, 11, 18, defAttrs);
 
       //////////////////////////////////////////////////////////////////////////
       // area6 (CSS vertical-align property, bug 445938)
@@ -364,7 +331,7 @@
         "font-style": "normal",
         "text-align": "start",
         "font-size": "16px",
-        "background-color": "rgb(255, 255, 255)",
+        "background-color": "transparent",
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
@@ -372,31 +339,29 @@
         "text-position": "baseline"
       };
 
-      testDefaultTextAttrs(ID, defAttrs);
-
       attrs = {};
-      testTextAttrs(ID, 0, attrs, 0, 5);
+      testTextAttrs(ID, 0, attrs, 0, 5, defAttrs);
 
       attrs = {"text-position": "super", "font-size": "13px" };
-      testTextAttrs(ID, 5, attrs, 5, 13);
+      testTextAttrs(ID, 5, attrs, 5, 13, defAttrs);
 
       attrs = {};
-      testTextAttrs(ID, 13, attrs, 13, 27);
+      testTextAttrs(ID, 13, attrs, 13, 27, defAttrs);
 
       attrs = {"text-position": "super" };
-      testTextAttrs(ID, 27, attrs, 27, 35);
+      testTextAttrs(ID, 27, attrs, 27, 35, defAttrs);
 
       attrs = {};
-      testTextAttrs(ID, 35, attrs, 35, 39);
+      testTextAttrs(ID, 35, attrs, 35, 39, defAttrs);
 
       attrs = {"text-position": "sub", "font-size": "13px" };
-      testTextAttrs(ID, 39, attrs, 39, 50);
+      testTextAttrs(ID, 39, attrs, 39, 50, defAttrs);
 
       attrs = {};
-      testTextAttrs(ID, 50, attrs, 50, 55);
+      testTextAttrs(ID, 50, attrs, 50, 55, defAttrs);
 
       attrs = {"text-position": "sub" };
-      testTextAttrs(ID, 55, attrs, 55, 64);
+      testTextAttrs(ID, 55, attrs, 55, 64, defAttrs);
 
       //////////////////////////////////////////////////////////////////////////
       // area7
@@ -405,7 +370,7 @@
         "font-style": "normal",
         "text-align": "start",
         "font-size": "16px",
-        "background-color": "rgb(255, 255, 255)",
+        "background-color": "transparent",
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
@@ -413,37 +378,35 @@
         "text-position": "baseline"
       };
 
-      testDefaultTextAttrs(ID, defAttrs);
-
       attrs = {"language": "ru"};
-      testTextAttrs(ID, 0, attrs, 0, 12);
+      testTextAttrs(ID, 0, attrs, 0, 12, defAttrs);
 
       attrs = {"language": "en"};
-      testTextAttrs(ID, 12, attrs, 12, 13);
+      testTextAttrs(ID, 12, attrs, 12, 13, defAttrs);
 
       attrs = {"language" :"en", "background-color": "rgb(0, 0, 255)"};
-      testTextAttrs(ID, 13, attrs, 13, 26);
+      testTextAttrs(ID, 13, attrs, 13, 26, defAttrs);
 
       attrs = {"language": "en" };
-      testTextAttrs(ID, 26, attrs, 26, 27);
+      testTextAttrs(ID, 26, attrs, 26, 27, defAttrs);
 
       attrs = {"language": "de"};
-      testTextAttrs(ID, 27, attrs, 27, 42);
+      testTextAttrs(ID, 27, attrs, 27, 42, defAttrs);
 
       attrs = {"language": "en"};
-      testTextAttrs(ID, 42, attrs, 42, 43);
+      testTextAttrs(ID, 42, attrs, 42, 43, defAttrs);
 
       attrs = {};
-      testTextAttrs(ID, 43, attrs, 43, 50);
+      testTextAttrs(ID, 43, attrs, 43, 50, defAttrs);
 
       attrs = {"color": "rgb(255, 0, 255)"};
-      testTextAttrs(ID, 50, attrs, 50, 57);
+      testTextAttrs(ID, 50, attrs, 50, 57, defAttrs);
 
       attrs = {"font-weight": "401", "color": "rgb(255, 0, 255)" };
-      testTextAttrs(ID, 57, attrs, 57, 61);
+      testTextAttrs(ID, 57, attrs, 57, 61, defAttrs);
 
       attrs = {"color": "rgb(255, 0, 255)"};
-      testTextAttrs(ID, 61, attrs, 61, 68);
+      testTextAttrs(ID, 61, attrs, 61, 68, defAttrs);
 
       //////////////////////////////////////////////////////////////////////////
       // test spelling text attributes
@@ -468,11 +431,11 @@
 
   <p id="area1">Normal <b>Bold</b> Normal</p>
   <p id="area2">Normal <b>Bold <i>Italic </i>Bold</b> Normal</p>
-  <p id="area3" style="background-color: blue;">
-    <span style="color: green; background-color: rgb(0, 0, 255)">
+  <p id="area3">
+    <span style="color: green">
       Green
       <span style="color: red">but children are red</span>
-    </span><span style="color: green; background-color: rgb(255, 255, 0);">
+    </span><span style="color: green">
       Another green section.
     </span>
   </p>

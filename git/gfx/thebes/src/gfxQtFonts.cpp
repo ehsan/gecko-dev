@@ -34,10 +34,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "gfxPlatformGtk.h"
+#include "gfxQtPlatform.h"
 #include "gfxTypes.h"
-#include "gfxFT2Fonts.h"
+#include "gfxQtFonts.h"
+#include "qrect.h"
 #include <locale.h>
+#include <qfontinfo.h>
 #include "cairo-ft.h"
 #include <freetype/tttables.h>
 #include "gfxFontUtils.h"
@@ -47,12 +49,7 @@
  */
 
 FontEntry::FontEntry(const FontEntry& aFontEntry) :
-    mFaceName(aFontEntry.mFaceName),
-    mUnicodeFont(aFontEntry.mUnicodeFont),
-    mSymbolFont(aFontEntry.mSymbolFont),
-    mItalic(aFontEntry.mItalic),
-    mWeight(aFontEntry.mWeight),
-    mCharacterMap(aFontEntry.mCharacterMap)
+    gfxFontEntry(aFontEntry)
 {
     if (aFontEntry.mFontFace)
         mFontFace = cairo_font_face_reference(aFontEntry.mFontFace);
@@ -82,7 +79,7 @@ FontEntry::CairoFontFace()
 
     if (!mFontFace) {
         FT_Face face;
-        FT_New_Face(gfxPlatformGtk::GetPlatform()->GetFTLibrary(), mFilename.get(), mFTFontIndex, &face);
+        FT_New_Face(gfxQtPlatform::GetPlatform()->GetFTLibrary(), mFilename.get(), mFTFontIndex, &face);
         mFontFace = cairo_ft_font_face_create_for_ft_face(face, 0);
         cairo_font_face_set_user_data(mFontFace, &key, face, FTFontDestroyFunc);
     }
@@ -161,11 +158,11 @@ FontFamily::FindFontEntry(const gfxFontStyle& aFontStyle)
 
 
 /**
- * gfxFT2FontGroup
+ * gfxQtFontGroup
  */
 
 PRBool
-gfxFT2FontGroup::FontCallback(const nsAString& fontName,
+gfxQtFontGroup::FontCallback(const nsAString& fontName,
                              const nsACString& genericName,
                              void *closure)
 {
@@ -186,29 +183,29 @@ gfxFT2FontGroup::FontCallback(const nsAString& fontName,
  * In either case, add a ref, append it to the aFonts array, and return it ---
  * except for OOM in which case we do nothing and return null.
  */
-static already_AddRefed<gfxFT2Font>
+static already_AddRefed<gfxQtFont>
 GetOrMakeFont(const nsAString& aName, const gfxFontStyle *aStyle)
 {
     nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(aName, aStyle);
     if (!font) {
-        FontEntry *fe = gfxPlatformGtk::GetPlatform()->FindFontEntry(aName, *aStyle);
+        FontEntry *fe = gfxQtPlatform::GetPlatform()->FindFontEntry(aName, *aStyle);
         if (!fe) {
             printf("Failed to find font entry for %s\n", NS_ConvertUTF16toUTF8(aName).get());
             return nsnull;
         }
 
-        font = new gfxFT2Font(fe, aStyle);
+        font = new gfxQtFont(fe, aStyle);
         if (!font)
             return nsnull;
         gfxFontCache::GetCache()->AddNew(font);
     }
     gfxFont *f = nsnull;
     font.swap(f);
-    return static_cast<gfxFT2Font *>(f);
+    return static_cast<gfxQtFont *>(f);
 }
 
 
-gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
+gfxQtFontGroup::gfxQtFontGroup(const nsAString& families,
                                const gfxFontStyle *aStyle)
     : gfxFontGroup(families, aStyle)
 {
@@ -220,12 +217,11 @@ gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
 
     if (familyArray.Count() == 0) {
         nsAutoString prefFamilies;
-        gfxPlatformGtk::GetPlatform()->GetPrefFonts(aStyle->langGroup.get(), prefFamilies, nsnull);
+        gfxQtPlatform::GetPlatform()->GetPrefFonts(aStyle->langGroup.get(), prefFamilies, nsnull);
         if (!prefFamilies.IsEmpty()) {
             ForEachFont(prefFamilies, aStyle->langGroup, FontCallback, &familyArray);
         }
     }
-#if 0 /* FIXME DFB */
     if (familyArray.Count() == 0) {
         printf("failde to find a font. sadface\n");
         // We want to get rid of this entirely at some point, but first we need real lists of fonts.
@@ -233,24 +229,23 @@ gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
         QFontInfo fi (defaultFont);
         familyArray.AppendString(nsDependentString(static_cast<const PRUnichar *>(fi.family().utf16())));
     }
-#endif
 
     for (int i = 0; i < familyArray.Count(); i++) {
-        nsRefPtr<gfxFT2Font> font = GetOrMakeFont(*familyArray[i], &mStyle);
+        nsRefPtr<gfxQtFont> font = GetOrMakeFont(*familyArray[i], &mStyle);
         if (font) {
             mFonts.AppendElement(font);
         }
     }
 }
 
-gfxFT2FontGroup::~gfxFT2FontGroup()
+gfxQtFontGroup::~gfxQtFontGroup()
 {
 }
 
 gfxFontGroup *
-gfxFT2FontGroup::Copy(const gfxFontStyle *aStyle)
+gfxQtFontGroup::Copy(const gfxFontStyle *aStyle)
 {
-     return new gfxFT2FontGroup(mFamilies, aStyle);
+     return new gfxQtFontGroup(mFamilies, aStyle);
 }
 
 /**
@@ -265,7 +260,7 @@ static PRInt32 AppendDirectionalIndicatorUTF8(PRBool aIsRTL, nsACString& aString
     return 3; // both overrides map to 3 bytes in UTF8
 }
 
-gfxTextRun *gfxFT2FontGroup::MakeTextRun(const PRUnichar* aString, PRUint32 aLength,
+gfxTextRun *gfxQtFontGroup::MakeTextRun(const PRUnichar* aString, PRUint32 aLength,
                                         const Parameters* aParams, PRUint32 aFlags)
 {
     gfxTextRun *textRun = gfxTextRun::Create(aParams, aString, aLength, this, aFlags);
@@ -283,7 +278,7 @@ gfxTextRun *gfxFT2FontGroup::MakeTextRun(const PRUnichar* aString, PRUint32 aLen
     return textRun;
 }
 
-gfxTextRun *gfxFT2FontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
+gfxTextRun *gfxQtFontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
                                         const Parameters *aParams, PRUint32 aFlags)
 {
     NS_ASSERTION(aFlags & TEXT_IS_8BIT, "8bit should have been set");
@@ -302,7 +297,7 @@ gfxTextRun *gfxFT2FontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLengt
     return textRun;
 }
 
-void gfxFT2FontGroup::InitTextRun(gfxTextRun *aTextRun)
+void gfxQtFontGroup::InitTextRun(gfxTextRun *aTextRun)
 {
     CreateGlyphRunsFT(aTextRun);
 }
@@ -342,7 +337,7 @@ PRUint32 getUTF8CharAndNext(const PRUint8 *aString, PRUint8 *aLength)
 
 
 PRBool
-HasCharacter(gfxFT2Font *aFont, PRUint32 ch)
+HasCharacter(gfxQtFont *aFont, PRUint32 ch)
 {
     if (aFont->GetFontEntry()->mCharacterMap.test(ch))
         return PR_TRUE;
@@ -361,10 +356,10 @@ HasCharacter(gfxFT2Font *aFont, PRUint32 ch)
 
 #if 0
 inline FontEntry *
-gfxFT2FontGroup::WhichFontSupportsChar(const nsTArray<>& foo, PRUint32 ch)
+gfxQtFontGroup::WhichFontSupportsChar(const nsTArray<>& foo, PRUint32 ch)
 {
     for (int i = 0; i < aGroup->FontListLength(); i++) {
-        nsRefPtr<gfxFT2Font> font = aGroup->GetFontAt(i);
+        nsRefPtr<gfxQtFont> font = aGroup->GetFontAt(i);
         if (HasCharacter(font, ch))
             return font;
     }
@@ -372,10 +367,10 @@ gfxFT2FontGroup::WhichFontSupportsChar(const nsTArray<>& foo, PRUint32 ch)
 }
 #endif
 
-inline gfxFT2Font *
-gfxFT2FontGroup::FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, gfxFT2Font *aFont)
+inline gfxQtFont *
+gfxQtFontGroup::FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, gfxQtFont *aFont)
 {
-    gfxFT2Font *selectedFont;
+    gfxQtFont *selectedFont;
 
     // if this character or the next one is a joiner use the
     // same font as the previous range if we can
@@ -385,7 +380,7 @@ gfxFT2FontGroup::FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, 
     }
 
     for (PRUint32 i = 0; i < FontListLength(); i++) {
-        nsRefPtr<gfxFT2Font> font = GetFontAt(i);
+        nsRefPtr<gfxQtFont> font = GetFontAt(i);
         if (HasCharacter(font, ch))
             return font;
     }
@@ -453,7 +448,7 @@ gfxFT2FontGroup::FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, 
 }
 
 PRUint32
-gfxFT2FontGroup::ComputeRanges()
+gfxQtFontGroup::ComputeRanges()
 {
     const PRUnichar *str = mString.get();
     PRUint32 len = mString.Length();
@@ -475,7 +470,7 @@ gfxFT2FontGroup::ComputeRanges()
             if ((i+2 < len) && NS_IS_HIGH_SURROGATE(ch) && NS_IS_LOW_SURROGATE(str[i+2]))
                 nextCh = SURROGATE_TO_UCS4(nextCh, str[i+2]);
         }
-        gfxFT2Font *fe = FindFontForChar(ch,
+        gfxQtFont *fe = FindFontForChar(ch,
                                         prevCh,
                                         nextCh,
                                         (mRanges.Length() == 0) ? nsnull : mRanges[mRanges.Length() - 1].font);
@@ -504,8 +499,99 @@ gfxFT2FontGroup::ComputeRanges()
     return nranges;
 }
 
-void gfxFT2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun)
+void gfxQtFontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun)
 {
+#if 0
+    QString str(aUTF8, aUTF8Length);
+    QStackTextEngine engine(str, mQFont);
+    const Qt::LayoutDirection dir = aTextRun->IsRightToLeft() ? Qt::RightToLeft : Qt::LeftTRight;
+    engine.option.setTextDirection(dir);
+    engine.ignoreBidi = true;
+
+    // itemize
+    engine.itemize();
+
+
+    // XXX i think at this point we want to create a new textengine for each item
+    
+    // ...
+    QScriptLine line;
+    line.length = str.length();
+    engine.shapeLine(line);
+
+    int nItems = engine.layoutData->items.size();
+    QVarLengthArray<int> visualOrder(nItems);
+    QVarLengthArray<uchar> levels(nItems);
+    for (int i = 0; i < nItems; ++i)
+        levels[i] = engine.layoutData->items[i].analysis.bidiLevel;
+    QTextEngine::bidiReorder(nItems, levels.data(), visualOrder.data());
+
+    QFixed x = QFixed::fromReal(p.x());
+    QFixed ox = x;
+
+    for (int i = 0; i < nItems; ++i) {
+        int item = visualOrder[i];
+        const QScriptItem &si = engine.layoutData->items.at(item);
+        if (si.analysis.flags >= QScriptAnalysis::TabOrObject) {
+            x += si.width;
+            continue;
+        }
+        QFont f = engine.font(si);
+        /*
+          QTextItemInt gf(si, &f);
+          gf.num_glyphs = si.num_glyphs;
+          gf.glyphs = engine.glyphs(&si);
+          gf.chars = engine.layoutData->string.unicode() + si.position;
+          gf.num_chars = engine.length(item);
+          gf.width = si.width;
+          gf.logClusters = engine.logClusters(&si);
+
+          // drawTextItem(QPointF(x.toReal(), p.y()), gf);
+        */
+
+        const PRUint8 *p = aUTF8;
+        PRUint32 utf16Offset = 0;
+        gfxTextRun::CompressedGlyph g;
+
+        aTextRun->AddGlyphRun(font, 0);
+        // a textRun likely has the same font for most of the characters, so we can
+        // lock it before the loop for efficiency
+        FT_Face face =  font->GetQFont().freetypeFace();
+        while (p < aUTF8 + aUTF8Length) {
+            // convert UTF-8 character and step to the next one in line
+            PRUint8 chLen;
+        }
+        if (advance >= 0 &&
+            gfxTextRun::CompressedGlyph::IsSimpleAdvance(advance) &&
+            gfxTextRun::CompressedGlyph::IsSimpleGlyphID(gid))
+            {
+                aTextRun->SetSimpleGlyph(utf16Offset,
+                                         g.SetSimpleGlyph(advance, gid));
+                glyphFound = PR_TRUE;
+            } else if (gid == 0) {
+            // gid = 0 only happens when the glyph is missing from the font
+            if (i == fontlistLast) {
+                // set the missing glyph only when it's missing from the very
+                // last font
+                aTextRun->SetMissingGlyph(utf16Offset, ch);
+            }
+            glyphFound = PR_FALSE;
+        } else {
+            gfxTextRun::DetailedGlyph details;
+            details.mGlyphID = gid;
+            NS_ASSERTION(details.mGlyphID == gid, "Seriously weird glyph ID detected!");
+            details.mAdvance = advance;
+            details.mXOffset = 0;
+            details.mYOffset = 0;
+            g.SetComplex(aTextRun->IsClusterStart(utf16Offset), PR_TRUE, 1);
+            aTextRun->SetGlyphs(utf16Offset, g, &details);
+            glyphFound = PR_TRUE;
+        }
+
+        x += si.width;
+    }
+#endif
+
     ComputeRanges();
 
     const PRUnichar *strStart = mString.get();
@@ -514,14 +600,14 @@ void gfxFT2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun)
         const PRUnichar *rangeString = strStart + range.start;
         PRUint32 rangeLength = range.Length();
 
-        gfxFT2Font *font = range.font ? range.font.get() : GetFontAt(0);
+        gfxQtFont *font = range.font ? range.font.get() : GetFontAt(0);
         AddRange(aTextRun, font, rangeString, rangeLength);
     }
     
 }
 
 void
-gfxFT2FontGroup::AddRange(gfxTextRun *aTextRun, gfxFT2Font *font, const PRUnichar *str, PRUint32 len)
+gfxQtFontGroup::AddRange(gfxTextRun *aTextRun, gfxQtFont *font, const PRUnichar *str, PRUint32 len)
 {
     const PRUint32 appUnitsPerDevUnit = aTextRun->GetAppUnitsPerDevUnit();
     // we'll pass this in/figure it out dynamically, but at this point there can be only one face.
@@ -612,21 +698,22 @@ gfxFT2FontGroup::AddRange(gfxTextRun *aTextRun, gfxFT2Font *font, const PRUnicha
 }
 
 /**
- * gfxFT2Font
+ * gfxQtFont
  */
-gfxFT2Font::gfxFT2Font(FontEntry *aFontEntry,
+gfxQtFont::gfxQtFont(FontEntry *aFontEntry,
                      const gfxFontStyle *aFontStyle)
     : gfxFont(aFontEntry, aFontStyle),
     mScaledFont(nsnull),
     mHasSpaceGlyph(PR_FALSE),
     mSpaceGlyph(0),
     mHasMetrics(PR_FALSE),
-    mAdjustedSize(0),
-    mFontEntry(aFontEntry)
+    mAdjustedSize(0)
 {
+    mFontEntry = aFontEntry;
+    NS_ASSERTION(mFontEntry, "Unable to find font entry for font.  Something is whack.");
 }
 
-gfxFT2Font::~gfxFT2Font()
+gfxQtFont::~gfxQtFont()
 {
     if (mScaledFont) {
         cairo_scaled_font_destroy(mScaledFont);
@@ -643,7 +730,7 @@ gfxFT2Font::~gfxFT2Font()
         MOZ_FT_TRUNC(MOZ_FT_ROUND(FT_MulFix((v) , (s))))
 
 const gfxFont::Metrics&
-gfxFT2Font::GetMetrics()
+gfxQtFont::GetMetrics()
 {
     if (mHasMetrics)
         return mMetrics;
@@ -773,13 +860,13 @@ gfxFT2Font::GetMetrics()
 
 
 nsString
-gfxFT2Font::GetUniqueName()
+gfxQtFont::GetUniqueName()
 {
-    return GetName();
+    return GetFontEntry()->Name();
 }
 
 PRUint32
-gfxFT2Font::GetSpaceGlyph()
+gfxQtFont::GetSpaceGlyph()
 {
     NS_ASSERTION (GetStyle ()->size != 0,
     "forgot to short-circuit a text run with zero-sized font?");
@@ -797,17 +884,23 @@ gfxFT2Font::GetSpaceGlyph()
     return mSpaceGlyph;
 }
 
+FontEntry*
+gfxQtFont::GetFontEntry()
+{
+    return static_cast<FontEntry*> (mFontEntry.get());
+}
+
 cairo_font_face_t *
-gfxFT2Font::CairoFontFace()
+gfxQtFont::CairoFontFace()
 {
     // XXX we need to handle fake bold here (or by having a sepaerate font entry)
-    if (mStyle.weight >= 600 && mFontEntry->mWeight < 600)
+    if (mStyle.weight >= 600 && GetFontEntry()->mWeight < 600)
         printf("** We want fake weight\n");
-    return mFontEntry->CairoFontFace();
+    return GetFontEntry()->CairoFontFace();
 }
 
 cairo_scaled_font_t *
-gfxFT2Font::CairoScaledFont()
+gfxQtFont::CairoScaledFont()
 {
     if (!mScaledFont) {
         cairo_matrix_t sizeMatrix;
@@ -818,7 +911,7 @@ gfxFT2Font::CairoScaledFont()
         cairo_matrix_init_identity(&identityMatrix);
 
         // synthetic oblique by skewing via the font matrix
-        PRBool needsOblique = (!mFontEntry->mItalic && (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)));
+        PRBool needsOblique = (!GetFontEntry()->mItalic && (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)));
 
         if (needsOblique) {
             const double kSkewFactor = 0.25;
@@ -848,7 +941,7 @@ gfxFT2Font::CairoScaledFont()
 }
 
 PRBool
-gfxFT2Font::SetupCairoFont(gfxContext *aContext)
+gfxQtFont::SetupCairoFont(gfxContext *aContext)
 {
     cairo_scaled_font_t *scaledFont = CairoScaledFont();
 

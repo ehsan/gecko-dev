@@ -39,7 +39,6 @@
 #include "nsDragService.h"
 #include "nsISupportsPrimitives.h"
 #include "nsXPIDLString.h"
-#include "nsIDOMMouseEvent.h"
 
 #include "qmimedata.h"
 #include "qwidget.h"
@@ -209,16 +208,14 @@ nsDragService::InvokeDragSessionWithImage(
                         nsIDOMNode* aImage,
                         PRInt32 aImageX,
                         PRInt32 aImageY,
-                        nsIDOMDragEvent* aDragEvent,
-                        nsIDOMDataTransfer* aDataTransfer)
+                        nsIDOMMouseEvent* aDragEvent)
 {
     nsBaseDragService::InvokeDragSessionWithImage(
                                         aDOMNode, aTransferables,
                                         aRegion, aActionType,
                                         aImage,
                                         aImageX, aImageY,
-                                        aDragEvent,
-                                        aDataTransfer);
+                                        aDragEvent );
 
     SetupDragSession( aTransferables, aActionType);
 
@@ -241,21 +238,17 @@ nsDragService::InvokeDragSessionWithImage(
     return ExecuteDrag();
 }
 
+/* void invokeDragSessionWithSelection ( nsISelection selection , nsISupportsArray transferableArray , PRUint32 actionType , nsIDOMMouseEvent dragEvent ) */
 NS_IMETHODIMP
-nsDragService::InvokeDragSessionWithSelection(nsISelection* aSelection,
-                                              nsISupportsArray* aTransferableArray,
-                                              PRUint32 aActionType,
-                                              nsIDOMDragEvent* aDragEvent,
-                                              nsIDOMDataTransfer* aDataTransfer)
+nsDragService::InvokeDragSessionWithSelection(nsISelection* aSelection, nsISupportsArray* aTransferables, PRUint32 aActionType, nsIDOMMouseEvent* aDragEvent)
 {
     nsBaseDragService::InvokeDragSessionWithSelection(
                                         aSelection,
-                                        aTransferableArray,
+                                        aTransferables,
                                         aActionType,
-                                        aDragEvent,
-                                        aDataTransfer);
+                                        aDragEvent );
 
-    SetupDragSession( aTransferableArray, aActionType);
+    SetupDragSession( aTransferables, aActionType);
 
     // Setup selection related properties
     // There is however nothing that needs to be set

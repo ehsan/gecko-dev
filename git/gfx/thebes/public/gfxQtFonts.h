@@ -36,8 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef GFX_GTKDFBFONTS_H
-#define GFX_GTKDFBFONTS_H
+#ifndef GFX_QTFONTS_H
+#define GFX_QTFONTS_H
 
 #include "cairo.h"
 #include "gfxTypes.h"
@@ -53,29 +53,29 @@ typedef struct FT_FaceRec_* FT_Face;
  * and character map info.
  */
 class FontEntry;
-class FontFamily
+class FontFamily : public gfxFontFamily
 {
 public:
-    THEBES_INLINE_DECL_REFCOUNTING(FontFamily)
-
     FontFamily(const nsAString& aName) :
-        mName(aName) { }
+        gfxFontFamily(aName) { }
 
     FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
 
 public:
     nsTArray<nsRefPtr<FontEntry> > mFaces;
-    nsString mName;
 };
 
-class FontEntry
+class FontEntry : public gfxFontEntry
 {
 public:
-    THEBES_INLINE_DECL_REFCOUNTING(FontEntry)
-
-    FontEntry(const nsString& aFaceName) : 
-        mFontFace(nsnull), mFaceName(aFaceName), mFTFontIndex(0), mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE)
-    { }
+    FontEntry(const nsAString& aFaceName) :
+        gfxFontEntry(aFaceName)
+    {
+        mFontFace = nsnull;
+        mFTFontIndex = 0;
+        mUnicodeFont = PR_FALSE;
+        mSymbolFont = PR_FALSE;
+    }
 
     FontEntry(const FontEntry& aFontEntry);
     ~FontEntry();
@@ -92,23 +92,17 @@ public:
     nsCString mFilename;
     PRUint8 mFTFontIndex;
 
-    PRPackedBool mUnicodeFont : 1;
-    PRPackedBool mSymbolFont  : 1;
     PRPackedBool mTrueType    : 1;
     PRPackedBool mIsType1     : 1;
-    PRPackedBool mItalic      : 1;
-    PRUint16 mWeight;
-
-    gfxSparseBitSet mCharacterMap;
 };
 
 
 
-class gfxFT2Font : public gfxFont {
+class gfxQtFont : public gfxFont {
 public: // new functions
-    gfxFT2Font(FontEntry *aFontEntry,
+    gfxQtFont(FontEntry *aFontEntry,
                const gfxFontStyle *aFontStyle);
-    virtual ~gfxFT2Font ();
+    virtual ~gfxQtFont ();
 
     virtual const gfxFont::Metrics& GetMetrics();
 
@@ -119,7 +113,7 @@ public: // new functions
     virtual nsString GetUniqueName();
     virtual PRUint32 GetSpaceGlyph();
 
-    FontEntry *GetFontEntry() { return mFontEntry; }
+    FontEntry *GetFontEntry();
 private:
     cairo_scaled_font_t *mScaledFont;
 
@@ -129,17 +123,16 @@ private:
     Metrics mMetrics;
     gfxFloat mAdjustedSize;
 
-    nsRefPtr<FontEntry> mFontEntry;
 };
 
-class THEBES_API gfxFT2FontGroup : public gfxFontGroup {
+class THEBES_API gfxQtFontGroup : public gfxFontGroup {
 public: // new functions
-    gfxFT2FontGroup (const nsAString& families,
+    gfxQtFontGroup (const nsAString& families,
                     const gfxFontStyle *aStyle);
-    virtual ~gfxFT2FontGroup ();
+    virtual ~gfxQtFontGroup ();
 
-    inline gfxFT2Font *GetFontAt (PRInt32 i) {
-        return static_cast <gfxFT2Font *>(static_cast <gfxFont *>(mFonts[i]));
+    inline gfxQtFont *GetFontAt (PRInt32 i) {
+        return static_cast <gfxQtFont *>(static_cast <gfxFont *>(mFonts[i]));
     }
 
 protected: // from gfxFontGroup
@@ -160,20 +153,20 @@ protected: // new functions
     void InitTextRun(gfxTextRun *aTextRun);
 
     void CreateGlyphRunsFT(gfxTextRun *aTextRun);
-    void AddRange(gfxTextRun *aTextRun, gfxFT2Font *font, const PRUnichar *str, PRUint32 len);
+    void AddRange(gfxTextRun *aTextRun, gfxQtFont *font, const PRUnichar *str, PRUint32 len);
 
     static PRBool FontCallback (const nsAString & fontName, 
                                 const nsACString & genericName, 
                                 void *closure);
     PRBool mEnableKerning;
 
-    gfxFT2Font *FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, gfxFT2Font *aFont);
+    gfxQtFont *FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, gfxQtFont *aFont);
     PRUint32 ComputeRanges();
 
     struct TextRange {
         TextRange(PRUint32 aStart,  PRUint32 aEnd) : start(aStart), end(aEnd) { }
         PRUint32 Length() const { return end - start; }
-        nsRefPtr<gfxFT2Font> font;
+        nsRefPtr<gfxQtFont> font;
         PRUint32 start, end;
     };
 
@@ -181,5 +174,5 @@ protected: // new functions
     nsString mString;
 };
 
-#endif /* GFX_GTKDFBFONTS_H */
+#endif /* GFX_QTFONTS_H */
 

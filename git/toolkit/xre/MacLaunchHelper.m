@@ -93,3 +93,4 @@ void LaunchChildMac(int aArgc, char** aArgv)
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
