@@ -839,13 +839,6 @@ public:
     MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
     MOZ_ASSERT(aPlaces.Length() > 0, "Must pass a non-empty array!");
 
-    // Make sure nsNavHistory service is up before proceeding:
-    nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
-    MOZ_ASSERT(navHistory, "Could not get nsNavHistory?!");
-    if (!navHistory) {
-      return NS_ERROR_FAILURE;
-    }
-
     nsRefPtr<InsertVisitedURIs> event =
       new InsertVisitedURIs(aConnection, aPlaces, aCallback);
 
@@ -934,6 +927,9 @@ private:
 
     (void)mPlaces.SwapElements(aPlaces);
     (void)mReferrers.SetLength(mPlaces.Length());
+
+    nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
+    NS_ABORT_IF_FALSE(navHistory, "Could not get nsNavHistory?!");
 
     for (nsTArray<VisitData>::size_type i = 0; i < mPlaces.Length(); i++) {
       mReferrers[i].spec = mPlaces[i].referrerSpec;
@@ -2693,14 +2689,9 @@ History::RemoveAllDownloads()
 NS_IMETHODIMP
 History::GetPlacesInfo(JS::Handle<JS::Value> aPlaceIdentifiers,
                        mozIVisitInfoCallback* aCallback,
-                       JSContext* aCtx)
-{
-  // Make sure nsNavHistory service is up before proceeding:
+                       JSContext* aCtx) {
   nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
-  MOZ_ASSERT(navHistory, "Could not get nsNavHistory?!");
-  if (!navHistory) {
-    return NS_ERROR_FAILURE;
-  }
+  NS_ABORT_IF_FALSE(navHistory, "Could not get nsNavHistory?!");
 
   uint32_t placesIndentifiersLength;
   JS::Rooted<JSObject*> placesIndentifiers(aCtx);

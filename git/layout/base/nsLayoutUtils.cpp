@@ -331,19 +331,19 @@ TextAlignTrueEnabledPrefChangeCallback(const char* aPrefName, void* aClosure)
     isTextAlignTrueEnabled ? eCSSKeyword_true : eCSSKeyword_UNKNOWN;
 }
 
-static AnimationPlayerCollection*
+static ElementAnimationCollection*
 GetAnimationsOrTransitionsForCompositor(nsIContent* aContent,
                                         nsIAtom* aAnimationProperty,
                                         nsCSSProperty aProperty)
 {
-  AnimationPlayerCollection* collection =
-    static_cast<AnimationPlayerCollection*>(
+  ElementAnimationCollection* collection =
+    static_cast<ElementAnimationCollection*>(
       aContent->GetProperty(aAnimationProperty));
   if (collection) {
     bool propertyMatches = collection->HasAnimationOfProperty(aProperty);
     if (propertyMatches &&
         collection->CanPerformOnCompositorThread(
-          AnimationPlayerCollection::CanAnimate_AllowPartial)) {
+          ElementAnimationCollection::CanAnimate_AllowPartial)) {
       return collection;
     }
   }
@@ -363,13 +363,13 @@ nsLayoutUtils::HasAnimationsForCompositor(nsIContent* aContent,
            aContent, nsGkAtoms::transitionsProperty, aProperty);
 }
 
-static AnimationPlayerCollection*
+static ElementAnimationCollection*
 GetAnimationsOrTransitions(nsIContent* aContent,
                            nsIAtom* aAnimationProperty,
                            nsCSSProperty aProperty)
 {
-  AnimationPlayerCollection* collection =
-    static_cast<AnimationPlayerCollection*>(aContent->GetProperty(
+  ElementAnimationCollection* collection =
+    static_cast<ElementAnimationCollection*>(aContent->GetProperty(
         aAnimationProperty));
   if (collection) {
     bool propertyMatches = collection->HasAnimationOfProperty(aProperty);
@@ -400,8 +400,8 @@ nsLayoutUtils::HasCurrentAnimations(nsIContent* aContent,
   if (!aContent->MayHaveAnimations())
     return false;
 
-  AnimationPlayerCollection* collection =
-    static_cast<AnimationPlayerCollection*>(
+  ElementAnimationCollection* collection =
+    static_cast<ElementAnimationCollection*>(
       aContent->GetProperty(aAnimationProperty));
   return (collection && collection->HasCurrentAnimations());
 }
@@ -464,20 +464,19 @@ GetMinAndMaxScaleForAnimationProperty(nsIContent* aContent,
                                       gfxSize& aMaxScale,
                                       gfxSize& aMinScale)
 {
-  AnimationPlayerCollection* collection =
+  ElementAnimationCollection* collection =
     GetAnimationsOrTransitionsForCompositor(aContent, aAnimationProperty,
                                             eCSSProperty_transform);
   if (!collection)
     return;
 
-  for (size_t playerIdx = collection->mPlayers.Length(); playerIdx-- != 0; ) {
-    AnimationPlayer* player = collection->mPlayers[playerIdx];
-    if (!player->GetSource() || player->GetSource()->IsFinishedTransition()) {
+  for (uint32_t animIdx = collection->mAnimations.Length(); animIdx-- != 0; ) {
+    mozilla::ElementAnimation* anim = collection->mAnimations[animIdx];
+    if (anim->IsFinishedTransition()) {
       continue;
     }
-    dom::Animation* anim = player->GetSource();
-    for (size_t propIdx = anim->Properties().Length(); propIdx-- != 0; ) {
-      AnimationProperty& prop = anim->Properties()[propIdx];
+    for (uint32_t propIdx = anim->mProperties.Length(); propIdx-- != 0; ) {
+      AnimationProperty& prop = anim->mProperties[propIdx];
       if (prop.mProperty == eCSSProperty_transform) {
         for (uint32_t segIdx = prop.mSegments.Length(); segIdx-- != 0; ) {
           AnimationPropertySegment& segment = prop.mSegments[segIdx];

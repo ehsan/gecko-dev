@@ -58,7 +58,7 @@ public:
   {
   }
 
-  static mozilla::AnimationPlayerCollection*
+  static mozilla::ElementAnimationCollection*
   GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty)
   {
     return mozilla::css::CommonAnimationManager::GetAnimationsForCompositor(
@@ -76,10 +76,10 @@ public:
     return false;
   }
 
-  void UpdateStyleAndEvents(mozilla::AnimationPlayerCollection* aEA,
+  void UpdateStyleAndEvents(mozilla::ElementAnimationCollection* aEA,
                             mozilla::TimeStamp aRefreshTime,
                             mozilla::EnsureStyleRuleFlags aFlags);
-  void GetEventsForCurrentTime(mozilla::AnimationPlayerCollection* aEA,
+  void GetEventsForCurrentTime(mozilla::ElementAnimationCollection* aEA,
                                EventArray &aEventsToDispatch);
 
   // nsIStyleRuleProcessor (parts)
@@ -127,10 +127,10 @@ public:
     }
   }
 
-  mozilla::AnimationPlayerCollection*
-  GetAnimationPlayers(mozilla::dom::Element *aElement,
-                      nsCSSPseudoElements::Type aPseudoType,
-                      bool aCreateIfNeeded);
+  mozilla::ElementAnimationCollection*
+  GetElementAnimations(mozilla::dom::Element *aElement,
+                       nsCSSPseudoElements::Type aPseudoType,
+                       bool aCreateIfNeeded);
 
 protected:
   virtual void ElementCollectionRemoved() MOZ_OVERRIDE
@@ -138,7 +138,7 @@ protected:
     CheckNeedsRefresh();
   }
   virtual void
-  AddElementCollection(mozilla::AnimationPlayerCollection* aData) MOZ_OVERRIDE;
+  AddElementCollection(mozilla::ElementAnimationCollection* aData) MOZ_OVERRIDE;
 
   /**
    * Check to see if we should stop or start observing the refresh driver
@@ -148,7 +148,7 @@ protected:
 private:
   void BuildAnimations(nsStyleContext* aStyleContext,
                        mozilla::dom::AnimationTimeline* aTimeline,
-                       mozilla::AnimationPlayerPtrArray& aAnimations);
+                       mozilla::ElementAnimationPtrArray& aAnimations);
   bool BuildSegment(InfallibleTArray<mozilla::AnimationPropertySegment>&
                       aSegments,
                     nsCSSProperty aProperty,

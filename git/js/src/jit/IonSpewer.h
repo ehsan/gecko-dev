@@ -34,8 +34,6 @@ namespace jit {
     _(GVN)                                  \
     /* Information during Range analysis */ \
     _(Range)                                \
-    /* Information during loop unrolling */ \
-    _(Unrolling)                            \
     /* Information during LICM */           \
     _(LICM)                                 \
     /* Information during regalloc */       \
