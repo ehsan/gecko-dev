@@ -78,7 +78,7 @@ var SelectionHandler = {
         } else if (this._activeType == this.TYPE_CURSOR) {
           // attachCaret() is called in the "Gesture:SingleTap" handler in BrowserEventHandler
           // We're guaranteed to call this first, because this observer was added last
-          this._deactivate();
+          this._closeSelection();
         }
         break;
       }
@@ -159,7 +159,7 @@ var SelectionHandler = {
 
       case "compositionend":
         if (this._activeType == this.TYPE_CURSOR) {
-          this._deactivate();
+          this._closeSelection();
         }
         break;
     }
@@ -216,25 +216,25 @@ var SelectionHandler = {
     this._closeSelection();
 
     this._initTargetInfo(aElement);
+    this._activeType = this.TYPE_SELECTION;
 
     // Clear any existing selection from the document
     this._contentWindow.getSelection().removeAllRanges();
 
     if (!this._domWinUtils.selectAtPoint(aX, aY, Ci.nsIDOMWindowUtils.SELECT_WORDNOSPACE)) {
-      this._deactivate();
+      this._closeSelection();
       return;
     }
 
     let selection = this._getSelection();
     // If the range didn't have any text, let's bail
     if (!selection || selection.rangeCount == 0) {
-      this._deactivate();
+      this._closeSelection();
       return;
     }
 
     // Add a listener to end the selection if it's removed programatically
     selection.QueryInterface(Ci.nsISelectionPrivate).addSelectionListener(this);
-    this._activeType = this.TYPE_SELECTION;
 
     // Initialize the cache
     this._cache = { start: {}, end: {}};
@@ -498,23 +498,16 @@ var SelectionHandler = {
     if (this._activeType == this.TYPE_NONE)
       return;
 
-    if (this._activeType == this.TYPE_SELECTION)
-      this._clearSelection();
-
-    this._deactivate();
-  },
-
-  _clearSelection: function sh_clearSelection() {
-    let selection = this._getSelection();
-    if (selection) {
-      // Remove our listener before we clear the selection
-      selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
-      // Clear selection without clearing the anchorNode or focusNode
-      selection.collapseToStart();
+    if (this._activeType == this.TYPE_SELECTION) {
+      let selection = this._getSelection();
+      if (selection) {
+        // Remove our listener before we clear the selection
+        selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
+        // Clear selection without clearing the anchorNode or focusNode
+        selection.collapseToStart();
+      }
     }
-  },
 
-  _deactivate: function sh_deactivate() {
     this._activeType = this.TYPE_NONE;
 
     sendMessageToJava({ type: "TextSelection:HideHandles" });

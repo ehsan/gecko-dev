@@ -21,7 +21,6 @@
 #include "mozIStoragePendingStatement.h"
 #include "mozIStorageError.h"
 #include "mozStorageHelper.h"
-#include "nsXULAppAPI.h"
 
 #define OBSERVER_TOPIC_IDLE_DAILY "idle-daily"
 #define OBSERVER_TOPIC_XPCOM_SHUTDOWN "xpcom-shutdown"
@@ -317,11 +316,6 @@ VacuumManager::gVacuumManager = nullptr;
 VacuumManager *
 VacuumManager::getSingleton()
 {
-  //Don't allocate it in the child Process.
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    return nullptr;
-  }
-
   if (gVacuumManager) {
     NS_ADDREF(gVacuumManager);
     return gVacuumManager;

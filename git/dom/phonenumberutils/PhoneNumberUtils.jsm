@@ -64,17 +64,7 @@ this.PhoneNumberUtils = {
       mcc = this._mcc;
     }
 #else
-
-    // Attempt to grab last known sim mcc from prefs
-    if (!mcc) {
-      try {
-        mcc = Services.prefs.getCharPref("ril.lastKnownSimMcc");
-      } catch (e) {}
-    }
-
-    if (!mcc) {
-      mcc = this._mcc;
-    }
+    mcc = this._mcc;
 #endif
 
     countryName = MCC_ISO3166_TABLE[mcc];
@@ -85,32 +75,15 @@ this.PhoneNumberUtils = {
   parse: function(aNumber) {
     if (DEBUG) debug("call parse: " + aNumber);
     let result = PhoneNumber.Parse(aNumber, this.getCountryName());
-
-    if (result) {
-      let countryName = result.countryName || this.getCountryName();
-      let number = null;
-      if (countryName) {
-        if (Services.prefs.getPrefType("dom.phonenumber.substringmatching." + countryName) == Ci.nsIPrefBranch.PREF_INT) {
-          let val = Services.prefs.getIntPref("dom.phonenumber.substringmatching." + countryName);
-          if (val) {
-            number = result.internationalNumber || result.nationalNumber;
-            if (number && number.length > val) {
-              number = number.slice(-val);
-            }
-          }
-        }
-      }
-      Object.defineProperty(result, "nationalMatchingFormat", { value: number, enumerable: true });
-      if (DEBUG) {
+    if (DEBUG) {
+      if (result) {
         debug("InternationalFormat: " + result.internationalFormat);
         debug("InternationalNumber: " + result.internationalNumber);
         debug("NationalNumber: " + result.nationalNumber);
         debug("NationalFormat: " + result.nationalFormat);
-        debug("CountryName: " + result.countryName);
-        debug("NationalMatchingFormat: " + result.nationalMatchingFormat);
+      } else {
+        debug("No result!\n");
       }
-    } else if (DEBUG) {
-      debug("NO PARSING RESULT!");
     }
     return result;
   },
@@ -143,8 +116,8 @@ this.PhoneNumberUtils = {
     let parsed1 = this.parse(aNumber1);
     let parsed2 = this.parse(aNumber2);
     if (parsed1 && parsed2) {
-      if ((parsed1.internationalNumber && parsed1.internationalNumber === parsed2.internationalNumber)
-          || (parsed1.nationalNumber && parsed1.nationalNumber === parsed2.nationalNumber)) {
+      if (parsed1.internationalNumber === parsed2.internationalNumber
+          || parsed1.nationalNumber === parsed2.nationalNumber) {
         return true;
       }
     }
@@ -152,8 +125,7 @@ this.PhoneNumberUtils = {
     let ssPref = "dom.phonenumber.substringmatching." + countryName;
     if (Services.prefs.getPrefType(ssPref) == Ci.nsIPrefBranch.PREF_INT) {
       let val = Services.prefs.getIntPref(ssPref);
-      if (normalized1.length > val && normalized2.length > val
-         && normalized1.slice(-val) === normalized2.slice(-val)) {
+      if (normalized1.slice(-val) === normalized2.slice(-val)) {
         return true;
       }
     }

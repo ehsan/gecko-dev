@@ -1,5 +1,7 @@
 function numClosedTabs()
-  SessionStore.getNumberOfTabsClosedLast(window);
+  Cc["@mozilla.org/browser/sessionstore;1"].
+    getService(Ci.nsISessionStore).
+    getNumberOfTabsClosedLast(window);
 
 var originalTab;
 var tab1Loaded = false;

@@ -43,7 +43,7 @@ function getThumbnailModifiedTime(url) {
 /* Check functionality of a normal "captureIfStale" request */
 function simpleCaptureTest() {
   let numNotifications = 0;
-  const URL = "http://mochi.test:8888/browser/toolkit/components/thumbnails/test/thumbnails_update.sjs?simple";
+  const URL = "data:text/html;charset=utf-8,<body%20bgcolor=ff0000></body>";
 
   function observe(subject, topic, data) {
     is(topic, "page-thumbnail:create", "got expected topic");
@@ -56,7 +56,7 @@ function simpleCaptureTest() {
   }
 
   Services.obs.addObserver(observe, "page-thumbnail:create", false);
-  // Create a tab - we don't care what the content is.
+  // Create a tab with a red background.
   yield addTab(URL);
   let browser = gBrowser.selectedBrowser;
 
