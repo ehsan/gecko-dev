@@ -4,9 +4,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
 
-import android.content.Intent;
 import android.graphics.drawable.Drawable;
-
 import java.util.List;
 import java.util.ArrayList;
 
@@ -19,7 +17,6 @@ public class PromptListItem {
     public final boolean disabled;
     public final int id;
     public boolean selected;
-    public Intent intent;
 
     public boolean isParent;
     public Drawable icon;
