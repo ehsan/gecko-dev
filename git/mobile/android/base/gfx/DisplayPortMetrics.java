@@ -56,7 +56,7 @@ public final class DisplayPortMetrics {
     }
 
     public String toJSON() {
-        StringBuilder sb = new StringBuilder(256);
+        StringBuffer sb = new StringBuffer(256);
         sb.append("{ \"left\": ").append(mPosition.left)
           .append(", \"top\": ").append(mPosition.top)
           .append(", \"right\": ").append(mPosition.right)

@@ -247,8 +247,7 @@ permissions.forEach(function (perm) {
         self._deleteSession()
 
     def _deleteSession(self):
-        if hasattr(self, 'start_time'):
-            self.duration = time.time() - self.start_time
+        self.duration = time.time() - self.start_time
         if hasattr(self.marionette, 'session'):
             if self.marionette.session is not None:
                 try:
@@ -380,10 +379,7 @@ class MarionetteJSTestCase(CommonTestCase):
             self.marionette.set_script_timeout(timeout)
 
         try:
-            results = self.marionette.execute_js_script(js,
-                                                        args,
-                                                        special_powers=True,
-                                                        filename=os.path.basename(self.jsFile))
+            results = self.marionette.execute_js_script(js, args, special_powers=True)
 
             self.assertTrue(not 'timeout' in self.jsFile,
                             'expected timeout not triggered')

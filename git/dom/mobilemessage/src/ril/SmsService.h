@@ -21,8 +21,7 @@ public:
   SmsService();
 
 protected:
-  // TODO: Bug 854326 - B2G Multi-SIM: support multiple SIM cards for SMS/MMS
-  nsCOMPtr<nsIRadioInterface> mRadioInterface;
+  nsCOMPtr<nsIRadioInterfaceLayer> mRIL;
 };
 
 } // namespace mobilemessage

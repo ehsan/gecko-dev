@@ -63,7 +63,7 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../../docshell/base \
 		$(NULL)
 
-DISABLED_SDK_HEADERS =  \
+SDK_HEADERS =  \
   nsXPCOM.h       \
   nsXPCOMCID.h    \
   $(NULL)

@@ -3432,18 +3432,3 @@ Element::SetBoolAttr(nsIAtom* aAttr, bool aValue)
 
   return UnsetAttr(kNameSpaceID_None, aAttr, true);
 }
-
-float
-Element::FontSizeInflation()
-{
-  nsIFrame* frame = mPrimaryFrame;
-  if (!frame) {
-    return -1.0;
-  }
-
-  if (nsLayoutUtils::FontSizeInflationEnabled(frame->PresContext())) {
-    return nsLayoutUtils::FontSizeInflationFor(frame);
-  }
-
-  return 1.0;
-}

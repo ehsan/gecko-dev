@@ -19,7 +19,7 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../build \
 		$(NULL)
 
-DISABLED_SDK_HEADERS = \
+SDK_HEADERS = \
 		nsArrayEnumerator.h \
 		nsArrayUtils.h \
 		nsBaseHashtable.h \

@@ -124,10 +124,7 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
     Rooted<JSObject*> obj(cx, &args.thisv().toObject());
 
     /* ES5 8.6.2 forbids changing [[Prototype]] if not [[Extensible]]. */
-    bool extensible;
-    if (!JSObject::isExtensible(cx, obj, &extensible))
-        return false;
-    if (!extensible) {
+    if (!obj->isExtensible()) {
         obj->reportNotExtensible(cx);
         return false;
     }

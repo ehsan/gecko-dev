@@ -2198,25 +2198,25 @@ let RIL = {
       // is "Registration" (**).
       if (!mmi.procedure || mmi.procedure != MMI_PROCEDURE_REGISTRATION ) {
         _sendMMIError(MMI_ERROR_KS_INVALID_ACTION, mmiServiceCode);
-        return false;
+        return;
       }
 
       if (!mmi.sia || !mmi.sia.length || !mmi.sib || !mmi.sib.length ||
           !mmi.sic || !mmi.sic.length) {
         _sendMMIError(MMI_ERROR_KS_ERROR, mmiServiceCode);
-        return false;
+        return;
       }
 
       if (mmi.sib != mmi.sic) {
         _sendMMIError(MMI_ERROR_KS_MISMATCH_PIN, mmiServiceCode);
-        return false;
+        return;
       }
 
       if (mmi.sia.length < 4 || mmi.sia.length > 8 ||
           mmi.sib.length < 4 || mmi.sib.length > 8 ||
           mmi.sic.length < 4 || mmi.sic.length > 8) {
         _sendMMIError(MMI_ERROR_KS_INVALID_PIN, mmiServiceCode);
-        return false;
+        return;
       }
 
       return true;
@@ -3172,7 +3172,7 @@ let RIL = {
     let changed = false;
 
     let regState = RIL.parseInt(newState[0], NETWORK_CREG_STATE_UNKNOWN);
-    if (curState.regState === undefined || curState.regState !== regState) {
+    if (curState.regState != regState) {
       changed = true;
       curState.regState = regState;
 
@@ -3195,23 +3195,19 @@ let RIL = {
     // From TS 23.003, 0000 and 0xfffe are indicated that no valid LAI exists
     // in MS. So we still need to report the '0000' as well.
     let lac = RIL.parseInt(newState[1], -1, 16);
-    if (curState.cell.gsmLocationAreaCode === undefined ||
-        curState.cell.gsmLocationAreaCode !== lac) {
+    if (curState.cell.gsmLocationAreaCode !== lac) {
       curState.cell.gsmLocationAreaCode = lac;
       changed = true;
     }
 
     let cid = RIL.parseInt(newState[2], -1, 16);
-    if (curState.cell.gsmCellId === undefined ||
-        curState.cell.gsmCellId !== cid) {
+    if (curState.cell.gsmCellId !== cid) {
       curState.cell.gsmCellId = cid;
       changed = true;
     }
 
-    let radioTech = (newState[3] === undefined ?
-                     NETWORK_CREG_TECH_UNKNOWN :
-                     RIL.parseInt(newState[3], NETWORK_CREG_TECH_UNKNOWN));
-    if (curState.radioTech === undefined || curState.radioTech !== radioTech) {
+    let radioTech = RIL.parseInt(newState[3], NETWORK_CREG_TECH_UNKNOWN);
+    if (curState.radioTech != radioTech) {
       changed = true;
       curState.radioTech = radioTech;
       curState.type = GECKO_RADIO_TECH[radioTech] || null;
@@ -3268,15 +3264,11 @@ let RIL = {
     }
 
     if (!this.operator) {
-      this.operator = {
-        rilMessageType: "operatorchange",
-        longName: null,
-        shortName: null
-      };
+      this.operator = {rilMessageType: "operatorchange"};
     }
 
     let [longName, shortName, networkTuple] = operatorData;
-    let thisTuple = (this.operator.mcc || "") + (this.operator.mnc || "");
+    let thisTuple = this.operator.mcc + this.operator.mnc;
 
     if (this.operator.longName !== longName ||
         this.operator.shortName !== shortName ||
@@ -3289,7 +3281,7 @@ let RIL = {
         try {
           this._processNetworkTuple(networkTuple, this.operator);
         } catch (e) {
-          if (DEBUG) debug("Error processing operator tuple: " + e);
+          debug("Error processing operator tuple: " + e);
         }
       } else {
         // According to ril.h, the operator fields will be NULL when the operator
@@ -3529,7 +3521,7 @@ let RIL = {
       try {
         this._processNetworkTuple(networkTuple, network);
       } catch (e) {
-        if (DEBUG) debug("Error processing operator tuple: " + e);
+        debug("Error processing operator tuple: " + e);
       }
 
       let state = strings[i + 3];
@@ -7880,7 +7872,6 @@ let CdmaPDUHelper = {
       case PDU_DCS_MSG_CODING_16BITS_ALPHABET:
         return PDU_CDMA_MSG_CODING_UNICODE;
     }
-    throw new Error("gsmDcsToCdmaEncoding(): Invalid GSM SMS DCS value: " + encoding);
   },
 
   /**
@@ -8723,7 +8714,7 @@ let StkCommandParamsFactory = {
         param = this.processTimerManagement(cmdDetails, ctlvs);
         break;
       default:
-        if (DEBUG) debug("unknown proactive command");
+        debug("unknown proactive command");
         break;
     }
     return param;
@@ -9174,7 +9165,7 @@ let StkProactiveCmdHelper = {
       case COMPREHENSIONTLV_TAG_URL:
         return this.retrieveUrl(length);
       default:
-        if (DEBUG) debug("StkProactiveCmdHelper: unknown tag " + tag.toString(16));
+        debug("StkProactiveCmdHelper: unknown tag " + tag.toString(16));
         Buf.seekIncoming(length * PDU_HEX_OCTET_SIZE);
         return null;
     }
@@ -10261,9 +10252,7 @@ let ICCRecordHelper = {
   readMSISDN: function readMSISDN() {
     function callback(options) {
       let contact = GsmPDUHelper.readAlphaIdDiallingNumber(options.recordSize);
-      if (!contact ||
-          (RIL.iccInfo.msisdn !== undefined &&
-           RIL.iccInfo.msisdn === contact.number)) {
+      if (!contact || RIL.iccInfo.msisdn === contact.number) {
         return;
       }
       RIL.iccInfo.msisdn = contact.number;
@@ -10495,9 +10484,7 @@ let ICCRecordHelper = {
   readMBDN: function readMBDN() {
     function callback(options) {
       let contact = GsmPDUHelper.readAlphaIdDiallingNumber(options.recordSize);
-      if (!contact ||
-          (RIL.iccInfo.mbdn !== undefined &&
-           RIL.iccInfo.mbdn === contact.number)) {
+      if (!contact || RIL.iccInfo.mbdn === contact.number){
         return;
       }
       RIL.iccInfo.mbdn = contact.number;

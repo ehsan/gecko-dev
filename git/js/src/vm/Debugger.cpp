@@ -4776,10 +4776,7 @@ DebuggerObject_sealHelper(JSContext *cx, unsigned argc, Value *vp, SealHelperOp 
         ok = JSObject::freeze(cx, obj);
     } else {
         JS_ASSERT(op == PreventExtensions);
-        bool extensible;
-        if (!JSObject::isExtensible(cx, obj, &extensible))
-            return false;
-        if (!extensible) {
+        if (!obj->isExtensible()) {
             args.rval().setUndefined();
             return true;
         }
@@ -4826,8 +4823,7 @@ DebuggerObject_isSealedHelper(JSContext *cx, unsigned argc, Value *vp, SealHelpe
         if (!JSObject::isFrozen(cx, obj, &r))
             return false;
     } else {
-        if (!JSObject::isExtensible(cx, obj, &r))
-            return false;
+        r = obj->isExtensible();
     }
     args.rval().setBoolean(r);
     return true;

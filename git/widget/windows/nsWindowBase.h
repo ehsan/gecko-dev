@@ -33,7 +33,6 @@ public:
 
   /*
    * Dispatch a gecko event for this widget.
-   * Returns true if it's consumed.  Otherwise, false.
    */
   virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) = 0;
 
