@@ -538,7 +538,6 @@ QGeckoEmbed::resizeEvent(QResizeEvent *e)
 {
     d->window->SetDimensions(nsIEmbeddingSiteWindow::DIM_FLAGS_SIZE_INNER,
                               0, 0, e->size().width(), e->size().height());
-    d->window->SetVisibility(PR_TRUE);
 }
 
 nsIDOMDocument*
