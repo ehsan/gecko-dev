@@ -1764,8 +1764,11 @@ js_InvokeConstructor(JSContext *cx, uintN argc, JSBool clampReturn, jsval *vp)
 
         if (OBJ_GET_CLASS(cx, obj2) == &js_FunctionClass) {
             fun2 = GET_FUNCTION_PRIVATE(cx, obj2);
-            if (!FUN_INTERPRETED(fun2) && fun2->u.n.clasp)
-                clasp = fun2->u.n.clasp;
+            if (!FUN_INTERPRETED(fun2) &&
+                !(fun2->flags & JSFUN_TRACEABLE) &&
+                fun2->u.n.u.clasp) {
+                clasp = fun2->u.n.u.clasp;
+            }
         }
     }
     obj = js_NewObject(cx, clasp, proto, parent, 0);
@@ -2617,21 +2620,23 @@ js_Interpret(JSContext *cx)
 
 #ifdef JS_TRACER
 
-#define MONITOR_BRANCH(oldpc)                                                 \
+#define MONITOR_BRANCH()                                                      \
     JS_BEGIN_MACRO                                                            \
         if (TRACING_ENABLED(cx)) {                                            \
-            ENABLE_TRACER(js_MonitorLoopEdge(cx, oldpc, inlineCallCount));    \
+            ENABLE_TRACER(js_MonitorLoopEdge(cx, inlineCallCount));           \
             fp = cx->fp;                                                      \
             script = fp->script;                                              \
             atoms = script->atomMap.vector;                                   \
             currentVersion = (JSVersion) script->version;                     \
             JS_ASSERT(fp->regs == &regs);                                     \
+            if (cx->throwing)                                                 \
+                goto error;                                                   \
         }                                                                     \
     JS_END_MACRO
 
 #else /* !JS_TRACER */
 
-#define MONITOR_BRANCH(oldpc) ((void) 0)
+#define MONITOR_BRANCH() ((void) 0)
 
 #endif /* !JS_TRACER */
 
@@ -2652,7 +2657,7 @@ js_Interpret(JSContext *cx)
         regs.pc += n;                                                         \
         if (n <= 0) {                                                         \
             CHECK_BRANCH();                                                   \
-            MONITOR_BRANCH(regs.pc - n);                                      \
+            MONITOR_BRANCH();                                                 \
         }                                                                     \
         op = (JSOp) *regs.pc;                                                 \
         DO_OP();                                                              \
@@ -3234,7 +3239,7 @@ js_Interpret(JSContext *cx)
                 rval = JSVAL_FALSE;
 #ifdef JS_TRACER
                 if (TRACE_RECORDER(cx)) {
-                    js_AbortRecording(cx, regs.pc, "Untraceable for-in loop");
+                    js_AbortRecording(cx, "Untraceable for-in loop");
                     ENABLE_TRACER(0);
                 }
 #endif
@@ -4622,7 +4627,7 @@ js_Interpret(JSContext *cx)
                 }
 #ifdef JS_TRACER
                 if (!entry && TRACE_RECORDER(cx)) {
-                    js_AbortRecording(cx, NULL, "SetPropUncached");
+                    js_AbortRecording(cx, "SetPropUncached");
                     ENABLE_TRACER(0);
                 }
 #endif
@@ -4699,21 +4704,25 @@ js_Interpret(JSContext *cx)
             rval = FETCH_OPND(-1);
             FETCH_OBJECT(cx, -3, lval, obj);
             FETCH_ELEMENT_ID(obj, -2, id);
-            if (OBJ_IS_DENSE_ARRAY(cx, obj) && JSID_IS_INT(id)) {
-                jsuint length;
+            do {
+                if (OBJ_IS_DENSE_ARRAY(cx, obj) && JSID_IS_INT(id)) {
+                    jsuint length;
 
-                length = ARRAY_DENSE_LENGTH(obj);
-                i = JSID_TO_INT(id);
-                if ((jsuint)i < length) {
-                    if (obj->dslots[i] == JSVAL_HOLE) {
-                        if (i >= obj->fslots[JSSLOT_ARRAY_LENGTH])
-                            obj->fslots[JSSLOT_ARRAY_LENGTH] = i + 1;
-                        obj->fslots[JSSLOT_ARRAY_COUNT]++;
+                    length = ARRAY_DENSE_LENGTH(obj);
+                    i = JSID_TO_INT(id);
+                    if ((jsuint)i < length) {
+                        if (obj->dslots[i] == JSVAL_HOLE) {
+                            if (rt->anyArrayProtoHasElement)
+                                break;
+                            if (i >= obj->fslots[JSSLOT_ARRAY_LENGTH])
+                                obj->fslots[JSSLOT_ARRAY_LENGTH] = i + 1;
+                            obj->fslots[JSSLOT_ARRAY_COUNT]++;
+                        }
+                        obj->dslots[i] = rval;
+                        goto end_setelem;
                     }
-                    obj->dslots[i] = rval;
-                    goto end_setelem;
                 }
-            }
+            } while (0);
             if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                 goto error;
         end_setelem:
@@ -4994,6 +5003,7 @@ js_Interpret(JSContext *cx)
                     regs.sp = vp + 1;
                     if (!ok)
                         goto error;
+                    TRACE_0(FastNativeCallComplete);
                     goto end_call;
                 }
             }
@@ -5046,7 +5056,7 @@ js_Interpret(JSContext *cx)
           BEGIN_CASE(JSOP_RESUME)
             /* This case is not truly empty. The tracer is invoked transparently. */
           END_CASE(JSOP_RESUME)
-          
+
 #if JS_HAS_LVALUE_RETURN
           BEGIN_CASE(JSOP_SETCALL)
             argc = GET_ARGC(regs.pc);
@@ -5056,8 +5066,10 @@ js_Interpret(JSContext *cx)
             LOAD_INTERRUPT_HANDLER(cx);
             if (!ok)
                 goto error;
+            JS_ASSERT(regs.pc[JSOP_SETCALL_LENGTH] == JSOP_RESUME);
+            len = JSOP_SETCALL_LENGTH + JSOP_RESUME_LENGTH;
             if (!cx->rval2set) {
-                op2 = (JSOp) regs.pc[JSOP_SETCALL_LENGTH];
+                op2 = (JSOp) regs.pc[len];
                 if (op2 != JSOP_DELELEM) {
                     JS_ASSERT(!(js_CodeSpec[op2].format & JOF_DEL));
                     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -5071,7 +5083,7 @@ js_Interpret(JSContext *cx)
                  * it doesn't seem worth the code for this obscure case.
                  */
                 *vp = JSVAL_TRUE;
-                regs.pc += JSOP_SETCALL_LENGTH + JSOP_DELELEM_LENGTH;
+                regs.pc += len + JSOP_DELELEM_LENGTH;
                 op = (JSOp) *regs.pc;
                 DO_OP();
             }
@@ -6948,7 +6960,7 @@ js_Interpret(JSContext *cx)
             }
 
             switch (tn->kind) {
-              case JSTN_CATCH:
+              case JSTRY_CATCH:
                 JS_ASSERT(*regs.pc == JSOP_ENTERBLOCK);
 
 #if JS_HAS_GENERATORS
@@ -6965,7 +6977,7 @@ js_Interpret(JSContext *cx)
                 len = 0;
                 DO_NEXT_OP(len);
 
-              case JSTN_FINALLY:
+              case JSTRY_FINALLY:
                 /*
                  * Push (true, exception) pair for finally to indicate that
                  * [retsub] should rethrow the exception.
@@ -6976,7 +6988,7 @@ js_Interpret(JSContext *cx)
                 len = 0;
                 DO_NEXT_OP(len);
 
-              case JSTN_ITER:
+              case JSTRY_ITER:
                 /*
                  * This is similar to JSOP_ENDITER in the interpreter loop
                  * except the code now uses a reserved stack slot to save and
@@ -7039,7 +7051,7 @@ js_Interpret(JSContext *cx)
     JS_ASSERT(fp->regs == &regs);
 #ifdef JS_TRACER
     if (TRACE_RECORDER(cx))
-        js_AbortRecording(cx, regs.pc, "recording out of js_Interpret");
+        js_AbortRecording(cx, "recording out of js_Interpret");
 #endif
     if (JS_UNLIKELY(fp->flags & JSFRAME_YIELDING)) {
         JSGenerator *gen;

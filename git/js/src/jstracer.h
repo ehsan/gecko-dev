@@ -49,23 +49,7 @@
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsinterp.h"
-
-#include "nanojit/nanojit.h"
-
-/*
- * We use a magic boxed pointer value to represent error conditions that
- * trigger a side exit. The address is so low that it should never be actually
- * in use. If it is, a performance regression occurs, not an actual runtime
- * error.
- */
-#define JSVAL_ERROR_COOKIE OBJECT_TO_JSVAL((void*)0x10)
-
-/*
- * We also need a magic unboxed 32-bit integer that signals an error.  Again if
- * this number is hit we experience a performance regression, not a runtime
- * error.
- */
-#define INT32_ERROR_COOKIE 0xffffabcd
+#include "jsbuiltins.h"
 
 template <typename T>
 class Queue : public GCObject {
@@ -201,8 +185,19 @@ public:
     }
 };
 
-extern struct nanojit::CallInfo builtins[];
-
+struct FrameInfo {
+    JSObject*       callee;     // callee function object
+    jsbytecode*     callpc;     // pc of JSOP_CALL in caller script
+    uint8*          typemap;    // typemap for the stack frame
+    union {
+        struct {
+            uint16  spdist;     // distance from fp->slots to fp->regs->sp at JSOP_CALL
+            uint16  argc;       // actual argument count, may be < fun->nargs
+        } s;
+        uint32      word;       // for spdist/argc LIR store in record_JSOP_CALL
+    };
+};
+ 
 class TraceRecorder : public GCObject {
     JSContext*              cx;
     JSTraceMonitor*         traceMonitor;
@@ -236,9 +231,10 @@ class TraceRecorder : public GCObject {
     bool                    applyingArguments;
     bool                    trashTree;
     nanojit::Fragment*      whichTreeToTrash;
-    Queue<jsbytecode*>      inlinedLoopEdges;
     Queue<jsbytecode*>      cfgMerges;
     jsval*                  global_dslots;
+    JSTraceableNative*      pendingTraceableNative;
+    bool                    terminate;
 
     bool isGlobal(jsval* p) const;
     ptrdiff_t nativeGlobalOffset(jsval* p) const;
@@ -319,7 +315,7 @@ class TraceRecorder : public GCObject {
     bool getProp(JSObject* obj, nanojit::LIns* obj_ins);
     bool getProp(jsval& v);
     bool getThis(nanojit::LIns*& this_ins);
-    
+
     bool box_jsval(jsval v, nanojit::LIns*& v_ins);
     bool unbox_jsval(jsval v, nanojit::LIns*& v_ins);
     bool guardClass(JSObject* obj, nanojit::LIns* obj_ins, JSClass* clasp);
@@ -330,9 +326,11 @@ class TraceRecorder : public GCObject {
     void clearFrameSlotsFromCache();
     bool guardShapelessCallee(jsval& callee);
     bool interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc, bool constructing);
+    bool functionCall(bool constructing);
     bool forInLoop(jsval* vp);
 
     void trackCfgMerges(jsbytecode* pc);
+    void flipIf(jsbytecode* pc, bool& cond);
     void fuseIf(jsbytecode* pc, bool cond, nanojit::LIns* x);
 
 public:
@@ -356,17 +354,18 @@ public:
     void prepareTreeCall(nanojit::Fragment* inner);
     void emitTreeCall(nanojit::Fragment* inner, nanojit::GuardRecord* lr);
     unsigned getCallDepth() const;
-    bool trackLoopEdges();
     
     bool record_EnterFrame();
     bool record_LeaveFrame();
     bool record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop);
     bool record_SetPropMiss(JSPropCacheEntry* entry);
     bool record_DefLocalFunSetSlot(uint32 slot, JSObject* obj);
+    bool record_FastNativeCallComplete();
     
     void deepAbort() { deepAborted = true; }
     bool wasDeepAborted() { return deepAborted; }
-
+    bool walkedOutOfLoop() { return terminate; }
+    
 #define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)               \
     bool record_##op();
 # include "jsopcode.tbl"
@@ -390,7 +389,7 @@ public:
 #define TRACE_ARGS_(tr,x,args)                                                \
     JS_BEGIN_MACRO                                                            \
         if (!tr->record_##x args) {                                           \
-            js_AbortRecording(cx, NULL, #x);                                  \
+            js_AbortRecording(cx, #x);                                        \
             ENABLE_TRACER(0);                                                 \
         }                                                                     \
     JS_END_MACRO
@@ -408,13 +407,13 @@ public:
 #define TRACE_2(x,a,b)          TRACE_ARGS(x, (a, b))
 
 extern bool
-js_MonitorLoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount);
+js_MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount);
 
 extern bool
 js_MonitorRecording(TraceRecorder *tr);
 
 extern void
-js_AbortRecording(JSContext* cx, jsbytecode* abortpc, const char* reason);
+js_AbortRecording(JSContext* cx, const char* reason);
 
 extern void
 js_InitJIT(JSTraceMonitor *tm);
