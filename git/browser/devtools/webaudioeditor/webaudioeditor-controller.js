@@ -223,6 +223,8 @@ let WebAudioEditorController = {
    * for an audio context notice.
    */
   reset: function () {
+    $("#reload-notice").hidden = true;
+    $("#waiting-notice").hidden = false;
     $("#content").hidden = true;
     WebAudioGraphView.resetUI();
     WebAudioInspectorView.resetUI();
@@ -248,29 +250,15 @@ let WebAudioEditorController = {
   /**
    * Called for each location change in the debugged tab.
    */
-  _onTabNavigated: Task.async(function* (event, {isFrameSwitching}) {
+  _onTabNavigated: Task.async(function* (event) {
     switch (event) {
       case "will-navigate": {
         // Make sure the backend is prepared to handle audio contexts.
-        if (!isFrameSwitching) {
-          yield gFront.setup({ reload: false });
-        }
+        yield gFront.setup({ reload: false });
 
-        // Clear out current UI.
+        // Reset UI to show "Waiting for Audio Context..." and clear out
+        // current UI.
         this.reset();
-
-        // When switching to an iframe, ensure displaying the reload button.
-        // As the document has already been loaded without being hooked.
-        if (isFrameSwitching) {
-          $("#reload-notice").hidden = false;
-          $("#waiting-notice").hidden = true;
-        } else {
-          // Otherwise, we are loading a new top level document,
-          // so we don't need to reload anymore and should receive
-          // new node events.
-          $("#reload-notice").hidden = true;
-          $("#waiting-notice").hidden = false;
-        }
 
         // Clear out stored audio nodes
         AudioNodes.length = 0;
