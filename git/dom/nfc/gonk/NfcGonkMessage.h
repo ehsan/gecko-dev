@@ -16,7 +16,7 @@ enum NfcRequest {
   CloseReq,
   ReadNDEFReq,
   WriteNDEFReq,
-  MakeReadOnlyReq,
+  MakeReadOnlyNDEFReq,
 };
 
 enum NfcResponse {

@@ -929,14 +929,14 @@ nsHtml5TreeBuilder::DropHandles()
 }
 
 void
-nsHtml5TreeBuilder::MarkAsBroken(nsresult aRv)
+nsHtml5TreeBuilder::MarkAsBroken()
 {
   if (MOZ_UNLIKELY(mBuilder)) {
     MOZ_ASSERT_UNREACHABLE("Must not call this with builder.");
     return;
   }
   mOpQueue.Clear(); // Previous ops don't matter anymore
-  mOpQueue.AppendElement()->Init(aRv);
+  mOpQueue.AppendElement()->Init(eTreeOpMarkAsBroken);
 }
 
 void

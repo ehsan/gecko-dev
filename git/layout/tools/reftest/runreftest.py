@@ -7,7 +7,6 @@ Runs the reftest test harness.
 """
 
 from optparse import OptionParser
-from urlparse import urlparse
 import collections
 import multiprocessing
 import os
@@ -25,6 +24,7 @@ from automationutils import (
     addCommonOptions,
     dumpScreen,
     environment,
+    isURL,
     processLeakLog
 )
 import mozcrash
@@ -786,7 +786,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
   if options.xrePath is None:
     options.xrePath = os.path.dirname(options.app)
 
-  if options.symbolsPath and len(urlparse(options.symbolsPath).scheme) < 2:
+  if options.symbolsPath and not isURL(options.symbolsPath):
     options.symbolsPath = reftest.getFullPath(options.symbolsPath)
   options.utilityPath = reftest.getFullPath(options.utilityPath)
 

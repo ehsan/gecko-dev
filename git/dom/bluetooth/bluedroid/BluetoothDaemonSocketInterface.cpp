@@ -115,12 +115,11 @@ public:
     if (aStatus == STATUS_SUCCESS) {
       IntStringIntResultRunnable::Dispatch(
         GetResultHandler(), &BluetoothSocketResultHandler::Accept,
-        ConstantInitOp3<int, nsString, int>(GetClientFd(), GetBdAddress(),
-                                            GetConnectionStatus()));
+        GetClientFd(), GetBdAddress(), GetConnectionStatus());
     } else {
       ErrorRunnable::Dispatch(GetResultHandler(),
                               &BluetoothSocketResultHandler::OnError,
-                              ConstantInitOp1<BluetoothStatus>(aStatus));
+                              aStatus);
     }
 
     MessageLoopForIO::current()->PostTask(
@@ -205,39 +204,17 @@ BluetoothDaemonSocketModule::ErrorRsp(const BluetoothDaemonPDUHeader& aHeader,
                                       BluetoothDaemonPDU& aPDU,
                                       BluetoothSocketResultHandler* aRes)
 {
-  ErrorRunnable::Dispatch(
-    aRes, &BluetoothSocketResultHandler::OnError, UnpackPDUInitOp(aPDU));
+  ErrorRunnable::Dispatch<0x02, 0x00>(
+    aRes, &BluetoothSocketResultHandler::OnError, aPDU);
 }
-
-class BluetoothDaemonSocketModule::ListenInitOp MOZ_FINAL : private PDUInitOp
-{
-public:
-  ListenInitOp(BluetoothDaemonPDU& aPDU)
-  : PDUInitOp(aPDU)
-  { }
-
-  nsresult
-  operator () (int& aArg1) const
-  {
-    BluetoothDaemonPDU& pdu = GetPDU();
-
-    aArg1 = pdu.AcquireFd();
-
-    if (NS_WARN_IF(aArg1 < 0)) {
-      return NS_ERROR_ILLEGAL_VALUE;
-    }
-    WarnAboutTrailingData();
-    return NS_OK;
-  }
-};
 
 void
 BluetoothDaemonSocketModule::ListenRsp(const BluetoothDaemonPDUHeader& aHeader,
                                        BluetoothDaemonPDU& aPDU,
                                        BluetoothSocketResultHandler* aRes)
 {
-  IntResultRunnable::Dispatch(
-    aRes, &BluetoothSocketResultHandler::Listen, ListenInitOp(aPDU));
+  IntResultRunnable::Dispatch<0x02, 0x01>(
+    aRes, &BluetoothSocketResultHandler::Listen, aPDU);
 }
 
 /* |ConnectWatcher| specializes SocketMessageWatcher for
@@ -258,12 +235,11 @@ public:
     if (aStatus == STATUS_SUCCESS) {
       IntStringIntResultRunnable::Dispatch(
         GetResultHandler(), &BluetoothSocketResultHandler::Connect,
-        ConstantInitOp3<int, nsString, int>(GetFd(), GetBdAddress(),
-                                            GetConnectionStatus()));
+        GetFd(), GetBdAddress(), GetConnectionStatus());
     } else {
       ErrorRunnable::Dispatch(GetResultHandler(),
                               &BluetoothSocketResultHandler::OnError,
-                              ConstantInitOp1<BluetoothStatus>(aStatus));
+                              aStatus);
     }
 
     MessageLoopForIO::current()->PostTask(
@@ -279,8 +255,8 @@ BluetoothDaemonSocketModule::ConnectRsp(const BluetoothDaemonPDUHeader& aHeader,
   /* the file descriptor is attached in the PDU's ancillary data */
   int fd = aPDU.AcquireFd();
   if (fd < 0) {
-    ErrorRunnable::Dispatch(aRes, &BluetoothSocketResultHandler::OnError,
-                            ConstantInitOp1<BluetoothStatus>(STATUS_FAIL));
+    ErrorRunnable::Dispatch(
+      aRes, &BluetoothSocketResultHandler::OnError, STATUS_FAIL);
     return;
   }
 

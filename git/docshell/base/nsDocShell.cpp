@@ -10268,15 +10268,12 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     }
 
     if (!isSrcdoc) {
-      nsCOMPtr<nsILoadInfo> loadInfo =
-        new mozilla::LoadInfo(requestingPrincipal,
-                              requestingNode,
-                              securityFlags,
-                              aContentPolicyType,
-                              aBaseURI);
         rv = NS_NewChannelInternal(getter_AddRefs(channel),
                                    aURI,
-                                   loadInfo,
+                                   requestingNode,
+                                   requestingPrincipal,
+                                   securityFlags,
+                                   aContentPolicyType,
                                    nullptr,   // loadGroup
                                    static_cast<nsIInterfaceRequestor*>(this),
                                    loadFlags);
@@ -10296,6 +10293,12 @@ nsDocShell::DoURILoad(nsIURI * aURI,
             }
             return rv;
         }
+        if (aBaseURI) {
+            nsCOMPtr<nsIViewSourceChannel> vsc = do_QueryInterface(channel);
+            if (vsc) {
+                vsc->SetBaseURI(aBaseURI);
+            }
+        }
     }
     else {
         nsAutoCString scheme;
@@ -10308,14 +10311,14 @@ nsDocShell::DoURILoad(nsIURI * aURI,
             nsViewSourceHandler *vsh = nsViewSourceHandler::GetInstance();
             NS_ENSURE_TRUE(vsh,NS_ERROR_FAILURE);
 
-            rv = vsh->NewSrcdocChannel(aURI, aSrcdoc, getter_AddRefs(channel));
+            rv = vsh->NewSrcdocChannel(aURI, aSrcdoc, aBaseURI,
+                                       getter_AddRefs(channel));
             NS_ENSURE_SUCCESS(rv, rv);
             nsCOMPtr<nsILoadInfo> loadInfo =
               new LoadInfo(requestingPrincipal,
                            requestingNode,
                            securityFlags,
-                           aContentPolicyType,
-                           aBaseURI);
+                           aContentPolicyType);
             channel->SetLoadInfo(loadInfo);
         }
         else {
@@ -10327,9 +10330,11 @@ nsDocShell::DoURILoad(nsIURI * aURI,
                                                   requestingPrincipal,
                                                   securityFlags,
                                                   aContentPolicyType,
-                                                  true,
-                                                  aBaseURI);
+                                                  true);
             NS_ENSURE_SUCCESS(rv, rv);
+            nsCOMPtr<nsIInputStreamChannel> isc = do_QueryInterface(channel);
+            MOZ_ASSERT(isc);
+            isc->SetBaseURI(aBaseURI);
         }
     }
 
@@ -11585,10 +11590,8 @@ nsDocShell::AddToSessionHistory(nsIURI * aURI, nsIChannel * aChannel,
             nsAutoString srcdoc;
             inStrmChan->GetSrcdocData(srcdoc);
             entry->SetSrcdocData(srcdoc);
-            nsCOMPtr<nsILoadInfo> loadInfo;
-            aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
             nsCOMPtr<nsIURI> baseURI;
-            loadInfo->GetBaseURI(getter_AddRefs(baseURI));
+            inStrmChan->GetBaseURI(getter_AddRefs(baseURI));
             entry->SetBaseURI(baseURI);
         }
     }

@@ -33,7 +33,6 @@
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
 #include "Performance.h"
-#include "ServiceWorkerClients.h"
 
 #define UNWRAP_WORKER_OBJECT(Interface, obj, value)                           \
   UnwrapObject<prototypes::id::Interface##_workers,                           \
@@ -360,22 +359,10 @@ SharedWorkerGlobalScope::WrapGlobalObject(JSContext* aCx)
                                                       true);
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED(ServiceWorkerGlobalScope, WorkerGlobalScope,
-                                   mClients)
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(ServiceWorkerGlobalScope)
-NS_INTERFACE_MAP_END_INHERITING(WorkerGlobalScope)
-
-NS_IMPL_ADDREF_INHERITED(ServiceWorkerGlobalScope, WorkerGlobalScope)
-NS_IMPL_RELEASE_INHERITED(ServiceWorkerGlobalScope, WorkerGlobalScope)
-
 ServiceWorkerGlobalScope::ServiceWorkerGlobalScope(WorkerPrivate* aWorkerPrivate,
                                                    const nsACString& aScope)
   : WorkerGlobalScope(aWorkerPrivate),
     mScope(NS_ConvertUTF8toUTF16(aScope))
-{
-}
-
-ServiceWorkerGlobalScope::~ServiceWorkerGlobalScope()
 {
 }
 
@@ -391,16 +378,6 @@ ServiceWorkerGlobalScope::WrapGlobalObject(JSContext* aCx)
   return ServiceWorkerGlobalScopeBinding_workers::Wrap(aCx, this, this, options,
                                                        GetWorkerPrincipal(),
                                                        true);
-}
-
-ServiceWorkerClients*
-ServiceWorkerGlobalScope::Clients()
-{
-  if (!mClients) {
-    mClients = new ServiceWorkerClients(this);
-  }
-
-  return mClients;
 }
 
 bool

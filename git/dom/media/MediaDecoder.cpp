@@ -1474,7 +1474,6 @@ void MediaDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int6
   if (mDecoderStateMachine) {
     mDecoderStateMachine->NotifyDataArrived(aBuffer, aLength, aOffset);
   }
-  UpdateReadyStateForData();
 }
 
 void MediaDecoder::UpdatePlaybackPosition(int64_t aTime)

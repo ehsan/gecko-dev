@@ -11,7 +11,7 @@
 #include <vector>
 #include <windows.h>
 
-#include "opmapi.h"
+#include "Opmapi.h"
 #endif
 
 namespace mozilla {

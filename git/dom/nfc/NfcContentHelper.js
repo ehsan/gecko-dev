@@ -53,7 +53,7 @@ const NFCCONTENTHELPER_CID =
 const NFC_IPC_MSG_NAMES = [
   "NFC:ReadNDEFResponse",
   "NFC:WriteNDEFResponse",
-  "NFC:MakeReadOnlyResponse",
+  "NFC:MakeReadOnlyNDEFResponse",
   "NFC:ConnectResponse",
   "NFC:CloseResponse",
   "NFC:CheckP2PRegistrationResponse",
@@ -123,7 +123,7 @@ NfcContentHelper.prototype = {
   },
 
   // NFC interface:
-  checkSessionToken: function checkSessionToken(sessionToken, isP2P) {
+  checkSessionToken: function checkSessionToken(sessionToken) {
     if (sessionToken == null) {
       throw Components.Exception("No session token!",
                                   Cr.NS_ERROR_UNEXPECTED);
@@ -131,8 +131,7 @@ NfcContentHelper.prototype = {
     }
     // Report session to Nfc.js only.
     let val = cpmm.sendSyncMessage("NFC:CheckSessionToken", {
-      sessionToken: sessionToken,
-      isP2P: isP2P
+      sessionToken: sessionToken
     });
     return (val[0] === NFC.NFC_GECKO_SUCCESS);
   },
@@ -169,7 +168,7 @@ NfcContentHelper.prototype = {
     let requestId = btoa(this.getRequestId(request));
     this._requestMap[requestId] = this._window;
 
-    cpmm.sendAsyncMessage("NFC:MakeReadOnly", {
+    cpmm.sendAsyncMessage("NFC:MakeReadOnlyNDEF", {
       requestId: requestId,
       sessionToken: sessionToken
     });
@@ -339,7 +338,7 @@ NfcContentHelper.prototype = {
       case "NFC:ConnectResponse": // Fall through.
       case "NFC:CloseResponse":
       case "NFC:WriteNDEFResponse":
-      case "NFC:MakeReadOnlyResponse":
+      case "NFC:MakeReadOnlyNDEFResponse":
       case "NFC:NotifySendFileStatusResponse":
       case "NFC:ConfigResponse":
         if (result.errorMsg) {

@@ -554,7 +554,6 @@ class LDefinition
           case MIRType_String:
           case MIRType_Symbol:
           case MIRType_Object:
-          case MIRType_ObjectOrNull:
             return LDefinition::OBJECT;
           case MIRType_Double:
             return LDefinition::DOUBLE;
