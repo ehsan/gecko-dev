@@ -153,11 +153,17 @@ let inputTests = [
 ];
 
 function test() {
-  requestLongerTimeout(2);
-  Task.spawn(function*() {
-    const {tab} = yield loadTab(TEST_URI);
-    const hud = yield openConsole(tab);
-    yield checkOutputForInputs(hud, inputTests);
-    inputTests = null;
-  }).then(finishTest);
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole().then((hud) => {
+      return checkOutputForInputs(hud, inputTests);
+    }).then(finishUp);
+  }, true);
+}
+
+function finishUp() {
+  inputTests = null;
+
+  finishTest();
 }

@@ -44,7 +44,7 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
 
   NS_PRECONDITION(aSettings, "aSettings must not be null");
 
-  nsRefPtr<nsPrintSettingsX> settingsX(do_QueryObject(aSettings));
+  nsCOMPtr<nsPrintSettingsX> settingsX(do_QueryInterface(aSettings));
   if (!settingsX)
     return NS_ERROR_FAILURE;
 
@@ -127,7 +127,7 @@ nsPrintDialogServiceX::ShowPageSetup(nsIDOMWindow *aParent,
   NS_PRECONDITION(aNSSettings, "aSettings must not be null");
   NS_ENSURE_TRUE(aNSSettings, NS_ERROR_FAILURE);
 
-  nsRefPtr<nsPrintSettingsX> settingsX(do_QueryObject(aNSSettings));
+  nsCOMPtr<nsPrintSettingsX> settingsX(do_QueryInterface(aNSSettings));
   if (!settingsX)
     return NS_ERROR_FAILURE;
 

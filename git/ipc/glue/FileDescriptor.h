@@ -52,8 +52,6 @@ public:
   FileDescriptor();
 
   FileDescriptor(const FileDescriptor& aOther)
-    : mHandleCreatedByOtherProcess(false),
-      mHandleCreatedByOtherProcessWasUsed(false)
   {
     // Don't use operator= here because that will call
     // CloseCurrentProcessHandle() on this (uninitialized) object.

@@ -1278,13 +1278,14 @@ gfxFT2FontList::FindFontsInDir(const nsCString& aDir, FontNameCache *aFNC)
 
     struct dirent *ent = nullptr;
     while ((ent = readdir(d)) != nullptr) {
-        const char *ext = strrchr(ent->d_name, '.');
-        if (!ext) {
+        int namelen = strlen(ent->d_name);
+        if (namelen <= 4) {
+            // cannot be a usable font filename
             continue;
         }
+        const char *ext = ent->d_name + namelen - 4;
         if (strcasecmp(ext, ".ttf") == 0 ||
             strcasecmp(ext, ".otf") == 0 ||
-            strcasecmp(ext, ".woff") == 0 ||
             strcasecmp(ext, ".ttc") == 0) {
             bool isStdFont = false;
             for (unsigned int i = 0;
@@ -1294,7 +1295,7 @@ gfxFT2FontList::FindFontsInDir(const nsCString& aDir, FontNameCache *aFNC)
 
             nsCString s(aDir);
             s.Append('/');
-            s.Append(ent->d_name);
+            s.Append(ent->d_name, namelen);
 
             // Add the face(s) from this file to our font list;
             // note that if we have cached info for this file in fnc,

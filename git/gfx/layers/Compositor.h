@@ -397,22 +397,16 @@ public:
     mDiagnosticTypes = aDiagnostics;
   }
 
-  DiagnosticTypes GetDiagnosticTypes() const
-  {
-    return mDiagnosticTypes;
-  }
-
   void DrawDiagnostics(DiagnosticFlags aFlags,
                        const gfx::Rect& visibleRect,
                        const gfx::Rect& aClipRect,
-                       const gfx::Matrix4x4& transform,
-                       uint32_t aFlashCounter = DIAGNOSTIC_FLASH_COUNTER_MAX);
+                       const gfx::Matrix4x4& transform);
 
   void DrawDiagnostics(DiagnosticFlags aFlags,
                        const nsIntRegion& visibleRegion,
                        const gfx::Rect& aClipRect,
-                       const gfx::Matrix4x4& transform,
-                       uint32_t aFlashCounter = DIAGNOSTIC_FLASH_COUNTER_MAX);
+                       const gfx::Matrix4x4& transform);
+
 
 #ifdef MOZ_DUMP_PAINTING
   virtual const char* Name() const = 0;
@@ -519,8 +513,7 @@ protected:
   void DrawDiagnosticsInternal(DiagnosticFlags aFlags,
                                const gfx::Rect& aVisibleRect,
                                const gfx::Rect& aClipRect,
-                               const gfx::Matrix4x4& transform,
-                               uint32_t aFlashCounter);
+                               const gfx::Matrix4x4& transform);
 
   bool ShouldDrawDiagnostics(DiagnosticFlags);
 

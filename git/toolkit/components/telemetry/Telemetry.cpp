@@ -923,7 +923,6 @@ JSHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
 bool
 JSHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
   if (!obj) {
     return false;
@@ -941,7 +940,7 @@ JSHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
     JS_ReportError(cx, "Histogram is corrupt");
     return false;
   case REFLECT_OK:
-    args.rval().setObject(*snapshot);
+    JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(snapshot));
     return true;
   default:
     MOZ_CRASH("unhandled reflection status");

@@ -121,6 +121,7 @@ TabStore.prototype = {
         continue;
       }
 
+      dump("WIN IS " + JSON.stringify(win)  + "\n");
       for (let tab of win.gBrowser.tabs) {
         tabState = this.getTabState(tab);
 

@@ -453,9 +453,9 @@ function SetTypedObjectValue(descr, typedObj, offset, fromValue) {
   new TypedObjectPointer(descr, typedObj, offset).set(fromValue);
 }
 
-// Writes `fromValue` into the memory pointed at by `this`, adapting
-// it to `typeRepr` as needed. This is the most general entry point
-// and works for any type.
+// Assigns `fromValue` to the memory pointed at by `this`, adapting it
+// to `typeRepr` as needed. This is the most general entry point and
+// works for any type.
 TypedObjectPointer.prototype.set = function(fromValue) {
   assert(TypedObjectIsAttached(this.typedObj), "set() called with unattached typedObj");
 
@@ -464,7 +464,7 @@ TypedObjectPointer.prototype.set = function(fromValue) {
   // memcpy.
   if (IsObject(fromValue) && ObjectIsTypedObject(fromValue)) {
     var typeRepr = DESCR_TYPE_REPR(this.descr);
-    if (!this.descr.variable && TYPEDOBJ_TYPE_REPR(fromValue) === typeRepr) {
+    if (!typeRepr.variable && TYPEDOBJ_TYPE_REPR(fromValue) === typeRepr) {
       if (!TypedObjectIsAttached(fromValue))
         ThrowError(JSMSG_TYPEDOBJECT_HANDLE_UNATTACHED);
 
@@ -778,11 +778,10 @@ function X4ToSource() {
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
-  var descr = TYPEDOBJ_TYPE_DESCR(this);
-
-  if (DESCR_KIND(descr) != JS_TYPEREPR_X4_KIND)
+  if (DESCR_KIND(this) != JS_TYPEREPR_X4_KIND)
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
+  var descr = TYPEDOBJ_TYPE_DESCR(this);
   var type = DESCR_TYPE(descr);
   return X4ProtoString(type)+"("+this.x+", "+this.y+", "+this.z+", "+this.w+")";
 }

@@ -2186,6 +2186,15 @@ nsINode::IsEqualNode(nsIDOMNode* aOther, bool* aReturn)
   return NS_OK;
 }
 
+static void
+nsCOMArrayDeleter(void* aObject, nsIAtom* aPropertyName,
+                  void* aPropertyValue, void* aData)
+{
+  nsCOMArray<nsISupports>* objects =
+    static_cast<nsCOMArray<nsISupports>*>(aPropertyValue);
+  delete objects;
+}
+
 void
 nsINode::BindObject(nsISupports* aObject)
 {
@@ -2193,8 +2202,7 @@ nsINode::BindObject(nsISupports* aObject)
     static_cast<nsCOMArray<nsISupports>*>(GetProperty(nsGkAtoms::keepobjectsalive));
   if (!objects) {
     objects = new nsCOMArray<nsISupports>();
-    SetProperty(nsGkAtoms::keepobjectsalive, objects,
-                nsINode::DeleteProperty< nsCOMArray<nsISupports> >, true);
+    SetProperty(nsGkAtoms::keepobjectsalive, objects, nsCOMArrayDeleter, true);
   }
   objects->AppendObject(aObject);
 }

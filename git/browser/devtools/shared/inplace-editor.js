@@ -203,10 +203,6 @@ function InplaceEditor(aOptions, aEvent)
   }
   this.input.focus();
 
-  if (this.contentType == CONTENT_TYPES.CSS_VALUE && this.input.value == "") {
-    this._maybeSuggestCompletion(true);
-  }
-
   this.input.addEventListener("blur", this._onBlur, false);
   this.input.addEventListener("keypress", this._onKeyPress, false);
   this.input.addEventListener("input", this._onInput, false);
@@ -857,7 +853,6 @@ InplaceEditor.prototype = {
     if (increment && this._incrementValue(increment) ) {
       this._updateSize();
       prevent = true;
-      cycling = true;
     } else if (increment && this.popup && this.popup.isOpen) {
       cycling = true;
       prevent = true;
@@ -896,12 +891,6 @@ InplaceEditor.prototype = {
 
       // Now we don't want to suggest anything as we are moving out.
       this._preventSuggestions = true;
-      // But we still want to show suggestions for css values. i.e. moving out
-      // of css property input box in forward direction
-      if (this.contentType == CONTENT_TYPES.CSS_PROPERTY &&
-          direction == FOCUS_FORWARD) {
-        this._preventSuggestions = false;
-      }
 
       let input = this.input;
 
@@ -1003,16 +992,8 @@ InplaceEditor.prototype = {
 
   /**
    * Handles displaying suggestions based on the current input.
-   *
-   * @param {boolean} aNoAutoInsert
-   *        true if you don't want to automatically insert the first suggestion
    */
-  _maybeSuggestCompletion: function(aNoAutoInsert) {
-    // Input can be null in cases when you intantaneously switch out of it.
-    if (!this.input) {
-      return;
-    }
-    let preTimeoutQuery = this.input.value;
+  _maybeSuggestCompletion: function() {
     // Since we are calling this method from a keypress event handler, the
     // |input.value| does not include currently typed character. Thus we perform
     // this method async.
@@ -1024,26 +1005,15 @@ InplaceEditor.prototype = {
       if (this.contentType == CONTENT_TYPES.PLAIN_TEXT) {
         return;
       }
-      if (!this.input) {
-        return;
-      }
+
       let input = this.input;
-      // The length of input.value should be increased by 1
-      if (input.value.length - preTimeoutQuery.length > 1) {
+      // Input can be null in cases when you intantaneously switch out of it.
+      if (!input) {
         return;
       }
       let query = input.value.slice(0, input.selectionStart);
       let startCheckQuery = query;
-      if (query == null) {
-        return;
-      }
-      // If nothing is selected and there is a non-space character after the
-      // cursor, do not autocomplete.
-      if (input.selectionStart == input.selectionEnd &&
-          input.selectionStart < input.value.length &&
-          input.value.slice(input.selectionStart)[0] != " ") {
-        // This emit is mainly to make the test flow simpler.
-        this.emit("after-suggest", "nothing to autocomplete");
+      if (!query) {
         return;
       }
       let list = [];
@@ -1060,54 +1030,43 @@ InplaceEditor.prototype = {
 
         list =
           ["!important", ...domUtils.getCSSValuesForProperty(this.property.name)];
-
-        if (query == "") {
-          // Do not suggest '!important' without any manually typed character.
-          list.splice(0, 1);
-        }
       } else if (this.contentType == CONTENT_TYPES.CSS_MIXED &&
                  /^\s*style\s*=/.test(query)) {
         // Detecting if cursor is at property or value;
-        let match = query.match(/([:;"'=]?)\s*([^"';:=]+)?$/);
-        if (match && match.length >= 2) {
+        let match = query.match(/([:;"'=]?)\s*([^"';:=]+)$/);
+        if (match && match.length == 3) {
           if (match[1] == ":") { // We are in CSS value completion
             let propertyName =
-              query.match(/[;"'=]\s*([^"';:= ]+)\s*:\s*[^"';:=]*$/)[1];
+              query.match(/[;"'=]\s*([^"';:= ]+)\s*:\s*[^"';:=]+$/)[1];
             list =
               ["!important;", ...domUtils.getCSSValuesForProperty(propertyName)];
-            let matchLastQuery = /([^\s,.\/]+$)/.exec(match[2] || "");
+            let matchLastQuery = /([^\s,.\/]+$)/.exec(match[2]);
             if (matchLastQuery) {
               startCheckQuery = matchLastQuery[0];
             } else {
               startCheckQuery = "";
             }
-            if (!match[2]) {
-              // Don't suggest '!important' without any manually typed character
-              list.splice(0, 1);
-            }
           } else if (match[1]) { // We are in CSS property name completion
             list = CSSPropertyList;
             startCheckQuery = match[2];
           }
-          if (startCheckQuery == null) {
+          if (!startCheckQuery) {
             // This emit is mainly to make the test flow simpler.
             this.emit("after-suggest", "nothing to autocomplete");
             return;
           }
         }
       }
-      if (!aNoAutoInsert) {
-        list.some(item => {
-          if (startCheckQuery != null && item.startsWith(startCheckQuery)) {
-            input.value = query + item.slice(startCheckQuery.length) +
-                          input.value.slice(query.length);
-            input.setSelectionRange(query.length, query.length + item.length -
-                                                  startCheckQuery.length);
-            this._updateSize();
-            return true;
-          }
-        });
-      }
+      list.some(item => {
+        if (startCheckQuery && item.startsWith(startCheckQuery)) {
+          input.value = query + item.slice(startCheckQuery.length) +
+                        input.value.slice(query.length);
+          input.setSelectionRange(query.length, query.length + item.length -
+                                                startCheckQuery.length);
+          this._updateSize();
+          return true;
+        }
+      });
 
       if (!this.popup) {
         // This emit is mainly to make the test flow simpler.
@@ -1117,7 +1076,7 @@ InplaceEditor.prototype = {
       let finalList = [];
       let length = list.length;
       for (let i = 0, count = 0; i < length && count < MAX_POPUP_ENTRIES; i++) {
-        if (startCheckQuery != null && list[i].startsWith(startCheckQuery)) {
+        if (startCheckQuery && list[i].startsWith(startCheckQuery)) {
           count++;
           finalList.push({
             preLabel: startCheckQuery,
@@ -1129,7 +1088,7 @@ InplaceEditor.prototype = {
           // which would have started with query, assuming that list is sorted.
           break;
         }
-        else if (startCheckQuery != null && list[i][0] > startCheckQuery[0]) {
+        else if (list[i][0] > startCheckQuery[0]) {
           // We have crossed all possible matches alphabetically.
           break;
         }
@@ -1141,9 +1100,6 @@ InplaceEditor.prototype = {
                 this.inputCharWidth;
         this.popup.setItems(finalList);
         this.popup.openPopup(this.input, x);
-        if (aNoAutoInsert) {
-          this.popup.selectedIndex = -1;
-        }
       } else {
         this.popup.hidePopup();
       }

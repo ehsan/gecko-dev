@@ -295,17 +295,17 @@ nsMIMEInputStreamConstructor(nsISupports *outer, REFNSIID iid, void **result)
 }
 
 void
-nsMIMEInputStream::Serialize(InputStreamParams& aParams,
-                             FileDescriptorArray& aFileDescriptors)
+nsMIMEInputStream::Serialize(InputStreamParams& aParams)
 {
     MIMEInputStreamParams params;
 
     if (mData) {
-        nsCOMPtr<nsIInputStream> stream = do_QueryInterface(mData);
-        MOZ_ASSERT(stream);
+        nsCOMPtr<nsIIPCSerializableInputStream> stream =
+            do_QueryInterface(mData);
+        NS_ASSERTION(stream, "Wrapped stream is not serializable!");
 
         InputStreamParams wrappedParams;
-        SerializeInputStream(stream, wrappedParams, aFileDescriptors);
+        stream->Serialize(wrappedParams);
 
         NS_ASSERTION(wrappedParams.type() != InputStreamParams::T__None,
                      "Wrapped stream failed to serialize!");
@@ -325,8 +325,7 @@ nsMIMEInputStream::Serialize(InputStreamParams& aParams,
 }
 
 bool
-nsMIMEInputStream::Deserialize(const InputStreamParams& aParams,
-                               const FileDescriptorArray& aFileDescriptors)
+nsMIMEInputStream::Deserialize(const InputStreamParams& aParams)
 {
     if (aParams.type() != InputStreamParams::TMIMEInputStreamParams) {
         NS_ERROR("Received unknown parameters from the other process!");
@@ -349,8 +348,7 @@ nsMIMEInputStream::Deserialize(const InputStreamParams& aParams,
 
     nsCOMPtr<nsIInputStream> stream;
     if (wrappedParams.type() == OptionalInputStreamParams::TInputStreamParams) {
-        stream = DeserializeInputStream(wrappedParams.get_InputStreamParams(),
-                                        aFileDescriptors);
+        stream = DeserializeInputStream(wrappedParams.get_InputStreamParams());
         if (!stream) {
             NS_WARNING("Failed to deserialize wrapped stream!");
             return false;

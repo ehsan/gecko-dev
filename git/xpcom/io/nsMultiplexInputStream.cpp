@@ -629,8 +629,7 @@ nsMultiplexInputStreamConstructor(nsISupports *outer,
 }
 
 void
-nsMultiplexInputStream::Serialize(InputStreamParams& aParams,
-                                  FileDescriptorArray& aFileDescriptors)
+nsMultiplexInputStream::Serialize(InputStreamParams& aParams)
 {
     MultiplexInputStreamParams params;
 
@@ -641,11 +640,20 @@ nsMultiplexInputStream::Serialize(InputStreamParams& aParams,
 
         streams.SetCapacity(streamCount);
         for (uint32_t index = 0; index < streamCount; index++) {
-            InputStreamParams childStreamParams;
-            SerializeInputStream(mStreams[index], childStreamParams,
-                                 aFileDescriptors);
+            nsCOMPtr<nsIIPCSerializableInputStream> serializable =
+                do_QueryInterface(mStreams[index]);
+            NS_ASSERTION(serializable, "Child stream isn't serializable!");
 
-            streams.AppendElement(childStreamParams);
+            if (serializable) {
+                InputStreamParams childStreamParams;
+                serializable->Serialize(childStreamParams);
+
+                NS_ASSERTION(childStreamParams.type() !=
+                                 InputStreamParams::T__None,
+                             "Serialize failed!");
+
+                streams.AppendElement(childStreamParams);
+            }
         }
     }
 
@@ -657,8 +665,7 @@ nsMultiplexInputStream::Serialize(InputStreamParams& aParams,
 }
 
 bool
-nsMultiplexInputStream::Deserialize(const InputStreamParams& aParams,
-                                    const FileDescriptorArray& aFileDescriptors)
+nsMultiplexInputStream::Deserialize(const InputStreamParams& aParams)
 {
     if (aParams.type() !=
             InputStreamParams::TMultiplexInputStreamParams) {
@@ -674,7 +681,7 @@ nsMultiplexInputStream::Deserialize(const InputStreamParams& aParams,
     uint32_t streamCount = streams.Length();
     for (uint32_t index = 0; index < streamCount; index++) {
         nsCOMPtr<nsIInputStream> stream =
-            DeserializeInputStream(streams[index], aFileDescriptors);
+            DeserializeInputStream(streams[index]);
         if (!stream) {
             NS_WARNING("Deserialize failed!");
             return false;

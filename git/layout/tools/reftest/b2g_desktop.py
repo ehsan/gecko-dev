@@ -125,7 +125,7 @@ class B2GDesktopReftest(RefTest):
 
     def build_command_line(self, app, ignore_window_size=False):
         cmd = os.path.abspath(app)
-        args = ['-marionette']
+        args = []
 
         if not ignore_window_size:
             args.extend(['--screen', '800x1000'])

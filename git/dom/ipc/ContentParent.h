@@ -57,7 +57,6 @@ class PStorageParent;
 class ClonedMessageData;
 class MemoryReport;
 class TabContext;
-class PFileDescriptorSetParent;
 
 class ContentParent : public PContentParent
                     , public nsIObserver
@@ -535,12 +534,6 @@ private:
 
     virtual bool
     RecvBackUpXResources(const FileDescriptor& aXSocketFd) MOZ_OVERRIDE;
-
-    virtual PFileDescriptorSetParent*
-    AllocPFileDescriptorSetParent(const mozilla::ipc::FileDescriptor&) MOZ_OVERRIDE;
-
-    virtual bool
-    DeallocPFileDescriptorSetParent(PFileDescriptorSetParent*) MOZ_OVERRIDE;
 
     // If you add strong pointers to cycle collected objects here, be sure to
     // release these objects in ShutDownProcess.  See the comment there for more
