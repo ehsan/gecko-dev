@@ -82,8 +82,6 @@ struct FontListSizes {
     uint32_t mCharMapsSize; // memory used for cmap coverage info
 };
 
-class gfxUserFontSet;
-
 class gfxPlatformFontList : public gfxFontInfoLoader
 {
 public:
@@ -117,7 +115,7 @@ public:
     virtual bool ResolveFontName(const nsAString& aFontName,
                                    nsAString& aResolvedFontName);
 
-    void UpdateFontList();
+    void UpdateFontList() { InitFontList(); }
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }
 
@@ -179,15 +177,6 @@ public:
 
     // remove the cmap from the shared cmap set
     void RemoveCmap(const gfxCharacterMap *aCharMap);
-
-    // keep track of userfont sets to notify when global fontlist changes occur
-    void AddUserFontSet(gfxUserFontSet *aUserFontSet) {
-        mUserFontSetList.PutEntry(aUserFontSet);
-    }
-
-    void RemoveUserFontSet(gfxUserFontSet *aUserFontSet) {
-        mUserFontSetList.RemoveEntry(aUserFontSet);
-    }
 
 protected:
     class MemoryReporter MOZ_FINAL : public nsIMemoryReporter
@@ -265,9 +254,6 @@ protected:
     // read the loader initialization prefs, and start it
     void GetPrefsAndStartLoader();
 
-    // for font list changes that affect all documents
-    void ForceGlobalReflow();
-
     // used by memory reporter to accumulate sizes of family names in the hash
     static size_t
     SizeOfFamilyNameEntryExcludingThis(const nsAString&               aKey,
@@ -319,8 +305,6 @@ protected:
     uint32_t mStartIndex;
     uint32_t mIncrement;
     uint32_t mNumFamilies;
-
-    nsTHashtable<nsPtrHashKey<gfxUserFontSet> > mUserFontSetList;
 };
 
 #endif /* GFXPLATFORMFONTLIST_H_ */

@@ -328,8 +328,7 @@ AsmJSModule::staticallyLink(ExclusiveContext *cx)
     }
 }
 
-AsmJSModule::AsmJSModule(ScriptSource *scriptSource, uint32_t funcStart,
-                         uint32_t offsetToEndOfUseAsm, bool strict)
+AsmJSModule::AsmJSModule(ScriptSource *scriptSource, uint32_t funcStart, uint32_t offsetToEndOfUseAsm)
   : globalArgumentName_(nullptr),
     importArgumentName_(nullptr),
     bufferArgumentName_(nullptr),
@@ -345,7 +344,6 @@ AsmJSModule::AsmJSModule(ScriptSource *scriptSource, uint32_t funcStart,
     mozilla::PodZero(&pod);
     scriptSource_->incref();
     pod.minHeapLength_ = AsmJSAllocationGranularity;
-    pod.strict_ = strict;
 }
 
 AsmJSModule::~AsmJSModule()
@@ -878,7 +876,7 @@ AsmJSModule::clone(JSContext *cx, ScopedJSDeletePtr<AsmJSModule> *moduleOut) con
 {
     AutoUnprotectCodeForClone cloneGuard(cx, *this);
 
-    *moduleOut = cx->new_<AsmJSModule>(scriptSource_, funcStart_, offsetToEndOfUseAsm_, pod.strict_);
+    *moduleOut = cx->new_<AsmJSModule>(scriptSource_, funcStart_, offsetToEndOfUseAsm_);
     if (!*moduleOut)
         return false;
 
@@ -1315,9 +1313,8 @@ js::LookupAsmJSModuleInCache(ExclusiveContext *cx,
 
     uint32_t funcStart = parser.pc->maybeFunction->pn_body->pn_pos.begin;
     uint32_t offsetToEndOfUseAsm = parser.tokenStream.currentToken().pos.end;
-    bool strict = parser.pc->sc->strict && !parser.pc->sc->hasExplicitUseStrict();
     ScopedJSDeletePtr<AsmJSModule> module(
-        cx->new_<AsmJSModule>(parser.ss, funcStart, offsetToEndOfUseAsm, strict));
+        cx->new_<AsmJSModule>(parser.ss, funcStart, offsetToEndOfUseAsm));
     if (!module)
         return false;
     cursor = module->deserialize(cx, cursor);
