@@ -571,16 +571,6 @@ _cairo_pdf_operators_emit_stroke_style (cairo_pdf_operators_t	*pdf_operators,
 
 	for (i = 0; i < num_dashes; i += 2) {
 	    if (dash[i] == 0.0) {
-		/* Do not modify the dashes in-place, as we may need to also
-		 * replay this stroke to an image fallback.
-		 */
-		if (dash == style->dash) {
-		    dash = _cairo_malloc_ab (num_dashes, sizeof (double));
-		    if (dash == NULL)
-			return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-		    memcpy (dash, style->dash, num_dashes * sizeof (double));
-		}
-
 		/* If we're at the front of the list, we first rotate
 		 * two elements from the end of the list to the front
 		 * of the list before folding away the 0.0. Or, if
@@ -591,10 +581,10 @@ _cairo_pdf_operators_emit_stroke_style (cairo_pdf_operators_t	*pdf_operators,
 		    double last_two[2];
 
 		    if (num_dashes == 2) {
-			free (dash);
+			if (dash != style->dash)
+			    free (dash);
 			return CAIRO_INT_STATUS_NOTHING_TO_DO;
 		    }
-
 		    /* The cases of num_dashes == 0, 1, or 3 elements
 		     * cannot exist, so the rotation of 2 elements
 		     * will always be safe */
@@ -1261,7 +1251,7 @@ _cairo_pdf_operators_emit_cluster (cairo_pdf_operators_t      *pdf_operators,
 				   int                         utf8_len,
 				   cairo_glyph_t              *glyphs,
 				   int                         num_glyphs,
-				   cairo_text_cluster_flags_t  cluster_flags,
+				   cairo_bool_t                backward,
 				   cairo_scaled_font_t	      *scaled_font)
 {
     cairo_scaled_font_subsets_glyph_t subset_glyph;
@@ -1303,10 +1293,7 @@ _cairo_pdf_operators_emit_cluster (cairo_pdf_operators_t      *pdf_operators,
 
     /* Fallback to using ActualText to map zero or more glyphs to a
      * unicode string. */
-    status = _cairo_pdf_operators_flush_glyphs (pdf_operators);
-    if (status)
-	return status;
-
+    _cairo_pdf_operators_flush_glyphs (pdf_operators);
     status = _cairo_pdf_operators_begin_actualtext (pdf_operators, utf8, utf8_len);
     if (status)
 	return status;
@@ -1329,7 +1316,7 @@ _cairo_pdf_operators_emit_cluster (cairo_pdf_operators_t      *pdf_operators,
 	if (status)
 	    return status;
 
-	if ((cluster_flags & CAIRO_TEXT_CLUSTER_FLAG_BACKWARD))
+	if (backward)
 	    cur_glyph--;
 	else
 	    cur_glyph++;
@@ -1351,7 +1338,7 @@ _cairo_pdf_operators_show_text_glyphs (cairo_pdf_operators_t	  *pdf_operators,
 				       int                         num_glyphs,
 				       const cairo_text_cluster_t *clusters,
 				       int                         num_clusters,
-				       cairo_text_cluster_flags_t  cluster_flags,
+				       cairo_bool_t                backward,
 				       cairo_scaled_font_t	  *scaled_font)
 {
     cairo_status_t status;
@@ -1370,9 +1357,7 @@ _cairo_pdf_operators_show_text_glyphs (cairo_pdf_operators_t	  *pdf_operators,
 
     pdf_operators->is_new_text_object = FALSE;
     if (pdf_operators->in_text_object == FALSE) {
-	status = _cairo_pdf_operators_begin_text (pdf_operators);
-	if (status)
-	    return status;
+	_cairo_pdf_operators_begin_text (pdf_operators);
 
 	/* Force Tm and Tf to be emitted when starting a new text
 	 * object.*/
@@ -1391,10 +1376,7 @@ _cairo_pdf_operators_show_text_glyphs (cairo_pdf_operators_t	  *pdf_operators,
     if (pdf_operators->is_new_text_object ||
 	! _cairo_matrix_scale_equal (&pdf_operators->text_matrix, &text_matrix))
     {
-	status = _cairo_pdf_operators_flush_glyphs (pdf_operators);
-	if (status)
-	    return status;
-
+	_cairo_pdf_operators_flush_glyphs (pdf_operators);
 	x = glyphs[0].x;
 	y = glyphs[0].y;
 	cairo_matrix_transform_point (&pdf_operators->cairo_to_pdf, &x, &y);
@@ -1409,25 +1391,25 @@ _cairo_pdf_operators_show_text_glyphs (cairo_pdf_operators_t	  *pdf_operators,
 
     if (num_clusters > 0) {
 	cur_text = utf8;
-	if ((cluster_flags & CAIRO_TEXT_CLUSTER_FLAG_BACKWARD))
+	if (backward)
 	    cur_glyph = glyphs + num_glyphs;
 	else
 	    cur_glyph = glyphs;
 	for (i = 0; i < num_clusters; i++) {
-	    if ((cluster_flags & CAIRO_TEXT_CLUSTER_FLAG_BACKWARD))
+	    if (backward)
 		cur_glyph -= clusters[i].num_glyphs;
 	    status = _cairo_pdf_operators_emit_cluster (pdf_operators,
 							cur_text,
 							clusters[i].num_bytes,
 							cur_glyph,
 							clusters[i].num_glyphs,
-							cluster_flags,
+							backward,
 							scaled_font);
 	    if (status)
 		return status;
 
 	    cur_text += clusters[i].num_bytes;
-	    if (!(cluster_flags & CAIRO_TEXT_CLUSTER_FLAG_BACKWARD))
+	    if (!backward)
 		cur_glyph += clusters[i].num_glyphs;
 	}
     } else {

@@ -379,15 +379,10 @@ PrivateBrowsingService.prototype = {
     let (lm = Cc["@mozilla.org/login-manager;1"].
               getService(Ci.nsILoginManager)) {
       // Clear all passwords for domain
-      try {
-        let logins = lm.getAllLogins({});
-        for (let i = 0; i < logins.length; i++)
-          if (logins[i].hostname.endsWith(aDomain))
-            lm.removeLogin(logins[i]);
-      }
-      // XXXehsan: is there a better way to do this rather than this
-      // hacky comparison?
-      catch (ex if ex == "User canceled Master Password entry") {}
+      let logins = lm.getAllLogins({});
+      for (let i = 0; i < logins.length; i++)
+        if (logins[i].hostname.endsWith(aDomain))
+          lm.removeLogin(logins[i]);
 
       // Clear any "do not save for this site" for this domain
       let disabledHosts = lm.getAllDisabledHosts({});

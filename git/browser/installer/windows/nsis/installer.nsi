@@ -166,6 +166,11 @@ ReserveFile summary.ini
 !define MUI_PAGE_CUSTOMFUNCTION_PRE preWelcome
 !insertmacro MUI_PAGE_WELCOME
 
+; License Page
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW showLicense
+!define MUI_LICENSEPAGE_CHECKBOX
+!insertmacro MUI_PAGE_LICENSE license.rtf
+
 ; Custom Options Page
 Page custom preOptions leaveOptions
 
@@ -584,13 +589,16 @@ Function preWelcome
   ${EndIf}
 FunctionEnd
 
-Function preOptions
+Function showLicense
   ${If} ${FileExists} "$EXEDIR\localized\distribution\modern-header.bmp"
   ${AndIf} $hHeaderBitmap == ""
     Delete "$PLUGINSDIR\modern-header.bmp"
     CopyFiles /SILENT "$EXEDIR\localized\distribution\modern-header.bmp" "$PLUGINSDIR\modern-header.bmp"
     ${ChangeMUIHeaderImage} "$PLUGINSDIR\modern-header.bmp"
   ${EndIf}
+FunctionEnd
+
+Function preOptions
   !insertmacro MUI_HEADER_TEXT "$(OPTIONS_PAGE_TITLE)" "$(OPTIONS_PAGE_SUBTITLE)"
   !insertmacro MUI_INSTALLOPTIONS_DISPLAY "options.ini"
 FunctionEnd

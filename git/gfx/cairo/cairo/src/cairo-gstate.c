@@ -60,7 +60,7 @@ _cairo_gstate_ensure_scaled_font (cairo_gstate_t *gstate);
 static void
 _cairo_gstate_unset_scaled_font (cairo_gstate_t *gstate);
 
-static cairo_status_t
+static void
 _cairo_gstate_transform_glyphs_to_backend (cairo_gstate_t      *gstate,
                                            const cairo_glyph_t *glyphs,
                                            int                  num_glyphs,
@@ -314,8 +314,6 @@ _cairo_gstate_redirect_target (cairo_gstate_t *gstate, cairo_surface_t *child)
  * _cairo_gstate_is_redirected
  * @gstate: a #cairo_gstate_t
  *
- * This space left intentionally blank.
- *
  * Return value: %TRUE if the gstate is redirected to a target
  * different than the original, %FALSE otherwise.
  **/
@@ -373,8 +371,6 @@ _cairo_gstate_get_original_target (cairo_gstate_t *gstate)
 /**
  * _cairo_gstate_get_clip:
  * @gstate: a #cairo_gstate_t
- *
- * This space left intentionally blank.
  *
  * Return value: a pointer to the gstate's #cairo_clip_t structure.
  */
@@ -949,7 +945,6 @@ _cairo_gstate_in_stroke (cairo_gstate_t	    *gstate,
 			 cairo_bool_t	    *inside_ret)
 {
     cairo_status_t status;
-    cairo_box_t limit;
     cairo_traps_t traps;
 
     if (gstate->stroke_style.line_width <= 0.0) {
@@ -959,13 +954,7 @@ _cairo_gstate_in_stroke (cairo_gstate_t	    *gstate,
 
     _cairo_gstate_user_to_backend (gstate, &x, &y);
 
-    limit.p1.x = _cairo_fixed_from_double (x) - 1;
-    limit.p1.y = _cairo_fixed_from_double (y) - 1;
-    limit.p2.x = limit.p1.x + 2;
-    limit.p2.y = limit.p1.y + 2;
-
     _cairo_traps_init (&traps);
-    _cairo_traps_limit (&traps, &limit);
 
     status = _cairo_path_fixed_stroke_to_traps (path,
 						&gstate->stroke_style,
@@ -1022,18 +1011,11 @@ _cairo_gstate_in_fill (cairo_gstate_t	  *gstate,
 		       cairo_bool_t	  *inside_ret)
 {
     cairo_status_t status;
-    cairo_box_t limit;
     cairo_traps_t traps;
 
     _cairo_gstate_user_to_backend (gstate, &x, &y);
 
-    limit.p1.x = _cairo_fixed_from_double (x) - 1;
-    limit.p1.y = _cairo_fixed_from_double (y) - 1;
-    limit.p2.x = limit.p1.x + 2;
-    limit.p2.y = limit.p1.y + 2;
-
     _cairo_traps_init (&traps);
-    _cairo_traps_limit (&traps, &limit);
 
     status = _cairo_path_fixed_fill_to_traps (path,
 					      gstate->fill_rule,
@@ -1479,16 +1461,16 @@ _cairo_gstate_get_font_extents (cairo_gstate_t *gstate,
 }
 
 cairo_status_t
-_cairo_gstate_text_to_glyphs (cairo_gstate_t	         *gstate,
-			      double		          x,
-			      double		          y,
-			      const char	         *utf8,
-			      int		          utf8_len,
-			      cairo_glyph_t	        **glyphs,
-			      int		         *num_glyphs,
-			      cairo_text_cluster_t      **clusters,
-			      int		         *num_clusters,
-			      cairo_text_cluster_flags_t *cluster_flags)
+_cairo_gstate_text_to_glyphs (cairo_gstate_t	    *gstate,
+			      double		     x,
+			      double		     y,
+			      const char	    *utf8,
+			      int		     utf8_len,
+			      cairo_glyph_t	   **glyphs,
+			      int		    *num_glyphs,
+			      cairo_text_cluster_t **clusters,
+			      int		    *num_clusters,
+			      cairo_bool_t	    *backward)
 {
     cairo_status_t status;
 
@@ -1500,7 +1482,7 @@ _cairo_gstate_text_to_glyphs (cairo_gstate_t	         *gstate,
 					     utf8, utf8_len,
 					     glyphs, num_glyphs,
 					     clusters, num_clusters,
-					     cluster_flags);
+					     backward);
 }
 
 cairo_status_t
@@ -1540,6 +1522,12 @@ _cairo_gstate_glyph_extents (cairo_gstate_t *gstate,
     return cairo_scaled_font_status (gstate->scaled_font);
 }
 
+cairo_bool_t
+_cairo_gstate_has_show_text_glyphs (cairo_gstate_t *gstate)
+{
+    return cairo_surface_has_show_text_glyphs (gstate->target);
+}
+
 cairo_status_t
 _cairo_gstate_show_text_glyphs (cairo_gstate_t		   *gstate,
 				const char		   *utf8,
@@ -1548,7 +1536,7 @@ _cairo_gstate_show_text_glyphs (cairo_gstate_t		   *gstate,
 				int			    num_glyphs,
 				const cairo_text_cluster_t *clusters,
 				int			    num_clusters,
-				cairo_text_cluster_flags_t  cluster_flags)
+				cairo_bool_t		    backward)
 {
     cairo_status_t status;
     cairo_pattern_union_t source_pattern;
@@ -1574,12 +1562,10 @@ _cairo_gstate_show_text_glyphs (cairo_gstate_t		   *gstate,
 	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
 
-    status = _cairo_gstate_transform_glyphs_to_backend (gstate,
-							glyphs, num_glyphs,
-							transformed_glyphs,
-							&num_glyphs);
+    _cairo_gstate_transform_glyphs_to_backend (gstate, glyphs, num_glyphs,
+                                               transformed_glyphs, &num_glyphs);
 
-    if (status || num_glyphs == 0)
+    if (!num_glyphs)
 	goto CLEANUP_GLYPHS;
 
     status = _cairo_gstate_copy_transformed_source (gstate, &source_pattern.base);
@@ -1600,7 +1586,7 @@ _cairo_gstate_show_text_glyphs (cairo_gstate_t		   *gstate,
      * fast rasterizer in cairo, we may want to readjust this.
      *
      * Needless to say, do this only if show_text_glyphs is not available. */
-    if (cairo_surface_has_show_text_glyphs (gstate->target) ||
+    if (_cairo_gstate_has_show_text_glyphs (gstate) ||
 	_cairo_scaled_font_get_max_scale (gstate->scaled_font) <= 10240) {
 	status = _cairo_surface_show_text_glyphs (gstate->target,
 						  gstate->op,
@@ -1608,16 +1594,18 @@ _cairo_gstate_show_text_glyphs (cairo_gstate_t		   *gstate,
 						  utf8, utf8_len,
 						  transformed_glyphs, num_glyphs,
 						  clusters, num_clusters,
-						  cluster_flags,
+						  backward,
 						  gstate->scaled_font);
     } else {
 	cairo_path_fixed_t path;
 
 	_cairo_path_fixed_init (&path);
 
+	CAIRO_MUTEX_LOCK (gstate->scaled_font->mutex);
 	status = _cairo_scaled_font_glyph_path (gstate->scaled_font,
 						transformed_glyphs, num_glyphs,
 						&path);
+	CAIRO_MUTEX_UNLOCK (gstate->scaled_font->mutex);
 
 	if (status == CAIRO_STATUS_SUCCESS)
 	  status = _cairo_surface_fill (gstate->target,
@@ -1661,18 +1649,15 @@ _cairo_gstate_glyph_path (cairo_gstate_t      *gstate,
     if (transformed_glyphs == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
-    status = _cairo_gstate_transform_glyphs_to_backend (gstate,
-							glyphs, num_glyphs,
-							transformed_glyphs,
-							NULL);
-    if (status)
-	goto CLEANUP_GLYPHS;
+    _cairo_gstate_transform_glyphs_to_backend (gstate, glyphs, num_glyphs,
+                                               transformed_glyphs, NULL);
 
+    CAIRO_MUTEX_LOCK (gstate->scaled_font->mutex);
     status = _cairo_scaled_font_glyph_path (gstate->scaled_font,
 					    transformed_glyphs, num_glyphs,
 					    path);
+    CAIRO_MUTEX_UNLOCK (gstate->scaled_font->mutex);
 
-  CLEANUP_GLYPHS:
     if (transformed_glyphs != stack_transformed_glyphs)
       cairo_glyph_free (transformed_glyphs);
 
@@ -1712,7 +1697,7 @@ _cairo_gstate_get_antialias (cairo_gstate_t *gstate)
  * This also uses information from the scaled font and the surface to
  * cull/drop glyphs that will not be visible.
  **/
-static cairo_status_t
+static void
 _cairo_gstate_transform_glyphs_to_backend (cairo_gstate_t      *gstate,
                                            const cairo_glyph_t *glyphs,
                                            int                  num_glyphs,
@@ -1725,24 +1710,20 @@ _cairo_gstate_transform_glyphs_to_backend (cairo_gstate_t      *gstate,
     cairo_matrix_t *device_transform = &gstate->target->device_transform;
     cairo_bool_t drop = FALSE;
     double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-    cairo_status_t status;
 
     if (num_transformed_glyphs != NULL) {
 	cairo_rectangle_int_t surface_extents;
 	double scale = _cairo_scaled_font_get_max_scale (gstate->scaled_font);
 
 	drop = TRUE;
-	status = _cairo_gstate_int_clip_extents (gstate, &surface_extents);
-	if (_cairo_status_is_error (status))
-	    return status;
 
-	if (status == CAIRO_INT_STATUS_UNSUPPORTED) {
+	if (_cairo_gstate_int_clip_extents (gstate, &surface_extents))
 	    drop = FALSE; /* unbounded surface */
-	} else {
+	else {
 	    if (surface_extents.width == 0 || surface_extents.height == 0) {
 	      /* No visible area.  Don't draw anything */
 	      *num_transformed_glyphs = 0;
-	      return CAIRO_STATUS_SUCCESS;
+	      return;
 	    }
 	    /* XXX We currently drop any glyphs that has its position outside
 	     * of the surface boundaries by a safety margin depending on the
@@ -1822,6 +1803,4 @@ _cairo_gstate_transform_glyphs_to_backend (cairo_gstate_t      *gstate,
         }
 	*num_transformed_glyphs = j;
     }
-
-    return CAIRO_STATUS_SUCCESS;
 }
