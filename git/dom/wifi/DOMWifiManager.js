@@ -80,7 +80,6 @@ function DOMWifiManager() {
   this.defineEventHandlerGetterSetter("onconnectionInfoUpdate");
   this.defineEventHandlerGetterSetter("onenabled");
   this.defineEventHandlerGetterSetter("ondisabled");
-  this.defineEventHandlerGetterSetter("onstationInfoUpdate");
 }
 
 DOMWifiManager.prototype = {
@@ -100,7 +99,6 @@ DOMWifiManager.prototype = {
     this._enabled = false;
     this._lastConnectionInfo = null;
     this._capabilities = null;
-    this._stationNumber = 0;
 
     const messages = ["WifiManager:getNetworks:Return:OK", "WifiManager:getNetworks:Return:NO",
                       "WifiManager:getKnownNetworks:Return:OK", "WifiManager:getKnownNetworks:Return:NO",
@@ -118,8 +116,8 @@ DOMWifiManager.prototype = {
                       "WifiManager:onconnect", "WifiManager:ondisconnect",
                       "WifiManager:onwpstimeout", "WifiManager:onwpsfail",
                       "WifiManager:onwpsoverlap", "WifiManager:connectionInfoUpdate",
-                      "WifiManager:onauthenticating", "WifiManager:onconnectingfailed",
-                      "WifiManager:stationInfoUpdate"];
+                      "WifiManager:onauthenticating",
+                      "WifiManager:onconnectingfailed"];
     this.initDOMRequestHelper(aWindow, messages);
     this._mm = Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsISyncMessageSender);
 
@@ -394,10 +392,6 @@ DOMWifiManager.prototype = {
         this._connectionStatus = "authenticating";
         this._fireStatusChangeEvent();
         break;
-      case "WifiManager:stationInfoUpdate":
-        this._stationNumber = msg.station;
-        this._fireStationInfoUpdate(msg);
-        break;
     }
   },
 
@@ -422,13 +416,6 @@ DOMWifiManager.prototype = {
 
   _fireEnabledOrDisabled: function enabledDisabled(enabled) {
     var evt = new this._window.Event(enabled ? "enabled" : "disabled");
-    this.__DOM_IMPL__.dispatchEvent(evt);
-  },
-
-  _fireStationInfoUpdate: function onStationInfoUpdate(info) {
-    var evt = new this._window.MozWifiStationInfoEvent("stationInfoUpdate",
-                                                       { station: this._stationNumber}
-                                                      );
     this.__DOM_IMPL__.dispatchEvent(evt);
   },
 

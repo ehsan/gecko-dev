@@ -73,7 +73,6 @@ private:
   void HandleBluetoothStatusChanged(nsISupports* aSubject,
                                     const char* aTopic,
                                     const nsCString aAddress);
-  void HandleAudioChannelProcessChanged();
 };
 
 } /* namespace gonk */
