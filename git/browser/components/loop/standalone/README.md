@@ -14,8 +14,7 @@ Installation
 Configuration
 -------------
 
-If you need a static config.js file for deployment (most people wont; only
-folks deploying the development server will!), you can generate one like this:
+You will need to generate a configuration file, you can do so with:
 
     $ make config
 

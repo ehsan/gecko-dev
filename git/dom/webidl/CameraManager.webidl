@@ -5,7 +5,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-enum CameraMode { "unspecified", "picture", "video" };
+enum CameraMode { "picture", "video" };
 
 /* Used for the dimensions of a captured picture,
    a preview stream, a video capture stream, etc. */
@@ -18,10 +18,10 @@ dictionary CameraSize
 /* Pre-emptive camera configuration options. */
 dictionary CameraConfiguration
 {
-  CameraMode mode = "unspecified";
+  CameraMode mode = "picture";
   CameraSize previewSize = null;
-  DOMString recorderProfile = ""; // one of the profiles reported by
-                                  // CameraControl.capabilities.recorderProfiles
+  DOMString recorderProfile = "cif";  // or some other recording profile
+                                      // supported by the CameraControl
 };
 
 callback CameraErrorCallback = void (DOMString error);

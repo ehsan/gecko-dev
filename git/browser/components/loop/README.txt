@@ -13,35 +13,11 @@ The standalone client exists in standalone/ but shares items
 file in the standalone/ directory for how to run the server locally.
 
 
-Hacking
-=======
-Please be sure to execute
-
-  browser/components/loop/run-all-loop-tests.sh
-
-from the top level before requesting review on a patch.
-
-
-Functional Tests
+Working with JSX
 ================
-These are currently a work in progress, but it's already possible to run a test
-if you have a [loop-server](https://github.com/mozilla-services/loop-server)
-install that is properly configured.  From the top-level gecko directory,
-execute:
 
-  export LOOP_SERVER=/Users/larry/src/loop-server
-  ./mach marionette-test browser/components/loop/test/functional/manifest.ini
-
-Once the automation is complete, we'll include this in run-all-loop-tests.sh
-as well.
-
-
-Working with React JSX files
-============================
-
-Our views use [React](http://facebook.github.io/react/) written in JSX files
-and transpiled to JS before we commit. You need to install the JSX compiler
-using npm in order to compile the .jsx files into regular .js ones:
+You need to install the JSX compiler using npm in order to compile the .jsx
+files into regular .js ones:
 
     npm install -g react-tools
 

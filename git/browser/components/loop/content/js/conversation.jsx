@@ -158,34 +158,18 @@ loop.conversation = (function(OT, mozL10n) {
     incoming: function(loopVersion) {
       navigator.mozLoop.startAlerting();
       this._conversation.set({loopVersion: loopVersion});
-      this._conversation.once("accept", () => {
+      this._conversation.once("accept", function() {
         this.navigate("call/accept", {trigger: true});
-      });
-      this._conversation.once("decline", () => {
+      }.bind(this));
+      this._conversation.once("decline", function() {
         this.navigate("call/decline", {trigger: true});
-      });
-      this._conversation.once("declineAndBlock", () => {
+      }.bind(this));
+      this._conversation.once("declineAndBlock", function() {
         this.navigate("call/declineAndBlock", {trigger: true});
-      });
-      this._conversation.once("call:incoming", this.startCall, this);
-      this._client.requestCallsInfo(loopVersion, (err, sessionData) => {
-        if (err) {
-          console.error("Failed to get the sessionData", err);
-          // XXX Not the ideal response, but bug 1047410 will be replacing
-          //this by better "call failed" UI.
-          this._notifier.errorL10n("cannot_start_call_session_not_ready");
-          return;
-        }
-        // XXX For incoming calls we might have more than one call queued.
-        // For now, we'll just assume the first call is the right information.
-        // We'll probably really want to be getting this data from the
-        // background worker on the desktop client.
-        // Bug 1032700 should fix this.
-        this._conversation.setSessionData(sessionData[0]);
-        this.loadReactComponent(loop.conversation.IncomingCallView({
-          model: this._conversation
-        }));
-      });
+      }.bind(this));
+      this.loadReactComponent(loop.conversation.IncomingCallView({
+        model: this._conversation
+      }));
     },
 
     /**
@@ -193,7 +177,10 @@ loop.conversation = (function(OT, mozL10n) {
      */
     accept: function() {
       navigator.mozLoop.stopAlerting();
-      this._conversation.incoming();
+      this._conversation.initiate({
+        client: new loop.Client(),
+        outgoing: false
+      });
     },
 
     /**
@@ -214,10 +201,10 @@ loop.conversation = (function(OT, mozL10n) {
     declineAndBlock: function() {
       navigator.mozLoop.stopAlerting();
       var token = navigator.mozLoop.getLoopCharPref('loopToken');
-      this._client.deleteCallUrl(token, function(error) {
+      var client = new loop.Client();
+      client.deleteCallUrl(token, function(error) {
         // XXX The conversation window will be closed when this cb is triggered
         // figure out if there is a better way to report the error to the user
-        // (bug 1048909).
         console.log(error);
       });
       window.close();
@@ -267,12 +254,8 @@ loop.conversation = (function(OT, mozL10n) {
 
     document.title = mozL10n.get("incoming_call_title");
 
-    var client = new loop.Client();
     router = new ConversationRouter({
-      client: client,
-      conversation: new loop.shared.models.ConversationModel(
-        {},         // Model attributes
-        {sdk: OT}), // Model dependencies
+      conversation: new loop.shared.models.ConversationModel({}, {sdk: OT}),
       notifier: new sharedViews.NotificationListView({el: "#messages"})
     });
     Backbone.history.start();

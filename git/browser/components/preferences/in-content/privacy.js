@@ -469,8 +469,9 @@ var gPrivacyPane = {
                    permissionType : "cookie",
                    windowTitle    : bundlePreferences.getString("cookiepermissionstitle"),
                    introText      : bundlePreferences.getString("cookiepermissionstext") };
-    gSubDialog.open("chrome://browser/content/preferences/permissions.xul",
-                    null, params);
+    openDialog("chrome://browser/content/preferences/permissions.xul",
+               "Browser:Permissions",
+               "modal=yes", params);
   },
 
   /**
@@ -478,7 +479,9 @@ var gPrivacyPane = {
    */
   showCookies: function (aCategory)
   {
-    gSubDialog.open("chrome://browser/content/preferences/cookies.xul");
+    openDialog("chrome://browser/content/preferences/cookies.xul",
+               "Browser:Cookies",
+               "modal=yes", null);
   },
 
   // CLEAR PRIVATE DATA
@@ -496,7 +499,8 @@ var gPrivacyPane = {
    */
   showClearPrivateDataSettings: function ()
   {
-    gSubDialog.open("chrome://browser/content/preferences/sanitize.xul");
+    openDialog("chrome://browser/content/preferences/sanitize.xul",
+               "modal=yes", null);
   },
 
 

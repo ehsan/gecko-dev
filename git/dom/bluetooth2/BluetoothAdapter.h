@@ -28,7 +28,6 @@ class BluetoothDevice;
 class BluetoothDiscoveryHandle;
 class BluetoothSignal;
 class BluetoothNamedValue;
-class BluetoothPairingListener;
 class BluetoothValue;
 
 class BluetoothAdapter : public DOMEventTargetHelper
@@ -75,11 +74,6 @@ public:
   Discoverable() const
   {
     return mDiscoverable;
-  }
-
-  BluetoothPairingListener* PairingReqs() const
-  {
-    return mPairingReqs;
   }
 
   /**
@@ -175,7 +169,6 @@ private:
   void GetPairedDeviceProperties(const nsTArray<nsString>& aDeviceAddresses);
 
   void HandleDeviceFound(const BluetoothValue& aValue);
-  void HandlePairingRequest(const BluetoothValue& aValue);
 
   /**
    * mDevices holds references of all created device objects.
@@ -194,7 +187,6 @@ private:
    */
   nsTArray<nsRefPtr<BluetoothDevice> > mDevices;
   nsRefPtr<BluetoothDiscoveryHandle> mDiscoveryHandleInUse;
-  nsRefPtr<BluetoothPairingListener> mPairingReqs;
   BluetoothAdapterState mState;
   nsString mAddress;
   nsString mName;

@@ -4,14 +4,14 @@
 
 package org.mozilla.gecko.util;
 
-import java.util.concurrent.SynchronousQueue;
-
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
-
 import android.content.ClipData;
 import android.content.Context;
+import android.os.Build;
 import android.util.Log;
+
+import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
+
+import java.util.concurrent.SynchronousQueue;
 
 public final class Clipboard {
     private static Context mContext;
@@ -61,7 +61,7 @@ public final class Clipboard {
             @Override
             @SuppressWarnings("deprecation")
             public void run() {
-                if (Versions.feature11Plus) {
+                if (Build.VERSION.SDK_INT >= 11) {
                     android.content.ClipboardManager cm = getClipboardManager(mContext);
                     ClipData clip = ClipData.newPlainText("Text", text);
                     try {
@@ -86,7 +86,7 @@ public final class Clipboard {
      */
     @WrapElementForJNI
     public static boolean hasText() {
-        if (Versions.feature11Plus) {
+        if (Build.VERSION.SDK_INT >= 11) {
             android.content.ClipboardManager cm = getClipboardManager(mContext);
             return cm.hasPrimaryClip();
         }
@@ -118,7 +118,7 @@ public final class Clipboard {
      * present on the thread. */
     @SuppressWarnings("deprecation")
     private static String getClipboardTextImpl() {
-        if (Versions.feature11Plus) {
+        if (Build.VERSION.SDK_INT >= 11) {
             android.content.ClipboardManager cm = getClipboardManager(mContext);
             if (cm.hasPrimaryClip()) {
                 ClipData clip = cm.getPrimaryClip();
