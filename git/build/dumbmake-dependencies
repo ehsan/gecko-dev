@@ -58,7 +58,6 @@ browser/app
   browser/themes
   toolkit
   toolkit/components
-  toolkit/components/jsdownloads
   toolkit/content
   toolkit/crashreporter
   toolkit/devtools

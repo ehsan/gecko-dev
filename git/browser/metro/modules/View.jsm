@@ -27,16 +27,11 @@ function View() {
 }
 
 View.prototype = {
-  _adjustDOMforViewState: function _adjustDOMforViewState(aState) {
-    if (this._set) {
-        if (undefined == aState)
-          aState = this._set.getAttribute("viewstate");
-      this._set.setAttribute("suppressonselect", (aState == "snapped"));
-    }
-  },
 
   onViewStateChange: function (aState) {
-    this._adjustDOMforViewState(aState);
+    if (this._set) {
+      this._set.setAttribute("suppressonselect", (aState == "snapped"));
+    }
   },
 
   _updateFavicon: function pv__updateFavicon(aItem, aUri) {

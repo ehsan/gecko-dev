@@ -6,6 +6,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
+Cu.import("resource://webapprt/modules/Startup.jsm");
 Cu.import("resource://webapprt/modules/WebappRT.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -48,6 +49,10 @@ let progressListener = {
 function onLoad() {
   window.removeEventListener("load", onLoad, false);
 
+  let args = window.arguments && window.arguments[0] ?
+             window.arguments[0].QueryInterface(Ci.nsIPropertyBag2) :
+             null;
+
   gAppBrowser.addProgressListener(progressListener,
                                   Ci.nsIWebProgress.NOTIFY_LOCATION |
                                   Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
@@ -58,6 +63,14 @@ function onLoad() {
   // This doesn't capture clicks so content can capture them itself and do
   // something different if it doesn't want the default behavior.
   gAppBrowser.addEventListener("click", onContentClick, false, true);
+
+  // This is not the only way that a URL gets loaded in the app browser.
+  // When content calls openWindow(), there are no window.arguments,
+  // but something in the platform loads the URL specified by the content.
+  if (args && args.hasKey("url")) {
+    gAppBrowser.setAttribute("src", args.get("url"));
+  }
+
 }
 window.addEventListener("load", onLoad, false);
 

@@ -24,13 +24,14 @@ this.WebappRT = {
     if (this._config)
       return this._config;
 
+    let config;
     let webappFile = FileUtils.getFile("AppRegD", ["webapp.json"]);
 
     let inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
                       createInstance(Ci.nsIFileInputStream);
     inputStream.init(webappFile, -1, 0, 0);
     let json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
-    let config = json.decodeFromStream(inputStream, webappFile.fileSize);
+    config = json.decodeFromStream(inputStream, webappFile.fileSize);
 
     return this._config = config;
   },

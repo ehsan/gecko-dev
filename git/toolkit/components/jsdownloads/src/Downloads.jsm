@@ -148,7 +148,7 @@ this.Downloads = {
           let list = new DownloadList(true);
           try {
             yield DownloadIntegration.addListObservers(list, false);
-            yield DownloadIntegration.initializePublicDownloadList(list);
+            yield DownloadIntegration.loadPersistent(list);
           } catch (ex) {
             Cu.reportError(ex);
           }

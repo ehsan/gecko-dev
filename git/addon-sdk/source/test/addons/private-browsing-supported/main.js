@@ -11,7 +11,6 @@ merge(module.exports,
   require('./test-tabs'),
   require('./test-page-mod'),
   require('./test-private-browsing'),
-  require('./test-sidebar'),
   isGlobalPBSupported ? require('./test-global-private-browsing') : {}
 );
 
