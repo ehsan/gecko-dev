@@ -345,10 +345,10 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     nsCString                   mContentType;
 
     /**
-     * The channel that's currently being loaded.
+     * The channel that's currently being loaded. This is a weak reference.
      * Non-null between asyncOpen and onStopRequest.
      */
-    nsCOMPtr<nsIChannel>        mChannel;
+    nsIChannel*                 mChannel;
 
     // The data we were last asked to load
     nsCOMPtr<nsIURI>            mURI;

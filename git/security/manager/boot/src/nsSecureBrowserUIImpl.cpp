@@ -132,7 +132,6 @@ nsSecureBrowserUIImpl::nsSecureBrowserUIImpl()
   , mSubRequestsBrokenSecurity(0)
   , mSubRequestsNoSecurity(0)
   , mRestoreSubrequests(false)
-  , mOnLocationChangeSeen(false)
 #ifdef DEBUG
   , mOnStateLocationChangeReentranceDetection(0)
 #endif
@@ -1218,10 +1217,9 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
       // But when the target sink changes between OnLocationChange and
       // OnStateChange, we have to fire the notification here (again).
 
-      if (sinkChanged || mOnLocationChangeSeen)
+      if (sinkChanged)
         return EvaluateAndUpdateSecurityState(aRequest, securityInfo, false);
     }
-    mOnLocationChangeSeen = false;
 
     if (mRestoreSubrequests && !inProgress)
     {
@@ -1612,7 +1610,6 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
 
   if (windowForProgress.get() == window.get()) {
     // For toplevel channels, update the security state right away.
-    mOnLocationChangeSeen = true;
     return EvaluateAndUpdateSecurityState(aRequest, securityInfo, true);
   }
 

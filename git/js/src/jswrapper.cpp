@@ -763,16 +763,6 @@ CrossCompartmentWrapper::fun_toString(JSContext *cx, JSObject *wrapper, unsigned
 }
 
 bool
-CrossCompartmentWrapper::regexp_toShared(JSContext *cx, JSObject *wrapper, RegExpGuard *g)
-{
-    AutoCompartment call(cx, wrappedObject(wrapper));
-    if (!call.enter())
-        return NULL;
-
-    return DirectWrapper::regexp_toShared(cx, wrapper, g);
-}
-
-bool
 CrossCompartmentWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vp)
 {
     AutoCompartment call(cx, wrappedObject(wrapper));
@@ -977,13 +967,6 @@ DeadObjectProxy DeadObjectProxy::singleton;
 int DeadObjectProxy::sDeadObjectFamily;
 
 } // namespace js
-
-JSObject *
-js::NewDeadProxyObject(JSContext *cx, JSObject *parent)
-{
-    return NewProxyObject(cx, &DeadObjectProxy::singleton, NullValue(),
-                          NULL, parent, NULL, NULL);
-}
 
 void
 js::NukeCrossCompartmentWrapper(JSObject *wrapper)
