@@ -288,6 +288,15 @@ nsFrameManager::GetCanvasFrame()
 
 //----------------------------------------------------------------------
 
+void
+nsFrameManager::RemoveAsPrimaryFrame(nsIContent* aContent,
+                                     nsIFrame* aPrimaryFrame)
+{
+  if (aContent->GetPrimaryFrame() == aPrimaryFrame) {
+    aContent->SetPrimaryFrame(nsnull);
+  }
+}
+
 // Placeholder frame functions
 nsPlaceholderFrame*
 nsFrameManager::GetPlaceholderFrameFor(nsIFrame*  aFrame)
@@ -555,9 +564,14 @@ nsFrameManager::RemoveFrame(nsIAtom*        aListName,
 void
 nsFrameManager::NotifyDestroyingFrame(nsIFrame* aFrame)
 {
+  //XXXfr Because we destroy most continuation chains starting from the FIF
+  // this does excess work by triggering on every continuation in the chain
   nsIContent* content = aFrame->GetContent();
-  if (content && content->GetPrimaryFrame() == aFrame) {
-    ClearAllUndisplayedContentIn(content);
+  if (!aFrame->GetPrevContinuation() && content) {
+    RemoveAsPrimaryFrame(content, aFrame);
+    if (content != aFrame->GetParent()->GetContent()) { // first-letter
+      ClearAllUndisplayedContentIn(content);
+    }
   }
 }
 

@@ -60,6 +60,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIPresShell.h"
 #include "nsIFrame.h"
+#include "nsFrameManager.h"
 #include "nsCoord.h"
 #include "nsIImageMap.h"
 #include "nsIConsoleService.h"
@@ -84,6 +85,7 @@ public:
   void HasFocus(PRBool aHasFocus);
 
   void GetHREF(nsAString& aHref) const;
+  void GetArea(nsIContent** aArea) const;
 
   nsCOMPtr<nsIContent> mArea;
   nscoord* mCoords;
@@ -95,7 +97,6 @@ Area::Area(nsIContent* aArea)
   : mArea(aArea)
 {
   MOZ_COUNT_CTOR(Area);
-  NS_PRECONDITION(mArea, "How did that happen?");
   mCoords = nsnull;
   mNumCoords = 0;
   mHasFocus = PR_FALSE;
@@ -114,6 +115,13 @@ Area::GetHREF(nsAString& aHref) const
   if (mArea) {
     mArea->GetAttr(kNameSpaceID_None, nsGkAtoms::href, aHref);
   }
+}
+
+void
+Area::GetArea(nsIContent** aArea) const
+{
+  *aArea = mArea;
+  NS_IF_ADDREF(*aArea);
 }
 
 #include <stdlib.h>
@@ -749,14 +757,18 @@ nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
 void
 nsImageMap::FreeAreas()
 {
+  nsFrameManager *frameManager = mPresShell->FrameManager();
+
   PRUint32 i, n = mAreas.Length();
   for (i = 0; i < n; i++) {
     Area* area = mAreas.ElementAt(i);
-    NS_ASSERTION(area->mArea->GetPrimaryFrame() == mImageFrame,
-                 "Unexpected primary frame");
-    area->mArea->SetPrimaryFrame(nsnull);
+    frameManager->RemoveAsPrimaryFrame(area->mArea, mImageFrame);
 
-    area->mArea->RemoveEventListenerByIID(this, NS_GET_IID(nsIDOMFocusListener));
+    nsCOMPtr<nsIContent> areaContent;
+    area->GetArea(getter_AddRefs(areaContent));
+    if (areaContent) {
+      areaContent->RemoveEventListenerByIID(this, NS_GET_IID(nsIDOMFocusListener));
+    }
     delete area;
   }
   mAreas.Clear();
@@ -900,7 +912,7 @@ nsImageMap::IsInside(nscoord aX, nscoord aY,
   for (i = 0; i < n; i++) {
     Area* area = mAreas.ElementAt(i);
     if (area->IsInside(aX, aY)) {
-      NS_ADDREF(*aContent = area->mArea);
+      area->GetArea(aContent);
 
       return PR_TRUE;
     }
@@ -997,7 +1009,9 @@ nsImageMap::ChangeFocus(nsIDOMEvent* aEvent, PRBool aFocus)
       PRUint32 i, n = mAreas.Length();
       for (i = 0; i < n; i++) {
         Area* area = mAreas.ElementAt(i);
-        if (area->mArea == targetContent) {
+        nsCOMPtr<nsIContent> areaContent;
+        area->GetArea(getter_AddRefs(areaContent));
+        if (areaContent == targetContent) {
           //Set or Remove internal focus
           area->HasFocus(aFocus);
           //Now invalidate the rect

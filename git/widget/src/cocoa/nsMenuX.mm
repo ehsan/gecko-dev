@@ -866,11 +866,13 @@ static pascal OSStatus MyMenuEventHandler(EventHandlerCallRef myHandler, EventRe
     
     // don't request a menu item that doesn't exist or we crash
     // this might happen just due to some random quirks in the event system
-    nsMenuObjectX* target = targetMenu->GetVisibleItemAt((PRUint32)aPos);
-    if (!target)
+    PRUint32 itemCount;
+    targetMenu->GetVisibleItemCount(itemCount);
+    if (aPos >= itemCount)
       return eventNotHandledErr;
 
     // Send DOM event if we're over a menu item
+    nsMenuObjectX* target = targetMenu->GetVisibleItemAt((PRUint32)aPos);
     if (target->MenuObjectType() == eMenuItemObjectType) {
       nsMenuItemX* targetMenuItem = static_cast<nsMenuItemX*>(target);
       PRBool handlerCalledPreventDefault; // but we don't actually care
