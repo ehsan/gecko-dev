@@ -20,7 +20,7 @@
 #include "js/TypeDecls.h"
 
 class JSAtom;
-struct JSFreeOp;
+class JSFreeOp;
 
 namespace js {
 class InterpreterFrame;

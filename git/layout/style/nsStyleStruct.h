@@ -358,7 +358,7 @@ struct nsStyleBackground {
   struct Position;
   friend struct Position;
   struct Position {
-    typedef nsStyleCoord::CalcValue PositionCoord;
+    typedef nsStyleCoord::Calc PositionCoord;
     PositionCoord mXPosition, mYPosition;
 
     // Initialize nothing
@@ -385,7 +385,7 @@ struct nsStyleBackground {
   struct Size;
   friend struct Size;
   struct Size {
-    struct Dimension : public nsStyleCoord::CalcValue {
+    struct Dimension : public nsStyleCoord::Calc {
       nscoord ResolveLengthPercentage(nscoord aAvailable) const {
         double d = double(mPercent) * double(aAvailable) + double(mLength);
         if (d < 0.0)
@@ -1323,6 +1323,10 @@ struct nsStylePosition {
   float         mFlexGrow;              // [reset] float
   float         mFlexShrink;            // [reset] float
   nsStyleCoord  mZIndex;                // [reset] integer, auto
+  // NOTE: Fields so far can be memcpy()'ed, while following fields
+  // need to have their copy constructor called when we're being copied.
+  // See nsStylePosition::nsStylePosition(const nsStylePosition& aSource)
+  // in nsStyleStruct.cpp
   nsStyleGridTemplate mGridTemplateColumns;
   nsStyleGridTemplate mGridTemplateRows;
 
@@ -1476,9 +1480,7 @@ struct nsStyleTextReset {
 
   nsChangeHint CalcDifference(const nsStyleTextReset& aOther) const;
   static nsChangeHint MaxDifference() {
-    return nsChangeHint(
-        NS_STYLE_HINT_REFLOW | 
-        nsChangeHint_UpdateSubtreeOverflow);
+    return NS_STYLE_HINT_REFLOW;
   }
   static nsChangeHint MaxDifferenceNeverInherited() {
     // CalcDifference never returns nsChangeHint_NeedReflow or

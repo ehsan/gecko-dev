@@ -344,7 +344,6 @@ interface TestJSImplInterface {
   void passOptionalByteString(optional ByteString arg);
   void passOptionalNullableByteString(optional ByteString? arg);
   void passVariadicByteString(ByteString... arg);
-  void PassUnionByteString((ByteString or long) arg);
 
   // Enumerated types
   void passEnum(MyTestEnum arg);

@@ -27,7 +27,7 @@ struct JSRuntime;
 
 namespace JS {
 namespace shadow {
-struct Runtime;
+class Runtime;
 }
 }
 

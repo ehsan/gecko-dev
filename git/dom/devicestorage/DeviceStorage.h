@@ -30,7 +30,7 @@ class nsIOutputStream;
 namespace mozilla {
 class EventListenerManager;
 namespace dom {
-struct DeviceStorageEnumerationParameters;
+class DeviceStorageEnumerationParameters;
 class DOMCursor;
 class DOMRequest;
 class Promise;

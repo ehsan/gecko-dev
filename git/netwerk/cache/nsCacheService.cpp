@@ -3268,7 +3268,7 @@ MOZ_DEFINE_MALLOC_SIZE_OF(DiskCacheDeviceMallocSizeOf)
 
 NS_IMETHODIMP
 nsCacheService::CollectReports(nsIHandleReportCallback* aHandleReport,
-                               nsISupports* aData, bool aAnonymize)
+                               nsISupports* aData)
 {
     size_t disk = 0;
     if (mDiskDevice) {

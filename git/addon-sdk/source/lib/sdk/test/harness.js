@@ -161,7 +161,7 @@ function reportMemoryUsage() {
     function logReporter(process, path, kind, units, amount, description) {
       print(((++count == 1) ? "\n" : "") + description + ": " + amount + "\n");
     }
-    mgr.getReportsForThisProcess(logReporter, null, /* anonymize = */ false);
+    mgr.getReportsForThisProcess(logReporter, null);
 
     var weakrefs = [info.weakref.get()
                     for each (info in memory.getObjects())];
@@ -380,7 +380,7 @@ function getPotentialLeaks() {
 
   Cc["@mozilla.org/memory-reporter-manager;1"]
     .getService(Ci.nsIMemoryReporterManager)
-    .getReportsForThisProcess(logReporter, null, /* anonymize = */ false);
+    .getReportsForThisProcess(logReporter, null);
 
   return { compartments: compartments, windows: windows };
 }

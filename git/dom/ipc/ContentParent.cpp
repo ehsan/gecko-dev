@@ -454,8 +454,7 @@ NS_IMPL_ISUPPORTS(ContentParentsMemoryReporter, nsIMemoryReporter)
 
 NS_IMETHODIMP
 ContentParentsMemoryReporter::CollectReports(nsIMemoryReporterCallback* cb,
-                                             nsISupports* aClosure,
-                                             bool aAnonymize)
+                                             nsISupports* aClosure)
 {
     nsAutoTArray<ContentParent*, 16> cps;
     ContentParent::GetAllEvenIfDead(cps);
@@ -465,7 +464,7 @@ ContentParentsMemoryReporter::CollectReports(nsIMemoryReporterCallback* cb,
         MessageChannel* channel = cp->GetIPCChannel();
 
         nsString friendlyName;
-        cp->FriendlyName(friendlyName, aAnonymize);
+        cp->FriendlyName(friendlyName);
 
         cp->AddRef();
         nsrefcnt refcnt = cp->Release();
@@ -602,28 +601,23 @@ ContentParent::MaybeTakePreallocatedAppProcess(const nsAString& aAppManifestURL,
 /*static*/ void
 ContentParent::StartUp()
 {
-    // We could launch sub processes from content process
-    // FIXME Bug 1023701 - Stop using ContentParent static methods in
-    // child process
-    sCanLaunchSubprocesses = true;
-
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
-        return;
-    }
-
     // Note: This reporter measures all ContentParents.
     RegisterStrongMemoryReporter(new ContentParentsMemoryReporter());
 
     mozilla::dom::time::InitializeDateCacheCleaner();
 
-    BackgroundChild::Startup();
+    sCanLaunchSubprocesses = true;
 
-    // Try to preallocate a process that we can transform into an app later.
-    PreallocatedProcessManager::AllocateAfterDelay();
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+        BackgroundChild::Startup();
 
-    // Test the PBackground infrastructure on ENABLE_TESTS builds when a special
-    // testing preference is set.
-    MaybeTestPBackground();
+        // Try to preallocate a process that we can transform into an app later.
+        PreallocatedProcessManager::AllocateAfterDelay();
+
+        // Test the PBackground infrastructure on ENABLE_TESTS builds when a special
+        // testing preference is set.
+        MaybeTestPBackground();
+    }
 }
 
 /*static*/ void
@@ -2429,13 +2423,13 @@ ContentParent::Observe(nsISupports* aSubject,
 #endif
         if (!isNuwa) {
             unsigned generation;
-            int anonymize, minimize, identOffset = -1;
+            int minimize, identOffset = -1;
             nsDependentString msg(aData);
             NS_ConvertUTF16toUTF8 cmsg(msg);
 
             if (sscanf(cmsg.get(),
-                       "generation=%x anonymize=%d minimize=%d DMDident=%n",
-                       &generation, &anonymize, &minimize, &identOffset) < 3
+                       "generation=%x minimize=%d DMDident=%n",
+                       &generation, &minimize, &identOffset) < 2
                 || identOffset < 0) {
                 return NS_ERROR_INVALID_ARG;
             }
@@ -2443,8 +2437,7 @@ ContentParent::Observe(nsISupports* aSubject,
             // offset in identOffset should be correct as a char offset.
             MOZ_ASSERT(cmsg[identOffset - 1] == '=');
             unused << SendPMemoryReportRequestConstructor(
-              generation, anonymize, minimize,
-              nsString(Substring(msg, identOffset)));
+              generation, minimize, nsString(Substring(msg, identOffset)));
         }
     }
     else if (!strcmp(aTopic, "child-gc-request")){
@@ -2685,7 +2678,7 @@ ContentParent::IsPreallocated()
 }
 
 void
-ContentParent::FriendlyName(nsAString& aName, bool aAnonymize)
+ContentParent::FriendlyName(nsAString& aName)
 {
     aName.Truncate();
 #ifdef MOZ_NUWA_PROCESS
@@ -2697,8 +2690,6 @@ ContentParent::FriendlyName(nsAString& aName, bool aAnonymize)
         aName.AssignLiteral("(Preallocated)");
     } else if (mIsForBrowser) {
         aName.AssignLiteral("Browser");
-    } else if (aAnonymize) {
-        aName.AssignLiteral("<anonymized-name>");
     } else if (!mAppName.IsEmpty()) {
         aName = mAppName;
     } else if (!mAppManifestURL.IsEmpty()) {
@@ -2786,9 +2777,8 @@ ContentParent::RecvPIndexedDBConstructor(PIndexedDBParent* aActor)
 }
 
 PMemoryReportRequestParent*
-ContentParent::AllocPMemoryReportRequestParent(const uint32_t& aGeneration,
-                                               const bool &aAnonymize,
-                                               const bool &aMinimizeMemoryUsage,
+ContentParent::AllocPMemoryReportRequestParent(const uint32_t& generation,
+                                               const bool &minimizeMemoryUsage,
                                                const nsString &aDMDDumpIdent)
 {
     MemoryReportRequestParent* parent = new MemoryReportRequestParent();

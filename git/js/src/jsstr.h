@@ -218,7 +218,8 @@ extern bool
 StringHasPattern(JSLinearString *text, const jschar *pat, uint32_t patlen);
 
 extern int
-StringFindPattern(JSLinearString *text, JSLinearString *pat, size_t start);
+StringFindPattern(const jschar *text, uint32_t textlen,
+                  const jschar *pat, uint32_t patlen);
 
 extern bool
 StringHasRegExpMetaChars(const jschar *chars, size_t length);

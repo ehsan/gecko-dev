@@ -70,47 +70,46 @@ namespace detail {
  */
 class GuardObjectNotifier
 {
-private:
-  bool* mStatementDone;
+  private:
+    bool* statementDone;
 
-public:
-  GuardObjectNotifier() : mStatementDone(nullptr) { }
+  public:
+    GuardObjectNotifier() : statementDone(nullptr) { }
 
-  ~GuardObjectNotifier() { *mStatementDone = true; }
+    ~GuardObjectNotifier() {
+      *statementDone = true;
+    }
 
-  void setStatementDone(bool* aStatementIsDone)
-  {
-    mStatementDone = aStatementIsDone;
-  }
+    void setStatementDone(bool* statementIsDone) {
+      statementDone = statementIsDone;
+    }
 };
 
 class GuardObjectNotificationReceiver
 {
-private:
-  bool mStatementDone;
+  private:
+    bool statementDone;
 
-public:
-  GuardObjectNotificationReceiver() : mStatementDone(false) { }
+  public:
+    GuardObjectNotificationReceiver() : statementDone(false) { }
 
-  ~GuardObjectNotificationReceiver() {
-    /*
-     * Assert that the guard object was not used as a temporary.  (Note that
-     * this assert might also fire if init is not called because the guard
-     * object's implementation is not using the above macros correctly.)
-     */
-    MOZ_ASSERT(mStatementDone);
-  }
+    ~GuardObjectNotificationReceiver() {
+      /*
+       * Assert that the guard object was not used as a temporary.  (Note that
+       * this assert might also fire if init is not called because the guard
+       * object's implementation is not using the above macros correctly.)
+       */
+      MOZ_ASSERT(statementDone);
+    }
 
-  void init(const GuardObjectNotifier& aConstNotifier)
-  {
-    /*
-     * aConstNotifier is passed as a const reference so that we can pass a
-     * temporary, but we really intend it as non-const.
-     */
-    GuardObjectNotifier& notifier =
-      const_cast<GuardObjectNotifier&>(aConstNotifier);
-    notifier.setStatementDone(&mStatementDone);
-  }
+    void init(const GuardObjectNotifier& constNotifier) {
+      /*
+       * constNotifier is passed as a const reference so that we can pass a
+       * temporary, but we really intend it as non-const.
+       */
+      GuardObjectNotifier& notifier = const_cast<GuardObjectNotifier&>(constNotifier);
+      notifier.setStatementDone(&statementDone);
+    }
 };
 
 } /* namespace detail */

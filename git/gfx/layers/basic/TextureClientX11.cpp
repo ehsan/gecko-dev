@@ -76,13 +76,6 @@ TextureClientX11::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
     return false;
   }
 
-  if (!(mFlags & TextureFlags::DEALLOCATE_CLIENT)) {
-    // Pass to the host the responsibility of freeing the pixmap. ReleasePixmap means
-    // the underlying pixmap will not be deallocated in mSurface's destructor.
-    // ToSurfaceDescriptor is at most called once per TextureClient.
-    mSurface->ReleasePixmap();
-  }
-
   aOutDescriptor = SurfaceDescriptorX11(mSurface);
   return true;
 }
@@ -91,7 +84,6 @@ bool
 TextureClientX11::AllocateForSurface(IntSize aSize, TextureAllocationFlags aTextureFlags)
 {
   MOZ_ASSERT(IsValid());
-  MOZ_ASSERT(!IsAllocated());
   //MOZ_ASSERT(mFormat != gfx::FORMAT_YUV, "This TextureClient cannot use YCbCr data");
 
   gfxContentType contentType = ContentForFormat(mFormat);
@@ -103,6 +95,9 @@ TextureClientX11::AllocateForSurface(IntSize aSize, TextureAllocationFlags aText
 
   mSize = aSize;
   mSurface = static_cast<gfxXlibSurface*>(surface.get());
+
+  // The host is always responsible for freeing the pixmap.
+  mSurface->ReleasePixmap();
 
   if (!mAllocator->IsSameProcess()) {
     FinishX(DefaultXDisplay());

@@ -1029,9 +1029,7 @@ class MNop : public MNullaryInstruction
 
 // Truncation barrier. This is intended for protecting its input against
 // follow-up truncation optimizations.
-class MLimitedTruncate
-  : public MUnaryInstruction,
-    public ConvertToInt32Policy<0>
+class MLimitedTruncate : public MUnaryInstruction
 {
   public:
     TruncateKind truncate_;
@@ -1043,7 +1041,7 @@ class MLimitedTruncate
         truncate_(NoTruncate),
         truncateLimit_(limit)
     {
-        setResultType(MIRType_Int32);
+        setResultType(input->type());
         setResultTypeSet(input->resultTypeSet());
         setMovable();
     }
@@ -1052,10 +1050,6 @@ class MLimitedTruncate
     INSTRUCTION_HEADER(LimitedTruncate)
     static MLimitedTruncate *New(TempAllocator &alloc, MDefinition *input, TruncateKind kind) {
         return new(alloc) MLimitedTruncate(input, kind);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
     }
 
     AliasSet getAliasSet() const {

@@ -29,7 +29,7 @@
 namespace mozilla {
 
 namespace gfx {
-class Matrix;
+struct Matrix;
 }
 
 namespace layers {

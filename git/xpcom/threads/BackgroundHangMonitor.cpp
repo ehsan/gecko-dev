@@ -89,7 +89,6 @@ public:
   }
 
   BackgroundHangManager();
-private:
   ~BackgroundHangManager();
 };
 

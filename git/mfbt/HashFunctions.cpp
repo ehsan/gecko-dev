@@ -13,14 +13,14 @@
 namespace mozilla {
 
 uint32_t
-HashBytes(const void* aBytes, size_t aLength)
+HashBytes(const void* bytes, size_t length)
 {
   uint32_t hash = 0;
-  const char* b = reinterpret_cast<const char*>(aBytes);
+  const char* b = reinterpret_cast<const char*>(bytes);
 
   /* Walk word by word. */
   size_t i = 0;
-  for (; i < aLength - (aLength % sizeof(size_t)); i += sizeof(size_t)) {
+  for (; i < length - (length % sizeof(size_t)); i += sizeof(size_t)) {
     /* Do an explicitly unaligned load of the data. */
     size_t data;
     memcpy(&data, b + i, sizeof(size_t));
@@ -29,9 +29,9 @@ HashBytes(const void* aBytes, size_t aLength)
   }
 
   /* Get the remaining bytes. */
-  for (; i < aLength; i++) {
+  for (; i < length; i++)
     hash = AddToHash(hash, b[i]);
-  }
+
   return hash;
 }
 

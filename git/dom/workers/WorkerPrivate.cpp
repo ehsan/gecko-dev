@@ -1758,8 +1758,6 @@ public:
     // This should never be used when reporting with workers (hence the "?!").
     extras->domPathPrefix.AssignLiteral("explicit/workers/?!/");
 
-    extras->location = nullptr;
-
     aCompartmentStats->extra = extras;
   }
 };
@@ -1977,6 +1975,7 @@ class WorkerPrivate::MemoryReporter MOZ_FINAL : public nsIMemoryReporter
 
   SharedMutex mMutex;
   WorkerPrivate* mWorkerPrivate;
+  nsCString mRtPath;
   bool mAlreadyMappedToAddon;
 
 public:
@@ -1986,52 +1985,45 @@ public:
   {
     aWorkerPrivate->AssertIsOnWorkerThread();
 
+    nsCString escapedDomain(aWorkerPrivate->Domain());
+    escapedDomain.ReplaceChar('/', '\\');
+
+    NS_ConvertUTF16toUTF8 escapedURL(aWorkerPrivate->ScriptURL());
+    escapedURL.ReplaceChar('/', '\\');
+
+    nsAutoCString addressString;
+    addressString.AppendPrintf("0x%p", static_cast<void*>(aWorkerPrivate));
+
+    mRtPath = NS_LITERAL_CSTRING("explicit/workers/workers(") +
+              escapedDomain + NS_LITERAL_CSTRING(")/worker(") +
+              escapedURL + NS_LITERAL_CSTRING(", ") + addressString +
+              NS_LITERAL_CSTRING(")/");
   }
 
   NS_IMETHOD
   CollectReports(nsIMemoryReporterCallback* aCallback,
-                 nsISupports* aClosure, bool aAnonymize)
+                 nsISupports* aClosure)
   {
     AssertIsOnMainThread();
 
-    // Assumes that WorkerJSRuntimeStats will hold a reference to |path|, and
-    // not a copy, as TryToMapAddon() may later modify if.
-    nsCString path;
-    WorkerJSRuntimeStats rtStats(path);
+    // Assumes that WorkerJSRuntimeStats will hold a reference to mRtPath,
+    // and not a copy, as TryToMapAddon() may later modify the string again.
+    WorkerJSRuntimeStats rtStats(mRtPath);
 
     {
       MutexAutoLock lock(mMutex);
 
-      path.AppendLiteral("explicit/workers/workers(");
-      if (aAnonymize && !mWorkerPrivate->Domain().IsEmpty()) {
-        path.AppendLiteral("<anonymized-domain>)/worker(<anonymized-url>");
-      } else {
-        nsCString escapedDomain(mWorkerPrivate->Domain());
-        if (escapedDomain.IsEmpty()) {
-          escapedDomain += "chrome";
-        } else {
-          escapedDomain.ReplaceChar('/', '\\');
-        }
-        path.Append(escapedDomain);
-        path.AppendLiteral(")/worker(");
-        NS_ConvertUTF16toUTF8 escapedURL(mWorkerPrivate->ScriptURL());
-        escapedURL.ReplaceChar('/', '\\');
-        path.Append(escapedURL);
-      }
-      path.AppendPrintf(", 0x%p)/", static_cast<void*>(mWorkerPrivate));
-
-      TryToMapAddon(path);
+      TryToMapAddon();
 
       if (!mWorkerPrivate ||
-          !mWorkerPrivate->BlockAndCollectRuntimeStats(&rtStats, aAnonymize)) {
+          !mWorkerPrivate->BlockAndCollectRuntimeStats(&rtStats)) {
         // Returning NS_OK here will effectively report 0 memory.
         return NS_OK;
       }
     }
 
-    return xpc::ReportJSRuntimeExplicitTreeStats(rtStats, path,
-                                                 aCallback, aClosure,
-                                                 aAnonymize);
+    return xpc::ReportJSRuntimeExplicitTreeStats(rtStats, mRtPath,
+                                                 aCallback, aClosure);
   }
 
 private:
@@ -2050,7 +2042,7 @@ private:
 
   // Only call this from the main thread and under mMutex lock.
   void
-  TryToMapAddon(nsACString &path)
+  TryToMapAddon()
   {
     AssertIsOnMainThread();
     mMutex.AssertCurrentThreadOwns();
@@ -2086,7 +2078,7 @@ private:
     static const size_t explicitLength = strlen("explicit/");
     addonId.Insert(NS_LITERAL_CSTRING("add-ons/"), 0);
     addonId += "/";
-    path.Insert(addonId, explicitLength);
+    mRtPath.Insert(addonId, explicitLength);
   }
 };
 
@@ -4309,8 +4301,7 @@ WorkerPrivate::ScheduleDeletion(WorkerRanOrNot aRanOrNot)
 }
 
 bool
-WorkerPrivate::BlockAndCollectRuntimeStats(JS::RuntimeStats* aRtStats,
-                                           bool aAnonymize)
+WorkerPrivate::BlockAndCollectRuntimeStats(JS::RuntimeStats* aRtStats)
 {
   AssertIsOnMainThread();
   mMutex.AssertCurrentThreadOwns();
@@ -4343,7 +4334,7 @@ WorkerPrivate::BlockAndCollectRuntimeStats(JS::RuntimeStats* aRtStats,
   if (mMemoryReporter) {
     // Don't hold the lock while doing the actual report.
     MutexAutoUnlock unlock(mMutex);
-    succeeded = JS::CollectRuntimeStats(rt, aRtStats, nullptr, aAnonymize);
+    succeeded = JS::CollectRuntimeStats(rt, aRtStats, nullptr);
   }
 
   NS_ASSERTION(mMemoryReporterRunning, "This isn't possible!");

@@ -35,7 +35,7 @@ class TabChild;
 
 namespace widget {
 
-struct AutoCacheNativeKeyCommands;
+class AutoCacheNativeKeyCommands;
 
 class PuppetWidget : public nsBaseWidget, public nsSupportsWeakReference
 {
@@ -141,7 +141,7 @@ public:
                           DoCommandCallback aCallback,
                           void* aCallbackData) MOZ_OVERRIDE;
 
-  friend struct AutoCacheNativeKeyCommands;
+  friend class AutoCacheNativeKeyCommands;
 
   //
   // nsBaseWidget methods we override

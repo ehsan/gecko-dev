@@ -11,7 +11,7 @@
 
 class nsIContent;
 class nsIWidget;
-struct nsIntPoint;
+class nsIntPoint;
 
 class nsIRollupListener {
  public: 

@@ -385,7 +385,7 @@ SettingsManager.prototype = {
     }
   },
 
-  collectReports: function(aCallback, aData, aAnonymize) {
+  collectReports: function(aCallback, aData) {
     for (var topic in this._callbacks) {
       let length = this._callbacks[topic].length;
       if (length == 0) {
@@ -396,8 +396,7 @@ SettingsManager.prototype = {
       if (length < 20) {
         path = "settings-observers";
       } else {
-        path = "settings-observers-suspect/referent(topic=" +
-               (aAnonymize ? "<anonymized>" : topic) + ")";
+        path = "settings-observers-suspect/referent(topic=" + topic + ")";
       }
 
       aCallback.callback("", path,

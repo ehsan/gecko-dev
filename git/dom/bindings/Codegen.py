@@ -315,12 +315,14 @@ def DOMClass(descriptor):
 
     return fill(
         """
+        {
           { ${protoChain} },
           IsBaseOf<nsISupports, ${nativeType} >::value,
           ${hooks},
           GetParentObject<${nativeType}>::Get,
           GetProtoObject,
           GetCCParticipant<${nativeType}>::Get()
+        }
         """,
         protoChain=', '.join(protoList),
         nativeType=descriptor.nativeType,
@@ -1735,7 +1737,7 @@ class CGClassHasInstanceHook(CGAbstractStaticMethod):
 
         hasInstanceCode = dedent("""
 
-            const DOMJSClass* domClass = GetDOMClass(js::UncheckedUnwrap(instance, /* stopAtOuter = */ false));
+            const DOMClass* domClass = GetDOMClass(js::UncheckedUnwrap(instance, /* stopAtOuter = */ false));
             *bp = false;
             if (!domClass) {
               // Not a DOM object, so certainly not an instance of this interface
@@ -8196,16 +8198,13 @@ class CGUnionStruct(CGThing):
                     body=body % uninit))
                 if self.ownsMembers:
                     methods.append(vars["setter"])
-                    # Provide a SetStringData() method to support string defaults.
-                    # Exclude ByteString here because it does not support defaults
-                    # and only supports narrow nsCString.
-                    if t.isString() and not t.isByteString():
+                    if t.isString():
                         methods.append(
                             ClassMethod("SetStringData", "void",
                                         [Argument("const nsString::char_type*", "aData"),
                                          Argument("nsString::size_type", "aLength")],
                                         inline=True, bodyInHeader=True,
-                                        body="RawSetAs%s().Assign(aData, aLength);\n" % t.name))
+                                        body="RawSetAsString().Assign(aData, aLength);\n"))
 
             body = fill(
                 """
@@ -8435,16 +8434,13 @@ class CGUnionConversionStruct(CGThing):
                                            bodyInHeader=True,
                                            body=body,
                                            visibility="private"))
-                # Provide a SetStringData() method to support string defaults.
-                # Exclude ByteString here because it does not support defaults
-                # and only supports narrow nsCString.
-                if t.isString() and not t.isByteString():
+                if t.isString():
                     methods.append(
                         ClassMethod("SetStringData", "void",
                                     [Argument("const nsDependentString::char_type*", "aData"),
                                      Argument("nsDependentString::size_type", "aLength")],
                                     inline=True, bodyInHeader=True,
-                                    body="RawSetAs%s().SetData(aData, aLength);\n" % t.name))
+                                    body="RawSetAsString().SetData(aData, aLength);\n"))
 
             if vars["holderType"] is not None:
                 members.append(ClassMember("m%sHolder" % vars["name"],
@@ -11256,7 +11252,7 @@ class CGForwardDeclarations(CGWrapper):
             builder.add(d.nativeType)
 
         # We just about always need NativePropertyHooks
-        builder.addInMozillaDom("NativePropertyHooks", isStruct=True)
+        builder.addInMozillaDom("NativePropertyHooks")
         builder.addInMozillaDom("ProtoAndIfaceCache")
         # Add the atoms cache type, even if we don't need it.
         for d in descriptors:

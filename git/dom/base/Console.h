@@ -22,7 +22,7 @@ namespace mozilla {
 namespace dom {
 
 class ConsoleCallData;
-struct ConsoleStackEntry;
+class ConsoleStackEntry;
 
 class Console MOZ_FINAL : public nsITimerCallback
                         , public nsIObserver

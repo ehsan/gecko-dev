@@ -14,7 +14,7 @@
 namespace mozilla {
 namespace dom {
 
-struct MessageEventInit;
+class MessageEventInit;
 class MessagePort;
 class MessagePortBase;
 class MessagePortList;

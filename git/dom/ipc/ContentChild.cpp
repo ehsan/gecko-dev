@@ -190,22 +190,18 @@ class MemoryReportRequestChild : public PMemoryReportRequestChild,
 public:
     NS_DECL_ISUPPORTS
 
-    MemoryReportRequestChild(uint32_t aGeneration, bool aAnonymize,
-                             const nsAString& aDMDDumpIdent);
+    MemoryReportRequestChild(uint32_t aGeneration, const nsAString& aDMDDumpIdent);
     virtual ~MemoryReportRequestChild();
     NS_IMETHOD Run();
 private:
     uint32_t mGeneration;
-    bool     mAnonymize;
     nsString mDMDDumpIdent;
 };
 
 NS_IMPL_ISUPPORTS(MemoryReportRequestChild, nsIRunnable)
 
-MemoryReportRequestChild::MemoryReportRequestChild(
-    uint32_t aGeneration, bool aAnonymize, const nsAString& aDMDDumpIdent)
-  : mGeneration(aGeneration), mAnonymize(aAnonymize),
-    mDMDDumpIdent(aDMDDumpIdent)
+MemoryReportRequestChild::MemoryReportRequestChild(uint32_t aGeneration, const nsAString& aDMDDumpIdent)
+: mGeneration(aGeneration), mDMDDumpIdent(aDMDDumpIdent)
 {
     MOZ_COUNT_CTOR(MemoryReportRequestChild);
 }
@@ -482,17 +478,8 @@ ContentChild* ContentChild::sSingleton;
 // Performs initialization that is not fork-safe, i.e. that must be done after
 // forking from the Nuwa process.
 static void
-InitOnContentProcessCreated(bool aAfterNuwaFork)
+InitOnContentProcessCreated()
 {
-#ifdef MOZ_NUWA_PROCESS
-    // Wait until we are forked from Nuwa
-    if (!aAfterNuwaFork &&
-        Preferences::GetBool("dom.ipc.processPrelaunch.enabled", false)) {
-        return;
-    }
-#else
-    unused << aAfterNuwaFork;
-#endif
     // This will register cross-process observer.
     mozilla::dom::time::InitializeDateCacheCleaner();
 }
@@ -679,17 +666,17 @@ ContentChild::InitXPCOM()
         new SystemMessageHandledObserver();
     sysMsgObserver->Init();
 
-    InitOnContentProcessCreated(/* aAfterNuwaFork = */false);
+#ifndef MOZ_NUWA_PROCESS
+    InitOnContentProcessCreated();
+#endif
 }
 
 PMemoryReportRequestChild*
-ContentChild::AllocPMemoryReportRequestChild(const uint32_t& aGeneration,
-                                             const bool &aAnonymize,
-                                             const bool &aMinimizeMemoryUsage,
+ContentChild::AllocPMemoryReportRequestChild(const uint32_t& generation,
+                                             const bool &minimizeMemoryUsage,
                                              const nsString& aDMDDumpIdent)
 {
-    MemoryReportRequestChild *actor =
-        new MemoryReportRequestChild(aGeneration, aAnonymize, aDMDDumpIdent);
+    MemoryReportRequestChild *actor = new MemoryReportRequestChild(generation, aDMDDumpIdent);
     actor->AddRef();
     return actor;
 }
@@ -737,17 +724,15 @@ NS_IMPL_ISUPPORTS(
 
 bool
 ContentChild::RecvPMemoryReportRequestConstructor(
-    PMemoryReportRequestChild* aChild,
-    const uint32_t& aGeneration,
-    const bool& aAnonymize,
-    const bool& aMinimizeMemoryUsage,
+    PMemoryReportRequestChild* child,
+    const uint32_t& generation,
+    const bool& minimizeMemoryUsage,
     const nsString& aDMDDumpIdent)
 {
-    MemoryReportRequestChild *actor =
-        static_cast<MemoryReportRequestChild*>(aChild);
+    MemoryReportRequestChild *actor = static_cast<MemoryReportRequestChild*>(child);
     nsresult rv;
 
-    if (aMinimizeMemoryUsage) {
+    if (minimizeMemoryUsage) {
         nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
         rv = mgr->MinimizeMemoryUsage(actor);
         // mgr will eventually call actor->Run()
@@ -774,8 +759,7 @@ NS_IMETHODIMP MemoryReportRequestChild::Run()
     nsRefPtr<MemoryReportsWrapper> wrappedReports =
         new MemoryReportsWrapper(&reports);
     nsRefPtr<MemoryReportCallback> cb = new MemoryReportCallback(process);
-    mgr->GetReportsForThisProcessExtended(cb, wrappedReports, mAnonymize,
-                                          mDMDDumpIdent);
+    mgr->GetReportsForThisProcessExtended(cb, wrappedReports, mDMDDumpIdent);
 
     bool sent = Send__delete__(this, mGeneration, reports);
     return sent ? NS_OK : NS_ERROR_FAILURE;
@@ -1850,7 +1834,7 @@ public:
         }
 
         // Perform other after-fork initializations.
-        InitOnContentProcessCreated(/* aAfterNuwaFork = */true);
+        InitOnContentProcessCreated();
 
         return NS_OK;
     }

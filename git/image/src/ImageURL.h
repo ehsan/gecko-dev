@@ -35,7 +35,7 @@ public:
     aURI->GetRef(mRef);
   }
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ImageURL)
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(mozilla::image::ImageURL)
 
   nsresult GetSpec(nsACString &result) {
     result = mSpec;
@@ -78,8 +78,6 @@ private:
   nsAutoCString mSpec;
   nsAutoCString mScheme;
   nsAutoCString mRef;
-
-  ~ImageURL() {}
 };
 
 } // namespace image

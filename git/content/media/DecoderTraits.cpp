@@ -487,12 +487,6 @@ InstantiateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
 {
   nsRefPtr<MediaDecoder> decoder;
 
-#ifdef MOZ_FMP4
-  if (IsMP4SupportedType(aType)) {
-    decoder = new MP4Decoder();
-    return decoder.forget();
-  }
-#endif
 #ifdef MOZ_GSTREAMER
   if (IsGStreamerSupportedType(aType)) {
     decoder = new GStreamerDecoder();
@@ -563,6 +557,12 @@ InstantiateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
     return decoder.forget();
   }
 #endif
+#ifdef MOZ_FMP4
+  if (IsMP4SupportedType(aType)) {
+    decoder = new MP4Decoder();
+    return decoder.forget();
+  }
+#endif
 #ifdef MOZ_WMF
   if (IsWMFSupportedType(aType)) {
     decoder = new WMFDecoder();
@@ -597,11 +597,6 @@ MediaDecoderReader* DecoderTraits::CreateReader(const nsACString& aType, Abstrac
 {
   MediaDecoderReader* decoderReader = nullptr;
 
-#ifdef MOZ_FMP4
-  if (IsMP4SupportedType(aType)) {
-    decoderReader = new MP4Reader(aDecoder);
-  } else
-#endif
 #ifdef MOZ_GSTREAMER
   if (IsGStreamerSupportedType(aType)) {
     decoderReader = new GStreamerReader(aDecoder);
@@ -641,6 +636,11 @@ MediaDecoderReader* DecoderTraits::CreateReader(const nsACString& aType, Abstrac
   // fallback to the WMFReader.
   if (IsDirectShowSupportedType(aType)) {
     decoderReader = new DirectShowReader(aDecoder);
+  } else
+#endif
+#ifdef MOZ_FMP4
+  if (IsMP4SupportedType(aType)) {
+    decoderReader = new MP4Reader(aDecoder);
   } else
 #endif
 #ifdef MOZ_WMF

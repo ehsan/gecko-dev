@@ -113,15 +113,13 @@ public:
 
   void SetInitialAttributes(nsIContent* aBoundElement, nsIContent* aAnonymousContent);
 
-  void AppendStyleSheet(nsCSSStyleSheet* aSheet);
-  void RemoveStyleSheet(nsCSSStyleSheet* aSheet);
-  void InsertStyleSheetAt(size_t aIndex, nsCSSStyleSheet* aSheet);
-  nsCSSStyleSheet* StyleSheetAt(size_t aIndex) const;
-  size_t SheetCount() const;
-  bool HasStyleSheets() const;
-  void AppendStyleSheetsTo(nsTArray<nsCSSStyleSheet*>& aResult) const;
-
   nsIStyleRuleProcessor* GetRuleProcessor();
+  nsXBLPrototypeResources::sheet_array_type* GetOrCreateStyleSheets();
+  nsXBLPrototypeResources::sheet_array_type* GetStyleSheets();
+
+  bool HasStyleSheets() {
+    return mResources && mResources->mStyleSheetList.Length() > 0;
+  }
 
   nsresult FlushSkinSheets();
 
@@ -265,9 +263,6 @@ protected:
                            nsIContent* aContent);
   void ConstructAttributeTable(nsIContent* aElement);
   void CreateKeyHandlers();
-
-private:
-  void EnsureResources();
 
 // MEMBER VARIABLES
 protected:

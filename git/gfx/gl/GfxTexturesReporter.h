@@ -42,7 +42,7 @@ public:
                              int32_t tileWidth, int32_t tileHeight);
 
     NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                              nsISupports* aData, bool aAnonymize)
+                              nsISupports* aData)
     {
         return MOZ_COLLECT_REPORT(
             "gfx-textures", KIND_OTHER, UNITS_BYTES, sAmount,

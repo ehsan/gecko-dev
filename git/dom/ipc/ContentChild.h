@@ -152,18 +152,16 @@ public:
     virtual bool DeallocPIndexedDBChild(PIndexedDBChild* aActor) MOZ_OVERRIDE;
 
     virtual PMemoryReportRequestChild*
-    AllocPMemoryReportRequestChild(const uint32_t& aGeneration,
-                                   const bool& aAnonymize,
-                                   const bool& aMinimizeMemoryUsage,
-                                   const nsString& aDMDDumpIdent) MOZ_OVERRIDE;
+    AllocPMemoryReportRequestChild(const uint32_t& generation,
+                                   const bool &minimizeMemoryUsage,
+                                   const nsString &aDMDDumpIdent) MOZ_OVERRIDE;
     virtual bool
     DeallocPMemoryReportRequestChild(PMemoryReportRequestChild* actor) MOZ_OVERRIDE;
 
     virtual bool
-    RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* aChild,
-                                        const uint32_t& aGeneration,
-                                        const bool& aAnonymize,
-                                        const bool &aMinimizeMemoryUsage,
+    RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child,
+                                        const uint32_t& generation,
+                                        const bool &minimizeMemoryUsage,
                                         const nsString &aDMDDumpIdent) MOZ_OVERRIDE;
 
     virtual PCycleCollectWithLogsChild*

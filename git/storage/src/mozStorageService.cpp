@@ -124,7 +124,7 @@ ReportConn(nsIHandleReportCallback *aHandleReport,
 // any delays in that case aren't so bad.
 NS_IMETHODIMP
 Service::CollectReports(nsIHandleReportCallback *aHandleReport,
-                        nsISupports *aData, bool aAnonymize)
+                        nsISupports *aData)
 {
   nsresult rv;
   size_t totalConnSize = 0;
@@ -143,7 +143,6 @@ Service::CollectReports(nsIHandleReportCallback *aHandleReport,
       }
 
       nsCString pathHead("explicit/storage/sqlite/");
-      // This filename isn't privacy-sensitive, and so is never anonymized.
       pathHead.Append(conn->getFilename());
       pathHead.Append('/');
 

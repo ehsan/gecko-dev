@@ -37,7 +37,7 @@ class HostObjectURLsReporter MOZ_FINAL : public nsIMemoryReporter
   NS_DECL_ISUPPORTS
 
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                            nsISupports* aData, bool aAnonymize)
+                            nsISupports* aData)
   {
     return MOZ_COLLECT_REPORT(
       "host-object-urls", KIND_OTHER, UNITS_COUNT,
@@ -55,12 +55,11 @@ class BlobURLsReporter MOZ_FINAL : public nsIMemoryReporter
   NS_DECL_ISUPPORTS
 
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aCallback,
-                            nsISupports* aData, bool aAnonymize)
+                            nsISupports* aData)
   {
     EnumArg env;
     env.mCallback = aCallback;
     env.mData = aData;
-    env.mAnonymize = aAnonymize;
 
     if (gDataTable) {
       gDataTable->EnumerateRead(CountCallback, &env);
@@ -135,7 +134,6 @@ class BlobURLsReporter MOZ_FINAL : public nsIMemoryReporter
   struct EnumArg {
     nsIHandleReportCallback* mCallback;
     nsISupports* mData;
-    bool mAnonymize;
     nsDataHashtable<nsPtrHashKey<nsIDOMBlob>, uint32_t> mRefCounts;
   };
 
@@ -192,28 +190,16 @@ class BlobURLsReporter MOZ_FINAL : public nsIMemoryReporter
           !owner.IsEmpty()) {
         owner.ReplaceChar('/', '\\');
         path += "owner(";
-        if (envp->mAnonymize) {
-          path += "<anonymized>";
-        } else {
-          path += owner;
-        }
+        path += owner;
         path += ")";
       } else {
         path += "owner unknown";
       }
       path += "/";
-      if (envp->mAnonymize) {
-        path += "<anonymized-stack>";
-      } else {
-        path += aInfo->mStack;
-      }
+      path += aInfo->mStack;
       url = aKey;
       url.ReplaceChar('/', '\\');
-      if (envp->mAnonymize) {
-        path += "<anonymized-url>";
-      } else {
-        path += url;
-      }
+      path += url;
       if (refCount > 1) {
         nsAutoCString addrStr;
 

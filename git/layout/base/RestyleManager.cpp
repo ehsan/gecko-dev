@@ -513,22 +513,6 @@ RestyleManager::StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint)
   return;
 }
 
-void
-RestyleManager::AddSubtreeToOverflowTracker(nsIFrame* aFrame) 
-{
-  mOverflowChangedTracker.AddFrame(
-      aFrame,
-      OverflowChangedTracker::CHILDREN_AND_PARENT_CHANGED);
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      nsIFrame* child = childFrames.get();
-      AddSubtreeToOverflowTracker(child);
-    }
-  }
-}
-
 NS_DECLARE_FRAME_PROPERTY(ChangeListProperty, nullptr)
 
 /**
@@ -732,7 +716,6 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
         StyleChangeReflow(frame, hint);
         didReflowThisFrame = true;
       }
-
       if (hint & (nsChangeHint_RepaintFrame | nsChangeHint_SyncFrameView |
                   nsChangeHint_UpdateOpacityLayer | nsChangeHint_UpdateTransformLayer |
                   nsChangeHint_ChildrenOnlyTransform)) {
@@ -750,11 +733,7 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
                    "nsChangeHint_UpdateOverflow should be passed too");
       if (!didReflowThisFrame &&
           (hint & (nsChangeHint_UpdateOverflow |
-                   nsChangeHint_UpdatePostTransformOverflow |
-                   nsChangeHint_UpdateSubtreeOverflow))) {
-        if (hint & nsChangeHint_UpdateSubtreeOverflow) {
-          AddSubtreeToOverflowTracker(frame);
-        }
+                   nsChangeHint_UpdatePostTransformOverflow))) {
         OverflowChangedTracker::ChangeKind changeKind;
         if (hint & nsChangeHint_ChildrenOnlyTransform) {
           // The overflow areas of the child frames need to be updated:
@@ -790,8 +769,7 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
           // If we have both nsChangeHint_UpdateOverflow and
           // nsChangeHint_UpdatePostTransformOverflow, CHILDREN_AND_PARENT_CHANGED
           // is selected as it is stronger.
-          if (hint & (nsChangeHint_UpdateOverflow | 
-                      nsChangeHint_UpdateSubtreeOverflow)) {
+          if (hint & nsChangeHint_UpdateOverflow) {
             changeKind = OverflowChangedTracker::CHILDREN_AND_PARENT_CHANGED;
           } else {
             changeKind = OverflowChangedTracker::TRANSFORM_CHANGED;
@@ -849,7 +827,7 @@ RestyleManager::RestyleElement(Element*        aElement,
                                nsIFrame*       aPrimaryFrame,
                                nsChangeHint    aMinHint,
                                RestyleTracker& aRestyleTracker,
-                               nsRestyleHint   aRestyleHint)
+                               bool            aRestyleDescendants)
 {
   NS_ASSERTION(aPrimaryFrame == aElement->GetPrimaryFrame(),
                "frame/content mismatch");
@@ -886,7 +864,7 @@ RestyleManager::RestyleElement(Element*        aElement,
   } else if (aPrimaryFrame) {
     nsStyleChangeList changeList;
     ComputeStyleChangeFor(aPrimaryFrame, &changeList, aMinHint,
-                          aRestyleTracker, aRestyleHint);
+                          aRestyleTracker, aRestyleDescendants);
     ProcessRestyledFrames(changeList);
   } else {
     // no frames, reconstruct for content
@@ -1422,7 +1400,7 @@ RestyleManager::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
   // Note: The restyle tracker we pass in here doesn't matter.
   ComputeStyleChangeFor(mPresContext->PresShell()->GetRootFrame(),
                         &changeList, aExtraHint,
-                        aRestyleTracker, eRestyle_Subtree);
+                        aRestyleTracker, true);
   // Process the required changes
   ProcessRestyledFrames(changeList);
   FlushOverflowChangedTracker();
@@ -2301,9 +2279,6 @@ ElementRestyler::Restyle(nsRestyleHint aRestyleHint)
   NS_ASSERTION(!GetPrevContinuationWithSameStyle(mFrame),
                "should not be trying to restyle this frame separately");
 
-  MOZ_ASSERT(!(aRestyleHint & eRestyle_LaterSiblings),
-             "eRestyle_LaterSiblings must not be part of aRestyleHint");
-
   if (mContent && mContent->IsElement()) {
     mContent->OwnerDoc()->FlushPendingLinkUpdates();
     RestyleTracker::RestyleData restyleData;
@@ -2339,9 +2314,6 @@ ElementRestyler::Restyle(nsRestyleHint aRestyleHint)
 void
 ElementRestyler::RestyleSelf(nsIFrame* aSelf, nsRestyleHint aRestyleHint)
 {
-  MOZ_ASSERT(!(aRestyleHint & eRestyle_LaterSiblings),
-             "eRestyle_LaterSiblings must not be part of aRestyleHint");
-
   // XXXldb get new context from prev-in-flow if possible, to avoid
   // duplication.  (Or should we just let |GetContext| handle that?)
   // Getting the hint would be nice too, but that's harder.
@@ -2935,7 +2907,7 @@ RestyleManager::ComputeStyleChangeFor(nsIFrame*          aFrame,
                                       nsStyleChangeList* aChangeList,
                                       nsChangeHint       aMinChange,
                                       RestyleTracker&    aRestyleTracker,
-                                      nsRestyleHint      aRestyleHint)
+                                      bool               aRestyleDescendants)
 {
   PROFILER_LABEL("RestyleManager", "ComputeStyleChangeFor",
     js::ProfileEntry::Category::CSS);
@@ -2984,7 +2956,7 @@ RestyleManager::ComputeStyleChangeFor(nsIFrame*          aFrame,
                                treeMatchContext,
                                visibleKidsOfHiddenElement);
 
-      restyler.Restyle(aRestyleHint);
+      restyler.Restyle(aRestyleDescendants ? eRestyle_Subtree : eRestyle_Self);
 
       if (restyler.HintsHandledForFrame() & nsChangeHint_ReconstructFrame) {
         // If it's going to cause a framechange, then don't bother

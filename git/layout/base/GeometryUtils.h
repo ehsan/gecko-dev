@@ -26,7 +26,7 @@ struct ConvertCoordinateOptions;
 class DOMQuad;
 class DOMRectReadOnly;
 class DOMPoint;
-struct DOMPointInit;
+class DOMPointInit;
 class OwningTextOrElementOrDocument;
 class TextOrElementOrDocument;
 }

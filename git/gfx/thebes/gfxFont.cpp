@@ -1072,8 +1072,7 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
     // If the family has only one face, we simply return it; no further checking needed
     if (mAvailableFonts.Length() == 1) {
         gfxFontEntry *fe = mAvailableFonts[0];
-        aNeedsSyntheticBold =
-            wantBold && !fe->IsBold() && aFontStyle.allowSyntheticWeight;
+        aNeedsSyntheticBold = wantBold && !fe->IsBold();
         return fe;
     }
 
@@ -1114,9 +1113,7 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
             // check remaining faces in order of preference to find the first that actually exists
             fe = mAvailableFonts[order[trial]];
             if (fe) {
-                aNeedsSyntheticBold =
-                    wantBold && !fe->IsBold() &&
-                    aFontStyle.allowSyntheticWeight;
+                aNeedsSyntheticBold = wantBold && !fe->IsBold();
                 return fe;
             }
         }
@@ -1171,8 +1168,7 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
     NS_ASSERTION(matchFE,
                  "weight mapping should always find at least one font in a family");
 
-    if (!matchFE->IsBold() && baseWeight >= 6 &&
-        aFontStyle.allowSyntheticWeight)
+    if (!matchFE->IsBold() && baseWeight >= 6)
     {
         aNeedsSyntheticBold = true;
     }
@@ -1744,8 +1740,9 @@ MOZ_DEFINE_MALLOC_SIZE_OF(FontCacheMallocSizeOf)
 NS_IMPL_ISUPPORTS(gfxFontCache::MemoryReporter, nsIMemoryReporter)
 
 NS_IMETHODIMP
-gfxFontCache::MemoryReporter::CollectReports(
-    nsIMemoryReporterCallback* aCb, nsISupports* aClosure, bool aAnonymize)
+gfxFontCache::MemoryReporter::CollectReports
+    (nsIMemoryReporterCallback* aCb,
+     nsISupports* aClosure)
 {
     FontCacheSizes sizes;
 
@@ -6211,7 +6208,7 @@ gfxFontStyle::gfxFontStyle() :
     languageOverride(NO_FONT_LANGUAGE_OVERRIDE),
     weight(NS_FONT_WEIGHT_NORMAL), stretch(NS_FONT_STRETCH_NORMAL),
     systemFont(true), printerFont(false), useGrayscaleAntialiasing(false),
-    smallCaps(false), allowSyntheticWeight(true), allowSyntheticStyle(true),
+    smallCaps(false),
     style(NS_FONT_STYLE_NORMAL)
 {
 }
@@ -6220,8 +6217,6 @@ gfxFontStyle::gfxFontStyle(uint8_t aStyle, uint16_t aWeight, int16_t aStretch,
                            gfxFloat aSize, nsIAtom *aLanguage,
                            float aSizeAdjust, bool aSystemFont,
                            bool aPrinterFont, bool aSmallCaps,
-                           bool aAllowWeightSynthesis,
-                           bool aAllowStyleSynthesis,
                            const nsString& aLanguageOverride):
     language(aLanguage),
     size(aSize), sizeAdjust(aSizeAdjust),
@@ -6230,8 +6225,6 @@ gfxFontStyle::gfxFontStyle(uint8_t aStyle, uint16_t aWeight, int16_t aStretch,
     systemFont(aSystemFont), printerFont(aPrinterFont),
     useGrayscaleAntialiasing(false),
     smallCaps(aSmallCaps),
-    allowSyntheticWeight(aAllowWeightSynthesis),
-    allowSyntheticStyle(aAllowStyleSynthesis),
     style(aStyle)
 {
     MOZ_ASSERT(!mozilla::IsNaN(size));
@@ -6265,8 +6258,6 @@ gfxFontStyle::gfxFontStyle(const gfxFontStyle& aStyle) :
     systemFont(aStyle.systemFont), printerFont(aStyle.printerFont),
     useGrayscaleAntialiasing(aStyle.useGrayscaleAntialiasing),
     smallCaps(aStyle.smallCaps),
-    allowSyntheticWeight(aStyle.allowSyntheticWeight),
-    allowSyntheticStyle(aStyle.allowSyntheticStyle),
     style(aStyle.style)
 {
     featureSettings.AppendElements(aStyle.featureSettings);

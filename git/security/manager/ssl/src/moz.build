@@ -17,13 +17,15 @@ EXPORTS.mozilla += [
     'PublicSSL.h',
 ]
 
-SOURCES += [
+UNIFIED_SOURCES += [
     'CryptoTask.cpp',
     'nsCertificatePrincipal.cpp',
     'nsCertOverrideService.cpp',
     'nsCertPicker.cpp',
     'nsCertVerificationThread.cpp',
     'nsClientAuthRemember.cpp',
+    'nsCMS.cpp',
+    'nsCMSSecureMessage.cpp',
     'nsCrypto.cpp',
     'nsDataSignatureVerifier.cpp',
     'nsKeygenHandler.cpp',
@@ -75,16 +77,16 @@ SOURCES += [
 ]
 
 if not CONFIG['MOZ_DISABLE_CRYPTOLEGACY']:
-    SOURCES += [
+    UNIFIED_SOURCES += [
         'nsSmartCardMonitor.cpp',
     ]
 
 if CONFIG['MOZ_XUL']:
-    SOURCES += [
+    UNIFIED_SOURCES += [
         'nsCertTree.cpp',
     ]
 
-SOURCES += [
+UNIFIED_SOURCES += [
     'md4.c',
 ]
 
