@@ -479,19 +479,22 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
 
     mImage->GetFrameAt(0, getter_AddRefs(mFrame));
 
+    PRBool createNewFrame = PR_TRUE;
+
     if (mFrame) {
       PRInt32 width, height;
       mFrame->GetWidth(&width);
       mFrame->GetHeight(&height);
 
-      if ((width != (PRInt32)mInfo.image_width) ||
-          (height != (PRInt32)mInfo.image_height)) {
-        // Can't reuse frame, create a new one with correct size
-        mFrame = nsnull;
+      if ((width == (PRInt32)mInfo.image_width) &&
+          (height == (PRInt32)mInfo.image_height)) {
+        createNewFrame = PR_FALSE;
+      } else {
+        mImage->Clear();
       }
     }
 
-    if (!mFrame) {
+    if (createNewFrame) {
       mFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2");
       if (!mFrame) {
         mState = JPEG_ERROR;
