@@ -1,7 +1,3 @@
-
-if (getBuildConfiguration()['generational-gc'])
-    quit();
-
 gczeal(2);
 var g = newGlobal();
 var dbg = new Debugger(g);

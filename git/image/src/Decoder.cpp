@@ -349,7 +349,7 @@ Decoder::PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha /* = FrameBlender::k
   }
 
   mCurrentFrame->SetFrameDisposalMethod(aDisposalMethod);
-  mCurrentFrame->SetRawTimeout(aTimeout);
+  mCurrentFrame->SetTimeout(aTimeout);
   mCurrentFrame->SetBlendMethod(aBlendMethod);
   mCurrentFrame->ImageUpdated(mCurrentFrame->GetRect());
 

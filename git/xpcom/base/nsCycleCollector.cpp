@@ -1071,10 +1071,9 @@ enum ccType {
 
 typedef js::SliceBudget SliceBudget;
 
-class nsCycleCollector : public nsIMemoryReporter
+class nsCycleCollector : public MemoryMultiReporter
 {
     NS_DECL_ISUPPORTS
-    NS_DECL_NSIMEMORYREPORTER
 
     bool mActivelyCollecting;
     // mScanInProgress should be false when we're collecting white objects.
@@ -1139,6 +1138,9 @@ public:
                  nsICycleCollectorListener *aManualListener);
     void Shutdown();
 
+    NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
+                              nsISupports* aData);
+
     void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
                              size_t *aObjectSize,
                              size_t *aGraphNodesSize,
@@ -1164,7 +1166,7 @@ private:
     void CleanupAfterCollection();
 };
 
-NS_IMPL_ISUPPORTS1(nsCycleCollector, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED0(nsCycleCollector, MemoryMultiReporter)
 
 /**
  * GraphWalker is templatized over a Visitor class that must provide
@@ -2594,15 +2596,13 @@ nsCycleCollector::CollectWhite()
 // Memory reporting
 ////////////////////////
 
-MOZ_DEFINE_MALLOC_SIZE_OF(CycleCollectorMallocSizeOf)
-
 NS_IMETHODIMP
 nsCycleCollector::CollectReports(nsIHandleReportCallback* aHandleReport,
                                  nsISupports* aData)
 {
     size_t objectSize, graphNodesSize, graphEdgesSize, weakMapsSize,
            purpleBufferSize;
-    SizeOfIncludingThis(CycleCollectorMallocSizeOf,
+    SizeOfIncludingThis(MallocSizeOf,
                         &objectSize,
                         &graphNodesSize, &graphEdgesSize,
                         &weakMapsSize,

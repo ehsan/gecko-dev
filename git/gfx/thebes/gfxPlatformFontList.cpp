@@ -71,9 +71,10 @@ gfxFontListPrefObserver::Observe(nsISupports     *aSubject,
     return NS_OK;
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(FontListMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(FontListMallocSizeOf)
 
-NS_IMPL_ISUPPORTS1(gfxPlatformFontList::MemoryReporter, nsIMemoryReporter)
+gfxPlatformFontList::MemoryReporter::MemoryReporter()
+{}
 
 NS_IMETHODIMP
 gfxPlatformFontList::MemoryReporter::CollectReports
@@ -90,20 +91,23 @@ gfxPlatformFontList::MemoryReporter::CollectReports
 
     aCb->Callback(EmptyCString(),
                   NS_LITERAL_CSTRING("explicit/gfx/font-list"),
-                  KIND_HEAP, UNITS_BYTES, sizes.mFontListSize,
+                  nsIMemoryReporter::KIND_HEAP, nsIMemoryReporter::UNITS_BYTES,
+                  sizes.mFontListSize,
                   NS_LITERAL_CSTRING("Memory used to manage the list of font families and faces."),
                   aClosure);
 
     aCb->Callback(EmptyCString(),
                   NS_LITERAL_CSTRING("explicit/gfx/font-charmaps"),
-                  KIND_HEAP, UNITS_BYTES, sizes.mCharMapsSize,
+                  nsIMemoryReporter::KIND_HEAP, nsIMemoryReporter::UNITS_BYTES,
+                  sizes.mCharMapsSize,
                   NS_LITERAL_CSTRING("Memory used to record the character coverage of individual fonts."),
                   aClosure);
 
     if (sizes.mFontTableCacheSize) {
         aCb->Callback(EmptyCString(),
                       NS_LITERAL_CSTRING("explicit/gfx/font-tables"),
-                      KIND_HEAP, UNITS_BYTES, sizes.mFontTableCacheSize,
+                      nsIMemoryReporter::KIND_HEAP, nsIMemoryReporter::UNITS_BYTES,
+                      sizes.mFontTableCacheSize,
                       NS_LITERAL_CSTRING("Memory used for cached font metrics and layout tables."),
                       aClosure);
     }

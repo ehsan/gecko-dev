@@ -556,10 +556,7 @@ class FileFinder(BaseFinder):
         Ignores file names starting with a '.' under the given path. If the
         path itself has leafs starting with a '.', they are not ignored.
         '''
-        # The sorted makes the output idempotent. Otherwise, we are
-        # likely dependent on filesystem implementation details, such as
-        # inode ordering.
-        for p in sorted(os.listdir(os.path.join(self.base, path))):
+        for p in os.listdir(os.path.join(self.base, path)):
             if p.startswith('.'):
                 continue
             for p_, f in self._find(mozpack.path.join(path, p)):
@@ -599,8 +596,7 @@ class FileFinder(BaseFinder):
         elif '*' in pattern[0]:
             if not os.path.exists(os.path.join(self.base, base)):
                 return
-            # See above comment w.r.t. sorted() and idempotent behavior.
-            for p in sorted(os.listdir(os.path.join(self.base, base))):
+            for p in os.listdir(os.path.join(self.base, base)):
                 if p.startswith('.') and not pattern[0].startswith('.'):
                     continue
                 if mozpack.path.match(p, pattern[0]):
