@@ -47,7 +47,6 @@ DOMWifiManager.prototype = {
 
     // Maintain this state for synchronous APIs.
     this._currentNetwork = null;
-    this._connectionStatus = "disconnected";
     this._enabled = true;
     this._lastConnectionInfo = null;
 
@@ -66,12 +65,10 @@ DOMWifiManager.prototype = {
       this._currentNetwork = state.network;
       this._lastConnectionInfo = state.connectionInfo;
       this._enabled = state.enabled;
-      this._connectionStatus = state.status;
     } else {
       this._currentNetwork = null;
       this._lastConnectionInfo = null;
-      this._enabled = false;
-      this._connectionStatus = "disconnected";
+      this._enabled = null;
     }
   },
 
@@ -140,26 +137,22 @@ DOMWifiManager.prototype = {
 
       case "WifiManager:onconnecting":
         this._currentNetwork = msg.network;
-        this._connectionStatus = "connecting";
         this._fireOnConnecting(msg.network);
         break;
 
       case "WifiManager:onassociate":
         this._currentNetwork = msg.network;
-        this._connectionStatus = "associated";
         this._fireOnAssociate(msg.network);
         break;
 
       case "WifiManager:onconnect":
         this._currentNetwork = msg.network;
-        this._connectionStatus = "connected";
         this._fireOnConnect(msg.network);
         break;
 
       case "WifiManager:ondisconnect":
         this._fireOnDisconnect(this._currentNetwork);
         this._currentNetwork = null;
-        this._connectionStatus = "disconnected";
         this._lastConnectionInfo = null;
         break;
 
@@ -239,10 +232,10 @@ DOMWifiManager.prototype = {
     return this._enabled;
   },
 
-  get connection() {
+  get connectedNetwork() {
     if (!this._hasPrivileges)
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
-    return { status: this._connectionStatus, network: this._currentNetwork };
+    return this._currentNetwork;
   },
 
   get connectionInfo() {

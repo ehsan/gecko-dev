@@ -34,23 +34,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+
 #include "domstubs.idl"
 
-interface nsIDOMGeoPosition;
-interface nsIDOMGeoPositionOptions;
-interface nsIDOMGeoPositionCallback;
-interface nsIDOMGeoPositionErrorCallback;
-
-[scriptable, uuid(37687DAF-B85F-4E4D-8881-85A0AD24CF78)]
-interface nsIDOMGeoGeolocation : nsISupports
+[scriptable, uuid(453B72DE-EA90-4F09-AE16-C2E7EE0DDDC4)]
+interface nsIDOMGeoPositionOptions : nsISupports
 {
-  void getCurrentPosition(in nsIDOMGeoPositionCallback successCallback,
-                          [optional] in nsIDOMGeoPositionErrorCallback errorCallback,
-                          [optional] in nsIDOMGeoPositionOptions options);
-
-  long watchPosition(in nsIDOMGeoPositionCallback successCallback,
-                     [optional] in nsIDOMGeoPositionErrorCallback errorCallback,
-                     [optional] in nsIDOMGeoPositionOptions options);
-
-  void clearWatch(in long watchId);
+  attribute boolean enableHighAccuracy;
+  attribute long timeout;
+  attribute long maximumAge;
 };
