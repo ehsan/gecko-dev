@@ -2458,25 +2458,41 @@ nsDocument::InitCSP()
     // regular-strength CSP.
     if (cspHeaderValue.IsEmpty()) {
       mCSP->SetReportOnlyMode(true);
-      mCSP->RefinePolicy(cspROHeaderValue, chanURI);
-#ifdef PR_LOGGING 
-      {
-        PR_LOG(gCspPRLog, PR_LOG_DEBUG, 
-                ("CSP (report only) refined, policy: \"%s\"", 
-                  NS_ConvertUTF16toUTF8(cspROHeaderValue).get()));
-      }
+
+      // Need to tokenize the header value since multiple headers could be
+      // concatenated into one comma-separated list of policies.
+      // See RFC2616 section 4.2 (last paragraph)
+      nsCharSeparatedTokenizer tokenizer(cspROHeaderValue, ',');
+      while (tokenizer.hasMoreTokens()) {
+        const nsSubstring& policy = tokenizer.nextToken();
+        mCSP->RefinePolicy(policy, chanURI);
+#ifdef PR_LOGGING
+        {
+          PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+                  ("CSP (report only) refined with policy: \"%s\"",
+                    NS_ConvertUTF16toUTF8(policy).get()));
+        }
 #endif
+      }
     } else {
       //XXX(sstamm): maybe we should post a warning when both read only and regular 
       // CSP headers are present.
-      mCSP->RefinePolicy(cspHeaderValue, chanURI);
-#ifdef PR_LOGGING 
-      {
-        PR_LOG(gCspPRLog, PR_LOG_DEBUG, 
-               ("CSP refined, policy: \"%s\"",
-                NS_ConvertUTF16toUTF8(cspHeaderValue).get()));
-      }
+
+      // Need to tokenize the header value since multiple headers could be
+      // concatenated into one comma-separated list of policies.
+      // See RFC2616 section 4.2 (last paragraph)
+      nsCharSeparatedTokenizer tokenizer(cspHeaderValue, ',');
+      while (tokenizer.hasMoreTokens()) {
+        const nsSubstring& policy = tokenizer.nextToken();
+        mCSP->RefinePolicy(policy, chanURI);
+#ifdef PR_LOGGING
+        {
+          PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+                ("CSP refined with policy: \"%s\"",
+                  NS_ConvertUTF16toUTF8(policy).get()));
+        }
 #endif
+      }
     }
 
     // Check for frame-ancestor violation
@@ -9139,4 +9155,19 @@ nsDocument::GetMozVisibilityState(nsAString& aState)
   PR_STATIC_ASSERT(NS_ARRAY_LENGTH(states) == eVisibilityStateCount);
   aState.AssignASCII(states[mVisibilityState]);
   return NS_OK;
+}
+
+static size_t
+SizeOfStyleSheetsElementIncludingThis(nsIStyleSheet* aStyleSheet,
+                                      nsMallocSizeOfFun aMallocSizeOf,
+                                      void* aData)
+{
+  return aStyleSheet->SizeOfIncludingThis(aMallocSizeOf);
+}
+
+/* virtual */ size_t
+nsDocument::SizeOfStyleSheets(nsMallocSizeOfFun aMallocSizeOf) const
+{
+  return mStyleSheets.SizeOfExcludingThis(SizeOfStyleSheetsElementIncludingThis,
+                                          aMallocSizeOf); 
 }

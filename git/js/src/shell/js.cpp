@@ -388,7 +388,6 @@ ShellOperationCallback(JSContext *cx)
 static void
 SetContextOptions(JSContext *cx)
 {
-    JS_SetNativeStackQuota(cx, gMaxStackSize);
     JS_SetOperationCallback(cx, ShellOperationCallback);
 }
 
@@ -3047,7 +3046,7 @@ EvalInContext(JSContext *cx, uintN argc, jsval *vp)
     {
         JSAutoEnterCompartment ac;
         uintN flags;
-        JSObject *unwrapped = UnwrapObject(sobj, &flags);
+        JSObject *unwrapped = UnwrapObject(sobj, true, &flags);
         if (flags & Wrapper::CROSS_COMPARTMENT) {
             sobj = unwrapped;
             if (!ac.enter(cx, sobj))
@@ -5444,6 +5443,8 @@ main(int argc, char **argv, char **envp)
 
     JS_SetTrustedPrincipals(rt, &shellTrustedPrincipals);
     JS_SetRuntimeSecurityCallbacks(rt, &securityCallbacks);
+
+    JS_SetNativeStackQuota(rt, gMaxStackSize);
 
     if (!InitWatchdog(rt))
         return 1;

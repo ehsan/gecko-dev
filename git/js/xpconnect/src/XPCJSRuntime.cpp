@@ -271,28 +271,14 @@ CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
     if (!priv)
         return true;
 
-    if (xpc::PtrAndPrincipalHashKey *key = priv->key) {
-        XPCCompartmentMap &map = self->GetCompartmentMap();
+    xpc::PtrAndPrincipalHashKey *key = priv->key;
+    XPCCompartmentMap &map = self->GetCompartmentMap();
 #ifdef DEBUG
-        {
-            JSCompartment *current = NULL;
-            NS_ASSERTION(map.Get(key, &current), "no compartment?");
-            NS_ASSERTION(current == compartment, "compartment mismatch");
-        }
+    JSCompartment *current = NULL;
+    NS_ASSERTION(map.Get(key, &current), "no compartment?");
+    NS_ASSERTION(current == compartment, "compartment mismatch");
 #endif
-        map.Remove(key);
-    } else {
-        nsISupports *ptr = priv->ptr;
-        XPCMTCompartmentMap &map = self->GetMTCompartmentMap();
-#ifdef DEBUG
-        {
-            JSCompartment *current;
-            NS_ASSERTION(map.Get(ptr, &current), "no compartment?");
-            NS_ASSERTION(current == compartment, "compartment mismatch");
-        }
-#endif
-        map.Remove(ptr);
-    }
+    map.Remove(key);
 
     return true;
 }
@@ -474,9 +460,7 @@ CheckParticipatesInCycleCollection(PRUint32 aLangID, void *aThing,
 
     closure->cycleCollectionEnabled =
         aLangID == nsIProgrammingLanguage::JAVASCRIPT &&
-        AddToCCKind(js_GetGCThingTraceKind(aThing)) &&
-        xpc::ParticipatesInCycleCollection(closure->cx,
-                                           static_cast<js::gc::Cell*>(aThing));
+        AddToCCKind(js_GetGCThingTraceKind(aThing));
 }
 
 static JSDHashOperator
@@ -508,14 +492,9 @@ XPCJSRuntime::SuspectWrappedNative(JSContext *cx, XPCWrappedNative *wrapper,
     NS_ASSERTION(NS_IsMainThread() || NS_IsCycleCollectorThread(),
                  "Suspecting wrapped natives from non-CC thread");
 
-    // Only suspect wrappedJSObjects that are in a compartment that
-    // participates in cycle collection.
-    JSObject* obj = wrapper->GetFlatJSObjectPreserveColor();
-    if (!xpc::ParticipatesInCycleCollection(cx, js::gc::AsCell(obj)))
-        return;
-
     // Only record objects that might be part of a cycle as roots, unless
     // the callback wants all traces (a debug feature).
+    JSObject* obj = wrapper->GetFlatJSObjectPreserveColor();
     if (xpc_IsGrayGCThing(obj) || cb.WantAllTraces())
         cb.NoteRoot(nsIProgrammingLanguage::JAVASCRIPT, obj,
                     nsXPConnect::GetXPConnect());
@@ -597,11 +576,6 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
             !wrappedJS->IsAggregatedToNative()) {
             continue;
         }
-
-        // Only suspect wrappedJSObjects that are in a compartment that
-        // participates in cycle collection.
-        if (!xpc::ParticipatesInCycleCollection(cx, js::gc::AsCell(obj)))
-            continue;
 
         cb.NoteXPCOMRoot(static_cast<nsIXPConnectWrappedJS *>(wrappedJS));
     }
@@ -1275,8 +1249,6 @@ DestroyCompartmentName(void *string)
     delete static_cast<nsCString*>(string);
 }
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsMallocSizeOf, "js")
-
 } // namespace xpc
 
 namespace {
@@ -1725,6 +1697,8 @@ ReportJSRuntimeStats(const JS::RuntimeStats &rtStats, const nsACString &pathPref
 } // namespace xpconnect
 } // namespace mozilla
 
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsMallocSizeOf, "js")
+
 class XPConnectJSCompartmentsMultiReporter : public nsIMemoryMultiReporter
 {
 public:
@@ -1740,7 +1714,7 @@ public:
         // the callback.  Separating these steps is important because the
         // callback may be a JS function, and executing JS while getting these
         // stats seems like a bad idea.
-        JS::RuntimeStats rtStats(xpc::JsMallocSizeOf, xpc::GetCompartmentName,
+        JS::RuntimeStats rtStats(JsMallocSizeOf, xpc::GetCompartmentName,
                                  xpc::DestroyCompartmentName);
         if (!JS::CollectRuntimeStats(xpcrt->GetJSRuntime(), &rtStats))
             return NS_ERROR_FAILURE;
@@ -1748,8 +1722,8 @@ public:
         size_t xpconnect;
         {
             xpconnect =
-                xpcrt->SizeOfIncludingThis(xpc::JsMallocSizeOf) +
-                XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(xpc::JsMallocSizeOf);
+                xpcrt->SizeOfIncludingThis(JsMallocSizeOf) +
+                XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(JsMallocSizeOf);
         }
 
         NS_NAMED_LITERAL_CSTRING(pathPrefix, "explicit/js/");
@@ -1855,7 +1829,7 @@ public:
     {
         JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
 
-        if (!JS::GetExplicitNonHeapForRuntime(rt, reinterpret_cast<int64_t*>(n), xpc::JsMallocSizeOf))
+        if (!JS::GetExplicitNonHeapForRuntime(rt, reinterpret_cast<int64_t*>(n), JsMallocSizeOf))
             return NS_ERROR_FAILURE;
 
         return NS_OK;
@@ -1966,6 +1940,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         // to cause period, and we hope hygienic, last-ditch GCs from within
         // the GC's allocator.
         JS_SetGCParameter(mJSRuntime, JSGC_MAX_BYTES, 0xffffffff);
+        JS_SetNativeStackQuota(mJSRuntime, 128 * sizeof(size_t) * 1024);
         JS_SetContextCallback(mJSRuntime, ContextCallback);
         JS_SetCompartmentCallback(mJSRuntime, CompartmentCallback);
         JS_SetGCCallbackRT(mJSRuntime, GCCallback);
@@ -1997,7 +1972,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         mJSHolders.ops = nsnull;
 
     mCompartmentMap.Init();
-    mMTCompartmentMap.Init();
 
     // Install a JavaScript 'debugger' keyword handler in debug builds only
 #ifdef DEBUG
@@ -2089,8 +2063,6 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
     XPCContext* xpc = new XPCContext(this, cx);
     if (!xpc)
         return false;
-
-    JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
 
     // we want to mark the global object ourselves since we use a different color
     JS_ToggleOptions(cx, JSOPTION_UNROOTED_GLOBAL);
