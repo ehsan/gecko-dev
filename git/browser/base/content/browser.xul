@@ -607,8 +607,7 @@
              context="toolbar-context-menu">
 
       <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"
-                   context="backForwardMenu" removable="true"
-                   title="&backForwardItem.title;">
+                   context="backForwardMenu" removable="true">
         <toolbarbutton id="back-button" class="toolbarbutton-1"
                        label="&backCmd.label;"
                        command="Browser:BackOrBackDuplicate"
@@ -739,8 +738,7 @@
 
       <toolbaritem id="bookmarks-menu-button-container"
                    class="chromeclass-toolbar-additional"
-                   removable="true"
-                   title="&bookmarksMenuButton.label;">
+                   removable="true">
         <toolbarbutton id="bookmarks-menu-button"
                        type="menu"
                        class="toolbarbutton-1"
