@@ -246,7 +246,7 @@ Tilt.prototype = {
    */
   update: function T_update(aNode) {
     if (this.currentInstance) {
-      this.currentInstance.presenter.highlightNode(aNode, "moveIntoView");
+      this.currentInstance.presenter.highlightNode(aNode);
     }
   },
 

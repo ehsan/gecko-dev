@@ -27,7 +27,7 @@ function test() {
           let contentDocument = presenter.contentWindow.document;
           let div = contentDocument.getElementById("first-law");
 
-          presenter.highlightNode(div, "moveIntoView");
+          presenter.highlightNode(div);
         };
       }
     });
@@ -39,8 +39,6 @@ function whenHighlighting() {
     "Highlighting a node didn't work properly.");
   ok(!presenter.highlight.disabled,
     "After highlighting a node, it should be highlighted. D'oh.");
-  ok(!presenter.controller.arcball._resetInterval,
-    "Highlighting a node that's already visible shouldn't trigger a reset.");
 
   executeSoon(function() {
     Services.obs.addObserver(whenUnhighlighting, UNHIGHLIGHTING, false);

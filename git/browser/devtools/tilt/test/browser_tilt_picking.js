@@ -23,7 +23,7 @@ function test() {
 
         presenter.onSetupMesh = function() {
 
-          presenter.pickNode(canvas.width / 2, 10, {
+          presenter.pickNode(canvas.width / 2, canvas.height / 2, {
             onpick: function(data)
             {
               ok(data.index > 0,
