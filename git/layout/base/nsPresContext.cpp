@@ -1780,12 +1780,6 @@ nsPresContext::GetUserFontSetInternal()
   // GetUserFontSet.  However, once it's been requested, we can't wait
   // for somebody to call GetUserFontSet in order to rebuild it (see
   // comments below in RebuildUserFontSet for why).
-#ifdef DEBUG
-  PRBool userFontSetGottenBefore = mGetUserFontSetCalled;
-#endif
-  // Set mGetUserFontSetCalled up front, so that FlushUserFontSet will actually
-  // flush.
-  mGetUserFontSetCalled = PR_TRUE;
   if (mUserFontSetDirty) {
     // If this assertion fails, and there have actually been changes to
     // @font-face rules, then we will call StyleChangeReflow in
@@ -1796,7 +1790,7 @@ nsPresContext::GetUserFontSetInternal()
 #ifdef DEBUG
     {
       PRBool inReflow;
-      NS_ASSERTION(!userFontSetGottenBefore ||
+      NS_ASSERTION(!mGetUserFontSetCalled ||
                    (NS_SUCCEEDED(mShell->IsReflowLocked(&inReflow)) &&
                     !inReflow),
                    "FlushUserFontSet should have been called first");
@@ -1805,6 +1799,7 @@ nsPresContext::GetUserFontSetInternal()
     FlushUserFontSet();
   }
 
+  mGetUserFontSetCalled = PR_TRUE;
   return mUserFontSet;
 }
 
@@ -1819,12 +1814,6 @@ nsPresContext::FlushUserFontSet()
 {
   if (!mShell)
     return; // we've been torn down
-
-  if (!mGetUserFontSetCalled) {
-    return; // No one cares about this font set yet, but we want to be careful
-            // to not unset our mUserFontSetDirty bit, so when someone really
-            // does we'll create it.
-  }
 
   if (mUserFontSetDirty) {
     if (gfxPlatform::GetPlatform()->DownloadableFontsEnabled()) {

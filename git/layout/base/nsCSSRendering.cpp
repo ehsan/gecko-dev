@@ -1056,13 +1056,14 @@ nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
                                const nsPoint& aForFramePt,
                                const nsRect& aDirtyRect)
 {
-  const nsStyleBorder* styleBorder = aForFrame->GetStyleBorder();
-  if (!styleBorder->mBoxShadow)
-    return;
+  nsMargin      borderValues;
+  PRIntn        sidesToSkip;
+  nsRect        frameRect;
 
-  nsMargin borderValues = styleBorder->GetActualBorder();
-  PRIntn sidesToSkip = aForFrame->GetSkipSides();
-  nsRect frameRect = nsRect(aForFramePt, aForFrame->GetSize());
+  const nsStyleBorder* styleBorder = aForFrame->GetStyleBorder();
+  borderValues = styleBorder->GetActualBorder();
+  sidesToSkip = aForFrame->GetSkipSides();
+  frameRect = nsRect(aForFramePt, aForFrame->GetSize());
 
   // Get any border radius, since box-shadow must also have rounded corners if the frame does
   nscoord twipsRadii[8];
