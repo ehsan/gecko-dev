@@ -100,8 +100,6 @@ public:
                                                          nsIAttribute)
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   virtual mozilla::dom::Element* GetNameSpaceElement()
   {

@@ -126,8 +126,6 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 
-  virtual nsIDOMNode* AsDOMNode() { return this; }
-
   mozilla::dom::Element* GetLabeledElement();
 protected:
   mozilla::dom::Element* GetFirstDescendantFormControl();

@@ -98,8 +98,6 @@ public:
   nsSVGPathElement* GetReferencedPath();
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   class PathReference : public nsReferencedElement {
   public:

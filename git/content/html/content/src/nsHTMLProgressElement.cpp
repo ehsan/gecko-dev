@@ -72,8 +72,6 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 
-  virtual nsIDOMNode* AsDOMNode() { return this; }
-
 protected:
   /**
    * Returns whethem the progress element is in the indeterminate state.
