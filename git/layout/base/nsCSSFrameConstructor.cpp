@@ -2598,8 +2598,7 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     newFrame = frameItems.FirstChild();
     NS_ASSERTION(frameItems.OnlyChild(), "multiple root element frames");
   } else {
-    MOZ_ASSERT(display->mDisplay == NS_STYLE_DISPLAY_BLOCK ||
-               display->mDisplay == NS_STYLE_DISPLAY_CONTENTS,
+    MOZ_ASSERT(display->mDisplay == NS_STYLE_DISPLAY_BLOCK,
                "Unhandled display type for root element");
     contentFrame = NS_NewBlockFormattingContext(mPresShell, styleContext);
     nsFrameItems frameItems;
@@ -3472,8 +3471,6 @@ nsCSSFrameConstructor::FindHTMLData(Element* aElement,
   if (aTag == nsGkAtoms::legend &&
       (!aParentFrame ||
        !IsFrameForFieldSet(aParentFrame, aParentFrame->GetType()) ||
-       !aElement->GetParent() ||
-       !aElement->GetParent()->IsHTMLElement(nsGkAtoms::fieldset) ||
        aStyleContext->StyleDisplay()->IsFloatingStyle() ||
        aStyleContext->StyleDisplay()->IsAbsolutelyPositionedStyle())) {
     // <legend> is only special inside fieldset, check both the frame tree
@@ -6572,7 +6569,12 @@ nsCSSFrameConstructor::GetInsertionPrevSibling(InsertionPoint* aInsertion,
         // the container would be inserted.  This is needed when inserting
         // into nested display:contents nodes.
         nsIContent* child = aInsertion->mContainer;
-        InsertionPoint fakeInsertion(aInsertion->mParentFrame, child->GetParent());
+        nsIContent* parent = child->GetParent();
+        aInsertion->mParentFrame =
+          ::GetAdjustedParentFrame(aInsertion->mParentFrame,
+                                   aInsertion->mParentFrame->GetType(),
+                                   parent);
+        InsertionPoint fakeInsertion(aInsertion->mParentFrame, parent);
         nsIFrame* result = GetInsertionPrevSibling(&fakeInsertion, child, aIsAppend,
                                                    aIsRangeInsertSafe, nullptr, nullptr);
         MOZ_ASSERT(aInsertion->mParentFrame == fakeInsertion.mParentFrame);
@@ -8913,8 +8915,10 @@ nsCSSFrameConstructor::GetInsertionPoint(nsIContent* aContainer,
   InsertionPoint insertion(GetContentInsertionFrameFor(insertionElement),
                            insertionElement);
 
-  // Fieldsets have multiple insertion points.
-  if (insertionElement->IsHTMLElement(nsGkAtoms::fieldset)) {
+  // Fieldset frames have multiple normal flow child frame lists so handle it
+  // the same as if it had multiple content insertion points.
+  if (insertion.mParentFrame &&
+      insertion.mParentFrame->GetType() == nsGkAtoms::fieldSetFrame) {
     insertion.mMultiple = true;
   }
 
