@@ -64,6 +64,7 @@ public class GeckoAppShell
         new LinkedList<GeckoEvent>();
 
     static private boolean gRestartScheduled = false;
+    static private PromptService gPromptService = null;
 
     static private GeckoInputConnection mInputConnection = null;
 
@@ -128,8 +129,6 @@ public class GeckoAppShell
     private static Handler sGeckoHandler;
 
     private static boolean sDisableScreenshot = false;
-
-    static ActivityHandlerHelper sActivityHelper = new ActivityHandlerHelper();
 
     /* The Android-side API: API methods that Android calls */
 
@@ -1200,11 +1199,12 @@ public class GeckoAppShell
     }
 
     public static String showFilePickerForExtensions(String aExtensions) {
-        return sActivityHelper.showFilePicker(GeckoApp.mAppContext, getMimeTypeFromExtensions(aExtensions));
+        return GeckoApp.mAppContext.
+            showFilePicker(getMimeTypeFromExtensions(aExtensions));
     }
 
     public static String showFilePickerForMimeType(String aMimeType) {
-        return sActivityHelper.showFilePicker(GeckoApp.mAppContext, aMimeType);
+        return GeckoApp.mAppContext.showFilePicker(aMimeType);
     }
 
     public static void performHapticFeedback(boolean aIsLongPress) {
@@ -1674,7 +1674,7 @@ public class GeckoAppShell
             }
 
             try {
-                sCamera.setPreviewDisplay(GeckoApp.mAppContext.cameraView.getHolder());
+                sCamera.setPreviewDisplay(GeckoApp.cameraView.getHolder());
             } catch(IOException e) {
                 Log.e(LOGTAG, "Error setPreviewDisplay:", e);
             } catch(RuntimeException e) {
@@ -1806,6 +1806,22 @@ public class GeckoAppShell
             final JSONObject geckoObject = json.getJSONObject("gecko");
             String type = geckoObject.getString("type");
             
+            if (type.equals("Prompt:Show")) {
+                getHandler().post(new Runnable() {
+                    public void run() {
+                        getPromptService().processMessage(geckoObject);
+                    }
+                });
+
+                String promptServiceResult = "";
+                try {
+                    promptServiceResult = PromptService.waitForReturn();
+                } catch (InterruptedException e) {
+                    Log.i(LOGTAG, "showing prompt ",  e);
+                }
+                return promptServiceResult;
+            }
+
             CopyOnWriteArrayList<GeckoEventListener> listeners;
             synchronized (mEventListeners) {
                 listeners = mEventListeners.get(type);
@@ -1839,6 +1855,13 @@ public class GeckoAppShell
 
     public static void disableBatteryNotifications() {
         GeckoBatteryManager.disableNotifications();
+    }
+
+    public static PromptService getPromptService() {
+        if (gPromptService == null) {
+            gPromptService = new PromptService();
+        }
+        return gPromptService;
     }
 
     public static double[] getCurrentBatteryInformation() {
@@ -2091,10 +2114,9 @@ public class GeckoAppShell
         msg.recycle();
     }
 
-    static class AsyncResultHandler extends FilePickerResultHandler {
+    static class AsyncResultHandler extends GeckoApp.FilePickerResultHandler {
         private long mId;
         AsyncResultHandler(long id) {
-            super(null);
             mId = id;
         }
 
@@ -2108,9 +2130,8 @@ public class GeckoAppShell
 
     /* Called by JNI from AndroidBridge */
     public static void showFilePickerAsync(String aMimeType, long id) {
-        if (!sActivityHelper.showFilePicker(GeckoApp.mAppContext, aMimeType, new AsyncResultHandler(id))) {
+        if (!GeckoApp.mAppContext.showFilePicker(aMimeType, new AsyncResultHandler(id)))
             GeckoAppShell.notifyFilePickerResult("", id);
-        }
     }
 
     static class RepaintRunnable implements Runnable {
@@ -2180,12 +2201,7 @@ public class GeckoAppShell
             if (sMaxTextureSize == 0)
                 return;
         }
-        if (tab == null)
-            return;
-        LayerController layerController = GeckoApp.mAppContext.getLayerController();
-        if (layerController == null)
-            return;
-        ImmutableViewportMetrics viewport = layerController.getViewportMetrics();
+        ImmutableViewportMetrics viewport = GeckoApp.mAppContext.getLayerController().getViewportMetrics();
         Log.i(LOGTAG, "Taking whole-screen screenshot, viewport: " + viewport);
         // source width and height to screenshot
         float sx = viewport.cssPageRectLeft;
