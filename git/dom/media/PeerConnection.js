@@ -134,7 +134,7 @@ RTCIceCandidate.prototype = {
   __init: function(dict) {
     this.candidate = dict.candidate;
     this.sdpMid = dict.sdpMid;
-    this.sdpMLineIndex = ("sdpMLineIndex" in dict)? dict.sdpMLineIndex : null;
+    this.sdpMLineIndex = ("sdpMLineIndex" in dict)? dict.sdpMLineIndex+1 : null;
   }
 };
 
@@ -691,8 +691,7 @@ RTCPeerConnection.prototype = {
 
     this._queueOrRun({
       func: this._getPC().addIceCandidate,
-      args: [cand.candidate, cand.sdpMid || "",
-             (cand.sdpMLineIndex === null)? 0 : cand.sdpMLineIndex + 1],
+      args: [cand.candidate, cand.sdpMid || "", cand.sdpMLineIndex],
       wait: true
     });
   },

@@ -25,8 +25,8 @@
  * Please edit Portability.java instead and regenerate.
  */
 
-#ifndef nsHtml5Portability_h
-#define nsHtml5Portability_h
+#ifndef nsHtml5Portability_h__
+#define nsHtml5Portability_h__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"

@@ -9,7 +9,7 @@ import time
 # psutil will raise NotImplementedError if the platform is not supported.
 try:
     import psutil
-except Exception:
+except (ImportError, NotImplementedError):
     psutil = None
 
 from collections import (

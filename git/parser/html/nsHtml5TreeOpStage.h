@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHtml5TreeOpStage_h
-#define nsHtml5TreeOpStage_h
+#ifndef nsHtml5TreeOpStage_h___
+#define nsHtml5TreeOpStage_h___
 
 #include "mozilla/Mutex.h"
 #include "nsHtml5TreeOperation.h"
@@ -51,4 +51,4 @@ class nsHtml5TreeOpStage : public nsAHtml5TreeOpSink {
     
 };
 
-#endif /* nsHtml5TreeOpStage_h */
+#endif /* nsHtml5TreeOpStage_h___ */

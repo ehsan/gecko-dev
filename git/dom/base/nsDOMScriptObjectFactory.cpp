@@ -102,6 +102,9 @@ nsDOMScriptObjectFactory::Observe(nsISupports *aSubject,
     if (cache)
       cache->Flush();
 #endif
+
+    nsGlobalWindow::ShutDown();
+    nsDOMClassInfo::ShutDown();
   }
 
   return NS_OK;

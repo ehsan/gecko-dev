@@ -897,13 +897,12 @@ jsdProperty::GetValue(jsdIValue **_rval)
 NS_IMPL_ISUPPORTS2(jsdScript, jsdIScript, jsdIEphemeral)
 
 static NS_IMETHODIMP
-AssignToJSString(JSDContext *aCx, nsACString *x, JSString *str_)
+AssignToJSString(JSDContext *aCx, nsACString *x, JSString *str)
 {
-    if (!str_) {
+    if (!str) {
         x->SetLength(0);
         return NS_OK;
     }
-    JS::RootedString str(JSD_GetJSRuntime(aCx), str_);
     AutoSafeJSContext cx;
     JSAutoCompartment ac(cx, JSD_GetDefaultGlobal(aCx)); // Just in case.
     size_t length = JS_GetStringEncodingLength(cx, str);
@@ -1262,7 +1261,7 @@ jsdScript::GetParameterNames(uint32_t* count, PRUnichar*** paramNames)
 NS_IMETHODIMP
 jsdScript::GetFunctionObject(jsdIValue **_rval)
 {
-    JS::RootedFunction fun(JSD_GetJSRuntime(mCx), JSD_GetJSFunction(mCx, mScript));
+    JSFunction *fun = JSD_GetJSFunction(mCx, mScript);
     if (!fun)
         return NS_ERROR_NOT_AVAILABLE;
 
@@ -2115,8 +2114,10 @@ NS_IMETHODIMP
 jsdValue::GetJsType (uint32_t *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    JS::RootedValue val(JSD_GetJSRuntime(mCx), JSD_GetValueWrappedJSVal (mCx, mValue));
+    jsval val;
 
+    val = JSD_GetValueWrappedJSVal (mCx, mValue);
+    
     if (JSVAL_IS_NULL(val))
         *_rval = TYPE_NULL;
     else if (JSVAL_IS_BOOLEAN(val))

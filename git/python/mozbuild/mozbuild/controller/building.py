@@ -16,9 +16,13 @@ from collections import (
     OrderedDict,
 )
 
-try:
-    import psutil
-except Exception:
+# keep in sync with psutil os support, see psutil/__init__.py
+if sys.platform.startswith("freebsd") or sys.platform.startswith("darwin") or sys.platform.startswith("win32") or sys.platform.startswith("linux"):
+    try:
+        import psutil
+    except ImportError:
+        psutil = None
+else:
     psutil = None
 
 from mozsystemmonitor.resourcemonitor import SystemResourceMonitor

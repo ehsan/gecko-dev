@@ -25,8 +25,8 @@
  * Please edit ElementName.java instead and regenerate.
  */
 
-#ifndef nsHtml5ElementName_h
-#define nsHtml5ElementName_h
+#ifndef nsHtml5ElementName_h__
+#define nsHtml5ElementName_h__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
