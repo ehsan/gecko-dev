@@ -1735,9 +1735,7 @@ GCGraphBuilder::NoteRoot(PRUint32 langID, void *root,
         return;
     }
 
-    if (!participant->CanSkipThis(root)) {
-        AddNode(root, participant, langID);
-    }
+    AddNode(root, participant, langID);
 }
 
 NS_IMETHODIMP_(void)

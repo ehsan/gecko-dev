@@ -58,7 +58,7 @@ function runEditorTests()
 function highlighterTrap()
 {
   // bug 696107
-  InspectorUI.highlighter.removeListener("nodeselected", highlighterTrap);
+  Services.obs.removeObserver(highlighterTrap, InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
   ok(false, "Highlighter moved. Shouldn't be here!");
   finishUp();
 }
@@ -115,7 +115,8 @@ function doEditorTestSteps()
   editorInput.value = "Hello World";
   editorInput.focus();
 
-  InspectorUI.highlighter.addListener("nodeselected", highlighterTrap);
+  Services.obs.addObserver(highlighterTrap,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
 
   // hit <enter> to save the textbox value
   executeSoon(function() {
@@ -129,7 +130,7 @@ function doEditorTestSteps()
   yield; // End of Step 2
 
   // remove this from previous step
-  InspectorUI.highlighter.removeListener("nodeselected", highlighterTrap);
+  Services.obs.removeObserver(highlighterTrap, InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
 
   // Step 3: validate that the previous editing session saved correctly, then open editor on `class` attribute value
   ok(!treePanel.editingContext, "Step 3: editor session ended");

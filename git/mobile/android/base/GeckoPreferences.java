@@ -58,7 +58,6 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.text.TextWatcher;
-import android.text.TextUtils;
 import android.content.DialogInterface;
 
 import org.json.JSONArray;
@@ -188,8 +187,7 @@ public class GeckoPreferences
 
             String text1 = input1.getText().toString();
             String text2 = input2.getText().toString();
-            boolean disabled = TextUtils.isEmpty(text1) || TextUtils.isEmpty(text2) || !text1.equals(text2);
-            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(!disabled);
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(text1.equals(text2));
         }
 
         public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
@@ -232,8 +230,8 @@ public class GeckoPreferences
                             }
                         });
                         dialog = builder.create();
-                        dialog.setOnShowListener(new DialogInterface.OnShowListener() {
-                            public void onShow(DialogInterface dialog) {
+                        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+                            public void onDismiss(DialogInterface dialog) {
                                 input1.setText("");
                                 input2.setText("");
                                 input1.requestFocus();

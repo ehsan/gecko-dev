@@ -32,14 +32,18 @@ function test()
       InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
 
     executeSoon(function() {
-      InspectorUI.highlighter.addListener("nodeselected", lockNode);
+      Services.obs.addObserver(lockNode,
+        InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
+
       InspectorUI.inspectNode(node);
     });
   }
 
   function lockNode()
   {
-    InspectorUI.highlighter.removeListener("nodeselected", lockNode);
+    Services.obs.removeObserver(lockNode,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
+
     EventUtils.synthesizeKey("VK_RETURN", { });
 
     executeSoon(isTheNodeLocked);
