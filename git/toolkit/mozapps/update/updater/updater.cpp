@@ -54,8 +54,10 @@
  *
  *  updatev2.manifest
  *  -----------------
- *  method   = "add" | "add-if" | "patch" | "patch-if" | "remove" |
+ *  method   = "add" | "add-cc" | "add-if" | "patch" | "patch-if" | "remove" |
  *             "rmdir" | "rmrfdir" | type
+ *
+ * 'add-cc' is an add action to perform on channel change.
  *
  *  'type' is the update type (e.g. complete or partial) and when present MUST
  *  be the first entry in the update manifest. The type is used to support
@@ -63,7 +65,9 @@
  *
  *  precomplete
  *  -----------
- *  method   = "remove" | "rmdir"
+ *  method   = "remove" | "rmdir" | "remove-cc"
+ *
+ * 'remove-cc' is a remove action to perform on channel change.
  */
 #include "bspatch.h"
 #include "progressui.h"
@@ -2436,12 +2440,13 @@ GetManifestContents(const NS_tchar *manifest)
 #endif
 }
 
-int AddPreCompleteActions(ActionList *list)
+int AddPreCompleteActions(ActionList *list, bool &isChannelChange)
 {
   NS_tchar *rb = GetManifestContents(NS_T("precomplete"));
   if (rb == NULL) {
     LOG(("AddPreCompleteActions: error getting contents of precomplete " \
          "manifest\n"));
+    isChannelChange = false;
     // Applications aren't required to have a precomplete manifest yet.
     return OK;
   }
@@ -2463,8 +2468,11 @@ int AddPreCompleteActions(ActionList *list)
     if (NS_tstrcmp(token, NS_T("remove")) == 0) { // rm file
       action = new RemoveFile();
     }
-    else if (NS_tstrcmp(token, NS_T("remove-cc")) == 0) { // no longer supported
-      continue;
+    else if (NS_tstrcmp(token, NS_T("remove-cc")) == 0) { // rm file
+      if (!isChannelChange)
+        continue;
+
+      action = new RemoveFile();
     }
     else if (NS_tstrcmp(token, NS_T("rmdir")) == 0) { // rmdir if  empty
       action = new RemoveDir();
@@ -2489,6 +2497,15 @@ int AddPreCompleteActions(ActionList *list)
 
 int DoUpdate()
 {
+  bool isChannelChange = false;
+  NS_tchar ccfile[MAXPATHLEN];
+  NS_tsnprintf(ccfile, sizeof(ccfile)/sizeof(ccfile[0]),
+               NS_T("%s/channelchange"), gSourcePath);
+  if (!NS_taccess(ccfile, F_OK)) {
+    LOG(("DoUpdate: changing update channel\n"));
+    isChannelChange = true;
+  }
+
   NS_tchar manifest[MAXPATHLEN];
   NS_tsnprintf(manifest, sizeof(manifest)/sizeof(manifest[0]),
                NS_T("%s/update.manifest"), gSourcePath);
@@ -2496,6 +2513,8 @@ int DoUpdate()
   // extract the manifest
   int rv = gArchiveReader.ExtractFile("updatev2.manifest", manifest);
   if (rv) {
+    // Don't allow changing the channel without a version 2 update manifest.
+    isChannelChange = false;
     rv = gArchiveReader.ExtractFile("update.manifest", manifest);
     if (rv) {
       LOG(("DoUpdate: error extracting manifest file\n"));
@@ -2531,9 +2550,13 @@ int DoUpdate()
       LOG(("UPDATE TYPE " LOG_S "\n", type));
       if (NS_tstrcmp(type, NS_T("complete")) == 0) {
         isComplete = true;
-        rv = AddPreCompleteActions(&list);
+        rv = AddPreCompleteActions(&list, isChannelChange);
         if (rv)
           return rv;
+      }
+      else if (isChannelChange) {
+        LOG(("DoUpdate: unable to change channel with a partial update\n"));
+        isChannelChange = false;
       }
       isFirstAction = false;
       continue;
@@ -2574,8 +2597,19 @@ int DoUpdate()
     else if (NS_tstrcmp(token, NS_T("patch-if")) == 0) { // Patch if exists
       action = new PatchIfFile();
     }
-    else if (NS_tstrcmp(token, NS_T("add-cc")) == 0) { // no longer supported
-      continue;
+    else if (NS_tstrcmp(token, NS_T("add-cc")) == 0) { // Add if channel change
+      // The channel should only be changed with a complete update and when the
+      // user requests a channel change to avoid overwriting the update channel
+      // when testing RC's.
+
+      // add-cc instructions should only be in complete update manifests.
+      if (!isComplete)
+        return PARSE_ERROR;
+      
+      if (!isChannelChange)
+        continue;
+
+      action = new AddFile();
     }
     else {
       LOG(("DoUpdate: unknown token: " LOG_S "\n", token));

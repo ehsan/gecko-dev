@@ -196,7 +196,6 @@ let gInitialPages = [
 #include browser-places.js
 #include browser-tabPreviews.js
 #include browser-tabview.js
-#include browser-thumbnails.js
 
 #ifdef MOZ_SERVICES_SYNC
 #include browser-syncui.js
@@ -1700,7 +1699,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gSyncUI.init();
 #endif
 
-  gBrowserThumbnails.init();
   TabView.init();
 
   setUrlAndSearchBarWidthForConditionalForwardButton();
@@ -1822,7 +1820,6 @@ function BrowserShutdown() {
     gPrefService.removeObserver(allTabs.prefName, allTabs);
     ctrlTab.uninit();
     TabView.uninit();
-    gBrowserThumbnails.uninit();
 
     try {
       FullZoom.destroy();
@@ -8875,8 +8872,8 @@ function restoreLastSession() {
 var TabContextMenu = {
   contextTab: null,
   updateContextMenu: function updateContextMenu(aPopupMenu) {
-    this.contextTab = aPopupMenu.triggerNode.localName == "tab" ?
-                      aPopupMenu.triggerNode : gBrowser.selectedTab;
+    this.contextTab = document.popupNode.localName == "tab" ?
+                      document.popupNode : gBrowser.selectedTab;
     let disabled = gBrowser.tabs.length == 1;
 
     // Enable the "Close Tab" menuitem when the window doesn't close with the last tab.
