@@ -75,14 +75,9 @@
 #ifndef xpcprivate_h___
 #define xpcprivate_h___
 
-#include "mozilla/Alignment.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/CycleCollectedJSRuntime.h"
-#include "mozilla/GuardObjects.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/Mutex.h"
-#include "mozilla/ReentrantMonitor.h"
 #include "mozilla/Util.h"
 
 #include <math.h>
@@ -104,6 +99,7 @@
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsCycleCollectorUtils.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "nsDebug.h"
 #include "nsISupports.h"
@@ -136,6 +132,9 @@
 #include "nsAutoJSValHolder.h"
 
 #include "js/HashTable.h"
+#include "mozilla/GuardObjects.h"
+#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Mutex.h"
 
 #include "nsThreadUtils.h"
 #include "nsIJSEngineTelemetryStats.h"
@@ -312,13 +311,13 @@ typedef mozilla::ReentrantMonitor XPCLock;
 
 static inline void xpc_Wait(XPCLock* lock)
     {
-        MOZ_ASSERT(lock, "xpc_Wait called with null lock!");
+        NS_ASSERTION(lock, "xpc_Wait called with null lock!");
         lock->Wait();
     }
 
 static inline void xpc_NotifyAll(XPCLock* lock)
     {
-        MOZ_ASSERT(lock, "xpc_NotifyAll called with null lock!");
+        NS_ASSERTION(lock, "xpc_NotifyAll called with null lock!");
         lock->NotifyAll();
     }
 
@@ -455,7 +454,7 @@ public:
         // Do a release-mode assert that we're not doing anything significant in
         // XPConnect off the main thread. If you're an extension developer hitting
         // this, you need to change your code. See bug 716167.
-        if (!MOZ_LIKELY(NS_IsMainThread()))
+        if (!MOZ_LIKELY(NS_IsMainThread() || NS_IsCycleCollectorThread()))
             MOZ_CRASH();
 
         return gSelf;
@@ -551,8 +550,8 @@ public:
 
     ~XPCRootSetElem()
     {
-        MOZ_ASSERT(!mNext, "Must be unlinked");
-        MOZ_ASSERT(!mSelfp, "Must be unlinked");
+        NS_ASSERTION(!mNext, "Must be unlinked");
+        NS_ASSERTION(!mSelfp, "Must be unlinked");
     }
 
     inline XPCRootSetElem* GetNextRoot() { return mNext; }
@@ -587,7 +586,7 @@ public:
         if (!chars)
             return false;
 
-        MOZ_ASSERT(IsEmpty(), "init() on initialized string");
+        NS_ASSERTION(IsEmpty(), "init() on initialized string");
         new(static_cast<nsDependentString *>(this)) nsDependentString(chars, length);
         return true;
     }
@@ -712,17 +711,17 @@ public:
 
     jsid GetStringID(unsigned index) const
     {
-        MOZ_ASSERT(index < IDX_TOTAL_COUNT, "index out of range");
+        NS_ASSERTION(index < IDX_TOTAL_COUNT, "index out of range");
         return mStrIDs[index];
     }
     jsval GetStringJSVal(unsigned index) const
     {
-        MOZ_ASSERT(index < IDX_TOTAL_COUNT, "index out of range");
+        NS_ASSERTION(index < IDX_TOTAL_COUNT, "index out of range");
         return mStrJSVals[index];
     }
     const char* GetStringName(unsigned index) const
     {
-        MOZ_ASSERT(index < IDX_TOTAL_COUNT, "index out of range");
+        NS_ASSERTION(index < IDX_TOTAL_COUNT, "index out of range");
         return mStrings[index];
     }
 
@@ -919,7 +918,7 @@ class XPCContext
 public:
     static XPCContext* GetXPCContext(JSContext* aJSContext)
         {
-            MOZ_ASSERT(JS_GetSecondContextPrivate(aJSContext), "should already have XPCContext");
+            NS_ASSERTION(JS_GetSecondContextPrivate(aJSContext), "should already have XPCContext");
             return static_cast<XPCContext *>(JS_GetSecondContextPrivate(aJSContext));
         }
 
@@ -1124,7 +1123,7 @@ private:
     };
 
 #ifdef DEBUG
-inline void CHECK_STATE(int s) const {MOZ_ASSERT(mState >= s, "bad state");}
+inline void CHECK_STATE(int s) const {NS_ASSERTION(mState >= s, "bad state");}
 #else
 #define CHECK_STATE(s) ((void)0)
 #endif
@@ -1503,8 +1502,8 @@ public:
 
     bool GetConstantValue(XPCCallContext& ccx, XPCNativeInterface* iface,
                           jsval* pval)
-        {MOZ_ASSERT(IsConstant(),
-                    "Only call this if you're sure this is a constant!");
+        {NS_ASSERTION(IsConstant(),
+                      "Only call this if you're sure this is a constant!");
          return Resolve(ccx, iface, JS::NullPtr(), pval);}
 
     bool NewFunctionObject(XPCCallContext& ccx, XPCNativeInterface* iface,
@@ -1538,7 +1537,7 @@ public:
         {mFlags = GETTER; mIndex = index;}
 
     void SetWritableAttribute()
-        {MOZ_ASSERT(mFlags == GETTER,"bad"); mFlags = GETTER | SETTER_TOO;}
+        {NS_ASSERTION(mFlags == GETTER,"bad"); mFlags = GETTER | SETTER_TOO;}
 
     /* default ctor - leave random contents */
     XPCNativeMember()  {MOZ_COUNT_CTOR(XPCNativeMember);}
@@ -1589,7 +1588,7 @@ class XPCNativeInterface
         return mMemberCount;
     }
     XPCNativeMember* GetMemberAt(uint16_t i) {
-        MOZ_ASSERT(i < mMemberCount, "bad index");
+        NS_ASSERTION(i < mMemberCount, "bad index");
         return &mMembers[i];
     }
 
@@ -1749,7 +1748,7 @@ class XPCNativeSet
     }
 
     XPCNativeInterface* GetInterfaceAt(uint16_t i)
-        {MOZ_ASSERT(i < mInterfaceCount, "bad index"); return mInterfaces[i];}
+        {NS_ASSERTION(i < mInterfaceCount, "bad index"); return mInterfaces[i];}
 
     inline bool MatchesSetUpToInterface(const XPCNativeSet* other,
                                           XPCNativeInterface* iface) const;
@@ -2095,7 +2094,7 @@ public:
         {return ClassIsThreadSafe() ? GetRuntime()->GetMapLock() : nullptr;}
 
     void SetScriptableInfo(XPCNativeScriptableInfo* si)
-        {MOZ_ASSERT(!mScriptableInfo, "leak here!"); mScriptableInfo = si;}
+        {NS_ASSERTION(!mScriptableInfo, "leak here!"); mScriptableInfo = si;}
 
     bool CallPostCreatePrototype();
     void JSProtoObjectFinalized(js::FreeOp *fop, JSObject *obj);
@@ -2294,7 +2293,7 @@ public:
 
     static inline XPCWrappedNativeScope*
     TagScope(XPCWrappedNativeScope* s)
-        {MOZ_ASSERT(!IsTaggedScope(s), "bad pointer!");
+        {NS_ASSERTION(!IsTaggedScope(s), "bad pointer!");
          return (XPCWrappedNativeScope*)(XPC_SCOPE_WORD(s) | XPC_SCOPE_TAG);}
 
     static inline XPCWrappedNativeScope*
@@ -3111,7 +3110,7 @@ public:
     bool InitWithName(const nsID& id, const char *nameString);
     bool SetName(const char* name);
     void   SetNameToNoString()
-        {MOZ_ASSERT(!mName, "name already set"); mName = gNoString;}
+        {NS_ASSERTION(!mName, "name already set"); mName = gNoString;}
     bool NameIsSet() const {return nullptr != mName;}
     const nsID& ID() const {return mID;}
     bool IsValid() const {return !mID.Equals(GetInvalidIID());}
@@ -3419,7 +3418,7 @@ public:
             jsid old =
 #endif
             XPCJSRuntime::Get()->SetResolveName(mOld);
-            MOZ_ASSERT(old == mCheck, "Bad Nesting!");
+            NS_ASSERTION(old == mCheck, "Bad Nesting!");
         }
 
 private:

@@ -734,18 +734,10 @@ AsmJSMachExceptionHandler::AsmJSMachExceptionHandler()
 {}
 
 void
-AsmJSMachExceptionHandler::uninstall()
+AsmJSMachExceptionHandler::release()
 {
     if (installed_) {
-        thread_port_t thread = mach_thread_self();
-        kern_return_t kret = thread_set_exception_ports(thread,
-                                                        EXC_MASK_BAD_ACCESS,
-                                                        MACH_PORT_NULL,
-                                                        EXCEPTION_DEFAULT | MACH_EXCEPTION_CODES,
-                                                        THREAD_STATE_NONE);
-        mach_port_deallocate(mach_task_self(), thread);
-        if (kret != KERN_SUCCESS)
-            MOZ_CRASH();
+        clearCurrentThread();
         installed_ = false;
     }
     if (thread_ != NULL) {
@@ -773,6 +765,40 @@ AsmJSMachExceptionHandler::uninstall()
         JS_ASSERT(kret == KERN_SUCCESS);
         port_ = MACH_PORT_NULL;
     }
+}
+
+void
+AsmJSMachExceptionHandler::clearCurrentThread()
+{
+    if (!installed_)
+        return;
+
+    thread_port_t thread = mach_thread_self();
+    kern_return_t kret = thread_set_exception_ports(thread,
+                                                    EXC_MASK_BAD_ACCESS,
+                                                    MACH_PORT_NULL,
+                                                    EXCEPTION_DEFAULT | MACH_EXCEPTION_CODES,
+                                                    THREAD_STATE_NONE);
+    mach_port_deallocate(mach_task_self(), thread);
+    if (kret != KERN_SUCCESS)
+        MOZ_CRASH();
+}
+
+void
+AsmJSMachExceptionHandler::setCurrentThread()
+{
+    if (!installed_)
+        return;
+
+    thread_port_t thread = mach_thread_self();
+    kern_return_t kret = thread_set_exception_ports(thread,
+                                                    EXC_MASK_BAD_ACCESS,
+                                                    port_,
+                                                    EXCEPTION_DEFAULT | MACH_EXCEPTION_CODES,
+                                                    THREAD_STATE_NONE);
+    mach_port_deallocate(mach_task_self(), thread);
+    if (kret != KERN_SUCCESS)
+        MOZ_CRASH();
 }
 
 bool
@@ -813,7 +839,7 @@ AsmJSMachExceptionHandler::install(JSRuntime *rt)
     return true;
 
   error:
-    uninstall();
+    release();
     return false;
 }
 

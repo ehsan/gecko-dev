@@ -320,7 +320,6 @@ TiledContentHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 }
 #endif
 
-#ifdef MOZ_DUMP_PAINTING
 void
 TiledContentHost::Dump(FILE* aFile,
                        const char* aPrefix,
@@ -345,7 +344,6 @@ TiledContentHost::Dump(FILE* aFile,
     fprintf(aFile, "</ul>");
   }
 }
-#endif
 
 } // namespace
 } // namespace

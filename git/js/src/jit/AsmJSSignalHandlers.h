@@ -34,14 +34,16 @@ class AsmJSMachExceptionHandler
     pthread_t thread_;
     mach_port_t port_;
 
-    void uninstall();
+    void release();
 
   public:
     AsmJSMachExceptionHandler();
-    ~AsmJSMachExceptionHandler() { uninstall(); }
+    ~AsmJSMachExceptionHandler() { release(); }
     mach_port_t port() const { return port_; }
     bool installed() const { return installed_; }
     bool install(JSRuntime *rt);
+    void clearCurrentThread();
+    void setCurrentThread();
 };
 #endif
 

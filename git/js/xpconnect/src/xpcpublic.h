@@ -9,6 +9,7 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
+#include "js/MemoryMetrics.h"
 #include "jsclass.h"
 #include "jsfriendapi.h"
 #include "jspubtd.h"
@@ -67,12 +68,6 @@ bool
 IsSandboxPrototypeProxy(JSObject *obj);
 
 } /* namespace xpc */
-
-namespace JS {
-
-struct RuntimeStats;
-
-}
 
 #define XPCONNECT_GLOBAL_FLAGS                                                \
     JSCLASS_DOM_GLOBAL | JSCLASS_HAS_PRIVATE |                                \

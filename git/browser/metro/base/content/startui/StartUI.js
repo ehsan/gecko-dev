@@ -6,10 +6,6 @@
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-// When setting the max-height of the start tab contents, this is the buffer we subtract
-// for the nav bar plus white space above it.
-const kBottomContentMargin = 50;
-
 var StartUI = {
   get startUI() { return document.getElementById("start-container"); },
 
@@ -30,8 +26,6 @@ var StartUI = {
     document.getElementById("bcast_preciseInput").setAttribute("input",
       this.chromeWin.InputSourceHelper.isPrecise ? "precise" : "imprecise");
 
-    this._updateStartHeight();
-
     TopSitesStartView.init();
     BookmarksStartView.init();
     HistoryStartView.init();
@@ -42,7 +36,6 @@ var StartUI = {
     HistoryStartView.show();
     RemoteTabsStartView.show();
 
-    this.chromeWin.document.getElementById("browsers").addEventListener("SizeChanged", this, true);
     this.chromeWin.addEventListener("MozPrecisePointer", this, true);
     this.chromeWin.addEventListener("MozImprecisePointer", this, true);
     Services.obs.addObserver(this, "metro_viewstate_changed", false);
@@ -59,7 +52,6 @@ var StartUI = {
       RemoteTabsStartView.uninit();
 
     if (this.chromeWin) {
-      this.chromeWin.document.getElementById("browsers").removeEventListener("SizeChanged", this, true);
       this.chromeWin.removeEventListener("MozPrecisePointer", this, true);
       this.chromeWin.removeEventListener("MozImprecisePointer", this, true);
     }
@@ -95,6 +87,14 @@ var StartUI = {
     section.setAttribute("expanded", "true");
   },
 
+  getScrollBoxObject: function () {
+    let startBox = document.getElementById("start-scrollbox");
+    if (!startBox._cachedSBO) {
+      startBox._cachedSBO = startBox.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
+    }
+    return startBox._cachedSBO;
+  },
+
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
       case "MozPrecisePointer":
@@ -107,24 +107,17 @@ var StartUI = {
         this.onClick(aEvent);
         break;
       case "MozMousePixelScroll":
+        let scroller = this.getScrollBoxObject();
         if (this.startUI.getAttribute("viewstate") == "snapped") {
-          window.scrollBy(0, aEvent.detail);
+          scroller.scrollBy(0, aEvent.detail);
         } else {
-          window.scrollBy(aEvent.detail, 0);
+          scroller.scrollBy(aEvent.detail, 0);
         }
 
         aEvent.preventDefault();
         aEvent.stopPropagation();
         break;
-      case "SizeChanged":
-        this._updateStartHeight();
-        break;
     }
-  },
-
-  _updateStartHeight: function () {
-    document.getElementById("start-container").style.maxHeight =
-      (this.chromeWin.ContentAreaObserver.contentHeight - kBottomContentMargin) + "px";
   },
 
   _adjustDOMforViewState: function() {

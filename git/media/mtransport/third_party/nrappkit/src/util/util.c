@@ -45,7 +45,6 @@ static char *RCSSTRING __UNUSED__ ="$Id: util.c,v 1.5 2007/11/21 00:09:13 adamca
 #include <dirent.h>
 #endif
 #include <string.h>
-#include <errno.h>
 #include <ctype.h>
 #include <sys/stat.h>
 #ifdef OPENSSL

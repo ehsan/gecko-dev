@@ -402,6 +402,7 @@ union EditReply {
   OpContentBufferSwap;
   OpTextureSwap;
 
+  // new stuff
   ReplyTextureRemoved;
 };
 

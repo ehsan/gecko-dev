@@ -37,7 +37,6 @@
 #include "nsBoxLayoutState.h"
 #include "nsRenderingContext.h"
 #include "nsCSSFrameConstructor.h"
-#include "mozilla/AutoRestore.h"
 #include "mozilla/dom/Element.h"
 #include <algorithm>
 

@@ -39,7 +39,9 @@ ImageClient::CreateImageClient(CompositableType aCompositableHostType,
     if (gfxPlatform::GetPlatform()->UseDeprecatedTextures()) {
       result = new DeprecatedImageClientSingle(aForwarder, aFlags, BUFFER_IMAGE_BUFFERED);
     } else {
-      result = new ImageClientBuffered(aForwarder, aFlags, COMPOSITABLE_IMAGE);
+      // ImageClientBuffered was a hack for async-video only, and the new textures
+      // make it so that we don't need to do this hack anymore.
+      result = new ImageClientSingle(aForwarder, aFlags, COMPOSITABLE_IMAGE);
     }
     break;
   case BUFFER_BRIDGE:
@@ -94,15 +96,15 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
 
   if (image->AsSharedImage() && image->AsSharedImage()->GetTextureClient()) {
     // fast path: no need to allocate and/or copy image data
-    RefPtr<TextureClient> texture = image->AsSharedImage()->GetTextureClient();
+    RefPtr<TextureClient> tex = image->AsSharedImage()->GetTextureClient();
 
     if (mFrontBuffer) {
       RemoveTextureClient(mFrontBuffer);
     }
-    mFrontBuffer = texture;
-    AddTextureClient(texture);
-    GetForwarder()->UpdatedTexture(this, texture, nullptr);
-    GetForwarder()->UseTexture(this, texture);
+    mFrontBuffer = tex;
+    AddTextureClient(tex);
+    GetForwarder()->UpdatedTexture(this, tex, nullptr);
+    GetForwarder()->UseTexture(this, tex);
   } else if (image->GetFormat() == PLANAR_YCBCR) {
     PlanarYCbCrImage* ycbcr = static_cast<PlanarYCbCrImage*>(image);
     const PlanarYCbCrImage::Data* data = ycbcr->GetData();
@@ -206,13 +208,13 @@ ImageClientSingle::CreateBufferTextureClient(gfx::SurfaceFormat aFormat)
 }
 
 void
-ImageClientSingle::OnDetach()
+ImageClientSingle::Detach()
 {
   mFrontBuffer = nullptr;
 }
 
 void
-ImageClientBuffered::OnDetach()
+ImageClientBuffered::Detach()
 {
   mFrontBuffer = nullptr;
   mBackBuffer = nullptr;

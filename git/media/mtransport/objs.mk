@@ -23,16 +23,12 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
  $(NULL)
 
-ifneq (,$(filter Darwin DragonFly FreeBSD NetBSD OpenBSD,$(OS_TARGET)))
+ifeq ($(OS_TARGET), Darwin)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
   $(NULL)
-ifeq ($(OS_TARGET), Darwin)
 DEFINES += -DDARWIN
-else
-DEFINES += -DBSD
-endif
 endif
 
 ifeq ($(OS_TARGET), Linux)

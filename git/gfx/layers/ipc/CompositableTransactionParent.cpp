@@ -273,12 +273,13 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       MOZ_ASSERT(compositable);
       RefPtr<TextureHost> texture = compositable->GetTextureHost(op.textureID());
       MOZ_ASSERT(texture);
-
-      texture->Updated(op.region().type() == MaybeRegion::TnsIntRegion
-                       ? &op.region().get_nsIntRegion()
-                       : nullptr); // no region means invalidate the entire surface
-
-
+      if (op.region().type() == MaybeRegion::TnsIntRegion) {
+        nsIntRegion region = op.region().get_nsIntRegion();
+        texture->Updated(&region);
+      } else {
+        // no region means invalidate the entire surface
+        texture->Updated(nullptr);
+      }
       compositable->UseTextureHost(texture);
 
       break;

@@ -517,7 +517,8 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     }
 
     // And start it up for this thread too.
-    nsCycleCollector_startup();
+    rv = nsCycleCollector_startup(CCSingleThread);
+    if (NS_FAILED(rv)) return rv;
 
     // Register ICU memory functions.  This really shouldn't be necessary: the
     // JS engine should do this on its own inside JS_Init, and memory-reporting
@@ -663,6 +664,8 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
                                 nullptr);
 
         gXPCOMThreadsShutDown = true;
+        nsCycleCollector_shutdownThreads();
+
         NS_ProcessPendingEvents(thread);
 
         // Shutdown the timer thread and all timers that might still be alive before

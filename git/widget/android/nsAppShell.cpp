@@ -118,7 +118,7 @@ class WakeLockListener MOZ_FINAL : public nsIDOMMozWakeLockListener {
 
 NS_IMPL_ISUPPORTS1(WakeLockListener, nsIDOMMozWakeLockListener)
 nsCOMPtr<nsIPowerManagerService> sPowerManagerService = nullptr;
-StaticRefPtr<WakeLockListener> sWakeLockListener;
+nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nullptr;
 
 nsAppShell::nsAppShell()
     : mQueueLock("nsAppShell.mQueueLock"),

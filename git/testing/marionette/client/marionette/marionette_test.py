@@ -15,7 +15,7 @@ import weakref
 import warnings
 
 from errors import *
-from marionette import Marionette
+from marionette import HTMLElement, Marionette
 
 class SkipTest(Exception):
     """

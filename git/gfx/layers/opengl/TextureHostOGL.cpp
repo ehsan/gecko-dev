@@ -149,10 +149,9 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
       mTexImage->GetSize() != size ||
       mTexImage->GetContentType() != gfx::ContentForFormat(aSurface->GetFormat())) {
     if (mAllowBigImage) {
-      // XXX - clarify which size we want to use. IncrementalContentHost will
-      // require the size of the destination surface to be different from
+      // XXX - clarify the which size we want to use. Some use cases may
+      // require the size of the destnation surface to be different from
       // the size of aSurface.
-      // See bug 893300 (tracks the implementation of ContentHost for new textures).
       mTexImage = mGL->CreateTextureImage(size,
                                           gfx::ContentForFormat(aSurface->GetFormat()),
                                           WrapMode(mGL, aFlags & TEXTURE_ALLOW_REPEAT),
@@ -261,7 +260,7 @@ SharedTextureSourceOGL::SetCompositor(CompositorOGL* aCompositor)
 bool
 SharedTextureSourceOGL::IsValid() const
 {
-  return !!gl();
+  return gl() != nullptr;
 }
 
 gl::GLContext*
@@ -313,7 +312,7 @@ SharedTextureHostOGL::Lock()
     }
 
     GLenum wrapMode = LOCAL_GL_CLAMP_TO_EDGE;
-    mTextureSource = new SharedTextureSourceOGL(mCompositor,
+    mTextureSource = new SharedTextureSourceOGL(nullptr, // Compositor
                                                 mSharedHandle,
                                                 handleDetails.mTextureFormat,
                                                 handleDetails.mTarget,
@@ -1218,7 +1217,7 @@ GrallocDeprecatedTextureHostOGL::GetAsSurface() {
     : nullptr;
   return surf.forget();
 }
-#endif // MOZ_WIDGET_GONK
+#endif
 
 } // namespace
 } // namespace

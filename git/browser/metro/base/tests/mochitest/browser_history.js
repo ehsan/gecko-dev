@@ -12,7 +12,8 @@ function test() {
 }
 
 function scrollToEnd() {
-  getBrowser().contentWindow.scrollBy(50000, 0);
+  let scroller = getBrowser().contentWindow.StartUI.getScrollBoxObject();
+  scroller.scrollBy(50000, 0);
 }
 
 function setup() {

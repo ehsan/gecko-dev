@@ -83,7 +83,7 @@ LIBS += \
   $(NULL)
 endif
 
-ifneq (,$(filter Linux DragonFly FreeBSD NetBSD OpenBSD,$(OS_TARGET)))
+ifeq ($(OS_TARGET),Linux)
 LIBS += \
   $(MOZ_CAIRO_OSLIBS) \
   $(NULL)

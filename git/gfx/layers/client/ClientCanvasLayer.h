@@ -36,7 +36,7 @@ public:
   {
     MOZ_COUNT_DTOR(ClientCanvasLayer);
     if (mCanvasClient) {
-      mCanvasClient->OnDetach();
+      mCanvasClient->Detach();
       mCanvasClient = nullptr;
     }
   }

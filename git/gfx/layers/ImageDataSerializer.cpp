@@ -41,8 +41,7 @@ struct SurfaceBufferInfo
 };
 } // anonymous namespace
 
-static SurfaceBufferInfo*
-GetBufferInfo(uint8_t* aBuffer)
+static SurfaceBufferInfo* GetBufferInfo(uint8_t* aBuffer)
 {
   return reinterpret_cast<SurfaceBufferInfo*>(aBuffer);
 }

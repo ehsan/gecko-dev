@@ -297,12 +297,6 @@ public:
     UINT mCharCode;
     UINT mScanCode;
     bool mIsDeadKey;
-    bool mConsumed;
-
-    FakeCharMsg() :
-      mCharCode(0), mScanCode(0), mIsDeadKey(false), mConsumed(false)
-    {
-    }
 
     MSG GetCharMsg(HWND aWnd) const
     {
@@ -310,7 +304,7 @@ public:
       msg.hwnd = aWnd;
       msg.message = mIsDeadKey ? WM_DEADCHAR : WM_CHAR;
       msg.wParam = static_cast<WPARAM>(mCharCode);
-      msg.lParam = static_cast<LPARAM>(mScanCode << 16);
+      msg.lParam = static_cast<LPARAM>(mScanCode);
       msg.time = 0;
       msg.pt.x = msg.pt.y = 0;
       return msg;
@@ -320,7 +314,7 @@ public:
   NativeKey(nsWindowBase* aWidget,
             const MSG& aKeyOrCharMessage,
             const ModifierKeyState& aModKeyState,
-            nsTArray<FakeCharMsg>* aFakeCharMsgs = nullptr);
+            const FakeCharMsg* aFakeCharMsg = nullptr);
 
   /**
    * Handle WM_KEYDOWN message or WM_SYSKEYDOWN message.  The instance must be
@@ -328,7 +322,8 @@ public:
    * Returns true if dispatched keydown event or keypress event is consumed.
    * Otherwise, false.
    */
-  bool HandleKeyDownMessage(bool* aEventDispatched = nullptr) const;
+  bool HandleKeyDownMessage(bool* aEventDispatched = nullptr,
+                            bool* aWasKeyDownDefaultPrevented = nullptr) const;
 
   /**
    * Handles WM_CHAR message or WM_SYSCHAR message.  The instance must be
@@ -378,8 +373,7 @@ private:
   // Please note that the event may not cause any text input even if this
   // is true.  E.g., it might be dead key state or Ctrl key may be pressed.
   bool    mIsPrintableKey;
-
-  nsTArray<FakeCharMsg>* mFakeCharMsgs;
+  bool    mIsFakeCharMsg;
 
   NativeKey()
   {

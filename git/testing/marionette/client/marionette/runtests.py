@@ -3,6 +3,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from datetime import datetime
+import imp
+import inspect
 import logging
 from optparse import OptionParser
 import os
@@ -11,8 +13,10 @@ import socket
 import sys
 import time
 import traceback
+import platform
 import moznetwork
 import xml.dom.minidom as dom
+from functools import wraps
 
 from manifestparser import TestManifest
 from mozhttpd import MozHttpd

@@ -65,7 +65,7 @@ public:
   void DestroyBackBuffer()
   {
     if (mImageClient) {
-      mImageClient->OnDetach();
+      mImageClient->Detach();
       mImageClient = nullptr;
     }
   }

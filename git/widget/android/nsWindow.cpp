@@ -72,7 +72,7 @@ static gfxIntSize gAndroidScreenBounds;
 #include "nsThreadUtils.h"
 
 class ContentCreationNotifier;
-static StaticRefPtr<ContentCreationNotifier> gContentCreationNotifier;
+static nsCOMPtr<ContentCreationNotifier> gContentCreationNotifier;
 
 // A helper class to send updates when content processes
 // are created. Currently an update for the screen size is sent.
@@ -822,7 +822,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             if (!obs)
                 break;
 
-            nsRefPtr<ContentCreationNotifier> notifier = new ContentCreationNotifier;
+            nsCOMPtr<ContentCreationNotifier> notifier = new ContentCreationNotifier;
             if (NS_SUCCEEDED(obs->AddObserver(notifier, "ipc:content-created", false))) {
                 if (NS_SUCCEEDED(obs->AddObserver(notifier, "xpcom-shutdown", false)))
                     gContentCreationNotifier = notifier;
@@ -2402,10 +2402,10 @@ nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 
 // off-main-thread compositor fields and functions
 
-StaticRefPtr<mozilla::layers::APZCTreeManager> nsWindow::sApzcTreeManager;
-StaticRefPtr<mozilla::layers::LayerManager> nsWindow::sLayerManager;
-StaticRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent;
-StaticRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild;
+nsRefPtr<mozilla::layers::APZCTreeManager> nsWindow::sApzcTreeManager = 0;
+nsRefPtr<mozilla::layers::LayerManager> nsWindow::sLayerManager = 0;
+nsRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent = 0;
+nsRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild = 0;
 bool nsWindow::sCompositorPaused = true;
 
 void

@@ -86,7 +86,11 @@ public:
 
   void SetDefaultValue(const nsAString& aDefaultValue, ErrorResult& aRv);
 
-  void GetValue(nsAString& aValue);
+  void GetValue(nsAString& aValue)
+  {
+    nsContentUtils::GetNodeTextContent(this, true, aValue);
+  }
+
   void SetValue(const nsAString& aValue, ErrorResult& aRv);
 
   // nsIConstraintValidation::WillValidate is fine.

@@ -11,7 +11,6 @@
 #include "nsIIdleServiceInternal.h"
 #include "nsTArray.h"
 #include "AndroidJavaWrappers.h"
-#include "mozilla/StaticPtr.h"
 
 class gfxASurface;
 
@@ -233,10 +232,10 @@ private:
 
     mozilla::AndroidLayerRendererFrame mLayerRendererFrame;
 
-    static mozilla::StaticRefPtr<mozilla::layers::APZCTreeManager> sApzcTreeManager;
-    static mozilla::StaticRefPtr<mozilla::layers::LayerManager> sLayerManager;
-    static mozilla::StaticRefPtr<mozilla::layers::CompositorParent> sCompositorParent;
-    static mozilla::StaticRefPtr<mozilla::layers::CompositorChild> sCompositorChild;
+    static nsRefPtr<mozilla::layers::APZCTreeManager> sApzcTreeManager;
+    static nsRefPtr<mozilla::layers::LayerManager> sLayerManager;
+    static nsRefPtr<mozilla::layers::CompositorParent> sCompositorParent;
+    static nsRefPtr<mozilla::layers::CompositorChild> sCompositorChild;
     static bool sCompositorPaused;
 };
 

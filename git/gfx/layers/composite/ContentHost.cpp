@@ -208,8 +208,6 @@ ContentHostBase::SetCompositor(Compositor* aCompositor)
   }
 }
 
-#ifdef MOZ_DUMP_PAINTING
-
 void
 ContentHostBase::Dump(FILE* aFile,
                       const char* aPrefix,
@@ -238,8 +236,6 @@ ContentHostBase::Dump(FILE* aFile,
   }
 
 }
-
-#endif
 
 ContentHostSingleBuffered::~ContentHostSingleBuffered()
 {
@@ -729,7 +725,6 @@ ContentHostDoubleBuffered::PrintInfo(nsACString& aTo, const char* aPrefix)
 }
 #endif
 
-#ifdef MOZ_DUMP_PAINTING
 void
 ContentHostDoubleBuffered::Dump(FILE* aFile,
                                 const char* aPrefix,
@@ -759,7 +754,6 @@ ContentHostDoubleBuffered::Dump(FILE* aFile,
   }
 
 }
-#endif
 
 LayerRenderState
 ContentHostBase::GetRenderState()

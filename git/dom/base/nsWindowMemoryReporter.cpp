@@ -14,7 +14,6 @@
 #include "nsNetCID.h"
 #include "nsPrintfCString.h"
 #include "XPCJSMemoryReporter.h"
-#include "js/MemoryMetrics.h"
 
 using namespace mozilla;
 

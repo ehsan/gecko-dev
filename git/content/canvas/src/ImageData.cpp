@@ -6,7 +6,8 @@
 
 #include "mozilla/dom/ImageData.h"
 
-#include "nsContentUtils.h" // for NS_HOLD_JS_OBJECTS, NS_DROP_JS_OBJECTS
+#include "nsDOMClassInfoID.h"
+#include "nsContentUtils.h"
 #include "mozilla/dom/ImageDataBinding.h"
 
 #include "jsapi.h"

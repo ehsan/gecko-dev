@@ -20,8 +20,6 @@
 #include "vm/Interpreter-inl.h"
 #include "vm/StringObject-inl.h"
 
-#include "jsinferinlines.h"
-
 using namespace js;
 using namespace js::ion;
 
@@ -45,24 +43,21 @@ VMFunction::addToFunctions()
 }
 
 bool
-InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Value *rval)
+InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, Value *rval)
 {
-    RootedObject obj(cx, obj0);
-    if (obj->is<JSFunction>()) {
-        RootedFunction fun(cx, &obj->as<JSFunction>());
-        if (fun->isInterpreted()) {
-            if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
-                return false;
+    RootedFunction fun(cx, fun0);
+    if (fun->isInterpreted()) {
+        if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
+            return false;
 
-            // Clone function at call site if needed.
-            if (fun->nonLazyScript()->shouldCloneAtCallsite) {
-                RootedScript script(cx);
-                jsbytecode *pc;
-                types::TypeScript::GetPcScript(cx, script.address(), &pc);
-                fun = CloneFunctionAtCallsite(cx, fun, script, pc);
-                if (!fun)
-                    return false;
-            }
+        // Clone function at call site if needed.
+        if (fun->nonLazyScript()->shouldCloneAtCallsite) {
+            RootedScript script(cx);
+            jsbytecode *pc;
+            types::TypeScript::GetPcScript(cx, script.address(), &pc);
+            fun = CloneFunctionAtCallsite(cx, fun0, script, pc);
+            if (!fun)
+                return false;
         }
     }
 
@@ -73,21 +68,12 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
     // For constructing functions, |this| is constructed at caller side and we can just call Invoke.
     // When creating this failed / is impossible at caller site, i.e. MagicValue(JS_IS_CONSTRUCTING),
     // we use InvokeConstructor that creates it at the callee side.
-    RootedValue rv(cx);
-    if (thisv.isMagic(JS_IS_CONSTRUCTING)) {
-        if (!InvokeConstructor(cx, ObjectValue(*obj), argc, argvWithoutThis, rv.address()))
-            return false;
-    } else {
-        if (!Invoke(cx, thisv, ObjectValue(*obj), argc, argvWithoutThis, &rv))
-            return false;
-    }
+    if (thisv.isMagic(JS_IS_CONSTRUCTING))
+        return InvokeConstructor(cx, ObjectValue(*fun), argc, argvWithoutThis, rval);
 
-    if (obj->is<JSFunction>()) {
-        RootedScript script(cx);
-        jsbytecode *pc;
-        types::TypeScript::GetPcScript(cx, script.address(), &pc);
-        types::TypeScript::Monitor(cx, script, pc, rv.get());
-    }
+    RootedValue rv(cx);
+    if (!Invoke(cx, thisv, ObjectValue(*fun), argc, argvWithoutThis, &rv))
+        return false;
 
     *rval = rv;
     return true;

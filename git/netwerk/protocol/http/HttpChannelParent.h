@@ -19,7 +19,6 @@
 
 class nsICacheEntryDescriptor;
 class nsIAssociatedContentSecurity;
-class nsHttpHandler;
 
 namespace mozilla {
 
@@ -121,7 +120,6 @@ private:
   PBOverrideStatus mPBOverride;
 
   nsCOMPtr<nsILoadContext> mLoadContext;
-  nsRefPtr<nsHttpHandler>  mHttpHandler;
 };
 
 } // namespace net

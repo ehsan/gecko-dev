@@ -13,7 +13,11 @@ const Cc = Components.classes;
  * Call |dumpToFile(outData);| in a test to file to a file.
  */
 function dumpToFile(aData) {
-    var outputFile = do_get_tempdir();
+    const path = "/tmp";
+
+    var outputFile = Cc["@mozilla.org/file/local;1"].
+                     createInstance(Ci.nsILocalFile);
+    outputFile.initWithPath(path);
     outputFile.append("testdump.png");
 
     var outputStream = Cc["@mozilla.org/network/file-output-stream;1"].

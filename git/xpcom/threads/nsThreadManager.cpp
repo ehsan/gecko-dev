@@ -10,6 +10,7 @@
 #include "nsIClassInfoImpl.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
+#include "nsCycleCollectorUtils.h"
 
 using namespace mozilla;
 
@@ -271,6 +272,13 @@ nsThreadManager::GetIsMainThread(bool *result)
   // This method may be called post-Shutdown
 
   *result = (PR_GetCurrentThread() == mMainPRThread);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsThreadManager::GetIsCycleCollectorThread(bool *result)
+{
+  *result = bool(NS_IsCycleCollectorThread());
   return NS_OK;
 }
 

@@ -176,7 +176,6 @@ CompositableHost::Create(const TextureInfo& aTextureInfo)
   }
 }
 
-#ifdef MOZ_DUMP_PAINTING
 void
 CompositableHost::DumpDeprecatedTextureHost(FILE* aFile, DeprecatedTextureHost* aTexture)
 {
@@ -202,7 +201,6 @@ CompositableHost::DumpTextureHost(FILE* aFile, TextureHost* aTexture)
   }
   surf->DumpAsDataURL(aFile ? aFile : stderr);
 }
-#endif
 
 void
 CompositableParent::ActorDestroy(ActorDestroyReason why)
