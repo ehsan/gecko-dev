@@ -14,7 +14,7 @@
 //Cells should paint their backgrounds only, no children
 #define NS_PAINT_FLAG_TABLE_CELL_BG_PASS  0x00000002
 
-class nsIFrame;
+#include "nsIFrame.h"
 class nsTableFrame;
 class nsTableRowGroupFrame;
 class nsTableRowFrame;

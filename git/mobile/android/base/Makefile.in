@@ -21,13 +21,6 @@ MOZGLUE_JAVA_FILES := \
   $(NULL)
 
 UTIL_JAVA_FILES := \
-  ActivityResultHandler.java \
-  ActivityResultHandlerMap.java \
-  GeckoAsyncTask.java \
-  GeckoBackgroundThread.java \
-  GeckoJarReader.java \
-  INIParser.java \
-  INISection.java \
   util/FloatUtils.java \
   $(NULL)
 
@@ -35,6 +28,8 @@ FENNEC_JAVA_FILES = \
   AboutHomeContent.java \
   AboutHomeSection.java \
   ActivityHandlerHelper.java \
+  ActivityResultHandler.java \
+  ActivityResultHandlerMap.java \
   AndroidImport.java \
   AndroidImportPreference.java \
   AlertNotification.java \
@@ -66,13 +61,16 @@ FENNEC_JAVA_FILES = \
   GeckoApplication.java \
   GeckoApp.java \
   GeckoAppShell.java \
+  GeckoAsyncTask.java \
   GeckoBatteryManager.java \
+  GeckoBackgroundThread.java \
   GeckoConnectivityReceiver.java \
   GeckoEvent.java \
   GeckoEventListener.java \
   GeckoEventResponder.java \
   GeckoHalDefines.java \
   GeckoInputConnection.java \
+  GeckoJarReader.java \
   GeckoMenu.java \
   GeckoMenuInflater.java \
   GeckoMenuItem.java \
@@ -82,6 +80,8 @@ FENNEC_JAVA_FILES = \
   GeckoThread.java \
   GlobalHistory.java \
   GeckoViewsFactory.java \
+  INIParser.java \
+  INISection.java \
   InputMethods.java \
   LinkPreference.java \
   LinkTextView.java \

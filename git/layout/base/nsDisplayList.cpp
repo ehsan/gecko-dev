@@ -326,13 +326,12 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
 }
 
 static void
-AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder,
-                                   nsDisplayItem* aItem, nsCSSProperty aProperty)
+AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayItem* aItem,
+                                   nsCSSProperty aProperty)
 {
   aLayer->ClearAnimations();
 
   nsIFrame* frame = aItem->GetUnderlyingFrame();
-
   nsIContent* aContent = frame->GetContent();
   ElementTransitions* et =
     nsTransitionManager::GetTransitionsForCompositor(aContent, aProperty);
@@ -341,23 +340,6 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
     nsAnimationManager::GetAnimationsForCompositor(aContent, aProperty);
 
   if (!ea && !et) {
-    return;
-  }
-
-  // If the frame is not prerendered, bail out.  Layout will still perform the
-  // animation.
-  if (!nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder, frame)) {
-    if (nsLayoutUtils::IsAnimationLoggingEnabled()) {
-      nsIContent* aContent = frame->GetContent();
-      printf_stderr("Performance warning: Async animation disabled because the frame for element '%s'",
-                    nsAtomCString(aContent->Tag()).get());
-      nsIAtom* id = aContent->GetID();
-      if (id) {
-        printf_stderr(" with id '%s'",
-                      nsAtomCString(aContent->GetID()).get());
-      }
-      printf_stderr(" is not prerendered\n");
-    }
     return;
   }
 
@@ -2370,8 +2352,7 @@ nsDisplayOpacity::BuildLayer(nsDisplayListBuilder* aBuilder,
     return nullptr;
 
   container->SetOpacity(mFrame->GetStyleDisplay()->mOpacity);
-  AddAnimationsAndTransitionsToLayer(container, aBuilder,
-                                     this, eCSSProperty_opacity);
+  AddAnimationsAndTransitionsToLayer(container, this, eCSSProperty_opacity);
 
   return container.forget();
 }
@@ -3383,8 +3364,7 @@ already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBu
     container->SetContentFlags(container->GetContentFlags() | Layer::CONTENT_PRESERVE_3D);
   }
 
-  AddAnimationsAndTransitionsToLayer(container, aBuilder,
-                                     this, eCSSProperty_transform);
+  AddAnimationsAndTransitionsToLayer(container, this, eCSSProperty_transform);
   return container.forget();
 }
 

@@ -3,7 +3,8 @@
 
 MARIONETTE_TIMEOUT = 10000;
 
-SpecialPowers.addPermission("telephony", true, document);
+const WHITELIST_PREF = "dom.telephony.app.phone.url";
+SpecialPowers.setCharPref(WHITELIST_PREF, window.location.href);
 
 let telephony = window.navigator.mozTelephony;
 let number = "5555552368";
@@ -38,8 +39,12 @@ function dial() {
   is(telephony.calls.length, 1);
   is(telephony.calls[0], outgoing);
 
-  // Get call list. Answer a call if the connection is established.
-  runEmulatorCmd("gsm list", cmdCallback);
+  runEmulatorCmd("gsm list", function(result) {
+    log("Call list is now: " + result);
+    is(result[0], "outbound to  " + number + " : unknown");
+    is(result[1], "OK");
+    answer();
+  });
 }
 
 function answer() {
@@ -123,28 +128,8 @@ function hangUp() {
   outgoing.hangUp();
 }
 
-function cmdCallback(result) {
-  let unknownState = "outbound to  " + number + " : unknown";
-  let alertingState = "outbound to " + number + " : alerting";
-
-  log("Call list is now: " + result);
-
-  switch (result[0]) {
-    // Gsm list is empty. Wait until the connection is established.
-    case "OK":
-      runEmulatorCmd("gsm list", cmdCallback);
-      break;
-    // Answer the call now since the connection is established.
-    case unknownState: // Fall through ...
-    case alertingState:
-      is(result[1], "OK");
-      answer();
-      break;
-  }
-}
-
 function cleanUp() {
-  SpecialPowers.removePermission("telephony", document);
+  SpecialPowers.clearUserPref(WHITELIST_PREF);
   finish();
 }
 

@@ -10,6 +10,7 @@
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 #include "nsSVGPatternElement.h"
+#include "nsIFrame.h"
 
 using namespace mozilla;
 

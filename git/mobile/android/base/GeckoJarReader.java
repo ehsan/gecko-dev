@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.util;
+package org.mozilla.gecko;
 
 import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
@@ -20,10 +20,8 @@ import java.util.zip.ZipInputStream;
 /* Reads out of a multiple level deep jar file such as
  *  jar:jar:file:///data/app/org.mozilla.fennec.apk!/omni.ja!/chrome/chrome/content/branding/favicon32.png
  */
-public final class GeckoJarReader {
+public class GeckoJarReader {
     private static String LOGTAG = "GeckoJarReader";
-
-    private GeckoJarReader() {}
 
     public static BitmapDrawable getBitmapDrawable(String url) {
         Stack<String> jarUrls = parseUrl(url);

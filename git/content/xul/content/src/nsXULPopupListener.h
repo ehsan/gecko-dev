@@ -15,6 +15,7 @@
 #include "nsIContent.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMMouseEvent.h"
+#include "nsIFrame.h"
 #include "nsIDOMEventListener.h"
 #include "nsCycleCollectionParticipant.h"
 

@@ -1253,12 +1253,9 @@ NS_LoadPersistentPropertiesFromURISpec(nsIPersistentProperties **result,
  * searches the channel's notificationCallbacks attribute, and if the interface
  * is not found there, then it inspects the notificationCallbacks attribute of
  * the channel's loadGroup.
- *
- * Note: templatized only because nsIWebSocketChannel is currently not an
- * nsIChannel.
  */
-template <class T> inline void
-NS_QueryNotificationCallbacks(T            *channel,
+inline void
+NS_QueryNotificationCallbacks(nsIChannel   *channel,
                               const nsIID  &iid,
                               void        **result)
 {
@@ -1281,12 +1278,9 @@ NS_QueryNotificationCallbacks(T            *channel,
     }
 }
 
-// template helper:
-// Note: "class C" templatized only because nsIWebSocketChannel is currently not
-// an nsIChannel.
-
-template <class C, class T> inline void
-NS_QueryNotificationCallbacks(C           *channel,
+/* template helper */
+template <class T> inline void
+NS_QueryNotificationCallbacks(nsIChannel  *channel,
                               nsCOMPtr<T> &result)
 {
     NS_QueryNotificationCallbacks(channel, NS_GET_TEMPLATE_IID(T),

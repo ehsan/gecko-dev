@@ -13,7 +13,6 @@ import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PluginLayer;
 import org.mozilla.gecko.gfx.PointUtils;
 import org.mozilla.gecko.ui.PanZoomController;
-import org.mozilla.gecko.util.GeckoAsyncTask;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -107,7 +106,7 @@ abstract public class GeckoApp
                 extends GeckoActivity 
                 implements GeckoEventListener, SensorEventListener, LocationListener,
                            GeckoApplication.ApplicationLifecycleCallbacks,
-                           Tabs.OnTabsChangedListener, GeckoEventResponder
+                           Tabs.OnTabsChangedListener
 {
     private static final String LOGTAG = "GeckoApp";
 
@@ -142,7 +141,6 @@ abstract public class GeckoApp
     public static boolean sIsGeckoReady = false;
     public static int mOrientation;
     private boolean mIsRestoringActivity;
-    private String mCurrentResponse = "";
 
     private GeckoConnectivityReceiver mConnectivityReceiver;
     private GeckoBatteryManager mBatteryReceiver;
@@ -716,7 +714,7 @@ abstract public class GeckoApp
     }
 
     void handleFaviconRequest(final String url) {
-        (new GeckoAsyncTask<Void, Void, String>(mAppContext, GeckoAppShell.getHandler()) {
+        (new GeckoAsyncTask<Void, Void, String>() {
             @Override
             public String doInBackground(Void... params) {
                 return getFavicons().getFaviconUrlForPageUrl(url);
@@ -1101,9 +1099,7 @@ abstract public class GeckoApp
                 String launchPath = message.getString("launchPath");
                 String iconURL = message.getString("iconURL");
                 String uniqueURI = message.getString("uniqueURI");
-
-                // installWebapp will return a File object pointing to the profile directory of the webapp
-                mCurrentResponse = GeckoAppShell.installWebApp(name, launchPath, uniqueURI, iconURL).toString();
+                GeckoAppShell.createShortcut(name, launchPath, uniqueURI, iconURL, "webapp");
             } else if (event.equals("WebApps:Uninstall")) {
                 String uniqueURI = message.getString("uniqueURI");
                 GeckoAppShell.uninstallWebApp(uniqueURI);
@@ -1134,13 +1130,6 @@ abstract public class GeckoApp
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
         }
-    }
-
-    public String getResponse() {
-        Log.i(LOGTAG, "Return " + mCurrentResponse);
-        String res = mCurrentResponse;
-        mCurrentResponse = "";
-        return res;
     }
 
     void onStatePurged() { }

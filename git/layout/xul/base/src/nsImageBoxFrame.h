@@ -44,12 +44,15 @@ class nsImageBoxFrame : public nsLeafBoxFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
+  // nsIBox
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState);
   virtual void MarkIntrinsicWidthsDirty();
 
   friend nsIFrame* NS_NewImageBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+
+  // nsIBox frame interface
 
   NS_IMETHOD  Init(nsIContent*      aContent,
                    nsIFrame*        aParent,

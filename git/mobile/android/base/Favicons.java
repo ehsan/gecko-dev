@@ -6,7 +6,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.util.GeckoJarReader;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpGet;

@@ -52,6 +52,7 @@ public:
   }
 #endif
 
+  // nsIBox
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState);
@@ -126,7 +127,7 @@ public:
 private:
 
   bool GetScrollToClick();
-  nsIFrame* GetScrollbar();
+  nsIBox* GetScrollbar();
 
   void PageUpDown(nscoord change);
   void SetCurrentThumbPosition(nsIContent* aScrollbar, nscoord aNewPos, bool aIsSmooth,

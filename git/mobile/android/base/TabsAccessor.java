@@ -5,7 +5,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.util.GeckoAsyncTask;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -60,7 +59,7 @@ public final class TabsAccessor {
         if (listener == null)
             return;
 
-        (new GeckoAsyncTask<Void, Void, Boolean>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
+        (new GeckoAsyncTask<Void, Void, Boolean> () {
             @Override
             protected Boolean doInBackground(Void... unused) {
                 Uri uri = BrowserContract.Tabs.CONTENT_URI;
@@ -88,7 +87,7 @@ public final class TabsAccessor {
             protected void onPostExecute(Boolean availability) {
                 listener.areAvailable(availability);
             }
-        }).setPriority(GeckoAsyncTask.Priority.HIGH).execute();
+        }).setPriority(GeckoAsyncTask.PRIORITY_HIGH).execute();
     }
 
     // This method returns all tabs from all remote clients, 
@@ -104,7 +103,7 @@ public final class TabsAccessor {
         if (listener == null)
             return;
 
-        (new GeckoAsyncTask<Void, Void, List<RemoteTab>>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
+        (new GeckoAsyncTask<Void, Void, List<RemoteTab>> () {
             @Override
             protected List<RemoteTab> doInBackground(Void... unused) {
                 Uri uri = BrowserContract.Tabs.CONTENT_URI;

@@ -610,11 +610,6 @@ let RIL = {
    */
   iccInfo: {},
 
-  /**
-   * Application identification for apps in ICC.
-   */
-  aid: null,
-
   voiceRegistrationState: {},
   dataRegistrationState: {},
 
@@ -669,7 +664,7 @@ let RIL = {
   /**
    * Pending messages to be send in batch from requestNetworkInfo()
    */
-  _pendingNetworkInfo: {rilMessageType: "networkinfochanged"},
+  _pendingNetworkInfo: {type: "networkinfochanged"},
 
   /**
    * Mute or unmute the radio.
@@ -777,9 +772,9 @@ let RIL = {
    * Outgoing requests to the RIL. These can be triggered from the
    * main thread via messages that look like this:
    *
-   *   {rilMessageType: "methodName",
-   *    extra:          "parameters",
-   *    go:             "here"}
+   *   {type:  "methodName",
+   *    extra: "parameters",
+   *    go:    "here"}
    *
    * So if one of the following methods takes arguments, it takes only one,
    * an object, which then contains all of the parameters as attributes.
@@ -798,16 +793,11 @@ let RIL = {
    *
    * @param pin
    *        String containing the PIN.
-   * @param [optional] aid
-   *        AID value.
    */
   enterICCPIN: function enterICCPIN(options) {
     Buf.newParcel(REQUEST_ENTER_SIM_PIN, options);
-    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 1 : 2);
+    Buf.writeUint32(1);
     Buf.writeString(options.pin);
-    if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid ? options.aid : this.aid);
-    }
     Buf.sendParcel();
   },
 
@@ -816,16 +806,11 @@ let RIL = {
    *
    * @param pin
    *        String containing the PIN2.
-   * @param [optional] aid
-   *        AID value.
    */
   enterICCPIN2: function enterICCPIN2(options) {
     Buf.newParcel(REQUEST_ENTER_SIM_PIN2, options);
-    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 1 : 2);
+    Buf.writeUint32(1);
     Buf.writeString(options.pin);
-    if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid ? options.aid : this.aid);
-    }
     Buf.sendParcel();
   },
 
@@ -836,17 +821,12 @@ let RIL = {
    *        String containing the old PIN value
    * @param newPin
    *        String containing the new PIN value
-   * @param [optional] aid
-   *        AID value.
    */
   changeICCPIN: function changeICCPIN(options) {
     Buf.newParcel(REQUEST_CHANGE_SIM_PIN, options);
-    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 2 : 3);
+    Buf.writeUint32(2);
     Buf.writeString(options.pin);
     Buf.writeString(options.newPin);
-    if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid ? options.aid : this.aid);
-    }
     Buf.sendParcel();
   },
 
@@ -857,17 +837,12 @@ let RIL = {
    *        String containing the old PIN2 value
    * @param newPin
    *        String containing the new PIN2 value
-   * @param [optional] aid
-   *        AID value.
    */
   changeICCPIN2: function changeICCPIN2(options) {
     Buf.newParcel(REQUEST_CHANGE_SIM_PIN2, options);
-    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 2 : 3);
+    Buf.writeUint32(2);
     Buf.writeString(options.pin);
     Buf.writeString(options.newPin);
-    if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid ? options.aid : this.aid);
-    }
     Buf.sendParcel();
   },
   /**
@@ -877,17 +852,13 @@ let RIL = {
    *        String containing the PUK value.
    * @param newPin
    *        String containing the new PIN value.
-   * @param [optional] aid
-   *        AID value.
+   *
    */
    enterICCPUK: function enterICCPUK(options) {
      Buf.newParcel(REQUEST_ENTER_SIM_PUK, options);
-     Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 2 : 3);
+     Buf.writeUint32(2);
      Buf.writeString(options.puk);
      Buf.writeString(options.newPin);
-     if (!RILQUIRKS_V5_LEGACY) {
-       Buf.writeString(options.aid ? options.aid : this.aid);
-     }
      Buf.sendParcel();
    },
 
@@ -898,17 +869,13 @@ let RIL = {
    *        String containing the PUK2 value.
    * @param newPin
    *        String containing the new PIN2 value.
-   * @param [optional] aid
-   *        AID value.
+   *
    */
    enterICCPUK2: function enterICCPUK2(options) {
      Buf.newParcel(REQUEST_ENTER_SIM_PUK2, options);
-     Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 2 : 3);
+     Buf.writeUint32(2);
      Buf.writeString(options.puk);
      Buf.writeString(options.newPin);
-     if (!RILQUIRKS_V5_LEGACY) {
-       Buf.writeString(options.aid ? options.aid : this.aid);
-     }
      Buf.sendParcel();
    },
 
@@ -928,26 +895,21 @@ let RIL = {
   },
 
   /**
-   * Query ICC facility lock.
+   *  Query ICC facility lock.
    *
-   * @param facility
-   *        One of ICC_CB_FACILITY_*.
-   * @param password
-   *        Password for the facility, or "" if not required.
-   * @param serviceClass
-   *        One of ICC_SERVICE_CLASS_*.
-   * @param [optional] aid
-   *        AID value.
+   *  @param facility
+   *         One of ICC_CB_FACILITY_*.
+   *  @param password
+   *         Password for the facility, or "" if not required.
+   *  @param serviceClass
+   *         One of ICC_SERVICE_CLASS_*.
    */
   queryICCFacilityLock: function queryICCFacilityLock(options) {
     Buf.newParcel(REQUEST_QUERY_FACILITY_LOCK, options);
-    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 3 : 4);
+    Buf.writeUint32(3);
     Buf.writeString(options.facility);
     Buf.writeString(options.password);
     Buf.writeString(options.serviceClass.toString());
-    if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid ? options.aid : this.aid);
-    }
     Buf.sendParcel();
   },
 
@@ -982,19 +944,14 @@ let RIL = {
    *        Password for the facility, or "" if not required.
    * @param serviceClass
    *        One of ICC_SERVICE_CLASS_*.
-   * @param [optional] aid
-   *        AID value.
    */
   setICCFacilityLock: function setICCFacilityLock(options) {
     Buf.newParcel(REQUEST_SET_FACILITY_LOCK, options);
-    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 3 : 4);
+    Buf.writeUint32(4);
     Buf.writeString(options.facility);
     Buf.writeString(options.enabled ? "1" : "0");
     Buf.writeString(options.password);
     Buf.writeString(options.serviceClass.toString());
-    if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid ? options.aid : this.aid);
-    }
     Buf.sendParcel();
   },
 
@@ -1015,10 +972,10 @@ let RIL = {
    *         Arbitrary integer parameters for the command.
    *  @param data
    *         String parameter for the command.
-   *  @param pin2
+   *  @param pin2 [optional]
    *         String containing the PIN2.
-   *  @param [optional] aid
-   *         AID value.
+   *  @param aid
+   *         String for the AID.
    */
   iccIO: function iccIO(options) {
     let token = Buf.newParcel(REQUEST_SIM_IO, options);
@@ -1030,9 +987,8 @@ let RIL = {
     Buf.writeUint32(options.p3);
     Buf.writeString(options.data);
     Buf.writeString(options.pin2 ? options.pin2 : null);
-    if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid ? options.aid : this.aid);
-    }
+    let appIndex = this.iccStatus.gsmUmtsSubscriptionAppIndex;
+    Buf.writeString(this.iccStatus.apps[appIndex].aid);
     Buf.sendParcel();
   },
 
@@ -1051,24 +1007,19 @@ let RIL = {
    * Update the ICC information to RadioInterfaceLayer.
    */
   _handleICCInfoChange: function _handleICCInfoChange() {
-    this.iccInfo.rilMessageType = "iccinfochange";
+    this.iccInfo.type = "iccinfochange";
     this.sendDOMMessage(this.iccInfo);
   },
 
-  /**
-   * Get IMSI.
-   *
-   * @param [optional] aid
-   *        AID value.
-   */
-  getIMSI: function getIMSI(aid) {
+  getIMSI: function getIMSI() {
     if (RILQUIRKS_V5_LEGACY) {
       Buf.simpleRequest(REQUEST_GET_IMSI);
       return;
     }
     let token = Buf.newParcel(REQUEST_GET_IMSI);
     Buf.writeUint32(1);
-    Buf.writeString(aid ? aid : this.aid);
+    let appIndex = this.iccStatus.gsmUmtsSubscriptionAppIndex;
+    Buf.writeString(this.iccStatus.apps[appIndex].aid);
     Buf.sendParcel();
   },
 
@@ -1283,7 +1234,7 @@ let RIL = {
                                 " number = " + this.iccInfo.fdn[i].number);
           }
         }
-        this.sendDOMMessage({rilMessageType: "icccontacts",
+        this.sendDOMMessage({type: "icccontacts",
                              contactType: "FDN",
                              contacts: this.iccInfo.fdn,
                              requestId: options.requestId});
@@ -1328,7 +1279,7 @@ let RIL = {
                                 " number = " + this.iccInfo.adn[i].number);
           }
         }
-        this.sendDOMMessage({rilMessageType: "icccontacts",
+        this.sendDOMMessage({type: "icccontacts",
                              contactType: "ADN",
                              contacts: this.iccInfo.adn,
                              requestId: options.requestId});
@@ -1366,7 +1317,7 @@ let RIL = {
         }
         if (this.iccInfo.mbdn != contact.number) {
           this.iccInfo.mbdn = contact.number;
-          contact.rilMessageType = "iccmbdn";
+          contact.type = "iccmbdn";
           this.sendDOMMessage(contact);
         }
       };
@@ -1606,7 +1557,7 @@ let RIL = {
       if (!this._isEmergencyNumber(options.number)) {
         // Notify error in establishing the call with an invalid number.
         options.callIndex = -1;
-        options.rilMessageType = "callError";
+        options.type = "callError";
         options.error =
           RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER];
         this.sendDOMMessage(options);
@@ -1975,7 +1926,7 @@ let RIL = {
         return;
       }
       this.cardState = GECKO_CARDSTATE_ABSENT;
-      this.sendDOMMessage({rilMessageType: "cardstatechange",
+      this.sendDOMMessage({type: "cardstatechange",
                            cardState: this.cardState});
       return;
     }
@@ -1990,7 +1941,7 @@ let RIL = {
       }
       this.cardState = GECKO_CARDSTATE_ABSENT;
       this.operator = null;
-      this.sendDOMMessage({rilMessageType: "cardstatechange",
+      this.sendDOMMessage({type: "cardstatechange",
                            cardState: this.cardState});
       return;
     }
@@ -2019,18 +1970,13 @@ let RIL = {
       return;
     }
 
-    // TODO: Bug 726098, change to use cdmaSubscriptionAppIndex when in CDMA.
-    // fetchICCRecords will need to read aid, so read aid here.
-    let index = iccStatus.gsmUmtsSubscriptionAppIndex;
-    this.aid = iccStatus.apps[index].aid;
-
     // This was moved down from CARD_APPSTATE_READY
     this.requestNetworkInfo();
     this.getSignalStrength();
     this.fetchICCRecords();
 
     this.cardState = newCardState;
-    this.sendDOMMessage({rilMessageType: "cardstatechange",
+    this.sendDOMMessage({type: "cardstatechange",
                          cardState: this.cardState});
   },
 
@@ -2264,7 +2210,7 @@ let RIL = {
     }
 
     if (cellChanged) {
-      cell.rilMessageType = "celllocationchanged";
+      cell.type = "celllocationchanged";
       this.sendDOMMessage(cell);
     }
 
@@ -2294,7 +2240,7 @@ let RIL = {
     }
 
     if (stateChanged) {
-      rs.rilMessageType = "voiceregistrationstatechange";
+      rs.type = "voiceregistrationstatechange";
       this._sendNetworkInfoMessage(NETWORK_INFO_VOICE_REGISTRATION_STATE, rs);
     }
   },
@@ -2316,7 +2262,7 @@ let RIL = {
     }
 
     if (stateChanged) {
-      rs.rilMessageType = "dataregistrationstatechange";
+      rs.type = "dataregistrationstatechange";
       this._sendNetworkInfoMessage(NETWORK_INFO_DATA_REGISTRATION_STATE, rs);
     }
   },
@@ -2329,7 +2275,7 @@ let RIL = {
     }
 
     if (!this.operator) {
-      this.operator = {rilMessageType: "operatorchange"};
+      this.operator = {type: "operatorchange"};
     }
 
     let [longName, shortName, networkTuple] = operatorData;
@@ -2424,13 +2370,13 @@ let RIL = {
   },
 
   _handleChangedCallState: function _handleChangedCallState(changedCall) {
-    let message = {rilMessageType: "callStateChange",
+    let message = {type: "callStateChange",
                    call: changedCall};
     this.sendDOMMessage(message);
   },
 
   _handleDisconnectedCall: function _handleDisconnectedCall(disconnectedCall) {
-    let message = {rilMessageType: "callDisconnected",
+    let message = {type: "callDisconnected",
                    call: disconnectedCall};
     this.sendDOMMessage(message);
   },
@@ -2464,7 +2410,7 @@ let RIL = {
       if (!updatedDataCall) {
         delete this.currentDataCalls[currentDataCall.callIndex];
         currentDataCall.state = GECKO_NETWORK_STATE_DISCONNECTED;
-        currentDataCall.rilMessageType = "datacallstatechange";
+        currentDataCall.type = "datacallstatechange";
         this.sendDOMMessage(currentDataCall);
         continue;
       }
@@ -2474,7 +2420,7 @@ let RIL = {
         currentDataCall.status = updatedDataCall.status;
         currentDataCall.active = updatedDataCall.active;
         currentDataCall.state = updatedDataCall.state;
-        currentDataCall.rilMessageType = "datacallstatechange";
+        currentDataCall.type = "datacallstatechange";
         this.sendDOMMessage(currentDataCall);
       }
     }
@@ -2493,7 +2439,7 @@ let RIL = {
       } else if (DEBUG) {
         debug("Unexpected new data call: " + JSON.stringify(newDataCall));
       }
-      newDataCall.rilMessageType = "datacallstatechange";
+      newDataCall.type = "datacallstatechange";
       this.sendDOMMessage(newDataCall);
     }
   },
@@ -2636,7 +2582,7 @@ let RIL = {
     }
 
     if (message) {
-      message.rilMessageType = "sms-received";
+      message.type = "sms-received";
       this.sendDOMMessage(message);
     }
 
@@ -2699,7 +2645,7 @@ let RIL = {
     } else {
       // Last segment delivered with success. Report it.
       this.sendDOMMessage({
-        rilMessageType: "sms-delivered",
+        type: "sms-delivered",
         envelopeId: options.envelopeId,
       });
     }
@@ -2801,7 +2747,7 @@ let RIL = {
    */
   handleDOMMessage: function handleMessage(message) {
     if (DEBUG) debug("Received DOM message " + JSON.stringify(message));
-    let method = this[message.rilMessageType];
+    let method = this[message.type];
     if (typeof method != "function") {
       if (DEBUG) {
         debug("Don't know what to do with message " + JSON.stringify(message));
@@ -2820,7 +2766,7 @@ let RIL = {
     for each (let call in this.currentCalls) {
       calls.push(call);
     }
-    this.sendDOMMessage({rilMessageType: "enumerateCalls", calls: calls});
+    this.sendDOMMessage({type: "enumerateCalls", calls: calls});
   },
 
   /**
@@ -2831,7 +2777,7 @@ let RIL = {
     for each (let datacall in this.currentDataCalls) {
       datacall_list.push(datacall);
     }
-    this.sendDOMMessage({rilMessageType: "datacalllist",
+    this.sendDOMMessage({type: "datacalllist",
                          datacalls: datacall_list});
   },
 
@@ -2900,42 +2846,42 @@ RIL[REQUEST_GET_SIM_STATUS] = function REQUEST_GET_SIM_STATUS(length, options) {
   this._processICCStatus(iccStatus);
 };
 RIL[REQUEST_ENTER_SIM_PIN] = function REQUEST_ENTER_SIM_PIN(length, options) {
-  this.sendDOMMessage({rilMessageType: "iccunlockcardlock",
+  this.sendDOMMessage({type: "iccunlockcardlock",
                        lockType: "pin",
                        result: options.rilRequestError == 0 ? true : false,
                        retryCount: length ? Buf.readUint32List()[0] : -1,
                        requestId: options.requestId});
 };
 RIL[REQUEST_ENTER_SIM_PUK] = function REQUEST_ENTER_SIM_PUK(length, options) {
-  this.sendDOMMessage({rilMessageType: "iccunlockcardlock",
+  this.sendDOMMessage({type: "iccunlockcardlock",
                        lockType: "puk",
                        result: options.rilRequestError == 0 ? true : false,
                        retryCount: length ? Buf.readUint32List()[0] : -1,
                        requestId: options.requestId});
 };
 RIL[REQUEST_ENTER_SIM_PIN2] = function REQUEST_ENTER_SIM_PIN2(length, options) {
-  this.sendDOMMessage({rilMessageType: "iccunlockcardlock",
+  this.sendDOMMessage({type: "iccunlockcardlock",
                        lockType: "pin2",
                        result: options.rilRequestError == 0 ? true : false,
                        retryCount: length ? Buf.readUint32List()[0] : -1,
                        requestId: options.requestId});
 };
 RIL[REQUEST_ENTER_SIM_PUK2] = function REQUEST_ENTER_SIM_PUK(length, options) {
-  this.sendDOMMessage({rilMessageType: "iccunlockcardlock",
+  this.sendDOMMessage({type: "iccunlockcardlock",
                        lockType: "puk2",
                        result: options.rilRequestError == 0 ? true : false,
                        retryCount: length ? Buf.readUint32List()[0] : -1,
                        requestId: options.requestId});
 };
 RIL[REQUEST_CHANGE_SIM_PIN] = function REQUEST_CHANGE_SIM_PIN(length, options) {
-  this.sendDOMMessage({rilMessageType: "iccsetcardlock",
+  this.sendDOMMessage({type: "iccsetcardlock",
                        lockType: "pin",
                        result: options.rilRequestError == 0 ? true : false,
                        retryCount: length ? Buf.readUint32List()[0] : -1,
                        requestId: options.requestId});
 };
 RIL[REQUEST_CHANGE_SIM_PIN2] = function REQUEST_CHANGE_SIM_PIN2(length, options) {
-  this.sendDOMMessage({rilMessageType: "iccsetcardlock",
+  this.sendDOMMessage({type: "iccsetcardlock",
                        lockType: "pin2",
                        result: options.rilRequestError == 0 ? true : false,
                        retryCount: length ? Buf.readUint32List()[0] : -1,
@@ -3081,7 +3027,7 @@ RIL[REQUEST_LAST_CALL_FAIL_CAUSE] = function REQUEST_LAST_CALL_FAIL_CAUSE(length
     case CALL_FAIL_IMSI_UNKNOWN_IN_VLR:
     case CALL_FAIL_IMEI_NOT_ACCEPTED:
     case CALL_FAIL_ERROR_UNSPECIFIED:
-      options.rilMessageType = "callError";
+      options.type = "callError";
       options.error = RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[failCause];
       this.sendDOMMessage(options);
       break;
@@ -3147,7 +3093,7 @@ RIL[REQUEST_SIGNAL_STRENGTH] = function REQUEST_SIGNAL_STRENGTH(length, options)
   }
 
   if (DEBUG) debug("Signal strength " + JSON.stringify(obj));
-  obj.rilMessageType = "signalstrengthchange";
+  obj.type = "signalstrengthchange";
   this.sendDOMMessage(obj);
 };
 RIL[REQUEST_VOICE_REGISTRATION_STATE] = function REQUEST_VOICE_REGISTRATION_STATE(length, options) {
@@ -3202,7 +3148,7 @@ RIL[REQUEST_SEND_SMS] = function REQUEST_SEND_SMS(length, options) {
         // Fallback to default error handling if it meets max retry count.
       default:
         this.sendDOMMessage({
-          rilMessageType: "sms-send-failed",
+          type: "sms-send-failed",
           envelopeId: options.envelopeId,
           error: options.rilRequestError,
         });
@@ -3229,7 +3175,7 @@ RIL[REQUEST_SEND_SMS] = function REQUEST_SEND_SMS(length, options) {
   } else {
     // Last segment sent with success. Report it.
     this.sendDOMMessage({
-      rilMessageType: "sms-sent",
+      type: "sms-sent",
       envelopeId: options.envelopeId,
     });
   }
@@ -3253,7 +3199,7 @@ RIL.readSetupDataCall_v5 = function readSetupDataCall_v5(options) {
 
 RIL[REQUEST_SETUP_DATA_CALL] = function REQUEST_SETUP_DATA_CALL(length, options) {
   if (options.rilRequestError) {
-    options.rilMessageType = "datacallerror";
+    options.type = "datacallerror";
     this.sendDOMMessage(options);
     return;
   }
@@ -3263,7 +3209,7 @@ RIL[REQUEST_SETUP_DATA_CALL] = function REQUEST_SETUP_DATA_CALL(length, options)
     // we retain the APN and other info about how the data call was set up.
     this.readSetupDataCall_v5(options);
     this.currentDataCalls[options.cid] = options;
-    options.rilMessageType = "datacallstatechange";
+    options.type = "datacallstatechange";
     this.sendDOMMessage(options);
     // Let's get the list of data calls to ensure we know whether it's active
     // or not.
@@ -3295,7 +3241,7 @@ RIL[REQUEST_SEND_USSD] = function REQUEST_SEND_USSD(length, options) {
   if (DEBUG) {
     debug("REQUEST_SEND_USSD " + JSON.stringify(options)); 
   }
-  options.rilMessageType = "sendussd";
+  options.type = "sendussd";
   options.success = options.rilRequestError == 0 ? true : false;
   this.sendDOMMessage(options);
 };
@@ -3303,7 +3249,7 @@ RIL[REQUEST_CANCEL_USSD] = function REQUEST_CANCEL_USSD(length, options) {
   if (DEBUG) {
     debug("REQUEST_CANCEL_USSD" + JSON.stringify(options));
   }
-  options.rilMessageType = "cancelussd";
+  options.type = "cancelussd";
   options.success = options.rilRequestError == 0 ? true : false;
   this.sendDOMMessage(options);
 };
@@ -3337,7 +3283,7 @@ RIL[REQUEST_DEACTIVATE_DATA_CALL] = function REQUEST_DEACTIVATE_DATA_CALL(length
   let datacall = this.currentDataCalls[options.cid];
   delete this.currentDataCalls[options.cid];
   datacall.state = GECKO_NETWORK_STATE_DISCONNECTED;
-  datacall.rilMessageType = "datacallstatechange";
+  datacall.type = "datacallstatechange";
   this.sendDOMMessage(datacall);
 };
 RIL[REQUEST_QUERY_FACILITY_LOCK] = function REQUEST_QUERY_FACILITY_LOCK(length, options) {
@@ -3346,13 +3292,13 @@ RIL[REQUEST_QUERY_FACILITY_LOCK] = function REQUEST_QUERY_FACILITY_LOCK(length, 
   }
 
   let response = Buf.readUint32List()[0];
-  this.sendDOMMessage({rilMessageType: "iccgetcardlock",
+  this.sendDOMMessage({type: "iccgetcardlock",
                        lockType: "pin",
                        enabled: response == 0 ? false : true,
                        requestId: options.requestId});
 };
 RIL[REQUEST_SET_FACILITY_LOCK] = function REQUEST_SET_FACILITY_LOCK(length, options) {
-  this.sendDOMMessage({rilMessageType: "iccsetcardlock",
+  this.sendDOMMessage({type: "iccsetcardlock",
                        lockType: "pin",
                        result: options.rilRequestError == 0 ? true : false,
                        retryCount: length ? Buf.readUint32List()[0] : -1,
@@ -3385,7 +3331,7 @@ RIL[REQUEST_QUERY_NETWORK_SELECTION_MODE] = function REQUEST_QUERY_NETWORK_SELEC
 
   if (this.mode != selectionMode) {
     this.mode = options.mode = selectionMode;
-    options.rilMessageType = "networkselectionmodechange";
+    options.type = "networkselectionmodechange";
     this._sendNetworkInfoMessage(NETWORK_INFO_NETWORK_SELECTION_MODE, options);
   }
 };
@@ -3603,7 +3549,7 @@ RIL[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLICITED_RESPONSE_RA
 
   this.radioState = newState;
   this.sendDOMMessage({
-    rilMessageType: "radiostatechange",
+    type: "radiostatechange",
     radioState: newState
   });
 
@@ -3644,7 +3590,7 @@ RIL[UNSOLICITED_ON_USSD] = function UNSOLICITED_ON_USSD() {
   if (!message || message == "") {
     return;
   }
-  this.sendDOMMessage({rilMessageType: "ussdreceived",
+  this.sendDOMMessage({type: "ussdreceived",
                        message: message});
 };
 RIL[UNSOLICITED_NITZ_TIME_RECEIVED] = function UNSOLICITED_NITZ_TIME_RECEIVED() {
@@ -3679,7 +3625,7 @@ RIL[UNSOLICITED_NITZ_TIME_RECEIVED] = function UNSOLICITED_NITZ_TIME_RECEIVED() 
     return;
   }
 
-  this.sendDOMMessage({rilMessageType: "nitzTime",
+  this.sendDOMMessage({type: "nitzTime",
                        networkTimeInSeconds: timeInSeconds,
                        networkTimeZoneInMinutes: tz * 15,
                        dstFlag: dst,

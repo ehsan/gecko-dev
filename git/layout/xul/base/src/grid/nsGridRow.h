@@ -13,11 +13,10 @@
 #ifndef nsGridRow_h___
 #define nsGridRow_h___
 
-#include "nsCoord.h"
+#include "nsIFrame.h"
 
 class nsGridLayout2;
 class nsBoxLayoutState;
-class nsIFrame;
 
 /**
  * The row (or column) data structure in the grid cellmap.
@@ -27,11 +26,11 @@ class nsGridRow
 public:
    nsGridRow();
    ~nsGridRow();
-
-   void Init(nsIFrame* aBox, bool aIsBogus);
+   
+   void Init(nsIBox* aBox, bool aIsBogus);
 
 // accessors
-   nsIFrame* GetBox()   { return mBox;          }
+   nsIBox* GetBox()   { return mBox;          }
    bool IsPrefSet() { return (mPref != -1); }
    bool IsMinSet()  { return (mMin  != -1); }
    bool IsMaxSet()  { return (mMax  != -1); } 
@@ -42,7 +41,7 @@ public:
 public:
 
    bool    mIsBogus;
-   nsIFrame* mBox;
+   nsIBox* mBox;
    nscoord mFlex;
    nscoord mPref;
    nscoord mMin;

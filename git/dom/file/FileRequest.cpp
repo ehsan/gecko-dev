@@ -10,7 +10,6 @@
 
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
-#include "nsDOMError.h"
 #include "nsDOMProgressEvent.h"
 #include "nsDOMClassInfoID.h"
 #include "FileHelper.h"
@@ -150,20 +149,14 @@ FileRequest::FireProgressEvent(PRUint64 aLoaded, PRUint64 aTotal)
   nsRefPtr<nsDOMProgressEvent> event = new nsDOMProgressEvent(nullptr, nullptr);
   nsresult rv = event->InitProgressEvent(NS_LITERAL_STRING("progress"),
                                          false, false, false, aLoaded, aTotal);
-  if (NS_FAILED(rv)) {
-    return;
-  }
+  NS_ENSURE_SUCCESS(rv,);
 
   rv = event->SetTrusted(true);
-  if (NS_FAILED(rv)) {
-    return;
-  }
+  NS_ENSURE_SUCCESS(rv,);
 
   bool dummy;
   rv = DispatchEvent(static_cast<nsIDOMProgressEvent*>(event), &dummy);
-  if (NS_FAILED(rv)) {
-    return;
-  }
+  NS_ENSURE_SUCCESS(rv,);
 }
 
 void

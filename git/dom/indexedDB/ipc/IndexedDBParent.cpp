@@ -1197,7 +1197,9 @@ IndexedDBObjectStoreRequestParent::ConvertBlobActors(
 
   if (!aActors.IsEmpty()) {
     // Walk the chain to get to ContentParent.
-    MOZ_ASSERT(mObjectStore->Transaction()->Database()->GetContentParent());
+    ContentParent* contentParent =
+      mObjectStore->Transaction()->Database()->GetContentParent();
+    MOZ_ASSERT(contentParent);
 
     uint32_t length = aActors.Length();
     aBlobs.SetCapacity(length);

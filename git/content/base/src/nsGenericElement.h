@@ -48,7 +48,6 @@ class nsIDOMCSSStyleDeclaration;
 class nsIURI;
 class nsINodeInfo;
 class nsIControllers;
-class nsEventChainVisitor;
 class nsEventListenerManager;
 class nsIScrollableFrame;
 class nsAttrValueOrString;

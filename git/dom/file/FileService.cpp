@@ -389,9 +389,7 @@ FileService::LockedFileQueue::OnFileHelperComplete(FileHelper* aFileHelper)
     mCurrentHelper = nullptr;
 
     nsresult rv = ProcessQueue();
-    if (NS_FAILED(rv)) {
-      return;
-    }
+    NS_ENSURE_SUCCESS(rv,);
   }
 }
 

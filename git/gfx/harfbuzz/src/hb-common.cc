@@ -98,7 +98,7 @@ hb_direction_to_string (hb_direction_t direction)
 
 /* hb_language_t */
 
-struct hb_language_impl_t {
+struct _hb_language_t {
   const char s[1];
 };
 
@@ -114,16 +114,18 @@ static const char canon_map[256] = {
 };
 
 static hb_bool_t
-lang_equal (hb_language_t  v1,
-	    const void    *v2)
+lang_equal (const void *v1,
+	    const void *v2)
 {
   const unsigned char *p1 = (const unsigned char *) v1;
   const unsigned char *p2 = (const unsigned char *) v2;
 
-  while (*p1 && *p1 == canon_map[*p2])
-    p1++, p2++;
+  while (canon_map[*p1] && canon_map[*p1] == canon_map[*p2])
+    {
+      p1++, p2++;
+    }
 
-  return *p1 == canon_map[*p2];
+  return (canon_map[*p1] == canon_map[*p2]);
 }
 
 #if 0
@@ -145,7 +147,6 @@ lang_hash (const void *key)
 
 struct hb_language_item_t {
 
-  struct hb_language_item_t *next;
   hb_language_t lang;
 
   inline bool operator == (const char *s) const {
@@ -163,52 +164,10 @@ struct hb_language_item_t {
   void finish (void) { free (lang); }
 };
 
-
-/* Thread-safe lock-free language list */
-
-static hb_language_item_t *langs;
-
-static
-void free_langs (void)
-{
-  while (langs) {
-    hb_language_item_t *next = langs->next;
-    langs->finish ();
-    free (langs);
-    langs = next;
-  }
-}
-
-static hb_language_item_t *
-lang_find_or_insert (const char *key)
-{
-retry:
-  hb_language_item_t *first_lang = (hb_language_item_t *) hb_atomic_ptr_get (&langs);
-
-  for (hb_language_item_t *lang = first_lang; lang; lang = lang->next)
-    if (*lang == key)
-      return lang;
-
-  /* Not found; allocate one. */
-  hb_language_item_t *lang = (hb_language_item_t *) calloc (1, sizeof (hb_language_item_t));
-  if (unlikely (!lang))
-    return NULL;
-  lang->next = first_lang;
-  *lang = key;
-
-  if (!hb_atomic_ptr_cmpexch (&langs, first_lang, lang)) {
-    free (lang);
-    goto retry;
-  }
-
-#ifdef HAVE_ATEXIT
-  if (!first_lang)
-    atexit (free_langs); /* First person registers atexit() callback. */
-#endif
-
-  return lang;
-}
-
+static struct hb_static_lang_set_t : hb_lockable_set_t<hb_language_item_t, hb_static_mutex_t> {
+  ~hb_static_lang_set_t (void) { this->finish (lock); }
+  hb_static_mutex_t lock;
+} langs;
 
 hb_language_t
 hb_language_from_string (const char *str, int len)
@@ -223,7 +182,7 @@ hb_language_from_string (const char *str, int len)
     strbuf[len] = '\0';
   }
 
-  hb_language_item_t *item = lang_find_or_insert (str);
+  hb_language_item_t *item = langs.find_or_insert (str, langs.lock);
 
   return likely (item) ? item->lang : HB_LANGUAGE_INVALID;
 }
@@ -355,41 +314,47 @@ hb_script_get_horizontal_direction (hb_script_t script)
 
 /* hb_user_data_array_t */
 
+
+/* NOTE: Currently we use a global lock for user_data access
+ * threadsafety.  If one day we add a mutex to any object, we
+ * should switch to using that insted for these too.
+ */
+
+static hb_static_mutex_t user_data_lock;
+
 bool
 hb_user_data_array_t::set (hb_user_data_key_t *key,
 			   void *              data,
 			   hb_destroy_func_t   destroy,
-			   hb_bool_t           replace,
-			   hb_mutex_t         &lock)
+			   hb_bool_t           replace)
 {
   if (!key)
     return false;
 
   if (replace) {
     if (!data && !destroy) {
-      items.remove (key, lock);
+      items.remove (key, user_data_lock);
       return true;
     }
   }
   hb_user_data_item_t item = {key, data, destroy};
-  bool ret = !!items.replace_or_insert (item, lock, replace);
+  bool ret = !!items.replace_or_insert (item, user_data_lock, replace);
 
   return ret;
 }
 
 void *
-hb_user_data_array_t::get (hb_user_data_key_t *key,
-			   hb_mutex_t         &lock)
+hb_user_data_array_t::get (hb_user_data_key_t *key)
 {
   hb_user_data_item_t item = {NULL };
 
-  return items.find (key, &item, lock) ? item.data : NULL;
+  return items.find (key, &item, user_data_lock) ? item.data : NULL;
 }
 
 void
-hb_user_data_array_t::finish (hb_mutex_t &lock)
+hb_user_data_array_t::finish (void)
 {
-  items.finish (lock);
+  items.finish (user_data_lock);
 }
 
 

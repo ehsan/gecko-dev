@@ -248,15 +248,13 @@ class HGFileInfo(VCSFileInfo):
         if not srcdir in HGRepoInfo.repos:
             rev = read_output('hg', '-R', srcdir,
                               'parent', '--template={node|short}')
-            # Look for the default hg path.  If SRVSRV_ROOT is set, we
-            # don't bother asking hg.
-            hg_root = os.environ.get("SRCSRV_ROOT")
-            if hg_root:
-                path = hg_root
-            else:
-                path = read_output('hg', '-R', srcdir,
-                                   'showconfig', 'paths.default')
-                if not path:
+            path = read_output('hg', '-R', srcdir,
+                               'showconfig', 'paths.default')
+            if path == '':
+                hg_root = os.environ.get("SRCSRV_ROOT")
+                if hg_root:
+                    path = hg_root
+                else:
                     print >> sys.stderr, "Failed to get HG Repo for %s" % srcdir
             cleanroot = None
             if path != '': # not there?

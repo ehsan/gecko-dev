@@ -26,6 +26,7 @@
 #include "nsIVariant.h"
 
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIFrame.h"
 #include "nsDOMError.h"
 #include "nsIScriptError.h"
 

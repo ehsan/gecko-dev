@@ -11,6 +11,7 @@
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
+#include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsDOMError.h"
 #include "nsContentUtils.h"
@@ -1867,17 +1868,22 @@ nsHTMLFormElement::IndexOfControl(nsIFormControl* aControl)
   return mControls->IndexOfControl(aControl, &index) == NS_OK ? index : 0;
 }
 
-void
+NS_IMETHODIMP
 nsHTMLFormElement::SetCurrentRadioButton(const nsAString& aName,
                                          nsIDOMHTMLInputElement* aRadio)
 {
   mSelectedRadioButtons.Put(aName, aRadio);
+
+  return NS_OK;
 }
 
-nsIDOMHTMLInputElement*
-nsHTMLFormElement::GetCurrentRadioButton(const nsAString& aName)
+NS_IMETHODIMP
+nsHTMLFormElement::GetCurrentRadioButton(const nsAString& aName,
+                                         nsIDOMHTMLInputElement** aRadio)
 {
-  return mSelectedRadioButtons.GetWeak(aName);
+  mSelectedRadioButtons.Get(aName, aRadio);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2003,7 +2009,7 @@ nsHTMLFormElement::WalkRadioGroup(const nsAString& aName,
   return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsHTMLFormElement::AddToRadioGroup(const nsAString& aName,
                                    nsIFormControl* aRadio)
 {
@@ -2014,9 +2020,11 @@ nsHTMLFormElement::AddToRadioGroup(const nsAString& aName,
     mRequiredRadioButtonCounts.Put(aName,
                                    mRequiredRadioButtonCounts.Get(aName)+1);
   }
+
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsHTMLFormElement::RemoveFromRadioGroup(const nsAString& aName,
                                         nsIFormControl* aRadio)
 {
@@ -2034,6 +2042,8 @@ nsHTMLFormElement::RemoveFromRadioGroup(const nsAString& aName,
       mRequiredRadioButtonCounts.Put(aName, requiredNb-1);
     }
   }
+
+  return NS_OK;
 }
 
 PRUint32

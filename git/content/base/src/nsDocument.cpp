@@ -6461,18 +6461,23 @@ nsDocument::GetOrCreateRadioGroup(const nsAString& aName)
   return newRadioGroup.forget();
 }
 
-void
+NS_IMETHODIMP
 nsDocument::SetCurrentRadioButton(const nsAString& aName,
                                   nsIDOMHTMLInputElement* aRadio)
 {
   nsRadioGroupStruct* radioGroup = GetOrCreateRadioGroup(aName);
   radioGroup->mSelectedRadioButton = aRadio;
+  return NS_OK;
 }
 
-nsIDOMHTMLInputElement*
-nsDocument::GetCurrentRadioButton(const nsAString& aName)
+NS_IMETHODIMP
+nsDocument::GetCurrentRadioButton(const nsAString& aName,
+                                  nsIDOMHTMLInputElement** aRadio)
 {
-  return GetOrCreateRadioGroup(aName)->mSelectedRadioButton;
+  nsRadioGroupStruct* radioGroup = GetOrCreateRadioGroup(aName);
+  *aRadio = radioGroup->mSelectedRadioButton;
+  NS_IF_ADDREF(*aRadio);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -6528,11 +6533,12 @@ nsDocument::GetNextRadioButton(const nsAString& aName,
   return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsDocument::AddToRadioGroup(const nsAString& aName,
                             nsIFormControl* aRadio)
 {
   nsRadioGroupStruct* radioGroup = GetOrCreateRadioGroup(aName);
+
   radioGroup->mRadioButtons.AppendObject(aRadio);
 
   nsCOMPtr<nsIContent> element = do_QueryInterface(aRadio);
@@ -6540,13 +6546,15 @@ nsDocument::AddToRadioGroup(const nsAString& aName,
   if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
     radioGroup->mRequiredRadioCount++;
   }
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsDocument::RemoveFromRadioGroup(const nsAString& aName,
                                  nsIFormControl* aRadio)
 {
   nsRadioGroupStruct* radioGroup = GetOrCreateRadioGroup(aName);
+
   radioGroup->mRadioButtons.RemoveObject(aRadio);
 
   nsCOMPtr<nsIContent> element = do_QueryInterface(aRadio);
@@ -6556,6 +6564,7 @@ nsDocument::RemoveFromRadioGroup(const nsAString& aName,
                  "mRequiredRadioCount about to wrap below 0!");
     radioGroup->mRequiredRadioCount--;
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP

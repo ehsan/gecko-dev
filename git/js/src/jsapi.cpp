@@ -845,6 +845,7 @@ JSRuntime::JSRuntime()
     sameCompartmentWrapObjectCallback(NULL),
     preWrapObjectCallback(NULL),
     preserveWrapperCallback(NULL),
+    scriptSources(NULL),
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
 #endif
@@ -3964,7 +3965,7 @@ JS_DefineObject(JSContext *cx, JSObject *objArg, const char *name, JSClass *jscl
     if (!clasp)
         clasp = &ObjectClass;    /* default class is Object */
 
-    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, proto, obj));
+    JSObject *nobj = NewObjectWithClassProto(cx, clasp, proto, obj);
     if (!nobj)
         return NULL;
 
@@ -4355,17 +4356,15 @@ JS_SetElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval *vp)
 JS_PUBLIC_API(JSBool)
 JS_SetProperty(JSContext *cx, JSObject *objArg, const char *name, jsval *vp)
 {
-    RootedObject obj(cx, objArg);
     JSAtom *atom = js_Atomize(cx, name, strlen(name));
-    return atom && JS_SetPropertyById(cx, obj, AtomToId(atom), vp);
+    return atom && JS_SetPropertyById(cx, objArg, AtomToId(atom), vp);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_SetUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen, jsval *vp)
 {
-    RootedObject obj(cx, objArg);
     JSAtom *atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
-    return atom && JS_SetPropertyById(cx, obj, AtomToId(atom), vp);
+    return atom && JS_SetPropertyById(cx, objArg, AtomToId(atom), vp);
 }
 
 JS_PUBLIC_API(JSBool)

@@ -74,7 +74,7 @@ struct AttachList
     return TRACE_RETURN (coverage.sanitize (c, this) && attachPoint.sanitize (c, this));
   }
 
-  protected:
+  private:
   OffsetTo<Coverage>
 		coverage;		/* Offset to Coverage table -- from
 					 * beginning of AttachList table */
@@ -104,7 +104,7 @@ struct CaretValueFormat1
     return TRACE_RETURN (c->check_struct (this));
   }
 
-  protected:
+  private:
   USHORT	caretValueFormat;	/* Format identifier--format = 1 */
   SHORT		coordinate;		/* X or Y value, in design units */
   public:
@@ -119,7 +119,7 @@ struct CaretValueFormat2
   inline hb_position_t get_caret_value (hb_font_t *font, hb_direction_t direction, hb_codepoint_t glyph_id) const
   {
     hb_position_t x, y;
-    if (font->get_glyph_contour_point_for_origin (glyph_id, caretValuePoint, direction, &x, &y))
+    if (hb_font_get_glyph_contour_point_for_origin (font, glyph_id, caretValuePoint, direction, &x, &y))
       return HB_DIRECTION_IS_HORIZONTAL (direction) ? x : y;
     else
       return 0;
@@ -130,7 +130,7 @@ struct CaretValueFormat2
     return TRACE_RETURN (c->check_struct (this));
   }
 
-  protected:
+  private:
   USHORT	caretValueFormat;	/* Format identifier--format = 2 */
   USHORT	caretValuePoint;	/* Contour point index on glyph */
   public:
@@ -153,7 +153,7 @@ struct CaretValueFormat3
     return TRACE_RETURN (c->check_struct (this) && deviceTable.sanitize (c, this));
   }
 
-  protected:
+  private:
   USHORT	caretValueFormat;	/* Format identifier--format = 3 */
   SHORT		coordinate;		/* X or Y value, in design units */
   OffsetTo<Device>
@@ -187,7 +187,7 @@ struct CaretValue
     }
   }
 
-  protected:
+  private:
   union {
   USHORT		format;		/* Format identifier */
   CaretValueFormat1	format1;
@@ -222,7 +222,7 @@ struct LigGlyph
     return TRACE_RETURN (carets.sanitize (c, this));
   }
 
-  protected:
+  private:
   OffsetArrayOf<CaretValue>
 		carets;			/* Offset array of CaretValue tables
 					 * --from beginning of LigGlyph table
@@ -256,7 +256,7 @@ struct LigCaretList
     return TRACE_RETURN (coverage.sanitize (c, this) && ligGlyph.sanitize (c, this));
   }
 
-  protected:
+  private:
   OffsetTo<Coverage>
 		coverage;		/* Offset to Coverage table--from
 					 * beginning of LigCaretList table */
@@ -278,7 +278,7 @@ struct MarkGlyphSetsFormat1
     return TRACE_RETURN (coverage.sanitize (c, this));
   }
 
-  protected:
+  private:
   USHORT	format;			/* Format identifier--format = 1 */
   LongOffsetArrayOf<Coverage>
 		coverage;		/* Array of long offsets to mark set
@@ -306,7 +306,7 @@ struct MarkGlyphSets
     }
   }
 
-  protected:
+  private:
   union {
   USHORT		format;		/* Format identifier */
   MarkGlyphSetsFormat1	format1;
@@ -392,7 +392,7 @@ struct GDEF
   }
 
 
-  protected:
+  private:
   FixedVersion	version;		/* Version of the GDEF table--currently
 					 * 0x00010002 */
   OffsetTo<ClassDef>

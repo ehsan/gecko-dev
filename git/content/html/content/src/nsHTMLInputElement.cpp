@@ -1655,11 +1655,10 @@ nsHTMLInputElement::SetCheckedChangedInternal(bool aCheckedChanged)
 NS_IMETHODIMP
 nsHTMLInputElement::SetChecked(bool aChecked)
 {
-  DoSetChecked(aChecked, true, true);
-  return NS_OK;
+  return DoSetChecked(aChecked, true, true);
 }
 
-void
+nsresult
 nsHTMLInputElement::DoSetChecked(bool aChecked, bool aNotify,
                                  bool aSetValueChanged)
 {
@@ -1674,19 +1673,18 @@ nsHTMLInputElement::DoSetChecked(bool aChecked, bool aNotify,
   // screw up state actually, especially when you are setting radio button to
   // false)
   if (mChecked == aChecked) {
-    return;
+    return NS_OK;
   }
 
   // Set checked
   if (mType != NS_FORM_INPUT_RADIO) {
     SetCheckedInternal(aChecked, aNotify);
-    return;
+    return NS_OK;
   }
 
   // For radio button, we need to do some extra fun stuff
   if (aChecked) {
-    RadioSetChecked(aNotify);
-    return;
+    return RadioSetChecked(aNotify);
   }
 
   nsIRadioGroupContainer* container = GetRadioGroupContainer();
@@ -1699,9 +1697,10 @@ nsHTMLInputElement::DoSetChecked(bool aChecked, bool aNotify,
   // validity state. We have to be sure the radio group container knows
   // the currently selected radio.
   SetCheckedInternal(false, aNotify);
+  return NS_OK;
 }
 
-void
+nsresult
 nsHTMLInputElement::RadioSetChecked(bool aNotify)
 {
   // Find the selected radio button so we can deselect it
@@ -1716,16 +1715,22 @@ nsHTMLInputElement::RadioSetChecked(bool aNotify)
   }
 
   // Let the group know that we are now the One True Radio Button
+  nsresult rv = NS_OK;
   nsIRadioGroupContainer* container = GetRadioGroupContainer();
   if (container) {
     nsAutoString name;
     GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
-    container->SetCurrentRadioButton(name, this);
+    rv = container->SetCurrentRadioButton(name, this);
   }
 
   // SetCheckedInternal is going to ask all radios to update their
-  // validity state. 
-  SetCheckedInternal(true, aNotify);
+  // validity state. We have to be sure the radio group container knows
+  // the currently selected radio.
+  if (NS_SUCCEEDED(rv)) {
+    SetCheckedInternal(true, aNotify);
+  }
+
+  return rv;
 }
 
 nsIRadioGroupContainer*
@@ -1759,7 +1764,8 @@ nsHTMLInputElement::GetSelectedRadioButton()
   nsAutoString name;
   GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
 
-  nsCOMPtr<nsIDOMHTMLInputElement> selected = container->GetCurrentRadioButton(name);
+  nsCOMPtr<nsIDOMHTMLInputElement> selected;
+  container->GetCurrentRadioButton(name, getter_AddRefs(selected));
   return selected.forget();
 }
 
@@ -3136,8 +3142,7 @@ nsHTMLInputElement::Reset()
     case VALUE_MODE_VALUE:
       return SetDefaultValueAsValue();
     case VALUE_MODE_DEFAULT_ON:
-      DoSetChecked(DefaultChecked(), true, false);
-      return NS_OK;
+      return DoSetChecked(DefaultChecked(), true, false);
     case VALUE_MODE_FILENAME:
       ClearFiles(false);
       return NS_OK;
@@ -3653,7 +3658,8 @@ nsHTMLInputElement::IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32
   nsAutoString name;
   GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
 
-  nsCOMPtr<nsIDOMHTMLInputElement> currentRadio = container->GetCurrentRadioButton(name);
+  nsCOMPtr<nsIDOMHTMLInputElement> currentRadio;
+  container->GetCurrentRadioButton(name, getter_AddRefs(currentRadio));
   if (currentRadio) {
     *aTabIndex = -1;
   }

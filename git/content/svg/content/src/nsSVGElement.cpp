@@ -56,7 +56,6 @@
 #include "nsSMILMappedAttribute.h"
 #include "SVGMotionSMILAttr.h"
 #include "nsAttrValueOrString.h"
-#include "nsSMILAnimationController.h"
 
 using namespace mozilla;
 

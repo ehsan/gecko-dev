@@ -55,11 +55,8 @@ nsVolumeService::~nsVolumeService()
 /* nsIVolume getVolumeByName (in DOMString volName); */
 NS_IMETHODIMP nsVolumeService::GetVolumeByName(const nsAString &aVolName, nsIVolume **aResult)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   nsRefPtr<nsVolume> vol = FindVolumeByName(aVolName);
   if (!vol) {
-    ERR("GetVolumeByName: Unable to locate volume '%s'",
-        NS_LossyConvertUTF16toASCII(aVolName).get());
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -70,12 +67,10 @@ NS_IMETHODIMP nsVolumeService::GetVolumeByName(const nsAString &aVolName, nsIVol
 /* nsIVolume getVolumeByPath (in DOMString path); */
 NS_IMETHODIMP nsVolumeService::GetVolumeByPath(const nsAString &aPath, nsIVolume **aResult)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   nsCString utf8Path = NS_ConvertUTF16toUTF8(aPath);
   char realPathBuf[PATH_MAX];
 
   if (!realpath(utf8Path.get(), realPathBuf)) {
-    ERR("GetVolumeByPath: realpath on '%s' failed: %d", utf8Path.get(), errno);
     return NSRESULT_FOR_ERRNO();
   }
 
@@ -101,14 +96,11 @@ NS_IMETHODIMP nsVolumeService::GetVolumeByPath(const nsAString &aPath, nsIVolume
       return NS_OK;
     }
   }
-  ERR("GetVolumeByPath: Unable to find volume by path: '%s'",
-      NS_LossyConvertUTF16toASCII(aPath).get());
   return NS_ERROR_NOT_AVAILABLE;
 }
 
 already_AddRefed<nsVolume> nsVolumeService::FindVolumeByName(const nsAString &aName)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsVolume::Array::size_type  numVolumes = mVolumeArray.Length();
@@ -124,7 +116,6 @@ already_AddRefed<nsVolume> nsVolumeService::FindVolumeByName(const nsAString &aN
 
 already_AddRefed<nsVolume> nsVolumeService::FindAddVolumeByName(const nsAString &aName)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsRefPtr<nsVolume> vol;
@@ -140,7 +131,6 @@ already_AddRefed<nsVolume> nsVolumeService::FindAddVolumeByName(const nsAString 
 
 void nsVolumeService::UpdateVolume(const nsVolume *aVolume)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsRefPtr<nsVolume> vol = FindAddVolumeByName(aVolume->Name());

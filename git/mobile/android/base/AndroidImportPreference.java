@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.util.GeckoBackgroundThread;
-
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.util.AttributeSet;

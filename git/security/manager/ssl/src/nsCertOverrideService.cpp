@@ -297,7 +297,7 @@ WriteEntryCallback(nsCertOverrideEntry *aEntry,
 
   nsIOutputStream *rawStreamPtr = (nsIOutputStream *)aArg;
 
-  PRUint32 unused;
+  nsresult rv;
 
   if (rawStreamPtr && aEntry)
   {
@@ -309,19 +309,19 @@ WriteEntryCallback(nsCertOverrideEntry *aEntry,
     nsCertOverride::convertBitsToString(settings.mOverrideBits, 
                                             bits_string);
 
-    rawStreamPtr->Write(aEntry->mHostWithPort.get(), aEntry->mHostWithPort.Length(), &unused);
-    rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &unused);
+    rawStreamPtr->Write(aEntry->mHostWithPort.get(), aEntry->mHostWithPort.Length(), &rv);
+    rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &rv);
     rawStreamPtr->Write(settings.mFingerprintAlgOID.get(), 
-                        settings.mFingerprintAlgOID.Length(), &unused);
-    rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &unused);
+                        settings.mFingerprintAlgOID.Length(), &rv);
+    rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &rv);
     rawStreamPtr->Write(settings.mFingerprint.get(), 
-                        settings.mFingerprint.Length(), &unused);
-    rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &unused);
+                        settings.mFingerprint.Length(), &rv);
+    rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &rv);
     rawStreamPtr->Write(bits_string.get(), 
-                        bits_string.Length(), &unused);
-    rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &unused);
-    rawStreamPtr->Write(settings.mDBKey.get(), settings.mDBKey.Length(), &unused);
-    rawStreamPtr->Write(NS_LINEBREAK, NS_LINEBREAK_LEN, &unused);
+                        bits_string.Length(), &rv);
+    rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &rv);
+    rawStreamPtr->Write(settings.mDBKey.get(), settings.mDBKey.Length(), &rv);
+    rawStreamPtr->Write(NS_LINEBREAK, NS_LINEBREAK_LEN, &rv);
   }
 
   return PL_DHASH_NEXT;
@@ -361,8 +361,7 @@ nsCertOverrideService::Write()
 
   /* see ::Read for file format */
 
-  PRUint32 unused;
-  bufferedOutputStream->Write(kHeader, sizeof(kHeader) - 1, &unused);
+  bufferedOutputStream->Write(kHeader, sizeof(kHeader) - 1, &rv);
 
   nsIOutputStream *rawStreamPtr = bufferedOutputStream;
   mSettingsTable.EnumerateEntries(WriteEntryCallback, rawStreamPtr);

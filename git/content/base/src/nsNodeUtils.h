@@ -6,8 +6,8 @@
 #ifndef nsNodeUtils_h___
 #define nsNodeUtils_h___
 
-#include "nsIContent.h"          // for use in inline function (ParentChainChanged)
-#include "nsIMutationObserver.h" // for use in inline function (ParentChainChanged)
+#include "nsINode.h"
+#include "nsIContent.h"
 
 struct CharacterDataChangeInfo;
 struct JSContext;

@@ -743,7 +743,7 @@ ArrayToIdVector(JSContext *cx, const Value &array, AutoIdVector &props)
     if (array.isPrimitive())
         return true;
 
-    RootedObject obj(cx, &array.toObject());
+    JSObject *obj = &array.toObject();
     uint32_t length;
     if (!js_GetLengthProperty(cx, obj, &length))
         return false;

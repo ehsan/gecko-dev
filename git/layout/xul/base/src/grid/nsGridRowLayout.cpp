@@ -22,34 +22,34 @@ nsGridRowLayout::nsGridRowLayout():nsSprocketLayout()
 }
 
 void
-nsGridRowLayout::ChildrenInserted(nsIFrame* aBox, nsBoxLayoutState& aState,
-                                  nsIFrame* aPrevBox,
+nsGridRowLayout::ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState,
+                                  nsIBox* aPrevBox,
                                   const nsFrameList::Slice& aNewChildren)
 {
   ChildAddedOrRemoved(aBox, aState);
 }
 
 void
-nsGridRowLayout::ChildrenAppended(nsIFrame* aBox, nsBoxLayoutState& aState,
+nsGridRowLayout::ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState,
                                   const nsFrameList::Slice& aNewChildren)
 {
   ChildAddedOrRemoved(aBox, aState);
 }
 
 void
-nsGridRowLayout::ChildrenRemoved(nsIFrame* aBox, nsBoxLayoutState& aState, nsIFrame* aChildList)
+nsGridRowLayout::ChildrenRemoved(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)
 {
   ChildAddedOrRemoved(aBox, aState);
 }
 
 void
-nsGridRowLayout::ChildrenSet(nsIFrame* aBox, nsBoxLayoutState& aState, nsIFrame* aChildList)
+nsGridRowLayout::ChildrenSet(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)
 {
   ChildAddedOrRemoved(aBox, aState);
 }
 
 nsIGridPart*
-nsGridRowLayout::GetParentGridPart(nsIFrame* aBox, nsIFrame** aParentBox)
+nsGridRowLayout::GetParentGridPart(nsIBox* aBox, nsIBox** aParentBox)
 {
   // go up and find our parent gridRow. Skip and non gridRow
   // parents.
@@ -76,12 +76,12 @@ nsGridRowLayout::GetParentGridPart(nsIFrame* aBox, nsIFrame** aParentBox)
 
 
 nsGrid*
-nsGridRowLayout::GetGrid(nsIFrame* aBox, PRInt32* aIndex, nsGridRowLayout* aRequestor)
+nsGridRowLayout::GetGrid(nsIBox* aBox, PRInt32* aIndex, nsGridRowLayout* aRequestor)
 {
 
    if (aRequestor == nullptr)
    {
-      nsIFrame* parentBox; // nsIFrame is implemented by nsIFrame and is not refcounted.
+      nsIBox* parentBox; // nsIBox is implemented by nsIFrame and is not refcounted.
       nsIGridPart* parent = GetParentGridPart(aBox, &parentBox);
       if (parent)
          return parent->GetGrid(parentBox, aIndex, this);
@@ -89,12 +89,12 @@ nsGridRowLayout::GetGrid(nsIFrame* aBox, PRInt32* aIndex, nsGridRowLayout* aRequ
    }
 
    PRInt32 index = -1;
-   nsIFrame* child = aBox->GetChildBox();
+   nsIBox* child = aBox->GetChildBox();
    PRInt32 count = 0;
    while(child)
    {
      // if there is a scrollframe walk inside it to its child
-     nsIFrame* childBox = nsGrid::GetScrolledBox(child);
+     nsIBox* childBox = nsGrid::GetScrolledBox(child);
 
      nsBoxLayout* layout = childBox->GetLayoutManager();
      nsIGridPart* gridRow = nsGrid::GetPartFromBox(childBox);
@@ -121,7 +121,7 @@ nsGridRowLayout::GetGrid(nsIFrame* aBox, PRInt32* aIndex, nsGridRowLayout* aRequ
 
    (*aIndex) += index;
 
-   nsIFrame* parentBox; // nsIFrame is implemented by nsIFrame and is not refcounted.
+   nsIBox* parentBox; // nsIBox is implemented by nsIFrame and is not refcounted.
    nsIGridPart* parent = GetParentGridPart(aBox, &parentBox);
    if (parent)
      return parent->GetGrid(parentBox, aIndex, this);
@@ -130,11 +130,11 @@ nsGridRowLayout::GetGrid(nsIFrame* aBox, PRInt32* aIndex, nsGridRowLayout* aRequ
 }
 
 nsMargin
-nsGridRowLayout::GetTotalMargin(nsIFrame* aBox, bool aIsHorizontal)
+nsGridRowLayout::GetTotalMargin(nsIBox* aBox, bool aIsHorizontal)
 {
   // get our parents margin
   nsMargin margin(0,0,0,0);
-  nsIFrame* parent = nullptr;
+  nsIBox* parent = nullptr;
   nsIGridPart* part = GetParentGridPart(aBox, &parent);
   if (part && parent) {
     // if we are the first or last child walk upward and add margins.
@@ -143,10 +143,10 @@ nsGridRowLayout::GetTotalMargin(nsIFrame* aBox, bool aIsHorizontal)
     aBox = nsGrid::GetScrollBox(aBox);
 
     // see if we have a next to see if we are last
-    nsIFrame* next = aBox->GetNextBox();
+    nsIBox* next = aBox->GetNextBox();
 
     // get the parent first child to see if we are first
-    nsIFrame* child = parent->GetChildBox();
+    nsIBox* child = parent->GetChildBox();
 
     margin = part->GetTotalMargin(parent, aIsHorizontal);
 

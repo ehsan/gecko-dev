@@ -13,6 +13,7 @@
 #ifndef nsBoxLayoutState_h___
 #define nsBoxLayoutState_h___
 
+#include "nsIFrame.h"
 #include "nsCOMPtr.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -20,7 +21,6 @@
 class nsRenderingContext;
 class nsCalculatedBoxInfo;
 struct nsHTMLReflowMetrics;
-struct nsHTMLReflowState;
 class nsString;
 class nsHTMLReflowCommand;
 

@@ -27,7 +27,7 @@ public class testJarReader extends BaseTest {
     public void testJarReader() {
         try {
             ClassLoader classLoader = getActivity().getClassLoader();
-            Class gjrClass = classLoader.loadClass("org.mozilla.gecko.util.GeckoJarReader");
+            Class gjrClass = classLoader.loadClass("org.mozilla.gecko.GeckoJarReader");
             Method getStreamMethod = gjrClass.getMethod("getStream", String.class);
             String appPath = getActivity().getApplication().getPackageResourcePath();
 

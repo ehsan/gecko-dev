@@ -34,7 +34,7 @@
 #include "hb-set-private.hh"
 
 
-#define NOT_COVERED		((unsigned int) -1)
+#define NOT_COVERED		((unsigned int) 0x110000)
 #define MAX_NESTING_LEVEL	8
 
 
@@ -134,11 +134,6 @@ struct RangeRecord
     return glyphs->intersects (start, end);
   }
 
-  template <typename set_t>
-  inline void add_coverage (set_t *glyphs) const {
-    glyphs->add_range (start, end);
-  }
-
   GlyphID	start;		/* First GlyphID in the range */
   GlyphID	end;		/* Last GlyphID in the range */
   USHORT	value;		/* Value */
@@ -232,7 +227,7 @@ struct Script
     return TRACE_RETURN (defaultLangSys.sanitize (c, this) && langSys.sanitize (c, this));
   }
 
-  protected:
+  private:
   OffsetTo<LangSys>
 		defaultLangSys;	/* Offset to DefaultLangSys table--from
 				 * beginning of Script table--may be Null */
@@ -314,7 +309,6 @@ struct Lookup
     TRACE_SANITIZE ();
     /* Real sanitize of the subtables is done by GSUB/GPOS/... */
     if (!(c->check_struct (this) && subTable.sanitize (c))) return TRACE_RETURN (false);
-    if (!subTable.len) TRACE_RETURN (false);
     if (unlikely (lookupFlag & LookupFlag::UseMarkFilteringSet))
     {
       USHORT &markFilteringSet = StructAfter<USHORT> (subTable);
@@ -349,8 +343,9 @@ struct CoverageFormat1
   inline unsigned int get_coverage (hb_codepoint_t glyph_id) const
   {
     int i = glyphArray.search (glyph_id);
-    ASSERT_STATIC (((unsigned int) -1) == NOT_COVERED);
-    return i;
+    if (i != -1)
+        return i;
+    return NOT_COVERED;
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
@@ -360,13 +355,6 @@ struct CoverageFormat1
 
   inline bool intersects_coverage (const hb_set_t *glyphs, unsigned int index) const {
     return glyphs->has (glyphArray[index]);
-  }
-
-  template <typename set_t>
-  inline void add_coverage (set_t *glyphs) const {
-    unsigned int count = glyphArray.len;
-    for (unsigned int i = 0; i < count; i++)
-      glyphs->add (glyphArray[i]);
   }
 
   struct Iter {
@@ -381,7 +369,7 @@ struct CoverageFormat1
     unsigned int i;
   };
 
-  protected:
+  private:
   USHORT	coverageFormat;	/* Format identifier--format = 1 */
   SortedArrayOf<GlyphID>
 		glyphArray;	/* Array of GlyphIDs--in numerical order */
@@ -424,13 +412,6 @@ struct CoverageFormat2
     return false;
   }
 
-  template <typename set_t>
-  inline void add_coverage (set_t *glyphs) const {
-    unsigned int count = rangeRecord.len;
-    for (unsigned int i = 0; i < count; i++)
-      rangeRecord[i].add_coverage (glyphs);
-  }
-
   struct Iter {
     inline void init (const CoverageFormat2 &c_) {
       c = &c_;
@@ -457,7 +438,7 @@ struct CoverageFormat2
     unsigned int i, j, coverage;
   };
 
-  protected:
+  private:
   USHORT	coverageFormat;	/* Format identifier--format = 2 */
   SortedArrayOf<RangeRecord>
 		rangeRecord;	/* Array of glyph ranges--ordered by
@@ -508,15 +489,6 @@ struct Coverage
     }
   }
 
-  template <typename set_t>
-  inline void add_coverage (set_t *glyphs) const {
-    switch (u.format) {
-    case 1: u.format1.add_coverage (glyphs); break;
-    case 2: u.format2.add_coverage (glyphs); break;
-    default:                                 break;
-    }
-  }
-
   struct Iter {
     Iter (void) : format (0) {};
     inline void init (const Coverage &c_) {
@@ -564,7 +536,7 @@ struct Coverage
     } u;
   };
 
-  protected:
+  private:
   union {
   USHORT		format;		/* Format identifier */
   CoverageFormat1	format1;
@@ -586,7 +558,7 @@ struct ClassDefFormat1
   private:
   inline unsigned int get_class (hb_codepoint_t glyph_id) const
   {
-    if (unlikely ((unsigned int) (glyph_id - startGlyph) < classValue.len))
+    if ((unsigned int) (glyph_id - startGlyph) < classValue.len)
       return classValue[glyph_id - startGlyph];
     return 0;
   }
@@ -604,7 +576,6 @@ struct ClassDefFormat1
     return false;
   }
 
-  protected:
   USHORT	classFormat;		/* Format identifier--format = 1 */
   GlyphID	startGlyph;		/* First GlyphID of the classValueArray */
   ArrayOf<USHORT>
@@ -639,7 +610,6 @@ struct ClassDefFormat2
     return false;
   }
 
-  protected:
   USHORT	classFormat;	/* Format identifier--format = 2 */
   SortedArrayOf<RangeRecord>
 		rangeRecord;	/* Array of glyph ranges--ordered by
@@ -679,7 +649,7 @@ struct ClassDef
     }
   }
 
-  protected:
+  private:
   union {
   USHORT		format;		/* Format identifier */
   ClassDefFormat1	format1;
@@ -750,7 +720,7 @@ struct Device
     return TRACE_RETURN (c->check_struct (this) && c->check_range (this, this->get_size ()));
   }
 
-  protected:
+  private:
   USHORT	startSize;		/* Smallest size to correct--in ppem */
   USHORT	endSize;		/* Largest size to correct--in ppem */
   USHORT	deltaFormat;		/* Format of DeltaValue array data: 1, 2, or 3

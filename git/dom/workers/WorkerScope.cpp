@@ -961,11 +961,8 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
 
   if (worker->IsChromeWorker() &&
       (!chromeworker::InitClass(aCx, global, workerProto, false) ||
-       !DefineChromeWorkerFunctions(aCx, global))) {
-    return NULL;
-  }
-
-  if (!DefineOSFileConstants(aCx, global)) {
+       !DefineChromeWorkerFunctions(aCx, global)) ||
+       !DefineOSFileConstants(aCx, global)) {
     return NULL;
   }
 

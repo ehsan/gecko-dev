@@ -6,7 +6,6 @@
 
 #include "CompositorParent.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/Constants.h"
 #include "mozilla/Util.h"
 #include "mozilla/XPCOM.h"
 #include "mozilla/Monitor.h"
@@ -18,6 +17,10 @@
 
 namespace mozilla {
 namespace layers {
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 static const float EPSILON = 0.0001;
 

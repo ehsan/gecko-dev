@@ -5756,21 +5756,11 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
         JSObject* thisObject = &thisValue.toObject();
 
         // wrap parameters in the target compartment
-        // we also pass in the calling window as the first argument
-        ++argc;
         nsAutoArrayPtr<JS::Value> args(new JS::Value[argc]);
         JS::AutoArrayRooter rooter(cx, 0, args);
 
-        nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-        nsCOMPtr<nsIDOMWindow> currentWin(do_GetInterface(currentInner));
-        rv = WrapNative(cx, obj, currentWin, &NS_GET_IID(nsIDOMWindow),
-                        true, &args[0], getter_AddRefs(holder));
-        if (!JS_WrapValue(cx, &args[0]))
-          return NS_ERROR_FAILURE;
-        rooter.changeLength(1);
-
-        for (size_t i = 1; i < argc; ++i) {
-          args[i] = argv[i - 1];
+        for (size_t i = 0; i < argc; ++i) {
+          args[i] = argv[i];
           if (!JS_WrapValue(cx, &args[i]))
             return NS_ERROR_FAILURE;
           rooter.changeLength(i + 1);
@@ -10191,16 +10181,16 @@ NS_IMETHODIMP
 nsCSSStyleDeclSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
                             JSObject *globalObj, JSObject **parentObj)
 {
-#ifdef DEBUG
   nsWrapperCache* cache = nullptr;
   CallQueryInterface(nativeObj, &cache);
-  MOZ_ASSERT(cache, "All CSS declarations must be wrappercached");
-#endif
+  if (!cache) {
+    return nsDOMClassInfo::PreCreate(nativeObj, cx, globalObj, parentObj);
+  }
 
   nsICSSDeclaration *declaration = static_cast<nsICSSDeclaration*>(nativeObj);
   nsINode *native_parent = declaration->GetParentObject();
   if (!native_parent) {
-    return nsDOMClassInfo::PreCreate(nativeObj, cx, globalObj, parentObj);
+    return NS_ERROR_FAILURE;
   }
 
   nsresult rv =

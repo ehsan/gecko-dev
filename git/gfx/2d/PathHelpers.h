@@ -7,7 +7,10 @@
 #define MOZILLA_GFX_PATHHELPERS_H_
 
 #include "2D.h"
-#include "mozilla/Constants.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace mozilla {
 namespace gfx {

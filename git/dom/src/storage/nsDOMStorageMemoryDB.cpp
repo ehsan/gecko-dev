@@ -339,7 +339,8 @@ nsDOMStorageMemoryDB::RemoveOwners(const nsTArray<nsString> &aOwners,
 
   for (PRUint32 i = 0; i < aOwners.Length(); i++) {
     nsCAutoString quotaKey;
-    nsDOMStorageDBWrapper::CreateDomainScopeDBKey(
+    nsresult rv;
+    rv = nsDOMStorageDBWrapper::CreateDomainScopeDBKey(
       NS_ConvertUTF16toUTF8(aOwners[i]), quotaKey);
 
     if (!aIncludeSubDomains)

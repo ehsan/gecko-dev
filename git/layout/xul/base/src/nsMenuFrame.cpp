@@ -1338,7 +1338,7 @@ nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
   if (!IsCollapsed()) {
     bool widthSet, heightSet;
     nsSize tmpSize(-1, 0);
-    nsIFrame::AddCSSPrefSize(this, tmpSize, widthSet, heightSet);
+    nsIBox::AddCSSPrefSize(this, tmpSize, widthSet, heightSet);
     if (!widthSet && GetFlex(aState) == 0) {
       nsMenuPopupFrame* popupFrame = GetPopup();
       if (!popupFrame)

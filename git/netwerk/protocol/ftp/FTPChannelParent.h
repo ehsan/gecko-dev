@@ -22,6 +22,7 @@ namespace net {
 class FTPChannelParent : public PFTPChannelParent
                        , public nsIParentChannel
                        , public nsIInterfaceRequestor
+                       , public nsILoadContext
 {
 public:
   NS_DECL_ISUPPORTS
@@ -29,6 +30,7 @@ public:
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSIPARENTCHANNEL
   NS_DECL_NSIINTERFACEREQUESTOR
+  NS_DECL_NSILOADCONTEXT
 
   FTPChannelParent();
   virtual ~FTPChannelParent();
@@ -38,7 +40,12 @@ protected:
                              const PRUint64& startPos,
                              const nsCString& entityID,
                              const IPC::InputStream& uploadStream,
-                             const IPC::SerializedLoadContext& loadContext) MOZ_OVERRIDE;
+                             const bool& haveLoadContext,
+                             const bool& isContent,
+                             const bool& usingPrivateBrowsing,
+                             const bool& isInBrowserElement,
+                             const PRUint32& appId,
+                             const nsCString& extendedOrigin) MOZ_OVERRIDE;
   virtual bool RecvConnectChannel(const PRUint32& channelId) MOZ_OVERRIDE;
   virtual bool RecvCancel(const nsresult& status) MOZ_OVERRIDE;
   virtual bool RecvSuspend() MOZ_OVERRIDE;
@@ -50,7 +57,14 @@ protected:
 
   bool mIPCClosed;
 
-  nsCOMPtr<nsILoadContext> mLoadContext;
+  // fields for impersonating nsILoadContext
+  bool mHaveLoadContext       : 1;
+  bool mIsContent             : 1;
+  bool mUsePrivateBrowsing    : 1;
+  bool mIsInBrowserElement    : 1;
+
+  PRUint32 mAppId;
+  nsCString mExtendedOrigin;
 };
 
 } // namespace net

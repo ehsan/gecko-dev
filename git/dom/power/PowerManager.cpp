@@ -13,7 +13,6 @@
 #include "nsIPrincipal.h"
 #include "nsPIDOMWindow.h"
 #include "nsServiceManagerUtils.h"
-#include "nsDOMError.h"
 
 DOMCI_DATA(MozPowerManager, mozilla::dom::power::PowerManager)
 

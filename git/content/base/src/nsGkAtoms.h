@@ -12,7 +12,7 @@
 #ifndef nsGkAtoms_h___
 #define nsGkAtoms_h___
 
-class nsIAtom;
+#include "nsIAtom.h"
 
 class nsGkAtoms {
 public:

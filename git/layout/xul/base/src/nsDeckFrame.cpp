@@ -83,7 +83,7 @@ nsDeckFrame::Init(nsIContent*     aContent,
 }
 
 void
-nsDeckFrame::HideBox(nsIFrame* aBox)
+nsDeckFrame::HideBox(nsIBox* aBox)
 {
   nsIPresShell::ClearMouseCapture(aBox);
 }
@@ -100,7 +100,7 @@ nsDeckFrame::IndexChanged()
   InvalidateOverflowRect();
 
   // hide the currently showing box
-  nsIFrame* currentBox = GetSelectedBox();
+  nsIBox* currentBox = GetSelectedBox();
   if (currentBox) // only hide if it exists
     HideBox(currentBox);
 
@@ -152,7 +152,7 @@ nsDeckFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsDisplayListSet& aLists)
 {
   // only paint the selected box
-  nsIFrame* box = GetSelectedBox();
+  nsIBox* box = GetSelectedBox();
   if (!box)
     return NS_OK;
 
@@ -174,7 +174,7 @@ nsDeckFrame::DoLayout(nsBoxLayoutState& aState)
   nsresult rv = nsBoxFrame::DoLayout(aState);
 
   // run though each child. Hide all but the selected one
-  nsIFrame* box = GetChildBox();
+  nsIBox* box = GetChildBox();
 
   nscoord count = 0;
   while (box) 

@@ -7,7 +7,6 @@ include protocol PNecko;
 include "mozilla/net/NeckoMessageUtils.h";
 
 using IPC::URI;
-using IPC::SerializedLoadContext;
 
 namespace mozilla {
 namespace net {
@@ -21,9 +20,15 @@ parent:
   __delete__();
 
   Init(URI uri);
-  AsyncOpen(URI                   originalURI,
-            PRUint32              loadFlags,
-            SerializedLoadContext loadContext);
+  AsyncOpen(URI      originalURI,
+            PRUint32 loadFlags,
+            // Fields for imitating a nsILoadContext
+            bool     haveLoadContext,
+            bool     isContent,
+            bool     usePrivateBrowsing,
+            bool     isInBrowserElement,
+            PRUint32 appID,
+            nsCString extendedOrigin);
 
   // methods corresponding to those of nsIWyciwygChannel
   WriteToCacheEntry(nsString data);

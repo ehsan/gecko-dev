@@ -11,8 +11,8 @@
 //
 
 #include "nsGridRow.h"
-#include "nsBoxLayoutState.h"
 #include "nsIFrame.h"
+#include "nsBoxLayoutState.h"
 
 nsGridRow::nsGridRow():mIsBogus(false),
                        mBox(nullptr), 
@@ -30,7 +30,7 @@ nsGridRow::nsGridRow():mIsBogus(false),
 }
 
 void
-nsGridRow::Init(nsIFrame* aBox, bool aIsBogus)
+nsGridRow::Init(nsIBox* aBox, bool aIsBogus)
 {
   mBox = aBox;
   mIsBogus = aIsBogus;

@@ -6,7 +6,6 @@
 #ifndef NS_SMILTIMEDELEMENT_H_
 #define NS_SMILTIMEDELEMENT_H_
 
-#include "nsISMILAnimationElement.h"
 #include "nsSMILInterval.h"
 #include "nsSMILInstanceTime.h"
 #include "nsSMILMilestone.h"
@@ -19,6 +18,7 @@
 #include "nsAutoPtr.h"
 #include "nsAttrValue.h"
 
+class nsISMILAnimationElement;
 class nsSMILAnimationFunction;
 class nsSMILTimeContainer;
 class nsSMILTimeValue;

@@ -6,7 +6,6 @@
 
 #include "nsDOMMutationObserver.h"        
 #include "nsDOMClassInfoID.h"
-#include "nsDOMError.h"
 #include "nsIClassInfo.h"
 #include "nsIXPCScriptable.h"
 #include "nsIScriptGlobalObject.h"

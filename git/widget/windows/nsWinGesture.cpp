@@ -12,10 +12,13 @@
 #include "nsUXThemeData.h"
 #include "nsIDOMSimpleGestureEvent.h"
 #include "nsGUIEvent.h"
-#include "mozilla/Constants.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gWindowsLog;

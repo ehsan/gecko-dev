@@ -858,6 +858,8 @@ struct JSRuntime : js::RuntimeFriendFields
 
     js::ScriptFilenameTable scriptFilenameTable;
 
+    js::ScriptSource *scriptSources;
+
 #ifdef DEBUG
     size_t              noGCOrAllocationCheck;
 #endif

@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsStyleConsts.h"
+#include "nsIFrame.h"
 #include "nsPoint.h"
 #include "nsRect.h"
 #include "nsIViewManager.h"

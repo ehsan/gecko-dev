@@ -135,13 +135,11 @@ WebappsRegistry.prototype = {
             Services.DOMRequest.fireError(request, "INVALID_MANIFEST");
           } else {
             let receipts = (aParams && aParams.receipts && Array.isArray(aParams.receipts)) ? aParams.receipts : [];
-            let categories = (aParams && aParams.categories && Array.isArray(aParams.categories)) ? aParams.categories : [];
             cpmm.sendAsyncMessage("Webapps:Install", { app: { installOrigin: installOrigin,
                                                               origin: this._getOrigin(aURL),
                                                               manifestURL: aURL,
                                                               manifest: manifest,
-                                                              receipts: receipts,
-                                                              categories: categories },
+                                                              receipts: receipts },
                                                               from: installURL,
                                                               oid: this._id,
                                                               requestID: requestID });
@@ -193,11 +191,8 @@ WebappsRegistry.prototype = {
 
     let receipts = (aParams && aParams.receipts &&
                     Array.isArray(aParams.receipts)) ? aParams.receipts : [];
-    let categories = (aParams && aParams.categories &&
-                      Array.isArray(aParams.categories)) ? aParams.categories : [];
     cpmm.sendAsyncMessage("Webapps:InstallPackage", { url: aPackageURL,
                                                       receipts: receipts,
-                                                      categories: categories,
                                                       requestID: requestID,
                                                       oid: this._id,
                                                       from: this._window.location.href,

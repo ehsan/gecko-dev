@@ -7,18 +7,23 @@
 #include "WebSocketLog.h"
 #include "WebSocketChannelParent.h"
 #include "nsIAuthPromptProvider.h"
-#include "mozilla/LoadContext.h"
 
 namespace mozilla {
 namespace net {
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(WebSocketChannelParent,
+NS_IMPL_THREADSAFE_ISUPPORTS3(WebSocketChannelParent,
                               nsIWebSocketListener,
+                              nsILoadContext,
                               nsIInterfaceRequestor)
 
 WebSocketChannelParent::WebSocketChannelParent(nsIAuthPromptProvider* aAuthProvider)
   : mAuthProvider(aAuthProvider)
   , mIPCOpen(true)
+  , mHaveLoadContext(false)
+  , mIsContent(false)
+  , mUsePrivateBrowsing(false)
+  , mIsInBrowserElement(false)
+  , mAppId(0)
 {
 #if defined(PR_LOGGING)
   if (!webSocketLog)
@@ -44,7 +49,12 @@ WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
                                       const nsCString& aOrigin,
                                       const nsCString& aProtocol,
                                       const bool& aSecure,
-                                      const IPC::SerializedLoadContext& loadContext)
+                                      const bool& haveLoadContext,
+                                      const bool& isContent,
+                                      const bool& usePrivateBrowsing,
+                                      const bool& isInBrowserElement,
+                                      const PRUint32& appId,
+                                      const nsCString& extendedOrigin)
 {
   LOG(("WebSocketChannelParent::RecvAsyncOpen() %p\n", this));
   nsresult rv;
@@ -58,9 +68,13 @@ WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
   if (NS_FAILED(rv))
     goto fail;
 
-  if (loadContext.IsNotNull())
-    mLoadContext = new LoadContext(loadContext);
-
+  // fields needed to impersonate nsILoadContext
+  mHaveLoadContext = haveLoadContext;
+  mIsContent = isContent;
+  mUsePrivateBrowsing = usePrivateBrowsing;
+  mIsInBrowserElement = isInBrowserElement;
+  mAppId = appId;
+  mExtendedOrigin = extendedOrigin;
   rv = mChannel->SetNotificationCallbacks(this);
   if (NS_FAILED(rv))
     goto fail;
@@ -215,13 +229,87 @@ WebSocketChannelParent::GetInterface(const nsIID & iid, void **result)
                                         iid, result);
 
   // Only support nsILoadContext if child channel's callbacks did too
-  if (iid.Equals(NS_GET_IID(nsILoadContext)) && mLoadContext) {
-    NS_ADDREF(mLoadContext);
-    *result = static_cast<nsILoadContext*>(mLoadContext);
-    return NS_OK;
+  if (iid.Equals(NS_GET_IID(nsILoadContext)) && !mHaveLoadContext) {
+    return NS_NOINTERFACE;
   }
 
   return QueryInterface(iid, result);
+}
+
+//-----------------------------------------------------------------------------
+// WebSocketChannelParent::nsILoadContext
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP
+WebSocketChannelParent::GetAssociatedWindow(nsIDOMWindow**)
+{
+  // can't support this in the parent process
+  return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
+WebSocketChannelParent::GetTopWindow(nsIDOMWindow**)
+{
+  // can't support this in the parent process
+  return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
+WebSocketChannelParent::IsAppOfType(PRUint32, bool*)
+{
+  // don't expect we need this in parent (Thunderbird/SeaMonkey specific?)
+  return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
+WebSocketChannelParent::GetIsContent(bool *aIsContent)
+{
+  NS_ENSURE_ARG_POINTER(aIsContent);
+
+  *aIsContent = mIsContent;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+WebSocketChannelParent::GetUsePrivateBrowsing(bool* aUsePrivateBrowsing)
+{
+  NS_ENSURE_ARG_POINTER(aUsePrivateBrowsing);
+
+  *aUsePrivateBrowsing = mUsePrivateBrowsing;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+WebSocketChannelParent::SetUsePrivateBrowsing(bool aUsePrivateBrowsing)
+{
+  // We shouldn't need this on parent...
+  return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
+WebSocketChannelParent::GetIsInBrowserElement(bool* aIsInBrowserElement)
+{
+  NS_ENSURE_ARG_POINTER(aIsInBrowserElement);
+
+  *aIsInBrowserElement = mIsInBrowserElement;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+WebSocketChannelParent::GetAppId(PRUint32* aAppId)
+{
+  NS_ENSURE_ARG_POINTER(aAppId);
+
+  *aAppId = mAppId;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+WebSocketChannelParent::GetExtendedOrigin(nsIURI *aUri,
+                                          nsACString &aResult)
+{
+  aResult = mExtendedOrigin;
+  return NS_OK;
 }
 
 

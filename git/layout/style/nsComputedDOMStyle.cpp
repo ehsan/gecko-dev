@@ -45,7 +45,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsGenericElement.h"
 #include "CSSCalc.h"
-#include "nsWrapperCacheInlines.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -150,23 +149,30 @@ nsComputedDOMStyle::Shutdown()
 }
 
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsComputedDOMStyle, mContent)
+// If nsComputedDOMStyle is changed so that any additional fields are
+// traversed by the cycle collector (for instance, if wrapper cache
+// handling is changed) then CAN_SKIP must be updated.
+NS_IMPL_CYCLE_COLLECTION_1(nsComputedDOMStyle, mContent)
 
+// nsComputedDOMStyle has only one cycle collected field, so if
+// mContent is going to be skipped, the style isn't part of a garbage
+// cycle.
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsComputedDOMStyle)
-  return tmp->IsBlack();
+  return !tmp->mContent || nsGenericElement::CanSkip(tmp->mContent, true);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsComputedDOMStyle)
-  return tmp->IsBlack();
+  return !tmp->mContent || nsGenericElement::CanSkipInCC(tmp->mContent);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
+// CanSkipThis returns false to avoid problems with incomplete unlinking.
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsComputedDOMStyle)
-  return tmp->IsBlack();
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 // QueryInterface implementation for nsComputedDOMStyle
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsComputedDOMStyle)
+NS_INTERFACE_MAP_BEGIN(nsComputedDOMStyle)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsComputedDOMStyle)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMCSSDeclaration)
 
 
@@ -2725,9 +2731,19 @@ nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetUnicodeBidi()
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleTextReset()->mUnicodeBidi,
-                                   nsCSSProps::kUnicodeBidiKTable));
+  PRInt32 intValue = GetStyleTextReset()->mUnicodeBidi;
+
+  if (NS_STYLE_UNICODE_BIDI_NORMAL == intValue) {
+    val->SetIdent(eCSSKeyword_normal);
+  } else {
+    nsAutoString unicodeBidiString;
+    nsStyleUtil::AppendBitmaskCSSValue(eCSSProperty_unicode_bidi, intValue,
+                                       NS_STYLE_UNICODE_BIDI_EMBED,
+                                       NS_STYLE_UNICODE_BIDI_PLAINTEXT,
+                                       unicodeBidiString);
+    val->SetString(unicodeBidiString);
+  }
+
   return val;
 }
 

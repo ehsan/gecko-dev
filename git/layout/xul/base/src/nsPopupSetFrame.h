@@ -35,6 +35,7 @@ public:
   NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
                                   nsFrameList&    aChildList);
 
+  // nsIBox
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
 
   // Used to destroy our popup frames.

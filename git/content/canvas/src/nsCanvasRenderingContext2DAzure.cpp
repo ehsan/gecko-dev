@@ -3570,7 +3570,7 @@ JS::Value
 nsCanvasRenderingContext2DAzure::GetMozDash(JSContext* cx, ErrorResult& error)
 {
   JS::Value mozDash;
-  error = DashArrayToJSVal(CurrentState().dash, cx, &mozDash);
+  DashArrayToJSVal(CurrentState().dash, cx, &mozDash);
   return mozDash;
 }
 

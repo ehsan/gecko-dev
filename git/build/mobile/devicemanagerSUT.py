@@ -807,8 +807,7 @@ class DeviceManagerSUT(DeviceManager):
     retVal = None
     if data:
       retVal = data.strip()
-    if self.debug >= 3:
-      print "remote hash returned: '%s'" % retVal
+    if (self.debug >= 3): print "remote hash returned: '" + retVal + "'"
     return retVal
 
   # Gets the device root for the testing area on the device

@@ -6,6 +6,7 @@
 package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoApp;
+import org.mozilla.gecko.GeckoInputConnection;
 
 import android.content.Context;
 import android.graphics.PixelFormat;
@@ -130,8 +131,10 @@ public class LayerView extends FrameLayout {
         mController.setViewportSize(new FloatSize(size));
     }
 
-    public void setInputConnectionHandler(InputConnectionHandler inputConnectionHandler) {
-        mInputConnectionHandler = inputConnectionHandler;
+    public GeckoInputConnection setInputConnectionHandler() {
+        GeckoInputConnection geckoInputConnection = GeckoInputConnection.create(this);
+        mInputConnectionHandler = geckoInputConnection;
+        return geckoInputConnection;
     }
 
     @Override

@@ -22,9 +22,6 @@
 #if defined(ANDROID)
 #include <android/log.h>
 #endif
-#ifdef XP_WIN
-#include <windows.h>
-#endif
 
 using namespace mozilla;
 
@@ -154,14 +151,6 @@ nsConsoleService::LogMessage(nsIConsoleMessage *message)
             __android_log_print(ANDROID_LOG_ERROR, "GeckoConsole",
                         "%s",
                         NS_LossyConvertUTF16toASCII(msg).get());
-        }
-#endif
-#ifdef XP_WIN
-        if (IsDebuggerPresent()) {
-            nsString msg;
-            message->GetMessageMoz(getter_Copies(msg));
-            msg.AppendLiteral("\n");
-            OutputDebugStringW(msg.get());
         }
 #endif
 

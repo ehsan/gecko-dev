@@ -874,7 +874,7 @@ void WebBrowserChromeUI::Destroyed(nsIWebBrowserChrome* chrome)
 
     // Clear the window user data
     HWND hwndBrowser = GetDlgItem(hwndDlg, IDC_BROWSER);
-    SetWindowLongPtr(hwndBrowser, GWLP_USERDATA, 0);
+    SetWindowLongPtr(hwndBrowser, GWLP_USERDATA, nullptr);
     DestroyWindow(hwndBrowser);
     DestroyWindow(hwndDlg);
 

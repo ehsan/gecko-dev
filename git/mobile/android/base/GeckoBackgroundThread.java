@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.util;
+package org.mozilla.gecko;
 
 import android.os.Handler;
 import android.os.Looper;
 
 import java.util.concurrent.SynchronousQueue;
 
-public final class GeckoBackgroundThread extends Thread {
+public class GeckoBackgroundThread extends Thread {
     private static final String LOOPER_NAME = "GeckoBackgroundThread";
 
     // Guarded by 'this'.

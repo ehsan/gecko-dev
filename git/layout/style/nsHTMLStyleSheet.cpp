@@ -23,6 +23,7 @@
 #include "nsIURL.h"
 #include "nsMappedAttributes.h"
 #include "nsILink.h"
+#include "nsIFrame.h"
 #include "nsStyleContext.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"

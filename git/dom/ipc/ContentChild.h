@@ -189,6 +189,9 @@ private:
 
     InfallibleTArray<nsAutoPtr<AlertObserver> > mAlertObservers;
     nsRefPtr<ConsoleListener> mConsoleListener;
+#ifdef ANDROID
+    gfxIntSize mScreenSize;
+#endif
 
     /**
      * An ID unique to the process containing our corresponding
@@ -200,10 +203,6 @@ private:
     PRUint64 mID;
 
     AppInfo mAppInfo;
-
-#ifdef ANDROID
-    gfxIntSize mScreenSize;
-#endif
 
     static ContentChild* sSingleton;
 

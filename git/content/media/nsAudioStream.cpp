@@ -984,7 +984,7 @@ nsBufferedAudioStream::Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aF
     mBytesPerFrame = sizeof(short) * aNumChannels;
     break;
   case FORMAT_FLOAT32:
-    params.format = CUBEB_SAMPLE_FLOAT32NE;
+    params.format = CUBEB_SAMPLE_FLOAT32LE;
     mBytesPerFrame = sizeof(float) * aNumChannels;
     break;
   default:

@@ -58,10 +58,11 @@ public:
   // gets the rect inside our border and debug border. If you wish to paint inside a box
   // call this method to get the rect so you don't draw on the debug border or outer border.
 
+  // ------ nsIBox -------------
   virtual void SetLayoutManager(nsBoxLayout* aLayout) { mLayoutManager = aLayout; }
   virtual nsBoxLayout* GetLayoutManager() { return mLayoutManager; }
 
-  NS_IMETHOD RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild);
+  NS_IMETHOD RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild);
 
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
@@ -161,12 +162,12 @@ public:
                               const nsDisplayListSet& aLists);
   
 #ifdef DEBUG_LAYOUT
-    virtual void SetDebugOnChildList(nsBoxLayoutState& aState, nsIFrame* aChild, bool aDebug);
-    nsresult DisplayDebugInfoFor(nsIFrame*  aBox, 
+    virtual void SetDebugOnChildList(nsBoxLayoutState& aState, nsIBox* aChild, bool aDebug);
+    nsresult DisplayDebugInfoFor(nsIBox*  aBox, 
                                  nsPoint& aPoint);
 #endif
 
-  static nsresult LayoutChildAt(nsBoxLayoutState& aState, nsIFrame* aBox, const nsRect& aRect);
+  static nsresult LayoutChildAt(nsBoxLayoutState& aState, nsIBox* aBox, const nsRect& aRect);
 
   /**
    * Utility method to redirect events on descendants to this frame.
@@ -232,7 +233,7 @@ private:
     void GetDebugPadding(nsMargin& aInset);
     void GetDebugMargin(nsMargin& aInset);
 
-    nsresult GetFrameSizeWithMargin(nsIFrame* aBox, nsSize& aSize);
+    nsresult GetFrameSizeWithMargin(nsIBox* aBox, nsSize& aSize);
 
     void PixelMarginToTwips(nsPresContext* aPresContext, nsMargin& aMarginPixels);
 
@@ -252,7 +253,7 @@ private:
 
 #ifdef DEBUG_LAYOUT
     static bool gDebug;
-    static nsIFrame* mDebugChild;
+    static nsIBox* mDebugChild;
 #endif
 
 }; // class nsBoxFrame

@@ -105,7 +105,7 @@ typedef struct OffsetTable
     return TRACE_RETURN (c->check_struct (this) && c->check_array (tables, TableRecord::static_size, numTables));
   }
 
-  protected:
+  private:
   Tag		sfnt_version;	/* '\0\001\0\00' if TrueType / 'OTTO' if CFF */
   USHORT	numTables;	/* Number of tables. */
   USHORT	searchRange;	/* (Maximum power of 2 <= numTables) x 16 */
@@ -133,7 +133,7 @@ struct TTCHeaderVersion1
     return TRACE_RETURN (table.sanitize (c, this));
   }
 
-  protected:
+  private:
   Tag		ttcTag;		/* TrueType Collection ID string: 'ttcf' */
   FixedVersion	version;	/* Version of the TTC Header (1.0),
 				 * 0x00010000 */
@@ -177,7 +177,7 @@ struct TTCHeader
     }
   }
 
-  protected:
+  private:
   union {
   struct {
   Tag		ttcTag;		/* TrueType Collection ID string: 'ttcf' */
@@ -242,7 +242,7 @@ struct OpenTypeFontFile
     }
   }
 
-  protected:
+  private:
   union {
   Tag			tag;		/* 4-byte identifier. */
   OpenTypeFontFace	fontFace;

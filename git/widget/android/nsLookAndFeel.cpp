@@ -18,8 +18,6 @@ AndroidSystemColors nsLookAndFeel::mSystemColors;
 bool nsLookAndFeel::mInitializedShowPassword = false;
 bool nsLookAndFeel::mShowPassword = true;
 
-static const PRUnichar UNICODE_BULLET = 0x2022;
-
 nsLookAndFeel::nsLookAndFeel()
     : nsXPLookAndFeel()
 {
@@ -478,14 +476,6 @@ nsLookAndFeel::GetEchoPasswordImpl()
 PRUint32
 nsLookAndFeel::GetPasswordMaskDelayImpl()
 {
-  // This value is hard-coded in Android OS's PasswordTransformationMethod.java
+  // This value is hard-coded in PasswordTransformationMethod.java
   return 1500;
-}
-
-/* virtual */
-PRUnichar
-nsLookAndFeel::GetPasswordCharacterImpl()
-{
-  // This value is hard-coded in Android OS's PasswordTransformationMethod.java
-  return UNICODE_BULLET;
 }

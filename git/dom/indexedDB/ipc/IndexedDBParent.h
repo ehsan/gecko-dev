@@ -494,7 +494,7 @@ class IndexedDBObjectStoreRequestParent : public IndexedDBRequestParentBase
 
   typedef ipc::ObjectStoreRequestParams ParamsUnionType;
   typedef ParamsUnionType::Type RequestType;
-  DebugOnly<RequestType> mRequestType;
+  RequestType mRequestType;
 
   typedef ipc::AddParams AddParams;
   typedef ipc::PutParams PutParams;
@@ -550,7 +550,7 @@ class IndexedDBIndexRequestParent : public IndexedDBRequestParentBase
 
   typedef ipc::IndexRequestParams ParamsUnionType;
   typedef ParamsUnionType::Type RequestType;
-  DebugOnly<RequestType> mRequestType;
+  RequestType mRequestType;
 
   typedef ipc::GetKeyParams GetKeyParams;
   typedef ipc::GetAllKeysParams GetAllKeysParams;
@@ -596,7 +596,7 @@ class IndexedDBCursorRequestParent : public IndexedDBRequestParentBase
 
   typedef ipc::CursorRequestParams ParamsUnionType;
   typedef ParamsUnionType::Type RequestType;
-  DebugOnly<RequestType> mRequestType;
+  RequestType mRequestType;
 
   typedef ipc::ContinueParams ContinueParams;
 

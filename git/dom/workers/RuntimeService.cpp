@@ -65,8 +65,7 @@ using mozilla::Preferences;
 // The maximum number of threads to use for workers, overridable via pref.
 #define MAX_WORKERS_PER_DOMAIN 10
 
-MOZ_STATIC_ASSERT(MAX_WORKERS_PER_DOMAIN >= 1,
-                  "We should allow at least one worker per domain.");
+PR_STATIC_ASSERT(MAX_WORKERS_PER_DOMAIN >= 1);
 
 // The default number of seconds that close handlers will be allowed to run.
 #define MAX_SCRIPT_RUN_TIME_SEC 10
@@ -140,8 +139,7 @@ const char* gStringChars[] = {
   // thread.
 };
 
-MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(gStringChars) == ID_COUNT,
-                  "gStringChars should have the right length.");
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(gStringChars) == ID_COUNT);
 
 enum {
   PREF_strict = 0,
@@ -179,8 +177,7 @@ const char* gPrefsToWatch[] = {
 #endif
 };
 
-MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(gPrefsToWatch) == PREF_COUNT,
-                  "gPrefsToWatch should have the right length.");
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(gPrefsToWatch) == PREF_COUNT);
 
 int
 PrefCallback(const char* aPrefName, void* aClosure)
