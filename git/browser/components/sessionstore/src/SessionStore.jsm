@@ -2983,10 +2983,10 @@ let SessionStoreInternal = {
     if (typeof(pageStyle) === "string") {
       PageStyle.restore(aBrowser.docShell, frameList, pageStyle);
     } else {
-      PageStyle.restoreTree(aBrowser.docShell, pageStyle);
+      ScrollPosition.restoreTree(aBrowser.contentWindow, scrollPositions);
     }
 
-    ScrollPosition.restoreTree(aBrowser.contentWindow, scrollPositions);
+    PageStyle.restoreTree(aBrowser.docShell, pageStyle);
     TextAndScrollData.restore(frameList);
 
     let tab = aBrowser.__SS_restore_tab;
