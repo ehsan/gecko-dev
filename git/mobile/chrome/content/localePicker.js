@@ -160,10 +160,9 @@ let LocaleUI = {
 
   selectLanguage: function(aEvent) {
     let locale = this.list.selectedItem.locale;
-    if (locale.install) {
-      LocaleUI.strings = new FakeStringBundle(locale);
-      this.updateStrings();
-    } else {
+    if (locale.install)
+      this.updateStrings(locale);
+    else {
       this.language = getTargetLanguage(locale);
       if (this._currentInstall)
         this._currentInstall = null;
@@ -194,8 +193,7 @@ let LocaleUI = {
 
   closeWindow : function() {
     // Trying to close this window and open a new one results in a corrupt UI.
-    if (LocaleUI._currentInstall) {
-      // a new locale was installed, restart the browser
+    if (false && LocaleUI._currentInstall) {
       let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"].createInstance(Ci.nsISupportsPRBool);
       Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
     
@@ -205,7 +203,6 @@ let LocaleUI = {
         Services.prefs.setBoolPref("browser.sessionstore.resume_session_once", false);
       }
     } else {
-      // selected locale is already installed, just open the window
       let argString = null;
       if (window.arguments) {
         argString = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
@@ -289,7 +286,7 @@ let installListener = {
   },
   onInstallStarted: function(install) { },
   onInstallEnded: function(install, addon) {
-    LocaleUI.updateStrings();
+    LocaleUI.updateStrings(LocaleUI._currentInstall);
     LocaleUI.closePicker();
   },
   onInstallCancelled: function(install) {
@@ -348,28 +345,4 @@ function resizeHandler() {
   let elements = document.getElementsByClassName("window-width");
   for (let i = 0; i < elements.length; i++)
     elements[i].setAttribute("width", Math.min(800, window.innerWidth));
-}
-
-
-function FakeStringBundle(aAddon) {
-  let regex = /(.*)(?:=)(.*)/g;
-  this.strings = {};
-  let res = regex.exec(aAddon.strings);
-  while (res) {
-    this.strings[res[1].trim()] = res[2].trim();
-    res = regex.exec(aAddon.strings);
-  }
-}
-
-FakeStringBundle.prototype = {
-  formatStringFromName: function(aName, aParams, aLength) {
-    let txt = this.strings[aName];
-    for (var i = 0; i < aLength; i++) {
-      txt = txt.replace("%S", aParams[i]);
-    }
-    return txt;
-  },
-  GetStringFromName: function(aName) {
-    return this.strings[aName];
-  }
 }

@@ -1777,11 +1777,7 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     nsCOMPtr<nsIURI> referrer;
     if (aChannel)
       NS_GetReferrerFromChannel(aChannel, getter_AddRefs(referrer));
-
-    nsCOMPtr<nsIURI> target;
-    NS_NewFileURI(getter_AddRefs(target), mFinalFileDestination);
-
-    dh->AddDownload(mSourceUrl, referrer, mTimeDownloadStarted, target);
+    dh->AddDownload(mSourceUrl, referrer, mTimeDownloadStarted);
   }
 
   return NS_OK;

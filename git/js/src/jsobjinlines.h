@@ -645,12 +645,12 @@ JSObject::setNamespaceDeclared(jsval decl)
     setSlot(JSSLOT_NAMESPACE_DECLARED, js::Valueify(decl));
 }
 
-inline JSAtom *
+inline JSLinearString *
 JSObject::getQNameLocalName() const
 {
     JS_ASSERT(isQName());
     const js::Value &v = getSlot(JSSLOT_QNAME_LOCAL_NAME);
-    return !v.isUndefined() ? &v.toString()->asAtom() : NULL;
+    return !v.isUndefined() ? &v.toString()->asLinear() : NULL;
 }
 
 inline jsval
@@ -661,7 +661,7 @@ JSObject::getQNameLocalNameVal() const
 }
 
 inline void
-JSObject::setQNameLocalName(JSAtom *name)
+JSObject::setQNameLocalName(JSLinearString *name)
 {
     JS_ASSERT(isQName());
     setSlot(JSSLOT_QNAME_LOCAL_NAME, name ? js::StringValue(name) : js::UndefinedValue());

@@ -62,7 +62,7 @@ const PREF_UI_LASTCATEGORY = "extensions.ui.lastCategory";
 
 const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
-#ifdef MOZ_COMPATIBILITY_NIGHTLY
+#ifdef MOZ_COMPATABILITY_NIGHTLY
 const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
                                  ".nightly";
 #else
@@ -1106,7 +1106,7 @@ var gViewController = {
             if (installs.length > 0) {
               // Display the normal install confirmation for the installs
               AddonManager.installAddonsFromWebpage("application/x-xpinstall",
-                                                    window, null, installs);
+                                                    this, null, installs);
             }
             return;
           }

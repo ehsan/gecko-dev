@@ -57,9 +57,6 @@ CPPSRCS = \
   Events.cpp \
   EventTarget.cpp \
   Exceptions.cpp \
-  File.cpp \
-  FileReaderSync.cpp \
-  FileReaderSyncPrivate.cpp \
   ListenerManager.cpp \
   Location.cpp \
   Navigator.cpp \
