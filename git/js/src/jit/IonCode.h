@@ -143,7 +143,6 @@ class JitCode : public gc::BarrieredCell<JitCode>
 };
 
 class SnapshotWriter;
-class RecoverWriter;
 class SafepointWriter;
 class SafepointIndex;
 class OsiIndex;
@@ -251,10 +250,6 @@ struct IonScript
     uint32_t snapshotsListSize_;
     uint32_t snapshotsRVATableSize_;
 
-    // List of instructions needed to recover stack frames.
-    uint32_t recovers_;
-    uint32_t recoversSize_;
-
     // Constant table for constants stored in snapshots.
     uint32_t constantTable_;
     uint32_t constantEntries_;
@@ -356,10 +351,9 @@ struct IonScript
     static IonScript *New(JSContext *cx, types::RecompileInfo recompileInfo,
                           uint32_t frameLocals, uint32_t frameSize,
                           size_t snapshotsListSize, size_t snapshotsRVATableSize,
-                          size_t recoversSize, size_t bailoutEntries,
-                          size_t constants, size_t safepointIndexEntries,
-                          size_t osiIndexEntries, size_t cacheEntries,
-                          size_t runtimeSize, size_t safepointsSize,
+                          size_t bailoutEntries, size_t constants,
+                          size_t safepointIndexEntries, size_t osiIndexEntries,
+                          size_t cacheEntries, size_t runtimeSize, size_t safepointsSize,
                           size_t callTargetEntries, size_t backedgeEntries,
                           OptimizationLevel optimizationLevel);
     static void Trace(JSTracer *trc, IonScript *script);
@@ -478,12 +472,6 @@ struct IonScript
     size_t snapshotsRVATableSize() const {
         return snapshotsRVATableSize_;
     }
-    const uint8_t *recovers() const {
-        return reinterpret_cast<const uint8_t *>(this) + recovers_;
-    }
-    size_t recoversSize() const {
-        return recoversSize_;
-    }
     const uint8_t *safepoints() const {
         return reinterpret_cast<const uint8_t *>(this) + safepointsStart_;
     }
@@ -544,7 +532,6 @@ struct IonScript
     void destroyCaches();
     void unlinkFromRuntime(FreeOp *fop);
     void copySnapshots(const SnapshotWriter *writer);
-    void copyRecovers(const RecoverWriter *writer);
     void copyBailoutTable(const SnapshotOffset *table);
     void copyConstants(const Value *vp);
     void copySafepointIndices(const SafepointIndex *firstSafepointIndex, MacroAssembler &masm);

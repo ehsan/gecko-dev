@@ -5,8 +5,6 @@
 ifndef GNU_CC
 # Enable unwind semantics for exception handlers in response to warning C4530.
 OS_CPPFLAGS += -EHsc
-else
-OS_CXXFLAGS := $(filter-out -fno-exceptions,$(OS_CXXFLAGS)) -fexceptions
 endif
 
 # End build_angle.gypi transcription.
@@ -17,9 +15,19 @@ ifndef MOZ_HAS_WINSDK_WITH_D3D
 CXXFLAGS += -I'$(MOZ_DIRECTX_SDK_PATH)/include'
 endif
 
-ifdef MOZ_HAS_WINSDK_WITH_D3D
-EXTRA_DSO_LDOPTS = $(call EXPAND_LIBNAME,d3d9 dxguid)
+ifdef GNU_CC
+
+OS_CXXFLAGS := $(filter-out -fno-exceptions,$(OS_CXXFLAGS)) -fexceptions
+OS_LIBS += -ld3d9 -ldxguid
+
 else
-EXTRA_DSO_LDOPTS = $(call EXPAND_LIBNAME_PATH,d3d9 dxguid,$(MOZ_DIRECTX_SDK_PATH)/lib/$(MOZ_DIRECTX_SDK_CPU_SUFFIX))
+
+ifdef MOZ_HAS_WINSDK_WITH_D3D
+EXTRA_DSO_LDOPTS = d3d9.lib dxguid.lib delayimp.lib
+else
+EXTRA_DSO_LDOPTS = '$(MOZ_DIRECTX_SDK_PATH)/lib/$(MOZ_DIRECTX_SDK_CPU_SUFFIX)/d3d9.lib' \
+                   '$(MOZ_DIRECTX_SDK_PATH)/lib/$(MOZ_DIRECTX_SDK_CPU_SUFFIX)/dxguid.lib' \
+                   delayimp.lib
 endif
-EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME,delayimp)
+
+endif

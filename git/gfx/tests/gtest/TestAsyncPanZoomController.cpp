@@ -335,14 +335,14 @@ ApzcTap(AsyncPanZoomController* apzc, int aX, int aY, int& aTime, int aTapLength
   return ApzcUp(apzc, aX, aY, aTime);
 }
 
-TEST_F(AsyncPanZoomControllerTester, Constructor) {
+TEST(AsyncPanZoomController, Constructor) {
   // RefCounted class can't live in the stack
   nsRefPtr<MockContentController> mcc = new NiceMock<MockContentController>();
   nsRefPtr<TestAsyncPanZoomController> apzc = new TestAsyncPanZoomController(0, mcc);
   apzc->SetFrameMetrics(TestFrameMetrics());
 }
 
-TEST_F(AsyncPanZoomControllerTester, Pinch) {
+TEST(AsyncPanZoomController, Pinch) {
   nsRefPtr<MockContentController> mcc = new NiceMock<MockContentController>();
   nsRefPtr<TestAsyncPanZoomController> apzc = new TestAsyncPanZoomController(0, mcc);
 
@@ -385,7 +385,7 @@ TEST_F(AsyncPanZoomControllerTester, Pinch) {
   apzc->Destroy();
 }
 
-TEST_F(AsyncPanZoomControllerTester, PinchWithTouchActionNone) {
+TEST(AsyncPanZoomController, PinchWithTouchActionNone) {
   nsRefPtr<MockContentController> mcc = new NiceMock<MockContentController>();
   nsRefPtr<TestAsyncPanZoomController> apzc = new TestAsyncPanZoomController(0, mcc);
 
@@ -419,7 +419,7 @@ TEST_F(AsyncPanZoomControllerTester, PinchWithTouchActionNone) {
   EXPECT_EQ(fm.GetScrollOffset().y, 300);
 }
 
-TEST_F(AsyncPanZoomControllerTester, Overzoom) {
+TEST(AsyncPanZoomController, Overzoom) {
   nsRefPtr<MockContentController> mcc = new NiceMock<MockContentController>();
   nsRefPtr<TestAsyncPanZoomController> apzc = new TestAsyncPanZoomController(0, mcc);
 
@@ -446,7 +446,7 @@ TEST_F(AsyncPanZoomControllerTester, Overzoom) {
   EXPECT_LT(abs(fm.GetScrollOffset().y), 1e-5);
 }
 
-TEST_F(AsyncPanZoomControllerTester, SimpleTransform) {
+TEST(AsyncPanZoomController, SimpleTransform) {
   TimeStamp testStartTime = TimeStamp::Now();
   // RefCounted class can't live in the stack
   nsRefPtr<MockContentController> mcc = new NiceMock<MockContentController>();
@@ -462,7 +462,7 @@ TEST_F(AsyncPanZoomControllerTester, SimpleTransform) {
 }
 
 
-TEST_F(AsyncPanZoomControllerTester, ComplexTransform) {
+TEST(AsyncPanZoomController, ComplexTransform) {
   TimeStamp testStartTime = TimeStamp::Now();
   AsyncPanZoomController::SetFrameTime(testStartTime);
 
@@ -962,7 +962,7 @@ GetTargetAPZC(APZCTreeManager* manager, const ScreenPoint& aPoint,
 }
 
 // A simple hit testing test that doesn't involve any transforms on layers.
-TEST_F(APZCTreeManagerTester, HitTesting1) {
+TEST(APZCTreeManager, HitTesting1) {
   nsTArray<nsRefPtr<Layer> > layers;
   nsRefPtr<LayerManager> lm;
   nsRefPtr<Layer> root = CreateTestLayerTree1(lm, layers);

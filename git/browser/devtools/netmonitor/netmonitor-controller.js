@@ -120,9 +120,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Chart",
 XPCOMUtils.defineLazyModuleGetter(this, "Curl",
   "resource:///modules/devtools/Curl.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "CurlUtils",
-  "resource:///modules/devtools/Curl.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
   "resource://gre/modules/Task.jsm");
 
@@ -191,7 +188,7 @@ let NetMonitorController = {
    * @return object
    *         A promise that is resolved when the monitor finishes connecting.
    */
-  connect: Task.async(function*() {
+  connect: function() {
     if (this._connection) {
       return this._connection;
     }
@@ -207,9 +204,11 @@ let NetMonitorController = {
       this._startMonitoringTab(client, form, deferred.resolve);
     }
 
-    yield deferred.promise;
-    window.emit(EVENTS.CONNECTED);
-  }),
+    return deferred.promise.then((result) => {
+      window.emit(EVENTS.CONNECTED);
+      return result;
+    });
+  },
 
   /**
    * Disconnects the debugger client and removes event handlers as necessary.
@@ -445,10 +444,9 @@ TargetEventsHandler.prototype = {
     switch (aType) {
       case "will-navigate": {
         // Reset UI.
-        if (!Services.prefs.getBoolPref("devtools.webconsole.persistlog")) {
-          NetMonitorView.RequestsMenu.reset();
-          NetMonitorView.Sidebar.toggle(false);
-        }
+        NetMonitorView.RequestsMenu.reset();
+        NetMonitorView.Sidebar.toggle(false);
+
         // Switch to the default network traffic inspector view.
         if (NetMonitorController.getCurrentActivity() == ACTIVITY_TYPE.NONE) {
           NetMonitorView.showNetworkInspectorView();

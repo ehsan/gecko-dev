@@ -42,7 +42,7 @@
 
 #include "nsEnumeratorUtils.h"
 
-#ifdef PR_LOGGING
+#ifdef DEBUG
 #include "prlog.h"
 #include "prprf.h"
 #include <stdio.h>
