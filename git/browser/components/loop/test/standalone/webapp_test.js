@@ -302,7 +302,6 @@ describe("loop.webapp", function() {
         describe("Has loop token", function() {
           beforeEach(function() {
             conversation.set("loopToken", "fakeToken");
-            conversation.set("selectedCallType", "audio-video");
             sandbox.stub(conversation, "outgoing");
           });
 
@@ -401,58 +400,20 @@ describe("loop.webapp", function() {
       });
 
       it("should start the conversation establishment process", function() {
-        var button = view.getDOMNode().querySelector(".start-audio-video-call");
+        var button = view.getDOMNode().querySelector("button");
         React.addons.TestUtils.Simulate.click(button);
 
         sinon.assert.calledOnce(setupOutgoingCall);
-        sinon.assert.calledWithExactly(setupOutgoingCall);
       });
 
-      it("should start the conversation establishment process", function() {
-        var button = view.getDOMNode().querySelector(".start-audio-only-call");
+      it("should disable current form once session is initiated", function() {
+        conversation.set("loopToken", "fake");
+
+        var button = view.getDOMNode().querySelector("button");
         React.addons.TestUtils.Simulate.click(button);
 
-        sinon.assert.calledOnce(setupOutgoingCall);
-        sinon.assert.calledWithExactly(setupOutgoingCall);
+        expect(button.disabled).to.eql(true);
       });
-
-      it("should disable audio-video button once session is initiated",
-         function() {
-           conversation.set("loopToken", "fake");
-
-           var button = view.getDOMNode().querySelector(".start-audio-video-call");
-           React.addons.TestUtils.Simulate.click(button);
-
-           expect(button.disabled).to.eql(true);
-         });
-
-      it("should disable audio-only button once session is initiated",
-         function() {
-           conversation.set("loopToken", "fake");
-
-           var button = view.getDOMNode().querySelector(".start-audio-only-call");
-           React.addons.TestUtils.Simulate.click(button);
-
-           expect(button.disabled).to.eql(true);
-         });
-
-         it("should set selectedCallType to audio", function() {
-           conversation.set("loopToken", "fake");
-
-           var button = view.getDOMNode().querySelector(".start-audio-only-call");
-           React.addons.TestUtils.Simulate.click(button);
-
-           expect(conversation.get("selectedCallType")).to.eql("audio");
-         });
-
-         it("should set selectedCallType to audio-video", function() {
-           conversation.set("loopToken", "fake");
-
-           var button = view.getDOMNode().querySelector(".start-audio-video-call");
-           React.addons.TestUtils.Simulate.click(button);
-
-           expect(conversation.get("selectedCallType")).to.eql("audio-video");
-         });
 
       it("should set state.urlCreationDateString to a locale date string",
          function() {

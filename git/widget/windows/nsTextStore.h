@@ -739,8 +739,6 @@ protected:
 
   // Enables/Disables hack for specific TIP.
   static bool sCreateNativeCaretForATOK;
-  static bool sDoNotReturnNoLayoutErrorToFreeChangJie;
-  static bool sDoNotReturnNoLayoutErrorToEasyChangjei;
 
   // Message the Tablet Input Panel uses to flush text during blurring.
   // See comments in Destroy

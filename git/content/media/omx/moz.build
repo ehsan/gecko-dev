@@ -6,15 +6,11 @@
 
 EXPORTS += [
     'AudioOffloadPlayerBase.h',
-    'MediaOmxCommonDecoder.h',
-    'MediaOmxCommonReader.h',
     'MediaOmxDecoder.h',
     'MediaOmxReader.h',
 ]
 
 SOURCES += [
-    'MediaOmxCommonDecoder.cpp',
-    'MediaOmxCommonReader.cpp',
     'MediaOmxDecoder.cpp',
     'MediaOmxReader.cpp',
     'MediaStreamSource.cpp',

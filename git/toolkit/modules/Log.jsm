@@ -497,8 +497,19 @@ LoggerRepository.prototype = {
   getLoggerWithMessagePrefix: function (name, prefix) {
     let log = this.getLogger(name);
 
-    let proxy = Object.create(log);
-    proxy.log = (level, string, params) => log.log(level, prefix + string, params);
+    let proxy = {__proto__: log};
+
+    for (let level in Log.Level) {
+      if (level == "Desc") {
+        continue;
+      }
+
+      let lc = level.toLowerCase();
+      proxy[lc] = function (msg, ...args) {
+        return log[lc].apply(log, [prefix + msg, ...args]);
+      };
+    }
+
     return proxy;
   },
 };

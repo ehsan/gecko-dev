@@ -7,20 +7,18 @@
 #ifndef MEDIA_CODEC_DECODER_H
 #define MEDIA_CODEC_DECODER_H
 
-#include "MediaOmxCommonDecoder.h"
+#include "MediaDecoder.h"
 
 namespace mozilla {
 
 // MediaDecoder that uses MediaCodecReader.
-class MediaCodecDecoder : public MediaOmxCommonDecoder
+class MediaCodecDecoder : public MediaDecoder
 {
 public:
 
   virtual MediaDecoder* Clone();
 
-  virtual MediaOmxCommonReader* CreateReader();
-
-  virtual MediaDecoderStateMachine* CreateStateMachine(MediaOmxCommonReader* aReader);
+  virtual MediaDecoderStateMachine* CreateStateMachine();
 };
 
 } // namespace mozilla

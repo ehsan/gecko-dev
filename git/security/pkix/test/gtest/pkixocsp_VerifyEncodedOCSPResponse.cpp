@@ -123,7 +123,7 @@ public:
   {
     NSSTest::SetUpTestCase();
     if (!SetUpTestCaseInner()) {
-      abort();
+      PR_Abort();
     }
   }
 
@@ -135,7 +135,7 @@ public:
     // The result of ASCIIToDERName is owned by the arena
     if (InitInputFromSECItem(ASCIIToDERName(arena.get(), rootName),
                              rootNameDER) != Success) {
-      abort();
+      PR_Abort();
     }
 
     Input serialNumberDER;
@@ -143,17 +143,17 @@ public:
     if (InitInputFromSECItem(
           CreateEncodedSerialNumber(arena.get(), ++rootIssuedCount),
           serialNumberDER) != Success) {
-      abort();
+      PR_Abort();
     }
 
     Input rootSPKIDER;
     if (InitInputFromSECItem(rootSPKI.get(), rootSPKIDER) != Success) {
-      abort();
+      PR_Abort();
     }
     endEntityCertID = new (std::nothrow) CertID(rootNameDER, rootSPKIDER,
                                                 serialNumberDER);
     if (!endEntityCertID) {
-      abort();
+      PR_Abort();
     }
   }
 
@@ -634,8 +634,8 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_tampered_eku)
   SECItem responseSECItem = UnsafeMapInputToSECItem(response);
   ASSERT_EQ(Success,
             TamperOnce(responseSECItem,
-                       EKU_SERVER_AUTH, sizeof(EKU_SERVER_AUTH),
-                       EKU_OCSP_SIGNER, sizeof(EKU_OCSP_SIGNER)));
+                       EKU_SERVER_AUTH, PR_ARRAY_SIZE(EKU_SERVER_AUTH),
+                       EKU_OCSP_SIGNER, PR_ARRAY_SIZE(EKU_OCSP_SIGNER)));
 
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
@@ -807,11 +807,11 @@ public:
           "CN=OCSPGetCertTrustTest Signer", OCSPResponseContext::good,
           byKey, SEC_OID_OCSP_RESPONDER, &signerCertDER));
     if (response.Init(createdResponse) != Success) {
-      abort();
+      PR_Abort();
     }
 
     if (response.GetLength() == 0 || signerCertDER.GetLength() == 0) {
-      abort();
+      PR_Abort();
     }
   }
 
