@@ -47,6 +47,7 @@
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jshash.h"
 #include "jsdhash.h"
@@ -71,6 +72,7 @@
 #include "jsproxy.h"
 #include "jsscope.h"
 #include "jsscript.h"
+#include "jsstdint.h"
 #include "jsstr.h"
 #include "jsdbgapi.h"
 #include "json.h"

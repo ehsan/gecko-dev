@@ -33,6 +33,7 @@
 
 #include <stdlib.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsgcchunk.h"
 
 #ifdef XP_WIN

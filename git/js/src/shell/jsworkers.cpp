@@ -49,6 +49,7 @@
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsdbgapi.h"
+#include "jsstdint.h"
 #include "jslock.h"
 #include "jsworkers.h"
 

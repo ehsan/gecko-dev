@@ -103,6 +103,7 @@
 #include "mozilla/RangedPtr.h"
 
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 
 #include "jsapi.h"

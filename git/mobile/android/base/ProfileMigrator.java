@@ -70,6 +70,12 @@ public class ProfileMigrator {
     private ContentResolver mCr;
 
     /*
+      Amount of Android history entries we will remember
+      to prevent moving their last access date backwards.
+    */
+    private static final int MAX_HISTORY_TO_CHECK = 1000;
+
+    /*
        These queries are derived from the low-level Places schema
        https://developer.mozilla.org/en/The_Places_database
     */
@@ -82,48 +88,41 @@ public class ProfileMigrator {
     private final String bookmarkUrl   = "a_url";
     private final String bookmarkTitle = "a_title";
 
-    /*
-      The sort criterion here corresponds to the one used for the
-      Awesomebar results. It's an simplification of Frecency.
-      We must divide date by 1000 due to the micro (Places)
-      vs milli (Android) distiction.
-    */
     private final String historyQuery =
-        "SELECT places.url AS a_url, places.title AS a_title,"
-        + "MAX(history.visit_date) AS a_date, COUNT(*) AS a_visits, "
-        // see BrowserDB.filterAllSites for this formula
-        + "MAX(1, (((MAX(history.visit_date)/1000) - ?) / 86400000 + 120)) AS a_recent, "
-        + "favicon.data AS a_favicon_data, favicon.mime_type AS a_favicon_mime "
-        + "FROM (moz_historyvisits AS history JOIN moz_places AS places "
-        + "ON places.id = history.place_id "
-        // Add favicon data if a favicon is present for this URL.
-        + "LEFT OUTER JOIN moz_favicons AS favicon "
-        + "ON places.favicon_id = favicon.id) "
-        + "WHERE places.hidden <> 1 "
-        + "GROUP BY a_url ORDER BY a_visits * a_recent DESC LIMIT ?";
-    private final String historyUrl    = "a_url";
-    private final String historyTitle  = "a_title";
-    private final String historyDate   = "a_date";
-    private final String historyVisits = "a_visits";
-    private final String faviconData   = "a_favicon_data";
-    private final String faviconMime   = "a_favicon_mime";
+        "SELECT places.url AS a_url, places.title AS a_title, "
+        + "history.visit_date AS a_date FROM "
+        + "(moz_historyvisits AS history JOIN moz_places AS places ON "
+        + "places.id = history.place_id) WHERE places.hidden <> 1 "
+        + "ORDER BY history.visit_date DESC";
+    private final String historyUrl   = "a_url";
+    private final String historyTitle = "a_title";
+    private final String historyDate  = "a_date";
+
+    private final String faviconQuery =
+        "SELECT places.url AS a_url, favicon.data AS a_data, "
+        + "favicon.mime_type AS a_mime FROM (moz_places AS places JOIN "
+        + "moz_favicons AS favicon ON places.favicon_id = favicon.id)";
+    private final String faviconUrl  = "a_url";
+    private final String faviconData = "a_data";
+    private final String faviconMime = "a_mime";
 
     public ProfileMigrator(ContentResolver cr, File profileDir) {
         mProfileDir = profileDir;
         mCr = cr;
     }
 
-    public void launch() {
-        new PlacesTask().run();
+    public void launchBackground() {
+        // Work around http://code.google.com/p/android/issues/detail?id=11291
+        // WebIconDatabase needs to be initialized within a looper thread.
+        GeckoAppShell.getHandler().post(new PlacesTask());
     }
 
     private class PlacesTask implements Runnable {
         // Get a list of the last times an URL was accessed
-        protected Map<String, Long> gatherBrowserDBHistory() {
+        protected Map<String, Long> gatherAndroidHistory() {
             Map<String, Long> history = new HashMap<String, Long>();
 
-            Cursor cursor =
-                BrowserDB.getRecentHistory(mCr, BrowserDB.getMaxHistoryCount());
+            Cursor cursor = BrowserDB.getRecentHistory(mCr, MAX_HISTORY_TO_CHECK);
             final int urlCol =
                 cursor.getColumnIndexOrThrow(BrowserDB.URLColumns.URL);
             final int dateCol =
@@ -145,71 +144,48 @@ public class ProfileMigrator {
             return history;
         }
 
-        protected void addHistory(Map<String, Long> browserDBHistory,
-                                  String url, String title, long date, int visits) {
+        protected void addHistory(Map<String, Long> androidHistory,
+                                  String url, String title, long date) {
             boolean allowUpdate = false;
 
-            if (!browserDBHistory.containsKey(url)) {
-                // BrowserDB doesn't know the URL, allow it to be
-                // inserted with places date.
+            if (!androidHistory.containsKey(url)) {
+                // Android doesn't know the URL, allow it to be
+                // inserted with places date
                 allowUpdate = true;
             } else {
-                long androidDate = browserDBHistory.get(url);
+                long androidDate = androidHistory.get(url);
                 if (androidDate < date) {
-                    // Places URL hit is newer than BrowserDB,
-                    // allow it to be updated with places date.
+                    // Places URL hit is newer than Android,
+                    // allow it to be updated with places date
                     allowUpdate = true;
                 }
             }
 
             if (allowUpdate) {
                 BrowserDB.updateVisitedHistory(mCr, url);
-                // The above records one visit. Subtract that one visit here.
-                BrowserDB.updateHistoryEntry(mCr, url, title, date, visits - 1);
+                BrowserDB.updateHistoryDate(mCr, url, date);
+                if (title != null) {
+                    BrowserDB.updateHistoryTitle(mCr, url, title);
+                }
             }
         }
 
         protected void migrateHistory(SQLiteBridge db) {
-            Map<String, Long> browserDBHistory = gatherBrowserDBHistory();
+            Map<String, Long> androidHistory = gatherAndroidHistory();
             final ArrayList<String> placesHistory = new ArrayList<String>();
 
             try {
-                final String[] queryParams = new String[] {
-                    /* current time */
-                    Long.toString(System.currentTimeMillis()),
-                    /*
-                       History entries to return. No point
-                       in retrieving more than we can store.
-                     */
-                    Integer.toString(BrowserDB.getMaxHistoryCount())
-                };
-                ArrayList<Object[]> queryResult =
-                    db.query(historyQuery, queryParams);
+                ArrayList<Object[]> queryResult = db.query(historyQuery);
                 final int urlCol = db.getColumnIndex(historyUrl);
                 final int titleCol = db.getColumnIndex(historyTitle);
                 final int dateCol = db.getColumnIndex(historyDate);
-                final int visitsCol = db.getColumnIndex(historyVisits);
-                final int faviconMimeCol = db.getColumnIndex(faviconMime);
-                final int faviconDataCol = db.getColumnIndex(faviconData);
 
                 for (Object[] resultRow: queryResult) {
                     String url = (String)resultRow[urlCol];
                     String title = (String)resultRow[titleCol];
                     long date = Long.parseLong((String)(resultRow[dateCol])) / (long)1000;
-                    int visits = Integer.parseInt((String)(resultRow[visitsCol]));
-                    addHistory(browserDBHistory, url, title, date, visits);
+                    addHistory(androidHistory, url, title, date);
                     placesHistory.add(url);
-
-                    String mime = (String)resultRow[faviconMimeCol];
-                    if (mime != null) {
-                        // Some GIFs can cause us to lock up completely
-                        // without exceptions or anything. Not cool.
-                        if (mime.compareTo("image/gif") != 0) {
-                            ByteBuffer dataBuff =
-                                (ByteBuffer)resultRow[faviconDataCol];
-                            addFavicon(url, mime, dataBuff);
-                        }
-                    }
                 }
             } catch (SQLiteBridgeException e) {
                 Log.i(LOGTAG, "Failed to get bookmarks: " + e.getMessage());
@@ -265,6 +241,25 @@ public class ProfileMigrator {
             }
         }
 
+        protected void migrateFavicons(SQLiteBridge db) {
+            try {
+                ArrayList<Object[]> queryResult = db.query(faviconQuery);
+                final int urlCol = db.getColumnIndex(faviconUrl);
+                final int mimeCol = db.getColumnIndex(faviconMime);
+                final int dataCol = db.getColumnIndex(faviconData);
+
+                for (Object[] resultRow: queryResult) {
+                    String url = (String)resultRow[urlCol];
+                    String mime = (String)resultRow[mimeCol];
+                    ByteBuffer dataBuff = (ByteBuffer)resultRow[dataCol];
+                    addFavicon(url, mime, dataBuff);
+                }
+            } catch (SQLiteBridgeException e) {
+                Log.i(LOGTAG, "Failed to get favicons: " + e.getMessage());
+                return;
+            }
+        }
+
         protected void migratePlaces(File aFile) {
             String dbPath = aFile.getPath() + "/places.sqlite";
             String dbPathWal = aFile.getPath() + "/places.sqlite-wal";
@@ -284,6 +279,7 @@ public class ProfileMigrator {
                 db = new SQLiteBridge(dbPath);
                 migrateBookmarks(db);
                 migrateHistory(db);
+                migrateFavicons(db);
                 db.close();
 
                 // Clean up

@@ -46,6 +46,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "jsprf.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jspubtd.h"
 #include "jsstr.h"

@@ -116,7 +116,6 @@ public:
     bool           IsSpdyEnabled() { return mEnableSpdy; }
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
     bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
-    PRUint32       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
 
     bool           PromptTempRedirect()      { return mPromptTempRedirect; }
 
@@ -343,7 +342,6 @@ private:
     bool           mEnableSpdy;
     bool           mCoalesceSpdy;
     bool           mUseAlternateProtocol;
-    PRUint32       mSpdySendingChunkSize;
 };
 
 //-----------------------------------------------------------------------------

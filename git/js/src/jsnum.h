@@ -42,6 +42,7 @@
 
 #include <math.h>
 
+#include "jsstdint.h"
 #include "jsobj.h"
 
 /*
@@ -127,6 +128,15 @@ JS_HASH_DOUBLE(jsdouble d)
     u.d = d;
     return u.s.lo ^ u.s.hi;
 }
+
+#if defined(XP_WIN)
+#define JSDOUBLE_COMPARE(LVAL, OP, RVAL, IFNAN)                               \
+    ((JSDOUBLE_IS_NaN(LVAL) || JSDOUBLE_IS_NaN(RVAL))                         \
+     ? (IFNAN)                                                                \
+     : (LVAL) OP (RVAL))
+#else
+#define JSDOUBLE_COMPARE(LVAL, OP, RVAL, IFNAN) ((LVAL) OP (RVAL))
+#endif
 
 extern jsdouble js_NaN;
 extern jsdouble js_PositiveInfinity;

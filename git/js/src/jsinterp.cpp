@@ -45,6 +45,7 @@
 #include <string.h>
 #include <math.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -823,7 +824,7 @@ js::LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *resu
 
         if (lval.isDouble()) {
             double l = lval.toDouble(), r = rval.toDouble();
-            *result = (l == r);
+            *result = JSDOUBLE_COMPARE(l, ==, r, false);
             return true;
         }
 
@@ -874,7 +875,7 @@ js::LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *resu
     double l, r;
     if (!ToNumber(cx, lvalue, &l) || !ToNumber(cx, rvalue, &r))
         return false;
-    *result = (l == r);
+    *result = JSDOUBLE_COMPARE(l, ==, r, false);
     return true;
 }
 
@@ -886,7 +887,7 @@ js::StrictlyEqual(JSContext *cx, const Value &lref, const Value &rref, bool *equ
         if (lval.isString())
             return EqualStrings(cx, lval.toString(), rval.toString(), equal);
         if (lval.isDouble()) {
-            *equal = (lval.toDouble() == rval.toDouble());
+            *equal = JSDOUBLE_COMPARE(lval.toDouble(), ==, rval.toDouble(), JS_FALSE);
             return true;
         }
         if (lval.isObject()) {
@@ -904,13 +905,13 @@ js::StrictlyEqual(JSContext *cx, const Value &lref, const Value &rref, bool *equ
     if (lval.isDouble() && rval.isInt32()) {
         double ld = lval.toDouble();
         double rd = rval.toInt32();
-        *equal = (ld == rd);
+        *equal = JSDOUBLE_COMPARE(ld, ==, rd, JS_FALSE);
         return true;
     }
     if (lval.isInt32() && rval.isDouble()) {
         double ld = lval.toInt32();
         double rd = rval.toDouble();
-        *equal = (ld == rd);
+        *equal = JSDOUBLE_COMPARE(ld, ==, rd, JS_FALSE);
         return true;
     }
 
@@ -2324,7 +2325,7 @@ END_CASE(JSOP_CASE)
                 double l, r;                                                  \
                 if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))       \
                     goto error;                                               \
-                cond = (l OP r);                                              \
+                cond = JSDOUBLE_COMPARE(l, OP, r, false);                     \
             }                                                                 \
         }                                                                     \
         TRY_BRANCH_AFTER_COND(cond, 2);                                       \

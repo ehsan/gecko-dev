@@ -41,6 +41,7 @@
 
 #include "jsapi.h"
 #include "jscntxt.h"
+#include "jsstdint.h"
 
 #include "js/HashTable.h"
 #include "js/Vector.h"

@@ -46,6 +46,7 @@
 #include <stdarg.h>
 #include "jsprvtd.h"
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsclist.h"
 #include "jsapi.h"
