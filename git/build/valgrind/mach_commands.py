@@ -8,9 +8,8 @@ import os
 import subprocess
 
 from mach.decorators import (
-    Command,
-    CommandArgument,
     CommandProvider,
+    Command,
 )
 from mozbuild.base import (
     MachCommandBase,
@@ -35,12 +34,7 @@ class MachCommands(MachCommandBase):
     @Command('valgrind-test', category='testing',
         conditions=[conditions.is_firefox, is_valgrind_build],
         description='Run the Valgrind test job.')
-    @CommandArgument('--suppressions', default=[], action='append',
-        metavar='FILENAME',
-        help='Specify a suppression file for Valgrind to use. Use '
-            '--suppression multiple times to specify multiple suppression '
-            'files.')
-    def valgrind_test(self, suppressions):
+    def valgrind_test(self):
         import json
         import sys
         import tempfile
@@ -106,9 +100,6 @@ class MachCommands(MachCommandBase):
                 '--show-possibly-lost=no',
                 '--track-origins=yes'
             ]
-
-            for s in suppressions:
-                valgrind_args.append('--suppressions=' + s)
 
             supps_dir = os.path.join(build_dir, 'valgrind')
             supps_file1 = os.path.join(supps_dir, 'cross-architecture.sup')
