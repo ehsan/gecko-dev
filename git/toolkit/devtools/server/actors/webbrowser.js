@@ -547,12 +547,7 @@ BrowserTabActor.prototype = {
    *         Tab URL.
    */
   get url() {
-    if (this.browser.currentURI) {
-      return this.browser.currentURI.spec;
-    }
-    // Abrupt closing of the browser window may leave callbacks without a
-    // currentURI.
-    return null;
+    return this.browser.currentURI.spec;
   },
 
   /**

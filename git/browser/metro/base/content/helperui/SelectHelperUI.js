@@ -43,17 +43,15 @@ var SelectHelperUI = {
     let choices = aList.choices;
     for (let i = 0; i < choices.length; i++) {
       let choice = choices[i];
-      let item = document.createElement("richlistitem");
-      let label = document.createElement("label");
+      let item = document.createElement("listitem");
 
-      item.setAttribute("class", "option-command listitem-iconic");
+      item.setAttribute("class", "option-command listitem-iconic action-button");
       item.setAttribute("flex", "1");
       item.setAttribute("crop", "center");
-      label.setAttribute("value", choice.text);
-      item.appendChild(label);
+      item.setAttribute("label", choice.text);
 
-      choice.selected ? item.setAttribute("selected", "true")
-                      : item.removeAttribute("selected");
+      choice.selected ? item.classList.add("selected")
+                      : item.classList.remove("selected");
 
       choice.disabled ? item.setAttribute("disabled", "true")
                       : item.removeAttribute("disabled");

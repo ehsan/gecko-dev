@@ -130,11 +130,17 @@ public:
   HRESULT OnEdgeGestureCompleted(IEdgeGesture* aSender,
                                  IEdgeGestureEventArgs* aArgs);
 
-  // Swipe gesture callback from the GestureRecognizer.
+  // These events are raised by our GestureRecognizer in response to input
+  // events that we forward to it.  The ManipulationStarted,
+  // ManipulationUpdated, and ManipulationEnded events are sent during
+  // complex input gestures including pinch, swipe, and rotate.  Note that
+  // all three gestures can occur simultaneously.
+  HRESULT OnManipulationStarted(IGestureRecognizer* aSender,
+                                IManipulationStartedEventArgs* aArgs);
+  HRESULT OnManipulationUpdated(IGestureRecognizer* aSender,
+                                IManipulationUpdatedEventArgs* aArgs);
   HRESULT OnManipulationCompleted(IGestureRecognizer* aSender,
                                   IManipulationCompletedEventArgs* aArgs);
-
-  // Tap gesture callback from the GestureRecognizer.
   HRESULT OnTapped(IGestureRecognizer* aSender, ITappedEventArgs* aArgs);
   HRESULT OnRightTapped(IGestureRecognizer* aSender,
                         IRightTappedEventArgs* aArgs);
@@ -252,6 +258,8 @@ private:
   // events from our GestureRecognizer.  It's probably not a huge deal if we
   // don't unregister ourselves with our GestureRecognizer before destroying
   // the GestureRecognizer, but it can't hurt.
+  EventRegistrationToken mTokenManipulationStarted;
+  EventRegistrationToken mTokenManipulationUpdated;
   EventRegistrationToken mTokenManipulationCompleted;
   EventRegistrationToken mTokenTapped;
   EventRegistrationToken mTokenRightTapped;

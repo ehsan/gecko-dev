@@ -367,7 +367,7 @@ public class Favicons {
         }
     }
 
-    public static void removeLoadTask(int taskId) {
+    public static void removeLoadTask(long taskId) {
         sLoadTasks.remove(taskId);
     }
 

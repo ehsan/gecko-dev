@@ -65,7 +65,6 @@ var BuiltinProvider = {
         "devtools/touch-events": "resource://gre/modules/devtools/touch-events",
         "devtools/client": "resource://gre/modules/devtools/client",
 
-        "acorn": "resource://gre/modules/devtools/acorn",
         "escodegen": "resource://gre/modules/devtools/escodegen",
         "estraverse": "resource://gre/modules/devtools/escodegen/estraverse",
 
@@ -109,7 +108,6 @@ var SrcdirProvider = {
     let outputParserURI = this.fileURI(OS.Path.join(toolkitDir, "output-parser"));
     let touchEventsURI = this.fileURI(OS.Path.join(toolkitDir, "touch-events"));
     let clientURI = this.fileURI(OS.Path.join(toolkitDir, "client"));
-    let acornURI = this.fileURI(OS.Path.join(toolkitDir, "acorn"));
     let escodegenURI = this.fileURI(OS.Path.join(toolkitDir, "escodegen"));
     let estraverseURI = this.fileURI(OS.Path.join(toolkitDir, "escodegen", "estraverse"));
     this.loader = new loader.Loader({
@@ -129,7 +127,6 @@ var SrcdirProvider = {
         "devtools/output-parser": outputParserURI,
         "devtools/touch-events": touchEventsURI,
         "devtools/client": clientURI,
-        "acorn": acornURI,
         "escodegen": escodegenURI,
         "estraverse": estraverseURI
       },

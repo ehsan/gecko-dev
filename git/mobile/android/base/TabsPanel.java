@@ -47,8 +47,7 @@ public class TabsPanel extends LinearLayout
     }
 
     private Context mContext;
-    private final GeckoApp mActivity;
-    private final LightweightTheme mTheme;
+    private GeckoApp mActivity;
     private RelativeLayout mHeader;
     private TabsListContainer mTabsContainer;
     private PanelView mPanel;
@@ -69,7 +68,6 @@ public class TabsPanel extends LinearLayout
         super(context, attrs);
         mContext = context;
         mActivity = (GeckoApp) context;
-        mTheme = ((GeckoApplication) context.getApplicationContext()).getLightweightTheme();
 
         setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
                                                       LinearLayout.LayoutParams.FILL_PARENT));
@@ -163,19 +161,19 @@ public class TabsPanel extends LinearLayout
     @Override
     public void onAttachedToWindow() {
         super.onAttachedToWindow();
-        mTheme.addListener(this);
+        mActivity.getLightweightTheme().addListener(this);
     }
 
     @Override
     public void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        mTheme.removeListener(this);
+        mActivity.getLightweightTheme().removeListener(this);
     }
     
     @Override
     public void onLightweightThemeChanged() {
-        final int background = getResources().getColor(R.color.background_tabs);
-        final LightweightThemeDrawable drawable = mTheme.getColorDrawable(this, background, true);
+        int background = mActivity.getResources().getColor(R.color.background_tabs);
+        LightweightThemeDrawable drawable = mActivity.getLightweightTheme().getColorDrawable(this, background, true);
         if (drawable == null)
             return;
 
@@ -196,8 +194,11 @@ public class TabsPanel extends LinearLayout
 
     // Tabs List Container holds the ListView
     public static class TabsListContainer extends FrameLayout {
+        private Context mContext;
+
         public TabsListContainer(Context context, AttributeSet attrs) {
             super(context, attrs);
+            mContext = context;
         }
 
         public PanelView getCurrentPanelView() {
@@ -228,11 +229,11 @@ public class TabsPanel extends LinearLayout
     // Tabs Panel Toolbar contains the Buttons
     public static class TabsPanelToolbar extends LinearLayout 
                                          implements LightweightTheme.OnChangeListener {
-        private final LightweightTheme mTheme;
+        private BrowserApp mActivity;
 
         public TabsPanelToolbar(Context context, AttributeSet attrs) {
             super(context, attrs);
-            mTheme = ((GeckoApplication) context.getApplicationContext()).getLightweightTheme();
+            mActivity = (BrowserApp) context;
 
             setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
                                                           (int) context.getResources().getDimension(R.dimen.browser_toolbar_height)));
@@ -243,19 +244,19 @@ public class TabsPanel extends LinearLayout
         @Override
         public void onAttachedToWindow() {
             super.onAttachedToWindow();
-            mTheme.addListener(this);
+            mActivity.getLightweightTheme().addListener(this);
         }
 
         @Override
         public void onDetachedFromWindow() {
             super.onDetachedFromWindow();
-            mTheme.removeListener(this);
+            mActivity.getLightweightTheme().removeListener(this);
         }
     
         @Override
         public void onLightweightThemeChanged() {
-            final int background = getResources().getColor(R.color.background_tabs);
-            final LightweightThemeDrawable drawable = mTheme.getColorDrawable(this, background);
+            int background = mActivity.getResources().getColor(R.color.background_tabs);
+            LightweightThemeDrawable drawable = mActivity.getLightweightTheme().getColorDrawable(this, background);
             if (drawable == null)
                 return;
 
