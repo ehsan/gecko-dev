@@ -382,6 +382,7 @@ private:
   nsCOMPtr<nsIMIMEInfo> mMIMEInfo;
 
   DownloadState mDownloadState;
+  DownloadType mDownloadType;
 
   uint32_t mID;
   int32_t mPercentComplete;

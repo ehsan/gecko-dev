@@ -295,6 +295,7 @@ private:
   mutable StatementCache mAsyncThreadStatements;
 
   int32_t mDBPageSize;
+  enum JournalMode mCurrentJournalMode;
   uint16_t mDatabaseStatus;
   bool mShuttingDown;
 };
