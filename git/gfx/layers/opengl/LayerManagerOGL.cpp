@@ -848,13 +848,13 @@ LayerManagerOGL::CopyToTarget()
 }
 
 LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
-  gl::RGBALayerProgramType,
-  gl::BGRALayerProgramType,
-  gl::RGBXLayerProgramType,
-  gl::BGRXLayerProgramType,
-  gl::RGBARectLayerProgramType,
-  gl::ColorLayerProgramType,
-  gl::YCbCrLayerProgramType
+  LayerManagerOGL::RGBALayerProgramType,
+  LayerManagerOGL::BGRALayerProgramType,
+  LayerManagerOGL::RGBXLayerProgramType,
+  LayerManagerOGL::BGRXLayerProgramType,
+  LayerManagerOGL::RGBARectLayerProgramType,
+  LayerManagerOGL::ColorLayerProgramType,
+  LayerManagerOGL::YCbCrLayerProgramType
 };
 
 #define FOR_EACH_LAYER_PROGRAM(vname)                       \

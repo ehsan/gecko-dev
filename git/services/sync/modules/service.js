@@ -1958,7 +1958,9 @@ WeaveSvc.prototype = {
    */
   resetService: function WeaveSvc_resetService()
     this._catch(this._notify("reset-service", "", function() {
-      this._log.info("Service reset.");
+      // First drop old logs to track client resetting behavior
+      this.clearLogs();
+      this._log.info("Logs reinitialized for service reset");
 
       // Pretend we've never synced to the server and drop cached data
       this.syncID = "";

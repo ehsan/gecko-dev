@@ -47,15 +47,12 @@ try {
   do_throw("Could not get the global history service\n");
 } 
 
-function add_uri_to_history(aURI, aCheckForGuid) {
+function add_uri_to_history(aURI) {
   var referrer = uri("about:blank");
   gh.addURI(aURI,
             false, // not redirect
             true, // top level 
             referrer);
-  if (aCheckForGuid === undefined) {
-    do_check_guid_for_uri(aURI);
-  }
 }
 
 // main
@@ -82,17 +79,13 @@ function run_test() {
   // check that certain schemes never show up as visited
   // even if we attempt to add them to history
   // see CanAddURI() in nsNavHistory.cpp
-  var urlsToIgnore = [
-    "about:config",
+  var urlsToIgnore = ["about:config", 
     "data:,Hello%2C%20World!",
     "imap://cyrus.andrew.cmu.edu/archive.imap",
     "news://news.mozilla.org/mozilla.dev.apps.firefox",
     "moz-anno:favicon:http://www.mozilla.org/2005/made-up-favicon/84-1321",
     "chrome://browser/content/browser.xul",
-    "view-source:http://www.google.com/",
-    "javascript:alert('hello world!');",
-    "resource://gre-resources/hiddenWindow.html",
-  ];
+    "view-source:http://www.google.com/"];
 
   for each (var currentURL in urlsToIgnore) {
     try {
@@ -105,7 +98,7 @@ function run_test() {
       print("Exception thrown for '" + currentURL + "', ignored.");
     }
     if (cantAddUri) {
-      add_uri_to_history(cantAddUri, false);
+      add_uri_to_history(cantAddUri);
       do_check_false(gh.isVisited(cantAddUri));
     }
   }

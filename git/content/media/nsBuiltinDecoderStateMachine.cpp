@@ -375,13 +375,11 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
 {
   NS_ASSERTION(OnAudioThread(), "Should be on audio thread.");
   LOG(PR_LOG_DEBUG, ("Begun audio thread/loop"));
-  PRInt64 audioDuration = 0;
+  PRUint64 audioDuration = 0;
   PRInt64 audioStartTime = -1;
   PRUint32 channels, rate;
   float volume = -1;
   PRBool setVolume;
-  PRInt32 minWriteSamples = -1;
-  PRInt64 samplesAtLastSleep = 0;
   {
     MonitorAutoEnter mon(mDecoder->GetMonitor());
     mAudioCompleted = PR_FALSE;
@@ -392,7 +390,7 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
   }
   while (1) {
 
-    // Wait while we're not playing, and we're not shutting down, or we're
+    // Wait while we're not playing, and we're not shutting down, or we're 
     // playing and we've got no audio to play.
     {
       MonitorAutoEnter mon(mDecoder->GetMonitor());
@@ -405,7 +403,6 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
               (mReader->mAudioQueue.GetSize() == 0 &&
                !mReader->mAudioQueue.AtEndOfStream())))
       {
-        samplesAtLastSleep = audioDuration;
         mon.Wait();
       }
 
@@ -425,15 +422,10 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
       volume = mVolume;
     }
 
-    if (setVolume || minWriteSamples == -1) {
+    if (setVolume) {
       MonitorAutoEnter audioMon(mAudioMonitor);
       if (mAudioStream) {
-        if (setVolume) {
-          mAudioStream->SetVolume(volume);
-        }
-        if (minWriteSamples == -1) {
-          minWriteSamples = mAudioStream->GetMinWriteSamples();
-        }
+        mAudioStream->SetVolume(volume);
       }
     }
     NS_ASSERTION(mReader->mAudioQueue.GetSize() > 0,
@@ -491,10 +483,7 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
       }
 
       PRInt64 audioAhead = mAudioEndTime - GetMediaTime();
-      if (audioAhead > AMPLE_AUDIO_MS &&
-          audioDuration - samplesAtLastSleep > minWriteSamples)
-      {
-        samplesAtLastSleep = audioDuration;
+      if (audioAhead > AMPLE_AUDIO_MS) {
         // We've pushed enough audio onto the hardware that we've queued up a
         // significant amount ahead of the playback position. The decode
         // thread will be going to sleep, so we won't get any new samples

@@ -217,7 +217,8 @@ PRUint32
 nsSVGTextContainerFrame::GetNumberOfChars()
 {
   PRUint32 nchars = 0;
-  nsISVGGlyphFragmentNode* node = GetFirstGlyphFragmentChildNode();
+  nsISVGGlyphFragmentNode* node;
+  node = GetFirstGlyphFragmentChildNode();
 
   while (node) {
     nchars += node->GetNumberOfChars();
@@ -322,6 +323,10 @@ nsSVGTextContainerFrame::GetNextGlyphFragmentChildNode(nsISVGGlyphFragmentNode *
 void
 nsSVGTextContainerFrame::SetWhitespaceHandling()
 {
+  // init children:
+  nsISVGGlyphFragmentNode* node = GetFirstGlyphFragmentChildNode();
+  nsISVGGlyphFragmentNode* next;
+
   PRUint8 whitespaceHandling = COMPRESS_WHITESPACE | TRIM_LEADING_WHITESPACE;
 
   for (nsIFrame *frame = this; frame != nsnull; frame = frame->GetParent()) {
@@ -341,46 +346,15 @@ nsSVGTextContainerFrame::SetWhitespaceHandling()
       break;
   }
 
-  nsISVGGlyphFragmentNode* firstNode = GetFirstGlyphFragmentChildNode();
-  nsISVGGlyphFragmentNode* lastNonWhitespaceNode = nsnull;
-  nsISVGGlyphFragmentNode* node;
-
-  if (whitespaceHandling != PRESERVE_WHITESPACE) {
-    lastNonWhitespaceNode = node = firstNode;
-    while (node) {
-      if (!node->IsAllWhitespace()) {
-        lastNonWhitespaceNode = node;
-      }
-      node = GetNextGlyphFragmentChildNode(node);
-    }
-  }
-
-  node = firstNode;
   while (node) {
-    if (node == lastNonWhitespaceNode) {
+    next = GetNextGlyphFragmentChildNode(node);
+    if (!next && (whitespaceHandling & COMPRESS_WHITESPACE)) {
       whitespaceHandling |= TRIM_TRAILING_WHITESPACE;
     }
     node->SetWhitespaceHandling(whitespaceHandling);
-    if ((whitespaceHandling & TRIM_LEADING_WHITESPACE) &&
-        !node->IsAllWhitespace()) {
-      whitespaceHandling &= ~TRIM_LEADING_WHITESPACE;
-    }
-    node = GetNextGlyphFragmentChildNode(node);
+    node = next;
+    whitespaceHandling &= ~TRIM_LEADING_WHITESPACE;
   }
-}
-
-PRBool
-nsSVGTextContainerFrame::IsAllWhitespace()
-{
-  nsISVGGlyphFragmentNode* node = GetFirstGlyphFragmentChildNode();
-
-  while (node) {
-    if (!node->IsAllWhitespace()) {
-      return PR_FALSE;
-    }
-    node = GetNextGlyphFragmentChildNode(node);
-  }
-  return PR_TRUE;
 }
 
 // -------------------------------------------------------------------------

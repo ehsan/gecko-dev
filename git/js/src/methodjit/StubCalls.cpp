@@ -1368,10 +1368,14 @@ stubs::Neg(VMFrame &f)
 JSObject * JS_FASTCALL
 stubs::NewInitArray(VMFrame &f, uint32 count)
 {
-    JSObject *obj = NewDenseAllocatedArray(f.cx, count);
-    if (!obj)
+    JSContext *cx = f.cx;
+    gc::FinalizeKind kind = GuessObjectGCKind(count, true);
+
+    JSObject *obj = NewArrayWithKind(cx, kind);
+    if (!obj || !obj->ensureSlots(cx, count))
         THROWV(NULL);
 
+    obj->setArrayLength(count);
     return obj;
 }
 
@@ -2570,8 +2574,8 @@ stubs::Unbrand(VMFrame &f)
     if (!thisv.isObject())
         return;
     JSObject *obj = &thisv.toObject();
-    if (obj->isNative())
-        obj->unbrand(f.cx);
+    if (obj->isNative() && !obj->unbrand(f.cx))
+        THROW();
 }
 
 void JS_FASTCALL

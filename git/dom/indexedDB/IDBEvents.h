@@ -151,15 +151,9 @@ protected:
 class GetSuccessEvent : public IDBSuccessEvent
 {
 public:
-  GetSuccessEvent(JSAutoStructuredCloneBuffer& aCloneBuffer)
-  : mCachedValue(JSVAL_VOID),
-    mValueRooted(PR_FALSE)
-  {
-    mCloneBuffer.swap(aCloneBuffer);
-  }
-
-  GetSuccessEvent()
-  : mCachedValue(JSVAL_VOID),
+  GetSuccessEvent(const nsAString& aValue)
+  : mValue(aValue),
+    mCachedValue(JSVAL_VOID),
     mValueRooted(PR_FALSE)
   { }
 
@@ -176,7 +170,7 @@ public:
                 IDBTransaction* aTransaction);
 
 private:
-  JSAutoStructuredCloneBuffer mCloneBuffer;
+  nsString mValue;
 
 protected:
   void RootCachedValue();
@@ -189,26 +183,26 @@ protected:
 class GetAllSuccessEvent : public GetSuccessEvent
 {
 public:
-  GetAllSuccessEvent(nsTArray<JSAutoStructuredCloneBuffer>& aCloneBuffers)
+  GetAllSuccessEvent(nsTArray<nsString>& aValues)
+  : GetSuccessEvent(EmptyString())
   {
-    if (!mCloneBuffers.SwapElements(aCloneBuffers)) {
+    if (!mValues.SwapElements(aValues)) {
       NS_ERROR("Failed to swap elements!");
     }
   }
-
-  ~GetAllSuccessEvent();
 
   NS_IMETHOD GetResult(JSContext* aCx,
                        jsval* aResult);
 
 private:
-  nsTArray<JSAutoStructuredCloneBuffer> mCloneBuffers;
+  nsTArray<nsString> mValues;
 };
 
 class GetAllKeySuccessEvent : public GetSuccessEvent
 {
 public:
   GetAllKeySuccessEvent(nsTArray<Key>& aKeys)
+  : GetSuccessEvent(EmptyString())
   {
     if (!mKeys.SwapElements(aKeys)) {
       NS_ERROR("Failed to swap elements!");

@@ -36,15 +36,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/**
+ * How to use this stepper:
+ *
+ * nsCOMPtr<AsyncFaviconStepper> stepper = new AsyncFaviconStepper(callback);
+ * stepper->SetPageURI(aPageURI);
+ * stepper->SetIconURI(aFaviconURI);
+ * rv = stepper->AppendStep(new SomeStep());
+ * NS_ENSURE_SUCCESS(rv, rv);
+ * rv = stepper->AppendStep(new SomeOtherStep());
+ * NS_ENSURE_SUCCESS(rv, rv);
+ * rv = stepper->Start();
+ * NS_ENSURE_SUCCESS(rv, rv);
+ */
+
 #ifndef AsyncFaviconHelpers_h_
 #define AsyncFaviconHelpers_h_
 
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsIURI.h"
-#include "nsThreadUtils.h"
 
-#include "nsFaviconService.h"
+#include "nsIFaviconService.h"
 #include "Helpers.h"
 
 #include "mozilla/storage.h"
@@ -52,6 +65,34 @@
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIStreamListener.h"
+
+#include "nsCycleCollectionParticipant.h"
+
+// Avoid warnings about macro empty parameters.
+#define FAVICONSTEP_FAKE_EMPTYPARAM
+
+#define FAVICONSTEP_FAIL_IF_FALSE(_cond) \
+  FAVICONSTEP_FAIL_IF_FALSE_RV(_cond, FAVICONSTEP_FAKE_EMPTYPARAM)
+
+#define FAVICONSTEP_FAIL_IF_FALSE_RV(_cond, _rv) \
+  PR_BEGIN_MACRO \
+  if (!(_cond)) { \
+    NS_WARNING("AsyncFaviconStep failed!"); \
+    mStepper->Failure(); \
+    return _rv; \
+  } \
+  PR_END_MACRO
+
+#define FAVICONSTEP_CANCEL_IF_TRUE(_cond, _notify) \
+  FAVICONSTEP_CANCEL_IF_TRUE_RV(_cond, _notify, FAVICONSTEP_FAKE_EMPTYPARAM)
+
+#define FAVICONSTEP_CANCEL_IF_TRUE_RV(_cond, _notify, _rv) \
+  PR_BEGIN_MACRO \
+  if (_cond) { \
+    mStepper->Cancel(_notify); \
+    return _rv; \
+  } \
+  PR_END_MACRO
 
 #define ICON_STATUS_UNKNOWN 0
 #define ICON_STATUS_CHANGED 1 << 0
@@ -61,229 +102,301 @@
 namespace mozilla {
 namespace places {
 
-/**
- * Indicates when a icon should be fetched from network.
- */
-enum AsyncFaviconFetchMode {
-  FETCH_NEVER = 0
-, FETCH_IF_MISSING
-, FETCH_ALWAYS
-};
+
+// Forward declarations.
+class AsyncFaviconStepperInternal;
+class AsyncFaviconStepper;
+
 
 /**
- * Data cache for a icon entry.
+ * Executes a single async step on a favicon resource.
+ * Once done, call backs to the stepper to proceed to the next step.
  */
-struct IconData
-{
-  IconData()
-  : id(0)
-  , expiration(0)
-  , fetchMode(FETCH_NEVER)
-  , status(ICON_STATUS_UNKNOWN)
-  {
-  }
-
-  PRInt64 id;
-  nsCString spec;
-  nsCString data;
-  nsCString mimeType;
-  PRTime expiration;
-  enum AsyncFaviconFetchMode fetchMode;
-  PRUint16 status; // This is a bitset, see ICON_STATUS_* defines above.
-};
-
-/**
- * Data cache for a page entry.
- */
-struct PageData
-{
-  PageData()
-  : id(0)
-  , canAddToHistory(true)
-  , iconId(0)
-  {
-  }
-
-  PRInt64 id;
-  nsCString spec;
-  nsCString bookmarkedSpec;
-  nsString revHost;
-  bool canAddToHistory; // False for disabled history and unsupported schemas.
-  PRInt64 iconId;
-};
-
-/**
- * Async fetches icon from database or network, associates it with the required
- * page and finally notifies the change.
- */
-class AsyncFetchAndSetIconForPage : public nsRunnable
+class AsyncFaviconStep : public nsISupports
 {
 public:
-  NS_DECL_NSIRUNNABLE
+  NS_DECL_ISUPPORTS
+
+  AsyncFaviconStep() {}
 
   /**
-   * Creates the event and dispatches it to the async thread.
+   * Associate this step to a stepper.
    *
-   * @param aFaviconURI
-   *        URI of the icon to be fetched and associated.
-   * @param aPageURI
-   *        URI of the page to which associate the icon.
-   * @param aFetchMode
-   *        Specifies whether a icon should be fetched from network if not found
-   *        in the database.
-   * @param aDBConn
-   *        Database connection to use.
-   * @param aCallback
-   *        Function to be called when the fetch and associate process finishes.
+   * Automatically called by the stepper when the step is added to it.
+   * @see AsyncFaviconStepper::appendStep
    */
-  static nsresult start(nsIURI* aFaviconURI,
-                        nsIURI* aPageURI,
-                        enum AsyncFaviconFetchMode aFetchMode,
-                        nsCOMPtr<mozIStorageConnection>& aDBConn,
-                        nsIFaviconDataCallback* aCallback);
+  void SetStepper(AsyncFaviconStepperInternal* aStepper) { mStepper = aStepper; }
 
   /**
-   * Constructor.
-   *
-   * @param aIcon
-   *        Icon to be fetched and associated.
-   * @param aPage
-   *        Page to which associate the icon.
-   * @param aDBConn
-   *        Database connection to use.
-   * @param aCallback
-   *        Function to be called when the fetch and associate process finishes.
+   * Executes the step.  Virtual since it MUST be overridden.
    */
-  AsyncFetchAndSetIconForPage(IconData& aIcon,
-                              PageData& aPage,
-                              nsCOMPtr<mozIStorageConnection>& aDBConn,
-                              nsRefPtr<nsFaviconService>& aFaviconSvc,
-                              nsCOMPtr<nsIFaviconDataCallback>& aCallback);
-
-  virtual ~AsyncFetchAndSetIconForPage();
+  virtual void Run() {};
 
 protected:
-  IconData mIcon;
-  PageData mPage;
-  nsCOMPtr<mozIStorageConnection>& mDBConn;
-  // Strong reference since we don't want it to disappear out from under us.
-  nsRefPtr<nsFaviconService> mFaviconSvc;
-  // Strong reference since we are responsible for its existence.
-  nsCOMPtr<nsIFaviconDataCallback> mCallback;
-
+  nsCOMPtr<AsyncFaviconStepperInternal> mStepper;
 };
 
+
 /**
- * If needed will asynchronously fetch the icon from the network.  It will
- * finally dispatch an event to the async thread to associate the icon with
- * the required page.
+ * Status definitions for the stepper.
  */
-class AsyncFetchAndSetIconFromNetwork : public nsRunnable
-                                      , public nsIStreamListener
-                                      , public nsIInterfaceRequestor
-                                      , public nsIChannelEventSink
+enum AsyncFaviconStepperStatus {
+  STEPPER_INITING = 0
+, STEPPER_RUNNING = 1
+, STEPPER_FAILED = 2
+, STEPPER_COMPLETED = 3
+, STEPPER_CANCELED = 4
+};
+
+
+/**
+ * This class provides public methods and properties to steps.
+ * Any other code should use the wrapper (AsyncFaviconStepper) instead.
+ *
+ * @see AsyncFaviconStepper
+ */
+class AsyncFaviconStepperInternal : public nsISupports
 {
 public:
+  NS_DECL_ISUPPORTS
+
+  /**
+   * Creates the stepper.
+   *
+   * @param aCallback
+   *        An nsIFaviconDataCallback to be called when done.
+   */
+  AsyncFaviconStepperInternal(nsIFaviconDataCallback* aCallback);
+
+  /**
+   * Proceed to next step.
+   */
+  nsresult Step();
+
+  /**
+   * Called by the steps when something goes wrong.
+   * Will unlink all steps and gently return.
+   */
+  void Failure();
+
+  /**
+   * Called by the steps when they require us to stop walking.
+   * This is not an error condition, sometimes we could want to bail out to
+   * avoid useless additional work.
+   * Will unlink all steps and gently return.
+   */
+  void Cancel(bool aNotify);
+
+  nsCOMPtr<nsIFaviconDataCallback> mCallback;
+  PRInt64 mPageId;
+  nsCOMPtr<nsIURI> mPageURI;
+  PRInt64 mIconId;
+  nsCOMPtr<nsIURI> mIconURI;
+  nsCString mData;
+  nsCString mMimeType;
+  PRTime mExpiration;
+  bool mIsRevisit;
+  PRUint16 mIconStatus; // This is a bitset, see ICON_STATUS_* defines above.
+
+private:
+  enum AsyncFaviconStepperStatus mStatus;
+  nsCOMArray<AsyncFaviconStep> mSteps;
+
+  friend class AsyncFaviconStepper;
+};
+
+
+/**
+ * Walks through an ordered list of AsyncFaviconSteps.
+ * Each step call backs the stepper that will proceed to the next one.
+ * When all steps are complete it calls aCallback, if valid.
+ *
+ * This class is a wrapper around AsyncFaviconStepperInternal, where the actual
+ * work is done.
+ */
+class AsyncFaviconStepper : public nsISupports
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  /**
+   * Creates the stepper.
+   *
+   * @param aCallback
+   *        An nsIFaviconDataCallback to call when done.
+   */
+  AsyncFaviconStepper(nsIFaviconDataCallback* aCallback);
+
+  /**
+   * Kick-off the first step.
+   */
+  nsresult Start();
+
+  /**
+   * Appends a new step to this stepper.
+   *
+   * @param aStep
+   *        An AsyncFaviconStep to append.
+   */
+  nsresult AppendStep(AsyncFaviconStep* aStep);
+
+  // Setters and getters.
+  // Some definitions are inline to try getting some love from the compiler.
+
+  void SetPageId(PRInt64 aPageId) { mStepper->mPageId = aPageId; }
+  PRInt64 GetPageId() { return mStepper->mPageId; }
+
+  void SetPageURI(nsIURI* aURI) { mStepper->mPageURI = aURI; }
+  already_AddRefed<nsIURI> GetPageURI() { return mStepper->mPageURI.forget(); }
+
+  void SetIconId(PRInt64 aIconId) { mStepper->mIconId = aIconId; }
+  PRInt64 GetIconId() { return mStepper->mIconId; }
+
+  void SetIconURI(nsIURI* aURI) { mStepper->mIconURI = aURI; }
+  already_AddRefed<nsIURI> GetIconURI() { return mStepper->mIconURI.forget(); }
+
+  nsresult SetIconData(const nsACString& aMimeType,
+                       const PRUint8* aData,
+                       PRUint32 aDataLen);
+  nsresult GetIconData(nsACString& aMimeType,
+                       const PRUint8** aData,
+                       PRUint32* aDataLen);
+
+  void SetExpiration(PRTime aExpiration) { mStepper->mExpiration = aExpiration; }
+  PRTime GetExpiration() { return mStepper->mExpiration; }
+
+private:
+  nsCOMPtr<AsyncFaviconStepperInternal> mStepper;
+};
+
+
+/**
+ * Determines the real page URI that a favicon should be stored for.
+ * Will ensure we can save this icon, and return the correct bookmark to
+ * associate it with.
+ */
+class GetEffectivePageStep : public AsyncFaviconStep
+                           , public mozilla::places::AsyncStatementCallback
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
+
+  GetEffectivePageStep();
+  void Run();
+
+private:
+  void CheckPageAndProceed();
+
+  PRUint8 mSubStep;
+  bool mIsBookmarked;
+};
+
+
+/**
+ * Fetch an existing icon and associated information from the database.
+ */
+class FetchDatabaseIconStep : public AsyncFaviconStep
+                            , public mozilla::places::AsyncStatementCallback
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
+
+  FetchDatabaseIconStep() {};
+  void Run();
+};
+
+
+/**
+ * Fetch an existing icon and associated information from the database.
+ * Requires mDBInsertIcon statement.
+ */
+class EnsureDatabaseEntryStep : public AsyncFaviconStep
+                              , public mozilla::places::AsyncStatementCallback
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
+
+  EnsureDatabaseEntryStep() {};
+  void Run();
+};
+
+enum AsyncFaviconFetchMode {
+  FETCH_NEVER = 0
+, FETCH_IF_MISSING = 1
+, FETCH_ALWAYS = 2
+};
+
+
+/**
+ * Fetch an icon and associated information from the network.
+ * Requires mDBGetIconInfoWithPage statement.
+ */
+class FetchNetworkIconStep : public AsyncFaviconStep
+                           , public nsIStreamListener
+                           , public nsIInterfaceRequestor
+                           , public nsIChannelEventSink
+{
+public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(FetchNetworkIconStep, AsyncFaviconStep)
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSICHANNELEVENTSINK
   NS_DECL_NSIREQUESTOBSERVER
-  NS_DECL_NSIRUNNABLE
+
+  FetchNetworkIconStep(enum AsyncFaviconFetchMode aFetchMode);
+  void Run();
+
+private:
+  enum AsyncFaviconFetchMode mFetchMode;
+  nsCOMPtr<nsIChannel> mChannel;
+  nsCString mData;
+};
+
+
+/**
+ * Saves icon data in the database if it has changed.
+ */
+class SetFaviconDataStep : public AsyncFaviconStep
+                         , public mozilla::places::AsyncStatementCallback
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
+
+  SetFaviconDataStep() {};
+  void Run();
+};
+
+
+/**
+ * Associate icon with page.
+ */
+class AssociateIconWithPageStep : public AsyncFaviconStep
+                                , public mozilla::places::AsyncStatementCallback
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
+
+  AssociateIconWithPageStep() {};
+  void Run();
+};
+
+
+/**
+ * Notify favicon changes.
+ */
+class NotifyStep : public AsyncFaviconStep
+{
+public:
   NS_DECL_ISUPPORTS_INHERITED
 
-  /**
-   * Constructor.
-   *
-   * @param aIcon
-   *        Icon to be fetched and associated.
-   * @param aPage
-   *        Page to which associate the icon.
-   * @param aDBConn
-   *        Database connection to use.
-   * @param aCallback
-   *        Function to be called when the fetch and associate process finishes.
-   */
-  AsyncFetchAndSetIconFromNetwork(IconData& aIcon,
-                                  PageData& aPage,
-                                  nsCOMPtr<mozIStorageConnection>& aDBConn,
-                                  nsRefPtr<nsFaviconService>& aFaviconSvc,
-                                  nsCOMPtr<nsIFaviconDataCallback>& aCallback);
-
-  virtual ~AsyncFetchAndSetIconFromNetwork();
-
-protected:
-  IconData mIcon;
-  PageData mPage;
-  nsCOMPtr<mozIStorageConnection>& mDBConn;
-  // Strong reference since we don't want it to disappear out from under us.
-  nsRefPtr<nsFaviconService> mFaviconSvc;
-  // Strong reference since we are responsible for its existence.
-  nsCOMPtr<nsIFaviconDataCallback> mCallback;
-  nsCOMPtr<nsIChannel> mChannel;
-};
-
-/**
- * Associates the icon to the required page, finally dispatches an event to the
- * main thread to notify the change to observers.
- */
-class AsyncAssociateIconToPage : public nsRunnable
-{
-public:
-  NS_DECL_NSIRUNNABLE
-
-  /**
-   * Constructor.
-   *
-   * @param aIcon
-   *        Icon to be associated.
-   * @param aPage
-   *        Page to which associate the icon.
-   * @param aDBConn
-   *        Database connection to use.
-   * @param aCallback
-   *        Function to be called when the fetch and associate process finishes.
-   */
-  AsyncAssociateIconToPage(IconData& aIcon,
-                           PageData& aPage,
-                           nsCOMPtr<mozIStorageConnection>& aDBConn,
-                           nsRefPtr<nsFaviconService>& aFaviconSvc,
-                           nsCOMPtr<nsIFaviconDataCallback>& aCallback);
-
-  virtual ~AsyncAssociateIconToPage();
-
-protected:
-  IconData mIcon;
-  PageData mPage;
-  nsCOMPtr<mozIStorageConnection>& mDBConn;
-  // Strong reference since we don't want it to disappear out from under us.
-  nsRefPtr<nsFaviconService> mFaviconSvc;
-  // Strong reference since we are responsible for its existence.
-  nsCOMPtr<nsIFaviconDataCallback> mCallback;
-};
-
-/**
- * Notifies the icon change to favicon observers.
- */
-class NotifyIconObservers : public nsRunnable
-{
-public:
-  NS_DECL_NSIRUNNABLE
-
-  NotifyIconObservers(IconData& aIcon,
-                      PageData& aPage,
-                      nsCOMPtr<mozIStorageConnection>& aDBConn,
-                      nsRefPtr<nsFaviconService>& aFaviconSvc,
-                      nsCOMPtr<nsIFaviconDataCallback>& aCallback);
-  virtual ~NotifyIconObservers();
-
-protected:
-  IconData mIcon;
-  PageData mPage;
-  nsCOMPtr<mozIStorageConnection>& mDBConn;
-  // Strong reference since we don't want it to disappear out from under us.
-  nsRefPtr<nsFaviconService> mFaviconSvc;
-  // Strong reference since we are responsible for its existence.
-  nsCOMPtr<nsIFaviconDataCallback> mCallback;
+  NotifyStep() {};
+  void Run();
 };
 
 } // namespace places

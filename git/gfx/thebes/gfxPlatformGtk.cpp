@@ -173,9 +173,9 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
     GdkScreen *gdkScreen = gdk_screen_get_default();
     if (gdkScreen) {
         // try to optimize it for 16bpp default screen
-        if (gfxASurface::CONTENT_COLOR == contentType) {
-            imageFormat = GetOffscreenFormat();
-        }
+        if (gfxASurface::CONTENT_COLOR == contentType
+            && 16 == gdk_visual_get_system()->depth)
+            imageFormat = gfxASurface::ImageFormatRGB16_565;
 
         if (UseClientSideRendering()) {
             // We're not going to use XRender, so we don't need to
@@ -505,16 +505,6 @@ gfxPlatformGtk::GetDPI()
         }
     }
     return sDPI;
-}
-
-gfxImageFormat
-gfxPlatformGtk::GetOffscreenFormat()
-{
-    if (gdk_visual_get_system()->depth == 16) {
-        return gfxASurface::ImageFormatRGB16_565;
-    }
-
-    return gfxASurface::ImageFormatRGB24;
 }
 
 qcms_profile *

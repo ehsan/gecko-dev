@@ -120,6 +120,10 @@ NS_IMPL_ISUPPORTS1(ContentCreationNotifier,
                    nsIObserver)
 #endif
 
+static PRBool gLeftShift;
+static PRBool gRightShift;
+static PRBool gLeftAlt;
+static PRBool gRightAlt;
 static PRBool gMenu;
 static PRBool gMenuConsumed;
 
@@ -918,7 +922,6 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
         offset = targetSurface->GetDeviceOffset();
 
     for (PRUint32 i = coveringChildIndex; i < mChildren.Length(); ++i) {
-        ALOG("nsWindow[%p]::DrawTo child[%d]", (void*) this, i);
         if (mChildren[i]->mBounds.IsEmpty() ||
             !mChildren[i]->mBounds.Intersects(boundsRect)) {
             continue;
@@ -937,8 +940,6 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 
     if (targetSurface)
         targetSurface->SetDeviceOffset(offset);
-
-    ALOG("nsWindow[%p]::DrawTo done", (void*) this);
 
     return PR_TRUE;
 }
@@ -1124,10 +1125,10 @@ send_again:
     InitEvent(event, &pt);
 
     event.time = ae->Time();
-    event.isShift = !!(ae->MetaState() & AndroidKeyEvent::META_SHIFT_ON);
+    event.isShift = gLeftShift || gRightShift;
     event.isControl = PR_FALSE;
     event.isMeta = PR_FALSE;
-    event.isAlt = !!(ae->MetaState() & AndroidKeyEvent::META_ALT_ON);
+    event.isAlt = gLeftAlt || gRightAlt;
 
     // XXX can we synthesize different buttons?
     event.button = nsMouseEvent::eLeftButton;
@@ -1230,10 +1231,10 @@ nsWindow::DispatchGestureEvent(PRUint32 msg, PRUint32 direction, double delta,
 {
     nsSimpleGestureEvent event(PR_TRUE, msg, this, direction, delta);
 
-    event.isShift = PR_FALSE;
+    event.isShift = gLeftShift || gRightShift;
     event.isControl = PR_FALSE;
     event.isMeta = PR_FALSE;
-    event.isAlt = PR_FALSE;
+    event.isAlt = gLeftAlt || gRightAlt;
     event.time = time;
     event.refPoint = refPoint;
 
@@ -1396,16 +1397,10 @@ nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key)
         break;
     }
 
-    // Android gives us \n, so filter out some control characters.
-    if (event.message == NS_KEY_PRESS &&
-        key.UnicodeChar() >= ' ') {
-        event.charCode = key.UnicodeChar();
-        if (key.UnicodeChar())
-            event.keyCode = 0;
-    }
-    event.isShift = !!(key.MetaState() & AndroidKeyEvent::META_SHIFT_ON);
+    event.charCode = key.UnicodeChar();
+    event.isShift = gLeftShift || gRightShift;
     event.isControl = gMenu;
-    event.isAlt = !!(key.MetaState() & AndroidKeyEvent::META_ALT_ON);
+    event.isAlt = PR_FALSE;
     event.isMeta = PR_FALSE;
     event.time = key.Time();
 
@@ -1497,13 +1492,19 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
         return;
     }
 
-    bool firePress = ae->Action() == AndroidKeyEvent::ACTION_DOWN;
+    PRBool isDown = ae->Action() == AndroidKeyEvent::ACTION_DOWN;
     switch (ae->KeyCode()) {
     case AndroidKeyEvent::KEYCODE_SHIFT_LEFT:
+        gLeftShift = isDown;
+        break;
     case AndroidKeyEvent::KEYCODE_SHIFT_RIGHT:
+        gRightShift = isDown;
+        break;
     case AndroidKeyEvent::KEYCODE_ALT_LEFT:
+        gLeftAlt = isDown;
+        break;
     case AndroidKeyEvent::KEYCODE_ALT_RIGHT:
-        firePress = false;
+        gRightAlt = isDown;
         break;
     case AndroidKeyEvent::KEYCODE_BACK:
     case AndroidKeyEvent::KEYCODE_MENU:
@@ -1514,23 +1515,20 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
         return;
     }
 
-    nsEventStatus status;
     nsKeyEvent event(PR_TRUE, msg, this);
     InitKeyEvent(event, *ae);
-    DispatchEvent(&event, status);
+    if (event.charCode)
+        event.keyCode = 0;
+    DispatchEvent(&event);
 
-    if (!firePress)
-        return;
-
-    nsKeyEvent pressEvent(PR_TRUE, NS_KEY_PRESS, this);
-    InitKeyEvent(pressEvent, *ae);
-    if (status == nsEventStatus_eConsumeNoDefault) {
-        pressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
-    }
+    if (isDown) {
+        nsKeyEvent pressEvent(PR_TRUE, NS_KEY_PRESS, this);
+        InitKeyEvent(pressEvent, *ae);
 #ifdef ANDROID_DEBUG_WIDGET
-    __android_log_print(ANDROID_LOG_INFO, "Gecko", "Dispatching key pressEvent with keyCode %d charCode %d shift %d alt %d sym/ctrl %d metamask %d", pressEvent.keyCode, pressEvent.charCode, pressEvent.isShift, pressEvent.isAlt, pressEvent.isControl, ae->MetaState());
+        ALOG("Dispatching key event with keyCode %d charCode %d shift %d alt %d sym/ctrl %d metamask %d", event.keyCode, event.charCode, event.isShift, event.isAlt, event.isControl, ae->MetaState());
 #endif
-    DispatchEvent(&pressEvent);
+        DispatchEvent(&pressEvent);
+    }
 }
 
 #ifdef ANDROID_DEBUG_IME

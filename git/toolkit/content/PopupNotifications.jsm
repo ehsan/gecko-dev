@@ -339,13 +339,6 @@ PopupNotifications.prototype = {
     notifications.splice(index, 1);
     this._fireCallback(notification, "removed");
   },
-  
-  /**
-   * Dismisses the notification without removing it.
-   */
-  _dismiss: function PopupNotifications_dismiss() {
-    this.panel.hidePopup();
-  },
 
   /**
    * Hides the notification popup.
@@ -377,10 +370,14 @@ PopupNotifications.prototype = {
         popupnotification.setAttribute("buttonlabel", n.mainAction.label);
         popupnotification.setAttribute("buttonaccesskey", n.mainAction.accessKey);
         popupnotification.setAttribute("buttoncommand", "PopupNotifications._onButtonCommand(event);");
-        popupnotification.setAttribute("menucommand", "PopupNotifications._onMenuCommand(event);");
-        popupnotification.setAttribute("closeitemcommand", "PopupNotifications._dismiss();event.stopPropagation();");
+        if (n.secondaryActions.length) {
+          popupnotification.setAttribute("buttontype", "menu-button");
+          popupnotification.setAttribute("menucommand", "PopupNotifications._onMenuCommand(event);");
+        }
       }
       popupnotification.notification = n;
+
+      this.panel.appendChild(popupnotification);
 
       if (n.secondaryActions) {
         n.secondaryActions.forEach(function (a) {
@@ -392,14 +389,7 @@ PopupNotifications.prototype = {
 
           popupnotification.appendChild(item);
         }, this);
-  
-        if (n.secondaryActions.length) {
-          let closeItemSeparator = doc.createElementNS(XUL_NS, "menuseparator");
-          popupnotification.appendChild(closeItemSeparator);
-        }
       }
-
-      this.panel.appendChild(popupnotification);
     }, this);
   },
 

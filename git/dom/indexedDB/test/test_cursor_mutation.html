@@ -42,8 +42,8 @@
 
       event.transaction.oncomplete = continueToNextStep;
 
-      let objectStore = db.createObjectStore("foo", { keyPath: "ss" });
-      objectStore.createIndex("name", "name", { unique: true });
+      let objectStore = db.createObjectStore("foo", "ss");
+      objectStore.createIndex("name", "name", true);
 
       for (let i = 0; i < objectStoreData.length - 1; i++) {
         objectStore.add(objectStoreData[i]);
@@ -82,7 +82,7 @@
       sawRemoved = false;
 
       db.transaction("foo", IDBTransaction.READ_WRITE).objectStore("foo")
-        .index("name").openCursor().onsuccess = function(event) {
+        .index("name").openObjectCursor().onsuccess = function(event) {
           event.transaction.oncomplete = continueToNextStep;
           let cursor = event.result;
           if (cursor) {

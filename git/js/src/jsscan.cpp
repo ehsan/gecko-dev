@@ -1192,7 +1192,6 @@ TokenStream::getTokenInternal()
                                                            JSMSG_DEPRECATED_OCTAL)) {
                                     goto error;
                                 }
-                                setOctalCharacterEscape();
                             }
                             if ('0' <= c && c < '8') {
                                 val = 8 * val + JS7_UNDEC(c);
@@ -1587,7 +1586,7 @@ TokenStream::getTokenInternal()
                             }
                         }
                         filenameBuf[i] = '\0';
-                        if (c == EOF || c == '\n') {
+                        if (c == '\n') {
                             if (i > 0) {
                                 if (flags & TSF_OWNFILENAME)
                                     cx->free((void *) filename);

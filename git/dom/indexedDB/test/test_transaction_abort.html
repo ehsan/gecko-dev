@@ -21,6 +21,8 @@
       const READ_WRITE = Ci.nsIIDBTransaction.READ_WRITE;
       const VERSION_CHANGE = Ci.nsIIDBTransaction.VERSION_CHANGE;
 
+      const NOT_FOUND_ERR = Ci.nsIIDBDatabaseException.NOT_FOUND_ERR;
+
       const name = window.location.pathname;
       const description = "My Test Database";
 
@@ -41,7 +43,7 @@
       event = yield;
 
       transaction = event.transaction;
-      objectStore = db.createObjectStore("foo", { autoIncrement: true });
+      objectStore = db.createObjectStore("foo", "", true);
 
       is(transaction.db, db, "Correct database");
       is(transaction.readyState, LOADING, "Correct readyState");
@@ -197,47 +199,38 @@
       is(event.type, "abort", "Right kind of event");
 
       request = db.transaction("foo").objectStore("foo").get(key);
-      request.onerror = errorHandler;
-      request.onsuccess = grabEventAndContinueHandler;
+      request.onerror = new ExpectError(NOT_FOUND_ERR);
+      request.onsuccess = unexpectedSuccessHandler;
       event = yield;
-
-      is(event.result, undefined, "Object was removed");
 
       SimpleTest.executeSoon(function() { testGenerator.next(); });
       yield;
 
       let keys = [];
-      let abortEventCount = 0;
       objectStore = db.transaction("foo", READ_WRITE).objectStore("foo");
 
       for (let i = 0; i < 10; i++) {
         request = objectStore.add({});
-        request.onerror = function(event) {
-          is(event.code, IDBDatabaseException.ABORT_ERR, "Good code");
-          abortEventCount++;
-          event.preventDefault();
-        };
+        request.onerror = errorHandler;
         request.onsuccess = function(event) {
           keys.push(event.result);
           if (keys.length == 5) {
-            event.transaction.onabort = grabEventAndContinueHandler;
             event.transaction.abort();
+          }
+          if (keys.length == 10) {
+            event.transaction.onabort = grabEventAndContinueHandler;
           }
         };
       }
       event = yield;
 
-      is(event.type, "abort", "Got abort event");
-      is(keys.length, 5, "Added 5 items in this transaction");
-      is(abortEventCount, 5, "Got 5 abort error events");
+      is(keys.length, 10, "Not enough keys!");
 
-      for (let i in keys) {
+      for (let i = 0; i < 10; i++) {
         request = db.transaction("foo").objectStore("foo").get(keys[i]);
-        request.onerror = errorHandler;
-        request.onsuccess = grabEventAndContinueHandler;
+        request.onerror = new ExpectError(NOT_FOUND_ERR);
+        request.onsuccess = unexpectedSuccessHandler;
         event = yield;
-
-        is(event.result, undefined, "Object was removed by abort");
       }
 
       finishTest();

@@ -49,7 +49,7 @@ interface nsIVariant;
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-IDBIndex for more
  * information.
  */
-[scriptable, uuid(9df1ac24-06cf-47d1-9159-3b3d65975b80)]
+[scriptable, uuid(b44450e2-4a44-41e8-b098-1a7b389634b5)]
 interface nsIIDBIndex : nsISupports
 {
   readonly attribute DOMString name;
@@ -66,7 +66,7 @@ interface nsIIDBIndex : nsISupports
   get(in nsIVariant key);
 
   nsIIDBRequest
-  getKey(in nsIVariant key);
+  getObject(in nsIVariant key);
 
   [optional_argc]
   nsIIDBRequest
@@ -75,8 +75,8 @@ interface nsIIDBIndex : nsISupports
 
   [optional_argc]
   nsIIDBRequest
-  getAllKeys([optional /* null */] in nsIVariant key,
-             [optional /* unlimited */] in unsigned long limit);
+  getAllObjects([optional /* null */] in nsIVariant key,
+                [optional /* unlimited */] in unsigned long limit);
 
   [optional_argc]
   nsIIDBRequest
@@ -85,6 +85,7 @@ interface nsIIDBIndex : nsISupports
 
   [optional_argc]
   nsIIDBRequest
-  openKeyCursor([optional /* null */] in nsIIDBKeyRange range,
-                [optional /* nsIIDBCursor::NEXT */] in unsigned short direction);
+  openObjectCursor([optional /* null */] in nsIIDBKeyRange range,
+                   [optional /* nsIIDBCursor::NEXT */]
+                   in unsigned short direction);
 };

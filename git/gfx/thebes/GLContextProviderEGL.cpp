@@ -970,9 +970,6 @@ public:
         if (gUseBackingSurface) {
             CreateBackingSurface(gfxIntSize(aSize.width, aSize.height));
         }
-
-        // We currently always use BGRA type textures
-        mShaderType = BGRALayerProgramType;
     }
 
     virtual ~TextureImageEGL()
@@ -1130,30 +1127,6 @@ public:
 
         mUpdateContext = nsnull;
         return PR_TRUE;         // mTexture is bound
-    }
-
-    virtual bool DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion)
-    {
-        nsIntRect bounds = aRegion.GetBounds();
-        nsIntPoint dest = bounds.TopLeft();
-
-        // Bounds is the destination rect, it will be at 0,0 on the source
-        bounds.x = 0;
-        bounds.y = 0;
-  
-        if (!mCreated) {
-            bounds = nsIntRect(0, 0, mSize.width, mSize.height);
-        }
-
-        mShaderType =
-          mGLContext->UploadSurfaceToTexture(aSurf,
-                                             bounds,
-                                             mTexture,
-                                             !mCreated,
-                                             dest,
-                                             PR_FALSE);
-        mCreated = PR_TRUE;
-        return true;
     }
 
     virtual PRBool InUpdate() const { return !!mUpdateContext; }

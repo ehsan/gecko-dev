@@ -53,7 +53,6 @@
 #include "WrapperFactory.h"
 #include "XrayWrapper.h"
 #include "nsNullPrincipal.h"
-#include "nsJSUtils.h"
 
 #ifdef MOZ_JSLOADER
 #include "mozJSComponentLoader.h"
@@ -2865,8 +2864,7 @@ nsXPCComponents_Utils::ReportError()
     nsCOMPtr<nsIConsoleService> console(
       do_GetService(NS_CONSOLESERVICE_CONTRACTID));
 
-    nsCOMPtr<nsIScriptError2> scripterr(
-      do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
+    nsCOMPtr<nsIScriptError> scripterr(new nsScriptError());
 
     nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID()));
     if(!scripterr || !console || !xpc)
@@ -2915,8 +2913,6 @@ nsXPCComponents_Utils::ReportError()
     if(NS_FAILED(rv) || !argv)
         return NS_OK;
 
-    const PRUint64 windowID = nsJSUtils::GetCurrentlyRunningCodeWindowID(cx);
-
     JSErrorReport* err = JS_ErrorFromException(cx, argv[0]);
     if(err)
     {
@@ -2926,20 +2922,19 @@ nsXPCComponents_Utils::ReportError()
 
         PRUint32 column = err->uctokenptr - err->uclinebuf;
 
-        rv = scripterr->InitWithWindowID(reinterpret_cast<const PRUnichar*>
-                                                       (err->ucmessage),
-                                         fileUni.get(),
-                                         reinterpret_cast<const PRUnichar*>
-                                                         (err->uclinebuf),
-                                         err->lineno,
-                                         column,
-                                         err->flags,
-                                         "XPConnect JavaScript", windowID);
+        rv = scripterr->Init(reinterpret_cast<const PRUnichar*>
+                                             (err->ucmessage),
+                             fileUni.get(),
+                             reinterpret_cast<const PRUnichar*>
+                                             (err->uclinebuf),
+                             err->lineno,
+                             column,
+                             err->flags,
+                             "XPConnect JavaScript");
         if(NS_FAILED(rv))
             return NS_OK;
 
-        nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scripterr);
-        console->LogMessage(logError);
+        console->LogMessage(scripterr);
         return NS_OK;
     }
 
@@ -2963,17 +2958,14 @@ nsXPCComponents_Utils::ReportError()
             frame->GetLineNumber(&lineNo);
         }
 
-        rv = scripterr->InitWithWindowID(reinterpret_cast<const PRUnichar*>
-                                                  (JS_GetStringChars(msgstr)),
-                                         NS_ConvertUTF8toUTF16(fileName).get(),
-                                         nsnull,
-                                         lineNo, 0,
-                                         0, "XPConnect JavaScript", windowID);
+        rv = scripterr->Init(reinterpret_cast<const PRUnichar*>
+                                             (JS_GetStringChars(msgstr)),
+                             NS_ConvertUTF8toUTF16(fileName).get(),
+                             nsnull,
+                             lineNo, 0,
+                             0, "XPConnect JavaScript");
         if(NS_SUCCEEDED(rv))
-        {
-            nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scripterr);
-            console->LogMessage(logError);
-        }
+            console->LogMessage(scripterr);
     }
 
     return NS_OK;

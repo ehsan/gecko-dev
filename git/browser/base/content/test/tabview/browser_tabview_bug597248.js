@@ -95,22 +95,8 @@ function setupTwo() {
       restoredWin.addEventListener("load", function(event) {
         restoredWin.removeEventListener("load", arguments.callee, false);
 
-        // execute code when the frame is initialized.
-        let onTabViewFrameInitialized = function() {
-          restoredWin.removeEventListener(
-            "tabviewframeinitialized", onTabViewFrameInitialized, false);
-
-          let restoredContentWindow = 
-            restoredWin.document.getElementById("tab-view").contentWindow;
-          // prevent TabItems._update being called before checking cached images
-          restoredContentWindow.TabItems._pauseUpdateForTest = true;
-        }
-        restoredWin.addEventListener(
-          "tabviewframeinitialized", onTabViewFrameInitialized, false);
-
+        // execute code when the frame isninitialized.
         restoredWin.addEventListener("tabviewshown", onTabViewShown, false);
-        
-        is(restoredWin.gBrowser.tabs.length, 2, "The total number of tabs is 2");
 
         // setup tab variables and listen to the load progress.
         newTabOne = restoredWin.gBrowser.tabs[0];
@@ -153,26 +139,23 @@ function setupTwo() {
 
 let gTabsProgressListener = {
   onStateChange: function(browser, webProgress, request, stateFlags, status) {
-    // ensure about:blank doesn't trigger the code
-    if ((stateFlags & Ci.nsIWebProgressListener.STATE_STOP) &&
-        (stateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) &&
-         browser.currentURI.spec != "about:blank") {
+    if (stateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
+         stateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK) {
       if (newTabOne.linkedBrowser == browser)
         restoredNewTabOneLoaded = true;
       else if (newTabTwo.linkedBrowser == browser)
         restoredNewTabTwoLoaded = true;
-
+ 
       // since we are not sure whether the frame is initialized first or two tabs
       // compete loading first so we need this.
       if (restoredNewTabOneLoaded && restoredNewTabTwoLoaded) {
-        restoredWin.gBrowser.removeTabsProgressListener(gTabsProgressListener);
-
         if (frameInitialized) {
           // since a tabs progress listener is used in the code to set 
           // tabItem.shouldHideCachedData, executeSoon is used to avoid a racing
           // condition.
           executeSoon(updateAndCheck); 
         }
+        restoredWin.gBrowser.removeTabsProgressListener(gTabsProgressListener);
       }
     }
   }
@@ -192,9 +175,8 @@ function onTabViewShown() {
       // because tabs progress listener might run at the same time as this test 
       // code.
       executeSoon(updateAndCheck);
-    } else {
+    } else
       frameInitialized = true;
-    }
   }
 
   let tabItems = contentWindow.TabItems.getItems();
@@ -206,7 +188,8 @@ function onTabViewShown() {
       ok(tabItem.isShowingCachedData(), 
          "Tab item is showing cached data and is already connected. " +
          tabItem.tab.linkedBrowser.currentURI.spec);
-      if (--count == 0)
+      count--;
+      if (count == 0)
         nextStep();
     } else {
       tabItem.addSubscriber(tabItem, "reconnected", function() {
@@ -214,7 +197,8 @@ function onTabViewShown() {
         ok(tabItem.isShowingCachedData(), 
            "Tab item is showing cached data and is just connected. "  +
            tabItem.tab.linkedBrowser.currentURI.spec);
-        if (--count == 0)
+        count--;
+        if (count == 0)
           nextStep();
       });
     }
@@ -225,8 +209,6 @@ function updateAndCheck() {
   // force all canvas to update
   let contentWindow = 
     restoredWin.document.getElementById("tab-view").contentWindow;
-
-  contentWindow.TabItems._pauseUpdateForTest = false;
 
   let tabItems = contentWindow.TabItems.getItems();
   tabItems.forEach(function(tabItem) {

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -51,7 +50,6 @@
 #include "nsWrapperCache.h"
 #include "WrapperFactory.h"
 #include "AccessCheck.h"
-#include "nsJSUtils.h"
 
 //#define STRICT_CHECK_OF_UNICODE
 #ifdef STRICT_CHECK_OF_UNICODE
@@ -1803,7 +1801,7 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
                                   nsIException** exceptn)
 {
     nsresult rv = NS_ERROR_FAILURE;
-    nsRefPtr<nsScriptError> data;
+    nsScriptError* data;
     if(report)
     {
         nsAutoString bestMessage;
@@ -1824,14 +1822,15 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
         if(!data)
             return NS_ERROR_OUT_OF_MEMORY;
 
-
-        data->InitWithWindowID(bestMessage.get(),
-                               NS_ConvertASCIItoUTF16(report->filename).get(),
-                               (const PRUnichar *)report->uclinebuf, report->lineno,
-                               report->uctokenptr - report->uclinebuf, report->flags,
-                               "XPConnect JavaScript",
-                               nsJSUtils::GetCurrentlyRunningCodeWindowID(ccx.GetJSContext()));
+        NS_ADDREF(data);
+        data->Init(bestMessage.get(),
+                   NS_ConvertASCIItoUTF16(report->filename).get(),
+                   (const PRUnichar *)report->uclinebuf, report->lineno,
+                   report->uctokenptr - report->uclinebuf, report->flags,
+                   "XPConnect JavaScript");
     }
+    else
+        data = nsnull;
 
     if(data)
     {
@@ -1840,8 +1839,10 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
 
         rv = ConstructException(NS_ERROR_XPC_JAVASCRIPT_ERROR_WITH_DETAILS,
                                 formattedMsg.get(), ifaceName, methodName,
-                                static_cast<nsIScriptError*>(data.get()),
+                                static_cast<nsIScriptError*>(data),
                                 exceptn, nsnull, nsnull);
+
+        NS_RELEASE(data);
     }
     else
     {

@@ -44,7 +44,6 @@
 #include "nsIObserver.h"
 #include "nsIPrefBranch.h"
 #include "mozIThirdPartyUtil.h"
-#include "nsWeakReference.h"
 
 namespace mozilla {
 namespace net {
@@ -52,7 +51,6 @@ namespace net {
 class CookieServiceChild : public PCookieServiceChild
                          , public nsICookieService
                          , public nsIObserver
-                         , public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS

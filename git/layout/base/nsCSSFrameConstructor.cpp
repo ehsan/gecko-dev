@@ -7666,7 +7666,8 @@ UpdateViewsForTree(nsIFrame* aFrame, nsIViewManager* aViewManager,
   do {
     nsIFrame* child = aFrame->GetFirstChild(childList);
     while (child) {
-      if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
+      if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
+          || (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
         // only do frames that don't have placeholders
         if (nsGkAtoms::placeholderFrame == child->GetType()) {
           // do the out-of-flow frame and its continuations
@@ -8144,9 +8145,9 @@ nsCSSFrameConstructor::DoContentStateChanged(Element* aElement,
     // If it's generated content, ignore LOADING/etc state changes on it.
     if (!primaryFrame->IsGeneratedContentFrame() &&
         aStateMask.HasAtLeastOneOfStates(NS_EVENT_STATE_BROKEN |
-                                         NS_EVENT_STATE_USERDISABLED |
-                                         NS_EVENT_STATE_SUPPRESSED |
-                                         NS_EVENT_STATE_LOADING)) {
+                                  NS_EVENT_STATE_USERDISABLED |
+                                  NS_EVENT_STATE_SUPPRESSED |
+                                  NS_EVENT_STATE_LOADING)) {
       hint = nsChangeHint_ReconstructFrame;
     } else {
       PRUint8 app = primaryFrame->GetStyleDisplay()->mAppearance;
@@ -8162,8 +8163,6 @@ nsCSSFrameConstructor::DoContentStateChanged(Element* aElement,
         }
       }
     }
-
-    primaryFrame->ContentStatesChanged(aStateMask);
   }
 
   nsRestyleHint rshint = 
@@ -9667,10 +9666,10 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     nsContentUtils::ReportToConsole(nsContentUtils::eXUL_PROPERTIES,
                                     message,
                                     params, NS_ARRAY_LENGTH(params),
-                                    nsnull,
+                                    mDocument->GetDocumentURI(),
                                     EmptyString(), 0, 0, // not useful
                                     nsIScriptError::warningFlag,
-                                    "FrameConstructor", mDocument);
+                                    "FrameConstructor");
 
     nsRefPtr<nsStyleContext> blockSC = mPresShell->StyleSet()->
       ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozXULAnonymousBlock,

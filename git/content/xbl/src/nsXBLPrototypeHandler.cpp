@@ -973,23 +973,16 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
 void
 nsXBLPrototypeHandler::ReportKeyConflict(const PRUnichar* aKey, const PRUnichar* aModifiers, nsIContent* aKeyElement, const char *aMessageName)
 {
-  nsCOMPtr<nsIDocument> doc;
-  if (mPrototypeBinding) {
-    nsXBLDocumentInfo* docInfo = mPrototypeBinding->XBLDocumentInfo();
-    if (docInfo) {
-      doc = docInfo->GetDocument();
-    }
-  } else if (aKeyElement) {
-    doc = aKeyElement->GetOwnerDoc();
-  }
-
+  nsIURI* uri = mPrototypeBinding ? mPrototypeBinding->DocURI() :
+                aKeyElement ? aKeyElement->GetOwnerDoc()->GetDocumentURI() :
+                nsnull;
   const PRUnichar* params[] = { aKey, aModifiers };
   nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                   aMessageName,
                                   params, NS_ARRAY_LENGTH(params),
-                                  nsnull, EmptyString(), mLineNumber, 0,
+                                  uri, EmptyString(), mLineNumber, 0,
                                   nsIScriptError::warningFlag,
-                                  "XBL Prototype Handler", doc);
+                                  "XBL Prototype Handler");
 }
 
 PRBool
