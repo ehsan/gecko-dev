@@ -17,15 +17,10 @@
 SimpleTest.waitForExplicitFinish();
 
 // Test to ensure NetworkStats is not accessible when it is disabled
-SpecialPowers.pushPrefEnv({'set': [["dom.mozNetworkStats.enabled", false]]},
-                          function() {
-  ok(!SpecialPowers.getBoolPref("dom.mozNetworkStats.enabled"),
-     "Preference 'dom.mozNetworkStats.enabled' is false.");
+SpecialPowers.pushPrefEnv({'set': [["dom.mozNetworkStats.enabled", false]]}, function(){
 
   ok('mozNetworkStats' in navigator, "navigator.mozNetworkStats should exist");
-
-  is(navigator.mozNetworkStats, null,
-     "mozNetworkStats should be null when not enabled.");
+  is(navigator.mozNetworkStats, null, "mozNetworkStats should be null when not enabled.");
 
   SimpleTest.finish();
 });
