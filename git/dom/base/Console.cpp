@@ -20,6 +20,7 @@
 #include "WorkerRunnable.h"
 #include "xpcprivate.h"
 #include "nsContentUtils.h"
+#include "nsDocShell.h"
 
 #include "nsIConsoleAPIStorage.h"
 #include "nsIDOMWindowUtils.h"
@@ -560,7 +561,6 @@ Console::Console(nsPIDOMWindow* aWindow)
     }
   }
 
-  SetIsDOMBinding();
   mozilla::HoldJSObjects(this);
 }
 
@@ -861,7 +861,7 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
     loadContext->GetUsePrivateBrowsing(&callData->mPrivate);
   }
 
-  uint32_t maxDepth = ShouldIncludeStackrace(aMethodName) ?
+  uint32_t maxDepth = ShouldIncludeStackTrace(aMethodName) ?
                       DEFAULT_MAX_STACKTRACE_DEPTH : 1;
   nsCOMPtr<nsIStackFrame> stack = CreateStack(aCx, maxDepth);
 
@@ -923,6 +923,29 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
       }
 
       callData->mMonotonicTimer = performance->Now();
+
+      // 'time' and 'timeEnd' are displayed in the devtools timeline if active.
+      // Marked as "ConsoleTime:ARG1".
+      bool isTimelineRecording = false;
+      nsDocShell* docShell = static_cast<nsDocShell*>(mWindow->GetDocShell());
+      if (docShell) {
+        docShell->GetRecordProfileTimelineMarkers(&isTimelineRecording);
+      }
+
+      if (isTimelineRecording && aData.Length() == 1) {
+        JS::Rooted<JS::Value> value(aCx, aData[0]);
+        JS::Rooted<JSString*> jsString(aCx, JS::ToString(aCx, value));
+        if (jsString) {
+          nsAutoJSString key;
+          if (key.init(aCx, jsString)) {
+            nsCString str("ConsoleTime:");
+            AppendUTF16toUTF8(key, str);
+            docShell->AddProfileTimelineMarker(str.get(),
+              aMethodName == MethodTime ? TRACING_INTERVAL_START : TRACING_INTERVAL_END);
+          }
+        }
+      }
+
     } else {
       WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
       MOZ_ASSERT(workerPrivate);
@@ -1134,7 +1157,7 @@ Console::ProcessCallData(ConsoleCallData* aData)
     return;
   }
 
-  if (ShouldIncludeStackrace(aData->mMethodName)) {
+  if (ShouldIncludeStackTrace(aData->mMethodName)) {
     // Now define the "stacktrace" property on eventObj.  There are two cases
     // here.  Either we came from a worker and have a reified stack, or we want
     // to define a getter that will lazily reify the stack.
@@ -1172,7 +1195,7 @@ Console::ProcessCallData(ConsoleCallData* aData)
                              JS::UndefinedHandleValue,
                              JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_GETTER |
                              JSPROP_SETTER,
-                             JS_DATA_TO_FUNC_PTR(JSPropertyOp, funObj.get()),
+                             JS_DATA_TO_FUNC_PTR(JSNative, funObj.get()),
                              nullptr)) {
         return;
       }
@@ -1643,7 +1666,7 @@ Console::ClearConsoleData()
 }
 
 bool
-Console::ShouldIncludeStackrace(MethodName aMethodName)
+Console::ShouldIncludeStackTrace(MethodName aMethodName)
 {
   switch (aMethodName) {
     case MethodError:

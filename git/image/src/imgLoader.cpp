@@ -635,7 +635,7 @@ static nsresult NewImageChannel(nsIChannel **aResult,
                                 nsILoadGroup *aLoadGroup,
                                 const nsCString& aAcceptHeader,
                                 nsLoadFlags aLoadFlags,
-                                nsIChannelPolicy *aPolicy,
+                                nsContentPolicyType aPolicyType,
                                 nsIPrincipal *aLoadingPrincipal,
                                 nsISupports *aRequestingContext)
 {
@@ -663,38 +663,55 @@ static nsresult NewImageChannel(nsIChannel **aResult,
   //
   aLoadFlags |= nsIChannel::LOAD_CLASSIFY_URI;
 
-  nsCOMPtr<nsIPrincipal> requestingPrincipal = aLoadingPrincipal;
+  nsCOMPtr<nsIPrincipal> triggeringPrincipal = aLoadingPrincipal;
   bool isSandBoxed = false;
   // only inherit if we have a principal
   bool inherit = false;
-  if (requestingPrincipal) {
-    inherit = nsContentUtils::ChannelShouldInheritPrincipal(requestingPrincipal,
+  if (triggeringPrincipal) {
+    inherit = nsContentUtils::ChannelShouldInheritPrincipal(triggeringPrincipal,
                                                             aURI,
                                                             false,  // aInheritForAboutBlank
                                                             false); // aForceInherit
   }
   else {
-    requestingPrincipal = nsContentUtils::GetSystemPrincipal();
+    triggeringPrincipal = nsContentUtils::GetSystemPrincipal();
   }
   nsCOMPtr<nsINode> requestingNode = do_QueryInterface(aRequestingContext);
   nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
   if (inherit) {
     securityFlags |= nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
   }
-  // Note we are calling NS_NewChannelInternal() here with a node and a principal.
-  // This is for things like background images that are specified by user
-  // stylesheets, where the document is being styled, but the principal is that
-  // of the user stylesheet.
-  rv = NS_NewChannelInternal(aResult,
-                             aURI,
-                             requestingNode,
-                             requestingPrincipal,
-                             securityFlags,
-                             nsIContentPolicy::TYPE_IMAGE,
-                             aPolicy,
-                             nullptr,   // loadGroup
-                             callbacks,
-                             aLoadFlags);
+
+  // Note we are calling NS_NewChannelWithTriggeringPrincipal() here with a node
+  // and a principal. This is for things like background images that are specified
+  // by user stylesheets, where the document is being styled, but the principal
+  // is that of the user stylesheet.
+  if (requestingNode) {
+    rv = NS_NewChannelWithTriggeringPrincipal(aResult,
+                                              aURI,
+                                              requestingNode,
+                                              triggeringPrincipal,
+                                              securityFlags,
+                                              nsIContentPolicy::TYPE_IMAGE,
+                                              nullptr,   // loadGroup
+                                              callbacks,
+                                              aLoadFlags);
+  }
+  else {
+    // either we are loading something inside a document, in which case
+    // we should always have a requestingNode, or we are loading something
+    // outside a document, in which case the triggeringPrincipal
+    // should always be the systemPrincipal.
+    MOZ_ASSERT(nsContentUtils::IsSystemPrincipal(triggeringPrincipal));
+    rv = NS_NewChannel(aResult,
+                       aURI,
+                       triggeringPrincipal,
+                       securityFlags,
+                       nsIContentPolicy::TYPE_IMAGE,
+                       nullptr,   // loadGroup
+                       callbacks,
+                       aLoadFlags);
+  }
 
   if (NS_FAILED(rv))
     return rv;
@@ -1444,8 +1461,8 @@ bool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
                                                 imgINotificationObserver *aObserver,
                                                 nsISupports *aCX,
                                                 nsLoadFlags aLoadFlags,
+                                                nsContentPolicyType aLoadPolicyType,
                                                 imgRequestProxy **aProxyRequest,
-                                                nsIChannelPolicy *aPolicy,
                                                 nsIPrincipal* aLoadingPrincipal,
                                                 int32_t aCORSMode)
 {
@@ -1493,7 +1510,7 @@ bool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
                          aLoadGroup,
                          mAcceptHeader,
                          aLoadFlags,
-                         aPolicy,
+                         aLoadPolicyType,
                          aLoadingPrincipal,
                          aCX);
     if (NS_FAILED(rv)) {
@@ -1571,9 +1588,9 @@ bool imgLoader::ValidateEntry(imgCacheEntry *aEntry,
                                 imgINotificationObserver *aObserver,
                                 nsISupports *aCX,
                                 nsLoadFlags aLoadFlags,
+                                nsContentPolicyType aLoadPolicyType,
                                 bool aCanMakeNewChannel,
                                 imgRequestProxy **aProxyRequest,
-                                nsIChannelPolicy *aPolicy,
                                 nsIPrincipal* aLoadingPrincipal,
                                 int32_t aCORSMode)
 {
@@ -1616,11 +1633,16 @@ bool imgLoader::ValidateEntry(imgCacheEntry *aEntry,
                                 aCORSMode, aLoadingPrincipal))
     return false;
 
-  // Never validate data URIs.
+  // data URIs are immutable and by their nature can't leak data, so we can
+  // just return true in that case.  Doing so would mean that shift-reload
+  // doesn't reload data URI documents/images though (which is handy for
+  // debugging during gecko development) so we make an exception in that case.
   nsAutoCString scheme;
   aURI->GetScheme(scheme);
-  if (scheme.EqualsLiteral("data"))
+  if (scheme.EqualsLiteral("data") &&
+      !(aLoadFlags & nsIRequest::LOAD_BYPASS_CACHE)) {
     return true;
+  }
 
   bool validateRequest = false;
 
@@ -1678,8 +1700,9 @@ bool imgLoader::ValidateEntry(imgCacheEntry *aEntry,
 
     return ValidateRequestWithNewChannel(request, aURI, aInitialDocumentURI,
                                          aReferrerURI, aLoadGroup, aObserver,
-                                         aCX, aLoadFlags, aProxyRequest, aPolicy,
-                                         aLoadingPrincipal, aCORSMode);
+                                         aCX, aLoadFlags, aLoadPolicyType,
+                                         aProxyRequest, aLoadingPrincipal,
+                                         aCORSMode);
   }
 
   return !validateRequest;
@@ -1853,9 +1876,13 @@ NS_IMETHODIMP imgLoader::LoadImageXPCOM(nsIURI *aURI,
                                    nsISupports *aCX,
                                    nsLoadFlags aLoadFlags,
                                    nsISupports *aCacheKey,
-                                   nsIChannelPolicy *aPolicy,
+                                   nsContentPolicyType aContentPolicyType,
                                    imgIRequest **_retval)
 {
+    // Optional parameter, so defaults to 0 (== TYPE_INVALID)
+    if (!aContentPolicyType) {
+      aContentPolicyType = nsIContentPolicy::TYPE_IMAGE;
+    }
     imgRequestProxy *proxy;
     nsresult result = LoadImage(aURI,
                                 aInitialDocumentURI,
@@ -1866,31 +1893,36 @@ NS_IMETHODIMP imgLoader::LoadImageXPCOM(nsIURI *aURI,
                                 aCX,
                                 aLoadFlags,
                                 aCacheKey,
-                                aPolicy,
+                                aContentPolicyType,
                                 EmptyString(),
                                 &proxy);
     *_retval = proxy;
     return result;
 }
 
-
-
-/* imgIRequest loadImage(in nsIURI aURI, in nsIURI aInitialDocumentURL, in nsIURI aReferrerURI, in nsIPrincipal aLoadingPrincipal, in nsILoadGroup aLoadGroup, in imgINotificationObserver aObserver, in nsISupports aCX, in nsLoadFlags aLoadFlags, in nsISupports cacheKey, in nsIChannelPolicy channelPolicy); */
-
+// imgIRequest loadImage(in nsIURI aURI,
+//                       in nsIURI aInitialDocumentURL,
+//                       in nsIURI aReferrerURI,
+//                       in nsIPrincipal aLoadingPrincipal,
+//                       in nsILoadGroup aLoadGroup,
+//                       in imgINotificationObserver aObserver,
+//                       in nsISupports aCX,
+//                       in nsLoadFlags aLoadFlags,
+//                       in nsISupports cacheKey);
 nsresult imgLoader::LoadImage(nsIURI *aURI,
-			      nsIURI *aInitialDocumentURI,
-			      nsIURI *aReferrerURI,
-			      nsIPrincipal* aLoadingPrincipal,
-			      nsILoadGroup *aLoadGroup,
-			      imgINotificationObserver *aObserver,
-			      nsISupports *aCX,
-			      nsLoadFlags aLoadFlags,
-			      nsISupports *aCacheKey,
-			      nsIChannelPolicy *aPolicy,
-			      const nsAString& initiatorType,
-			      imgRequestProxy **_retval)
+                              nsIURI *aInitialDocumentURI,
+                              nsIURI *aReferrerURI,
+                              nsIPrincipal* aLoadingPrincipal,
+                              nsILoadGroup *aLoadGroup,
+                              imgINotificationObserver *aObserver,
+                              nsISupports *aCX,
+                              nsLoadFlags aLoadFlags,
+                              nsISupports *aCacheKey,
+                              nsContentPolicyType aContentPolicyType,
+                              const nsAString& initiatorType,
+                              imgRequestProxy **_retval)
 {
-	VerifyCacheSizes();
+  VerifyCacheSizes();
 
   NS_ASSERTION(aURI, "imgLoader::LoadImage -- NULL URI pointer");
 
@@ -1965,8 +1997,9 @@ nsresult imgLoader::LoadImage(nsIURI *aURI,
 
   if (cache.Get(spec, getter_AddRefs(entry)) && entry) {
     if (ValidateEntry(entry, aURI, aInitialDocumentURI, aReferrerURI,
-                      aLoadGroup, aObserver, aCX, requestFlags, true,
-                      _retval, aPolicy, aLoadingPrincipal, corsmode)) {
+                      aLoadGroup, aObserver, aCX, requestFlags,
+                      aContentPolicyType, true, _retval,
+                      aLoadingPrincipal, corsmode)) {
       request = entry->GetRequest();
 
       // If this entry has no proxies, its request has no reference to the entry.
@@ -2008,7 +2041,7 @@ nsresult imgLoader::LoadImage(nsIURI *aURI,
                          aLoadGroup,
                          mAcceptHeader,
                          requestFlags,
-                         aPolicy,
+                         aContentPolicyType,
                          aLoadingPrincipal,
                          aCX);
     if (NS_FAILED(rv))
@@ -2191,9 +2224,13 @@ nsresult imgLoader::LoadImageWithChannel(nsIChannel *channel, imgINotificationOb
       //
       // XXX -- should this be changed? it's pretty much verbatim from the old
       // code, but seems nonsensical.
-      if (ValidateEntry(entry, uri, nullptr, nullptr, nullptr, aObserver, aCX,
-                        requestFlags, false, nullptr, nullptr, nullptr,
-                        imgIRequest::CORS_NONE)) {
+      //
+      // Since aCanMakeNewChannel == false, we don't need to pass content policy
+      // type/principal/etc
+      if (ValidateEntry(entry, uri, nullptr, nullptr, nullptr,
+                        aObserver, aCX, requestFlags,
+                        nsIContentPolicy::TYPE_INVALID, false, nullptr,
+                        nullptr, imgIRequest::CORS_NONE)) {
         request = entry->GetRequest();
       } else {
         nsCOMPtr<nsICachingChannel> cacheChan(do_QueryInterface(channel));

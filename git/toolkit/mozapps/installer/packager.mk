@@ -162,7 +162,7 @@ endif
 ifeq ($(MOZ_PKG_FORMAT),ZIP)
 ifdef MOZ_EXTERNAL_SIGNING_FORMAT
 # We can't use signcode on zip files
-MOZ_EXTERNAL_SIGNING_FORMAT := $(filter-out signcode,$(MOZ_EXTERNAL_SIGNING_FORMAT))
+MOZ_EXTERNAL_SIGNING_FORMAT := $(filter-out osslsigncode signcode,$(MOZ_EXTERNAL_SIGNING_FORMAT))
 endif
 PKG_SUFFIX	= .zip
 INNER_MAKE_PACKAGE	= $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR) \
@@ -380,14 +380,15 @@ DIST_FILES += libomxplugin.so libomxplugingb.so libomxplugingb235.so \
 endif
 
 SO_LIBRARIES := $(filter %.so,$(DIST_FILES))
-# These libraries are placed in the assets/ directory by packager.py.
-ASSET_SO_LIBRARIES := $(addprefix assets/,$(filter-out libmozglue.so $(MOZ_CHILD_PROCESS_NAME),$(SO_LIBRARIES)))
+# These libraries are placed in the assets/$(ANDROID_CPU_ARCH) directory by packager.py.
+ASSET_SO_LIBRARIES := $(addprefix assets/$(ANDROID_CPU_ARCH)/,$(filter-out libmozglue.so $(MOZ_CHILD_PROCESS_NAME),$(SO_LIBRARIES)))
 
 DIST_FILES := $(filter-out $(SO_LIBRARIES),$(DIST_FILES))
 NON_DIST_FILES += libmozglue.so $(MOZ_CHILD_PROCESS_NAME) $(ASSET_SO_LIBRARIES)
 
 ifdef MOZ_ENABLE_SZIP
-# These libraries are szipped in-place in the assets/ directory.
+# These libraries are szipped in-place in the
+# assets/$(ANDROID_CPU_ARCH) directory.
 SZIP_LIBRARIES := $(ASSET_SO_LIBRARIES)
 endif
 
@@ -596,8 +597,11 @@ NO_PKG_FILES += \
 # If a manifest has not been supplied, the following
 # files should be excluded from the package too
 ifndef MOZ_PKG_MANIFEST
-NO_PKG_FILES += \
-	ssltunnel*
+NO_PKG_FILES += ssltunnel*
+endif
+
+ifdef MOZ_DMD
+NO_PKG_FILES += SmokeDMD
 endif
 
 # browser/locales/Makefile uses this makefile for its variable defs, but

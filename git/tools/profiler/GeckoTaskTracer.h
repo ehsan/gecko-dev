@@ -8,6 +8,7 @@
 #define GECKO_TASK_TRACER_H
 
 #include "nsCOMPtr.h"
+#include "mozilla/TimeStamp.h"
 
 /**
  * TaskTracer provides a way to trace the correlation between different tasks
@@ -25,9 +26,20 @@
 
 class Task;
 class nsIRunnable;
+class nsCString;
+template <class> class nsTArray;
 
 namespace mozilla {
+
+class TimeStamp;
+
 namespace tasktracer {
+
+enum {
+  FORKED_AFTER_NUWA = 1 << 0
+};
+void InitTaskTracer(uint32_t aFlags = 0);
+void ShutdownTaskTracer();
 
 class FakeTracedTask;
 
@@ -52,6 +64,10 @@ public:
 // followed by corresponding parameters.
 void AddLabel(const char* aFormat, ...);
 
+void StartLogging(mozilla::TimeStamp aStartTime);
+void StopLogging();
+nsTArray<nsCString>* GetLoggedData(TimeStamp aStartTime);
+
 /**
  * Internal functions.
  */
@@ -60,7 +76,7 @@ Task* CreateTracedTask(Task* aTask);
 
 already_AddRefed<nsIRunnable> CreateTracedRunnable(nsIRunnable* aRunnable);
 
-FakeTracedTask* CreateFakeTracedTask(int* aVptr);
+already_AddRefed<FakeTracedTask> CreateFakeTracedTask(int* aVptr);
 
 // Free the TraceInfo allocated on a thread's TLS. Currently we are wrapping
 // tasks running on nsThreads and base::thread, so FreeTraceInfo is called at

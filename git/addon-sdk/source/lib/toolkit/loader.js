@@ -45,12 +45,13 @@ const { join: pathJoin, normalize, dirname } = Cu.import("resource://gre/modules
 
 // Define some shortcuts.
 const bind = Function.call.bind(Function.bind);
-const getOwnPropertyNames = Object.getOwnPropertyNames;
 const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const define = Object.defineProperties;
 const prototypeOf = Object.getPrototypeOf;
 const create = Object.create;
 const keys = Object.keys;
+const getOwnIdentifiers = x => [...Object.getOwnPropertyNames(x),
+                                ...Object.getOwnPropertySymbols(x)];
 
 const NODE_MODULES = ["assert", "buffer_ieee754", "buffer", "child_process", "cluster", "console", "constants", "crypto", "_debugger", "dgram", "dns", "domain", "events", "freelist", "fs", "http", "https", "_linklist", "module", "net", "os", "path", "punycode", "querystring", "readline", "repl", "stream", "string_decoder", "sys", "timers", "tls", "tty", "url", "util", "vm", "zlib"];
 
@@ -84,7 +85,7 @@ function freeze(object) {
 // Returns map of given `object`-s own property descriptors.
 const descriptor = iced(function descriptor(object) {
   let value = {};
-  getOwnPropertyNames(object).forEach(function(name) {
+  getOwnIdentifiers(object).forEach(function(name) {
     value[name] = getOwnPropertyDescriptor(object, name)
   });
   return value;
@@ -121,7 +122,7 @@ function iced(f) {
 const override = iced(function override(target, source) {
   let properties = descriptor(target)
   let extension = descriptor(source || {})
-  getOwnPropertyNames(extension).forEach(function(name) {
+  getOwnIdentifiers(extension).forEach(function(name) {
     properties[name] = extension[name];
   });
   return define({}, properties);
@@ -294,7 +295,7 @@ const load = iced(function load(loader, module) {
     // the scope object for this particular module
     sandbox = new loader.sharedGlobalSandbox.Object();
     // Inject all expected globals in the scope object
-    getOwnPropertyNames(globals).forEach(function(name) {
+    getOwnIdentifiers(globals).forEach(function(name) {
       descriptors[name] = getOwnPropertyDescriptor(globals, name)
     });
     define(sandbox, descriptors);
@@ -326,7 +327,7 @@ const load = iced(function load(loader, module) {
     // not puts `:` after `"Error"` unlike regular errors thrown by JS code.
     // If there is a JS stack then this error has already been handled by an
     // inner module load.
-    if (String(error) === "Error opening input stream (invalid filename?)") {
+    if (/^Error opening input stream/.test(String(error))) {
       let caller = frames.slice(0).pop();
       fileName = caller.fileName;
       lineNumber = caller.lineNumber;
@@ -397,49 +398,6 @@ const resolve = iced(function resolve(id, base) {
 });
 exports.resolve = resolve;
 
-function fileExists(uri) {
-  let url = NetUtil.newURI(uri);
-
-  switch (url.scheme) {
-    case "jar":
-      let jarfile = url.QueryInterface(Ci.nsIJARURI).JARFile;
-
-      // Don't support nested JARs for now
-      if (!(jarfile instanceof Ci.nsIFileURL))
-        return false;
-
-      let zipcache = Cc["@mozilla.org/libjar/zip-reader-cache;1"].
-                     getService(Ci.nsIZipReaderCache);
-      let zipreader = zipcache.getZip(jarfile.file);
-      return zipreader.hasEntry(jarfile.JAREntry);
-
-    case "file":
-      return url.QueryInterface(Ci.nsIFileURL).file.exists();
-
-    case "chrome":
-      let registry = Cc["@mozilla.org/chrome/chrome-registry;1"].
-                     getService(Ci.nsIChromeRegistry)
-      return fileExists(ChromeRegistry.convertChromeURL(url).spec);
-
-    case "resource":
-      let handler = Cc["@mozilla.org/network/protocol;1?name=resource"].
-                    getService(Ci.nsIResProtocolHandler);
-      let resolved;
-      try {
-        resolved = handler.resolveURI(url);
-      }
-      catch (e) {
-        // Resource protocol handler throws for unknown mappings
-        return false;
-      }
-      return fileExists(resolved);
-
-    default:
-      // Don't handle other URI schemes for now
-      return false;
-  }
-}
-
 // Node-style module lookup
 // Takes an id and path and attempts to load a file using node's resolving
 // algorithm.
@@ -454,7 +412,7 @@ const nodeResolve = iced(function nodeResolve(id, requirer, { rootURI }) {
   let fullId = join(rootURI, id);
   let resolvedPath;
 
-  if ((resolvedPath = findFile(fullId)))
+  if ((resolvedPath = loadAsFile(fullId)))
     return stripBase(rootURI, resolvedPath);
 
   if ((resolvedPath = loadAsDirectory(fullId)))
@@ -464,7 +422,7 @@ const nodeResolve = iced(function nodeResolve(id, requirer, { rootURI }) {
   // in the `dependencies` list
   let dirs = getNodeModulePaths(dirname(join(rootURI, requirer))).map(dir => join(dir, id));
   for (let i = 0; i < dirs.length; i++) {
-    if ((resolvedPath = findFile(dirs[i])))
+    if ((resolvedPath = loadAsFile(dirs[i])))
       return stripBase(rootURI, resolvedPath);
 
     if ((resolvedPath = loadAsDirectory(dirs[i])))
@@ -478,20 +436,23 @@ const nodeResolve = iced(function nodeResolve(id, requirer, { rootURI }) {
 });
 exports.nodeResolve = nodeResolve;
 
-// Attempts to find `path` and then `path.js`
+// Attempts to load `path` and then `path.js`
 // Returns `path` with valid file, or `undefined` otherwise
-function findFile (path) {
+function loadAsFile (path) {
+  let found;
+
   // As per node's loader spec,
   // we first should try and load 'path' (with no extension)
   // before trying 'path.js'. We will not support this feature
   // due to performance, but may add it if necessary for adoption.
+  try {
+    // Append '.js' to path name unless it's another support filetype
+    path = normalizeExt(path);
+    readURI(path);
+    found = path;
+  } catch (e) {}
 
-  // Append '.js' to path name unless it's another support filetype
-  path = normalizeExt(path);
-  if (fileExists(path))
-    return path;
-
-  return null;
+  return found;
 }
 
 // Attempts to load `path/package.json`'s `main` entry,
@@ -500,21 +461,25 @@ function loadAsDirectory (path) {
   try {
     // If `path/package.json` exists, parse the `main` entry
     // and attempt to load that
-    if (fileExists(path + '/package.json')) {
-      let main = getManifestMain(JSON.parse(readURI(path + '/package.json')));
-      if (main != null) {
-        let tmpPath = join(path, main);
-        let found = findFile(tmpPath);
-        if (found)
-          return found
-      }
+    let main = getManifestMain(JSON.parse(readURI(path + '/package.json')));
+    if (main != null) {
+      let tmpPath = join(path, main);
+      let found = loadAsFile(tmpPath);
+      if (found)
+        return found
     }
-  } catch (e) { }
-
-  let tmpPath = path + '/index.js';
-  if (fileExists(tmpPath))
-    return tmpPath;
-
+    try {
+      let tmpPath = path + '/index.js';
+      readURI(tmpPath);
+      return tmpPath;
+    } catch (e) {}
+  } catch (e) {
+    try {
+      let tmpPath = path + '/index.js';
+      readURI(tmpPath);
+      return tmpPath;
+    } catch (e) {}
+  }
   return void 0;
 }
 
@@ -557,7 +522,7 @@ const resolveURI = iced(function resolveURI(id, mapping) {
   let count = mapping.length, index = 0;
 
   // Do not resolve if already a resource URI
-  if (isResourceURI(id)) return normalizeExt(id);
+  if (isAbsoluteURI(id)) return normalizeExt(id);
 
   while (index < count) {
     let [ path, uri ] = mapping[index ++];
@@ -880,7 +845,9 @@ exports.Loader = Loader;
 let isJSONURI = uri => uri.substr(-5) === '.json';
 let isJSMURI = uri => uri.substr(-4) === '.jsm';
 let isJSURI = uri => uri.substr(-3) === '.js';
-let isResourceURI = uri => uri.substr(0, 11) === 'resource://';
+let isAbsoluteURI = uri => uri.indexOf("resource://") >= 0 ||
+                           uri.indexOf("chrome://") >= 0 ||
+                           uri.indexOf("file://") >= 0
 let isRelative = id => id[0] === '.'
 
 const generateMap = iced(function generateMap(options, callback) {
@@ -964,7 +931,7 @@ function findAllModuleIncludes (uri, options, results, callback) {
 // Given a resource URI or source, return an array of strings passed into
 // the require statements from the source
 function findModuleIncludes (uri, callback) {
-  let src = isResourceURI(uri) ? readURI(uri) : uri;
+  let src = isAbsoluteURI(uri) ? readURI(uri) : uri;
   let modules = [];
 
   walk(src, function (node) {
@@ -1015,4 +982,3 @@ function isRequire (node) {
 }
 
 });
-

@@ -12,6 +12,7 @@
 
 #include "nsImageBoxFrame.h"
 #include "nsGkAtoms.h"
+#include "nsRenderingContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsCOMPtr.h"
@@ -338,7 +339,8 @@ nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
 
   if (imgCon) {
     bool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
-    nsLayoutUtils::DrawSingleImage(&aRenderingContext, PresContext(), imgCon,
+    nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
+        PresContext(), imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         rect, dirty, nullptr, aFlags, hasSubRect ? &mSubRect : nullptr);
   }
@@ -690,7 +692,8 @@ nsresult nsImageBoxFrame::OnStopRequest(imgIRequest *request,
   // an error yet and we've already started decoding, we must only fire these
   // events after we finish decoding.
   if (NS_SUCCEEDED(aStatus) && !(reqStatus & imgIRequest::STATUS_ERROR) &&
-      reqStatus & imgIRequest::STATUS_DECODE_STARTED) {
+      (reqStatus & imgIRequest::STATUS_DECODE_STARTED) &&
+      !(reqStatus & imgIRequest::STATUS_DECODE_COMPLETE)) {
     mFireEventOnDecode = true;
   } else {
     if (NS_SUCCEEDED(aStatus)) {

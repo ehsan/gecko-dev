@@ -88,7 +88,8 @@ nsMathMLmfracFrame::CalcLineThickness(nsPresContext*  aPresContext,
                                       nsStyleContext*  aStyleContext,
                                       nsString&        aThicknessAttribute,
                                       nscoord          onePixel,
-                                      nscoord          aDefaultRuleThickness)
+                                      nscoord          aDefaultRuleThickness,
+                                      float            aFontSizeInflation)
 {
   nscoord defaultThickness = aDefaultRuleThickness;
   nscoord lineThickness = aDefaultRuleThickness;
@@ -126,7 +127,7 @@ nsMathMLmfracFrame::CalcLineThickness(nsPresContext*  aPresContext,
       lineThickness = defaultThickness;
       ParseNumericValue(aThicknessAttribute, &lineThickness,
                         nsMathMLElement::PARSE_ALLOW_UNITLESS,
-                        aPresContext, aStyleContext);
+                        aPresContext, aStyleContext, aFontSizeInflation);
     }
   }
 
@@ -214,9 +215,10 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   nsPresContext* presContext = PresContext();
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
 
+  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
   nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  aRenderingContext.SetFont(fm);
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
+                                        fontSizeInflation);
 
   nscoord defaultRuleThickness, axisHeight;
   nscoord oneDevPixel = fm->AppUnitsPerDevPixel();
@@ -241,7 +243,8 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   nsAutoString value;
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::linethickness_, value);
   mLineThickness = CalcLineThickness(presContext, mStyleContext, value,
-                                     onePixel, defaultRuleThickness);
+                                     onePixel, defaultRuleThickness,
+                                     fontSizeInflation);
 
   // bevelled attribute
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::bevelled_, value);
@@ -604,7 +607,7 @@ void nsDisplayMathMLSlash::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect rect = presContext->AppUnitsToGfxUnits(mRect + ToReferenceFrame());
   
   // paint with the current text color
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  aCtx->ThebesContext()->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
  
   // draw the slash as a parallelogram 
   gfxContext *gfxCtx = aCtx->ThebesContext();

@@ -283,9 +283,7 @@ gfxAndroidPlatform::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlag
                  "strange font format hint set");
 
     // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE |
-                        gfxUserFontSet::FLAG_FORMAT_WOFF |
-                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
+    if (aFormatFlags & gfxUserFontSet::FLAG_FORMATS_COMMON) {
         return true;
     }
 
@@ -409,12 +407,16 @@ gfxAndroidPlatform::GetScreenDepth() const
 bool
 gfxAndroidPlatform::UseAcceleratedSkiaCanvas()
 {
+    return HaveChoiceOfHWAndSWCanvas() && gfxPlatform::UseAcceleratedSkiaCanvas();
+}
+
+bool gfxAndroidPlatform::HaveChoiceOfHWAndSWCanvas()
+{
 #ifdef MOZ_WIDGET_ANDROID
     if (AndroidBridge::Bridge()->GetAPIVersion() < 11) {
         // It's slower than software due to not having a compositing fast path
         return false;
     }
 #endif
-
-    return gfxPlatform::UseAcceleratedSkiaCanvas();
+    return gfxPlatform::HaveChoiceOfHWAndSWCanvas();
 }

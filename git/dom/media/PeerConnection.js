@@ -150,6 +150,15 @@ GlobalPCList.prototype = {
       } else if (data == "online") {
         this._networkdown = false;
       }
+    } else if (topic == "network:app-offline-status-changed") {
+      // App just went offline. The subject also contains the appId,
+      // but navigator.onLine checks that for us
+      if (!this._networkdown && !this._win.navigator.onLine) {
+        for (let winId in this._list) {
+          cleanupWinId(this._list, winId);
+        }
+      }
+      this._networkdown = !this._win.navigator.onLine;
     } else if (topic == "gmp-plugin-crash") {
       // a plugin crashed; if it's associated with any of our PCs, fire an
       // event to the DOM window
@@ -332,7 +341,7 @@ RTCPeerConnection.prototype = {
     }
     this._mustValidateRTCConfiguration(rtcConfig,
         "RTCPeerConnection constructor passed invalid RTCConfiguration");
-    if (_globalPCList._networkdown) {
+    if (_globalPCList._networkdown || !this._win.navigator.onLine) {
       throw new this._win.DOMError("",
           "Can't create RTCPeerConnections when the network is down");
     }
@@ -826,13 +835,18 @@ RTCPeerConnection.prototype = {
       throw new this._win.DOMError("",
           "Invalid candidate passed to addIceCandidate!");
     }
+
+    this._queueOrRun({
+      func: this._addIceCandidate,
+      args: [cand, onSuccess, onError],
+      wait: false
+    });
+  },
+
+  _addIceCandidate: function(cand, onSuccess, onError) {
     this._onAddIceCandidateSuccess = onSuccess || null;
     this._onAddIceCandidateError = onError || null;
 
-    this._queueOrRun({ func: this._addIceCandidate, args: [cand], wait: false });
-  },
-
-  _addIceCandidate: function(cand) {
     this._impl.addIceCandidate(cand.candidate, cand.sdpMid || "",
                                (cand.sdpMLineIndex === null) ? 0 :
                                  cand.sdpMLineIndex + 1);

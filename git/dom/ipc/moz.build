@@ -11,6 +11,7 @@ EXPORTS += [
 EXPORTS.mozilla.dom.ipc += [
     'BlobChild.h',
     'BlobParent.h',
+    'IdType.h',
     'nsIRemoteBlob.h',
 ]
 
@@ -20,6 +21,8 @@ EXPORTS.mozilla.dom += [
     'ContentChild.h',
     'ContentParent.h',
     'ContentProcess.h',
+    'ContentProcessManager.h',
+    'CPOWManagerGetter.h',
     'CrashReporterChild.h',
     'CrashReporterParent.h',
     'FilePickerParent.h',
@@ -46,6 +49,7 @@ UNIFIED_SOURCES += [
     'ContentBridgeParent.cpp',
     'ContentParent.cpp',
     'ContentProcess.cpp',
+    'ContentProcessManager.cpp',
     'CrashReporterParent.cpp',
     'FilePickerParent.cpp',
     'nsIContentChild.cpp',
@@ -62,9 +66,9 @@ UNIFIED_SOURCES += [
 ]
 
 # Blob.cpp cannot be compiled in unified mode because it triggers a fatal gcc warning.
-# ContentChild.cpp cannot be compiled in unified mode because it forces NSPR logging.
 # CrashReporterChild.cpp cannot be compiled in unified mode because of name clashes
 # in OS X headers.
+# ContentChild.cpp cannot be compiled in unified mode on  linux due to Time conflict
 SOURCES += [
     'Blob.cpp',
     'ContentChild.cpp',
@@ -76,6 +80,7 @@ IPDL_SOURCES += [
     'PBlob.ipdl',
     'PBlobStream.ipdl',
     'PBrowser.ipdl',
+    'PBrowserOrId.ipdlh',
     'PColorPicker.ipdl',
     'PContent.ipdl',
     'PContentBridge.ipdl',
@@ -86,6 +91,7 @@ IPDL_SOURCES += [
     'PDocumentRenderer.ipdl',
     'PFilePicker.ipdl',
     'PMemoryReportRequest.ipdl',
+    'PPluginWidget.ipdl',
     'PScreenManager.ipdl',
     'PTabContext.ipdlh',
 ]
@@ -97,8 +103,6 @@ include('/ipc/chromium/chromium-config.mozbuild')
 FINAL_LIBRARY = 'xul'
 LOCAL_INCLUDES += [
     '/chrome',
-    '/content/base/src',
-    '/content/media/webspeech/synth/ipc',
     '/docshell/base',
     '/dom/base',
     '/dom/bluetooth',
@@ -107,16 +111,20 @@ LOCAL_INCLUDES += [
     '/dom/filesystem',
     '/dom/fmradio/ipc',
     '/dom/geolocation',
+    '/dom/media/webspeech/synth/ipc',
     '/dom/mobilemessage/ipc',
     '/dom/storage',
+    '/editor/libeditor',
+    '/embedding/components/printingui/ipc',
     '/extensions/cookie',
+    '/extensions/spellcheck/src',
     '/hal/sandbox',
     '/js/ipc',
     '/layout/base',
     '/netwerk/base/src',
     '/toolkit/xre',
     '/uriloader/exthandler',
-    '/widget/xpwidgets',
+    '/widget',
     '/xpcom/base',
     '/xpcom/threads',
 ]
@@ -125,6 +133,9 @@ DEFINES['BIN_SUFFIX'] = '"%s"' % CONFIG['BIN_SUFFIX']
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('android', 'gtk2', 'gonk', 'qt'):
     DEFINES['MOZ_ENABLE_FREETYPE'] = True
+
+if CONFIG['MOZ_TOOLKIT_SEARCH']:
+    DEFINES['MOZ_TOOLKIT_SEARCH'] = True
 
 for var in ('MOZ_PERMISSIONS', 'MOZ_CHILD_PERMISSIONS'):
     if CONFIG[var]:

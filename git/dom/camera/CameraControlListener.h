@@ -34,8 +34,9 @@ public:
 
   enum HardwareState
   {
+    kHardwareClosed,
     kHardwareOpen,
-    kHardwareClosed
+    kHardwareOpenFailed
   };
   virtual void OnHardwareStateChange(HardwareState aState) { }
 

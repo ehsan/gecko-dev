@@ -140,6 +140,12 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
         cond = masm.testUndefined(cond, value);
         emitBranch(cond, ifTrue, ifFalse);
     }
+    void testObjectEmitBranch(Assembler::Condition cond, const ValueOperand &value,
+                                 MBasicBlock *ifTrue, MBasicBlock *ifFalse)
+    {
+        cond = masm.testObject(cond, value);
+        emitBranch(cond, ifTrue, ifFalse);
+    }
 
     bool emitTableSwitchDispatch(MTableSwitch *mir, Register index, Register base);
 
@@ -197,6 +203,7 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     virtual bool visitEffectiveAddress(LEffectiveAddress *ins);
     virtual bool visitUDivOrMod(LUDivOrMod *ins);
     virtual bool visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
+    virtual bool visitMemoryBarrier(LMemoryBarrier *ins);
 
     bool visitOutOfLineLoadTypedArrayOutOfBounds(OutOfLineLoadTypedArrayOutOfBounds *ool);
 
@@ -219,6 +226,11 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     bool visitSimdInsertElementI(LSimdInsertElementI *lir);
     bool visitSimdInsertElementF(LSimdInsertElementF *lir);
     bool visitSimdSignMaskX4(LSimdSignMaskX4 *ins);
+    bool visitSimdSwizzleI(LSimdSwizzleI *lir);
+    bool visitSimdSwizzleF(LSimdSwizzleF *lir);
+    bool visitSimdShuffle(LSimdShuffle *lir);
+    bool visitSimdUnaryArithIx4(LSimdUnaryArithIx4 *lir);
+    bool visitSimdUnaryArithFx4(LSimdUnaryArithFx4 *lir);
     bool visitSimdBinaryCompIx4(LSimdBinaryCompIx4 *lir);
     bool visitSimdBinaryCompFx4(LSimdBinaryCompFx4 *lir);
     bool visitSimdBinaryArithIx4(LSimdBinaryArithIx4 *lir);

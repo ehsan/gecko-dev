@@ -15,17 +15,17 @@
   <remote fetch="https://git.mozilla.org/external/apitrace" name="apitrace"/>
   <default remote="caf" revision="refs/tags/android-4.0.4_r2.1" sync-j="4"/>
   <!-- Gonk specific things and forks -->
-  <project name="platform_build" path="build" remote="b2g" revision="84923f1940625c47ff4c1fdf01b10fde3b7d909e">
+  <project name="platform_build" path="build" remote="b2g" revision="df362ace56338da8173d30d3e09e08c42c1accfa">
     <copyfile dest="Makefile" src="core/root.mk"/>
   </project>
   <project name="fake-dalvik" path="dalvik" remote="b2g" revision="ca1f327d5acc198bb4be62fa51db2c039032c9ce"/>
-  <project name="gaia.git" path="gaia" remote="mozillaorg" revision="a23d2c490b39c4699c9375e25c4acdf396a2fa85"/>
-  <project name="gonk-misc" path="gonk-misc" remote="b2g" revision="5883a99b6528ced9dafaed8d3ca2405fb285537e"/>
+  <project name="gaia.git" path="gaia" remote="mozillaorg" revision="ddf5b92f43ec27c93ad4fea4fd1207da8936b8e7"/>
+  <project name="gonk-misc" path="gonk-misc" remote="b2g" revision="45c54a55e31758f7e54e5eafe0d01d387f35897a"/>
   <project name="rilproxy" path="rilproxy" remote="b2g" revision="827214fcf38d6569aeb5c6d6f31cb296d1f09272"/>
   <project name="platform_hardware_ril" path="hardware/ril" remote="b2g" revision="cd88d860656c31c7da7bb310d6a160d0011b0961"/>
-  <project name="platform_external_qemu" path="external/qemu" remote="b2g" revision="c058843242068d0df7c107e09da31b53d2e08fa6"/>
-  <project name="moztt" path="external/moztt" remote="b2g" revision="562d357b72279a9e35d4af5aeecc8e1ffa2f44f1"/>
-  <project name="apitrace" path="external/apitrace" remote="apitrace" revision="4f9042d3a705307849a6f63961eaaaa2e1d85d77"/>
+  <project name="platform_external_qemu" path="external/qemu" remote="b2g" revision="67f2907bc340bad250b4ea6ce2902b52896c9ef0"/>
+  <project name="moztt" path="external/moztt" remote="b2g" revision="fe893bb760a3bb64375f62fdf4762a58c59df9ef"/>
+  <project name="apitrace" path="external/apitrace" remote="apitrace" revision="11ad0ea69796915552c9bae148d81fddf9856ddb"/>
   <!-- Stock Android things -->
   <project name="platform/abi/cpp" path="abi/cpp" revision="dd924f92906085b831bf1cbbc7484d3c043d613c"/>
   <project name="platform/bionic" path="bionic" revision="c72b8f6359de7ed17c11ddc9dfdde3f615d188a9"/>

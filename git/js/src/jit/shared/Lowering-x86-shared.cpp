@@ -17,6 +17,7 @@ using namespace js::jit;
 
 using mozilla::Abs;
 using mozilla::FloorLog2;
+using mozilla::Swap;
 
 LTableSwitch *
 LIRGeneratorX86Shared::newLTableSwitch(const LAllocation &in, const LDefinition &inputCopy,
@@ -34,7 +35,7 @@ LIRGeneratorX86Shared::newLTableSwitchV(MTableSwitch *tableswitch)
 bool
 LIRGeneratorX86Shared::visitGuardShape(MGuardShape *ins)
 {
-    JS_ASSERT(ins->obj()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->obj()->type() == MIRType_Object);
 
     LGuardShape *guard = new(alloc()) LGuardShape(useRegisterAtStart(ins->obj()));
     if (!assignSnapshot(guard, ins->bailoutKind()))
@@ -47,7 +48,7 @@ LIRGeneratorX86Shared::visitGuardShape(MGuardShape *ins)
 bool
 LIRGeneratorX86Shared::visitGuardObjectType(MGuardObjectType *ins)
 {
-    JS_ASSERT(ins->obj()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->obj()->type() == MIRType_Object);
 
     LGuardObjectType *guard = new(alloc()) LGuardObjectType(useRegisterAtStart(ins->obj()));
     if (!assignSnapshot(guard, Bailout_ObjectIdentityOrTypeGuard))
@@ -61,7 +62,7 @@ bool
 LIRGeneratorX86Shared::visitPowHalf(MPowHalf *ins)
 {
     MDefinition *input = ins->input();
-    JS_ASSERT(input->type() == MIRType_Double);
+    MOZ_ASSERT(input->type() == MIRType_Double);
     LPowHalfD *lir = new(alloc()) LPowHalfD(useRegisterAtStart(input));
     return defineReuseInput(lir, ins, 0);
 }
@@ -105,6 +106,31 @@ LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition
     ins->setOperand(0, useRegisterAtStart(lhs));
     ins->setOperand(1, lhs != rhs ? use(rhs) : useAtStart(rhs));
     return defineReuseInput(ins, mir, 0);
+}
+
+bool
+LIRGeneratorX86Shared::lowerForCompIx4(LSimdBinaryCompIx4 *ins, MSimdBinaryComp *mir, MDefinition *lhs, MDefinition *rhs)
+{
+    return lowerForALU(ins, mir, lhs, rhs);
+}
+
+bool
+LIRGeneratorX86Shared::lowerForCompFx4(LSimdBinaryCompFx4 *ins, MSimdBinaryComp *mir, MDefinition *lhs, MDefinition *rhs)
+{
+    // Swap the operands around to fit the instructions that x86 actually has.
+    // We do this here, before register allocation, so that we don't need
+    // temporaries and copying afterwards.
+    switch (mir->operation()) {
+      case MSimdBinaryComp::greaterThan:
+      case MSimdBinaryComp::greaterThanOrEqual:
+        mir->reverse();
+        Swap(lhs, rhs);
+        break;
+      default:
+        break;
+    }
+
+    return lowerForFPU(ins, mir, lhs, rhs);
 }
 
 bool
@@ -215,7 +241,7 @@ LIRGeneratorX86Shared::visitAsmJSNeg(MAsmJSNeg *ins)
     if (ins->type() == MIRType_Float32)
         return defineReuseInput(new(alloc()) LNegF(useRegisterAtStart(ins->input())), ins, 0);
 
-    JS_ASSERT(ins->type() == MIRType_Double);
+    MOZ_ASSERT(ins->type() == MIRType_Double);
     return defineReuseInput(new(alloc()) LNegD(useRegisterAtStart(ins->input())), ins, 0);
 }
 
@@ -247,12 +273,12 @@ LIRGeneratorX86Shared::lowerUrshD(MUrsh *mir)
     MDefinition *lhs = mir->lhs();
     MDefinition *rhs = mir->rhs();
 
-    JS_ASSERT(lhs->type() == MIRType_Int32);
-    JS_ASSERT(rhs->type() == MIRType_Int32);
-    JS_ASSERT(mir->type() == MIRType_Double);
+    MOZ_ASSERT(lhs->type() == MIRType_Int32);
+    MOZ_ASSERT(rhs->type() == MIRType_Int32);
+    MOZ_ASSERT(mir->type() == MIRType_Double);
 
 #ifdef JS_CODEGEN_X64
-    JS_ASSERT(ecx == rcx);
+    MOZ_ASSERT(ecx == rcx);
 #endif
 
     LUse lhsUse = useRegisterAtStart(lhs);
@@ -294,7 +320,7 @@ bool
 LIRGeneratorX86Shared::lowerTruncateDToInt32(MTruncateToInt32 *ins)
 {
     MDefinition *opd = ins->input();
-    JS_ASSERT(opd->type() == MIRType_Double);
+    MOZ_ASSERT(opd->type() == MIRType_Double);
 
     LDefinition maybeTemp = Assembler::HasSSE3() ? LDefinition::BogusTemp() : tempDouble();
     return define(new(alloc()) LTruncateDToInt32(useRegister(opd), maybeTemp), ins);
@@ -304,7 +330,7 @@ bool
 LIRGeneratorX86Shared::lowerTruncateFToInt32(MTruncateToInt32 *ins)
 {
     MDefinition *opd = ins->input();
-    JS_ASSERT(opd->type() == MIRType_Float32);
+    MOZ_ASSERT(opd->type() == MIRType_Float32);
 
     LDefinition maybeTemp = Assembler::HasSSE3() ? LDefinition::BogusTemp() : tempFloat32();
     return define(new(alloc()) LTruncateFToInt32(useRegister(opd), maybeTemp), ins);
@@ -321,6 +347,145 @@ LIRGeneratorX86Shared::visitForkJoinGetSlice(MForkJoinGetSlice *ins)
                           tempFixed(ForkJoinGetSliceReg_temp0),
                           tempFixed(ForkJoinGetSliceReg_temp1));
     return defineFixed(lir, ins, LAllocation(AnyRegister(ForkJoinGetSliceReg_output)));
+}
+
+bool
+LIRGeneratorX86Shared::visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArrayElement *ins)
+{
+    MOZ_ASSERT(ins->arrayType() != Scalar::Float32);
+    MOZ_ASSERT(ins->arrayType() != Scalar::Float64);
+
+    MOZ_ASSERT(ins->elements()->type() == MIRType_Elements);
+    MOZ_ASSERT(ins->index()->type() == MIRType_Int32);
+
+    const LUse elements = useRegister(ins->elements());
+    const LAllocation index = useRegisterOrConstant(ins->index());
+
+    // Register allocation:
+    //
+    // If the target is an integer register then the target must be
+    // eax.
+    //
+    // If the target is a floating register then we need a temp at the
+    // lower level; that temp must be eax.
+    //
+    // oldval must be in a register.
+    //
+    // newval will need to be in a register.  If the source is a byte
+    // array then the newval must be a register that has a byte size:
+    // ebx, ecx, or edx, since eax is taken for the output in this
+    // case.
+    //
+    // Bug #1077036 describes some optimization opportunities.
+
+    bool fixedOutput = false;
+    LDefinition tempDef = LDefinition::BogusTemp();
+    LAllocation newval;
+    if (ins->arrayType() == Scalar::Uint32 && IsFloatingPointType(ins->type())) {
+        tempDef = tempFixed(eax);
+        newval = useRegister(ins->newval());
+    } else {
+        fixedOutput = true;
+        if (ins->isByteArray())
+            newval = useFixed(ins->newval(), ebx);
+        else
+            newval = useRegister(ins->newval());
+    }
+
+    // A register allocator limitation precludes 'useRegisterAtStart()' here.
+    const LAllocation oldval = useRegister(ins->oldval());
+
+    LCompareExchangeTypedArrayElement *lir =
+        new(alloc()) LCompareExchangeTypedArrayElement(elements, index, oldval, newval, tempDef);
+
+    return fixedOutput ? defineFixed(lir, ins, LAllocation(AnyRegister(eax))) : define(lir, ins);
+}
+
+bool
+LIRGeneratorX86Shared::visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBinop *ins)
+{
+    MOZ_ASSERT(ins->arrayType() != Scalar::Uint8Clamped);
+    MOZ_ASSERT(ins->arrayType() != Scalar::Float32);
+    MOZ_ASSERT(ins->arrayType() != Scalar::Float64);
+
+    MOZ_ASSERT(ins->elements()->type() == MIRType_Elements);
+    MOZ_ASSERT(ins->index()->type() == MIRType_Int32);
+
+    const LUse elements = useRegister(ins->elements());
+    const LAllocation index = useRegisterOrConstant(ins->index());
+
+    // Register allocation:
+    //
+    // For ADD and SUB we'll use XADD:
+    //
+    //    movl       src, output
+    //    lock xaddl output, mem
+    //
+    // For the 8-bit variants XADD needs a byte register for the
+    // output only.
+    //
+    // For AND/OR/XOR we need to use a CMPXCHG loop:
+    //
+    //    movl          *mem, eax
+    // L: mov           eax, temp
+    //    andl          src, temp
+    //    lock cmpxchg  temp, mem  ; reads eax also
+    //    jnz           L
+    //    ; result in eax
+    //
+    // Note the placement of L, cmpxchg will update eax with *mem if
+    // *mem does not have the expected value, so reloading it at the
+    // top of the loop is redundant.
+    //
+    // If the array is not a uint32 array then:
+    //  - eax should be the output (one result of the cmpxchg)
+    //  - there is a temp, which must have a byte register if
+    //    the array has 1-byte elements elements
+    //
+    // If the array is a uint32 array then:
+    //  - eax is the first temp
+    //  - we also need a second temp
+    //
+    // For simplicity we force the 'value' into a byte register if the
+    // array has 1-byte elements, though that could be worked around.
+    //
+    // For simplicity we also choose fixed byte registers even when
+    // any available byte register would have been OK.
+    //
+    // There are optimization opportunities:
+    //  - when the result is unused, Bug #1077014.
+    //  - better register allocation and instruction selection, Bug #1077036.
+
+    bool bitOp = !(ins->operation() == AtomicFetchAddOp || ins->operation() == AtomicFetchSubOp);
+    bool fixedOutput = true;
+    LDefinition tempDef1 = LDefinition::BogusTemp();
+    LDefinition tempDef2 = LDefinition::BogusTemp();
+    LAllocation value;
+
+    if (ins->arrayType() == Scalar::Uint32 && IsFloatingPointType(ins->type())) {
+        value = useRegister(ins->value());
+        fixedOutput = false;
+        if (bitOp) {
+            tempDef1 = tempFixed(eax);
+            tempDef2 = temp();
+        } else {
+            tempDef1 = temp();
+        }
+    } else if (ins->isByteArray()) {
+        value = useFixed(ins->value(), ebx);
+        if (bitOp)
+            tempDef1 = tempFixed(ecx);
+    }
+    else {
+        value = useRegister(ins->value());
+        if (bitOp)
+            tempDef1 = temp();
+    }
+
+    LAtomicTypedArrayElementBinop *lir =
+        new(alloc()) LAtomicTypedArrayElementBinop(elements, index, value, tempDef1, tempDef2);
+
+    return fixedOutput ? defineFixed(lir, ins, LAllocation(AnyRegister(eax))) : define(lir, ins);
 }
 
 bool

@@ -17,6 +17,7 @@
 
 #include "js/GCAPI.h"
 #include "js/HashTable.h"
+#include "js/TracingAPI.h"
 #include "js/TypeDecls.h"
 
 // JS::ubi::Node
@@ -134,7 +135,6 @@
 // If this restriction prevents us from implementing interesting tools, we may
 // teach the GC how to root ubi::Nodes, fix up hash tables that use them as
 // keys, etc.
-
 
 namespace JS {
 namespace ubi {
@@ -274,7 +274,10 @@ class Node {
     }
 
     // Constructors accepting SpiderMonkey's other generic-pointer-ish types.
-    explicit Node(JS::HandleValue value);
+    // Note that we *do* want an implicit constructor here: JS::Value and
+    // JS::ubi::Node are both essentially tagged references to other sorts of
+    // objects, so letting conversions happen automatically is appropriate.
+    MOZ_IMPLICIT Node(JS::HandleValue value);
     Node(JSGCTraceKind kind, void *ptr);
 
     // copy construction and copy assignment just use memcpy, since we know

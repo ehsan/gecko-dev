@@ -26,7 +26,7 @@
 #include "jsutil.h"
 
 #include "js/TypeDecls.h"
-#include "vm/ObjectImpl.h"
+#include "vm/NativeObject.h"
 
 namespace js {
 
@@ -53,7 +53,7 @@ ValidateAsmJS(ExclusiveContext *cx, AsmJSParser &parser, frontend::ParseNode *st
 // The assumed page size; dynamically checked in ValidateAsmJS.
 const size_t AsmJSPageSize = 4096;
 
-#ifdef JS_CODEGEN_X64
+#ifdef JS_CPU_X64
 // On x64, the internal ArrayBuffer data array is inflated to 4GiB (only the
 // byteLength portion of which is accessible) so that out-of-bounds accesses
 // (made using a uint32 index) are guaranteed to raise a SIGSEGV.
@@ -75,7 +75,7 @@ RoundUpToNextValidAsmJSHeapLength(uint32_t length)
     if (length <= 16 * 1024 * 1024)
         return mozilla::RoundUpPow2(length);
 
-    JS_ASSERT(length <= 0xff000000);
+    MOZ_ASSERT(length <= 0xff000000);
     return (length + 0x00ffffff) & ~0x00ffffff;
 }
 
@@ -86,8 +86,8 @@ IsValidAsmJSHeapLength(uint32_t length)
                  (IsPowerOfTwo(length) ||
                   (length & 0x00ffffff) == 0);
 
-    JS_ASSERT_IF(valid, length % AsmJSPageSize == 0);
-    JS_ASSERT_IF(valid, length == RoundUpToNextValidAsmJSHeapLength(length));
+    MOZ_ASSERT_IF(valid, length % AsmJSPageSize == 0);
+    MOZ_ASSERT_IF(valid, length == RoundUpToNextValidAsmJSHeapLength(length));
 
     return valid;
 }

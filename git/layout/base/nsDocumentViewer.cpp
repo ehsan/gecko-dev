@@ -80,7 +80,6 @@
 
 #include "nsIPrompt.h"
 #include "imgIContainer.h" // image animation mode constants
-#include "SelectionCarets.h"
 
 //--------------------------
 // Printing Include
@@ -130,10 +129,6 @@ using namespace mozilla::dom;
 
 //-----------------------------------------------------
 // PR LOGGING
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-
 #include "prlog.h"
 
 #ifdef PR_LOGGING
@@ -712,14 +707,6 @@ nsDocumentViewer::InitPresentationStuff(bool aDoInitialReflow)
   rv = selection->AddSelectionListener(mSelectionListener);
   if (NS_FAILED(rv))
     return rv;
-
-  nsRefPtr<SelectionCarets> selectionCaret = mPresShell->GetSelectionCarets();
-  if (selectionCaret) {
-    nsCOMPtr<nsIDocShell> docShell(mContainer);
-    if (docShell) {
-      docShell->AddWeakScrollObserver(selectionCaret);
-    }
-  }
 
   // Save old listener so we can unregister it
   nsRefPtr<nsDocViewerFocusListener> oldFocusListener = mFocusListener;
@@ -3344,9 +3331,8 @@ nsDocumentViewer::GetContentSize(int32_t* aWidth, int32_t* aHeight)
 
   nscoord prefWidth;
   {
-    nsRefPtr<nsRenderingContext> rcx =
-      presShell->CreateReferenceRenderingContext();
-    prefWidth = root->GetPrefISize(rcx);
+    nsRenderingContext rcx(presShell->CreateReferenceRenderingContext());
+    prefWidth = root->GetPrefISize(&rcx);
   }
 
   nsresult rv = presShell->ResizeReflow(prefWidth, NS_UNCONSTRAINEDSIZE);
@@ -4432,14 +4418,6 @@ nsDocumentViewer::DestroyPresShell()
   nsRefPtr<mozilla::dom::Selection> selection = GetDocumentSelection();
   if (selection && mSelectionListener)
     selection->RemoveSelectionListener(mSelectionListener);
-
-  nsRefPtr<SelectionCarets> selectionCaret = mPresShell->GetSelectionCarets();
-  if (selectionCaret) {
-    nsCOMPtr<nsIDocShell> docShell(mContainer);
-    if (docShell) {
-      docShell->RemoveWeakScrollObserver(selectionCaret);
-    }
-  }
 
   nsAutoScriptBlocker scriptBlocker;
   mPresShell->Destroy();

@@ -309,16 +309,6 @@ public:
   // Decode strategy
 
 private:
-  already_AddRefed<imgStatusTracker> CurrentStatusTracker()
-  {
-    mDecodingMonitor.AssertCurrentThreadIn();
-    nsRefPtr<imgStatusTracker> statusTracker;
-    statusTracker = mDecodeRequest ? mDecodeRequest->mStatusTracker
-                                   : mStatusTracker;
-    MOZ_ASSERT(statusTracker);
-    return statusTracker.forget();
-  }
-
   nsresult OnImageDataCompleteCore(nsIRequest* aRequest, nsISupports*, nsresult aStatus);
 
   /**
@@ -333,18 +323,9 @@ private:
       , mRequestStatus(REQUEST_INACTIVE)
       , mChunkCount(0)
       , mAllocatedNewFrame(false)
-    {
-      MOZ_ASSERT(aImage, "aImage cannot be null");
-      MOZ_ASSERT(aImage->mStatusTracker,
-                 "aImage should have an imgStatusTracker");
-      mStatusTracker = aImage->mStatusTracker->CloneForRecording();
-    }
+    { }
 
     NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DecodeRequest)
-
-    // The status tracker that is associated with a given decode request, to
-    // ensure their lifetimes are linked.
-    nsRefPtr<imgStatusTracker> mStatusTracker;
 
     RasterImage* mImage;
 
@@ -531,7 +512,8 @@ private:
   };
 
   nsresult FinishedSomeDecoding(eShutdownIntent intent = eShutdownIntent_Done,
-                                DecodeRequest* request = nullptr);
+                                DecodeRequest* request = nullptr,
+                                Progress aProgress = NoProgress);
 
   void DrawWithPreDownscaleIfNeeded(DrawableFrameRef&& aFrameRef,
                                     gfxContext* aContext,
@@ -551,6 +533,8 @@ private:
   DrawableFrameRef LookupFrame(uint32_t aFrameNum, uint32_t aFlags, bool aShouldSyncNotify = true);
   uint32_t GetCurrentFrameIndex() const;
   uint32_t GetRequestedFrameIndex(uint32_t aWhichFrame) const;
+
+  nsIntRect GetFirstFrameRect();
 
   size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
                                                  MallocSizeOf aMallocSizeOf) const;
@@ -574,8 +558,6 @@ private:
   already_AddRefed<layers::Image> GetCurrentImage();
   void UpdateImageContainer();
 
-  void SetInUpdateImageContainer(bool aInUpdate) { mInUpdateImageContainer = aInUpdate; }
-  bool IsInUpdateImageContainer() { return mInUpdateImageContainer; }
   enum RequestDecodeType {
       ASYNCHRONOUS,
       SYNCHRONOUS_NOTIFY,
@@ -656,13 +638,11 @@ private: // data
   // Decoder and friends
   nsRefPtr<Decoder>          mDecoder;
   nsRefPtr<DecodeRequest>    mDecodeRequest;
-  size_t                     mBytesDecoded;
-
-  bool                       mInDecoder;
   // END LOCKED MEMBER VARIABLES
 
   // Notification state. Used to avoid recursive notifications.
-  ImageStatusDiff            mStatusDiff;
+  Progress                   mNotifyProgress;
+  nsIntRect                  mNotifyInvalidRect;
   bool                       mNotifying:1;
 
   // Boolean flags (clustered together to conserve space):
@@ -680,11 +660,6 @@ private: // data
   // Whether the animation can stop, due to running out
   // of frames, or no more owning request
   bool                       mAnimationFinished:1;
-
-  // Whether we're calling Decoder::Finish() from ShutdownDecoder.
-  bool                       mFinishing:1;
-
-  bool                       mInUpdateImageContainer:1;
 
   // Whether, once we are done doing a size decode, we should immediately kick
   // off a full decode.
@@ -708,8 +683,8 @@ private: // data
   bool     IsDecodeFinished();
   TimeStamp mDrawStartTime;
 
-  // Initializes imgStatusTracker and resets it on RasterImage destruction.
-  nsAutoPtr<imgStatusTrackerInit> mStatusTrackerInit;
+  // Initializes ProgressTracker and resets it on RasterImage destruction.
+  nsAutoPtr<ProgressTrackerInit> mProgressTrackerInit;
 
   nsresult ShutdownDecoder(eShutdownIntent aIntent);
 
@@ -759,7 +734,7 @@ private: // data
   bool StoringSourceData() const;
 
 protected:
-  explicit RasterImage(imgStatusTracker* aStatusTracker = nullptr,
+  explicit RasterImage(ProgressTracker* aProgressTracker = nullptr,
                        ImageURL* aURI = nullptr);
 
   bool ShouldAnimate();
@@ -770,28 +745,6 @@ protected:
 inline NS_IMETHODIMP RasterImage::GetAnimationMode(uint16_t *aAnimationMode) {
   return GetAnimationModeInternal(aAnimationMode);
 }
-
-// Asynchronous Decode Requestor
-//
-// We use this class when someone calls requestDecode() from within a decode
-// notification. Since requestDecode() involves modifying the decoder's state
-// (for example, possibly shutting down a header-only decode and starting a
-// full decode), we don't want to do this from inside a decoder.
-class imgDecodeRequestor : public nsRunnable
-{
-  public:
-    explicit imgDecodeRequestor(RasterImage &aContainer) {
-      mContainer = &aContainer;
-    }
-    NS_IMETHOD Run() {
-      if (mContainer)
-        mContainer->StartDecoding();
-      return NS_OK;
-    }
-
-  private:
-    WeakPtr<RasterImage> mContainer;
-};
 
 } // namespace image
 } // namespace mozilla

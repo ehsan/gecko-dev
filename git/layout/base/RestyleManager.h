@@ -92,6 +92,41 @@ public:
   // track whether off-main-thread animations are up-to-date.
   uint64_t GetAnimationGeneration() const { return mAnimationGeneration; }
 
+  // A workaround until bug 847286 lands that gets the maximum of the animation
+  // generation counters stored on the set of animations and transitions
+  // respectively for |aFrame|.
+  static uint64_t GetMaxAnimationGenerationForFrame(nsIFrame* aFrame);
+
+  // Update the animation generation count to mark that animation state
+  // has changed.
+  //
+  // This is normally performed automatically by ProcessPendingRestyles
+  // but it is also called when we have out-of-band changes to animations
+  // such as changes made through the Web Animations API.
+  void IncrementAnimationGeneration() { ++mAnimationGeneration; }
+
+  // Whether rule matching should skip styles associated with animation
+  bool SkipAnimationRules() const {
+    MOZ_ASSERT(mSkipAnimationRules || !mPostAnimationRestyles,
+               "inconsistent state");
+    return mSkipAnimationRules;
+  }
+
+  // Whether rule matching should post animation restyles when it skips
+  // styles associated with animation.  Only true when
+  // SkipAnimationRules() is also true.
+  bool PostAnimationRestyles() const {
+    MOZ_ASSERT(mSkipAnimationRules || !mPostAnimationRestyles,
+               "inconsistent state");
+    return mPostAnimationRestyles;
+  }
+
+  // Whether we're currently in the animation phase of restyle
+  // processing (to be eliminated in bug 960465)
+  bool IsProcessingAnimationStyleChange() const {
+    return mIsProcessingAnimationStyleChange;
+  }
+
   /**
    * Reparent the style contexts of this frame subtree.  The parent frame of
    * aFrame must be changed to the new parent before this function is called;
@@ -240,6 +275,9 @@ public:
   // itself.
   void ProcessPendingRestyles();
 
+  // Returns whether there are any pending restyles.
+  bool HasPendingRestyles() { return mPendingRestyles.Count() != 0; }
+
   // ProcessPendingRestyles calls into one of our RestyleTracker
   // objects.  It then calls back to these functions at the beginning
   // and end of its work.
@@ -280,7 +318,17 @@ public:
   // Rebuilds all style data by throwing out the old rule tree and
   // building a new one, and additionally applying aExtraHint (which
   // must not contain nsChangeHint_ReconstructFrame) to the root frame.
-  void RebuildAllStyleData(nsChangeHint aExtraHint);
+  //
+  // aRestyleHint says which restyle hint to use for the computation;
+  // the only sensible values to use are eRestyle_Subtree (which says
+  // that the rebuild must run selector matching) and nsRestyleHint(0)
+  // (which says that rerunning selector matching is not required.  (The
+  // method adds eRestyle_ForceDescendants internally, and including it
+  // in the restyle hint is harmless; some callers (e.g.,
+  // nsPresContext::MediaFeatureValuesChanged) might do this for their
+  // own reasons.)
+  void RebuildAllStyleData(nsChangeHint aExtraHint,
+                           nsRestyleHint aRestyleHint);
 
   // Helper that does part of the work of RebuildAllStyleData, shared by
   // RestyleElement for 'rem' handling.
@@ -295,7 +343,7 @@ public:
   {
     if (mPresContext) {
       PostRestyleEventCommon(aElement, aRestyleHint, aMinChangeHint,
-                             mPresContext->IsProcessingAnimationStyleChange());
+                             IsProcessingAnimationStyleChange());
     }
   }
 
@@ -354,8 +402,11 @@ public:
    * in a system font size, or to fix things up when an optimization in the
    * style data has become invalid. We assume that the root frame will not
    * need to be reframed.
+   *
+   * For parameters, see RebuildAllStyleData.
    */
-  void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint);
+  void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint,
+                                    nsRestyleHint aRestyleHint);
 
 #ifdef RESTYLE_LOGGING
   /**
@@ -372,7 +423,8 @@ public:
    */
   static bool ShouldLogRestyle(nsPresContext* aPresContext) {
     return aPresContext->RestyleLoggingEnabled() &&
-           (!aPresContext->IsProcessingAnimationStyleChange() ||
+           (!aPresContext->RestyleManager()->
+               IsProcessingAnimationStyleChange() ||
             AnimationRestyleLoggingEnabled());
   }
 
@@ -424,8 +476,19 @@ private:
   bool mObservingRefreshDriver : 1;
   // True if we're in the middle of a nsRefreshDriver refresh
   bool mInStyleRefresh : 1;
+  // Whether rule matching should skip styles associated with animation
+  bool mSkipAnimationRules : 1;
+  // Whether rule matching should post animation restyles when it skips
+  // styles associated with animation.  Only true when
+  // mSkipAnimationRules is also true.
+  bool mPostAnimationRestyles : 1;
+  // Whether we're currently in the animation phase of restyle
+  // processing (to be eliminated in bug 960465)
+  bool mIsProcessingAnimationStyleChange : 1;
+
   uint32_t mHoverGeneration;
   nsChangeHint mRebuildAllExtraHint;
+  nsRestyleHint mRebuildAllRestyleHint;
 
   mozilla::TimeStamp mLastUpdateForThrottledAnimations;
 
@@ -439,6 +502,10 @@ private:
 
   RestyleTracker mPendingRestyles;
   RestyleTracker mPendingAnimationRestyles;
+
+#ifdef DEBUG
+  bool mIsProcessingRestyles;
+#endif
 
 #ifdef RESTYLE_LOGGING
   int32_t mLoggingDepth;
@@ -538,6 +605,11 @@ private:
    * Second half of Restyle().
    */
   void RestyleChildren(nsRestyleHint aChildRestyleHint);
+
+  /**
+   * Helpers for Restyle().
+   */
+  void AddLayerChangesForAnimation();
 
   /**
    * Helpers for RestyleSelf().

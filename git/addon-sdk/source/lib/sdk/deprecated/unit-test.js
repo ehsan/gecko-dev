@@ -62,7 +62,8 @@ TestRunner.prototype = {
   },
 
   _uncaughtErrorObserver: function({message, date, fileName, stack, lineNumber}) {
-    this.fail("There was an uncaught Promise rejection: " + stack);
+    this.fail("There was an uncaught Promise rejection: " + message + " @ " +
+              fileName + ":" + lineNumber + "\n" + stack);
   },
 
   pass: function pass(message) {
@@ -73,6 +74,7 @@ TestRunner.prototype = {
         this.console.info("pass:", message);
       this.passed++;
       this.test.passed++;
+      this.test.last = message;
     }
     else {
       this.expectFailure = false;
@@ -110,6 +112,7 @@ TestRunner.prototype = {
         this.console.info("pass:", message);
       this.passed++;
       this.test.passed++;
+      this.test.last = message;
     }
   },
 
@@ -467,10 +470,11 @@ TestRunner.prototype = {
     function tiredOfWaiting() {
       self._logTestFailed("timed out");
       if ("testMessage" in self.console) {
-        self.console.testMessage(false, false, self.test.name, "Test timed out");
+        self.console.testMessage(false, false, self.test.name,
+          `Test timed out (after: ${self.test.last})`);
       }
       else {
-        self.console.error("fail:", "Timed out")
+        self.console.error("fail:", `Timed out (after: ${self.test.last})`)
       }
       if (self.waitUntilCallback) {
         self.waitUntilCallback(true);
@@ -514,6 +518,7 @@ TestRunner.prototype = {
     this.test.passed = 0;
     this.test.failed = 0;
     this.test.errors = {};
+    this.test.last = 'START';
     PromiseDebugging.clearUncaughtErrorObservers();
     PromiseDebugging.addUncaughtErrorObserver(this._uncaughtErrorObserver.bind(this));
 

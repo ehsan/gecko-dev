@@ -18,7 +18,7 @@ bool
 LIRGeneratorX64::useBox(LInstruction *lir, size_t n, MDefinition *mir,
                         LUse::Policy policy, bool useAtStart)
 {
-    JS_ASSERT(mir->type() == MIRType_Value);
+    MOZ_ASSERT(mir->type() == MIRType_Value);
 
     if (!ensureDefined(mir))
         return false;
@@ -29,7 +29,7 @@ LIRGeneratorX64::useBox(LInstruction *lir, size_t n, MDefinition *mir,
 bool
 LIRGeneratorX64::useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Register reg1, Register)
 {
-    JS_ASSERT(mir->type() == MIRType_Value);
+    MOZ_ASSERT(mir->type() == MIRType_Value);
 
     if (!ensureDefined(mir))
         return false;
@@ -75,7 +75,7 @@ bool
 LIRGeneratorX64::visitUnbox(MUnbox *unbox)
 {
     MDefinition *box = unbox->getOperand(0);
-    JS_ASSERT(box->type() == MIRType_Value);
+    MOZ_ASSERT(box->type() == MIRType_Value);
 
     LUnboxBase *lir;
     if (IsFloatingPointType(unbox->type()))
@@ -93,7 +93,7 @@ bool
 LIRGeneratorX64::visitReturn(MReturn *ret)
 {
     MDefinition *opd = ret->getOperand(0);
-    JS_ASSERT(opd->type() == MIRType_Value);
+    MOZ_ASSERT(opd->type() == MIRType_Value);
 
     LReturn *ins = new(alloc()) LReturn;
     ins->setOperand(0, useFixed(opd, JSReturnReg));
@@ -115,7 +115,7 @@ LIRGeneratorX64::lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock 
 bool
 LIRGeneratorX64::visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins)
 {
-    JS_ASSERT(ins->input()->type() == MIRType_Int32);
+    MOZ_ASSERT(ins->input()->type() == MIRType_Int32);
     LAsmJSUInt32ToDouble *lir = new(alloc()) LAsmJSUInt32ToDouble(useRegisterAtStart(ins->input()));
     return define(lir, ins);
 }
@@ -123,7 +123,7 @@ LIRGeneratorX64::visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins)
 bool
 LIRGeneratorX64::visitAsmJSUnsignedToFloat32(MAsmJSUnsignedToFloat32 *ins)
 {
-    JS_ASSERT(ins->input()->type() == MIRType_Int32);
+    MOZ_ASSERT(ins->input()->type() == MIRType_Int32);
     LAsmJSUInt32ToFloat32 *lir = new(alloc()) LAsmJSUInt32ToFloat32(useRegisterAtStart(ins->input()));
     return define(lir, ins);
 }
@@ -132,37 +132,36 @@ bool
 LIRGeneratorX64::visitAsmJSLoadHeap(MAsmJSLoadHeap *ins)
 {
     MDefinition *ptr = ins->ptr();
-    JS_ASSERT(ptr->type() == MIRType_Int32);
-    LAllocation ptrAlloc;
+    MOZ_ASSERT(ptr->type() == MIRType_Int32);
 
-    bool useConstant = false;
-    if (ptr->isConstant()) {
-        int32_t ptrValue = ptr->toConstant()->value().toInt32();
-        if (ins->skipBoundsCheck() && ptrValue >= 0) {
-            // Only a positive index is accepted because a negative offset
-            // encoded as an offset in the addressing mode would not wrap back
-            // into the protected area reserved for the heap.
-            useConstant = true;
-        }
-        // In other cases, still keep the pointer in a register.
-    }
+    // Only a positive index is accepted because a negative offset encoded as an
+    // offset in the addressing mode would not wrap back into the protected area
+    // reserved for the heap. For simplicity (and since we don't care about
+    // getting maximum performance in these cases) only allow constant
+    // opererands when skipping bounds checks.
+    LAllocation ptrAlloc = ins->needsBoundsCheck()
+                           ? useRegisterAtStart(ptr)
+                           : useRegisterOrNonNegativeConstantAtStart(ptr);
 
-    ptrAlloc = (useConstant) ? LAllocation(ptr->toConstant()->vp()) : useRegisterAtStart(ptr);
-    LAsmJSLoadHeap *lir = new(alloc()) LAsmJSLoadHeap(ptrAlloc);
-    return define(lir, ins);
+    return define(new(alloc()) LAsmJSLoadHeap(ptrAlloc), ins);
 }
 
 bool
 LIRGeneratorX64::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
 {
     MDefinition *ptr = ins->ptr();
-    JS_ASSERT(ptr->type() == MIRType_Int32);
-    LAsmJSStoreHeap *lir;
+    MOZ_ASSERT(ptr->type() == MIRType_Int32);
 
-    // Note only a positive constant index is accepted because a negative offset
-    // encoded as an offset in the addressing mode would not wrap back into the
-    // protected area reserved for the heap.
-    LAllocation ptrAlloc = useRegisterOrNonNegativeConstantAtStart(ptr);
+    // Only a positive index is accepted because a negative offset encoded as an
+    // offset in the addressing mode would not wrap back into the protected area
+    // reserved for the heap. For simplicity (and since we don't care about
+    // getting maximum performance in these cases) only allow constant
+    // opererands when skipping bounds checks.
+    LAllocation ptrAlloc = ins->needsBoundsCheck()
+                           ? useRegisterAtStart(ptr)
+                           : useRegisterOrNonNegativeConstantAtStart(ptr);
+
+    LAsmJSStoreHeap *lir;
     switch (ins->viewType()) {
       case Scalar::Int8:
       case Scalar::Uint8:

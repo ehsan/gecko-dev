@@ -14,6 +14,7 @@
 #define NSDISPLAYLIST_H_
 
 #include "mozilla/Attributes.h"
+#include "mozilla/DebugOnly.h"
 #include "nsCOMPtr.h"
 #include "nsContainerFrame.h"
 #include "nsPoint.h"
@@ -26,8 +27,10 @@
 #include "LayerState.h"
 #include "FrameMetrics.h"
 #include "mozilla/UniquePtr.h"
+#include "mozilla/gfx/UserData.h"
 
 #include <stdint.h>
+#include "nsTHashtable.h"
 
 #include <stdlib.h>
 #include <algorithm>
@@ -676,7 +679,26 @@ public:
    * Accumulates the bounds of box frames that have moz-appearance
    * -moz-win-exclude-glass style. Used in setting glass margins on
    * Windows.
-   */  
+   *
+   * We set the window opaque region (from which glass margins are computed)
+   * to the intersection of the glass region specified here and the opaque
+   * region computed during painting. So the excluded glass region actually
+   * *limits* the extent of the opaque area reported to Windows. We limit it
+   * so that changes to the computed opaque region (which can vary based on
+   * region optimizations and the placement of UI elements) outside the
+   * -moz-win-exclude-glass area don't affect the glass margins reported to
+   * Windows; changing those margins willy-nilly can cause the Windows 7 glass
+   * haze effect to jump around disconcertingly.
+   */
+  void AddWindowExcludeGlassRegion(const nsRegion& bounds) {
+    mWindowExcludeGlassRegion.Or(mWindowExcludeGlassRegion, bounds);
+  }
+  const nsRegion& GetWindowExcludeGlassRegion() {
+    return mWindowExcludeGlassRegion;
+  }
+  /**
+   * Accumulates opaque stuff into the window opaque region.
+   */
   void AddWindowOpaqueRegion(const nsRegion& bounds) {
     mWindowOpaqueRegion.Or(mWindowOpaqueRegion, bounds);
   }
@@ -719,6 +741,17 @@ public:
 
   DisplayListClipState& ClipState() { return mClipState; }
 
+  /**
+   * The will-change budget is calculated during the display list building
+   * phase for all the frames that want will change on a per-document basis.
+   * The cost should be fully calculated during the layer building phase
+   * and a decission to allow or disallow will-change for all frames of
+   * that document will be made by IsInWillChangeBudget.
+   */
+  void AddToWillChangeBudget(nsIFrame* aFrame, const nsSize& aSize);
+
+  bool IsInWillChangeBudget(nsIFrame* aFrame) const;
+
 private:
   void MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame, nsIFrame* aFrame,
                                     const nsRect& aDirtyRect);
@@ -730,11 +763,20 @@ private:
     uint32_t      mFirstFrameMarkedForDisplay;
     bool          mIsBackgroundOnly;
   };
+
   PresShellState* CurrentPresShellState() {
     NS_ASSERTION(mPresShellStates.Length() > 0,
                  "Someone forgot to enter a presshell");
     return &mPresShellStates[mPresShellStates.Length() - 1];
   }
+
+  struct DocumentWillChangeBudget {
+    DocumentWillChangeBudget()
+      : mBudget(0)
+    {}
+
+    uint32_t mBudget;
+  };
 
   nsIFrame*                      mReferenceFrame;
   nsIFrame*                      mIgnoreScrollFrame;
@@ -753,8 +795,14 @@ private:
   const nsIFrame*                mCurrentReferenceFrame;
   // The offset from mCurrentFrame to mCurrentReferenceFrame.
   nsPoint                        mCurrentOffsetToReferenceFrame;
+  // will-change budget tracker
+  nsDataHashtable<nsPtrHashKey<nsPresContext>, DocumentWillChangeBudget>
+                                 mWillChangeBudget;
+  // Assert that we never check the budget before its fully calculated.
+  mutable mozilla::DebugOnly<bool> mWillChangeBudgetCalculated;
   // Relative to mCurrentFrame.
   nsRect                         mDirtyRect;
+  nsRegion                       mWindowExcludeGlassRegion;
   nsRegion                       mWindowOpaqueRegion;
   nsRegion                       mWindowDraggingRegion;
   // The display item for the Windows window glass background, if any
@@ -1075,6 +1123,10 @@ public:
   { return false; }
 
   virtual bool ClearsBackground()
+  { return false; }
+
+  virtual bool ProvidesFontSmoothingBackgroundColor(nsDisplayListBuilder* aBuilder,
+                                                    nscolor* aColor)
   { return false; }
 
   /**
@@ -1605,10 +1657,11 @@ public:
    * If PAINT_COMPRESSED is set, the FrameLayerBuilder should be set to compressed mode
    * to avoid short cut optimizations.
    *
-   * ComputeVisibility must be called before Paint.
-   * 
    * This must only be called on the root display list of the display list
    * tree.
+   *
+   * We return the layer manager used for painting --- mainly so that
+   * callers can dump its layer tree if necessary.
    */
   enum {
     PAINT_DEFAULT = 0,
@@ -1618,14 +1671,9 @@ public:
     PAINT_NO_COMPOSITE = 0x08,
     PAINT_COMPRESSED = 0x10
   };
-  void PaintRoot(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
-                 uint32_t aFlags);
-  /**
-   * Like PaintRoot, but used for internal display sublists.
-   * aForFrame is the frame that the list is associated with.
-   */
-  void PaintForFrame(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
-                     nsIFrame* aForFrame, uint32_t aFlags);
+  already_AddRefed<LayerManager> PaintRoot(nsDisplayListBuilder* aBuilder,
+                                           nsRenderingContext* aCtx,
+                                           uint32_t aFlags);
   /**
    * Get the bounds. Takes the union of the bounds of all children.
    * The result is not cached.
@@ -2208,6 +2256,9 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap) MOZ_OVERRIDE;
   virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) MOZ_OVERRIDE;
+  virtual bool ProvidesFontSmoothingBackgroundColor(nsDisplayListBuilder* aBuilder,
+                                                    nscolor* aColor) MOZ_OVERRIDE;
+
   /**
    * GetBounds() returns the background painting area.
    */
@@ -2738,7 +2789,7 @@ public:
                             float aOpacity,
                             const DisplayItemClip* aClip) MOZ_OVERRIDE;
   virtual bool ShouldFlattenAway(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
-  bool NeedsActiveLayer();
+  bool NeedsActiveLayer(nsDisplayListBuilder* aBuilder);
   NS_DISPLAY_DECL_NAME("Opacity", TYPE_OPACITY)
 #ifdef MOZ_DUMP_PAINTING
   virtual void WriteDebugInfo(nsACString& aTo) MOZ_OVERRIDE;
@@ -3125,7 +3176,6 @@ public:
 #endif
   
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE;
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
   virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
@@ -3439,7 +3489,16 @@ public:
                                                 bool aLogAnimations = false);
   bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
 
-  bool ShouldPrerender() const { return mPrerender; }
+  /**
+   * This will return if it's possible for this element to be prerendered.
+   * This should never return false if we're going to prerender.
+   */
+  bool MaybePrerender() const { return mMaybePrerender; }
+  /**
+   * Check if this element will be prerendered. This must be done after the
+   * display list has been fully built.
+   */
+  bool ShouldPrerender(nsDisplayListBuilder* aBuilder);
 
 #ifdef MOZ_DUMP_PAINTING
   virtual void WriteDebugInfo(nsACString& aTo) MOZ_OVERRIDE;
@@ -3461,7 +3520,9 @@ private:
   ComputeTransformFunction mTransformGetter;
   nsRect mChildrenVisibleRect;
   uint32_t mIndex;
-  bool mPrerender;
+  // We wont know if we pre-render until the layer building phase where we can
+  // check layers will-change budget.
+  bool mMaybePrerender;
 };
 
 /**

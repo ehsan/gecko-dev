@@ -13,9 +13,73 @@ loop.contacts = (function(_, mozL10n) {
 
   const Button = loop.shared.views.Button;
   const ButtonGroup = loop.shared.views.ButtonGroup;
+  const CALL_TYPES = loop.shared.utils.CALL_TYPES;
 
   // Number of contacts to add to the list at the same time.
   const CONTACTS_CHUNK_SIZE = 100;
+
+  // At least this number of contacts should be present for the filter to appear.
+  const MIN_CONTACTS_FOR_FILTERING = 7;
+
+  let getContactNames = function(contact) {
+    // The model currently does not enforce a name to be present, but we're
+    // going to assume it is awaiting more advanced validation of required fields
+    // by the model. (See bug 1069918)
+    // NOTE: this method of finding a firstname and lastname is not i18n-proof.
+    let names = contact.name[0].split(" ");
+    return {
+      firstName: names.shift(),
+      lastName: names.join(" ")
+    };
+  };
+
+  /** Used to retrieve the preferred email or phone number
+   *  for the contact. Both fields are optional.
+   * @param   {object} contact
+   *          The contact object to get the field from.
+   * @param   {string} field
+   *          The field that should be read out of the contact object.
+   * @returns {object} An object with a 'value' property that hold a string value.
+   */
+  let getPreferred = function(contact, field) {
+    if (!contact[field] || !contact[field].length) {
+      return { value: "" };
+    }
+    return contact[field].find(e => e.pref) || contact[field][0];
+  };
+
+  /** Used to set the preferred email or phone number
+   *  for the contact. Both fields are optional.
+   * @param   {object} contact
+   *          The contact object to get the field from.
+   * @param   {string} field
+   *          The field within the contact to set.
+   * @param   {string} value
+   *          The value that the field should be set to.
+   */
+  let setPreferred = function(contact, field, value) {
+    // Don't clear the field if it doesn't exist.
+    if (!value && (!contact[field] || !contact[field].length)) {
+      return;
+    }
+
+    if (!contact[field]) {
+      contact[field] = [];
+    }
+
+    if (!contact[field].length) {
+      contact[field][0] = {"value": value};
+      return;
+    }
+    // Set the value in the preferred tuple and return.
+    for (let i in contact[field]) {
+      if (contact[field][i].pref) {
+        contact[field][i].value = value;
+        return;
+      }
+    }
+    contact[field][0].value = value;
+  };
 
   const ContactDropdown = React.createClass({
     propTypes: {
@@ -63,13 +127,14 @@ loop.contacts = (function(_, mozL10n) {
         <ul className={cx({ "dropdown-menu": true,
                             "dropdown-menu-up": this.state.openDirUp })}>
           <li className={cx({ "dropdown-menu-item": true,
-                              "disabled": true })}
-              onClick={this.onItemClick} data-action="video-call">
+                              "disabled": this.props.blocked })}
+              onClick={this.onItemClick}
+              data-action="video-call">
             <i className="icon icon-video-call" />
             {mozL10n.get("video_call_menu_button")}
           </li>
           <li className={cx({ "dropdown-menu-item": true,
-                              "disabled": true })}
+                              "disabled": this.props.blocked })}
               onClick={this.onItemClick} data-action="audio-call">
             <i className="icon icon-audio-call" />
             {mozL10n.get("audio_call_menu_button")}
@@ -131,37 +196,23 @@ loop.contacts = (function(_, mozL10n) {
       document.body.removeEventListener("click", this._onBodyClick);
     },
 
+    shouldComponentUpdate: function(nextProps, nextState) {
+      let currContact = this.props.contact;
+      let nextContact = nextProps.contact;
+      let currContactEmail = getPreferred(currContact, "email").value;
+      let nextContactEmail = getPreferred(nextContact, "email").value;
+      return (
+        currContact.name[0] !== nextContact.name[0] ||
+        currContact.blocked !== nextContact.blocked ||
+        currContactEmail !== nextContactEmail ||
+        nextState.showMenu !== this.state.showMenu
+      );
+    },
+
     handleAction: function(actionName) {
       if (this.props.handleContactAction) {
         this.props.handleContactAction(this.props.contact, actionName);
       }
-    },
-
-    getContactNames: function() {
-      // The model currently does not enforce a name to be present, but we're
-      // going to assume it is awaiting more advanced validation of required fields
-      // by the model. (See bug 1069918)
-      // NOTE: this method of finding a firstname and lastname is not i18n-proof.
-      let names = this.props.contact.name[0].split(" ");
-      return {
-        firstName: names.shift(),
-        lastName: names.join(" ")
-      };
-    },
-
-    getPreferredEmail: function() {
-      // The model currently does not enforce a name to be present, but we're
-      // going to assume it is awaiting more advanced validation of required fields
-      // by the model. (See bug 1069918)
-      let email = this.props.contact.email[0];
-      this.props.contact.email.some(function(address) {
-        if (address.pref) {
-          email = address;
-          return true;
-        }
-        return false;
-      });
-      return email;
     },
 
     canEdit: function() {
@@ -171,8 +222,8 @@ loop.contacts = (function(_, mozL10n) {
     },
 
     render: function() {
-      let names = this.getContactNames();
-      let email = this.getPreferredEmail();
+      let names = getContactNames(this.props.contact);
+      let email = getPreferred(this.props.contact, "email");
       let cx = React.addons.classSet;
       let contactCSSClass = cx({
         contact: true,
@@ -181,9 +232,7 @@ loop.contacts = (function(_, mozL10n) {
 
       return (
         <li className={contactCSSClass} onMouseLeave={this.hideDropdownMenu}>
-          <div className="avatar">
-            <img src={navigator.mozLoop.getUserAvatar(email.value)} />
-          </div>
+          <div className="avatar" />
           <div className="details">
             <div className="username"><strong>{names.firstName}</strong> {names.lastName}
               <i className={cx({"icon icon-google": this.props.contact.category[0] == "google"})} />
@@ -209,32 +258,70 @@ loop.contacts = (function(_, mozL10n) {
   });
 
   const ContactsList = React.createClass({
+    mixins: [React.addons.LinkedStateMixin],
+
+    /**
+     * Contacts collection object
+     */
+    contacts: null,
+
+    /**
+     * User profile
+     */
+    _userProfile: null,
+
     getInitialState: function() {
       return {
-        contacts: {}
+        importBusy: false,
+        filter: "",
       };
     },
 
-    componentDidMount: function() {
+    refresh: function(callback = function() {}) {
       let contactsAPI = navigator.mozLoop.contacts;
+
+      this.handleContactRemoveAll();
 
       contactsAPI.getAll((err, contacts) => {
         if (err) {
-          throw err;
+          callback(err);
+          return;
         }
 
         // Add contacts already present in the DB. We do this in timed chunks to
         // circumvent blocking the main event loop.
         let addContactsInChunks = () => {
           contacts.splice(0, CONTACTS_CHUNK_SIZE).forEach(contact => {
-            this.handleContactAddOrUpdate(contact);
+            this.handleContactAddOrUpdate(contact, false);
           });
           if (contacts.length) {
             setTimeout(addContactsInChunks, 0);
+          } else {
+            callback();
           }
+          this.forceUpdate();
         };
 
         addContactsInChunks(contacts);
+      });
+    },
+
+    componentWillMount: function() {
+      // Take the time to initialize class variables that are used outside
+      // `this.state`.
+      this.contacts = {};
+      this._userProfile = navigator.mozLoop.userProfile;
+    },
+
+    componentDidMount: function() {
+      window.addEventListener("LoopStatusChanged", this._onStatusChanged);
+
+      this.refresh(err => {
+        if (err) {
+          throw err;
+        }
+
+        let contactsAPI = navigator.mozLoop.contacts;
 
         // Listen for contact changes/ updates.
         contactsAPI.on("add", (eventName, contact) => {
@@ -252,28 +339,58 @@ loop.contacts = (function(_, mozL10n) {
       });
     },
 
-    handleContactAddOrUpdate: function(contact) {
-      let contacts = this.state.contacts;
+    componentWillUnmount: function() {
+      window.removeEventListener("LoopStatusChanged", this._onStatusChanged);
+    },
+
+    _onStatusChanged: function() {
+      let profile = navigator.mozLoop.userProfile;
+      let currUid = this._userProfile ? this._userProfile.uid : null;
+      let newUid = profile ? profile.uid : null;
+      if (currUid != newUid) {
+        // On profile change (login, logout), reload all contacts.
+        this._userProfile = profile;
+        // The following will do a forceUpdate() for us.
+        this.refresh();
+      }
+    },
+
+    handleContactAddOrUpdate: function(contact, render = true) {
+      let contacts = this.contacts;
       let guid = String(contact._guid);
       contacts[guid] = contact;
-      this.setState({});
+      if (render) {
+        this.forceUpdate();
+      }
     },
 
     handleContactRemove: function(contact) {
-      let contacts = this.state.contacts;
+      let contacts = this.contacts;
       let guid = String(contact._guid);
       if (!contacts[guid]) {
         return;
       }
       delete contacts[guid];
-      this.setState({});
+      this.forceUpdate();
     },
 
     handleContactRemoveAll: function() {
-      this.setState({contacts: {}});
+      // Do not allow any race conditions when removing all contacts.
+      this.contacts = {};
+      this.forceUpdate();
     },
 
     handleImportButtonClick: function() {
+      this.setState({ importBusy: true });
+      navigator.mozLoop.startImport({
+        service: "google"
+      }, (err, stats) => {
+        this.setState({ importBusy: false });
+        // TODO: bug 1076764 - proper error and success reporting.
+        if (err) {
+          throw err;
+        }
+      });
     },
 
     handleAddContactButtonClick: function() {
@@ -286,6 +403,26 @@ loop.contacts = (function(_, mozL10n) {
           this.props.startForm("contacts_edit", contact);
           break;
         case "remove":
+          navigator.mozLoop.confirm(
+            mozL10n.get("confirm_delete_contact_alert"),
+            mozL10n.get("confirm_delete_contact_remove_button"),
+            mozL10n.get("confirm_delete_contact_cancel_button"),
+            (err, result) => {
+              if (err) {
+                throw err;
+              }
+
+              if (!result) {
+                return;
+              }
+
+              navigator.mozLoop.contacts.remove(contact._guid, err => {
+                if (err) {
+                  throw err;
+                }
+              });
+            });
+          break;
         case "block":
         case "unblock":
           // Invoke the API named like the action.
@@ -294,6 +431,16 @@ loop.contacts = (function(_, mozL10n) {
               throw err;
             }
           });
+          break;
+        case "video-call":
+          if (!contact.blocked) {
+            navigator.mozLoop.calls.startDirectCall(contact, CALL_TYPES.AUDIO_VIDEO);
+          }
+          break;
+        case "audio-call":
+          if (!contact.blocked) {
+            navigator.mozLoop.calls.startDirectCall(contact, CALL_TYPES.AUDIO_ONLY);
+          }
           break;
         default:
           console.error("Unrecognized action: " + actionName);
@@ -312,31 +459,62 @@ loop.contacts = (function(_, mozL10n) {
     },
 
     render: function() {
+      let cx = React.addons.classSet;
+
       let viewForItem = item => {
         return <ContactDetail key={item._guid} contact={item}
                               handleContactAction={this.handleContactAction} />
       };
 
-      let shownContacts = _.groupBy(this.state.contacts, function(contact) {
+      let shownContacts = _.groupBy(this.contacts, function(contact) {
         return contact.blocked ? "blocked" : "available";
       });
+
+      let showFilter = Object.getOwnPropertyNames(this.contacts).length >=
+                       MIN_CONTACTS_FOR_FILTERING;
+      if (showFilter) {
+        let filter = this.state.filter.trim().toLocaleLowerCase();
+        if (filter) {
+          let filterFn = contact => {
+            return contact.name[0].toLocaleLowerCase().contains(filter) ||
+                   getPreferred(contact, "email").value.toLocaleLowerCase().contains(filter);
+          };
+          if (shownContacts.available) {
+            shownContacts.available = shownContacts.available.filter(filterFn);
+          }
+          if (shownContacts.blocked) {
+            shownContacts.blocked = shownContacts.blocked.filter(filterFn);
+          }
+        }
+      }
 
       return (
         <div>
           <div className="content-area">
             <ButtonGroup>
-              <Button caption={mozL10n.get("import_contacts_button")}
-                      disabled
-                      onClick={this.handleImportButtonClick} />
+              <Button caption={this.state.importBusy
+                               ? mozL10n.get("importing_contacts_progress_button")
+                               : mozL10n.get("import_contacts_button")}
+                      disabled={this.state.importBusy}
+                      onClick={this.handleImportButtonClick}>
+                <div className={cx({"contact-import-spinner": true,
+                                    spinner: true,
+                                    busy: this.state.importBusy})} />
+              </Button>
               <Button caption={mozL10n.get("new_contact_button")}
                       onClick={this.handleAddContactButtonClick} />
             </ButtonGroup>
+            {showFilter ?
+            <input className="contact-filter"
+                   placeholder={mozL10n.get("contacts_search_placesholder")}
+                   valueLink={this.linkState("filter")} />
+            : null }
           </div>
           <ul className="contact-list">
             {shownContacts.available ?
               shownContacts.available.sort(this.sortContacts).map(viewForItem) :
               null}
-            {shownContacts.blocked ?
+            {shownContacts.blocked && shownContacts.blocked.length > 0 ?
               <div className="contact-separator">{mozL10n.get("contacts_blocked_contacts")}</div> :
               null}
             {shownContacts.blocked ?
@@ -361,6 +539,7 @@ loop.contacts = (function(_, mozL10n) {
         pristine: true,
         name: "",
         email: "",
+        tel: "",
       };
     },
 
@@ -369,7 +548,8 @@ loop.contacts = (function(_, mozL10n) {
       if (contact) {
         state.contact = contact;
         state.name = contact.name[0];
-        state.email = contact.email[0].value;
+        state.email = getPreferred(contact, "email").value;
+        state.tel = getPreferred(contact, "tel").value;
       }
       this.setState(state);
     },
@@ -380,8 +560,11 @@ loop.contacts = (function(_, mozL10n) {
         pristine: false,
       });
 
+      let emailInput = this.refs.email.getDOMNode();
+      let telInput = this.refs.tel.getDOMNode();
       if (!this.refs.name.getDOMNode().checkValidity() ||
-          !this.refs.email.getDOMNode().checkValidity()) {
+          ((emailInput.required || emailInput.value) && !emailInput.checkValidity()) ||
+          ((telInput.required || telInput.value) && !telInput.checkValidity())) {
         return;
       }
 
@@ -392,7 +575,8 @@ loop.contacts = (function(_, mozL10n) {
       switch (this.props.mode) {
         case "edit":
           this.state.contact.name[0] = this.state.name.trim();
-          this.state.contact.email[0].value = this.state.email.trim();
+          setPreferred(this.state.contact, "email", this.state.email.trim());
+          setPreferred(this.state.contact, "tel", this.state.tel.trim());
           contactsAPI.update(this.state.contact, err => {
             if (err) {
               throw err;
@@ -403,7 +587,7 @@ loop.contacts = (function(_, mozL10n) {
           });
           break;
         case "add":
-          contactsAPI.add({
+          var contact = {
             id: navigator.mozLoop.generateUUID(),
             name: [this.state.name.trim()],
             email: [{
@@ -412,7 +596,16 @@ loop.contacts = (function(_, mozL10n) {
               value: this.state.email.trim()
             }],
             category: ["local"]
-          }, err => {
+          };
+          var tel = this.state.tel.trim();
+          if (!!tel) {
+            contact["tel"] = [{
+              pref: true,
+              type: ["fxos"],
+              value: tel
+            }];
+          }
+          contactsAPI.add(contact, err => {
             if (err) {
               throw err;
             }
@@ -427,19 +620,25 @@ loop.contacts = (function(_, mozL10n) {
 
     render: function() {
       let cx = React.addons.classSet;
+      let phoneOrEmailRequired = !this.state.email && !this.state.tel;
+
       return (
         <div className="content-area contact-form">
           <header>{this.props.mode == "add"
                    ? mozL10n.get("add_contact_button")
                    : mozL10n.get("edit_contact_title")}</header>
           <label>{mozL10n.get("edit_contact_name_label")}</label>
-          <input ref="name" required pattern="\s*\S.*"
+          <input ref="name" required pattern="\s*\S.*" type="text"
                  className={cx({pristine: this.state.pristine})}
                  valueLink={this.linkState("name")} />
           <label>{mozL10n.get("edit_contact_email_label")}</label>
-          <input ref="email" required type="email"
+          <input ref="email" type="email" required={phoneOrEmailRequired}
                  className={cx({pristine: this.state.pristine})}
                  valueLink={this.linkState("email")} />
+          <label>{mozL10n.get("new_contact_phone_placeholder")}</label>
+          <input ref="tel" type="tel" required={phoneOrEmailRequired}
+                 className={cx({pristine: this.state.pristine})}
+                 valueLink={this.linkState("tel")} />
           <ButtonGroup>
             <Button additionalClass="button-cancel"
                     caption={mozL10n.get("cancel_button")}
@@ -458,5 +657,7 @@ loop.contacts = (function(_, mozL10n) {
   return {
     ContactsList: ContactsList,
     ContactDetailsForm: ContactDetailsForm,
+    _getPreferred: getPreferred,
+    _setPreferred: setPreferred,
   };
 })(_, document.mozL10n);

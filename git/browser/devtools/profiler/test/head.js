@@ -74,7 +74,7 @@ function* initFrontend(url, id = "jsprofiler") {
 
   let tab = yield addTab(url);
   let target = TargetFactory.forTab(tab);
-  let debuggee = target.window.wrappedJSObject;
+  let debuggee = tab.linkedBrowser.contentWindow.wrappedJSObject;
 
   yield target.makeRemote();
 
@@ -150,9 +150,10 @@ function* stopRecording(panel, { waitForDisplay }) {
 
   if (waitForDisplay) {
     yield displayed;
-
-    ok(!button.hasAttribute("checked"),
-      "The record button should not be checked anymore.");
+    if (!win.RecordingsListView.getItemForPredicate(e => e.isRecording)) {
+      ok(!button.hasAttribute("checked"),
+        "The record button should not be checked anymore.");
+    }
     ok(!button.hasAttribute("locked"),
       "The record button should not be locked anymore.");
   }

@@ -39,10 +39,6 @@
 class nsIJSID;
 class nsPIDOMWindow;
 
-extern nsresult
-xpc_qsUnwrapArgImpl(JSContext* cx, JS::Handle<JS::Value> v, const nsIID& iid, void** ppArg,
-                    nsISupports** ppArgRef, JS::MutableHandle<JS::Value> vp);
-
 namespace mozilla {
 namespace dom {
 template<typename DataType> class MozMap;
@@ -56,18 +52,16 @@ struct SelfRef
   nsISupports* ptr;
 };
 
+nsresult
+UnwrapArgImpl(JS::Handle<JSObject*> src, const nsIID& iid, void** ppArg);
+
 /** Convert a jsval to an XPCOM pointer. */
-template <class Interface, class StrongRefType>
+template <class Interface>
 inline nsresult
-UnwrapArg(JSContext* cx, JS::Handle<JS::Value> v, Interface** ppArg,
-          StrongRefType** ppArgRef, JS::MutableHandle<JS::Value> vp)
+UnwrapArg(JS::Handle<JSObject*> src, Interface** ppArg)
 {
-  nsISupports* argRef = *ppArgRef;
-  nsresult rv = xpc_qsUnwrapArgImpl(cx, v, NS_GET_TEMPLATE_IID(Interface),
-                                    reinterpret_cast<void**>(ppArg), &argRef,
-                                    vp);
-  *ppArgRef = static_cast<StrongRefType*>(argRef);
-  return rv;
+  return UnwrapArgImpl(src, NS_GET_TEMPLATE_IID(Interface),
+                       reinterpret_cast<void**>(ppArg));
 }
 
 inline const ErrNum
@@ -166,8 +160,8 @@ IsDOMIfaceAndProtoClass(const js::Class* clasp)
   return IsDOMIfaceAndProtoClass(Jsvalify(clasp));
 }
 
-static_assert(DOM_OBJECT_SLOT == js::PROXY_PRIVATE_SLOT,
-              "js::PROXY_PRIVATE_SLOT doesn't match DOM_OBJECT_SLOT.  "
+static_assert(DOM_OBJECT_SLOT == 0,
+              "DOM_OBJECT_SLOT doesn't match the proxy private slot.  "
               "Expect bad things");
 template <class T>
 inline T*
@@ -176,7 +170,25 @@ UnwrapDOMObject(JSObject* obj)
   MOZ_ASSERT(IsDOMClass(js::GetObjectClass(obj)),
              "Don't pass non-DOM objects to this function");
 
-  JS::Value val = js::GetReservedSlot(obj, DOM_OBJECT_SLOT);
+  JS::Value val = js::GetReservedOrProxyPrivateSlot(obj, DOM_OBJECT_SLOT);
+  return static_cast<T*>(val.toPrivate());
+}
+
+template <class T>
+inline T*
+UnwrapPossiblyNotInitializedDOMObject(JSObject* obj)
+{
+  // This is used by the OjectMoved JSClass hook which can be called before
+  // JS_NewObject has returned and so before we have a chance to set
+  // DOM_OBJECT_SLOT to anything useful.
+
+  MOZ_ASSERT(IsDOMClass(js::GetObjectClass(obj)),
+             "Don't pass non-DOM objects to this function");
+
+  JS::Value val = js::GetReservedOrProxyPrivateSlot(obj, DOM_OBJECT_SLOT);
+  if (val.isUndefined()) {
+    return nullptr;
+  }
   return static_cast<T*>(val.toPrivate());
 }
 
@@ -1492,22 +1504,6 @@ WrapNativeParent(JSContext* cx, const T& p)
   return WrapNativeParent(cx, GetParentPointer(p), GetWrapperCache(p), GetUseXBLScope(p));
 }
 
-// A way to differentiate between nodes, which use the parent object
-// returned by native->GetParentObject(), and all other objects, which
-// just use the parent's global.
-static inline JSObject*
-GetRealParentObject(void* aParent, JSObject* aParentObject)
-{
-  return aParentObject ?
-    js::GetGlobalForObjectCrossCompartment(aParentObject) : nullptr;
-}
-
-static inline JSObject*
-GetRealParentObject(Element* aParent, JSObject* aParentObject)
-{
-  return aParentObject;
-}
-
 HAS_MEMBER(GetParentObject)
 
 template<typename T, bool WrapperCached=HasGetParentObjectMember<T>::Value>
@@ -1517,9 +1513,8 @@ struct GetParentObject
   {
     MOZ_ASSERT(js::IsObjectInContextCompartment(obj, cx));
     T* native = UnwrapDOMObject<T>(obj);
-    return
-      GetRealParentObject(native,
-                          WrapNativeParent(cx, native->GetParentObject()));
+    JSObject* wrappedParent = WrapNativeParent(cx, native->GetParentObject());
+    return wrappedParent ? js::GetGlobalForObjectCrossCompartment(wrappedParent) : nullptr;
   }
 };
 
@@ -1685,7 +1680,7 @@ InitIds(JSContext* cx, const Prefable<Spec>* prefableSpecs, jsid* ids)
     // because this is only done once per application runtime.
     Spec* spec = prefableSpecs->specs;
     do {
-      if (!InternJSString(cx, *ids, spec->name)) {
+      if (!JS::PropertySpecNameToPermanentId(cx, spec->name, ids)) {
         return false;
       }
     } while (++ids, (++spec)->name);
@@ -2344,8 +2339,8 @@ XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
                    JS::MutableHandle<JSPropertyDescriptor> desc, bool* defined);
 
 /**
- * This enumerates indexed or named properties of obj and operations, attributes
- * and constants of the interfaces for obj.
+ * Add to props the property keys of all indexed or named properties of obj and
+ * operations, attributes and constants of the interfaces for obj.
  *
  * wrapper is the Xray JS object.
  * obj is the target object of the Xray, a binding's instance object or a
@@ -2353,9 +2348,9 @@ XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
  * flags are JSITER_* flags.
  */
 bool
-XrayEnumerateProperties(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                        JS::Handle<JSObject*> obj,
-                        unsigned flags, JS::AutoIdVector& props);
+XrayOwnPropertyKeys(JSContext* cx, JS::Handle<JSObject*> wrapper,
+                    JS::Handle<JSObject*> obj,
+                    unsigned flags, JS::AutoIdVector& props);
 
 /**
  * Returns the prototype to use for an Xray for a DOM object, wrapped in cx's
@@ -2808,7 +2803,7 @@ FinalizeGlobal(JSFreeOp* aFop, JSObject* aObj);
 
 bool
 ResolveGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj,
-              JS::Handle<jsid> aId, JS::MutableHandle<JSObject*> aObjp);
+              JS::Handle<jsid> aId, bool* aResolvedp);
 
 bool
 EnumerateGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj);
@@ -2868,7 +2863,6 @@ CreateGlobal(JSContext* aCx, T* aNative, nsWrapperCache* aCache,
     js::SetReservedSlot(aGlobal, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aNative));
     NS_ADDREF(aNative);
 
-    aCache->SetIsDOMBinding();
     aCache->SetWrapper(aGlobal);
 
     dom::AllocateProtoAndIfaceCache(aGlobal,

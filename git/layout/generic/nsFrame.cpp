@@ -11,8 +11,10 @@
 #include <stdarg.h>
 #include <algorithm>
 
+#include "gfxUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/gfx/2D.h"
 
 #include "nsCOMPtr.h"
 #include "nsFrameList.h"
@@ -1337,7 +1339,12 @@ nsFrame::GetLogicalBaseline(WritingMode aWritingMode) const
 {
   NS_ASSERTION(!NS_SUBTREE_DIRTY(this),
                "frame must not be dirty");
-  // Default to the bottom margin edge, per CSS2.1's definition of the
+  // Baseline for inverted line content is the top (block-start) margin edge,
+  // as the frame is in effect "flipped" for alignment purposes.
+  if (aWritingMode.IsLineInverted()) {
+    return -GetLogicalUsedMargin(aWritingMode).BStart(aWritingMode);
+  }
+  // Otherwise, the bottom margin edge, per CSS2.1's definition of the
   // 'baseline' value of 'vertical-align'.
   return BSize(aWritingMode) +
          GetLogicalUsedMargin(aWritingMode).BEnd(aWritingMode);
@@ -1720,19 +1727,21 @@ ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
 static void PaintDebugBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
   nsRect r(aPt, aFrame->GetSize());
-  if (aFrame->HasView()) {
-    aCtx->SetColor(NS_RGB(0,0,255));
-  } else {
-    aCtx->SetColor(NS_RGB(255,0,0));
-  }
-  aCtx->DrawRect(r);
+  DrawTarget* drawTarget = aCtx->GetDrawTarget();
+  int32_t appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
+  Color blueOrRed(aFrame->HasView() ? Color(0.f, 0.f, 1.f, 1.f) :
+                                      Color(1.f, 0.f, 0.f, 1.f));
+  drawTarget->StrokeRect(NSRectToRect(r, appUnitsPerDevPixel),
+                         ColorPattern(ToDeviceColor(blueOrRed)));
 }
 
 static void PaintEventTargetBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
   nsRect r(aPt, aFrame->GetSize());
-  aCtx->SetColor(NS_RGB(128,0,128));
-  aCtx->DrawRect(r);
+  DrawTarget* drawTarget = aCtx->GetDrawTarget();
+  int32_t appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
+  ColorPattern purple(ToDeviceColor(Color(.5f, 0.f, .5f, 1.f)));
+  drawTarget->StrokeRect(NSRectToRect(r, appUnitsPerDevPixel), purple);
 }
 
 static void
@@ -1846,9 +1855,9 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder,
 }
 
 static bool
-IsScrollFrameActive(nsIScrollableFrame* aScrollableFrame)
+IsScrollFrameActive(nsDisplayListBuilder* aBuilder, nsIScrollableFrame* aScrollableFrame)
 {
-  return aScrollableFrame && aScrollableFrame->IsScrollingActive();
+  return aScrollableFrame && aScrollableFrame->IsScrollingActive(aBuilder);
 }
 
 static nsresult
@@ -1926,6 +1935,10 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     return;
   }
 
+  if (disp->mWillChangeBitField != 0) {
+    aBuilder->AddToWillChangeBudget(this, GetSize());
+  }
+
   nsRect dirtyRect = aDirtyRect;
 
   bool inTransform = aBuilder->IsInTransform();
@@ -1970,7 +1983,8 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   bool useOpacity = HasVisualOpacity() && !nsSVGUtils::CanOptimizeOpacity(this);
   bool useBlendMode = disp->mMixBlendMode != NS_STYLE_BLEND_NORMAL;
   bool useStickyPosition = disp->mPosition == NS_STYLE_POSITION_STICKY &&
-    IsScrollFrameActive(nsLayoutUtils::GetNearestScrollableFrame(GetParent(),
+    IsScrollFrameActive(aBuilder,
+                        nsLayoutUtils::GetNearestScrollableFrame(GetParent(),
                         nsLayoutUtils::SCROLLABLE_SAME_DOC |
                         nsLayoutUtils::SCROLLABLE_INCLUDE_HIDDEN));
 
@@ -2313,11 +2327,13 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     (isPositioned && (disp->mPosition == NS_STYLE_POSITION_STICKY ||
                       pos->mZIndex.GetUnit() == eStyleUnit_Integer)) ||
      (disp->mWillChangeBitField & NS_STYLE_WILL_CHANGE_STACKING_CONTEXT) ||
+     disp->mIsolation != NS_STYLE_ISOLATION_AUTO ||
      isVisuallyAtomic || (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT);
 
   if (isVisuallyAtomic || isPositioned || (!isSVG && disp->IsFloating(child)) ||
       ((disp->mClipFlags & NS_STYLE_CLIP_RECT) &&
        IsSVGContentWithCSSClip(child)) ||
+       disp->mIsolation != NS_STYLE_ISOLATION_AUTO ||
        (disp->mWillChangeBitField & NS_STYLE_WILL_CHANGE_STACKING_CONTEXT) ||
       (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // If you change this, also change IsPseudoStackingContextFromStyle()
@@ -3788,10 +3804,15 @@ nsFrame::GetCursor(const nsPoint& aPoint,
   if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
     // If this is editable, I-beam cursor is better for most elements.
     aCursor.mCursor =
-      (mContent && mContent->IsEditable()) ? NS_STYLE_CURSOR_TEXT :
-                                             NS_STYLE_CURSOR_DEFAULT;
+      (mContent && mContent->IsEditable())
+      ? NS_STYLE_CURSOR_TEXT : NS_STYLE_CURSOR_DEFAULT;
   }
-
+  if (NS_STYLE_CURSOR_TEXT == aCursor.mCursor &&
+      GetWritingMode().IsVertical()) {
+    // Per CSS UI spec, UA may treat value 'text' as
+    // 'vertical-text' for vertical text.
+    aCursor.mCursor = NS_STYLE_CURSOR_VERTICAL_TEXT;
+  }
 
   return NS_OK;
 }
@@ -4058,12 +4079,12 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                      const LogicalSize& aMargin,
                      const LogicalSize& aBorder,
                      const LogicalSize& aPadding,
-                     uint32_t aFlags)
+                     ComputeSizeFlags aFlags)
 {
   LogicalSize result = ComputeAutoSize(aRenderingContext, aWM,
                                        aCBSize, aAvailableISize,
                                        aMargin, aBorder, aPadding,
-                                       aFlags & eShrinkWrap);
+                                       aFlags & ComputeSizeFlags::eShrinkWrap);
   LogicalSize boxSizingAdjust(aWM);
   const nsStylePosition *stylePos = StylePosition();
 
@@ -4784,10 +4805,9 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
     // XXXjwatt: seems like this will double count offsets in the face of preserve-3d:
     nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
     /* Combine the raw transform with a translation to our parent. */
-    result = result * Matrix4x4().Translate
-      (NSAppUnitsToFloatPixels(delta.x, scaleFactor),
-       NSAppUnitsToFloatPixels(delta.y, scaleFactor),
-       0.0f);
+    result.PostTranslate(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
+                         NSAppUnitsToFloatPixels(delta.y, scaleFactor),
+                         0.0f);
     return result;
   }
 
@@ -4863,10 +4883,9 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
    */
   nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
   int32_t scaleFactor = PresContext()->AppUnitsPerDevPixel();
-  return Matrix4x4().Translate
-    (NSAppUnitsToFloatPixels(delta.x, scaleFactor),
-     NSAppUnitsToFloatPixels(delta.y, scaleFactor),
-     0.0f);
+  return Matrix4x4::Translation(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
+                                NSAppUnitsToFloatPixels(delta.y, scaleFactor),
+                                0.0f);
 }
 
 static void InvalidateFrameInternal(nsIFrame *aFrame, bool aHasDisplayItem = true)
@@ -5386,7 +5405,7 @@ nsFrame::IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
     ClearOverflowRects();
     aMetrics.ClearSize();
     aMetrics.SetBlockStartAscent(0);
-    aMetrics.mCarriedOutBottomMargin.Zero();
+    aMetrics.mCarriedOutBEndMargin.Zero();
     aMetrics.mOverflowAreas.Clear();
 
     if (GetNextInFlow()) {
@@ -6904,8 +6923,12 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, bool aVisual,
       frameTraversal->Prev();
 
     traversedFrame = frameTraversal->CurrentItem();
-    if (!traversedFrame)
+
+    // Skip anonymous elements
+    if (!traversedFrame ||
+        traversedFrame->GetContent()->IsRootOfNativeAnonymousSubtree())
       return NS_ERROR_FAILURE;
+
     traversedFrame->IsSelectable(&selectable, nullptr);
   } // while (!selectable)
 
@@ -7804,11 +7827,11 @@ nsIFrame::IsFocusable(int32_t *aTabIndex, bool aWithMouse)
       // will be enough to make them keyboard scrollable.
       nsIScrollableFrame *scrollFrame = do_QueryFrame(this);
       if (scrollFrame &&
-          scrollFrame->GetScrollbarStyles() != ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN) &&
+          !scrollFrame->GetScrollbarStyles().IsHiddenInBothDirections() &&
           !scrollFrame->GetScrollRange().IsEqualEdges(nsRect(0, 0, 0, 0))) {
-          // Scroll bars will be used for overflow
-          isFocusable = true;
-          tabIndex = 0;
+        // Scroll bars will be used for overflow
+        isFocusable = true;
+        tabIndex = 0;
       }
     }
   }
@@ -8381,7 +8404,7 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
                       reflowState.ComputedLogicalBorderPadding().Size(wm) -
                         reflowState.ComputedLogicalPadding().Size(wm),
                       reflowState.ComputedLogicalPadding().Size(wm),
-                      false).Height(wm));
+                      ComputeSizeFlags::eDefault).Height(wm));
       }
     }
 

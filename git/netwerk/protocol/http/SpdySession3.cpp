@@ -155,10 +155,10 @@ void
 SpdySession3::LogIO(SpdySession3 *self, SpdyStream3 *stream, const char *label,
                     const char *data, uint32_t datalen)
 {
-  if (!LOG4_ENABLED())
+  if (!LOG5_ENABLED())
     return;
 
-  LOG4(("SpdySession3::LogIO %p stream=%p id=0x%X [%s]",
+  LOG5(("SpdySession3::LogIO %p stream=%p id=0x%X [%s]",
         self, stream, stream ? stream->StreamID() : 0, label));
 
   // Max line is (16 * 3) + 10(prefix) + newline + null
@@ -172,7 +172,7 @@ SpdySession3::LogIO(SpdySession3 *self, SpdyStream3 *stream, const char *label,
     if (!(index % 16)) {
       if (index) {
         *line = 0;
-        LOG4(("%s", linebuf));
+        LOG5(("%s", linebuf));
       }
       line = linebuf;
       PR_snprintf(line, 128, "%08X: ", index);
@@ -184,7 +184,7 @@ SpdySession3::LogIO(SpdySession3 *self, SpdyStream3 *stream, const char *label,
   }
   if (index) {
     *line = 0;
-    LOG4(("%s", linebuf));
+    LOG5(("%s", linebuf));
   }
 }
 
@@ -386,7 +386,8 @@ SpdySession3::AddStream(nsAHttpTransaction *aHttpTransaction,
     mQueuedStreams.Push(stream);
   }
 
-  if (!(aHttpTransaction->Caps() & NS_HTTP_ALLOW_KEEPALIVE)) {
+  if (!(aHttpTransaction->Caps() & NS_HTTP_ALLOW_KEEPALIVE) &&
+      !aHttpTransaction->IsNullTransaction()) {
     LOG3(("SpdySession3::AddStream %p transaction %p forces keep-alive off.\n",
           this, aHttpTransaction));
     DontReuse();
@@ -401,12 +402,15 @@ SpdySession3::ActivateStream(SpdyStream3 *stream)
   MOZ_ASSERT(!stream->StreamID() || (stream->StreamID() & 1),
              "Do not activate pushed streams");
 
-  ++mConcurrent;
-  if (mConcurrent > mConcurrentHighWater)
-    mConcurrentHighWater = mConcurrent;
-  LOG3(("SpdySession3::AddStream %p activating stream %p Currently %d "
-        "streams in session, high water mark is %d",
-        this, stream, mConcurrent, mConcurrentHighWater));
+  nsAHttpTransaction *trans = stream->Transaction();
+  if (!trans || !trans->IsNullTransaction() || trans->QuerySpdyConnectTransaction()) {
+    ++mConcurrent;
+    if (mConcurrent > mConcurrentHighWater)
+      mConcurrentHighWater = mConcurrent;
+    LOG3(("SpdySession3::AddStream %p activating stream %p Currently %d "
+          "streams in session, high water mark is %d",
+          this, stream, mConcurrent, mConcurrentHighWater));
+  }
 
   mReadyForWrite.Push(stream);
   SetWriteCallbacks();
@@ -1761,10 +1765,17 @@ SpdySession3::ReadSegments(nsAHttpSegmentReader *reader,
   }
 
   if (NS_FAILED(rv)) {
-    LOG3(("SpdySession3::ReadSegments %p returning FAIL code %X",
+    LOG3(("SpdySession3::ReadSegments %p may return FAIL code %X",
           this, rv));
-    if (rv != NS_BASE_STREAM_WOULD_BLOCK)
-      CleanupStream(stream, rv, RST_CANCEL);
+    if (rv == NS_BASE_STREAM_WOULD_BLOCK) {
+      return rv;
+    }
+
+    CleanupStream(stream, rv, RST_CANCEL);
+    if (SoftStreamError(rv)) {
+      LOG3(("SpdySession3::ReadSegments %p soft error override\n", this));
+      rv = NS_OK;
+    }
     return rv;
   }
 

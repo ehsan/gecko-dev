@@ -17,6 +17,7 @@ namespace js {
 class DeclEnvObject;
 class ForkJoinContext;
 class StaticWithObject;
+class InlineTypedObject;
 
 namespace jit {
 
@@ -239,10 +240,10 @@ struct VMFunction
         extraValuesToPop(extraValuesToPop)
     {
         // Check for valid failure/return type.
-        JS_ASSERT_IF(outParam != Type_Void && executionMode == SequentialExecution,
-                     returnType == Type_Bool);
-        JS_ASSERT(returnType == Type_Bool ||
-                  returnType == Type_Object);
+        MOZ_ASSERT_IF(outParam != Type_Void && executionMode == SequentialExecution,
+                      returnType == Type_Bool);
+        MOZ_ASSERT(returnType == Type_Bool ||
+                   returnType == Type_Object);
     }
 
     VMFunction(const VMFunction &o) {
@@ -250,7 +251,7 @@ struct VMFunction
     }
 
     void init(const VMFunction &o) {
-        JS_ASSERT(!wrapped);
+        MOZ_ASSERT(!wrapped);
         *this = o;
         addToFunctions();
     }
@@ -272,13 +273,13 @@ struct VMFunctionsModal
     }
 
     inline const VMFunction &operator[](ExecutionMode mode) const {
-        JS_ASSERT((unsigned)mode < NumExecutionModes);
+        MOZ_ASSERT((unsigned)mode < NumExecutionModes);
         return funs_[mode];
     }
 
   private:
     void add(const VMFunction &info) {
-        JS_ASSERT((unsigned)info.executionMode < NumExecutionModes);
+        MOZ_ASSERT((unsigned)info.executionMode < NumExecutionModes);
         funs_[info.executionMode].init(info);
     }
 
@@ -288,6 +289,8 @@ struct VMFunctionsModal
 template <class> struct TypeToDataType { /* Unexpected return type for a VMFunction. */ };
 template <> struct TypeToDataType<bool> { static const DataType result = Type_Bool; };
 template <> struct TypeToDataType<JSObject *> { static const DataType result = Type_Object; };
+template <> struct TypeToDataType<NativeObject *> { static const DataType result = Type_Object; };
+template <> struct TypeToDataType<InlineTypedObject *> { static const DataType result = Type_Object; };
 template <> struct TypeToDataType<DeclEnvObject *> { static const DataType result = Type_Object; };
 template <> struct TypeToDataType<ArrayObject *> { static const DataType result = Type_Object; };
 template <> struct TypeToDataType<JSString *> { static const DataType result = Type_Object; };
@@ -296,6 +299,9 @@ template <> struct TypeToDataType<HandleObject> { static const DataType result =
 template <> struct TypeToDataType<HandleString> { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<HandlePropertyName> { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<HandleFunction> { static const DataType result = Type_Handle; };
+template <> struct TypeToDataType<Handle<NativeObject *> > { static const DataType result = Type_Handle; };
+template <> struct TypeToDataType<Handle<InlineTypedObject *> > { static const DataType result = Type_Handle; };
+template <> struct TypeToDataType<Handle<ArrayObject *> > { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<Handle<StaticWithObject *> > { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<Handle<StaticBlockObject *> > { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<HandleScript> { static const DataType result = Type_Handle; };
@@ -321,6 +327,15 @@ template <> struct TypeToArgProperties<HandlePropertyName> {
 };
 template <> struct TypeToArgProperties<HandleFunction> {
     static const uint32_t result = TypeToArgProperties<JSFunction *>::result | VMFunction::ByRef;
+};
+template <> struct TypeToArgProperties<Handle<NativeObject *> > {
+    static const uint32_t result = TypeToArgProperties<NativeObject *>::result | VMFunction::ByRef;
+};
+template <> struct TypeToArgProperties<Handle<InlineTypedObject *> > {
+    static const uint32_t result = TypeToArgProperties<InlineTypedObject *>::result | VMFunction::ByRef;
+};
+template <> struct TypeToArgProperties<Handle<ArrayObject *> > {
+    static const uint32_t result = TypeToArgProperties<ArrayObject *>::result | VMFunction::ByRef;
 };
 template <> struct TypeToArgProperties<Handle<StaticWithObject *> > {
     static const uint32_t result = TypeToArgProperties<StaticWithObject *>::result | VMFunction::ByRef;
@@ -383,6 +398,15 @@ template <> struct TypeToRootType<HandleTypeObject> {
 };
 template <> struct TypeToRootType<HandleScript> {
     static const uint32_t result = VMFunction::RootCell;
+};
+template <> struct TypeToRootType<Handle<NativeObject *> > {
+    static const uint32_t result = VMFunction::RootObject;
+};
+template <> struct TypeToRootType<Handle<InlineTypedObject *> > {
+    static const uint32_t result = VMFunction::RootObject;
+};
+template <> struct TypeToRootType<Handle<ArrayObject *> > {
+    static const uint32_t result = VMFunction::RootObject;
 };
 template <> struct TypeToRootType<Handle<StaticBlockObject *> > {
     static const uint32_t result = VMFunction::RootObject;
@@ -596,7 +620,7 @@ class AutoDetectInvalidation
     AutoDetectInvalidation(JSContext *cx, MutableHandleValue rval, IonScript *ionScript = nullptr);
 
     void disable() {
-        JS_ASSERT(!disabled_);
+        MOZ_ASSERT(!disabled_);
         disabled_ = true;
     }
 
@@ -616,7 +640,7 @@ bool CheckOverRecursedWithExtra(JSContext *cx, BaselineFrame *frame,
 bool DefVarOrConst(JSContext *cx, HandlePropertyName dn, unsigned attrs, HandleObject scopeChain);
 bool SetConst(JSContext *cx, HandlePropertyName name, HandleObject scopeChain, HandleValue rval);
 bool MutatePrototype(JSContext *cx, HandleObject obj, HandleValue value);
-bool InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value);
+bool InitProp(JSContext *cx, HandleNativeObject obj, HandlePropertyName name, HandleValue value);
 
 template<bool Equal>
 bool LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
@@ -634,11 +658,11 @@ bool StringsEqual(JSContext *cx, HandleString left, HandleString right, bool *re
 
 // Allocation functions for JSOP_NEWARRAY and JSOP_NEWOBJECT and parallel array inlining
 JSObject *NewInitParallelArray(JSContext *cx, HandleObject templateObj);
-JSObject *NewInitObject(JSContext *cx, HandleObject templateObject);
+JSObject *NewInitObject(JSContext *cx, HandleNativeObject templateObject);
 JSObject *NewInitObjectWithClassPrototype(JSContext *cx, HandleObject templateObject);
 
 bool ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval);
-bool ArrayPushDense(JSContext *cx, HandleObject obj, HandleValue v, uint32_t *length);
+bool ArrayPushDense(JSContext *cx, HandleArrayObject obj, HandleValue v, uint32_t *length);
 bool ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval);
 JSObject *ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObject res);
 JSString *ArrayJoin(JSContext *cx, HandleObject array, HandleString sep);
@@ -652,8 +676,9 @@ bool SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, Handl
 bool InterruptCheck(JSContext *cx);
 
 void *MallocWrapper(JSRuntime *rt, size_t nbytes);
-JSObject *NewCallObject(JSContext *cx, HandleShape shape, HandleTypeObject type);
-JSObject *NewSingletonCallObject(JSContext *cx, HandleShape shape);
+JSObject *NewCallObject(JSContext *cx, HandleShape shape, HandleTypeObject type,
+                        uint32_t lexicalBegin);
+JSObject *NewSingletonCallObject(JSContext *cx, HandleShape shape, uint32_t lexicalBegin);
 JSObject *NewStringObject(JSContext *cx, HandleString str);
 
 bool SPSEnter(JSContext *cx, HandleScript script);
@@ -680,6 +705,14 @@ uint32_t GetIndexFromString(JSString *str);
 bool DebugPrologue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool *mustReturn);
 bool DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok);
 bool DebugEpilogueOnBaselineReturn(JSContext *cx, BaselineFrame *frame, jsbytecode *pc);
+
+JSObject *CreateGenerator(JSContext *cx, BaselineFrame *frame);
+bool NormalSuspend(JSContext *cx, HandleObject obj, BaselineFrame *frame, jsbytecode *pc,
+                   uint32_t stackDepth);
+bool FinalSuspend(JSContext *cx, HandleObject obj, BaselineFrame *frame, jsbytecode *pc);
+bool InterpretResume(JSContext *cx, HandleObject obj, HandleValue val, HandlePropertyName kind,
+                     MutableHandleValue rval);
+bool DebugAfterYield(JSContext *cx, BaselineFrame *frame);
 
 bool StrictEvalPrologue(JSContext *cx, BaselineFrame *frame);
 bool HeavyweightFunPrologue(JSContext *cx, BaselineFrame *frame);
@@ -709,16 +742,18 @@ JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject descr,
 bool ArraySpliceDense(JSContext *cx, HandleObject obj, uint32_t start, uint32_t deleteCount);
 
 bool Recompile(JSContext *cx);
+bool ForcedRecompile(JSContext *cx);
 JSString *RegExpReplace(JSContext *cx, HandleString string, HandleObject regexp,
                         HandleString repl);
 JSString *StringReplace(JSContext *cx, HandleString string, HandleString pattern,
                         HandleString repl);
 
-bool SetDenseElement(JSContext *cx, HandleObject obj, int32_t index, HandleValue value,
+bool SetDenseElement(JSContext *cx, HandleNativeObject obj, int32_t index, HandleValue value,
                      bool strict);
 
 #ifdef DEBUG
 void AssertValidObjectPtr(JSContext *cx, JSObject *obj);
+void AssertValidObjectOrNullPtr(JSContext *cx, JSObject *obj);
 void AssertValidStringPtr(JSContext *cx, JSString *str);
 void AssertValidSymbolPtr(JSContext *cx, JS::Symbol *sym);
 void AssertValidValue(JSContext *cx, Value *v);
@@ -727,6 +762,8 @@ void AssertValidValue(JSContext *cx, Value *v);
 JSObject *TypedObjectProto(JSObject *obj);
 
 void MarkValueFromIon(JSRuntime *rt, Value *vp);
+void MarkStringFromIon(JSRuntime *rt, JSString **stringp);
+void MarkObjectFromIon(JSRuntime *rt, JSObject **objp);
 void MarkShapeFromIon(JSRuntime *rt, Shape **shapep);
 void MarkTypeObjectFromIon(JSRuntime *rt, types::TypeObject **typep);
 
@@ -737,6 +774,10 @@ IonMarkFunction(MIRType type)
     switch (type) {
       case MIRType_Value:
         return JS_FUNC_TO_DATA_PTR(void *, MarkValueFromIon);
+      case MIRType_String:
+        return JS_FUNC_TO_DATA_PTR(void *, MarkStringFromIon);
+      case MIRType_Object:
+        return JS_FUNC_TO_DATA_PTR(void *, MarkObjectFromIon);
       case MIRType_Shape:
         return JS_FUNC_TO_DATA_PTR(void *, MarkShapeFromIon);
       case MIRType_TypeObject:

@@ -162,11 +162,17 @@ ConvertLinearInequality(TempAllocator &alloc, MBasicBlock *block, const LinearSu
 
 bool
 AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
-                                   types::TypeObject *type, HandleObject baseobj,
+                                   types::TypeObject *type, HandleNativeObject baseobj,
                                    Vector<types::TypeNewScript::Initializer> *initializerList);
 
 bool
 AnalyzeArgumentsUsage(JSContext *cx, JSScript *script);
+
+bool
+DeadIfUnused(const MDefinition *def);
+
+bool
+IsDiscardable(const MDefinition *def);
 
 } // namespace jit
 } // namespace js

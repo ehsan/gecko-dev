@@ -96,6 +96,12 @@ class CodeGeneratorARM : public CodeGeneratorShared
         cond = masm.testUndefined(cond, value);
         emitBranch(cond, ifTrue, ifFalse);
     }
+    void testObjectEmitBranch(Assembler::Condition cond, const ValueOperand &value,
+                              MBasicBlock *ifTrue, MBasicBlock *ifFalse)
+    {
+        cond = masm.testObject(cond, value);
+        emitBranch(cond, ifTrue, ifFalse);
+    }
 
     bool emitTableSwitchDispatch(MTableSwitch *mir, Register index, Register base);
 
@@ -175,6 +181,8 @@ class CodeGeneratorARM : public CodeGeneratorShared
     bool modICommon(MMod *mir, Register lhs, Register rhs, Register output, LSnapshot *snapshot,
                     Label &done);
 
+    void memoryBarrier(int barrier);
+
   public:
     CodeGeneratorARM(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);
 
@@ -206,6 +214,8 @@ class CodeGeneratorARM : public CodeGeneratorShared
 
     bool visitForkJoinGetSlice(LForkJoinGetSlice *ins);
 
+    bool visitMemoryBarrier(LMemoryBarrier *ins);
+
     bool generateInvalidateEpilogue();
 
   protected:
@@ -222,6 +232,8 @@ class CodeGeneratorARM : public CodeGeneratorShared
     bool visitSimdExtractElementI(LSimdExtractElementI *ins) { MOZ_CRASH("NYI"); }
     bool visitSimdExtractElementF(LSimdExtractElementF *ins) { MOZ_CRASH("NYI"); }
     bool visitSimdSignMaskX4(LSimdSignMaskX4 *ins) { MOZ_CRASH("NYI"); }
+    bool visitSimdSwizzleI(LSimdSwizzleI *lir) { MOZ_CRASH("NYI"); }
+    bool visitSimdSwizzleF(LSimdSwizzleF *lir) { MOZ_CRASH("NYI"); }
     bool visitSimdBinaryCompIx4(LSimdBinaryCompIx4 *lir) { MOZ_CRASH("NYI"); }
     bool visitSimdBinaryCompFx4(LSimdBinaryCompFx4 *lir) { MOZ_CRASH("NYI"); }
     bool visitSimdBinaryArithIx4(LSimdBinaryArithIx4 *lir) { MOZ_CRASH("NYI"); }

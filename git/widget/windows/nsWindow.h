@@ -446,8 +446,8 @@ protected:
    */
   void                    StopFlashing();
   static bool             IsTopLevelMouseExit(HWND aWnd);
-  nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
-                                              bool aIntersectWithExisting);
+  virtual nsresult        SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
+                                              bool aIntersectWithExisting) MOZ_OVERRIDE;
   nsIntRegion             GetRegionToPaint(bool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
   static void             ActivateOtherWindowHelper(HWND aWnd);
@@ -512,6 +512,10 @@ protected:
   nsIntMargin           mNonClientOffset;
   // Margins set by the owner
   nsIntMargin           mNonClientMargins;
+  // Margins we'd like to set once chrome is reshown:
+  nsIntMargin           mFutureMarginsOnceChromeShows;
+  // Indicates we need to apply margins once toggling chrome into showing:
+  bool                  mFutureMarginsToUse;
 
   // Indicates custom frames are enabled
   bool                  mCustomNonClient;

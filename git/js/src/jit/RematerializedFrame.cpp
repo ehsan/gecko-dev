@@ -31,6 +31,7 @@ struct CopyValueToRematerializedFrame
 RematerializedFrame::RematerializedFrame(ThreadSafeContext *cx, uint8_t *top,
                                          unsigned numActualArgs, InlineFrameIterator &iter)
   : prevUpToDate_(false),
+    isDebuggee_(iter.script()->isDebuggee()),
     top_(top),
     pc_(iter.pc()),
     frameNo_(iter.frameNo()),
@@ -103,7 +104,7 @@ RematerializedFrame::MarkInVector(JSTracer *trc, Vector<RematerializedFrame *> &
 CallObject &
 RematerializedFrame::callObj() const
 {
-    JS_ASSERT(hasCallObj());
+    MOZ_ASSERT(hasCallObj());
 
     JSObject *scope = scopeChain();
     while (!scope->is<CallObject>())

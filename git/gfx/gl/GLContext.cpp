@@ -11,7 +11,6 @@
 
 #include "GLContext.h"
 #include "GLBlitHelper.h"
-#include "GLBlitTextureImageHelper.h"
 #include "GLReadTexImageHelper.h"
 
 #include "gfxCrashReporterUtils.h"
@@ -24,7 +23,6 @@
 #include "prlink.h"
 #include "ScopedGLHelpers.h"
 #include "SharedSurfaceGL.h"
-#include "SurfaceStream.h"
 #include "GfxTexturesReporter.h"
 #include "TextureGarbageBin.h"
 #include "gfx2DGlue.h"
@@ -50,7 +48,7 @@ namespace gl {
 using namespace mozilla::gfx;
 using namespace mozilla::layers;
 
-#ifdef DEBUG
+#ifdef MOZ_GL_DEBUG
 unsigned GLContext::sCurrentGLContextTLS = -1;
 #endif
 
@@ -85,6 +83,7 @@ static const char *sExtensionNames[] = {
     "GL_ARB_framebuffer_sRGB",
     "GL_ARB_half_float_pixel",
     "GL_ARB_instanced_arrays",
+    "GL_ARB_invalidate_subdata",
     "GL_ARB_map_buffer_range",
     "GL_ARB_occlusion_query2",
     "GL_ARB_pixel_buffer_object",
@@ -126,6 +125,7 @@ static const char *sExtensionNames[] = {
     "GL_EXT_texture_filter_anisotropic",
     "GL_EXT_texture_format_BGRA8888",
     "GL_EXT_texture_sRGB",
+    "GL_EXT_texture_storage",
     "GL_EXT_transform_feedback",
     "GL_EXT_unpack_subimage",
     "GL_IMG_read_format",
@@ -161,10 +161,9 @@ static const char *sExtensionNames[] = {
 };
 
 static bool
-ParseGLVersion(GLContext* gl, unsigned int* version)
+ParseGLVersion(GLContext* gl, uint32_t* out_version)
 {
-    GLenum error = gl->fGetError();
-    if (error != LOCAL_GL_NO_ERROR) {
+    if (gl->fGetError() != LOCAL_GL_NO_ERROR) {
         MOZ_ASSERT(false, "An OpenGL error has been triggered before.");
         return false;
     }
@@ -174,27 +173,27 @@ ParseGLVersion(GLContext* gl, unsigned int* version)
      * OpenGL 3.2. The bug is that GetIntegerv(LOCAL_GL_{MAJOR,MINOR}_VERSION)
      * returns OpenGL 3.2 instead of generating an error.
      */
-    if (!gl->IsGLES())
-    {
+    if (!gl->IsGLES()) {
         /**
          * OpenGL 3.1 and OpenGL ES 3.0 both introduce GL_{MAJOR,MINOR}_VERSION
          * with GetIntegerv. So we first try those constants even though we
-         * might not have an OpenGL context supporting them, has this is a
+         * might not have an OpenGL context supporting them, as this is a
          * better way than parsing GL_VERSION.
          */
         GLint majorVersion = 0;
         GLint minorVersion = 0;
 
-        gl->fGetIntegerv(LOCAL_GL_MAJOR_VERSION, &majorVersion);
-        gl->fGetIntegerv(LOCAL_GL_MINOR_VERSION, &minorVersion);
+        const bool ok = (gl->GetPotentialInteger(LOCAL_GL_MAJOR_VERSION,
+                                                 &majorVersion) &&
+                         gl->GetPotentialInteger(LOCAL_GL_MINOR_VERSION,
+                                                 &minorVersion));
 
         // If it's not an OpenGL (ES) 3.0 context, we will have an error
-        error = gl->fGetError();
-        if (error == LOCAL_GL_NO_ERROR &&
+        if (ok &&
             majorVersion > 0 &&
             minorVersion >= 0)
         {
-            *version = majorVersion * 100 + minorVersion * 10;
+            *out_version = majorVersion * 100 + minorVersion * 10;
             return true;
         }
     }
@@ -229,8 +228,7 @@ ParseGLVersion(GLContext* gl, unsigned int* version)
      */
     const char* versionString = (const char*)gl->fGetString(LOCAL_GL_VERSION);
 
-    error = gl->fGetError();
-    if (error != LOCAL_GL_NO_ERROR) {
+    if (gl->fGetError() != LOCAL_GL_NO_ERROR) {
         MOZ_ASSERT(false, "glGetString(GL_VERSION) has generated an error");
         return false;
     } else if (!versionString) {
@@ -245,7 +243,7 @@ ParseGLVersion(GLContext* gl, unsigned int* version)
 
     const char* itr = versionString;
     char* end = nullptr;
-    int majorVersion = (int)strtol(itr, &end, 10);
+    auto majorVersion = strtol(itr, &end, 10);
 
     if (!end) {
         MOZ_ASSERT(false, "Failed to parse the GL major version number.");
@@ -260,7 +258,7 @@ ParseGLVersion(GLContext* gl, unsigned int* version)
 
     end = nullptr;
 
-    int minorVersion = (int)strtol(itr, &end, 10);
+    auto minorVersion = strtol(itr, &end, 10);
     if (!end) {
         MOZ_ASSERT(false, "Failed to parse GL's minor version number.");
         return false;
@@ -274,7 +272,7 @@ ParseGLVersion(GLContext* gl, unsigned int* version)
         return false;
     }
 
-    *version = (unsigned int)(majorVersion * 100 + minorVersion * 10);
+    *out_version = (uint32_t)majorVersion * 100 + (uint32_t)minorVersion * 10;
     return true;
 }
 
@@ -289,9 +287,8 @@ GLContext::GLContext(const SurfaceCaps& caps,
     mVendor(GLVendor::Other),
     mRenderer(GLRenderer::Other),
     mHasRobustness(false),
-#ifdef DEBUG
-    mIsInLocalErrorCheck(false),
-#endif
+    mTopError(LOCAL_GL_NO_ERROR),
+    mLocalErrorScope(nullptr),
     mSharedContext(sharedContext),
     mCaps(caps),
     mScreen(nullptr),
@@ -309,7 +306,7 @@ GLContext::GLContext(const SurfaceCaps& caps,
 
 GLContext::~GLContext() {
     NS_ASSERTION(IsDestroyed(), "GLContext implementation must call MarkDestroyed in destructor!");
-#ifdef DEBUG
+#ifdef MOZ_GL_DEBUG
     if (mSharedContext) {
         GLContext *tip = mSharedContext;
         while (tip->mSharedContext)
@@ -504,15 +501,14 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
     mInitialized = LoadSymbols(&symbols[0], trygl, prefix);
     MakeCurrent();
     if (mInitialized) {
-        unsigned int version = 0;
-
+        uint32_t version = 0;
         ParseGLVersion(this, &version);
 
-#ifdef DEBUG
-        printf_stderr("OpenGL version detected: %u\n", version);
-        printf_stderr("OpenGL vendor: %s\n", fGetString(LOCAL_GL_VENDOR));
-        printf_stderr("OpenGL renderer: %s\n", fGetString(LOCAL_GL_RENDERER));
-#endif
+        if (ShouldSpew()) {
+            printf_stderr("OpenGL version detected: %u\n", version);
+            printf_stderr("OpenGL vendor: %s\n", fGetString(LOCAL_GL_VENDOR));
+            printf_stderr("OpenGL renderer: %s\n", fGetString(LOCAL_GL_RENDERER));
+        }
 
         if (version >= mVersion) {
             mVersion = version;
@@ -628,7 +624,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
     }
 
 
-#ifdef DEBUG
+#ifdef MOZ_GL_DEBUG
     if (PR_GetEnv("MOZ_GL_DEBUG"))
         sDebugMode |= DebugEnabled;
 
@@ -643,10 +639,8 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 #endif
 
     if (mInitialized) {
-#ifdef DEBUG
-        static bool firstRun = true;
-        if (firstRun && DebugMode()) {
-            const char *vendors[size_t(GLVendor::Other)] = {
+        if (ShouldSpew()) {
+            const char* vendors[size_t(GLVendor::Other)] = {
                 "Intel",
                 "NVIDIA",
                 "ATI",
@@ -661,8 +655,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 printf_stderr("OpenGL vendor ('%s') unrecognized\n", glVendorString);
             }
         }
-        firstRun = false;
-#endif
 
         InitExtensions();
         InitFeatures();
@@ -905,6 +897,29 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 NS_ERROR("GL supports array instanced without supplying it function.");
 
                 MarkUnsupported(GLFeature::instanced_arrays);
+                ClearSymbols(coreSymbols);
+            }
+        }
+
+        if (IsSupported(GLFeature::texture_storage)) {
+            SymLoadStruct coreSymbols[] = {
+                { (PRFuncPtr*) &mSymbols.fTexStorage2D, { "TexStorage2D", nullptr } },
+                { (PRFuncPtr*) &mSymbols.fTexStorage3D, { "TexStorage3D", nullptr } },
+                END_SYMBOLS
+            };
+
+            SymLoadStruct extSymbols[] = {
+                { (PRFuncPtr*) &mSymbols.fTexStorage2D, { "TexStorage2DEXT", nullptr } },
+                { (PRFuncPtr*) &mSymbols.fTexStorage3D, { "TexStorage3DEXT", nullptr } },
+                END_SYMBOLS
+            };
+
+            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::texture_storage);
+            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
+                NS_ERROR("GL supports texture storage without supplying its functions.");
+
+                MarkUnsupported(GLFeature::texture_storage);
+                MarkExtensionSupported(useCore ? ARB_texture_storage : EXT_texture_storage);
                 ClearSymbols(coreSymbols);
             }
         }
@@ -1227,7 +1242,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
         if (IsSupported(GLFeature::texture_3D)) {
             SymLoadStruct coreSymbols[] = {
-                // TexImage3D is not required for WebGL2 so not queried here.
+                { (PRFuncPtr*) &mSymbols.fTexImage3D, { "TexImage3D", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fTexSubImage3D, { "TexSubImage3D", nullptr } },
                 END_SYMBOLS
             };
@@ -1328,6 +1343,21 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
                 MarkUnsupported(GLFeature::uniform_matrix_nonsquare);
                 ClearSymbols(umnSymbols);
+            }
+        }
+
+        if (IsSupported(GLFeature::invalidate_framebuffer)) {
+            SymLoadStruct invSymbols[] = {
+                { (PRFuncPtr *) &mSymbols.fInvalidateFramebuffer,    { "InvalidateFramebuffer", nullptr } },
+                { (PRFuncPtr *) &mSymbols.fInvalidateSubFramebuffer, { "InvalidateSubFramebuffer", nullptr } },
+                END_SYMBOLS
+            };
+
+            if (!LoadSymbols(&invSymbols[0], trygl, prefix)) {
+                NS_ERROR("GL supports framebuffer invalidation without supplying its functions.");
+
+                MarkUnsupported(GLFeature::invalidate_framebuffer);
+                ClearSymbols(invSymbols);
             }
         }
 
@@ -1550,7 +1580,7 @@ GLContext::DebugCallback(GLenum source,
         break;
     }
 
-    printf_stderr("[KHR_debug: 0x%" PRIxPTR "] ID %u: %s %s %s:\n    %s",
+    printf_stderr("[KHR_debug: 0x%" PRIxPTR "] ID %u: %s, %s, %s:\n    %s\n",
                   (uintptr_t)this,
                   id,
                   sourceStr.BeginReading(),
@@ -1567,14 +1597,8 @@ GLContext::InitExtensions()
     if (!extensions)
         return;
 
-#ifdef DEBUG
-    static bool firstRun = true;
-#else
-    // Non-DEBUG, so never spew.
-    const bool firstRun = false;
-#endif
-
-    InitializeExtensionsBitSet(mAvailableExtensions, extensions, sExtensionNames, firstRun && DebugMode());
+    InitializeExtensionsBitSet(mAvailableExtensions, extensions,
+                               sExtensionNames);
 
     if (WorkAroundDriverBugs() &&
         Vendor() == GLVendor::Qualcomm) {
@@ -1616,10 +1640,6 @@ GLContext::InitExtensions()
     {
         MarkExtensionUnsupported(EXT_texture_compression_s3tc);
     }
-#endif
-
-#ifdef DEBUG
-    firstRun = false;
 #endif
 }
 
@@ -1708,7 +1728,7 @@ void
 GLContext::UpdatePixelFormat()
 {
     PixelBufferFormat format = QueryPixelFormat();
-#ifdef DEBUG
+#ifdef MOZ_GL_DEBUG
     const SurfaceCaps& caps = Caps();
     MOZ_ASSERT(!caps.any, "Did you forget to DetermineCaps()?");
 
@@ -1716,10 +1736,9 @@ GLContext::UpdatePixelFormat()
     MOZ_ASSERT(caps.color == !!format.green);
     MOZ_ASSERT(caps.color == !!format.blue);
 
-    MOZ_ASSERT(caps.alpha == !!format.alpha);
-
     // These we either must have if they're requested, or
     // we can have if they're not.
+    MOZ_ASSERT(caps.alpha == !!format.alpha || !caps.alpha);
     MOZ_ASSERT(caps.depth == !!format.depth || !caps.depth);
     MOZ_ASSERT(caps.stencil == !!format.stencil || !caps.stencil);
 
@@ -1933,7 +1952,7 @@ GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
 
     if (!IsFramebufferComplete(drawFB, &status)) {
         NS_WARNING("DrawFBO: Incomplete");
-  #ifdef DEBUG
+  #ifdef MOZ_GL_DEBUG
         if (DebugMode()) {
             printf_stderr("Framebuffer status: %X\n", status);
         }
@@ -1943,7 +1962,7 @@ GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
 
     if (!IsFramebufferComplete(readFB, &status)) {
         NS_WARNING("ReadFBO: Incomplete");
-  #ifdef DEBUG
+  #ifdef MOZ_GL_DEBUG
         if (DebugMode()) {
             printf_stderr("Framebuffer status: %X\n", status);
         }
@@ -1965,25 +1984,6 @@ GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
 
     return isComplete;
 }
-
-
-
-bool
-GLContext::PublishFrame()
-{
-    MOZ_ASSERT(mScreen);
-
-    return mScreen->PublishFrame(OffscreenSize());
-}
-
-SharedSurface*
-GLContext::RequestFrame()
-{
-    MOZ_ASSERT(mScreen);
-
-    return mScreen->Stream()->SwapConsumer();
-}
-
 
 
 void
@@ -2075,7 +2075,6 @@ GLContext::MarkDestroyed()
         DestroyScreenBuffer();
 
         mBlitHelper = nullptr;
-        mBlitTextureImageHelper = nullptr;
         mReadTexImageHelper = nullptr;
 
         mTexGarbageBin->GLContextTeardown();
@@ -2086,7 +2085,7 @@ GLContext::MarkDestroyed()
     mSymbols.Zero();
 }
 
-#ifdef DEBUG
+#ifdef MOZ_GL_DEBUG
 /* static */ void
 GLContext::AssertNotPassingStackBufferToTheGL(const void* ptr)
 {
@@ -2278,7 +2277,7 @@ ReportArrayContents(const char *title, const nsTArray<GLContext::NamedResource>&
 void
 GLContext::ReportOutstandingNames()
 {
-    if (!DebugMode())
+    if (!ShouldSpew())
         return;
 
     printf_stderr("== GLContext %p Outstanding ==\n", this);
@@ -2293,7 +2292,6 @@ GLContext::ReportOutstandingNames()
 }
 
 #endif /* DEBUG */
-
 
 void
 GLContext::GuaranteeResolve()
@@ -2342,7 +2340,6 @@ GLContext::ResizeScreenBuffer(const IntSize& size)
     return mScreen->Resize(size);
 }
 
-
 void
 GLContext::DestroyScreenBuffer()
 {
@@ -2372,20 +2369,21 @@ GLContext::CleanDirtyScreen()
 void
 GLContext::EmptyTexGarbageBin()
 {
-   TexGarbageBin()->EmptyGarbage();
+    TexGarbageBin()->EmptyGarbage();
 }
 
 bool
-GLContext::IsOffscreenSizeAllowed(const IntSize& aSize) const {
-  int32_t biggerDimension = std::max(aSize.width, aSize.height);
-  int32_t maxAllowed = std::min(mMaxRenderbufferSize, mMaxTextureSize);
-  return biggerDimension <= maxAllowed;
+GLContext::IsOffscreenSizeAllowed(const IntSize& aSize) const
+{
+    int32_t biggerDimension = std::max(aSize.width, aSize.height);
+    int32_t maxAllowed = std::min(mMaxRenderbufferSize, mMaxTextureSize);
+    return biggerDimension <= maxAllowed;
 }
 
 bool
 GLContext::IsOwningThreadCurrent()
 {
-  return PlatformThread::CurrentId() == mOwningThreadId;
+    return PlatformThread::CurrentId() == mOwningThreadId;
 }
 
 GLBlitHelper*
@@ -2396,16 +2394,6 @@ GLContext::BlitHelper()
     }
 
     return mBlitHelper.get();
-}
-
-GLBlitTextureImageHelper*
-GLContext::BlitTextureImageHelper()
-{
-    if (!mBlitTextureImageHelper) {
-        mBlitTextureImageHelper = MakeUnique<GLBlitTextureImageHelper>(this);
-    }
-
-    return mBlitTextureImageHelper.get();
 }
 
 GLReadTexImageHelper*
@@ -2450,6 +2438,13 @@ DoesStringMatch(const char* aString, const char *aWantedString)
         return false;
 
     return true;
+}
+
+/*static*/ bool
+GLContext::ShouldSpew()
+{
+    static bool spew = PR_GetEnv("MOZ_GL_SPEW");
+    return spew;
 }
 
 } /* namespace gl */

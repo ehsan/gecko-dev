@@ -25,7 +25,7 @@
 @APPNAME@/Contents/PkgInfo
 @APPNAME@/Contents/Resources/firefox.icns
 @APPNAME@/Contents/Resources/document.icns
-@APPNAME@/Contents/Resources/en.lproj/*
+@APPNAME@/Contents/Resources/@AB@.lproj/*
 #endif
 
 [@AB_CD@]
@@ -161,7 +161,6 @@
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
 @BINPATH@/run-mozilla.sh
-@BINPATH@/mozilla-xremote-client
 #endif
 #endif
 
@@ -178,6 +177,7 @@
 @BINPATH@/components/appstartup.xpt
 @BINPATH@/components/autocomplete.xpt
 @BINPATH@/components/autoconfig.xpt
+@BINPATH@/components/browser-element.xpt
 @BINPATH@/browser/components/browsercompsbase.xpt
 @BINPATH@/browser/components/browser-feeds.xpt
 @BINPATH@/components/caps.xpt
@@ -185,9 +185,7 @@
 @BINPATH@/components/commandhandler.xpt
 @BINPATH@/components/commandlines.xpt
 @BINPATH@/components/composer.xpt
-@BINPATH@/components/content_base.xpt
 @BINPATH@/components/content_events.xpt
-@BINPATH@/components/content_htmldoc.xpt
 @BINPATH@/components/content_html.xpt
 @BINPATH@/components/content_geckomediaplugins.xpt
 #ifdef MOZ_WEBRTC
@@ -225,6 +223,7 @@
 @BINPATH@/components/dom_power.xpt
 @BINPATH@/components/dom_quota.xpt
 @BINPATH@/components/dom_range.xpt
+@BINPATH@/components/dom_security.xpt
 @BINPATH@/components/dom_settings.xpt
 @BINPATH@/components/dom_permissionsettings.xpt
 @BINPATH@/components/dom_sidebar.xpt
@@ -234,10 +233,12 @@
 @BINPATH@/components/dom_stylesheets.xpt
 @BINPATH@/components/dom_telephony.xpt
 @BINPATH@/components/dom_traversal.xpt
+@BINPATH@/components/dom_tv.xpt
 @BINPATH@/components/dom_voicemail.xpt
 #ifdef MOZ_WEBSPEECH
 @BINPATH@/components/dom_webspeechrecognition.xpt
 #endif
+@BINPATH@/components/dom_workers.xpt
 @BINPATH@/components/dom_xbl.xpt
 @BINPATH@/components/dom_xpath.xpt
 @BINPATH@/components/dom_xul.xpt
@@ -359,7 +360,6 @@
 @BINPATH@/components/xpconnect.xpt
 @BINPATH@/components/xulapp.xpt
 @BINPATH@/components/xul.xpt
-@BINPATH@/components/xuldoc.xpt
 @BINPATH@/components/xultmpl.xpt
 @BINPATH@/components/zipwriter.xpt
 @BINPATH@/components/telemetry.xpt
@@ -443,7 +443,11 @@
 @BINPATH@/components/nsUpdateTimerManager.js
 @BINPATH@/components/addoncompat.manifest
 @BINPATH@/components/multiprocessShims.js
+@BINPATH@/components/remoteTagService.js
 @BINPATH@/components/pluginGlue.manifest
+@BINPATH@/components/ProcessSingleton.manifest
+@BINPATH@/components/MainProcessSingleton.js
+@BINPATH@/components/ContentProcessSingleton.js
 @BINPATH@/browser/components/nsSessionStore.manifest
 @BINPATH@/browser/components/nsSessionStartup.js
 @BINPATH@/browser/components/nsSessionStore.js
@@ -855,11 +859,7 @@ bin/libfreebl_32int64_3.so
 #ifdef XP_WIN
 @BINPATH@/webapp-uninstaller@BIN_SUFFIX@
 #endif
-#ifdef XP_MACOSX
-@APPNAME@/Contents/MacOS/webapprt-stub@BIN_SUFFIX@
-#else
 @BINPATH@/webapprt-stub@BIN_SUFFIX@
-#endif
 @BINPATH@/webapprt/webapprt.ini
 @BINPATH@/webapprt/chrome.manifest
 @BINPATH@/webapprt/chrome/webapprt@JAREXT@
@@ -914,9 +914,22 @@ bin/libfreebl_32int64_3.so
 @BINPATH@/components/DataStoreImpl.js
 @BINPATH@/components/dom_datastore.xpt
 
+; Shutdown Terminator
+@BINPATH@/components/nsTerminatorTelemetry.js
+@BINPATH@/components/terminator.manifest
 
 #ifdef MOZ_ASAN
 #ifdef CLANG_CXX
 @BINPATH@/llvm-symbolizer
 #endif
+#ifdef CLANG_CL
+@BINPATH@/clang_rt.asan_dynamic-i386.dll
+#endif
+#endif
+
+
+; media
+#ifdef MOZ_EME
+@BINPATH@/gmp-clearkey/0.1/@DLL_PREFIX@clearkey@DLL_SUFFIX@
+@BINPATH@/gmp-clearkey/0.1/clearkey.info
 #endif

@@ -446,6 +446,12 @@ public:
   // used for painting-related things, but should never be used for
   // layout (except for handling of 'overflow').
   void SetOverflowAreas(const nsOverflowAreas& aOverflowAreas);
+  mozilla::LogicalRect GetOverflowArea(nsOverflowType aType,
+                                       mozilla::WritingMode aWM,
+                                       nscoord aContainerWidth)
+  {
+    return mozilla::LogicalRect(aWM, GetOverflowArea(aType), aContainerWidth);
+  }
   nsRect GetOverflowArea(nsOverflowType aType) {
     return mData ? mData->mOverflowAreas.Overflow(aType) : GetPhysicalBounds();
   }
@@ -467,8 +473,10 @@ public:
     mContainerWidth = aContainerWidth;
     mBounds.BStart(mWritingMode) += aDBCoord;
     if (mData) {
+      nsPoint physicalDelta = mozilla::LogicalPoint(mWritingMode, 0, aDBCoord).
+                                         GetPhysicalPoint(mWritingMode, 0);
       NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
-        mData->mOverflowAreas.Overflow(otype).y += aDBCoord;
+        mData->mOverflowAreas.Overflow(otype) += physicalDelta;
       }
     }
   }
@@ -579,14 +587,18 @@ public:
   nsIFrame* mFirstChild;
 
   mozilla::WritingMode mWritingMode;
+
+  // Physical width. Use only for physical <-> logical coordinate conversion.
   nscoord mContainerWidth;
+
  private:
   mozilla::LogicalRect mBounds;
+
  public:
   const mozilla::LogicalRect& GetBounds() { return mBounds; }
   nsRect GetPhysicalBounds() const
   {
-    if (mBounds.IsEmpty()) {
+    if (mBounds.IsAllZero()) {
       return nsRect(0, 0, 0, 0);
     }
 

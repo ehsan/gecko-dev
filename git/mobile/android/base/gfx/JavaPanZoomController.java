@@ -41,9 +41,9 @@ class JavaPanZoomController
 {
     private static final String LOGTAG = "GeckoPanZoomController";
 
-    private static String MESSAGE_ZOOM_RECT = "Browser:ZoomToRect";
-    private static String MESSAGE_ZOOM_PAGE = "Browser:ZoomToPageWidth";
-    private static String MESSAGE_TOUCH_LISTENER = "Tab:HasTouchListener";
+    private static final String MESSAGE_ZOOM_RECT = "Browser:ZoomToRect";
+    private static final String MESSAGE_ZOOM_PAGE = "Browser:ZoomToPageWidth";
+    private static final String MESSAGE_TOUCH_LISTENER = "Tab:HasTouchListener";
 
     // Animation stops if the velocity is below this value when overscrolled or panning.
     private static final float STOPPED_THRESHOLD = 4.0f;
@@ -170,7 +170,7 @@ class JavaPanZoomController
 
             @Override public void prefValue(String pref, int value) {
                 if (pref.equals("ui.scrolling.gamepad_dead_zone")) {
-                    GamepadUtils.overrideDeadZoneThreshold((float)value / 1000f);
+                    GamepadUtils.overrideDeadZoneThreshold(value / 1000f);
                 }
             }
 
@@ -396,7 +396,7 @@ class JavaPanZoomController
         mSubscroller.cancel();
         if (waitingForTouchListeners && (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN) {
             // this is the first touch point going down, so we enter the pending state
-            // seting the state will kill any animations in progress, possibly leaving
+            // setting the state will kill any animations in progress, possibly leaving
             // the page in overscroll
             setState(PanZoomState.WAITING_LISTENERS);
         }
@@ -660,7 +660,7 @@ class JavaPanZoomController
     }
 
     private void track(float x, float y, long time) {
-        float timeDelta = (float)(time - mLastEventTime);
+        float timeDelta = (time - mLastEventTime);
         if (FloatUtils.fuzzyEquals(timeDelta, 0)) {
             // probably a duplicate event, ignore it. using a zero timeDelta will mess
             // up our velocity
@@ -902,8 +902,8 @@ class JavaPanZoomController
          * The viewport metrics that represent the start and end of the bounce-back animation,
          * respectively.
          */
-        private ImmutableViewportMetrics mBounceStartMetrics;
-        private ImmutableViewportMetrics mBounceEndMetrics;
+        private final ImmutableViewportMetrics mBounceStartMetrics;
+        private final ImmutableViewportMetrics mBounceEndMetrics;
         // How long ago this bounce was started in ns.
         private long mBounceDuration;
 
@@ -1029,6 +1029,11 @@ class JavaPanZoomController
         float zoomFactor = viewportMetrics.zoomFactor;
         RectF pageRect = viewportMetrics.getPageRect();
         RectF viewport = viewportMetrics.getViewport();
+        RectF maxMargins = mTarget.getMaxMargins();
+        RectF margins = new RectF(Math.max(maxMargins.left, viewportMetrics.marginLeft),
+                                  Math.max(maxMargins.top, viewportMetrics.marginTop),
+                                  Math.max(maxMargins.right, viewportMetrics.marginRight),
+                                  Math.max(maxMargins.bottom, viewportMetrics.marginBottom));
 
         float focusX = viewport.width() / 2.0f;
         float focusY = viewport.height() / 2.0f;
@@ -1050,18 +1055,14 @@ class JavaPanZoomController
 
         // Ensure minZoomFactor keeps the page at least as big as the viewport.
         if (pageRect.width() > 0) {
-            float pageWidth = pageRect.width() +
-              viewportMetrics.marginLeft +
-              viewportMetrics.marginRight;
+            float pageWidth = pageRect.width() + margins.left + margins.right;
             float scaleFactor = viewport.width() / pageWidth;
             minZoomFactor = Math.max(minZoomFactor, zoomFactor * scaleFactor);
             if (viewport.width() > pageWidth)
                 focusX = 0.0f;
         }
         if (pageRect.height() > 0) {
-            float pageHeight = pageRect.height() +
-              viewportMetrics.marginTop +
-              viewportMetrics.marginBottom;
+            float pageHeight = pageRect.height() + margins.top + margins.bottom;
             float scaleFactor = viewport.height() / pageHeight;
             minZoomFactor = Math.max(minZoomFactor, zoomFactor * scaleFactor);
             if (viewport.height() > pageHeight)
@@ -1198,7 +1199,7 @@ class JavaPanZoomController
             mLastZoomFocus.set(detector.getFocusX(), detector.getFocusY());
             ImmutableViewportMetrics target = getMetrics().scaleTo(zoomFactor, mLastZoomFocus);
 
-            // If overscroll is diabled, prevent zooming outside the normal document pans.
+            // If overscroll is disabled, prevent zooming outside the normal document pans.
             if (mX.getOverScrollMode() == View.OVER_SCROLL_NEVER || mY.getOverScrollMode() == View.OVER_SCROLL_NEVER) {
                 target = getValidViewportMetrics(target);
             }

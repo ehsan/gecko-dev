@@ -795,9 +795,7 @@
         <setter><![CDATA[
           // We must do this by hand because the tree binding may not be ready yet
           this.mView = val;
-          var bx = this.tree.boxObject;
-          bx = bx.QueryInterface(Components.interfaces.nsITreeBoxObject);
-          bx.view = val;
+          this.tree.boxObject.view = val;
         ]]></setter>
       </property>
 
@@ -899,6 +897,21 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           this._normalMaxRows = this.mInput.maxRows;
         }
 
+        // Set an attribute for styling the popup based on the input.
+        let inputID = "";
+        if (this.mInput && this.mInput.ownerDocument &&
+            this.mInput.ownerDocument.documentURIObject.schemeIs("chrome")) {
+          inputID = this.mInput.id;
+          // Take care of elements with no id that are inside xbl bindings
+          if (!inputID) {
+            let bindingParent = this.mInput.ownerDocument.getBindingParent(this.mInput);
+            if (bindingParent) {
+              inputID = bindingParent.id;
+            }
+          }
+        }
+        this.setAttribute("autocompleteinput", inputID);
+
         this.mPopupOpen = true;
       ]]></handler>
 
@@ -909,6 +922,7 @@ extends="chrome://global/content/bindings/popup.xml#popup">
         var controller = this.view.QueryInterface(Components.interfaces.nsIAutoCompleteController);
         controller.stopSearch();
 
+        this.removeAttribute("autocompleteinput");
         this.mPopupOpen = false;
 
         // Reset the maxRows property to the cached "normal" value, and reset
@@ -1586,9 +1600,15 @@ extends="chrome://global/content/bindings/popup.xml#popup">
                                                     [action.params.engineName, false],
                                                     [action.params.searchQuery, true]
                                                   ]);
-              // Remove the image, so we can style it ourselves with a generic
-              // search icon.
-              this.removeAttribute("image");
+              // If this is a default search match, we remove the image so we
+              // can style it ourselves with a generic search icon.
+              // We don't do this when matching an aliased search engine,
+              // because the icon helps with recognising which engine will be
+              // used (when using the default engine, we don't need that
+              // recognition).
+              if (!action.params.alias) {
+                this.removeAttribute("image");
+              }
             } else if (action.type == "visiturl") {
               emphasiseUrl = false;
               url = action.params.url;

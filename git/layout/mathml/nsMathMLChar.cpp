@@ -4,10 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsMathMLChar.h"
+
+#include "gfxTextRun.h"
+#include "gfxUtils.h"
+#include "mozilla/gfx/2D.h"
 #include "mozilla/MathAlgorithms.h"
 
 #include "nsCOMPtr.h"
+#include "nsDeviceContext.h"
+#include "nsFontMetrics.h"
 #include "nsIFrame.h"
+#include "nsLayoutUtils.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsUnicharUtils.h"
@@ -32,6 +39,7 @@
 #include "gfxMathTable.h"
 
 using namespace mozilla;
+using namespace mozilla::gfx;
 
 //#define NOISY_SEARCH 1
 
@@ -43,12 +51,13 @@ static const float kLargeOpFactor = float(M_SQRT2);
 static const float kIntegralFactor = 2.0;
 
 static void
-NormalizeDefaultFont(nsFont& aFont)
+NormalizeDefaultFont(nsFont& aFont, float aFontSizeInflation)
 {
   if (aFont.fontlist.GetDefaultFontType() != eFamily_none) {
     aFont.fontlist.Append(FontFamilyName(aFont.fontlist.GetDefaultFontType()));
     aFont.fontlist.SetDefaultFontType(eFamily_none);
   }
+  aFont.size = NSToCoordRound(aFont.size * aFontSizeInflation);
 }
 
 // -----------------------------------------------------------------------------
@@ -997,10 +1006,8 @@ nsMathMLChar::SetFontFamily(nsPresContext*          aPresContext,
     // or if the same family name has been found
     gfxFont *firstFont = fm->GetThebesFontGroup()->GetFirstValidFont();
     FontFamilyList firstFontList;
-    if (firstFont) {
-      firstFontList.Append(
-        FontFamilyName(firstFont->GetFontEntry()->FamilyName(), eUnquotedName));
-    }
+    firstFontList.Append(
+      FontFamilyName(firstFont->GetFontEntry()->FamilyName(), eUnquotedName));
     if (aGlyphTable == &gGlyphTableList->mUnicodeTable ||
         firstFontList == familyList) {
       aFont.fontlist = familyList;
@@ -1035,6 +1042,7 @@ public:
   StretchEnumContext(nsMathMLChar*        aChar,
                      nsPresContext*       aPresContext,
                      gfxContext*          aThebesContext,
+                     float                aFontSizeInflation,
                      nsStretchDirection   aStretchDirection,
                      nscoord              aTargetSize,
                      uint32_t             aStretchHint,
@@ -1044,6 +1052,7 @@ public:
     : mChar(aChar),
       mPresContext(aPresContext),
       mThebesContext(aThebesContext),
+      mFontSizeInflation(aFontSizeInflation),
       mDirection(aStretchDirection),
       mTargetSize(aTargetSize),
       mStretchHint(aStretchHint),
@@ -1067,6 +1076,7 @@ private:
   nsMathMLChar* mChar;
   nsPresContext* mPresContext;
   gfxContext* mThebesContext;
+  float mFontSizeInflation;
   const nsStretchDirection mDirection;
   const nscoord mTargetSize;
   const uint32_t mStretchHint;
@@ -1096,7 +1106,7 @@ StretchEnumContext::TryVariants(nsGlyphTable* aGlyphTable,
   // Use our stretchy style context now that stretching is in progress
   nsStyleContext *sc = mChar->mStyleContext;
   nsFont font = sc->StyleFont()->mFont;
-  NormalizeDefaultFont(font);
+  NormalizeDefaultFont(font, mFontSizeInflation);
 
   bool isVertical = (mDirection == NS_STRETCH_DIRECTION_VERTICAL);
   nscoord oneDevPixel = mPresContext->AppUnitsPerDevPixel();
@@ -1246,7 +1256,7 @@ nsMathMLChar::StretchEnumContext::TryParts(nsGlyphTable* aGlyphTable,
 {
   // Use our stretchy style context now that stretching is in progress
   nsFont font = mChar->mStyleContext->StyleFont()->mFont;
-  NormalizeDefaultFont(font);
+  NormalizeDefaultFont(font, mFontSizeInflation);
 
   // Compute the bounding metrics of all partial glyphs
   nsAutoPtr<gfxTextRun> textRun[4];
@@ -1424,7 +1434,7 @@ nsMathMLChar::StretchEnumContext::EnumCallback(const FontFamilyName& aFamily,
   // We test with the kNullGlyph
   nsStyleContext *sc = context->mChar->mStyleContext;
   nsFont font = sc->StyleFont()->mFont;
-  NormalizeDefaultFont(font);
+  NormalizeDefaultFont(font, context->mFontSizeInflation);
   nsRefPtr<gfxFontGroup> fontGroup;
   FontFamilyList family;
   family.Append(unquotedFamilyName);
@@ -1506,6 +1516,7 @@ InsertMathFallbacks(FontFamilyList& aFamilyList,
 nsresult
 nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
                               gfxContext*              aThebesContext,
+                              float                    aFontSizeInflation,
                               nsStretchDirection&      aStretchDirection,
                               const nsBoundingMetrics& aContainerSize,
                               nsBoundingMetrics&       aDesiredStretchSize,
@@ -1524,7 +1535,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   // mStyleContext is a leaf context used only when stretching happens.
   // For the base size, the default font should come from the parent context
   nsFont font = mStyleContext->GetParent()->StyleFont()->mFont;
-  NormalizeDefaultFont(font);
+  NormalizeDefaultFont(font, aFontSizeInflation);
 
   nsRefPtr<nsFontMetrics> fm;
   aPresContext->DeviceContext()->
@@ -1638,7 +1649,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   if (!done) { // normal case
     // Use the css font-family but add preferred fallback fonts.
     font = mStyleContext->StyleFont()->mFont;
-    NormalizeDefaultFont(font);
+    NormalizeDefaultFont(font, aFontSizeInflation);
 
     // really shouldn't be doing things this way but for now
     // insert fallbacks into the list
@@ -1654,6 +1665,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
            NS_ConvertUTF16toUTF8(fontlistStr).get(), mData[0], mData[0]&0x00FF);
 #endif
     StretchEnumContext enumData(this, aPresContext, aThebesContext,
+                                aFontSizeInflation,
                                 aStretchDirection, targetSize, aStretchHint,
                                 aDesiredStretchSize, font.fontlist, glyphFound);
     enumData.mTryParts = !largeopOnly;
@@ -1753,6 +1765,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
 nsresult
 nsMathMLChar::Stretch(nsPresContext*           aPresContext,
                       nsRenderingContext&     aRenderingContext,
+                      float                    aFontSizeInflation,
                       nsStretchDirection       aStretchDirection,
                       const nsBoundingMetrics& aContainerSize,
                       nsBoundingMetrics&       aDesiredStretchSize,
@@ -1769,7 +1782,8 @@ nsMathMLChar::Stretch(nsPresContext*           aPresContext,
   mScaleY = mScaleX = 1.0;
   mDirection = aStretchDirection;
   nsresult rv =
-    StretchInternal(aPresContext, aRenderingContext.ThebesContext(), mDirection,
+    StretchInternal(aPresContext, aRenderingContext.ThebesContext(),
+                    aFontSizeInflation, mDirection,
                     aContainerSize, aDesiredStretchSize, aStretchHint);
 
   // Record the metrics
@@ -1793,6 +1807,7 @@ nsMathMLChar::Stretch(nsPresContext*           aPresContext,
 nscoord
 nsMathMLChar::GetMaxWidth(nsPresContext* aPresContext,
                           nsRenderingContext& aRenderingContext,
+                          float aFontSizeInflation,
                           uint32_t aStretchHint,
                           float aMaxSize, bool aMaxSizeIsAbsolute)
 {
@@ -1800,7 +1815,8 @@ nsMathMLChar::GetMaxWidth(nsPresContext* aPresContext,
   nsStretchDirection direction = NS_STRETCH_DIRECTION_VERTICAL;
   const nsBoundingMetrics container; // zero target size
 
-  StretchInternal(aPresContext, aRenderingContext.ThebesContext(), direction,
+  StretchInternal(aPresContext, aRenderingContext.ThebesContext(),
+                  aFontSizeInflation, direction,
                   container, bm, aStretchHint | NS_STRETCH_MAXWIDTH);
 
   return std::max(bm.width, bm.rightBearing) - std::min(0, bm.leftBearing);
@@ -1829,12 +1845,15 @@ private:
 void nsDisplayMathMLSelectionRect::Paint(nsDisplayListBuilder* aBuilder,
                                          nsRenderingContext* aCtx)
 {
+  DrawTarget* drawTarget = aCtx->GetDrawTarget();
+  Rect rect = NSRectToSnappedRect(mRect + ToReferenceFrame(),
+                                  mFrame->PresContext()->AppUnitsPerDevPixel(),
+                                  *drawTarget);
   // get color to use for selection from the look&feel object
   nscolor bgColor =
     LookAndFeel::GetColor(LookAndFeel::eColorID_TextSelectBackground,
                           NS_RGB(0, 0, 0));
-  aCtx->SetColor(bgColor);
-  aCtx->FillRect(mRect + ToReferenceFrame());
+  drawTarget->FillRect(rect, ColorPattern(ToDeviceColor(bgColor)));
 }
 
 class nsDisplayMathMLCharBackground : public nsDisplayItem {

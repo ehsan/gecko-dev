@@ -34,7 +34,6 @@ class nsIContent;
 class nsIDocument;
 class nsIFrame;
 class nsPresContext;
-class nsRenderingContext;
 class nsStyleContext;
 class nsStyleCoord;
 class nsSVGClipPathFrame;
@@ -78,6 +77,7 @@ class SourceSurface;
 #define SVG_HIT_TEST_CHECK_MRECT 0x04
 
 
+bool NS_SVGPathCachingEnabled();
 bool NS_SVGDisplayListHitTestingEnabled();
 bool NS_SVGDisplayListPaintingEnabled();
 bool NS_SVGNewGetBBoxEnabled();
@@ -149,33 +149,17 @@ class MOZ_STACK_CLASS SVGAutoRenderState
   typedef mozilla::gfx::DrawTarget DrawTarget;
 
 public:
-  enum RenderMode {
-    /**
-     * Used to inform SVG frames that they should paint as normal.
-     */
-    NORMAL, 
-    /**
-     * Used to inform SVG frames when they are painting as the child of a
-     * complex clipPath that requires the use of a clip mask. In this case they
-     * should only draw their basic geometry as a path and then fill it using
-     * fully opaque white. They should not stroke, or paint anything else.
-     */
-    CLIP_MASK 
-  };
-
-  SVGAutoRenderState(DrawTarget* aDrawTarget, RenderMode aMode
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+  explicit SVGAutoRenderState(DrawTarget* aDrawTarget
+                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
   ~SVGAutoRenderState();
 
   void SetPaintingToWindow(bool aPaintingToWindow);
 
-  static RenderMode GetRenderMode(DrawTarget* aDrawTarget);
   static bool IsPaintingToWindow(DrawTarget* aDrawTarget);
 
 private:
   DrawTarget* mDrawTarget;
   void* mOriginalRenderState;
-  RenderMode mMode;
   bool mPaintingToWindow;
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
@@ -203,6 +187,7 @@ class nsSVGUtils
 {
 public:
   typedef mozilla::dom::Element Element;
+  typedef mozilla::gfx::AntialiasMode AntialiasMode;
   typedef mozilla::gfx::FillRule FillRule;
   typedef mozilla::gfx::GeneralPattern GeneralPattern;
 
@@ -294,7 +279,7 @@ public:
    * redrawn, in device pixel coordinates relative to the outer svg */
   static void
   PaintFrameWithEffects(nsIFrame *aFrame,
-                        nsRenderingContext *aContext,
+                        gfxContext& aContext,
                         const gfxMatrix& aTransform,
                         const nsIntRect *aDirtyRect = nullptr);
 
@@ -518,7 +503,7 @@ public:
 
   static float GetOpacity(nsStyleSVGOpacitySource aOpacityType,
                           const float& aOpacity,
-                          gfxTextContextPaint *aOuterContextPaint);
+                          gfxTextContextPaint *aContextPaint);
 
   /*
    * @return false if there is no stroke
@@ -547,6 +532,11 @@ public:
   static FillRule ToFillRule(uint8_t aFillRule) {
     return aFillRule == NS_STYLE_FILL_RULE_EVENODD ?
              FillRule::FILL_EVEN_ODD : FillRule::FILL_WINDING;
+  }
+
+  static AntialiasMode ToAntialiasMode(uint8_t aTextRendering) {
+    return aTextRendering == NS_STYLE_TEXT_RENDERING_OPTIMIZESPEED ?
+             AntialiasMode::NONE : AntialiasMode::SUBPIXEL;
   }
 
   /**

@@ -208,8 +208,6 @@ public:
 
   void Add(nsCString &address, int32_t port)
   {
-    NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
-
     if (mDelaysDisabled)
       return;
 
@@ -222,8 +220,6 @@ public:
   FailDelay* Lookup(nsCString &address, int32_t port,
                     uint32_t *outIndex = nullptr)
   {
-    NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
-
     if (mDelaysDisabled)
       return nullptr;
 
@@ -293,8 +289,6 @@ public:
   // battery life than using a periodic timer.
   void Remove(nsCString &address, int32_t port)
   {
-    NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
-
     TimeStamp rightNow = TimeStamp::Now();
 
     // iterate from end, to make deletion indexing easier
@@ -343,7 +337,6 @@ public:
   // delay/queue the connection (returns false)
   static void ConditionallyConnect(WebSocketChannel *ws)
   {
-    NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
     NS_ABORT_IF_FALSE(ws->mConnecting == NOT_CONNECTING, "opening state");
 
     StaticMutexAutoLock lock(sLock);
@@ -368,7 +361,6 @@ public:
 
   static void OnConnected(WebSocketChannel *aChannel)
   {
-    NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
     NS_ABORT_IF_FALSE(aChannel->mConnecting == CONNECTING_IN_PROGRESS,
                       "Channel completed connect, but not connecting?");
 
@@ -395,8 +387,6 @@ public:
   // w/o ever successfully creating a connection)
   static void OnStopSession(WebSocketChannel *aChannel, nsresult aReason)
   {
-    NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
-
     StaticMutexAutoLock lock(sLock);
     if (!sManager) {
       return;
@@ -573,7 +563,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_GetCurrentThread() == mChannel->mTargetThread);
+    MOZ_ASSERT(mChannel->IsOnTargetThread());
 
     if (mLen < 0)
       mChannel->mListener->OnMessageAvailable(mChannel->mContext, mData);
@@ -607,7 +597,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_GetCurrentThread() == mChannel->mTargetThread);
+    MOZ_ASSERT(mChannel->IsOnTargetThread());
 
     nsWSAdmissionManager::OnStopSession(mChannel, mReason);
 
@@ -645,7 +635,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_GetCurrentThread() == mChannel->mTargetThread);
+    MOZ_ASSERT(mChannel->IsOnTargetThread());
 
     mChannel->mListener->OnServerClose(mChannel->mContext, mCode, mReason);
     return NS_OK;
@@ -664,11 +654,9 @@ NS_IMPL_ISUPPORTS(CallOnServerClose, nsIRunnable)
 // CallAcknowledge
 //-----------------------------------------------------------------------------
 
-class CallAcknowledge MOZ_FINAL : public nsIRunnable
+class CallAcknowledge MOZ_FINAL : public nsCancelableRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
-
   CallAcknowledge(WebSocketChannel *aChannel,
                   uint32_t          aSize)
     : mChannel(aChannel),
@@ -676,7 +664,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_GetCurrentThread() == mChannel->mTargetThread);
+    MOZ_ASSERT(mChannel->IsOnTargetThread());
 
     LOG(("WebSocketChannel::CallAcknowledge: Size %u\n", mSize));
     mChannel->mListener->OnAcknowledge(mChannel->mContext, mSize);
@@ -689,7 +677,6 @@ private:
   nsRefPtr<WebSocketChannel>        mChannel;
   uint32_t                          mSize;
 };
-NS_IMPL_ISUPPORTS(CallAcknowledge, nsIRunnable)
 
 //-----------------------------------------------------------------------------
 // CallOnTransportAvailable
@@ -1049,16 +1036,6 @@ WebSocketChannel::WebSocketChannel() :
     LOG(("Failed to initiate dashboard service."));
 
   mSerial = sSerialSeed++;
-
-  // Register for prefs change notifications
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (observerService) {
-    observerService->AddObserver(this, NS_NETWORK_LINK_TOPIC, false);
-  } else {
-    NS_WARNING("failed to get observer service");
-  }
-
 }
 
 WebSocketChannel::~WebSocketChannel()
@@ -1178,11 +1155,39 @@ WebSocketChannel::Shutdown()
   nsWSAdmissionManager::Shutdown();
 }
 
+bool
+WebSocketChannel::IsOnTargetThread()
+{
+  MOZ_ASSERT(mTargetThread);
+  bool isOnTargetThread = false;
+  nsresult rv = mTargetThread->IsOnCurrentThread(&isOnTargetThread);
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
+  return NS_FAILED(rv) ? false : isOnTargetThread;
+}
+
+void
+WebSocketChannel::GetEffectiveURL(nsAString& aEffectiveURL) const
+{
+  aEffectiveURL = mEffectiveURL;
+}
+
+bool
+WebSocketChannel::IsEncrypted() const
+{
+  return mEncrypted;
+}
+
 void
 WebSocketChannel::BeginOpen()
 {
+  if (!NS_IsMainThread()) {
+    NS_DispatchToMainThread(
+      NS_NewRunnableMethod(this, &WebSocketChannel::BeginOpen),
+                           NS_DISPATCH_NORMAL);
+    return;
+  }
+
   LOG(("WebSocketChannel::BeginOpen() %p\n", this));
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
 
   nsresult rv;
 
@@ -1957,6 +1962,33 @@ WebSocketChannel::EnsureHdrOut(uint32_t size)
   mHdrOut = mDynamicOutput;
 }
 
+namespace {
+
+class RemoveObserverRunnable : public nsRunnable
+{
+  nsRefPtr<WebSocketChannel> mChannel;
+
+public:
+  RemoveObserverRunnable(WebSocketChannel* aChannel)
+    : mChannel(aChannel)
+  {}
+
+  NS_IMETHOD Run()
+  {
+    nsCOMPtr<nsIObserverService> observerService =
+      mozilla::services::GetObserverService();
+    if (!observerService) {
+      NS_WARNING("failed to get observer service");
+      return NS_OK;
+    }
+
+    observerService->RemoveObserver(mChannel, NS_NETWORK_LINK_TOPIC);
+    return NS_OK;
+  }
+};
+
+} // anonymous namespace
+
 void
 WebSocketChannel::CleanupConnection()
 {
@@ -1987,6 +2019,10 @@ WebSocketChannel::CleanupConnection()
   if (mConnectionLogService && !mPrivateBrowsing) {
     mConnectionLogService->RemoveHost(mHost, mSerial);
   }
+
+  // This method can run in any thread, but the observer has to be removed on
+  // the main-thread.
+  NS_DispatchToMainThread(new RemoveObserverRunnable(this));
 
   DecrementSessionCount();
 }
@@ -2095,8 +2131,6 @@ WebSocketChannel::StopSession(nsresult reason)
     mTargetThread->Dispatch(new CallOnStop(this, reason),
                             NS_DISPATCH_NORMAL);
   }
-
-  return;
 }
 
 void
@@ -2372,6 +2406,12 @@ WebSocketChannel::ApplyForAdmission()
 nsresult
 WebSocketChannel::StartWebsocketData()
 {
+  if (!IsOnTargetThread()) {
+    return mTargetThread->Dispatch(
+      NS_NewRunnableMethod(this, &WebSocketChannel::StartWebsocketData),
+      NS_DISPATCH_NORMAL);
+  }
+
   LOG(("WebSocketChannel::StartWebsocketData() %p", this));
   NS_ABORT_IF_FALSE(!mDataStarted, "StartWebsocketData twice");
   mDataStarted = 1;
@@ -2384,8 +2424,9 @@ WebSocketChannel::StartWebsocketData()
   LOG(("WebSocketChannel::StartWebsocketData Notifying Listener %p\n",
        mListener.get()));
 
-  if (mListener)
+  if (mListener) {
     mListener->OnStart(mContext);
+  }
 
   // Start keepalive ping timer, if we're using keepalive.
   if (mPingInterval) {
@@ -2897,6 +2938,19 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
   if (NS_FAILED(rv))
     return rv;
 
+  // Register for prefs change notifications
+  nsCOMPtr<nsIObserverService> observerService =
+    mozilla::services::GetObserverService();
+  if (!observerService) {
+    NS_WARNING("failed to get observer service");
+    return NS_ERROR_FAILURE;
+  }
+
+  rv = observerService->AddObserver(this, NS_NETWORK_LINK_TOPIC, false);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
   // Only set these if the open was successful:
   //
   mWasOpened = 1;
@@ -2974,7 +3028,7 @@ nsresult
 WebSocketChannel::SendMsgCommon(const nsACString *aMsg, bool aIsBinary,
                                 uint32_t aLength, nsIInputStream *aStream)
 {
-  NS_ABORT_IF_FALSE(NS_GetCurrentThread() == mTargetThread, "not target thread");
+  NS_ABORT_IF_FALSE(IsOnTargetThread(), "not target thread");
 
   if (mRequestedClose) {
     LOG(("WebSocketChannel:: Error: send when closed\n"));
@@ -3190,6 +3244,13 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
   if (NS_FAILED(rv))
     return rv;
 
+  // Update mEffectiveURL for off main thread URI access.
+  nsCOMPtr<nsIURI> uri = mURI ? mURI : mOriginalURI;
+  nsAutoCString spec;
+  rv = uri->GetSpec(spec);
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
+  CopyUTF8toUTF16(spec, mEffectiveURL);
+
   mGotUpgradeOK = 1;
   if (mRecvdHttpUpgradeTransport)
     return StartWebsocketData();
@@ -3199,8 +3260,8 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
 
 NS_IMETHODIMP
 WebSocketChannel::OnStopRequest(nsIRequest *aRequest,
-                                  nsISupports *aContext,
-                                  nsresult aStatusCode)
+                                nsISupports *aContext,
+                                nsresult aStatusCode)
 {
   LOG(("WebSocketChannel::OnStopRequest() %p [%p %p %x]\n",
        this, aRequest, aContext, aStatusCode));

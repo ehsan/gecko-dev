@@ -15,8 +15,8 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 // The range of valid values is narrower than the range of valid JS values
 // because the native preferences code treats integers as NSPR PRInt32s,
 // which are 32-bit signed integers on all platforms.
-const MAX_INT = Math.pow(2, 31) - 1;
-const MIN_INT = -MAX_INT;
+const MAX_INT = 0x7FFFFFFF; // Math.pow(2, 31) - 1
+const MIN_INT = -0x80000000;
 
 this.Preferences =
   function Preferences(args) {

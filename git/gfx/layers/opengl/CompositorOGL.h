@@ -6,6 +6,7 @@
 #ifndef MOZILLA_GFX_COMPOSITOROGL_H
 #define MOZILLA_GFX_COMPOSITOROGL_H
 
+#include "ContextStateTracker.h"
 #include "gfx2DGlue.h"
 #include "GLContextTypes.h"             // for GLContext, etc
 #include "GLDefs.h"                     // for GLuint, LOCAL_GL_TEXTURE_2D, etc
@@ -53,7 +54,7 @@ class GLManagerCompositor;
 class TextureSource;
 struct Effect;
 struct EffectChain;
-
+class GLBlitTextureImageHelper;
 /**
  * Interface for pools of temporary gl textures for the compositor.
  * The textures are fully owned by the pool, so the latter is responsible
@@ -209,6 +210,7 @@ public:
 
   virtual void EndFrame() MOZ_OVERRIDE;
   virtual void SetFBAcquireFence(Layer* aLayer) MOZ_OVERRIDE;
+  virtual FenceHandle GetReleaseFence() MOZ_OVERRIDE;
   virtual void EndFrameForExternalComposition(const gfx::Matrix& aTransform) MOZ_OVERRIDE;
   virtual void AbortFrame() MOZ_OVERRIDE;
 
@@ -257,6 +259,8 @@ public:
     return gfx::SurfaceFormat::R8G8B8A8;
   }
 
+  GLBlitTextureImageHelper* BlitTextureImageHelper();
+
   /**
    * The compositor provides with temporary textures for use with direct
    * textruing like gralloc texture.
@@ -278,6 +282,7 @@ private:
   nsIWidget *mWidget;
   nsIntSize mWidgetSize;
   nsRefPtr<GLContext> mGLContext;
+  UniquePtr<GLBlitTextureImageHelper> mBlitTextureImageHelper;
   gfx::Matrix4x4 mProjMatrix;
 
   /** The size of the surface we are rendering to */
@@ -386,6 +391,8 @@ private:
 
   RefPtr<CompositorTexturePoolOGL> mTexturePool;
 
+  ContextStateTrackerOGL mContextStateTracker;
+
   bool mDestroyed;
 
   /**
@@ -393,6 +400,8 @@ private:
    * FlipY for the y-flipping calculation.
    */
   GLint mHeight;
+
+  FenceHandle mReleaseFenceHandle;
 };
 
 }

@@ -52,6 +52,7 @@ namespace css {
 
 CommonAnimationManager::CommonAnimationManager(nsPresContext *aPresContext)
   : mPresContext(aPresContext)
+  , mIsObservingRefreshDriver(false)
 {
   PR_INIT_CLIST(&mElementCollections);
 }
@@ -71,6 +72,21 @@ CommonAnimationManager::Disconnect()
 }
 
 void
+CommonAnimationManager::AddElementCollection(AnimationPlayerCollection*
+                                               aCollection)
+{
+  if (!mIsObservingRefreshDriver) {
+    NS_ASSERTION(aCollection->mNeedsRefreshes,
+      "Added data which doesn't need refreshing?");
+    // We need to observe the refresh driver.
+    mPresContext->RefreshDriver()->AddRefreshObserver(this, Flush_Style);
+    mIsObservingRefreshDriver = true;
+  }
+
+  PR_INSERT_BEFORE(aCollection, &mElementCollections);
+}
+
+void
 CommonAnimationManager::RemoveAllElementCollections()
 {
   while (!PR_CLIST_IS_EMPTY(&mElementCollections)) {
@@ -78,6 +94,26 @@ CommonAnimationManager::RemoveAllElementCollections()
       static_cast<AnimationPlayerCollection*>(
         PR_LIST_HEAD(&mElementCollections));
     head->Destroy();
+  }
+}
+
+void
+CommonAnimationManager::CheckNeedsRefresh()
+{
+  for (PRCList *l = PR_LIST_HEAD(&mElementCollections);
+       l != &mElementCollections;
+       l = PR_NEXT_LINK(l)) {
+    if (static_cast<AnimationPlayerCollection*>(l)->mNeedsRefreshes) {
+      if (!mIsObservingRefreshDriver) {
+        mPresContext->RefreshDriver()->AddRefreshObserver(this, Flush_Style);
+        mIsObservingRefreshDriver = true;
+      }
+      return;
+    }
+  }
+  if (mIsObservingRefreshDriver) {
+    mIsObservingRefreshDriver = false;
+    mPresContext->RefreshDriver()->RemoveRefreshObserver(this, Flush_Style);
   }
 }
 
@@ -102,10 +138,12 @@ CommonAnimationManager::GetAnimationsForCompositor(nsIContent* aContent,
   // Mark the frame as active, in case we are able to throttle this animation.
   nsIFrame* frame = nsLayoutUtils::GetStyleFrame(collection->mElement);
   if (frame) {
-    if (aProperty == eCSSProperty_opacity) {
-      ActiveLayerTracker::NotifyAnimated(frame, eCSSProperty_opacity);
-    } else if (aProperty == eCSSProperty_transform) {
-      ActiveLayerTracker::NotifyAnimated(frame, eCSSProperty_transform);
+    const auto& info = sLayerAnimationInfo;
+    for (size_t i = 0; i < ArrayLength(info); i++) {
+      if (aProperty == info[i].mProperty) {
+        ActiveLayerTracker::NotifyAnimated(frame, aProperty);
+        break;
+      }
     }
   }
 
@@ -170,11 +208,15 @@ CommonAnimationManager::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 void
 CommonAnimationManager::AddStyleUpdatesTo(RestyleTracker& aTracker)
 {
+  TimeStamp now = mPresContext->RefreshDriver()->MostRecentRefresh();
+
   PRCList* next = PR_LIST_HEAD(&mElementCollections);
   while (next != &mElementCollections) {
     AnimationPlayerCollection* collection =
       static_cast<AnimationPlayerCollection*>(next);
     next = PR_NEXT_LINK(next);
+
+    collection->EnsureStyleRuleFor(now, EnsureStyleRule_IsNotThrottled);
 
     dom::Element* elementToRestyle = collection->GetElementToRestyle();
     if (elementToRestyle) {
@@ -183,6 +225,17 @@ CommonAnimationManager::AddStyleUpdatesTo(RestyleTracker& aTracker)
       aTracker.AddPendingRestyle(elementToRestyle, rshint, nsChangeHint(0));
     }
   }
+}
+
+void
+CommonAnimationManager::NotifyCollectionUpdated(AnimationPlayerCollection&
+                                                  aCollection)
+{
+  CheckNeedsRefresh();
+  mPresContext->ClearLastStyleUpdateForAllAnimations();
+  mPresContext->RestyleManager()->IncrementAnimationGeneration();
+  aCollection.UpdateAnimationGeneration(mPresContext);
+  aCollection.PostRestyleForAnimation(mPresContext);
 }
 
 /* static */ bool
@@ -203,6 +256,15 @@ CommonAnimationManager::ExtractComputedValueForTransition(
   }
   return result;
 }
+
+/* static */ const CommonAnimationManager::LayerAnimationRecord
+  CommonAnimationManager::sLayerAnimationInfo[] =
+    { { eCSSProperty_transform,
+        nsDisplayItem::TYPE_TRANSFORM,
+        nsChangeHint_UpdateTransformLayer },
+      { eCSSProperty_opacity,
+        nsDisplayItem::TYPE_OPACITY,
+        nsChangeHint_UpdateOpacityLayer } };
 
 NS_IMPL_ISUPPORTS(AnimValuesStyleRule, nsIStyleRule)
 
@@ -434,6 +496,16 @@ AnimationPlayerCollection::GetElementToRestyle() const
   return pseudoFrame->GetContent()->AsElement();
 }
 
+void
+AnimationPlayerCollection::NotifyPlayerUpdated()
+{
+  // On the next flush, force us to update the style rule
+  mNeedsRefreshes = true;
+  mStyleRuleRefreshTime = TimeStamp();
+
+  mManager->NotifyCollectionUpdated(*this);
+}
+
 /* static */ void
 AnimationPlayerCollection::LogAsyncAnimationFailure(nsCString& aMessage,
                                                      const nsIContent* aContent)
@@ -489,33 +561,11 @@ AnimationPlayerCollection::EnsureStyleRuleFor(TimeStamp aRefreshTime,
   // most of the work in this method. But even if we are throttled, then we
   // have to do the work if an animation is ending in order to get correct end
   // of animation behaviour (the styles of the animation disappear, or the fill
-  // mode behaviour). This loop checks for any finishing animations and forces
-  // the style recalculation if we find any.
+  // mode behaviour). CanThrottle returns false for any finishing animations
+  // so we can force style recalculation in that case.
   if (aFlags == EnsureStyleRule_IsThrottled) {
     for (size_t playerIdx = mPlayers.Length(); playerIdx-- != 0; ) {
-      AnimationPlayer* player = mPlayers[playerIdx];
-
-      // Skip player with no source content, finished transitions, or animations
-      // whose @keyframes rule is empty.
-      if (!player->GetSource() ||
-          player->GetSource()->IsFinishedTransition() ||
-          player->GetSource()->Properties().IsEmpty()) {
-        continue;
-      }
-
-      // The GetComputedTiming() call here handles pausing.  But:
-      // FIXME: avoid recalculating every time when paused.
-      ComputedTiming computedTiming = player->GetSource()->GetComputedTiming();
-
-      // XXX We shouldn't really be using LastNotification() as a general
-      // indicator that the animation has finished, it should be reserved for
-      // events. If we use it differently in the future this use might need
-      // changing.
-      if (!player->mIsRunningOnCompositor ||
-          (computedTiming.mPhase == ComputedTiming::AnimationPhase_After &&
-           player->GetSource()->LastNotification()
-             != Animation::LAST_NOTIFICATION_END))
-      {
+      if (!mPlayers[playerIdx]->CanThrottle()) {
         aFlags = EnsureStyleRule_IsNotThrottled;
         break;
       }
@@ -534,112 +584,20 @@ AnimationPlayerCollection::EnsureStyleRuleFor(TimeStamp aRefreshTime,
     // We'll set mNeedsRefreshes to true below in all cases where we need them.
     mNeedsRefreshes = false;
 
-    // FIXME(spec): assume that properties in higher animations override
-    // those in lower ones.
-    // Therefore, we iterate from last animation to first.
+    // If multiple animations specify behavior for the same property the
+    // animation which occurs last in the value of animation-name wins.
+    // As a result, we iterate from last animation to first and, if a
+    // property has already been set, we don't leave it.
     nsCSSPropertySet properties;
 
     for (size_t playerIdx = mPlayers.Length(); playerIdx-- != 0; ) {
-      AnimationPlayer* player = mPlayers[playerIdx];
-
-      if (!player->GetSource() || player->GetSource()->IsFinishedTransition()) {
-        continue;
-      }
-
-      // The GetComputedTiming() call here handles pausing.  But:
-      // FIXME: avoid recalculating every time when paused.
-      ComputedTiming computedTiming = player->GetSource()->GetComputedTiming();
-
-      if ((computedTiming.mPhase == ComputedTiming::AnimationPhase_Before ||
-           computedTiming.mPhase == ComputedTiming::AnimationPhase_Active) &&
-          !player->IsPaused()) {
-        mNeedsRefreshes = true;
-      }
-
-      // If the time fraction is null, we don't have fill data for the current
-      // time so we shouldn't animate.
-      // Likewise, if the player has no source content.
-      if (computedTiming.mTimeFraction == ComputedTiming::kNullTimeFraction) {
-        continue;
-      }
-
-      NS_ABORT_IF_FALSE(0.0 <= computedTiming.mTimeFraction &&
-                        computedTiming.mTimeFraction <= 1.0,
-                        "timing fraction should be in [0-1]");
-
-      const Animation* anim = player->GetSource();
-      for (size_t propIdx = 0, propEnd = anim->Properties().Length();
-           propIdx != propEnd; ++propIdx)
-      {
-        const AnimationProperty& prop = anim->Properties()[propIdx];
-
-        NS_ABORT_IF_FALSE(prop.mSegments[0].mFromKey == 0.0,
-                          "incorrect first from key");
-        NS_ABORT_IF_FALSE(prop.mSegments[prop.mSegments.Length() - 1].mToKey
-                            == 1.0,
-                          "incorrect last to key");
-
-        if (properties.HasProperty(prop.mProperty)) {
-          // A later animation already set this property.
-          continue;
-        }
-        properties.AddProperty(prop.mProperty);
-
-        NS_ABORT_IF_FALSE(prop.mSegments.Length() > 0,
-                          "property should not be in animations if it "
-                          "has no segments");
-
-        // FIXME: Maybe cache the current segment?
-        const AnimationPropertySegment *segment = prop.mSegments.Elements(),
-                               *segmentEnd = segment + prop.mSegments.Length();
-        while (segment->mToKey < computedTiming.mTimeFraction) {
-          NS_ABORT_IF_FALSE(segment->mFromKey < segment->mToKey,
-                            "incorrect keys");
-          ++segment;
-          if (segment == segmentEnd) {
-            NS_ABORT_IF_FALSE(false, "incorrect time fraction");
-            break; // in order to continue in outer loop (just below)
-          }
-          NS_ABORT_IF_FALSE(segment->mFromKey == (segment-1)->mToKey,
-                            "incorrect keys");
-        }
-        if (segment == segmentEnd) {
-          continue;
-        }
-        NS_ABORT_IF_FALSE(segment->mFromKey < segment->mToKey,
-                          "incorrect keys");
-        NS_ABORT_IF_FALSE(segment >= prop.mSegments.Elements() &&
-                          size_t(segment - prop.mSegments.Elements()) <
-                            prop.mSegments.Length(),
-                          "out of array bounds");
-
-        if (!mStyleRule) {
-          // Allocate the style rule now that we know we have animation data.
-          mStyleRule = new css::AnimValuesStyleRule();
-        }
-
-        double positionInSegment =
-          (computedTiming.mTimeFraction - segment->mFromKey) /
-          (segment->mToKey - segment->mFromKey);
-        double valuePosition =
-          segment->mTimingFunction.GetValue(positionInSegment);
-
-        StyleAnimationValue *val =
-          mStyleRule->AddEmptyValue(prop.mProperty);
-
-#ifdef DEBUG
-        bool result =
-#endif
-          StyleAnimationValue::Interpolate(prop.mProperty,
-                                           segment->mFromValue,
-                                           segment->mToValue,
-                                           valuePosition, *val);
-        NS_ABORT_IF_FALSE(result, "interpolate must succeed now");
-      }
+      mPlayers[playerIdx]->ComposeStyle(mStyleRule, properties,
+                                        mNeedsRefreshes);
     }
   }
-}
 
+  mManager->CheckNeedsRefresh();
+}
 
 bool
 AnimationPlayerCollection::CanThrottleTransformChanges(TimeStamp aTime)
@@ -657,7 +615,8 @@ AnimationPlayerCollection::CanThrottleTransformChanges(TimeStamp aTime)
   }
 
   // If this animation can cause overflow, we can throttle some of the ticks.
-  if ((aTime - mStyleRuleRefreshTime) < TimeDuration::FromMilliseconds(200)) {
+  if (!mStyleRuleRefreshTime.IsNull() &&
+      (aTime - mStyleRuleRefreshTime) < TimeDuration::FromMilliseconds(200)) {
     return true;
   }
 
@@ -687,27 +646,27 @@ AnimationPlayerCollection::CanThrottleAnimation(TimeStamp aTime)
     return false;
   }
 
-  bool hasTransform = HasAnimationOfProperty(eCSSProperty_transform);
-  bool hasOpacity = HasAnimationOfProperty(eCSSProperty_opacity);
-  if (hasOpacity) {
+
+  const auto& info = css::CommonAnimationManager::sLayerAnimationInfo;
+  for (size_t i = 0; i < ArrayLength(info); i++) {
+    auto record = info[i];
+    if (!HasAnimationOfProperty(record.mProperty)) {
+      continue;
+    }
+
     Layer* layer = FrameLayerBuilder::GetDedicatedLayer(
-                     frame, nsDisplayItem::TYPE_OPACITY);
+                     frame, record.mLayerType);
     if (!layer || mAnimationGeneration > layer->GetAnimationGeneration()) {
+      return false;
+    }
+
+    if (record.mProperty == eCSSProperty_transform &&
+        !CanThrottleTransformChanges(aTime)) {
       return false;
     }
   }
 
-  if (!hasTransform) {
-    return true;
-  }
-
-  Layer* layer = FrameLayerBuilder::GetDedicatedLayer(
-                   frame, nsDisplayItem::TYPE_TRANSFORM);
-  if (!layer || mAnimationGeneration > layer->GetAnimationGeneration()) {
-    return false;
-  }
-
-  return CanThrottleTransformChanges(aTime);
+  return true;
 }
 
 void
@@ -719,10 +678,24 @@ AnimationPlayerCollection::UpdateAnimationGeneration(
 }
 
 bool
-AnimationPlayerCollection::HasCurrentAnimations()
+AnimationPlayerCollection::HasCurrentAnimations() const
 {
   for (size_t playerIdx = mPlayers.Length(); playerIdx-- != 0; ) {
-    if (mPlayers[playerIdx]->IsCurrent()) {
+    if (mPlayers[playerIdx]->HasCurrentSource()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool
+AnimationPlayerCollection::HasCurrentAnimationsForProperty(nsCSSProperty
+                                                             aProperty) const
+{
+  for (size_t playerIdx = mPlayers.Length(); playerIdx-- != 0; ) {
+    const Animation* anim = mPlayers[playerIdx]->GetSource();
+    if (anim && anim->IsCurrent() && anim->HasAnimationOfProperty(aProperty)) {
       return true;
     }
   }

@@ -81,7 +81,8 @@ loop.shared.views = (function(_, OT, l10n) {
     getDefaultProps: function() {
       return {
         video: {enabled: true, visible: true},
-        audio: {enabled: true, visible: true}
+        audio: {enabled: true, visible: true},
+        enableHangup: true
       };
     },
 
@@ -89,7 +90,9 @@ loop.shared.views = (function(_, OT, l10n) {
       video: React.PropTypes.object.isRequired,
       audio: React.PropTypes.object.isRequired,
       hangup: React.PropTypes.func.isRequired,
-      publishStream: React.PropTypes.func.isRequired
+      publishStream: React.PropTypes.func.isRequired,
+      hangupButtonLabel: React.PropTypes.string,
+      enableHangup: React.PropTypes.bool,
     },
 
     handleClickHangup: function() {
@@ -104,14 +107,19 @@ loop.shared.views = (function(_, OT, l10n) {
       this.props.publishStream("audio", !this.props.audio.enabled);
     },
 
+    _getHangupButtonLabel: function() {
+      return this.props.hangupButtonLabel || l10n.get("hangup_button_caption2");
+    },
+
     render: function() {
       var cx = React.addons.classSet;
       return (
         React.DOM.ul({className: "conversation-toolbar"}, 
-          React.DOM.li({className: "conversation-toolbar-btn-box"}, 
+          React.DOM.li({className: "conversation-toolbar-btn-box btn-hangup-entry"}, 
             React.DOM.button({className: "btn btn-hangup", onClick: this.handleClickHangup, 
-                    title: l10n.get("hangup_button_title")}, 
-              l10n.get("hangup_button_caption2")
+                    title: l10n.get("hangup_button_title"), 
+                    disabled: !this.props.enableHangup}, 
+              this._getHangupButtonLabel()
             )
           ), 
           React.DOM.li({className: "conversation-toolbar-btn-box"}, 
@@ -135,7 +143,7 @@ loop.shared.views = (function(_, OT, l10n) {
    * Conversation view.
    */
   var ConversationView = React.createClass({displayName: 'ConversationView',
-    mixins: [Backbone.Events],
+    mixins: [Backbone.Events, sharedMixins.AudioMixin],
 
     propTypes: {
       sdk: React.PropTypes.object.isRequired,
@@ -151,9 +159,11 @@ loop.shared.views = (function(_, OT, l10n) {
       width: "100%",
       height: "100%",
       style: {
+        audioLevelDisplayMode: "off",
         bugDisplayMode: "off",
         buttonDisplayMode: "off",
-        nameDisplayMode: "off"
+        nameDisplayMode: "off",
+        videoDisabledDisplayMode: "off"
       }
     },
 
@@ -181,7 +191,7 @@ loop.shared.views = (function(_, OT, l10n) {
     componentDidMount: function() {
       if (this.props.initiate) {
         this.listenTo(this.props.model, "session:connected",
-                                        this.startPublishing);
+                                        this._onSessionConnected);
         this.listenTo(this.props.model, "session:stream-created",
                                         this._streamCreated);
         this.listenTo(this.props.model, ["session:peer-hungup",
@@ -221,6 +231,11 @@ loop.shared.views = (function(_, OT, l10n) {
     hangup: function() {
       this.stopPublishing();
       this.props.model.endSession();
+    },
+
+    _onSessionConnected: function(event) {
+      this.startPublishing(event);
+      this.play("connected");
     },
 
     /**
@@ -395,8 +410,9 @@ loop.shared.views = (function(_, OT, l10n) {
       var categories = this._getCategories();
       return Object.keys(categories).map(function(category, key) {
         return (
-          React.DOM.label({key: key}, 
+          React.DOM.label({key: key, className: "feedback-category-label"}, 
             React.DOM.input({type: "radio", ref: "category", name: "category", 
+                   className: "feedback-category-radio", 
                    value: category, 
                    onChange: this.handleCategoryChange, 
                    checked: this.state.category === category}), 
@@ -464,6 +480,7 @@ loop.shared.views = (function(_, OT, l10n) {
             this._getCategoryFields(), 
             React.DOM.p(null, 
               React.DOM.input({type: "text", ref: "description", name: "description", 
+                className: "feedback-description", 
                 onChange: this.handleDescriptionFieldChange, 
                 onFocus: this.handleDescriptionFieldFocus, 
                 value: descriptionDisplayValue, 
@@ -531,6 +548,8 @@ loop.shared.views = (function(_, OT, l10n) {
    * Feedback view.
    */
   var FeedbackView = React.createClass({displayName: 'FeedbackView',
+    mixins: [sharedMixins.AudioMixin],
+
     propTypes: {
       // A loop.FeedbackAPIClient instance
       feedbackApiClient: React.PropTypes.object.isRequired,
@@ -545,6 +564,10 @@ loop.shared.views = (function(_, OT, l10n) {
 
     getDefaultProps: function() {
       return {step: "start"};
+    },
+
+    componentDidMount: function() {
+      this.play("terminated");
     },
 
     reset: function() {
@@ -617,9 +640,20 @@ loop.shared.views = (function(_, OT, l10n) {
     render: function() {
       var notification = this.props.notification;
       return (
-        React.DOM.div({key: this.props.key, 
-             className: "alert alert-" + notification.get("level")}, 
-          React.DOM.span({className: "message"}, notification.get("message"))
+        React.DOM.div({className: "notificationContainer"}, 
+          React.DOM.div({key: this.props.key, 
+               className: "alert alert-" + notification.get("level")}, 
+            React.DOM.span({className: "message"}, notification.get("message"))
+          ), 
+          React.DOM.div({className: "detailsBar details-" + notification.get("level"), 
+               hidden: !notification.get("details")}, 
+            React.DOM.button({className: "detailsButton btn-info", 
+                    onClick: notification.get("detailsButtonCallback"), 
+                    hidden: !notification.get("detailsButtonLabel") || !notification.get("detailsButtonCallback")}, 
+              notification.get("detailsButtonLabel")
+            ), 
+            React.DOM.span({className: "details"}, notification.get("details"))
+          )
         )
       );
     }
@@ -703,7 +737,8 @@ loop.shared.views = (function(_, OT, l10n) {
         React.DOM.button({onClick: this.props.onClick, 
                 disabled: this.props.disabled, 
                 className: cx(classObject)}, 
-          this.props.caption
+          React.DOM.span({className: "button-caption"}, this.props.caption), 
+          this.props.children
         )
       )
     }

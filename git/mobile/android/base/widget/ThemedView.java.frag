@@ -15,7 +15,7 @@ import android.util.AttributeSet;
 
 public class Themed@VIEW_NAME_SUFFIX@ extends @BASE_TYPE@
                                      implements LightweightTheme.OnChangeListener {
-    private final LightweightTheme mTheme;
+    private LightweightTheme mTheme;
 
     private static final int[] STATE_PRIVATE_MODE = { R.attr.state_private };
     private static final int[] STATE_LIGHT = { R.attr.state_light };
@@ -28,14 +28,26 @@ public class Themed@VIEW_NAME_SUFFIX@ extends @BASE_TYPE@
     private boolean mIsPrivate;
     private boolean mIsLight;
     private boolean mIsDark;
-    private boolean mAutoUpdateTheme = true;
+    private boolean mAutoUpdateTheme;        // always false if there's no theme.
 
     public Themed@VIEW_NAME_SUFFIX@(Context context, AttributeSet attrs) {
         super(context, attrs);
+        initialize(context, attrs);
+    }
+
+//#ifdef STYLE_CONSTRUCTOR
+    public Themed@VIEW_NAME_SUFFIX@(Context context, AttributeSet attrs, int defStyle) {
+        super(context, attrs, defStyle);
+        initialize(context, attrs);
+    }
+
+//#endif
+    private void initialize(final Context context, final AttributeSet attrs) {
+        // The theme can be null, particularly for webapps: Bug 1089266.
         mTheme = ((GeckoApplication) context.getApplicationContext()).getLightweightTheme();
 
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.LightweightTheme);
-        mAutoUpdateTheme = a.getBoolean(R.styleable.LightweightTheme_autoUpdateTheme, true);
+        final TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.LightweightTheme);
+        mAutoUpdateTheme = mTheme != null && a.getBoolean(R.styleable.LightweightTheme_autoUpdateTheme, true);
         a.recycle();
     }
 
@@ -123,6 +135,10 @@ public class Themed@VIEW_NAME_SUFFIX@ extends @BASE_TYPE@
     }
 
     public void setAutoUpdateTheme(boolean autoUpdateTheme) {
+        if (mTheme == null) {
+            return;
+        }
+
         if (mAutoUpdateTheme != autoUpdateTheme) {
             mAutoUpdateTheme = autoUpdateTheme;
 

@@ -148,7 +148,7 @@ CodeGeneratorX64::visitCompareB(LCompareB *lir)
     const LAllocation *rhs = lir->rhs();
     const Register output = ToRegister(lir->output());
 
-    JS_ASSERT(mir->jsop() == JSOP_STRICTEQ || mir->jsop() == JSOP_STRICTNE);
+    MOZ_ASSERT(mir->jsop() == JSOP_STRICTEQ || mir->jsop() == JSOP_STRICTNE);
 
     // Load boxed boolean in ScratchReg.
     if (rhs->isConstant())
@@ -170,7 +170,7 @@ CodeGeneratorX64::visitCompareBAndBranch(LCompareBAndBranch *lir)
     const ValueOperand lhs = ToValue(lir, LCompareBAndBranch::Lhs);
     const LAllocation *rhs = lir->rhs();
 
-    JS_ASSERT(mir->jsop() == JSOP_STRICTEQ || mir->jsop() == JSOP_STRICTNE);
+    MOZ_ASSERT(mir->jsop() == JSOP_STRICTEQ || mir->jsop() == JSOP_STRICTNE);
 
     // Load boxed boolean in ScratchReg.
     if (rhs->isConstant())
@@ -191,7 +191,7 @@ CodeGeneratorX64::visitCompareV(LCompareV *lir)
     const ValueOperand rhs = ToValue(lir, LCompareV::RhsInput);
     const Register output = ToRegister(lir->output());
 
-    JS_ASSERT(IsEqualityOp(mir->jsop()));
+    MOZ_ASSERT(IsEqualityOp(mir->jsop()));
 
     masm.cmpq(lhs.valueReg(), rhs.valueReg());
     masm.emitSet(JSOpToCondition(mir->compareType(), mir->jsop()), output);
@@ -206,8 +206,8 @@ CodeGeneratorX64::visitCompareVAndBranch(LCompareVAndBranch *lir)
     const ValueOperand lhs = ToValue(lir, LCompareVAndBranch::LhsInput);
     const ValueOperand rhs = ToValue(lir, LCompareVAndBranch::RhsInput);
 
-    JS_ASSERT(mir->jsop() == JSOP_EQ || mir->jsop() == JSOP_STRICTEQ ||
-              mir->jsop() == JSOP_NE || mir->jsop() == JSOP_STRICTNE);
+    MOZ_ASSERT(mir->jsop() == JSOP_EQ || mir->jsop() == JSOP_STRICTEQ ||
+               mir->jsop() == JSOP_NE || mir->jsop() == JSOP_STRICTNE);
 
     masm.cmpq(lhs.valueReg(), rhs.valueReg());
     emitBranch(JSOpToCondition(mir->compareType(), mir->jsop()), lir->ifTrue(), lir->ifFalse());
@@ -244,6 +244,17 @@ bool
 CodeGeneratorX64::visitAsmJSCall(LAsmJSCall *ins)
 {
     emitAsmJSCall(ins);
+
+#ifdef DEBUG
+    Register scratch = ABIArgGenerator::NonReturn_VolatileReg0;
+    masm.movePtr(HeapReg, scratch);
+    masm.loadAsmJSHeapRegisterFromGlobalData();
+    Label ok;
+    masm.branchPtr(Assembler::Equal, HeapReg, scratch, &ok);
+    masm.breakpoint();
+    masm.bind(&ok);
+#endif
+
     return true;
 }
 
@@ -258,7 +269,7 @@ CodeGeneratorX64::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
 
     if (ptr->isConstant()) {
         int32_t ptrImm = ptr->toConstant()->toInt32();
-        JS_ASSERT(ptrImm >= 0);
+        MOZ_ASSERT(ptrImm >= 0);
         srcAddr = Operand(HeapReg, ptrImm);
     } else {
         srcAddr = Operand(HeapReg, ToRegister(ptr), TimesOne);
@@ -266,7 +277,7 @@ CodeGeneratorX64::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
 
     OutOfLineLoadTypedArrayOutOfBounds *ool = nullptr;
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
-    if (!mir->skipBoundsCheck()) {
+    if (mir->needsBoundsCheck()) {
         bool isFloat32Load = vt == Scalar::Float32;
         ool = new(alloc()) OutOfLineLoadTypedArrayOutOfBounds(ToAnyRegister(out), isFloat32Load);
         if (!addOutOfLineCode(ool, ins->mir()))
@@ -306,7 +317,7 @@ CodeGeneratorX64::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
 
     if (ptr->isConstant()) {
         int32_t ptrImm = ptr->toConstant()->toInt32();
-        JS_ASSERT(ptrImm >= 0);
+        MOZ_ASSERT(ptrImm >= 0);
         dstAddr = Operand(HeapReg, ptrImm);
     } else {
         dstAddr = Operand(HeapReg, ToRegister(ptr), TimesOne);
@@ -314,7 +325,7 @@ CodeGeneratorX64::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
 
     Label rejoin;
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
-    if (!mir->skipBoundsCheck()) {
+    if (mir->needsBoundsCheck()) {
         CodeOffsetLabel cmp = masm.cmplWithPatch(ToRegister(ptr), Imm32(0));
         masm.j(Assembler::AboveOrEqual, &rejoin);
         maybeCmpOffset = cmp.offset();
@@ -357,7 +368,7 @@ CodeGeneratorX64::visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins)
     MAsmJSLoadGlobalVar *mir = ins->mir();
 
     MIRType type = mir->type();
-    JS_ASSERT(IsNumberType(type) || IsSimdType(type));
+    MOZ_ASSERT(IsNumberType(type) || IsSimdType(type));
 
     CodeOffsetLabel label;
     switch (type) {
@@ -392,7 +403,7 @@ CodeGeneratorX64::visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins)
     MAsmJSStoreGlobalVar *mir = ins->mir();
 
     MIRType type = mir->value()->type();
-    JS_ASSERT(IsNumberType(type) || IsSimdType(type));
+    MOZ_ASSERT(IsNumberType(type) || IsSimdType(type));
 
     CodeOffsetLabel label;
     switch (type) {

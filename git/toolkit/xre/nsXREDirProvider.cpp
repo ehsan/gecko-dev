@@ -103,6 +103,10 @@ nsXREDirProvider::Initialize(nsIFile *aXULAppDir,
   mAppProvider = aAppProvider;
   mXULAppDir = aXULAppDir;
   mGREDir = aGREDir;
+  mGREDir->Clone(getter_AddRefs(mGREBinDir));
+#ifdef XP_MACOSX
+  mGREBinDir->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
+#endif
 
   if (!mProfileDir) {
     nsCOMPtr<nsIDirectoryServiceProvider> app(do_QueryInterface(mAppProvider));
@@ -278,8 +282,11 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
   if (!strcmp(aProperty, NS_GRE_DIR)) {
     return mGREDir->Clone(aFile);
   }
+  else if (!strcmp(aProperty, NS_GRE_BIN_DIR)) {
+    return mGREBinDir->Clone(aFile);
+  }
   else if (!strcmp(aProperty, NS_OS_CURRENT_PROCESS_DIR) ||
-      !strcmp(aProperty, NS_APP_INSTALL_CLEANUP_DIR)) {
+           !strcmp(aProperty, NS_APP_INSTALL_CLEANUP_DIR)) {
     return GetAppDir()->Clone(aFile);
   }
 
@@ -544,9 +551,7 @@ nsXREDirProvider::GetFiles(const char* aProperty, nsISimpleEnumerator** aResult)
 static void
 RegisterExtensionInterpositions(nsINIParser &parser)
 {
-  if (!mozilla::BrowserTabsRemoteAutostart())
-    return;
-
+#if defined(NIGHTLY_BUILD) && defined(HAVE_SHIMS)
   nsCOMPtr<nsIAddonInterposition> interposition =
     do_GetService("@mozilla.org/addons/multiprocess-shims;1");
 
@@ -565,6 +570,7 @@ RegisterExtensionInterpositions(nsINIParser &parser)
       continue;
   }
   while (true);
+#endif
 }
 
 static void

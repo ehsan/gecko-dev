@@ -22,6 +22,7 @@ loop.shared.models = (function(l10n) {
       sessionToken: undefined,     // OT session token
       sessionType:  undefined,     // Hawk session type
       apiKey:       undefined,     // OT api key
+      windowId:     undefined,     // The window id
       callId:       undefined,     // The callId on the server
       progressURL:  undefined,     // The websocket url to use for progress
       websocketToken: undefined,   // The token to use for websocket auth, this is
@@ -29,9 +30,10 @@ loop.shared.models = (function(l10n) {
                                    // requires.
       callType:     undefined,     // The type of incoming call selected by
                                    // other peer ("audio" or "audio-video")
-      selectedCallType: undefined, // The selected type for the call that was
-                                   // initiated ("audio" or "audio-video")
+      selectedCallType: "audio-video", // The selected type for the call that was
+                                       // initiated ("audio" or "audio-video")
       callToken:    undefined,     // Incoming call token.
+      callUrl:      undefined,     // Incoming call url
                                    // Used for blocking a call url
       subscribedStream: false,     // Used to indicate that a stream has been
                                    // subscribed to
@@ -86,8 +88,13 @@ loop.shared.models = (function(l10n) {
     /**
      * Used to indicate that an outgoing call should start any necessary
      * set-up.
+     *
+     * @param {String} selectedCallType Call type ("audio" or "audio-video")
      */
-    setupOutgoingCall: function() {
+    setupOutgoingCall: function(selectedCallType) {
+      if (selectedCallType) {
+        this.set("selectedCallType", selectedCallType);
+      }
       this.trigger("call:outgoing:setup");
     },
 
@@ -137,15 +144,18 @@ loop.shared.models = (function(l10n) {
     setIncomingSessionData: function(sessionData) {
       // Explicit property assignment to prevent later "surprises"
       this.set({
-        sessionId:      sessionData.sessionId,
-        sessionToken:   sessionData.sessionToken,
-        sessionType:    sessionData.sessionType,
-        apiKey:         sessionData.apiKey,
-        callId:         sessionData.callId,
-        progressURL:    sessionData.progressURL,
-        websocketToken: sessionData.websocketToken.toString(16),
-        callType:       sessionData.callType || "audio-video",
-        callToken:      sessionData.callToken
+        sessionId:       sessionData.sessionId,
+        sessionToken:    sessionData.sessionToken,
+        sessionType:     sessionData.sessionType,
+        apiKey:          sessionData.apiKey,
+        callId:          sessionData.callId,
+        callerId:        sessionData.callerId,
+        urlCreationDate: sessionData.urlCreationDate,
+        progressURL:     sessionData.progressURL,
+        websocketToken:  sessionData.websocketToken.toString(16),
+        callType:        sessionData.callType || "audio-video",
+        callToken:       sessionData.callToken,
+        callUrl:         sessionData.callUrl
       });
     },
 
@@ -156,14 +166,17 @@ loop.shared.models = (function(l10n) {
       if (!this.isSessionReady()) {
         throw new Error("Can't start session as it's not ready");
       }
+      this.set({
+        publishedStream: false,
+        subscribedStream: false
+      });
+
       this.session = this.sdk.initSession(this.get("sessionId"));
       this.listenTo(this.session, "streamCreated", this._streamCreated);
       this.listenTo(this.session, "connectionDestroyed",
                                   this._connectionDestroyed);
       this.listenTo(this.session, "sessionDisconnected",
                                   this._sessionDisconnected);
-      this.listenTo(this.session, "networkDisconnected",
-                                  this._networkDisconnected);
       this.session.connect(this.get("apiKey"), this.get("sessionToken"),
                            this._onConnectCompletion.bind(this));
     },
@@ -173,8 +186,11 @@ loop.shared.models = (function(l10n) {
      */
     endSession: function() {
       this.session.disconnect();
-      this.set("ongoing", false)
-          .once("session:ended", this.stopListening, this);
+      this.set({
+        publishedStream: false,
+        subscribedStream: false,
+        ongoing: false
+      }).once("session:ended", this.stopListening, this);
     },
 
     /**
@@ -191,6 +207,23 @@ loop.shared.models = (function(l10n) {
         return this.get("selectedCallType") === "audio-video";
       }
       return undefined;
+    },
+
+    /**
+     * Used to remove the scheme from a url.
+     */
+    _removeScheme: function(url) {
+      if (!url) {
+        return "";
+      }
+      return url.replace(/^https?:\/\//, "");
+    },
+
+    /**
+     * Returns a conversation identifier for the incoming call view
+     */
+    getCallIdentifier: function() {
+      return this.get("callerId") || this._removeScheme(this.get("callUrl"));
     },
 
     /**
@@ -288,9 +321,17 @@ loop.shared.models = (function(l10n) {
      * @param  {SessionDisconnectEvent} event
      */
     _sessionDisconnected: function(event) {
+      if(event.reason === "networkDisconnected") {
+        this._signalEnd("session:network-disconnected", event);
+      } else {
+        this._signalEnd("session:ended", event);
+      }
+    },
+
+    _signalEnd: function(eventName, event) {
       this.set("connected", false)
           .set("ongoing", false)
-          .trigger("session:ended");
+          .trigger(eventName, event);
     },
 
     /**
@@ -300,24 +341,11 @@ loop.shared.models = (function(l10n) {
      * @param  {ConnectionEvent} event
      */
     _connectionDestroyed: function(event) {
-      this.set("connected", false)
-          .set("ongoing", false)
-          .trigger("session:peer-hungup", {
-            connectionId: event.connection.connectionId
-          });
-      this.endSession();
-    },
-
-    /**
-     * Network was disconnected.
-     * http://tokbox.com/opentok/libraries/client/js/reference/ConnectionEvent.html
-     *
-     * @param {ConnectionEvent} event
-     */
-    _networkDisconnected: function(event) {
-      this.set("connected", false)
-          .set("ongoing", false)
-          .trigger("session:network-disconnected");
+      if (event.reason === "networkDisconnected") {
+        this._signalEnd("session:network-disconnected", event);
+      } else {
+        this._signalEnd("session:peer-hungup", event);
+      }
       this.endSession();
     },
   });
@@ -327,6 +355,9 @@ loop.shared.models = (function(l10n) {
    */
   var NotificationModel = Backbone.Model.extend({
     defaults: {
+      details: "",
+      detailsButtonLabel: "",
+      detailsButtonCallback: null,
       level: "info",
       message: ""
     }

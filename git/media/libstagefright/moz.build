@@ -48,6 +48,7 @@ if CONFIG['OS_TARGET'] != 'Android':
     ]
 
 EXPORTS.mp4_demuxer += [
+    'binding/include/mp4_demuxer/Adts.h',
     'binding/include/mp4_demuxer/AnnexB.h',
     'binding/include/mp4_demuxer/BufferStream.h',
     'binding/include/mp4_demuxer/ByteReader.h',
@@ -103,6 +104,10 @@ LOCAL_INCLUDES += [
     'stubs/include',
     'stubs/include/media/stagefright/foundation',
     'system/core/include',
+]
+
+TEST_DIRS += [
+    'gtest',
 ]
 
 FINAL_LIBRARY = 'xul'

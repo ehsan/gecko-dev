@@ -3273,13 +3273,17 @@ nsNavHistory::QueryToSelectClause(nsNavHistoryQuery* aQuery, // const
 
   // search terms
   bool hasSearchTerms;
+  int32_t searchBehavior = mozIPlacesAutoComplete::BEHAVIOR_HISTORY |
+                           mozIPlacesAutoComplete::BEHAVIOR_BOOKMARK;
   if (NS_SUCCEEDED(aQuery->GetHasSearchTerms(&hasSearchTerms)) && hasSearchTerms) {
-    // Re-use the autocomplete_match function.  Setting the behavior to 0
-    // it can match everything and work as a nice case insensitive comparator.
+    // Re-use the autocomplete_match function.  Setting the behavior to match
+    // history or typed history or bookmarks or open pages will match almost
+    // everything.
     clause.Condition("AUTOCOMPLETE_MATCH(").Param(":search_string")
           .Str(", h.url, page_title, tags, ")
-          .Str(nsPrintfCString("0, 0, 0, 0, %d, 0)",
-                               mozIPlacesAutoComplete::MATCH_ANYWHERE_UNMODIFIED).get());
+          .Str(nsPrintfCString("1, 1, 1, 1, %d, %d)",
+                               mozIPlacesAutoComplete::MATCH_ANYWHERE_UNMODIFIED,
+                               searchBehavior).get());
     // Serching by terms implicitly exclude queries.
     excludeQueries = true;
   }
@@ -3377,6 +3381,8 @@ nsNavHistory::QueryToSelectClause(nsNavHistoryQuery* aQuery, // const
   // folders
   const nsTArray<int64_t>& folders = aQuery->Folders();
   if (folders.Length() > 0) {
+    aOptions->SetQueryType(nsNavHistoryQueryOptions::QUERY_TYPE_BOOKMARKS);
+
     nsTArray<int64_t> includeFolders;
     includeFolders.AppendElements(folders);
 
@@ -3755,6 +3761,12 @@ nsNavHistory::clearEmbedVisits() {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
 
   mEmbedVisits.Clear();
+}
+
+NS_IMETHODIMP
+nsNavHistory::ClearEmbedVisits() {
+  clearEmbedVisits();
+  return NS_OK;
 }
 
 // nsNavHistory::CheckIsRecentEvent

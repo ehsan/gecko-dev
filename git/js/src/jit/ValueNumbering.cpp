@@ -56,7 +56,13 @@ ValueNumberer::VisibleValues::ValueHasher::match(Key k, Lookup l)
         return false;
 
     bool congruent = k->congruentTo(l); // Ask the values themselves what they think.
-    MOZ_ASSERT(congruent == l->congruentTo(k), "congruentTo relation is not symmetric");
+#ifdef DEBUG
+    if (congruent != l->congruentTo(k)) {
+       JitSpew(JitSpew_GVN, "      congruentTo relation is not symmetric between %s%u and %s%u!!",
+               k->opName(), k->id(),
+               l->opName(), l->id());
+    }
+#endif
     return congruent;
 }
 
@@ -131,28 +137,13 @@ ValueNumberer::VisibleValues::has(const MDefinition *def) const
 }
 #endif
 
-// Test whether |def| would be needed if it had no uses.
-static bool
-DeadIfUnused(const MDefinition *def)
-{
-    return !def->isEffectful() && !def->isGuard() && !def->isControlInstruction() &&
-           (!def->isInstruction() || !def->toInstruction()->resumePoint());
-}
-
-// Test whether |def| may be safely discarded, due to being dead or due to being
-// located in a basic block which has itself been marked for discarding.
-static bool
-IsDiscardable(const MDefinition *def)
-{
-    return !def->hasUses() && (DeadIfUnused(def) || def->block()->isMarked());
-}
-
 // Call MDefinition::justReplaceAllUsesWith, and add some GVN-specific asserts.
 static void
 ReplaceAllUsesWith(MDefinition *from, MDefinition *to)
 {
     MOZ_ASSERT(from != to, "GVN shouldn't try to replace a value with itself");
     MOZ_ASSERT(from->type() == to->type(), "Def replacement has different type");
+    MOZ_ASSERT(!to->isDiscarded(), "GVN replaces an instruction by a removed instruction");
 
     // We don't need the extra setting of UseRemoved flags that the regular
     // replaceAllUsesWith does because we do it ourselves.
@@ -297,10 +288,6 @@ ValueNumberer::releaseResumePointOperands(MResumePoint *resume)
         if (!resume->hasOperand(i))
             continue;
         MDefinition *op = resume->getOperand(i);
-        // TODO: We shouldn't leave discarded operands sitting around
-        // (bug 1055690).
-        if (op->isDiscarded())
-            continue;
         resume->releaseOperand(i);
 
         // We set the UseRemoved flag when removing resume point operands,
@@ -364,8 +351,7 @@ ValueNumberer::discardDef(MDefinition *def)
         MPhi *phi = def->toPhi();
         if (!releaseAndRemovePhiOperands(phi))
              return false;
-        MPhiIterator at(block->phisBegin(phi));
-        block->discardPhiAt(at);
+        block->discardPhi(phi);
     } else {
         MInstruction *ins = def->toInstruction();
         if (MResumePoint *resume = ins->resumePoint()) {
@@ -639,7 +625,7 @@ ValueNumberer::leader(MDefinition *def)
         VisibleValues::AddPtr p = values_.findLeaderForAdd(def);
         if (p) {
             MDefinition *rep = *p;
-            if (rep->block()->dominates(def->block())) {
+            if (!rep->isDiscarded() && rep->block()->dominates(def->block())) {
                 // We found a dominating congruent value.
                 return rep;
             }
@@ -652,6 +638,10 @@ ValueNumberer::leader(MDefinition *def)
             if (!values_.add(p, def))
                 return nullptr;
         }
+
+#ifdef DEBUG
+        JitSpew(JitSpew_GVN, "      Recording %s%u", def->opName(), def->id());
+#endif
     }
 
     return def;
@@ -695,9 +685,41 @@ ValueNumberer::loopHasOptimizablePhi(MBasicBlock *header) const
 bool
 ValueNumberer::visitDefinition(MDefinition *def)
 {
+    // Nop does not fit in any of the previous optimization, as its only purpose
+    // is to reduce the register pressure by keeping additional resume
+    // point. Still, there is no need consecutive list of MNop instructions, and
+    // this will slow down every other iteration on the Graph.
+    if (def->isNop()) {
+        MNop *nop = def->toNop();
+        MBasicBlock *block = nop->block();
+
+        // We look backward to know if we can remove the previous Nop, we do not
+        // look forward as we would not benefit from the folding made by GVN.
+        MInstructionReverseIterator iter = ++block->rbegin(nop);
+
+        // This nop is at the beginning of the basic block, just replace the
+        // resume point of the basic block by the one from the resume point.
+        if (iter == block->rend()) {
+            JitSpew(JitSpew_GVN, "      Removing Nop%u", nop->id());
+            nop->moveResumePointAsEntry();
+            block->discard(nop);
+            return true;
+        }
+
+        // The previous instruction is also a Nop, no need to keep it anymore.
+        MInstruction *prev = *iter;
+        if (prev->isNop()) {
+            JitSpew(JitSpew_GVN, "      Removing Nop%u", prev->id());
+            block->discard(prev);
+            return true;
+        }
+
+        return true;
+    }
+
     // If this instruction has a dependency() into an unreachable block, we'll
     // need to update AliasAnalysis.
-    MDefinition *dep = def->dependency();
+    MInstruction *dep = def->dependency();
     if (dep != nullptr && (dep->isDiscarded() || dep->block()->isDead())) {
         JitSpew(JitSpew_GVN, "      AliasAnalysis invalidated");
         if (updateAliasAnalysis_ && !dependenciesBroken_) {
@@ -829,6 +851,8 @@ ValueNumberer::visitControlInstruction(MBasicBlock *block, const MBasicBlock *do
         return false;
     block->discardIgnoreOperands(control);
     block->end(newControl);
+    if (block->entryResumePoint() && newNumSuccs != oldNumSuccs)
+        block->flagOperandsOfPrunedBranches(newControl);
     return processDeadDefs();
 }
 

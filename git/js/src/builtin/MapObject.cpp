@@ -19,6 +19,8 @@
 
 #include "jsobjinlines.h"
 
+#include "vm/NativeObject-inl.h"
+
 using namespace js;
 
 using mozilla::ArrayLength;
@@ -798,8 +800,8 @@ HashableValue::setValue(JSContext *cx, HandleValue v)
         value = v;
     }
 
-    JS_ASSERT(value.isUndefined() || value.isNull() || value.isBoolean() || value.isNumber() ||
-              value.isString() || value.isSymbol() || value.isObject());
+    MOZ_ASSERT(value.isUndefined() || value.isNull() || value.isBoolean() || value.isNumber() ||
+               value.isString() || value.isSymbol() || value.isObject());
     return true;
 }
 
@@ -820,8 +822,8 @@ HashableValue::operator==(const HashableValue &other) const
 
 #ifdef DEBUG
     bool same;
-    JS_ASSERT(SameValue(nullptr, value, other.value, &same));
-    JS_ASSERT(same == b);
+    MOZ_ASSERT(SameValue(nullptr, value, other.value, &same));
+    MOZ_ASSERT(same == b);
 #endif
     return b;
 }
@@ -840,7 +842,7 @@ HashableValue::mark(JSTracer *trc) const
 
 namespace {
 
-class MapIteratorObject : public JSObject
+class MapIteratorObject : public NativeObject
 {
   public:
     static const Class class_;
@@ -876,7 +878,7 @@ const Class MapIteratorObject::class_ = {
 };
 
 const JSFunctionSpec MapIteratorObject::methods[] = {
-    JS_SELF_HOSTED_FN("@@iterator", "IteratorIdentity", 0, 0),
+    JS_SELF_HOSTED_SYM_FN(iterator, "IteratorIdentity", 0, 0),
     JS_FN("next", next, 0, 0),
     JS_FS_END
 };
@@ -891,7 +893,7 @@ inline MapObject::IteratorKind
 MapIteratorObject::kind() const
 {
     int32_t i = getSlot(KindSlot).toInt32();
-    JS_ASSERT(i == MapObject::Keys || i == MapObject::Values || i == MapObject::Entries);
+    MOZ_ASSERT(i == MapObject::Keys || i == MapObject::Values || i == MapObject::Entries);
     return MapObject::IteratorKind(i);
 }
 
@@ -901,8 +903,8 @@ GlobalObject::initMapIteratorProto(JSContext *cx, Handle<GlobalObject *> global)
     JSObject *base = GlobalObject::getOrCreateIteratorPrototype(cx, global);
     if (!base)
         return false;
-    Rooted<JSObject*> proto(cx,
-        NewObjectWithGivenProto(cx, &MapIteratorObject::class_, base, global));
+    RootedNativeObject proto(cx,
+        NewNativeObjectWithGivenProto(cx, &MapIteratorObject::class_, base, global));
     if (!proto)
         return false;
     proto->setSlot(MapIteratorObject::RangeSlot, PrivateValue(nullptr));
@@ -925,7 +927,7 @@ MapIteratorObject::create(JSContext *cx, HandleObject mapobj, ValueMap *data,
     if (!range)
         return nullptr;
 
-    JSObject *iterobj = NewObjectWithGivenProto(cx, &class_, proto, global);
+    NativeObject *iterobj = NewNativeObjectWithGivenProto(cx, &class_, proto, global);
     if (!iterobj) {
         js_delete(range);
         return nullptr;
@@ -1044,7 +1046,7 @@ static JSObject *
 InitClass(JSContext *cx, Handle<GlobalObject*> global, const Class *clasp, JSProtoKey key, Native construct,
           const JSPropertySpec *properties, const JSFunctionSpec *methods)
 {
-    Rooted<JSObject*> proto(cx, global->createBlankPrototype(cx, clasp));
+    RootedNativeObject proto(cx, global->createBlankPrototype(cx, clasp));
     if (!proto)
         return nullptr;
     proto->setPrivate(nullptr);
@@ -1074,8 +1076,14 @@ MapObject::initClass(JSContext *cx, JSObject *obj)
 
         // Define its alias.
         RootedValue funval(cx, ObjectValue(*fun));
+#if JS_HAS_SYMBOLS
+        RootedId iteratorId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
+        if (!JS_DefinePropertyById(cx, proto, iteratorId, funval, 0))
+            return nullptr;
+#else
         if (!JS_DefineProperty(cx, proto, js_std_iterator_str, funval, 0))
             return nullptr;
+#endif
     }
     return proto;
 }
@@ -1123,8 +1131,8 @@ class OrderedHashTableRef : public gc::BufferableRef
     explicit OrderedHashTableRef(TableType *t, const Value &k) : table(t), key(k) {}
 
     void mark(JSTracer *trc) {
-        JS_ASSERT(UnbarrieredHashPolicy::hash(key) ==
-                  HashableValue::Hasher::hash(*reinterpret_cast<HashableValue*>(&key)));
+        MOZ_ASSERT(UnbarrieredHashPolicy::hash(key) ==
+                   HashableValue::Hasher::hash(*reinterpret_cast<HashableValue*>(&key)));
         Value prior = key;
         gc::MarkValueUnbarriered(trc, &key, "ordered hash table key");
         table->rekeyOneEntry(prior, key);
@@ -1198,7 +1206,7 @@ MapObject::set(JSContext *cx, HandleObject obj, HandleValue k, HandleValue v)
 MapObject*
 MapObject::create(JSContext *cx)
 {
-    RootedObject obj(cx, NewBuiltinClassInstance(cx, &class_));
+    RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &class_));
     if (!obj)
         return nullptr;
 
@@ -1242,7 +1250,8 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
             if (done)
                 break;
             if (!pairVal.isObject()) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INVALID_MAP_ITERABLE);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                                     JSMSG_INVALID_MAP_ITERABLE, "Map");
                 return false;
             }
 
@@ -1278,7 +1287,7 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
 bool
 MapObject::is(HandleValue v)
 {
-    return v.isObject() && v.toObject().hasClass(&class_) && v.toObject().getPrivate();
+    return v.isObject() && v.toObject().hasClass(&class_) && v.toObject().as<MapObject>().getPrivate();
 }
 
 #define ARG0_KEY(cx, args, key)                                               \
@@ -1289,18 +1298,19 @@ MapObject::is(HandleValue v)
 ValueMap &
 MapObject::extract(CallReceiver call)
 {
-    JS_ASSERT(call.thisv().isObject());
-    JS_ASSERT(call.thisv().toObject().hasClass(&MapObject::class_));
+    MOZ_ASSERT(call.thisv().isObject());
+    MOZ_ASSERT(call.thisv().toObject().hasClass(&MapObject::class_));
     return *call.thisv().toObject().as<MapObject>().getData();
 }
 
 bool
 MapObject::size_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(MapObject::is(args.thisv()));
+    MOZ_ASSERT(MapObject::is(args.thisv()));
 
     ValueMap &map = extract(args);
-    JS_STATIC_ASSERT(sizeof map.count() <= sizeof(uint32_t));
+    static_assert(sizeof(map.count()) <= sizeof(uint32_t),
+                  "map count must be precisely representable as a JS number");
     args.rval().setNumber(map.count());
     return true;
 }
@@ -1315,7 +1325,7 @@ MapObject::size(JSContext *cx, unsigned argc, Value *vp)
 bool
 MapObject::get_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(MapObject::is(args.thisv()));
+    MOZ_ASSERT(MapObject::is(args.thisv()));
 
     ValueMap &map = extract(args);
     ARG0_KEY(cx, args, key);
@@ -1337,7 +1347,7 @@ MapObject::get(JSContext *cx, unsigned argc, Value *vp)
 bool
 MapObject::has_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(MapObject::is(args.thisv()));
+    MOZ_ASSERT(MapObject::is(args.thisv()));
 
     ValueMap &map = extract(args);
     ARG0_KEY(cx, args, key);
@@ -1355,7 +1365,7 @@ MapObject::has(JSContext *cx, unsigned argc, Value *vp)
 bool
 MapObject::set_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(MapObject::is(args.thisv()));
+    MOZ_ASSERT(MapObject::is(args.thisv()));
 
     ValueMap &map = extract(args);
     ARG0_KEY(cx, args, key);
@@ -1388,7 +1398,7 @@ MapObject::delete_impl(JSContext *cx, CallArgs args)
     // makeEmpty clears the value by doing e->value = Value(), and in the case
     // of a ValueMap, Value() means RelocatableValue(), which is the same as
     // RelocatableValue(UndefinedValue()).
-    JS_ASSERT(MapObject::is(args.thisv()));
+    MOZ_ASSERT(MapObject::is(args.thisv()));
 
     ValueMap &map = extract(args);
     ARG0_KEY(cx, args, key);
@@ -1489,7 +1499,7 @@ js_InitMapClass(JSContext *cx, HandleObject obj)
 
 namespace {
 
-class SetIteratorObject : public JSObject
+class SetIteratorObject : public NativeObject
 {
   public:
     static const Class class_;
@@ -1525,7 +1535,7 @@ const Class SetIteratorObject::class_ = {
 };
 
 const JSFunctionSpec SetIteratorObject::methods[] = {
-    JS_SELF_HOSTED_FN("@@iterator", "IteratorIdentity", 0, 0),
+    JS_SELF_HOSTED_SYM_FN(iterator, "IteratorIdentity", 0, 0),
     JS_FN("next", next, 0, 0),
     JS_FS_END
 };
@@ -1540,7 +1550,7 @@ inline SetObject::IteratorKind
 SetIteratorObject::kind() const
 {
     int32_t i = getSlot(KindSlot).toInt32();
-    JS_ASSERT(i == SetObject::Values || i == SetObject::Entries);
+    MOZ_ASSERT(i == SetObject::Values || i == SetObject::Entries);
     return SetObject::IteratorKind(i);
 }
 
@@ -1550,7 +1560,8 @@ GlobalObject::initSetIteratorProto(JSContext *cx, Handle<GlobalObject*> global)
     JSObject *base = GlobalObject::getOrCreateIteratorPrototype(cx, global);
     if (!base)
         return false;
-    RootedObject proto(cx, NewObjectWithGivenProto(cx, &SetIteratorObject::class_, base, global));
+    RootedNativeObject proto(cx, NewNativeObjectWithGivenProto(cx, &SetIteratorObject::class_,
+                                                               base, global));
     if (!proto)
         return false;
     proto->setSlot(SetIteratorObject::RangeSlot, PrivateValue(nullptr));
@@ -1573,7 +1584,7 @@ SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data,
     if (!range)
         return nullptr;
 
-    JSObject *iterobj = NewObjectWithGivenProto(cx, &class_, proto, global);
+    NativeObject *iterobj = NewNativeObjectWithGivenProto(cx, &class_, proto, global);
     if (!iterobj) {
         js_delete(range);
         return nullptr;
@@ -1698,8 +1709,15 @@ SetObject::initClass(JSContext *cx, JSObject *obj)
         RootedValue funval(cx, ObjectValue(*fun));
         if (!JS_DefineProperty(cx, proto, "keys", funval, 0))
             return nullptr;
+
+#if JS_HAS_SYMBOLS
+        RootedId iteratorId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
+        if (!JS_DefinePropertyById(cx, proto, iteratorId, funval, 0))
+            return nullptr;
+#else
         if (!JS_DefineProperty(cx, proto, js_std_iterator_str, funval, 0))
             return nullptr;
+#endif
     }
     return proto;
 }
@@ -1742,7 +1760,7 @@ SetObject::add(JSContext *cx, HandleObject obj, HandleValue k)
 SetObject*
 SetObject::create(JSContext *cx)
 {
-    RootedObject obj(cx, NewBuiltinClassInstance(cx, &class_));
+    RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &class_));
     if (!obj)
         return nullptr;
 
@@ -1812,24 +1830,25 @@ SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
 bool
 SetObject::is(HandleValue v)
 {
-    return v.isObject() && v.toObject().hasClass(&class_) && v.toObject().getPrivate();
+    return v.isObject() && v.toObject().hasClass(&class_) && v.toObject().as<SetObject>().getPrivate();
 }
 
 ValueSet &
 SetObject::extract(CallReceiver call)
 {
-    JS_ASSERT(call.thisv().isObject());
-    JS_ASSERT(call.thisv().toObject().hasClass(&SetObject::class_));
+    MOZ_ASSERT(call.thisv().isObject());
+    MOZ_ASSERT(call.thisv().toObject().hasClass(&SetObject::class_));
     return *static_cast<SetObject&>(call.thisv().toObject()).getData();
 }
 
 bool
 SetObject::size_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(is(args.thisv()));
+    MOZ_ASSERT(is(args.thisv()));
 
     ValueSet &set = extract(args);
-    JS_STATIC_ASSERT(sizeof set.count() <= sizeof(uint32_t));
+    static_assert(sizeof(set.count()) <= sizeof(uint32_t),
+                  "set count must be precisely representable as a JS number");
     args.rval().setNumber(set.count());
     return true;
 }
@@ -1844,7 +1863,7 @@ SetObject::size(JSContext *cx, unsigned argc, Value *vp)
 bool
 SetObject::has_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(is(args.thisv()));
+    MOZ_ASSERT(is(args.thisv()));
 
     ValueSet &set = extract(args);
     ARG0_KEY(cx, args, key);
@@ -1862,7 +1881,7 @@ SetObject::has(JSContext *cx, unsigned argc, Value *vp)
 bool
 SetObject::add_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(is(args.thisv()));
+    MOZ_ASSERT(is(args.thisv()));
 
     ValueSet &set = extract(args);
     ARG0_KEY(cx, args, key);
@@ -1885,7 +1904,7 @@ SetObject::add(JSContext *cx, unsigned argc, Value *vp)
 bool
 SetObject::delete_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(is(args.thisv()));
+    MOZ_ASSERT(is(args.thisv()));
 
     ValueSet &set = extract(args);
     ARG0_KEY(cx, args, key);

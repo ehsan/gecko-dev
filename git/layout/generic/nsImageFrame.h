@@ -21,6 +21,7 @@
 #include "nsIReflowCallback.h"
 #include "nsTObserverArray.h"
 
+class nsFontMetrics;
 class nsImageMap;
 class nsIURI;
 class nsILoadGroup;
@@ -183,7 +184,7 @@ protected:
               const mozilla::LogicalSize& aMargin,
               const mozilla::LogicalSize& aBorder,
               const mozilla::LogicalSize& aPadding,
-              uint32_t aFlags) MOZ_OVERRIDE;
+              ComputeSizeFlags aFlags) MOZ_OVERRIDE;
 
   bool IsServerImageMap();
 
@@ -205,7 +206,8 @@ protected:
                         int32_t              aLength,
                         nscoord              aMaxWidth,
                         uint32_t&            aMaxFit,
-                        nsRenderingContext& aContext);
+                        nsRenderingContext& aContext,
+                        nsFontMetrics&      aFontMetrics);
 
   void DisplayAltText(nsPresContext*      aPresContext,
                       nsRenderingContext& aRenderingContext,

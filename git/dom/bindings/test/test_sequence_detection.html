@@ -15,10 +15,14 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=1066432
   SpecialPowers.pushPrefEnv({set: [['dom.expose_test_interfaces', true]]}, function() {
     var testInterfaceJS = new TestInterfaceJS();
     ok(testInterfaceJS, "got a TestInterfaceJS object");
+
+    var JS_HAS_SYMBOLS = typeof Symbol === "function";
+    var std_iterator = JS_HAS_SYMBOLS ? Symbol.iterator : "@@iterator";
+    var nonIterableObject = {[std_iterator]: 5};
+
     try {
-      testInterfaceJS.testSequenceOverload(
-        { "@@iterator": 5, [Symbol.iterator]: Array.prototype[Symbol.iterator] });
-      ok(false, "Should have thrown in the overload case");
+      testInterfaceJS.testSequenceOverload(nonIterableObject);
+      ok(false, "Should have thrown in the overload case");  // see long comment above!
     } catch (e) {
       ise(e.name, "TypeError", "Should get a TypeError for the overload case");
       ok(e.message.contains("not iterable"),
@@ -26,8 +30,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=1066432
     }
 
     try {
-      testInterfaceJS.testSequenceUnion(
-        { "@@iterator": 5, [Symbol.iterator]: Array.prototype[Symbol.iterator] });
+      testInterfaceJS.testSequenceUnion(nonIterableObject);
       ok(false, "Should have thrown in the union case");
     } catch (e) {
       ise(e.name, "TypeError", "Should get a TypeError for the union case");

@@ -546,6 +546,24 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     }
   },
 
+  hidePrettyPrinting: function() {
+    this._prettyPrintButton.style.display = 'none';
+
+    if (this._blackBoxButton.style.display === 'none') {
+      let sep = document.querySelector('#sources-toolbar .devtools-separator');
+      sep.style.display = 'none';
+    }
+  },
+
+  hideBlackBoxing: function() {
+    this._blackBoxButton.style.display = 'none';
+
+    if (this._prettyPrintButton.style.display === 'none') {
+      let sep = document.querySelector('#sources-toolbar .devtools-separator');
+      sep.style.display = 'none';
+    }
+  },
+
   /**
    * Marks a breakpoint as selected in this sources container.
    *
@@ -3260,10 +3278,15 @@ LineResults.prototype = {
 
 /**
  * A generator-iterator over the global, source or line results.
+ *
+ * The method name depends on whether symbols are enabled in
+ * this build. If so, use Symbol.iterator; otherwise "@@iterator".
  */
-GlobalResults.prototype["@@iterator"] =
-SourceResults.prototype["@@iterator"] =
-LineResults.prototype["@@iterator"] = function*() {
+const JS_HAS_SYMBOLS = typeof Symbol === "function";
+const ITERATOR_SYMBOL = JS_HAS_SYMBOLS ? Symbol.iterator : "@@iterator";
+GlobalResults.prototype[ITERATOR_SYMBOL] =
+SourceResults.prototype[ITERATOR_SYMBOL] =
+LineResults.prototype[ITERATOR_SYMBOL] = function*() {
   yield* this._store;
 };
 

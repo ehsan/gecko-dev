@@ -78,7 +78,7 @@ loop.Client = (function($) {
     _failureHandler: function(cb, error) {
       var message = "HTTP " + error.code + " " + error.error + "; " + error.message;
       console.error(message);
-      cb(new Error(message));
+      cb(error);
     },
 
     /**
@@ -87,10 +87,11 @@ loop.Client = (function($) {
      * Callback parameters:
      * - err null on successful registration, non-null otherwise.
      *
+     * @param {LOOP_SESSION_TYPE} sessionType Guest or FxA
      * @param {Function} cb Callback(err)
      */
-    _ensureRegistered: function(cb) {
-      this.mozLoop.ensureRegistered(function(error) {
+    _ensureRegistered: function(sessionType, cb) {
+      this.mozLoop.ensureRegistered(sessionType, function(error) {
         if (error) {
           console.log("Error registering with Loop server, code: " + error);
           cb(error);
@@ -110,17 +111,11 @@ loop.Client = (function($) {
      * -- callUrl: The url of the call
      * -- expiresAt: The amount of hours until expiry of the url
      *
+     * @param {LOOP_SESSION_TYPE} sessionType
      * @param  {string} nickname the nickname of the future caller
      * @param  {Function} cb Callback(err, callUrlData)
      */
-    _requestCallUrlInternal: function(nickname, cb) {
-      var sessionType;
-      if (this.mozLoop.userProfile) {
-        sessionType = this.mozLoop.LOOP_SESSION_TYPE.FXA;
-      } else {
-        sessionType = this.mozLoop.LOOP_SESSION_TYPE.GUEST;
-      }
-
+    _requestCallUrlInternal: function(sessionType, nickname, cb) {
       this.mozLoop.hawkRequest(sessionType, "/call-url/", "POST",
                                {callerId: nickname},
         function (error, responseText) {
@@ -151,23 +146,25 @@ loop.Client = (function($) {
      * Block call URL based on the token identifier
      *
      * @param {string} token Conversation identifier used to block the URL
+     * @param {mozLoop.LOOP_SESSION_TYPE} sessionType The type of session which
+     *                                                the url belongs to.
      * @param {function} cb Callback function used for handling an error
      *                      response. XXX The incoming call panel does not
      *                      exist after the block button is clicked therefore
      *                      it does not make sense to display an error.
      **/
-    deleteCallUrl: function(token, cb) {
-      this._ensureRegistered(function(err) {
+    deleteCallUrl: function(token, sessionType, cb) {
+      this._ensureRegistered(sessionType, function(err) {
         if (err) {
           cb(err);
           return;
         }
 
-        this._deleteCallUrlInternal(token, cb);
+        this._deleteCallUrlInternal(token, sessionType, cb);
       }.bind(this));
     },
 
-    _deleteCallUrlInternal: function(token, cb) {
+    _deleteCallUrlInternal: function(token, sessionType, cb) {
       function deleteRequestCallback(error, responseText) {
         if (error) {
           this._failureHandler(cb, error);
@@ -182,8 +179,7 @@ loop.Client = (function($) {
         }
       }
 
-      // XXX hard-coding of GUEST to be removed by 1065155
-      this.mozLoop.hawkRequest(this.mozLoop.LOOP_SESSION_TYPE.GUEST,
+      this.mozLoop.hawkRequest(sessionType,
                                "/call-url/" + token, "DELETE", null,
                                deleteRequestCallback.bind(this));
     },
@@ -205,13 +201,20 @@ loop.Client = (function($) {
      * @param  {Function} cb Callback(err, callUrlData)
      */
     requestCallUrl: function(nickname, cb) {
-      this._ensureRegistered(function(err) {
+      var sessionType;
+      if (this.mozLoop.userProfile) {
+        sessionType = this.mozLoop.LOOP_SESSION_TYPE.FXA;
+      } else {
+        sessionType = this.mozLoop.LOOP_SESSION_TYPE.GUEST;
+      }
+
+      this._ensureRegistered(sessionType, function(err) {
         if (err) {
           cb(err);
           return;
         }
 
-        this._requestCallUrlInternal(nickname, cb);
+        this._requestCallUrlInternal(sessionType, nickname, cb);
       }.bind(this));
     },
 
@@ -227,10 +230,14 @@ loop.Client = (function($) {
      * @param {Function} cb Callback(err, result)
      */
     setupOutgoingCall: function(calleeIds, callType, cb) {
+      // For direct calls, we only ever use the logged-in session. Direct
+      // calls by guests aren't valid.
       this.mozLoop.hawkRequest(this.mozLoop.LOOP_SESSION_TYPE.FXA,
         "/calls", "POST", {
           calleeId: calleeIds,
-          callType: callType
+          callType: callType,
+          channel: this.mozLoop.appVersionInfo ?
+                   this.mozLoop.appVersionInfo.channel : "unknown"
         },
         function (err, responseText) {
           if (err) {

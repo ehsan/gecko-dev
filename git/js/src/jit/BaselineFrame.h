@@ -47,8 +47,14 @@ class BaselineFrame
         // See InterpreterFrame::PREV_UP_TO_DATE.
         PREV_UP_TO_DATE  = 1 << 5,
 
+        // Frame has execution observed by a Debugger.
+        //
+        // See comment above 'debugMode' in jscompartment.h for explanation of
+        // invariants of debuggee compartments, scripts, and frames.
+        DEBUGGEE         = 1 << 6,
+
         // Eval frame, see the "eval frames" comment.
-        EVAL             = 1 << 6,
+        EVAL             = 1 << 7,
 
         // Frame has profiler entry pushed.
         HAS_PUSHED_SPS_FRAME = 1 << 8,
@@ -157,42 +163,33 @@ class BaselineFrame
     size_t numValueSlots() const {
         size_t size = frameSize();
 
-        JS_ASSERT(size >= BaselineFrame::FramePointerOffset + BaselineFrame::Size());
+        MOZ_ASSERT(size >= BaselineFrame::FramePointerOffset + BaselineFrame::Size());
         size -= BaselineFrame::FramePointerOffset + BaselineFrame::Size();
 
-        JS_ASSERT((size % sizeof(Value)) == 0);
+        MOZ_ASSERT((size % sizeof(Value)) == 0);
         return size / sizeof(Value);
     }
     Value *valueSlot(size_t slot) const {
-        JS_ASSERT(slot < numValueSlots());
+        MOZ_ASSERT(slot < numValueSlots());
         return (Value *)this - (slot + 1);
     }
 
-    Value &unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
-        JS_ASSERT(i < script()->nfixedvars());
-        JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
-        return *valueSlot(i);
-    }
-
     Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
-        JS_ASSERT(i < numFormalArgs());
-        JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals() &&
-                                    !script()->formalIsAliased(i));
+        MOZ_ASSERT(i < numFormalArgs());
+        MOZ_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals() &&
+                                     !script()->formalIsAliased(i));
         return argv()[i];
     }
 
     Value &unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
-        JS_ASSERT(i < numActualArgs());
-        JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
-        JS_ASSERT_IF(checkAliasing && i < numFormalArgs(), !script()->formalIsAliased(i));
+        MOZ_ASSERT(i < numActualArgs());
+        MOZ_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
+        MOZ_ASSERT_IF(checkAliasing && i < numFormalArgs(), !script()->formalIsAliased(i));
         return argv()[i];
     }
 
-    Value &unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
-        JS_ASSERT(i < script()->nfixed());
-#ifdef DEBUG
-        CheckLocalUnaliased(checkAliasing, script(), i);
-#endif
+    Value &unaliasedLocal(uint32_t i) const {
+        MOZ_ASSERT(i < script()->nfixed());
         return *valueSlot(i);
     }
 
@@ -258,15 +255,15 @@ class BaselineFrame
         argsObj_ = &argsobj;
     }
     void initArgsObj(ArgumentsObject &argsobj) {
-        JS_ASSERT(script()->needsArgsObj());
+        MOZ_ASSERT(script()->needsArgsObj());
         initArgsObjUnchecked(argsobj);
     }
     bool hasArgsObj() const {
         return flags_ & HAS_ARGS_OBJ;
     }
     ArgumentsObject &argsObj() const {
-        JS_ASSERT(hasArgsObj());
-        JS_ASSERT(script()->needsArgsObj());
+        MOZ_ASSERT(hasArgsObj());
+        MOZ_ASSERT(script()->needsArgsObj());
         return *argsObj_;
     }
 
@@ -277,8 +274,19 @@ class BaselineFrame
         flags_ |= PREV_UP_TO_DATE;
     }
 
+    bool isDebuggee() const {
+        return flags_ & DEBUGGEE;
+    }
+    void setIsDebuggee() {
+        flags_ |= DEBUGGEE;
+    }
+    void unsetIsDebuggee() {
+        MOZ_ASSERT(!script()->isDebuggee());
+        flags_ &= ~DEBUGGEE;
+    }
+
     JSScript *evalScript() const {
-        JS_ASSERT(isEvalFrame());
+        MOZ_ASSERT(isEvalFrame());
         return evalScript_;
     }
 
@@ -362,10 +370,7 @@ class BaselineFrame
     bool isNonEvalFunctionFrame() const {
         return isFunctionFrame() && !isEvalFrame();
     }
-    bool isDebuggerFrame() const {
-        return false;
-    }
-    bool isGeneratorFrame() const {
+    bool isDebuggerEvalFrame() const {
         return false;
     }
 

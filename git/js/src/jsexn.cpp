@@ -40,7 +40,6 @@ using namespace js::types;
 
 using mozilla::ArrayLength;
 using mozilla::PodArrayZero;
-using mozilla::PodZero;
 
 static void
 exn_finalize(FreeOp *fop, JSObject *obj);
@@ -167,7 +166,7 @@ js::CopyErrorReport(JSContext *cx, JSErrorReport *report)
                 argsCopySize += JS_CHARS_SIZE(report->messageArgs[i]);
 
             /* Non-null messageArgs should have at least one non-null arg. */
-            JS_ASSERT(i != 0);
+            MOZ_ASSERT(i != 0);
             argsArraySize = (i + 1) * sizeof(const char16_t *);
         }
     }
@@ -196,7 +195,7 @@ js::CopyErrorReport(JSContext *cx, JSErrorReport *report)
             cursor += argSize;
         }
         copy->messageArgs[i] = nullptr;
-        JS_ASSERT(cursor == (uint8_t *)copy->messageArgs[0] + argsCopySize);
+        MOZ_ASSERT(cursor == (uint8_t *)copy->messageArgs[0] + argsCopySize);
     }
 
     if (report->ucmessage) {
@@ -229,7 +228,7 @@ js::CopyErrorReport(JSContext *cx, JSErrorReport *report)
         copy->filename = (const char *)cursor;
         js_memcpy(cursor, report->filename, filenameSize);
     }
-    JS_ASSERT(cursor + filenameSize == (uint8_t *)copy + mallocSize);
+    MOZ_ASSERT(cursor + filenameSize == (uint8_t *)copy + mallocSize);
 
     /* Copy non-pointer members. */
     copy->isMuted = report->isMuted;
@@ -289,11 +288,17 @@ js::ComputeStackString(JSContext *cx)
                 return nullptr;
 
             /* Now the filename. */
-            const char *cfilename = i.scriptFilename();
-            if (!cfilename)
-                cfilename = "";
-            if (!sb.append(cfilename, strlen(cfilename)))
-                return nullptr;
+
+            /* First, try the `//# sourceURL=some-display-url.js` directive. */
+            if (const char16_t *display = i.scriptDisplayURL()) {
+                if (!sb.append(display, js_strlen(display)))
+                    return nullptr;
+            }
+            /* Second, try the actual filename. */
+            else if (const char *filename = i.scriptFilename()) {
+                if (!sb.append(filename, strlen(filename)))
+                    return nullptr;
+            }
 
             uint32_t column = 0;
             uint32_t line = i.computeLine(&column);
@@ -554,7 +559,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
                     JSErrorCallback callback, void *userRef)
 {
     // Tell our caller to report immediately if this report is just a warning.
-    JS_ASSERT(reportp);
+    MOZ_ASSERT(reportp);
     if (JSREPORT_IS_WARNING(reportp->flags))
         return false;
 
@@ -807,7 +812,7 @@ ErrorReport::init(JSContext *cx, HandleValue exn)
         }
 
         reportp = &ownedReport;
-        PodZero(&ownedReport);
+        new (reportp) JSErrorReport();
         ownedReport.filename = filename.ptr();
         ownedReport.lineno = lineno;
         ownedReport.exnType = int16_t(JSEXN_NONE);
@@ -859,7 +864,7 @@ ErrorReport::populateUncaughtExceptionReport(JSContext *cx, ...)
 void
 ErrorReport::populateUncaughtExceptionReportVA(JSContext *cx, va_list ap)
 {
-    PodZero(&ownedReport);
+    new (&ownedReport) JSErrorReport();
     ownedReport.flags = JSREPORT_ERROR;
     ownedReport.errorNumber = JSMSG_UNCAUGHT_EXCEPTION;
     // XXXbz this assumes the stack we have right now is still

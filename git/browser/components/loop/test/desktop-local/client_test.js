@@ -32,7 +32,7 @@ describe("loop.Client", function() {
         .returns(null)
         .withArgs("hawk-session-token")
         .returns(fakeToken),
-      ensureRegistered: sinon.stub().callsArgWith(0, null),
+      ensureRegistered: sinon.stub().callsArgWith(1, null),
       noteCallUrlExpiry: sinon.spy(),
       hawkRequest: sinon.stub(),
       LOOP_SESSION_TYPE: {
@@ -56,22 +56,22 @@ describe("loop.Client", function() {
   describe("loop.Client", function() {
     describe("#deleteCallUrl", function() {
       it("should ensure loop is registered", function() {
-        client.deleteCallUrl("fakeToken", callback);
+        client.deleteCallUrl("fakeToken", mozLoop.LOOP_SESSION_TYPE.FXA, callback);
 
         sinon.assert.calledOnce(mozLoop.ensureRegistered);
       });
 
       it("should send an error when registration fails", function() {
-        mozLoop.ensureRegistered.callsArgWith(0, "offline");
+        mozLoop.ensureRegistered.callsArgWith(1, "offline");
 
-        client.deleteCallUrl("fakeToken", callback);
+        client.deleteCallUrl("fakeToken", mozLoop.LOOP_SESSION_TYPE.FXA, callback);
 
         sinon.assert.calledOnce(callback);
         sinon.assert.calledWithExactly(callback, "offline");
       });
 
       it("should make a delete call to /call-url/{fakeToken}", function() {
-        client.deleteCallUrl(fakeToken, callback);
+        client.deleteCallUrl(fakeToken, mozLoop.LOOP_SESSION_TYPE.GUEST, callback);
 
         sinon.assert.calledOnce(hawkRequestStub);
         sinon.assert.calledWith(hawkRequestStub,
@@ -86,7 +86,7 @@ describe("loop.Client", function() {
            // and the url.
            hawkRequestStub.callsArgWith(4, null);
 
-           client.deleteCallUrl(fakeToken, callback);
+           client.deleteCallUrl(fakeToken, mozLoop.LOOP_SESSION_TYPE.FXA, callback);
 
            sinon.assert.calledWithExactly(callback, null);
          });
@@ -96,11 +96,11 @@ describe("loop.Client", function() {
         // an error
         hawkRequestStub.callsArgWith(4, fakeErrorRes);
 
-        client.deleteCallUrl(fakeToken, callback);
+        client.deleteCallUrl(fakeToken, mozLoop.LOOP_SESSION_TYPE.FXA, callback);
 
         sinon.assert.calledOnce(callback);
         sinon.assert.calledWithMatch(callback, sinon.match(function(err) {
-          return /400.*invalid token/.test(err.message);
+          return err.code == 400 && "invalid token" == err.message;
         }));
       });
     });
@@ -113,7 +113,7 @@ describe("loop.Client", function() {
       });
 
       it("should send an error when registration fails", function() {
-        mozLoop.ensureRegistered.callsArgWith(0, "offline");
+        mozLoop.ensureRegistered.callsArgWith(1, "offline");
 
         client.requestCallUrl("foo", callback);
 
@@ -218,7 +218,7 @@ describe("loop.Client", function() {
 
         sinon.assert.calledOnce(callback);
         sinon.assert.calledWithMatch(callback, sinon.match(function(err) {
-          return /400.*invalid token/.test(err.message);
+          return err.code == 400 && "invalid token" == err.message;
         }));
       });
 
@@ -272,7 +272,23 @@ describe("loop.Client", function() {
           mozLoop.LOOP_SESSION_TYPE.FXA,
           "/calls",
           "POST",
-          { calleeId: calleeIds, callType: callType }
+          { calleeId: calleeIds, callType: callType, channel: "unknown" }
+        );
+      });
+
+      it("should include the channel when defined", function() {
+        mozLoop.appVersionInfo = {
+          channel: "beta"
+        };
+
+        client.setupOutgoingCall(calleeIds, callType);
+
+        sinon.assert.calledOnce(hawkRequestStub);
+        sinon.assert.calledWith(hawkRequestStub,
+          mozLoop.LOOP_SESSION_TYPE.FXA,
+          "/calls",
+          "POST",
+          { calleeId: calleeIds, callType: callType, channel: "beta" }
         );
       });
 
@@ -301,7 +317,7 @@ describe("loop.Client", function() {
 
         sinon.assert.calledOnce(callback);
         sinon.assert.calledWithExactly(callback, sinon.match(function(err) {
-          return /400.*invalid token/.test(err.message);
+          return err.code == 400 && "invalid token" == err.message;
         }));
       });
 

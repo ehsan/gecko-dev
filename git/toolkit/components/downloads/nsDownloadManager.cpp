@@ -2773,7 +2773,18 @@ nsDownload::SetState(DownloadState aState)
           bool addToRecentDocs = true;
           if (pref)
             pref->GetBoolPref(PREF_BDM_ADDTORECENTDOCS, &addToRecentDocs);
+#ifdef MOZ_WIDGET_ANDROID
+          if (addToRecentDocs) {
+            nsCOMPtr<nsIMIMEInfo> mimeInfo;
+            nsAutoCString contentType;
+            GetMIMEInfo(getter_AddRefs(mimeInfo));
 
+            if (mimeInfo)
+              mimeInfo->GetMIMEType(contentType);
+
+            mozilla::widget::android::DownloadsIntegration::ScanMedia(path, NS_ConvertUTF8toUTF16(contentType));
+          }
+#else
           if (addToRecentDocs && !mPrivate) {
 #ifdef XP_WIN
             ::SHAddToRecentDocs(SHARD_PATHW, path.get());
@@ -2786,17 +2797,9 @@ nsDownload::SetState(DownloadState aState)
               gtk_recent_manager_add_item(manager, uri);
               g_free(uri);
             }
-#elif defined(MOZ_WIDGET_ANDROID)
-            nsCOMPtr<nsIMIMEInfo> mimeInfo;
-            nsAutoCString contentType;
-            GetMIMEInfo(getter_AddRefs(mimeInfo));
-
-            if (mimeInfo)
-              mimeInfo->GetMIMEType(contentType);
-
-            mozilla::widget::android::GeckoAppShell::ScanMedia(path, NS_ConvertUTF8toUTF16(contentType));
 #endif
           }
+#endif
 #ifdef MOZ_ENABLE_GIO
           // Use GIO to store the source URI for later display in the file manager.
           GFile* gio_file = g_file_new_for_path(NS_ConvertUTF16toUTF8(path).get());
@@ -2814,6 +2817,7 @@ nsDownload::SetState(DownloadState aState)
 #endif
         }
 #endif
+
 #ifdef XP_MACOSX
         // On OS X, make the downloads stack bounce.
         CFStringRef observedObject = ::CFStringCreateWithCString(kCFAllocatorDefault,
@@ -3322,23 +3326,45 @@ nsDownload::ExecuteDesiredAction()
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsresult retVal = NS_OK;
+  nsresult rv = NS_OK;
   switch (action) {
     case nsIMIMEInfo::saveToDisk:
       // Move the file to the proper location
-      retVal = MoveTempToTarget();
+      rv = MoveTempToTarget();
+      if (NS_SUCCEEDED(rv)) {
+        rv = FixTargetPermissions();
+      }
       break;
     case nsIMIMEInfo::useHelperApp:
     case nsIMIMEInfo::useSystemDefault:
       // For these cases we have to move the file to the target location and
       // open with the appropriate application
-      retVal = OpenWithApplication();
+      rv = OpenWithApplication();
       break;
     default:
       break;
   }
 
-  return retVal;
+  return rv;
+}
+
+nsresult
+nsDownload::FixTargetPermissions()
+{
+  nsCOMPtr<nsIFile> target;
+  nsresult rv = GetTargetFile(getter_AddRefs(target));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Set perms according to umask.
+  nsCOMPtr<nsIPropertyBag2> infoService =
+      do_GetService("@mozilla.org/system-info;1");
+  uint32_t gUserUmask = 0;
+  rv = infoService->GetPropertyAsUint32(NS_LITERAL_STRING("umask"),
+                                        &gUserUmask);
+  if (NS_SUCCEEDED(rv)) {
+    (void)target->SetPermissions(0666 & ~gUserUmask);
+  }
+  return NS_OK;
 }
 
 nsresult
@@ -3364,9 +3390,7 @@ nsDownload::MoveTempToTarget()
   rv = target->GetParent(getter_AddRefs(dir));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = mTempFile->MoveTo(dir, fileName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -3380,12 +3404,6 @@ nsDownload::OpenWithApplication()
   // Move the temporary file to the target location
   rv = MoveTempToTarget();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // We do not verify the return value here because, irrespective of success
-  // or failure of the method, the deletion of temp file has to take place, as
-  // per the corresponding preference. But we store this separately as this is
-  // what we ultimately return from this function.
-  nsresult retVal = mMIMEInfo->LaunchWithFile(target);
 
   bool deleteTempFileOnExit;
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
@@ -3405,6 +3423,10 @@ nsDownload::OpenWithApplication()
   // Always schedule files to be deleted at the end of the private browsing
   // mode, regardless of the value of the pref.
   if (deleteTempFileOnExit || mPrivate) {
+
+    // Make the tmp file readonly so users won't lose changes.
+    target->SetPermissions(0400);
+
     // Use the ExternalHelperAppService to push the temporary file to the list
     // of files to be deleted on exit.
     nsCOMPtr<nsPIExternalAppLauncher> appLauncher(do_GetService
@@ -3421,7 +3443,7 @@ nsDownload::OpenWithApplication()
     }
   }
 
-  return retVal;
+  return mMIMEInfo->LaunchWithFile(target);
 }
 
 void
@@ -3534,7 +3556,6 @@ nsDownload::Resume()
                      nsContentUtils::GetSystemPrincipal(),
                      nsILoadInfo::SEC_NORMAL,
                      nsIContentPolicy::TYPE_OTHER,
-                     nullptr,  // aChannelPolicy
                      nullptr,  // aLoadGroup
                      ir);
 

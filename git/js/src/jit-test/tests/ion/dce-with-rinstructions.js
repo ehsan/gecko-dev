@@ -929,8 +929,12 @@ function rregexp_m_literal_replace(i) {
 
 var uceFault_typeof = eval(uneval(uceFault).replace('uceFault', 'uceFault_typeof'))
 function rtypeof(i) {
-    var inputs = [ {}, [], 1, true, Symbol(), undefined, function(){}, null ];
-    var types = [ "object", "object", "number", "boolean", "symbol", "undefined", "function", "object"];
+    var inputs = [ {}, [], 1, true, undefined, function(){}, null ];
+    var types = [ "object", "object", "number", "boolean", "undefined", "function", "object"];
+    if (typeof Symbol === "function") {
+      inputs.push(Symbol());
+      types.push("symbol");
+    }
     var x = typeof (inputs[i % inputs.length]);
     var y = types[i % types.length];
 
@@ -938,6 +942,47 @@ function rtypeof(i) {
         assertEq(x, y);
     }
 
+    return i;
+}
+
+var uceFault_todouble_value = eval(uneval(uceFault).replace('uceFault', 'uceFault_todouble_value'))
+function rtodouble_value(i) {
+    var a = 1;
+    if (i == 1000) a = "1";
+
+    var x = a < 8.1;
+
+    if (uceFault_todouble_value(i) || uceFault_todouble_value(i)) {
+        assertEq(x, true);
+    }
+
+    return i;
+}
+
+var uceFault_todouble_number = eval(uneval(uceFault).replace('uceFault', 'uceFault_todouble_number'));
+function rtodouble_number(i) {
+    var x = Math.fround(Math.fround(i) + Math.fround(i)) + 1;
+    if (uceFault_todouble_number(i) || uceFault_todouble_number(i))
+        assertEq(2 * i + 1, x);
+    return i;
+}
+
+var uceFault_tofloat32_number = eval(uneval(uceFault).replace('uceFault', 'uceFault_tofloat32_number'));
+function rtofloat32_number(i) {
+    var x = Math.fround(i + 0.1111111111);
+    if (uceFault_tofloat32_number(i) || uceFault_tofloat32_number(i))
+        assertEq(x, Math.fround(99.1111111111));
+    return i;
+}
+
+var uceFault_tofloat32_object = eval(uneval(uceFault).replace('uceFault', 'uceFault_tofloat32_object'));
+function rtofloat32_object(i) {
+    var t = i + 0.1111111111;
+    var o = { valueOf: function () { return t; } };
+    var x = Math.fround(o);
+    t = 1000.1111111111;
+    if (uceFault_tofloat32_object(i) || uceFault_tofloat32_object(i))
+        assertEq(x, Math.fround(99.1111111111));
     return i;
 }
 
@@ -1032,6 +1077,10 @@ for (i = 0; i < 100; i++) {
     rregexp_m_replace(i);
     rregexp_m_literal_replace(i);
     rtypeof(i);
+    rtodouble_value(i);
+    rtodouble_number(i);
+    rtofloat32_number(i);
+    rtofloat32_object(i);
 }
 
 // Test that we can refer multiple time to the same recover instruction, as well

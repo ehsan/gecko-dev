@@ -11,12 +11,11 @@
 #include "mozilla/ThreadLocal.h"
 #include "mozilla/unused.h"
 
-#include "nsClassHashtable.h"
+#include "nsString.h"
 #include "nsThreadUtils.h"
+#include "prtime.h"
 
 #include <stdarg.h>
-#include <stdio.h>
-#include <unistd.h>
 
 #if defined(__GLIBC__)
 // glibc doesn't implement gettid(2).
@@ -27,14 +26,17 @@ static pid_t gettid()
 }
 #endif
 
-#define MAX_USER_LABEL_LEN 512
+using mozilla::TimeStamp;
 
 namespace mozilla {
 namespace tasktracer {
 
-static mozilla::ThreadLocal<TraceInfo*> sTraceInfoTLS;
-static StaticMutex sMutex;
-static nsClassHashtable<nsUint32HashKey, TraceInfo>* sTraceInfos = nullptr;
+static mozilla::ThreadLocal<TraceInfo*>* sTraceInfoTLS = nullptr;
+static mozilla::StaticMutex sMutex;
+static nsTArray<nsAutoPtr<TraceInfo>>* sTraceInfos = nullptr;
+static bool sIsLoggingStarted = false;
+
+static TimeStamp sStartTime;
 
 namespace {
 
@@ -43,29 +45,25 @@ AllocTraceInfo(int aTid)
 {
   StaticMutexAutoLock lock(sMutex);
 
-  sTraceInfos->Put(aTid, new TraceInfo(aTid));
-  return sTraceInfos->Get(aTid);
-}
+  nsAutoPtr<TraceInfo>* info = sTraceInfos->AppendElement(
+                                 new TraceInfo(aTid, sIsLoggingStarted));
 
-static void
-FreeTraceInfo(int aTid)
-{
-  StaticMutexAutoLock lock(sMutex);
-
-  sTraceInfos->Remove(aTid);
+  return info->get();
 }
 
 static bool
 IsInitialized()
 {
-  return sTraceInfoTLS.initialized();
+  return sTraceInfoTLS ? sTraceInfoTLS->initialized() : false;
 }
 
 static void
 SaveCurTraceInfo()
 {
   TraceInfo* info = GetOrCreateTraceInfo();
-  NS_ENSURE_TRUE_VOID(info);
+  if (!info) {
+    return;
+  }
 
   info->mSavedCurTraceSourceId = info->mCurTraceSourceId;
   info->mSavedCurTraceSourceType = info->mCurTraceSourceType;
@@ -76,7 +74,9 @@ static void
 RestoreCurTraceInfo()
 {
   TraceInfo* info = GetOrCreateTraceInfo();
-  NS_ENSURE_TRUE_VOID(info);
+  if (!info) {
+    return;
+  }
 
   info->mCurTraceSourceId = info->mSavedCurTraceSourceId;
   info->mCurTraceSourceType = info->mSavedCurTraceSourceType;
@@ -116,25 +116,88 @@ DestroySourceEvent()
   RestoreCurTraceInfo();
 }
 
+static void
+CleanUp()
+{
+  StaticMutexAutoLock lock(sMutex);
+
+  if (sTraceInfos) {
+    delete sTraceInfos;
+    sTraceInfos = nullptr;
+  }
+
+  // pthread_key_delete() is not called at the destructor of
+  // mozilla::ThreadLocal (Bug 1064672).
+  if (sTraceInfoTLS) {
+    delete sTraceInfoTLS;
+    sTraceInfoTLS = nullptr;
+  }
+}
+
+static void
+SetLogStarted(bool aIsStartLogging)
+{
+  // TODO: This is called from a signal handler. Use semaphore instead.
+  StaticMutexAutoLock lock(sMutex);
+
+  for (uint32_t i = 0; i < sTraceInfos->Length(); ++i) {
+    (*sTraceInfos)[i]->mStartLogging = aIsStartLogging;
+  }
+
+  sIsLoggingStarted = aIsStartLogging;
+}
+
+static bool
+IsStartLogging(TraceInfo* aInfo)
+{
+  StaticMutexAutoLock lock(sMutex);
+  return aInfo ? aInfo->mStartLogging : false;
+}
+
+static PRInt64
+DurationFromStart()
+{
+  return static_cast<PRInt64>((TimeStamp::Now() - sStartTime).ToMilliseconds());
+}
+
 } // namespace anonymous
 
-void
-InitTaskTracer()
+nsCString*
+TraceInfo::AppendLog()
 {
+  MutexAutoLock lock(mLogsMutex);
+  return mLogs.AppendElement();
+}
+
+void
+TraceInfo::MoveLogsInto(TraceInfoLogsType& aResult)
+{
+  MutexAutoLock lock(mLogsMutex);
+  aResult.MoveElementsFrom(mLogs);
+}
+
+void
+InitTaskTracer(uint32_t aFlags)
+{
+  if (aFlags & FORKED_AFTER_NUWA) {
+    CleanUp();
+  }
+
+  MOZ_ASSERT(!sTraceInfoTLS);
+  sTraceInfoTLS = new ThreadLocal<TraceInfo*>();
+
   MOZ_ASSERT(!sTraceInfos);
+  sTraceInfos = new nsTArray<nsAutoPtr<TraceInfo>>();
 
-  sTraceInfos = new nsClassHashtable<nsUint32HashKey, TraceInfo>();
-
-  if (!sTraceInfoTLS.initialized()) {
-    unused << sTraceInfoTLS.init();
+  if (!sTraceInfoTLS->initialized()) {
+    unused << sTraceInfoTLS->init();
   }
 }
 
 void
 ShutdownTaskTracer()
 {
-  delete sTraceInfos;
-  sTraceInfos = nullptr;
+  CleanUp();
 }
 
 TraceInfo*
@@ -142,10 +205,10 @@ GetOrCreateTraceInfo()
 {
   NS_ENSURE_TRUE(IsInitialized(), nullptr);
 
-  TraceInfo* info = sTraceInfoTLS.get();
+  TraceInfo* info = sTraceInfoTLS->get();
   if (!info) {
     info = AllocTraceInfo(gettid());
-    sTraceInfoTLS.set(info);
+    sTraceInfoTLS->set(info);
   }
 
   return info;
@@ -200,37 +263,69 @@ void
 LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId, uint64_t aSourceEventId,
             SourceEventType aSourceEventType)
 {
-  NS_ENSURE_TRUE_VOID(IsInitialized());
+  TraceInfo* info = GetOrCreateTraceInfo();
+  if (!IsStartLogging(info)) {
+    return;
+  }
 
   // Log format:
   // [0 taskId dispatchTime sourceEventId sourceEventType parentTaskId]
+  nsCString* log = info->AppendLog();
+  if (log) {
+    log->AppendPrintf("%d %lld %lld %lld %d %lld",
+                      ACTION_DISPATCH, aTaskId, DurationFromStart(),
+                      aSourceEventId, aSourceEventType, aParentTaskId);
+  }
 }
 
 void
 LogBegin(uint64_t aTaskId, uint64_t aSourceEventId)
 {
-  NS_ENSURE_TRUE_VOID(IsInitialized());
+  TraceInfo* info = GetOrCreateTraceInfo();
+  if (!IsStartLogging(info)) {
+    return;
+  }
 
   // Log format:
   // [1 taskId beginTime processId threadId]
+  nsCString* log = info->AppendLog();
+  if (log) {
+    log->AppendPrintf("%d %lld %lld %d %d",
+                      ACTION_BEGIN, aTaskId, DurationFromStart(), getpid(), gettid());
+  }
 }
 
 void
 LogEnd(uint64_t aTaskId, uint64_t aSourceEventId)
 {
-  NS_ENSURE_TRUE_VOID(IsInitialized());
+  TraceInfo* info = GetOrCreateTraceInfo();
+  if (!IsStartLogging(info)) {
+    return;
+  }
 
   // Log format:
   // [2 taskId endTime]
+  nsCString* log = info->AppendLog();
+  if (log) {
+    log->AppendPrintf("%d %lld %lld", ACTION_END, aTaskId,
+                      DurationFromStart());
+  }
 }
 
 void
 LogVirtualTablePtr(uint64_t aTaskId, uint64_t aSourceEventId, int* aVptr)
 {
-  NS_ENSURE_TRUE_VOID(IsInitialized());
+  TraceInfo* info = GetOrCreateTraceInfo();
+  if (!IsStartLogging(info)) {
+    return;
+  }
 
   // Log format:
   // [4 taskId address]
+  nsCString* log = info->AppendLog();
+  if (log) {
+    log->AppendPrintf("%d %lld %p", ACTION_GET_VTABLE, aTaskId, aVptr);
+  }
 }
 
 void
@@ -238,7 +333,11 @@ FreeTraceInfo()
 {
   NS_ENSURE_TRUE_VOID(IsInitialized());
 
-  FreeTraceInfo(gettid());
+  StaticMutexAutoLock lock(sMutex);
+  TraceInfo* info = GetOrCreateTraceInfo();
+  if (info) {
+    sTraceInfos->RemoveElement(info);
+  }
 }
 
 AutoSourceEvent::AutoSourceEvent(SourceEventType aType)
@@ -253,16 +352,54 @@ AutoSourceEvent::~AutoSourceEvent()
 
 void AddLabel(const char* aFormat, ...)
 {
-  NS_ENSURE_TRUE_VOID(IsInitialized());
+  TraceInfo* info = GetOrCreateTraceInfo();
+  if (!IsStartLogging(info)) {
+    return;
+  }
 
   va_list args;
   va_start(args, aFormat);
-  char buffer[MAX_USER_LABEL_LEN] = {0};
-  vsnprintf(buffer, MAX_USER_LABEL_LEN, aFormat, args);
+  nsAutoCString buffer;
+  buffer.AppendPrintf(aFormat, args);
   va_end(args);
 
   // Log format:
   // [3 taskId "label"]
+  nsCString* log = info->AppendLog();
+  if (log) {
+    log->AppendPrintf("%d %lld %lld \"%s\"", ACTION_ADD_LABEL, info->mCurTaskId,
+                      DurationFromStart(), buffer.get());
+  }
+}
+
+// Functions used by GeckoProfiler.
+
+void
+StartLogging(TimeStamp aStartTime)
+{
+  sStartTime = aStartTime;
+  SetLogStarted(true);
+}
+
+void
+StopLogging()
+{
+  SetLogStarted(false);
+}
+
+TraceInfoLogsType*
+GetLoggedData(TimeStamp aStartTime)
+{
+  TraceInfoLogsType* result = new TraceInfoLogsType();
+
+  // TODO: This is called from a signal handler. Use semaphore instead.
+  StaticMutexAutoLock lock(sMutex);
+
+  for (uint32_t i = 0; i < sTraceInfos->Length(); ++i) {
+    (*sTraceInfos)[i]->MoveLogsInto(*result);
+  }
+
+  return result;
 }
 
 } // namespace tasktracer

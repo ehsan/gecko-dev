@@ -26,7 +26,6 @@ class nsDisplaySVGPathGeometry;
 class nsIAtom;
 class nsIFrame;
 class nsIPresShell;
-class nsRenderingContext;
 class nsStyleContext;
 class nsSVGMarkerFrame;
 class nsSVGMarkerProperty;
@@ -100,7 +99,7 @@ public:
   gfxMatrix GetCanvasTM();
 protected:
   // nsISVGChildFrame interface:
-  virtual nsresult PaintSVG(nsRenderingContext *aContext,
+  virtual nsresult PaintSVG(gfxContext& aContext,
                             const gfxMatrix& aTransform,
                             const nsIntRect* aDirtyRect = nullptr) MOZ_OVERRIDE;
   virtual nsIFrame* GetFrameForPoint(const gfxPoint& aPoint) MOZ_OVERRIDE;
@@ -111,7 +110,6 @@ protected:
                                       uint32_t aFlags) MOZ_OVERRIDE;
   virtual bool IsDisplayContainer() MOZ_OVERRIDE { return false; }
 
-  void GeneratePath(gfxContext *aContext, const Matrix &aTransform);
   /**
    * This function returns a set of bit flags indicating which parts of the
    * element (fill, stroke, bounds) should intercept pointer events. It takes
@@ -128,7 +126,7 @@ private:
    * @param aMatrix The transform that must be multiplied onto aContext to
    *   establish this frame's SVG user space.
    */
-  void PaintMarkers(nsRenderingContext *aContext, const gfxMatrix& aMatrix);
+  void PaintMarkers(gfxContext& aContext, const gfxMatrix& aMatrix);
 
   struct MarkerProperties {
     nsSVGMarkerProperty* mMarkerStart;

@@ -8,7 +8,7 @@ var url = require('url');
 var crypto = require('crypto');
 
 // Hook into the decompression code to log the decompressed name-value pairs
-var http2_compression = require('../node-http2/node_modules/http2-protocol/lib/compressor');
+var http2_compression = require('../node-http2/lib/protocol/compressor');
 var HeaderSetDecompressor = http2_compression.HeaderSetDecompressor;
 var originalRead = HeaderSetDecompressor.prototype.read;
 var lastDecompressor;
@@ -23,6 +23,17 @@ HeaderSetDecompressor.prototype.read = function() {
     decompressedPairs.push(pair);
   }
   return pair;
+}
+
+var http2_connection = require('../node-http2/lib/protocol/connection');
+var Connection = http2_connection.Connection;
+var originalClose = Connection.prototype.close;
+Connection.prototype.close = function (error, lastId) {
+  if (lastId !== undefined) {
+    this._lastIncomingStream = lastId;
+  }
+
+  originalClose.apply(this, arguments);
 }
 
 function getHttpContent(path) {
@@ -72,10 +83,15 @@ var m = {
   }
 };
 
+var h11required_conn = null;
+var h11required_header = "yes";
+var didRst = false;
+var rstConnection = null;
+
 function handleRequest(req, res) {
   var u = url.parse(req.url);
   var content = getHttpContent(u.pathname);
-  var push;
+  var push, push1, push1a, push2, push3;
 
   if (req.httpVersionMajor === 2) {
     res.setHeader('X-Connection-Http2', 'yes');
@@ -151,6 +167,54 @@ function handleRequest(req, res) {
     content = '<head> <script src="push2.js"/></head>body text';
   }
 
+  else if (u.pathname === "/pushapi1") {
+    push1 = res.push(
+	{ hostname: 'localhost:6944', port: 6944, path : '/pushapi1/1', method : 'GET',
+	  headers: {'x-pushed-request': 'true', 'x-foo' : 'bar'}});
+    push1.writeHead(200, {
+      'pushed' : 'yes',
+      'content-length' : 1,
+      'subresource' : '1',
+      'X-Connection-Http2': 'yes'
+      });
+    push1.end('1');
+
+    push1a = res.push(
+	{ hostname: 'localhost:6944', port: 6944, path : '/pushapi1/1', method : 'GET',
+	  headers: {'x-foo' : 'bar', 'x-pushed-request': 'true'}});
+    push1a.writeHead(200, {
+      'pushed' : 'yes',
+      'content-length' : 1,
+      'subresource' : '1a',
+      'X-Connection-Http2': 'yes'
+      });
+    push1a.end('1');
+
+    push2 = res.push(
+	{ hostname: 'localhost:6944', port: 6944, path : '/pushapi1/2', method : 'GET',
+	  headers: {'x-pushed-request': 'true'}});
+    push2.writeHead(200, {
+	  'pushed' : 'yes',
+	  'subresource' : '2',
+	  'content-length' : 1,
+	  'X-Connection-Http2': 'yes'
+      });
+    push2.end('2');
+
+    push3 = res.push(
+	{ hostname: 'localhost:6944', port: 6944, path : '/pushapi1/3', method : 'GET',
+	  headers: {'x-pushed-request': 'true'}});
+    push3.writeHead(200, {
+	  'pushed' : 'yes',
+	  'content-length' : 1,
+	  'subresource' : '3',
+	  'X-Connection-Http2': 'yes'
+      });
+     push3.end('3');
+
+    content = '0';
+  }
+
   else if (u.pathname === "/big") {
     content = generateContent(128 * 1024);
     var hash = crypto.createHash('md5');
@@ -177,6 +241,46 @@ function handleRequest(req, res) {
       res.end(content);
     });
 
+    return;
+  }
+
+  else if (u.pathname === "/h11required_stream") {
+    if (req.httpVersionMajor === 2) {
+      h11required_conn = req.stream.connection;
+      res.stream.reset('HTTP_1_1_REQUIRED');
+      return;
+    }
+  }
+
+  else if (u.pathname === "/h11required_session") {
+    if (req.httpVersionMajor === 2) {
+      if (h11required_conn !== req.stream.connection) {
+        h11required_header = "no";
+      }
+      res.stream.connection.close('HTTP_1_1_REQUIRED', res.stream.id - 2);
+      return;
+    } else {
+      res.setHeader('X-H11Required-Stream-Ok', h11required_header);
+    }
+  }
+
+  else if (u.pathname === "/rstonce") {
+    if (!didRst) {
+      didRst = true;
+      rstConnection = req.stream.connection;
+      req.stream.reset('REFUSED_STREAM');
+      return;
+    }
+
+    if (rstConnection === null ||
+        rstConnection !== req.stream.connection) {
+      res.writeHead(400);
+      res.end("WRONG CONNECTION, HOMIE!");
+      return;
+    }
+
+    res.writeHead(200);
+    res.end("It's all good.");
     return;
   }
 

@@ -182,6 +182,7 @@ load 399407-1.xhtml
 load 399412-1.html
 load 399843-1.html
 load 400078-1.html
+load 400190.html
 load 400223-1.html
 load 400232-1.html
 load 400244-1.html
@@ -303,8 +304,10 @@ load 455171-3.html
 load 455643-1.xhtml
 load 457375.html
 load 457380-1.html
+asserts-if(!Android,4) load 459968.html # bug 1067022
 load 460910-1.xml
 load 461294-1.html
+load 462968.xhtml
 load 463350-1.html
 load 463350-2.html
 load 463350-3.html
@@ -459,6 +462,7 @@ load text-overflow-bug713610.html
 load 700031.xhtml
 load 718516.html
 load 723108.html
+load 724235.html
 load 724978.xhtml
 load 730559.html
 load first-letter-638937.html
@@ -493,9 +497,12 @@ load 801268-1.html
 load 804089-1.xhtml
 load 807565-1.html
 load 807565-2.html
+load 810303.html
 load 810726.html
 load 812879.html
 load 812879-2.html
+load 814995.html
+load 822910.xhtml
 load 825810-1.html
 load 825810-2.html
 load 827076.html
@@ -507,6 +514,7 @@ load 826483-1.html
 asserts(1) load 826532-1.html # bug 399262
 load 827168-1.html
 load 836895.html
+load 837007.xhtml
 load 840787.html
 load 842132-1.html
 load 842166.html
@@ -519,18 +527,21 @@ load 849603.html
 asserts(0-12) load 850931.html # bug 569193
 load 851396-1.html
 load 854263-1.html
+load 862185.html
 load 862947-1.html
+load 863935.html
 needs-focus pref(accessibility.browsewithcaret,true) load 868906.html
 load 866547-1.html
 asserts-if(Android,0-4) asserts-if(!Android,1-4) load 876074-1.html # bug 876749
 load 885009-1.html
 load 893496-1.html
 load 893523.html
+asserts(0-3) load 898871.html # bug 479160
 test-pref(layout.css.sticky.enabled,true) load 914891.html
 test-pref(layout.css.sticky.enabled,true) load 915475.xhtml
 load 927558.html
 load 943509-1.html
-asserts(3-6) load 944909-1.html
+asserts(3-8) load 944909-1.html
 load 946167-1.html
 test-pref(layout.css.sticky.enabled,true) load 949932.html
 load 973701-1.xhtml

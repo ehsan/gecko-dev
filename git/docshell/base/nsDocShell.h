@@ -21,6 +21,9 @@
 #include "mozilla/WeakPtr.h"
 #include "mozilla/TimeStamp.h"
 #include "GeckoProfiler.h"
+#ifdef MOZ_ENABLE_PROFILER_SPS
+#include "ProfilerMarkers.h"
+#endif
 
 // Helper Classes
 #include "nsCOMPtr.h"
@@ -330,11 +333,6 @@ protected:
     nsresult ScrollToAnchor(nsACString & curHash, nsACString & newHash,
                             uint32_t aLoadType);
 
-    // Tries to serialize a given variant using structured clone.  This only
-    // works if the variant is backed by a JSVal.
-    nsresult SerializeJSValVariant(JSContext *aCx, nsIVariant *aData,
-                                   nsAString &aResult);
-
     // Returns true if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.
     // In this case it is the caller's responsibility to ensure
@@ -373,8 +371,12 @@ protected:
                                          nsISupports* aOwner,
                                          bool aCloneChildren,
                                          nsISHEntry ** aNewEntry);
-    nsresult DoAddChildSHEntry(nsISHEntry* aNewEntry, int32_t aChildOffset,
-                               bool aCloneChildren);
+    nsresult AddChildSHEntryToParent(nsISHEntry* aNewEntry, int32_t aChildOffset,
+                                     bool aCloneChildren);
+
+    nsresult AddChildSHEntryInternal(nsISHEntry* aCloneRef, nsISHEntry* aNewEntry,
+                                     int32_t aChildOffset, uint32_t loadType,
+                                     bool aCloneChildren);
 
     NS_IMETHOD LoadHistoryEntry(nsISHEntry * aEntry, uint32_t aLoadType);
     NS_IMETHOD PersistLayoutHistoryState();
@@ -915,6 +917,7 @@ protected:
 #endif
     bool                       mAffectPrivateSessionLifetime;
     bool                       mInvisible;
+    bool                       mHasLoadedNonBlankURI;
     uint64_t                   mHistoryID;
     uint32_t                   mDefaultLoadFlags;
 
@@ -947,26 +950,35 @@ private:
     nsWeakPtr mOpener;
     nsWeakPtr mOpenedRemote;
 
-    // Storing profile timeline markers and if/when recording started
-    mozilla::TimeStamp mProfileTimelineStartTime;
+    // A depth count of how many times NotifyRunToCompletionStart
+    // has been called without a matching NotifyRunToCompletionStop.
+    uint32_t          mJSRunToCompletionDepth;
+
+    // True if recording profiles.
+    bool mProfileTimelineRecording;
+
+#ifdef MOZ_ENABLE_PROFILER_SPS
     struct InternalProfileTimelineMarker
     {
       InternalProfileTimelineMarker(const char* aName,
                                     ProfilerMarkerTracing* aPayload,
-                                    float aTime)
+                                    DOMHighResTimeStamp aTime)
         : mName(aName)
         , mPayload(aPayload)
         , mTime(aTime)
       {}
-      const char* mName;
-      ProfilerMarkerTracing* mPayload;
-      float mTime;
-    };
-    nsTArray<nsAutoPtr<InternalProfileTimelineMarker>> mProfileTimelineMarkers;
 
-    // Get the elapsed time (in millis) since the profile timeline recording
-    // started
-    float GetProfileTimelineDelta();
+      ~InternalProfileTimelineMarker()
+      {
+        delete mPayload;
+      }
+
+      nsCString mName;
+      ProfilerMarkerTracing* mPayload;
+      DOMHighResTimeStamp mTime;
+    };
+    nsTArray<InternalProfileTimelineMarker*> mProfileTimelineMarkers;
+#endif
 
     // Get rid of all the timeline markers accumulated so far
     void ClearProfileTimelineMarkers();
@@ -977,6 +989,9 @@ private:
                                 nsISupports* aRequestor,
                                 nsIDocShellTreeItem* aOriginalRequestor,
                                 nsIDocShellTreeItem** _retval);
+
+    // Notify consumers of a search being loaded through the observer service:
+    void MaybeNotifyKeywordSearchLoading(const nsString &aProvider, const nsString &aKeyword);
 
 #ifdef DEBUG
     // We're counting the number of |nsDocShells| to help find leaks
