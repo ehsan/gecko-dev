@@ -33,21 +33,6 @@
 #define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
 
 /**
- * BRSF bitmask of AG supported features. See 4.34.1 "Bluetooth Defined AT
- * Capabilities" in Bluetooth hands-free profile 1.6
- */
-#define BRSF_BIT_THREE_WAY_CALLING         1
-#define BSRF_BIT_EC_NR_FUNCTION            (1 << 1)
-#define BRSF_BIT_VOICE_RECOGNITION         (1 << 2)
-#define BRSF_BIT_IN_BAND_RING_TONE         (1 << 3)
-#define BRSF_BIT_ATTACH_NUM_TO_VOICE_TAG   (1 << 4)
-#define BRSF_BIT_ABILITY_TO_REJECT_CALL    (1 << 5)
-#define BRSF_BIT_ENHANCED_CALL_STATUS      (1 << 6)
-#define BRSF_BIT_ENHANCED_CALL_CONTROL     (1 << 7)
-#define BRSF_BIT_EXTENDED_ERR_RESULT_CODES (1 << 8)
-#define BRSF_BIT_CODEC_NEGOTIATION         (1 << 9)
-
-/**
  * These constants are used in result code such as +CLIP and +CCWA. The value
  * of these constants is the same as TOA_INTERNATIONAL/TOA_UNKNOWN defined in
  * ril_consts.js
@@ -386,13 +371,6 @@ BluetoothHfpManager::Reset()
   mCMER = false;
   mReceiveVgsFlag = false;
   mDialingRequestProcessed = true;
-
-  // We disable BSIR by default as it requires OEM implement BT SCO + SPEAKER
-  // output audio path in audio driver. OEM can enable BSIR by setting
-  // mBSIR=true here.
-  //
-  // Please see Bug 878728 for more information.
-  mBSIR = false;
 
   ResetCallArray();
 }
@@ -733,15 +711,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
   // For more information, please refer to 4.34.1 "Bluetooth Defined AT
   // Capabilities" in Bluetooth hands-free profile 1.6
   if (msg.Find("AT+BRSF=") != -1) {
-    uint32_t brsf = BRSF_BIT_THREE_WAY_CALLING |
-                    BRSF_BIT_ABILITY_TO_REJECT_CALL |
-                    BRSF_BIT_ENHANCED_CALL_STATUS;
-
-    if (mBSIR) {
-      brsf |= BRSF_BIT_IN_BAND_RING_TONE;
-    }
-
-    SendCommand("+BRSF: ", brsf);
+    SendCommand("+BRSF: ", 97);
   } else if (msg.Find("AT+CIND=?") != -1) {
     // Asking for CIND range
     SendCommand("+CIND: ", 0);
@@ -1131,7 +1101,7 @@ BluetoothHfpManager::SendLine(const char* aMessage)
 }
 
 bool
-BluetoothHfpManager::SendCommand(const char* aCommand, uint32_t aValue)
+BluetoothHfpManager::SendCommand(const char* aCommand, uint8_t aValue)
 {
   if (!IsConnected()) {
     NS_WARNING("Trying to SendCommand() without a SLC");
@@ -1139,6 +1109,7 @@ BluetoothHfpManager::SendCommand(const char* aCommand, uint32_t aValue)
   }
 
   nsAutoCString message;
+  int value = aValue;
   message += aCommand;
 
   if (!strcmp(aCommand, "+CIEV: ")) {
@@ -1228,7 +1199,7 @@ BluetoothHfpManager::SendCommand(const char* aCommand, uint32_t aValue)
     }
     return rv;
   } else {
-    message.AppendInt(aValue);
+    message.AppendInt(value);
   }
 
   return SendLine(message.get());
@@ -1328,11 +1299,6 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
         // Start sending RING indicator to HF
         sStopSendingRingFlag = false;
         UpdateCIND(CINDType::CALLSETUP, CallSetupState::INCOMING, aSend);
-
-        if (mBSIR) {
-          // Setup audio connection for in-band ring tone
-          ConnectSco();
-        }
 
         nsAutoString number(aNumber);
         if (!mCLIP) {

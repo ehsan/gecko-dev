@@ -99,15 +99,6 @@ public:
             }
         }
 
-        // Notify observers that the screen state has just changed.
-        nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-        if (observerService) {
-          observerService->NotifyObservers(
-            nullptr, "screen-state-changed",
-            mIsOn ? NS_LITERAL_STRING("on").get() : NS_LITERAL_STRING("off").get()
-          );
-        }
-
         return NS_OK;
     }
 
