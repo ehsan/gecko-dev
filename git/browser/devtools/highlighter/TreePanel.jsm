@@ -168,7 +168,6 @@ TreePanel.prototype = {
 
     this.splitter = this.document.createElement("splitter");
     this.splitter.id = "inspector-tree-splitter";
-    this.splitter.className = "devtools-horizontal-splitter";
 
     let container = this.document.getElementById("appcontent");
     container.appendChild(this.splitter);

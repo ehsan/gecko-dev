@@ -291,23 +291,15 @@ private:
   }
 
   // Encoding functions. These append the encoded value to the end of mBuffer
-  inline nsresult EncodeJSVal(JSContext* aCx, const jsval aVal,
-                              PRUint8 aTypeOffset)
-  {
-    return EncodeJSValInternal(aCx, aVal, aTypeOffset, 0);
-  }
+  nsresult EncodeJSVal(JSContext* aCx, const jsval aVal, PRUint8 aTypeOffset);
   void EncodeString(const nsAString& aString, PRUint8 aTypeOffset);
   void EncodeNumber(double aFloat, PRUint8 aType);
 
   // Decoding functions. aPos points into mBuffer and is adjusted to point
   // past the consumed value.
-  static inline nsresult DecodeJSVal(const unsigned char*& aPos,
-                                     const unsigned char* aEnd, JSContext* aCx,
-                                     PRUint8 aTypeOffset, jsval* aVal)
-  {
-    return DecodeJSValInternal(aPos, aEnd, aCx, aTypeOffset, aVal, 0);
-  }
-
+  static nsresult DecodeJSVal(const unsigned char*& aPos,
+                              const unsigned char* aEnd, JSContext* aCx,
+                              PRUint8 aTypeOffset, jsval* aVal);
   static void DecodeString(const unsigned char*& aPos,
                            const unsigned char* aEnd,
                            nsString& aString);
@@ -315,15 +307,6 @@ private:
                              const unsigned char* aEnd);
 
   nsCString mBuffer;
-
-private:
-  nsresult EncodeJSValInternal(JSContext* aCx, const jsval aVal,
-                               PRUint8 aTypeOffset, PRUint16 aRecursionDepth);
-
-  static nsresult DecodeJSValInternal(const unsigned char*& aPos,
-                                      const unsigned char* aEnd,
-                                      JSContext* aCx, PRUint8 aTypeOffset,
-                                      jsval* aVal, PRUint16 aRecursionDepth);
 };
 
 END_INDEXEDDB_NAMESPACE
