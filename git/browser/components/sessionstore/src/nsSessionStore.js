@@ -2421,7 +2421,7 @@ SessionStoreService.prototype = {
     }
     // since resizing/moving a window brings it to the foreground,
     // we might want to re-focus the last focused window
-    if (this.windowToFocus && this.windowToFocus.content) {
+    if (this.windowToFocus) {
       this.windowToFocus.content.focus();
     }
   },
