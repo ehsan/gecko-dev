@@ -346,8 +346,7 @@ protected:
   uint32_t mMayHaveAudioAvailableEventListener : 1;
   uint32_t mMayHaveTouchEventListener : 1;
   uint32_t mMayHaveMouseEnterLeaveEventListener : 1;
-  uint32_t mClearingListeners : 1;
-  uint32_t mNoListenerForEvent : 24;
+  uint32_t mNoListenerForEvent : 25;
 
   nsAutoTObserverArray<nsListenerStruct, 2> mListeners;
   nsISupports*                              mTarget;  //WEAK
