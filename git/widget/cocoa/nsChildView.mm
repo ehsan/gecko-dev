@@ -60,9 +60,8 @@
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "GLTextureImage.h"
 #include "GLContextProvider.h"
-#include "GLContextCGL.h"
+#include "GLContext.h"
 #include "GLUploadHelpers.h"
-#include "ScopedGLHelpers.h"
 #include "mozilla/layers/GLManager.h"
 #include "mozilla/layers/CompositorOGL.h"
 #include "mozilla/layers/BasicCompositor.h"
@@ -354,7 +353,8 @@ public:
 
   NSOpenGLContext* GetNSOpenGLContext()
   {
-    return GLContextCGL::Cast(mGLContext)->GetNSOpenGLContext();
+    return static_cast<NSOpenGLContext*>(
+      mGLContext->GetNativeData(GLContext::NativeGLContext));
   }
 
 protected:
@@ -2057,7 +2057,7 @@ nsChildView::PreRender(LayerManagerComposite* aManager)
   // composition is done, thus keeping the GL context locked forever.
   mViewTearDownLock.Lock();
 
-  NSOpenGLContext *glContext = GLContextCGL::Cast(manager->gl())->GetNSOpenGLContext();
+  NSOpenGLContext *glContext = (NSOpenGLContext *)manager->gl()->GetNativeData(GLContext::NativeGLContext);
 
   if (![(ChildView*)mView preRender:glContext]) {
     mViewTearDownLock.Unlock();
@@ -2073,7 +2073,7 @@ nsChildView::PostRender(LayerManagerComposite* aManager)
   if (!manager) {
     return;
   }
-  NSOpenGLContext *glContext = GLContextCGL::Cast(manager->gl())->GetNSOpenGLContext();
+  NSOpenGLContext *glContext = (NSOpenGLContext *)manager->gl()->GetNativeData(GLContext::NativeGLContext);
   [(ChildView*)mView postRender:glContext];
   mViewTearDownLock.Unlock();
 }
@@ -2090,10 +2090,6 @@ nsChildView::DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect)
 void
 nsChildView::DrawWindowOverlay(GLManager* aManager, nsIntRect aRect)
 {
-  GLContext* gl = aManager->gl();
-  ScopedGLState scopedScissorTestState(gl, LOCAL_GL_SCISSOR_TEST);
-  ScopedScissorRect scopedScissorRectState(gl);
-
   MaybeDrawTitlebar(aManager, aRect);
   MaybeDrawResizeIndicator(aManager, aRect);
   MaybeDrawRoundedCorners(aManager, aRect);
@@ -2737,6 +2733,7 @@ RectTextureImage::Draw(GLManager* aManager,
 GLPresenter::GLPresenter(GLContext* aContext)
  : mGLContext(aContext)
 {
+  mGLContext->SetFlipped(true);
   mGLContext->MakeCurrent();
   mRGBARectProgram = new ShaderProgramOGL(mGLContext,
     ProgramProfileOGL::GetProfileFor(RGBARectLayerProgramType, MaskNone));

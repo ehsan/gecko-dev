@@ -20,12 +20,16 @@
 #include "nsIObserver.h"
 #include "nsITimer.h"
 
+class nsHttpPipeline;
+
 class nsIHttpUpgradeListener;
 
 namespace mozilla {
 namespace net {
 class EventTokenBucket;
 struct HttpRetParams;
+}
+}
 
 //-----------------------------------------------------------------------------
 
@@ -126,7 +130,7 @@ public:
 
     // called from main thread to post a new request token bucket
     // to the socket thread
-    nsresult UpdateRequestTokenBucket(EventTokenBucket *aBucket);
+    nsresult UpdateRequestTokenBucket(mozilla::net::EventTokenBucket *aBucket);
 
     // Pipielining Interfaces and Datatypes
 
@@ -227,7 +231,7 @@ public:
 
     bool     SupportsPipelining(nsHttpConnectionInfo *);
 
-    bool GetConnectionData(nsTArray<HttpRetParams> *);
+    bool GetConnectionData(nsTArray<mozilla::net::HttpRetParams> *);
 
     void ResetIPFamilyPreference(nsHttpConnectionInfo *);
 
@@ -324,7 +328,7 @@ private:
         int16_t                   mPipeliningClassPenalty[nsAHttpTransaction::CLASS_MAX];
 
         // for calculating penalty repair credits
-        TimeStamp        mLastCreditTime;
+        mozilla::TimeStamp        mLastCreditTime;
 
         // Spdy sometimes resolves the address in the socket manager in order
         // to re-coalesce sharded HTTP hosts. The dotted decimal address is
@@ -340,7 +344,7 @@ private:
         // The value of a recevied SPDY settings type 5 previously received
         // for this connection entry and the time it was set.
         uint32_t            mSpdyCWND;
-        TimeStamp  mSpdyCWNDTimeStamp;
+        mozilla::TimeStamp  mSpdyCWNDTimeStamp;
 
         // To have the UsingSpdy flag means some host with the same connection
         // entry has done NPN=spdy/* at some point. It does not mean every
@@ -420,7 +424,7 @@ private:
         void     SetupBackupTimer();
         void     CancelBackupTimer();
         void     Abandon();
-        double   Duration(TimeStamp epoch);
+        double   Duration(mozilla::TimeStamp epoch);
         nsISocketTransport *SocketTransport() { return mSocketTransport; }
         nsISocketTransport *BackupTransport() { return mBackupTransport; }
 
@@ -449,8 +453,8 @@ private:
         // more connections that are needed.)
         bool                           mSpeculative;
 
-        TimeStamp             mPrimarySynStarted;
-        TimeStamp             mBackupSynStarted;
+        mozilla::TimeStamp             mPrimarySynStarted;
+        mozilla::TimeStamp             mBackupSynStarted;
 
         // for syn retry
         nsCOMPtr<nsITimer>             mSynTimer;
@@ -466,7 +470,7 @@ private:
     // NOTE: these members may be accessed from any thread (use mReentrantMonitor)
     //-------------------------------------------------------------------------
 
-    ReentrantMonitor    mReentrantMonitor;
+    mozilla::ReentrantMonitor    mReentrantMonitor;
     nsCOMPtr<nsIEventTarget>     mSocketThreadTarget;
 
     // connection limits
@@ -657,7 +661,5 @@ private:
                                               void *closure);
     nsCString mLogData;
 };
-
-}} // namespace mozilla::net
 
 #endif // !nsHttpConnectionMgr_h__

@@ -17,13 +17,16 @@
 #include "nsIAsyncOutputStream.h"
 #include "nsIInterfaceRequestor.h"
 
+class nsHttpRequestHead;
+class nsHttpResponseHead;
+class nsHttpHandler;
 class nsISocketTransport;
 
 namespace mozilla {
 namespace net {
-
-class nsHttpHandler;
 class ASpdySession;
+}
+}
 
 //-----------------------------------------------------------------------------
 // nsHttpConnection - represents a connection to a HTTP server (or proxy)
@@ -210,7 +213,7 @@ private:
 
     nsRefPtr<nsHttpHandler>         mHttpHandler; // keep gHttpHandler alive
 
-    Mutex                           mCallbacksLock;
+    mozilla::Mutex                  mCallbacksLock;
     nsMainThreadPtrHandle<nsIInterfaceRequestor> mCallbacks;
 
     nsRefPtr<nsHttpConnectionInfo> mConnInfo;
@@ -263,7 +266,7 @@ private:
     // version level in use, 0 if unused
     uint8_t                         mUsingSpdyVersion;
 
-    nsRefPtr<ASpdySession>          mSpdySession;
+    nsRefPtr<mozilla::net::ASpdySession> mSpdySession;
     int32_t                         mPriority;
     bool                            mReportedSpdy;
 
@@ -278,7 +281,5 @@ private:
 
     bool                            mResponseTimeoutEnabled;
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpConnection_h__

@@ -73,6 +73,8 @@
 #endif
 
 //-----------------------------------------------------------------------------
+using namespace mozilla;
+using namespace mozilla::net;
 #include "mozilla/net/HttpChannelChild.h"
 
 
@@ -106,9 +108,6 @@ extern PRThread *gSocketThread;
 #define NS_HTTP_PROTOCOL_FLAGS (URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP | URI_LOADABLE_BY_ANYONE)
 
 //-----------------------------------------------------------------------------
-
-namespace mozilla {
-namespace net {
 
 static nsresult
 NewURI(const nsACString &aSpec,
@@ -374,8 +373,8 @@ nsHttpHandler::MakeNewRequestTokenBucket()
     if (!mConnMgr)
         return;
 
-    nsRefPtr<EventTokenBucket> tokenBucket =
-        new EventTokenBucket(RequestTokenBucketHz(),
+    nsRefPtr<mozilla::net::EventTokenBucket> tokenBucket =
+        new mozilla::net::EventTokenBucket(RequestTokenBucketHz(),
                                            RequestTokenBucketBurst());
     mConnMgr->UpdateRequestTokenBucket(tokenBucket);
 }
@@ -1404,8 +1403,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     }
     if (requestTokenBucketUpdated) {
         mRequestTokenBucket =
-            new EventTokenBucket(RequestTokenBucketHz(),
-                                 RequestTokenBucketBurst());
+            new mozilla::net::EventTokenBucket(RequestTokenBucketHz(),
+                                               RequestTokenBucketBurst());
     }
 
 #undef PREF_CHANGED
@@ -1583,7 +1582,7 @@ nsHttpHandler::NewURI(const nsACString &aSpec,
                       nsIURI *aBaseURI,
                       nsIURI **aURI)
 {
-    return mozilla::net::NewURI(aSpec, aCharset, aBaseURI, NS_HTTP_DEFAULT_PORT, aURI);
+    return ::NewURI(aSpec, aCharset, aBaseURI, NS_HTTP_DEFAULT_PORT, aURI);
 }
 
 NS_IMETHODIMP
@@ -2169,7 +2168,7 @@ nsHttpsHandler::NewURI(const nsACString &aSpec,
                        nsIURI *aBaseURI,
                        nsIURI **_retval)
 {
-    return mozilla::net::NewURI(aSpec, aOriginCharset, aBaseURI, NS_HTTPS_DEFAULT_PORT, _retval);
+    return ::NewURI(aSpec, aOriginCharset, aBaseURI, NS_HTTPS_DEFAULT_PORT, _retval);
 }
 
 NS_IMETHODIMP
@@ -2188,6 +2187,3 @@ nsHttpsHandler::AllowPort(int32_t aPort, const char *aScheme, bool *_retval)
     *_retval = false;
     return NS_OK;
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

@@ -750,9 +750,6 @@ struct JsGcTracer : public TraceCallbacks
   virtual void Trace(JS::Heap<JSScript *> *p, const char *name, void *closure) const MOZ_OVERRIDE {
     JS_CallHeapScriptTracer(static_cast<JSTracer*>(closure), p, name);
   }
-  virtual void Trace(JS::Heap<JSFunction *> *p, const char *name, void *closure) const MOZ_OVERRIDE {
-    JS_CallHeapFunctionTracer(static_cast<JSTracer*>(closure), p, name);
-  }
 };
 
 static PLDHashOperator
@@ -802,11 +799,6 @@ struct ClearJSHolder : TraceCallbacks
   }
 
   virtual void Trace(JS::Heap<JSScript*>* aPtr, const char*, void*) const MOZ_OVERRIDE
-  {
-    *aPtr = nullptr;
-  }
-
-  virtual void Trace(JS::Heap<JSFunction*>* aPtr, const char*, void*) const MOZ_OVERRIDE
   {
     *aPtr = nullptr;
   }
@@ -872,7 +864,7 @@ CycleCollectedJSRuntime::ZoneParticipant()
 }
 
 nsresult
-CycleCollectedJSRuntime::TraverseRoots(nsCycleCollectionNoteRootCallback &aCb)
+CycleCollectedJSRuntime::BeginCycleCollection(nsCycleCollectionNoteRootCallback &aCb)
 {
   static bool gcHasRun = false;
   if (!gcHasRun) {
