@@ -212,7 +212,7 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     // This constructor should only be used when there is no IonContext active
     // (for example, Trampoline-$(ARCH).cpp and IonCaches.cpp).
-    MacroAssembler(JSContext *cx, IonScript *ion = nullptr)
+    MacroAssembler(JSContext *cx)
       : enoughMemory_(true),
         embedsNurseryPointers_(false),
         sps_(nullptr)
@@ -225,8 +225,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         initWithAllocator();
         m_buffer.id = GetIonContext()->getNextAssemblerId();
 #endif
-        if (ion)
-            setFramePushed(ion->frameSize());
     }
 
     // asm.js compilation handles its own IonContet-pushing
@@ -1321,21 +1319,13 @@ class MacroAssembler : public MacroAssemblerSpecific
   public:
     class AfterICSaveLive {
         friend class MacroAssembler;
-        AfterICSaveLive(uint32_t initialStack)
-#ifdef JS_DEBUG
-          : initialStack(initialStack)
-#endif
+        AfterICSaveLive()
         {}
-
-#ifdef JS_DEBUG
-      public:
-        uint32_t initialStack;
-#endif
     };
 
     AfterICSaveLive icSaveLive(RegisterSet &liveRegs) {
         PushRegsInMask(liveRegs);
-        return AfterICSaveLive(framePushed());
+        return AfterICSaveLive();
     }
 
     bool icBuildOOLFakeExitFrame(void *fakeReturnAddr, AfterICSaveLive &aic) {
@@ -1343,7 +1333,6 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     void icRestoreLive(RegisterSet &liveRegs, AfterICSaveLive &aic) {
-        JS_ASSERT(framePushed() == aic.initialStack);
         PopRegsInMask(liveRegs);
     }
 };

@@ -1716,13 +1716,12 @@ IonCompile(JSContext *cx, JSScript *script,
     if (recompile) {
         JS_ASSERT(executionMode == SequentialExecution);
         builderScript->ionScript()->setRecompiling();
+    } else {
+        SetIonScript(builder->script(), executionMode, ION_COMPILING_SCRIPT);
     }
 
     // If possible, compile the script off thread.
     if (OffThreadCompilationAvailable(cx)) {
-        if (!recompile)
-            SetIonScript(builder->script(), executionMode, ION_COMPILING_SCRIPT);
-
         if (!StartOffThreadIonCompile(cx, builder)) {
             IonSpew(IonSpew_Abort, "Unable to start off-thread ion compilation.");
             return AbortReason_Alloc;

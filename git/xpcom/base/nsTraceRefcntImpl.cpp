@@ -60,10 +60,6 @@ NS_MeanAndStdDev(double n, double sumOfValues, double sumOfSquaredValues,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if !defined(XP_WIN) || (!defined(MOZ_OPTIMIZE) || defined(MOZ_PROFILING) || defined(DEBUG))
-#define STACKWALKING_AVAILABLE
-#endif
-
 #define NS_IMPL_REFCNT_LOGGING
 
 #ifdef NS_IMPL_REFCNT_LOGGING
@@ -840,7 +836,6 @@ static void InitTraceLog(void)
 
 extern "C" {
 
-#ifdef STACKWALKING_AVAILABLE
 static void PrintStackFrame(void *aPC, void *aSP, void *aClosure)
 {
   FILE *stream = (FILE*)aClosure;
@@ -851,17 +846,14 @@ static void PrintStackFrame(void *aPC, void *aSP, void *aClosure)
   NS_FormatCodeAddressDetails(aPC, &details, buf, sizeof(buf));
   fputs(buf, stream);
 }
-#endif
 
 }
 
 void
 nsTraceRefcntImpl::WalkTheStack(FILE* aStream)
 {
-#ifdef STACKWALKING_AVAILABLE
   NS_StackWalk(PrintStackFrame, /* skipFrames */ 2, /* maxFrames */ 0, aStream,
                0, nullptr);
-#endif
 }
 
 //----------------------------------------------------------------------
@@ -903,9 +895,7 @@ EXPORT_XPCOM_API(void)
 NS_LogInit()
 {
   // FIXME: This is called multiple times, we should probably not allow that.
-#ifdef STACKWALKING_AVAILABLE
   StackWalkInitCriticalAddress();
-#endif
 #ifdef NS_IMPL_REFCNT_LOGGING
   if (++gInitCount)
     nsTraceRefcntImpl::SetActivityIsLegal(true);

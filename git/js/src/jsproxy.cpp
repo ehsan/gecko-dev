@@ -378,7 +378,26 @@ BaseProxyHandler::slice(JSContext *cx, HandleObject proxy, uint32_t begin, uint3
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID);
 
-    return js::SliceSlowly(cx, proxy, proxy, begin, end, result);
+    RootedId id(cx);
+    RootedValue value(cx);
+    for (uint32_t index = begin; index < end; index++) {
+        if (!IndexToId(cx, index, &id))
+            return false;
+
+        bool present;
+        if (!Proxy::has(cx, proxy, id, &present))
+            return false;
+
+        if (present) {
+            if (!Proxy::get(cx, proxy, proxy, id, &value))
+                return false;
+
+            if (!JSObject::defineElement(cx, result, index - begin, value))
+                return false;
+        }
+    }
+
+    return true;
 }
 
 bool
@@ -2767,15 +2786,9 @@ Proxy::slice(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
 {
     JS_CHECK_RECURSION(cx, return false);
     BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
-    AutoEnterPolicy policy(cx, handler, proxy, JSID_VOIDHANDLE, BaseProxyHandler::GET,
-                           /* mayThrow = */ true);
-    if (!policy.allowed()) {
-        if (policy.returnValue()) {
-            JS_ASSERT(!cx->isExceptionPending());
-            return js::SliceSlowly(cx, proxy, proxy, begin, end, result);
-        }
-        return false;
-    }
+    AutoEnterPolicy policy(cx, handler, proxy, JSID_VOIDHANDLE, BaseProxyHandler::GET, true);
+    if (!policy.allowed())
+        return policy.returnValue();
     return handler->slice(cx, proxy, begin, end, result);
 }
 

@@ -88,9 +88,8 @@ Type::ObjectType(JSObject *obj)
 /* static */ inline Type
 Type::ObjectType(TypeObject *obj)
 {
-    AutoThreadSafeAccess ts(obj);
-    if (obj->singleton())
-        return Type(uintptr_t(obj->singleton()) | 1);
+    if (obj->singleton)
+        return Type(uintptr_t(obj->singleton.get()) | 1);
     return Type(uintptr_t(obj));
 }
 
@@ -178,9 +177,8 @@ IdToTypeId(jsid id)
      * and overflowing integers.
      */
     if (JSID_IS_STRING(id)) {
-        JSAtom *atom = JSID_TO_ATOM(id);
-        js::AutoThreadSafeAccess ts(atom);
-        JS::TwoByteChars cp = atom->range();
+        JSFlatString *str = JSID_TO_FLAT_STRING(id);
+        JS::TwoByteChars cp = str->range();
         if (cp.length() > 0 && (JS7_ISDEC(cp[0]) || cp[0] == '-')) {
             for (size_t i = 1; i < cp.length(); ++i) {
                 if (!JS7_ISDEC(cp[i]))
@@ -1087,7 +1085,7 @@ TypeSet::addType(Type type, LifoAlloc *alloc)
 
     if (type.isTypeObject()) {
         TypeObject *nobject = type.typeObject();
-        JS_ASSERT(!nobject->singleton());
+        JS_ASSERT(!nobject->singleton);
         if (nobject->unknownProperties())
             goto unknownObject;
     }
@@ -1318,8 +1316,6 @@ TypeObject::maybeGetProperty(jsid id)
     JS_ASSERT_IF(!JSID_IS_EMPTY(id), id == IdToTypeId(id));
     JS_ASSERT(!unknownProperties());
     JS_ASSERT(CurrentThreadCanReadCompilationData());
-
-    AutoThreadSafeAccess ts(this);
 
     Property *prop = HashSetLookup<jsid,Property,Property>
         (propertySet, basePropertyCount(), id);
