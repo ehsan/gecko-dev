@@ -999,31 +999,11 @@ private:
 };
 
 void
-CompositorOGL::DrawLines(const std::vector<gfx::Point>& aLines, const gfx::Rect& aClipRect,
-                         const gfx::Color& aColor,
-                         gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform)
-{
-  mGLContext->fLineWidth(2.0);
-
-  EffectChain effects;
-  effects.mPrimaryEffect = new EffectSolidColor(aColor);
-
-  for (int32_t i = 0; i < (int32_t)aLines.size() - 1; i++) {
-    const gfx::Point& p1 = aLines[i];
-    const gfx::Point& p2 = aLines[i+1];
-    DrawQuadInternal(Rect(p1.x, p2.y, p2.x - p1.x, p1.y - p2.y),
-                     aClipRect, effects, aOpacity, aTransform,
-                     LOCAL_GL_LINE_STRIP);
-  }
-}
-
-void
-CompositorOGL::DrawQuadInternal(const Rect& aRect,
-                                const Rect& aClipRect,
-                                const EffectChain &aEffectChain,
-                                Float aOpacity,
-                                const gfx::Matrix4x4 &aTransform,
-                                GLuint aDrawMode)
+CompositorOGL::DrawQuad(const Rect& aRect,
+                        const Rect& aClipRect,
+                        const EffectChain &aEffectChain,
+                        Float aOpacity,
+                        const gfx::Matrix4x4 &aTransform)
 {
   PROFILER_LABEL("CompositorOGL", "DrawQuad");
   MOZ_ASSERT(mFrameInProgress, "frame not started");
@@ -1117,7 +1097,7 @@ CompositorOGL::DrawQuadInternal(const Rect& aRect,
         program->SetMaskLayerTransform(maskQuadTransform);
       }
 
-      BindAndDrawQuad(program, false, aDrawMode);
+      BindAndDrawQuad(program);
     }
     break;
 
@@ -1563,8 +1543,7 @@ CompositorOGL::QuadVBOFlippedTexCoordsAttrib(GLuint aAttribIndex) {
 void
 CompositorOGL::BindAndDrawQuad(GLuint aVertAttribIndex,
                                GLuint aTexCoordAttribIndex,
-                               bool aFlipped,
-                               GLuint aDrawMode)
+                               bool aFlipped)
 {
   BindQuadVBO();
   QuadVBOVerticesAttrib(aVertAttribIndex);
@@ -1579,11 +1558,7 @@ CompositorOGL::BindAndDrawQuad(GLuint aVertAttribIndex,
   }
 
   mGLContext->fEnableVertexAttribArray(aVertAttribIndex);
-  if (aDrawMode == LOCAL_GL_LINE_STRIP) {
-    mGLContext->fDrawArrays(aDrawMode, 1, 2);
-  } else {
-    mGLContext->fDrawArrays(aDrawMode, 0, 4);
-  }
+  mGLContext->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
   mGLContext->fDisableVertexAttribArray(aVertAttribIndex);
 
   if (aTexCoordAttribIndex != GLuint(-1)) {
@@ -1593,13 +1568,12 @@ CompositorOGL::BindAndDrawQuad(GLuint aVertAttribIndex,
 
 void
 CompositorOGL::BindAndDrawQuad(ShaderProgramOGL *aProg,
-                               bool aFlipped,
-                               GLuint aDrawMode)
+                               bool aFlipped)
 {
   NS_ASSERTION(aProg->HasInitialized(), "Shader program not correctly initialized");
   BindAndDrawQuad(aProg->AttribLocation(ShaderProgramOGL::VertexCoordAttrib),
                   aProg->AttribLocation(ShaderProgramOGL::TexCoordAttrib),
-                  aFlipped, aDrawMode);
+                  aFlipped);
 }
 
 

@@ -213,7 +213,14 @@ function checkDiffValue(animLength)
     + "baseValue.convertToSpecifiedUnits");
 }
 
-window.addEventListener("load", main, false);
+var animate = document.getElementById('animate');
+if (animate && animate.targetElement) {
+  window.addEventListener("load", main, false);
+} else {
+  // SMIL not enabled: skip tests but don't report 'todo' either
+  ok(true);
+  SimpleTest.finish();
+}
 ]]>
 </script>
 </pre>

@@ -894,7 +894,6 @@ CodeGeneratorX86Shared::visitDivSelfI(LDivSelfI *ins)
     Register output = ToRegister(ins->output());
     MDiv *mir = ins->mir();
 
-    // If we can't divide by zero, lowering should have just used a constant one.
     JS_ASSERT(mir->canBeDivideByZero());
 
     masm.testl(op, op);
@@ -993,39 +992,6 @@ CodeGeneratorX86Shared::visitDivI(LDivI *ins)
 }
 
 bool
-CodeGeneratorX86Shared::visitModSelfI(LModSelfI *ins)
-{
-    Register op = ToRegister(ins->op());
-    Register output = ToRegister(ins->output());
-    MMod *mir = ins->mir();
-
-    // If we're not fallible, lowering should have just used a constant zero.
-    JS_ASSERT(mir->fallible());
-    JS_ASSERT(mir->canBeDivideByZero() || (!mir->isUnsigned() && mir->canBeNegativeDividend()));
-
-    masm.testl(op, op);
-
-    // For a negative operand, we need to return negative zero. We can't
-    // represent that as an int32, so bail if that happens.
-    if (!mir->isUnsigned() && mir->canBeNegativeDividend()) {
-        if (!bailoutIf(Assembler::Signed, ins->snapshot()))
-             return false;
-    }
-
-    // For a zero operand, we need to return NaN. We can't
-    // represent that as an int32, so bail if that happens.
-    if (mir->canBeDivideByZero()) {
-        if (!bailoutIf(Assembler::Zero, ins->snapshot()))
-            return false;
-    }
-
-    // For any other value, return 0.
-    masm.mov(ImmWord(0), output);
-
-    return true;
-}
-
-bool
 CodeGeneratorX86Shared::visitModPowTwoI(LModPowTwoI *ins)
 {
     Register lhs = ToRegister(ins->getOperand(0));
@@ -1102,11 +1068,16 @@ CodeGeneratorX86Shared::visitModI(LModI *ins)
     Register remainder = ToRegister(ins->remainder());
     Register lhs = ToRegister(ins->lhs());
     Register rhs = ToRegister(ins->rhs());
+    Register temp = ToRegister(ins->getTemp(0));
 
     // Required to use idiv.
-    JS_ASSERT(lhs == eax);
     JS_ASSERT(remainder == edx);
-    JS_ASSERT(ToRegister(ins->getTemp(0)) == eax);
+    JS_ASSERT(temp == eax);
+
+    if (lhs != temp) {
+        masm.mov(lhs, temp);
+        lhs = temp;
+    }
 
     Label done;
     ReturnZero *ool = nullptr;

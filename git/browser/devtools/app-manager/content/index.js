@@ -67,9 +67,6 @@ let UI = {
         case "toolbox-close":
           this.closeToolboxTab(json.uid);
           break;
-        case "toolbox-title":
-          // Not implemented
-          break;
         default:
           Cu.reportError("Unknown message: " + json.name);
       }

@@ -48,11 +48,6 @@
 #include "mozAutoDocUpdate.h"
 #include "mozilla/dom/Element.h"
 
-#if defined(XP_WIN)
-// Undefine LoadImage to prevent naming conflict with Windows.
-#undef LoadImage
-#endif
-
 using namespace mozilla;
 
 #ifdef DEBUG_chb

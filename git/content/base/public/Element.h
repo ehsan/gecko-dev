@@ -648,9 +648,6 @@ public:
 
   already_AddRefed<DOMRectList> GetClientRects();
   already_AddRefed<DOMRect> GetBoundingClientRect();
-
-  already_AddRefed<ShadowRoot> CreateShadowRoot(ErrorResult& aError);
-
   void ScrollIntoView()
   {
     ScrollIntoView(true);
@@ -1082,8 +1079,8 @@ protected:
   /**
    * Add/remove this element to the documents id cache
    */
-  void AddToIdTable(nsIAtom* aId);
-  void RemoveFromIdTable();
+  inline void AddToIdTable(nsIAtom* aId);
+  inline void RemoveFromIdTable();
 
   /**
    * Functions to carry out event default actions for links of all types
@@ -1132,6 +1129,8 @@ private:
 
   nsIScrollableFrame* GetScrollFrame(nsIFrame **aStyledFrame = nullptr,
                                      bool aFlushLayout = true);
+
+  void GetMarkup(bool aIncludeSelf, nsAString& aMarkup);
 
   // Data members
   nsEventStates mState;

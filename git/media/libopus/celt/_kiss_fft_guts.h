@@ -94,11 +94,11 @@
     do {(res).r = ADD32((res).r,(a).r);  (res).i = SUB32((res).i,(a).i); \
     }while(0)
 
-#if defined(OPUS_ARM_INLINE_ASM)
+#if defined(ARMv4_ASM)
 #include "arm/kiss_fft_armv4.h"
 #endif
 
-#if defined(OPUS_ARM_INLINE_EDSP)
+#if defined(ARMv5E_ASM)
 #include "arm/kiss_fft_armv5e.h"
 #endif
 

@@ -4,9 +4,16 @@
 
 "use strict";
 
-const {NetUtil} = Cu.import("resource://gre/modules/NetUtil.jsm", {});
-const {FileUtils} = Cu.import("resource://gre/modules/FileUtils.jsm", {});
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+let tempScope = {};
+
+Cu.import("resource://gre/modules/NetUtil.jsm", tempScope);
+Cu.import("resource://gre/modules/FileUtils.jsm", tempScope);
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", tempScope);
+
+
+let NetUtil = tempScope.NetUtil;
+let FileUtils = tempScope.FileUtils;
+let promise = tempScope.Promise;
 
 let gScratchpadWindow; // Reference to the Scratchpad chrome window object
 

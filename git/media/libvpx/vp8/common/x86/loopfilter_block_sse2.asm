@@ -133,7 +133,7 @@
 ;    const char    *limit,
 ;    const char    *thresh
 ;)
-global sym(vp8_loop_filter_bh_y_sse2) PRIVATE
+global sym(vp8_loop_filter_bh_y_sse2)
 sym(vp8_loop_filter_bh_y_sse2):
 
 %ifidn __OUTPUT_FORMAT__,x64
@@ -150,7 +150,6 @@ sym(vp8_loop_filter_bh_y_sse2):
 
     push    rbp
     mov     rbp, rsp
-    SAVE_XMM 11
     push    r12
     push    r13
     mov     thresh, arg(4)
@@ -259,7 +258,6 @@ LF_FILTER xmm0, xmm1, xmm3, xmm8, xmm4, xmm2
 %ifidn __OUTPUT_FORMAT__,x64
     pop    r13
     pop    r12
-    RESTORE_XMM
     pop    rbp
 %endif
 
@@ -275,7 +273,7 @@ LF_FILTER xmm0, xmm1, xmm3, xmm8, xmm4, xmm2
 ;    const char    *thresh
 ;)
 
-global sym(vp8_loop_filter_bv_y_sse2) PRIVATE
+global sym(vp8_loop_filter_bv_y_sse2)
 sym(vp8_loop_filter_bv_y_sse2):
 
 %ifidn __OUTPUT_FORMAT__,x64

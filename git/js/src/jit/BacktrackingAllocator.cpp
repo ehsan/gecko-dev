@@ -390,62 +390,6 @@ BacktrackingAllocator::groupAndQueueRegisters()
 static const size_t MAX_ATTEMPTS = 2;
 
 bool
-BacktrackingAllocator::tryAllocateFixed(LiveInterval *interval, bool *success,
-                                        bool *pfixed, LiveInterval **pconflicting)
-{
-    // Spill intervals which are required to be in a certain stack slot.
-    if (!interval->requirement()->allocation().isRegister()) {
-        IonSpew(IonSpew_RegAlloc, "stack allocation requirement");
-        interval->setAllocation(interval->requirement()->allocation());
-        *success = true;
-        return true;
-    }
-
-    AnyRegister reg = interval->requirement()->allocation().toRegister();
-    return tryAllocateRegister(registers[reg.code()], interval, success, pfixed, pconflicting);
-}
-
-bool
-BacktrackingAllocator::tryAllocateNonFixed(LiveInterval *interval, bool *success,
-                                           bool *pfixed, LiveInterval **pconflicting)
-{
-    // If we want, but do not require an interval to be in a specific
-    // register, only look at that register for allocating and evict
-    // or spill if it is not available. Picking a separate register may
-    // be even worse than spilling, as it will still necessitate moves
-    // and will tie up more registers than if we spilled.
-    if (interval->hint()->kind() == Requirement::FIXED) {
-        AnyRegister reg = interval->hint()->allocation().toRegister();
-        if (!tryAllocateRegister(registers[reg.code()], interval, success, pfixed, pconflicting))
-            return false;
-        if (*success)
-            return true;
-    }
-
-    // Spill intervals which have no hint or register requirement.
-    if (interval->requirement()->kind() == Requirement::NONE) {
-        spill(interval);
-        *success = true;
-        return true;
-    }
-
-    if (!*pconflicting || minimalInterval(interval)) {
-        // Search for any available register which the interval can be
-        // allocated to.
-        for (size_t i = 0; i < AnyRegister::Total; i++) {
-            if (!tryAllocateRegister(registers[i], interval, success, pfixed, pconflicting))
-                return false;
-            if (*success)
-                return true;
-        }
-    }
-
-    // We failed to allocate this interval.
-    JS_ASSERT(!*success);
-    return true;
-}
-
-bool
 BacktrackingAllocator::processInterval(LiveInterval *interval)
 {
     if (IonSpewEnabled(IonSpew_RegAlloc)) {
@@ -482,25 +426,51 @@ BacktrackingAllocator::processInterval(LiveInterval *interval)
     LiveInterval *conflict;
     for (size_t attempt = 0;; attempt++) {
         if (canAllocate) {
-            bool success = false;
+            // Spill intervals which are required to be in a certain stack slot.
+            if (interval->requirement()->kind() == Requirement::FIXED &&
+                !interval->requirement()->allocation().isRegister())
+            {
+                IonSpew(IonSpew_RegAlloc, "stack allocation requirement");
+                interval->setAllocation(interval->requirement()->allocation());
+                return true;
+            }
+
             fixed = false;
             conflict = nullptr;
 
-            // Ok, let's try allocating for this interval.
-            if (interval->requirement()->kind() == Requirement::FIXED) {
-                if (!tryAllocateFixed(interval, &success, &fixed, &conflict))
+            // If we want, but do not require an interval to be in a specific
+            // register, only look at that register for allocating and evict
+            // or spill if it is not available. Picking a separate register may
+            // be even worse than spilling, as it will still necessitate moves
+            // and will tie up more registers than if we spilled.
+            if (interval->hint()->kind() == Requirement::FIXED) {
+                AnyRegister reg = interval->hint()->allocation().toRegister();
+                bool success;
+                if (!tryAllocateRegister(registers[reg.code()], interval, &success, &fixed, &conflict))
                     return false;
-            } else {
-                if (!tryAllocateNonFixed(interval, &success, &fixed, &conflict))
-                    return false;
+                if (success)
+                    return true;
             }
 
-            // If that worked, we're done!
-            if (success)
+            // Spill intervals which have no hint or register requirement.
+            if (interval->requirement()->kind() == Requirement::NONE) {
+                spill(interval);
                 return true;
+            }
 
-            // If that didn't work, but we have a non-fixed LiveInterval known
-            // to be conflicting, maybe we can evict it and try again.
+            if (!conflict || minimalInterval(interval)) {
+                // Search for any available register which the interval can be
+                // allocated to.
+                for (size_t i = 0; i < AnyRegister::Total; i++) {
+                    bool success;
+                    if (!tryAllocateRegister(registers[i], interval, &success, &fixed, &conflict))
+                        return false;
+                    if (success)
+                        return true;
+                }
+            }
+
+            // Failed to allocate a register for this interval.
             if (attempt < MAX_ATTEMPTS &&
                 !fixed &&
                 conflict &&
@@ -689,8 +659,12 @@ BacktrackingAllocator::tryAllocateRegister(PhysicalRegister &r, LiveInterval *in
     if (reg->isDouble() != r.reg.isFloat())
         return true;
 
-    JS_ASSERT_IF(interval->requirement()->kind() == Requirement::FIXED,
-                 interval->requirement()->allocation() == LAllocation(r.reg));
+    if (interval->requirement()->kind() == Requirement::FIXED) {
+        if (interval->requirement()->allocation() != LAllocation(r.reg)) {
+            IonSpew(IonSpew_RegAlloc, "%s does not match fixed requirement", r.reg.name());
+            return true;
+        }
+    }
 
     for (size_t i = 0; i < interval->numRanges(); i++) {
         AllocatedRange range(interval, interval->getRange(i)), existing;

@@ -226,8 +226,7 @@ int _celt_autocorr(
                    const opus_val16       *window,
                    int          overlap,
                    int          lag,
-                   int          n,
-                   int          arch
+                   int          n
                   )
 {
    opus_val32 d;
@@ -276,7 +275,7 @@ int _celt_autocorr(
          shift = 0;
    }
 #endif
-   celt_pitch_xcorr(xptr, xptr, ac, fastN, lag+1, arch);
+   celt_pitch_xcorr(xptr, xptr, ac, fastN, lag+1);
    for (k=0;k<=lag;k++)
    {
       for (i = k+fastN, d = 0; i < n; i++)

@@ -473,8 +473,7 @@ nsPrefetchService::ProcessNextURI()
         //
         // if opening the channel fails, then just skip to the next uri
         //
-        nsRefPtr<nsPrefetchNode> node = mCurrentNode;
-        rv = node->OpenChannel();
+        rv = mCurrentNode->OpenChannel();
     }
     while (NS_FAILED(rv));
 }

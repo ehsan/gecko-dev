@@ -72,7 +72,7 @@ XMLStylesheetProcessingInstruction::UnbindFromTree(bool aDeep, bool aNullParent)
   nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
 
   ProcessingInstruction::UnbindFromTree(aDeep, aNullParent);
-  UpdateStyleSheetInternal(oldDoc, nullptr);
+  UpdateStyleSheetInternal(oldDoc);
 }
 
 // nsIDOMNode
@@ -83,7 +83,7 @@ XMLStylesheetProcessingInstruction::SetNodeValueInternal(const nsAString& aNodeV
 {
   nsGenericDOMDataNode::SetNodeValueInternal(aNodeValue, aError);
   if (!aError.Failed()) {
-    UpdateStyleSheetInternal(nullptr, nullptr, true);
+    UpdateStyleSheetInternal(nullptr, true);
   }
 }
 

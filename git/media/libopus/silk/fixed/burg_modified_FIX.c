@@ -50,8 +50,7 @@ void silk_burg_modified(
     const opus_int32            minInvGain_Q30,     /* I    Inverse of max prediction gain                              */
     const opus_int              subfr_length,       /* I    Input signal subframe length (incl. D preceding samples)    */
     const opus_int              nb_subfr,           /* I    Number of subframes stacked in x                            */
-    const opus_int              D,                  /* I    Order                                                       */
-    int                         arch                /* I    Run-time architecture                                       */
+    const opus_int              D                   /* I    Order                                                       */
 )
 {
     opus_int         k, n, s, lz, rshifts, rshifts_extra, reached_max_gain;
@@ -99,7 +98,7 @@ void silk_burg_modified(
             int i;
             opus_int32 d;
             x_ptr = x + s * subfr_length;
-            celt_pitch_xcorr(x_ptr, x_ptr + 1, xcorr, subfr_length - D, D, arch );
+            celt_pitch_xcorr(x_ptr, x_ptr + 1, xcorr, subfr_length - D, D );
             for( n = 1; n < D + 1; n++ ) {
                for ( i = n + subfr_length - D, d = 0; i < subfr_length; i++ )
                   d = MAC16_16( d, x_ptr[ i ], x_ptr[ i - n ] );

@@ -158,9 +158,6 @@ public:
   virtual nsXBLBinding *GetXBLBinding() const MOZ_OVERRIDE;
   virtual void SetXBLBinding(nsXBLBinding* aBinding,
                              nsBindingManager* aOldBindingManager = nullptr) MOZ_OVERRIDE;
-  virtual mozilla::dom::ShadowRoot *GetContainingShadow() const MOZ_OVERRIDE;
-  virtual mozilla::dom::ShadowRoot *GetShadowRoot() const MOZ_OVERRIDE;
-  virtual void SetShadowRoot(mozilla::dom::ShadowRoot* aShadowRoot) MOZ_OVERRIDE;
   virtual nsIContent *GetXBLInsertionParent() const;
   virtual void SetXBLInsertionParent(nsIContent* aContent);
   virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
@@ -244,7 +241,11 @@ protected:
   class nsDataSlots : public nsINode::nsSlots
   {
   public:
-    nsDataSlots();
+    nsDataSlots()
+      : nsINode::nsSlots(),
+        mBindingParent(nullptr)
+    {
+    }
 
     void Traverse(nsCycleCollectionTraversalCallback &cb);
     void Unlink();
@@ -259,11 +260,6 @@ protected:
      * @see nsIContent::GetXBLInsertionParent
      */
     nsCOMPtr<nsIContent> mXBLInsertionParent;
-
-    /**
-     * @see nsIContent::GetContainingShadow
-     */
-    nsRefPtr<mozilla::dom::ShadowRoot> mContainingShadow;
   };
 
   // Override from nsINode

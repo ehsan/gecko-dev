@@ -453,13 +453,12 @@ GlobalObject::create(JSContext *cx, const Class *clasp)
     return global;
 }
 
-/* static */ bool
-GlobalObject::getOrCreateEval(JSContext *cx, Handle<GlobalObject*> global,
-                              MutableHandleObject eval)
+bool
+GlobalObject::getOrCreateEval(JSContext *cx, MutableHandleObject eval)
 {
-    if (!global->getOrCreateObjectPrototype(cx))
+    if (!getOrCreateObjectPrototype(cx))
         return false;
-    eval.set(&global->getSlotRefForCompilation(EVAL).toObject());
+    eval.set(&getSlotRefForCompilation(EVAL).toObject());
     return true;
 }
 

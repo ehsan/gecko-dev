@@ -1834,8 +1834,7 @@ AreAllMathMLPropertiesUndefined(const nsRuleData* aRuleData)
   return
     aRuleData->ValueForScriptLevel()->GetUnit() == eCSSUnit_Null &&
     aRuleData->ValueForScriptSizeMultiplier()->GetUnit() == eCSSUnit_Null &&
-    aRuleData->ValueForScriptMinSize()->GetUnit() == eCSSUnit_Null &&
-    aRuleData->ValueForMathVariant()->GetUnit() == eCSSUnit_Null;
+    aRuleData->ValueForScriptMinSize()->GetUnit() == eCSSUnit_Null;
 }
 #endif
 
@@ -1885,13 +1884,13 @@ nsRuleNode::CheckSpecifiedProperties(const nsStyleStructID aSID,
   if (inherited == total)
     result = eRuleFullInherited;
   else if (specified == total
-           // MathML defines 4 properties in Font that will never be set when
-           // MathML is not in use. Therefore if all but four
+           // MathML defines 3 properties in Font that will never be set when
+           // MathML is not in use. Therefore if all but three
            // properties have been set, and MathML is not enabled, we can treat
            // this as fully specified. Code in nsMathMLElementFactory will
            // rebuild the rule tree and style data when MathML is first enabled
            // (see nsMathMLElement::BindToTree).
-           || (aSID == eStyleStruct_Font && specified + 4 == total &&
+           || (aSID == eStyleStruct_Font && specified + 3 == total &&
                !mPresContext->Document()->GetMathMLEnabled())
           ) {
     if (inherited == 0)
@@ -3248,13 +3247,6 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     aFont->mGenericID = aGenericFontID;
   }
 
-  // -moz-math-variant: enum, inherit, initial
-  SetDiscrete(*aRuleData->ValueForMathVariant(), aFont->mMathVariant,
-              aCanStoreInRuleTree,
-              SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
-              aParentFont->mMathVariant, NS_MATHML_MATHVARIANT_NONE,
-              0, 0, 0, 0);
-
   // font-smoothing: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForOSXFontSmoothing(),
               aFont->mFont.smoothing, aCanStoreInRuleTree,
@@ -3264,17 +3256,12 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
               0, 0, 0, 0);
 
   // font-style: enum, inherit, initial, -moz-system-font
-  if (aFont->mMathVariant != NS_MATHML_MATHVARIANT_NONE) {
-    // -moz-math-variant overrides font-style
-    aFont->mFont.style = NS_FONT_STYLE_NORMAL;
-  } else {
-    SetDiscrete(*aRuleData->ValueForFontStyle(),
-                aFont->mFont.style, aCanStoreInRuleTree,
-                SETDSC_ENUMERATED | SETDSC_SYSTEM_FONT | SETDSC_UNSET_INHERIT,
-                aParentFont->mFont.style,
-                defaultVariableFont->style,
-                0, 0, 0, systemFont.style);
-  }
+  SetDiscrete(*aRuleData->ValueForFontStyle(),
+              aFont->mFont.style, aCanStoreInRuleTree,
+              SETDSC_ENUMERATED | SETDSC_SYSTEM_FONT | SETDSC_UNSET_INHERIT,
+              aParentFont->mFont.style,
+              defaultVariableFont->style,
+              0, 0, 0, systemFont.style);
 
   // font-variant: enum, inherit, initial, -moz-system-font
   SetDiscrete(*aRuleData->ValueForFontVariant(),
@@ -3287,10 +3274,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
   // font-weight: int, enum, inherit, initial, -moz-system-font
   // special handling for enum
   const nsCSSValue* weightValue = aRuleData->ValueForFontWeight();
-  if (aFont->mMathVariant != NS_MATHML_MATHVARIANT_NONE) {
-    // -moz-math-variant overrides font-weight
-    aFont->mFont.weight = NS_FONT_WEIGHT_NORMAL;
-  } else if (eCSSUnit_Enumerated == weightValue->GetUnit()) {
+  if (eCSSUnit_Enumerated == weightValue->GetUnit()) {
     int32_t value = weightValue->GetIntValue();
     switch (value) {
       case NS_STYLE_FONT_WEIGHT_NORMAL:

@@ -17,7 +17,6 @@
 #include <winioctl.h>
 #include "base/scoped_handle_win.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #endif
 
@@ -42,14 +41,13 @@ NS_EXPORT int android_sdk_version;
 
 #if defined(XP_WIN)
 namespace {
-nsresult GetHDDInfo(const char* aSpecialDirName, nsAutoCString& aModel,
-                    nsAutoCString& aRevision)
+nsresult GetProfileHDDInfo(nsAutoCString& aModel, nsAutoCString& aRevision)
 {
     aModel.Truncate();
     aRevision.Truncate();
 
     nsCOMPtr<nsIFile> profDir;
-    nsresult rv = NS_GetSpecialDirectory(aSpecialDirName,
+    nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
                                          getter_AddRefs(profDir));
     NS_ENSURE_SUCCESS(rv, rv);
     nsAutoString profDirPath;
@@ -200,25 +198,10 @@ nsSystemInfo::Init()
         return rv;
     }
     nsAutoCString hddModel, hddRevision;
-    if (NS_SUCCEEDED(GetHDDInfo(NS_APP_USER_PROFILE_50_DIR, hddModel,
-                                hddRevision))) {
+    if (NS_SUCCEEDED(GetProfileHDDInfo(hddModel, hddRevision))) {
       rv = SetPropertyAsACString(NS_LITERAL_STRING("profileHDDModel"), hddModel);
       NS_ENSURE_SUCCESS(rv, rv);
       rv = SetPropertyAsACString(NS_LITERAL_STRING("profileHDDRevision"),
-                                 hddRevision);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    if (NS_SUCCEEDED(GetHDDInfo(NS_GRE_DIR, hddModel, hddRevision))) {
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("binHDDModel"), hddModel);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("binHDDRevision"),
-                                 hddRevision);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    if (NS_SUCCEEDED(GetHDDInfo(NS_WIN_WINDOWS_DIR, hddModel, hddRevision))) {
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("winHDDModel"), hddModel);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("winHDDRevision"),
                                  hddRevision);
       NS_ENSURE_SUCCESS(rv, rv);
     }

@@ -18,11 +18,4 @@ celt/rate.c \
 celt/vq.c
 
 CELT_SOURCES_ARM = \
-celt/arm/armcpu.c \
-celt/arm/arm_celt_map.c
-
-CELT_SOURCES_ARM_ASM = \
-celt/arm/celt_pitch_xcorr_arm.s
-
-CELT_AM_SOURCES_ARM_ASM = \
-celt/arm/armopts.s.in
+celt/arm/armcpu.c
