@@ -7,6 +7,8 @@
 #include "nsIDOMGeoPositionError.h"
 #include "prtime.h"
 
+#include <LocationApi.h>
+
 namespace mozilla {
 namespace dom {
 

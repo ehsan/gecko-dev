@@ -8,7 +8,7 @@
 #include "nsAutoPtr.h"
 #include "nsIGeolocationProvider.h"
 
-#include <locationapi.h>
+#include <LocationApi.h>
 
 namespace mozilla {
 namespace dom {
@@ -22,8 +22,6 @@ public:
   WindowsLocationProvider();
 
 private:
-  ~WindowsLocationProvider() {}
-
   nsRefPtr<ILocation> mLocation;
 };
 

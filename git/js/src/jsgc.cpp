@@ -5152,60 +5152,50 @@ ArenaLists::foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sl
     return true;
 }
 
-GCRuntime::IncrementalProgress
+bool
 GCRuntime::drainMarkStack(SliceBudget &sliceBudget, gcstats::Phase phase)
 {
     /* Run a marking slice and return whether the stack is now empty. */
     gcstats::AutoPhase ap(stats, phase);
-    return marker.drainMarkStack(sliceBudget) ? Finished : NotFinished;
+    return marker.drainMarkStack(sliceBudget);
 }
 
-static void
-SweepThing(Shape *shape)
-{
-    if (!shape->isMarked())
-        shape->sweep();
-}
-
-static void
-SweepThing(JSScript *script, types::AutoClearTypeInferenceStateOnOOM *oom)
-{
-    script->maybeSweepTypes(oom);
-}
-
-static void
-SweepThing(types::TypeObject *typeObject, types::AutoClearTypeInferenceStateOnOOM *oom)
-{
-    typeObject->maybeSweep(oom);
-}
-
-template <typename T, typename... Args>
+// Advance to the next entry in a list of arenas, returning false if the
+// mutator should resume running.
 static bool
-SweepArenaList(ArenaHeader **arenasToSweep, SliceBudget &sliceBudget, Args... args)
+AdvanceArenaList(ArenaHeader **list, AllocKind kind, SliceBudget &sliceBudget)
+{
+    *list = (*list)->next;
+    sliceBudget.step(Arena::thingsPerArena(Arena::thingSize(kind)));
+    return !sliceBudget.isOverBudget();
+}
+
+static bool
+SweepShapes(ArenaHeader **arenasToSweep, AllocKind kind, SliceBudget &sliceBudget)
 {
     while (ArenaHeader *arena = *arenasToSweep) {
-        for (ArenaCellIterUnderGC i(arena); !i.done(); i.next())
-            SweepThing(i.get<T>(), args...);
+        for (ArenaCellIterUnderGC i(arena); !i.done(); i.next()) {
+            Shape *shape = i.get<Shape>();
+            if (!shape->isMarked())
+                shape->sweep();
+        }
 
-        *arenasToSweep = (*arenasToSweep)->next;
-        AllocKind kind = MapTypeToFinalizeKind<T>::kind;
-        sliceBudget.step(Arena::thingsPerArena(Arena::thingSize(kind)));
-        if (sliceBudget.isOverBudget())
+        if (!AdvanceArenaList(arenasToSweep, kind, sliceBudget))
             return false;
     }
 
     return true;
 }
 
-GCRuntime::IncrementalProgress
+bool
 GCRuntime::sweepPhase(SliceBudget &sliceBudget)
 {
     gcstats::AutoPhase ap(stats, gcstats::PHASE_SWEEP);
     FreeOp fop(rt);
 
-    if (drainMarkStack(sliceBudget, gcstats::PHASE_SWEEP_MARK) == NotFinished)
-        return NotFinished;
-
+    bool finished = drainMarkStack(sliceBudget, gcstats::PHASE_SWEEP_MARK);
+    if (!finished)
+        return false;
 
     for (;;) {
         // Sweep dead type information stored in scripts and type objects, but
@@ -5224,13 +5214,30 @@ GCRuntime::sweepPhase(SliceBudget &sliceBudget)
 
                 types::AutoClearTypeInferenceStateOnOOM oom(sweepZone);
 
-                if (!SweepArenaList<JSScript>(&al.gcScriptArenasToUpdate, sliceBudget, &oom))
-                    return NotFinished;
+                while (ArenaHeader *arena = al.gcScriptArenasToUpdate) {
+                    for (ArenaCellIterUnderGC i(arena); !i.done(); i.next()) {
+                        JSScript *script = i.get<JSScript>();
+                        script->maybeSweepTypes(&oom);
+                    }
 
-                if (!SweepArenaList<types::TypeObject>(
-                        &al.gcTypeObjectArenasToUpdate, sliceBudget, &oom))
-                {
-                    return NotFinished;
+                    if (!AdvanceArenaList(&al.gcScriptArenasToUpdate,
+                                          FINALIZE_SCRIPT, sliceBudget))
+                    {
+                        return false;
+                    }
+                }
+
+                while (ArenaHeader *arena = al.gcTypeObjectArenasToUpdate) {
+                    for (ArenaCellIterUnderGC i(arena); !i.done(); i.next()) {
+                        types::TypeObject *object = i.get<types::TypeObject>();
+                        object->maybeSweep(&oom);
+                    }
+
+                    if (!AdvanceArenaList(&al.gcTypeObjectArenasToUpdate,
+                                          FINALIZE_TYPE_OBJECT, sliceBudget))
+                    {
+                        return false;
+                    }
                 }
 
                 // Finish sweeping type information in the zone.
@@ -5265,7 +5272,7 @@ GCRuntime::sweepPhase(SliceBudget &sliceBudget)
 
                     if (!zone->arenas.foregroundFinalize(&fop, kind, sliceBudget,
                                                          incrementalSweepList))
-                        return NotFinished;
+                        return false;  /* Yield to the mutator. */
 
                     /* Reset the slots of the sweep list that we used. */
                     incrementalSweepList.reset(thingsPerArena);
@@ -5282,21 +5289,21 @@ GCRuntime::sweepPhase(SliceBudget &sliceBudget)
             gcstats::AutoPhase ap(stats, gcstats::PHASE_SWEEP_SHAPE);
 
             for (; sweepZone; sweepZone = sweepZone->nextNodeInGroup()) {
-                ArenaLists &al = sweepZone->arenas;
-
-                if (!SweepArenaList<Shape>(&al.gcShapeArenasToUpdate, sliceBudget))
-                    return NotFinished;
-
-                if (!SweepArenaList<AccessorShape>(&al.gcAccessorShapeArenasToUpdate, sliceBudget))
-                    return NotFinished;
+                Zone *zone = sweepZone;
+                if (!SweepShapes(&zone->arenas.gcShapeArenasToUpdate, FINALIZE_SHAPE, sliceBudget))
+                    return false;  /* Yield to the mutator. */
+                if (!SweepShapes(&zone->arenas.gcAccessorShapeArenasToUpdate,
+                                 FINALIZE_ACCESSOR_SHAPE, sliceBudget))
+                {
+                    return false;  /* Yield to the mutator. */
+                }
             }
         }
 
         endSweepingZoneGroup();
         getNextZoneGroup();
         if (!currentZoneGroup)
-            return Finished;
-
+            return true;  /* We're finished. */
         endMarkingZoneGroup();
         beginSweepingZoneGroup();
     }
@@ -5416,7 +5423,7 @@ GCRuntime::endSweepPhase(bool lastGC)
 #endif
 }
 
-GCRuntime::IncrementalProgress
+bool
 GCRuntime::compactPhase(bool lastGC)
 {
     gcstats::AutoPhase ap(stats, gcstats::PHASE_COMPACT);
@@ -5425,7 +5432,7 @@ GCRuntime::compactPhase(bool lastGC)
         // Poll for end of background sweeping
         AutoLockGC lock(rt);
         if (isBackgroundSweeping())
-            return NotFinished;
+            return false;
     } else {
         waitBackgroundSweepEnd();
     }
@@ -5483,7 +5490,7 @@ GCRuntime::compactPhase(bool lastGC)
         }
     }
 #endif
-    return Finished;
+    return true;
 }
 
 void
@@ -5802,14 +5809,15 @@ GCRuntime::incrementalCollectSlice(SliceBudget &budget, JS::gcreason::Reason rea
 
         /* fall through */
 
-      case MARK:
+      case MARK: {
         /* If we needed delayed marking for gray roots, then collect until done. */
         if (!marker.hasBufferedGrayRoots()) {
             budget.makeUnlimited();
             isIncremental = false;
         }
 
-        if (drainMarkStack(budget, gcstats::PHASE_MARK) == NotFinished)
+        bool finished = drainMarkStack(budget, gcstats::PHASE_MARK);
+        if (!finished)
             break;
 
         MOZ_ASSERT(marker.isDrained());
@@ -5845,10 +5853,14 @@ GCRuntime::incrementalCollectSlice(SliceBudget &budget, JS::gcreason::Reason rea
             break;
 
         /* fall through */
+      }
 
       case SWEEP:
-        if (sweepPhase(budget) == NotFinished)
-            break;
+        {
+            bool finished = sweepPhase(budget);
+            if (!finished)
+                break;
+        }
 
         endSweepPhase(lastGC);
 
@@ -5859,8 +5871,12 @@ GCRuntime::incrementalCollectSlice(SliceBudget &budget, JS::gcreason::Reason rea
             break;
 
       case COMPACT:
-        if (shouldCompact() && compactPhase(lastGC) == NotFinished)
-            break;
+        if (shouldCompact()) {
+            bool finished = compactPhase(lastGC);
+            if (!finished)
+                break;
+        }
+
         finishCollection();
         incrementalState = NO_INCREMENTAL;
         break;

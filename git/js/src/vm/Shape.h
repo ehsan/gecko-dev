@@ -533,7 +533,6 @@ class BaseShape : public gc::TenuredCell
     }
 
     void fixupAfterMovingGC();
-    bool fixupBaseShapeTableEntry();
 
   private:
     static void staticAsserts() {

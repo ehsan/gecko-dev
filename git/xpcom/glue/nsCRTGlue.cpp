@@ -329,6 +329,7 @@ copy_stderr_to_file(const char* aFile)
 #endif
 
 #if defined(XP_WIN)
+
 void
 vprintf_stderr(const char* aFmt, va_list aArgs)
 {

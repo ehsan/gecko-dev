@@ -162,10 +162,7 @@ let handleContentContextMenu = function (event) {
     }
 
     let customMenuItems = PageMenuChild.build(event.target);
-    let principal = event.target.ownerDocument.nodePrincipal;
-    sendSyncMessage("contextmenu",
-                    { editFlags, spellInfo, customMenuItems, addonInfo, principal },
-                    { event, popupNode: event.target });
+    sendSyncMessage("contextmenu", { editFlags, spellInfo, customMenuItems, addonInfo }, { event, popupNode: event.target });
   }
   else {
     // Break out to the parent window and pass the add-on info along
