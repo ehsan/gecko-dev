@@ -6,6 +6,9 @@
 
 Cu.import('resource://gre/modules/ContactService.jsm');
 Cu.import('resource://gre/modules/SettingsChangeNotifier.jsm');
+#ifdef MOZ_B2G_FM
+Cu.import('resource://gre/modules/DOMFMRadioParent.jsm');
+#endif
 Cu.import('resource://gre/modules/AlarmService.jsm');
 Cu.import('resource://gre/modules/ActivitiesService.jsm');
 Cu.import('resource://gre/modules/PermissionPromptHelper.jsm');
@@ -183,7 +186,7 @@ var shell = {
 
   get contentBrowser() {
     delete this.contentBrowser;
-    return this.contentBrowser = document.getElementById('homescreen');
+    return this.contentBrowser = document.getElementById('systemapp');
   },
 
   get homeURL() {
@@ -266,25 +269,25 @@ var shell = {
     }
 
     let manifestURL = this.manifestURL;
-    // <html:iframe id="homescreen"
+    // <html:iframe id="systemapp"
     //              mozbrowser="true" allowfullscreen="true"
-    //              style="overflow: hidden; -moz-box-flex: 1; border: none;"
+    //              style="overflow: hidden; height: 100%; width: 100%; border: none;"
     //              src="data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;'>"/>
-    let browserFrame =
+    let systemAppFrame =
       document.createElementNS('http://www.w3.org/1999/xhtml', 'html:iframe');
-    browserFrame.setAttribute('id', 'homescreen');
-    browserFrame.setAttribute('mozbrowser', 'true');
-    browserFrame.setAttribute('mozapp', manifestURL);
-    browserFrame.setAttribute('allowfullscreen', 'true');
-    browserFrame.setAttribute('style', "overflow: hidden; -moz-box-flex: 1; border: none;");
-    browserFrame.setAttribute('src', "data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;");
-    document.getElementById('shell').appendChild(browserFrame);
+    systemAppFrame.setAttribute('id', 'systemapp');
+    systemAppFrame.setAttribute('mozbrowser', 'true');
+    systemAppFrame.setAttribute('mozapp', manifestURL);
+    systemAppFrame.setAttribute('allowfullscreen', 'true');
+    systemAppFrame.setAttribute('style', "overflow: hidden; height: 100%; width: 100%; border: none;");
+    systemAppFrame.setAttribute('src', "data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;");
+    document.getElementById('container').appendChild(systemAppFrame);
 
-    browserFrame.contentWindow
-                .QueryInterface(Ci.nsIInterfaceRequestor)
-                .getInterface(Ci.nsIWebNavigation)
-                .sessionHistory = Cc["@mozilla.org/browser/shistory;1"]
-                                    .createInstance(Ci.nsISHistory);
+    systemAppFrame.contentWindow
+                  .QueryInterface(Ci.nsIInterfaceRequestor)
+                  .getInterface(Ci.nsIWebNavigation)
+                  .sessionHistory = Cc["@mozilla.org/browser/shistory;1"]
+                                      .createInstance(Ci.nsISHistory);
 
     // Capture all key events so we can filter out hardware buttons
     // And send them to Gaia via mozChromeEvents.

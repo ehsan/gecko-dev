@@ -130,6 +130,10 @@ DOMCI_CLASS(MediaQueryList)
 DOMCI_CLASS(MozIccManager)
 #endif
 
+#ifdef MOZ_B2G_FM
+DOMCI_CLASS(FMRadio)
+#endif
+
 #ifdef MOZ_B2G_BT
 DOMCI_CLASS(BluetoothDevice)
 #endif
