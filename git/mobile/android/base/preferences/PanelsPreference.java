@@ -44,7 +44,7 @@ public class PanelsPreference extends CustomListPreference {
     private String LABEL_SHOW;
 
     private View preferenceView;
-    protected boolean mIsHidden;
+    protected boolean mIsHidden = false;
     private boolean mIsRemovable;
 
     private boolean mAnimate;

@@ -2,7 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import base64
 import ConfigParser
 import datetime
 import json
@@ -11,8 +10,7 @@ import socket
 import StringIO
 import time
 import traceback
-import warnings
-
+import base64
 
 from application_cache import ApplicationCache
 from decorators import do_crash_check
@@ -142,8 +140,6 @@ class HTMLElement(object):
         '''
         A dictionary with the size of the element.
         '''
-        warnings.warn("The size property has been deprecated and will be removed in a future version. \
-            Please use HTMLElement#rect", DeprecationWarning)
         return self.marionette._send_message('getElementSize', 'value', id=self.id)
 
     @property
@@ -164,8 +160,7 @@ class HTMLElement(object):
         :returns: a dictionary containing x and y as entries
 
         """
-        warnings.warn("The location property has been deprecated and will be removed in a future version. \
-            Please use HTMLElement#rect", DeprecationWarning)
+
         return self.marionette._send_message("getElementLocation", "value", id=self.id)
 
     @property
@@ -807,7 +802,11 @@ class Marionette(object):
         :params desired_capabilities: An optional dict of desired
             capabilities.  This is currently ignored.
 
-        :returns: A dict of the capabilities offered."""
+        :returns: A dict of the capabilities offered.
+
+        """
+
+        # We are ignoring desired_capabilities, at least for now.
         self.session = self._send_message('newSession', 'value')
         self.b2g = 'b2g' in self.session
         return self.session
@@ -822,7 +821,9 @@ class Marionette(object):
             self._test_name = test_name
 
     def delete_session(self):
-        """Close the current session and disconnect from the server."""
+        """
+        Close the current session and disconnect from the server.
+        """
         response = self._send_message('deleteSession', 'ok')
         self.session = None
         self.window = None

@@ -11,6 +11,7 @@
 #include "SharedMemoryBasic.h"
 #include "SharedMemorySysV.h"
 
+#include "nsAutoPtr.h"
 #include "mozilla/unused.h"
 
 
@@ -110,10 +111,10 @@ public:
 
 
 #ifdef MOZ_HAVE_SHAREDMEMORYSYSV
-static already_AddRefed<Shmem::SharedMemory>
+static Shmem::SharedMemory*
 CreateSegment(size_t aNBytes, SharedMemorySysV::Handle aHandle)
 {
-  nsRefPtr<SharedMemory> segment;
+  nsAutoPtr<SharedMemory> segment;
 
   if (SharedMemorySysV::IsHandleValid(aHandle)) {
     segment = new SharedMemorySysV(aHandle);
@@ -127,14 +128,15 @@ CreateSegment(size_t aNBytes, SharedMemorySysV::Handle aHandle)
   if (!segment->Map(aNBytes))
     return nullptr;
 
+  segment->AddRef();
   return segment.forget();
 }
 #endif
 
-static already_AddRefed<Shmem::SharedMemory>
+static Shmem::SharedMemory*
 CreateSegment(size_t aNBytes, SharedMemoryBasic::Handle aHandle)
 {
-  nsRefPtr<SharedMemory> segment;
+  nsAutoPtr<SharedMemory> segment;
 
   if (SharedMemoryBasic::IsHandleValid(aHandle)) {
     segment = new SharedMemoryBasic(aHandle);
@@ -148,6 +150,7 @@ CreateSegment(size_t aNBytes, SharedMemoryBasic::Handle aHandle)
   if (!segment->Map(aNBytes))
     return nullptr;
 
+  segment->AddRef();
   return segment.forget();
 }
 
@@ -346,7 +349,7 @@ Shmem::RevokeRights(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead)
 }
 
 // static
-already_AddRefed<Shmem::SharedMemory>
+Shmem::SharedMemory*
 Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
              size_t aNBytes,
              SharedMemoryType aType,
@@ -357,7 +360,7 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   NS_ABORT_IF_FALSE(!aProtect || !aUnsafe, "protect => !unsafe");
 
   size_t pageSize = SharedMemory::SystemPageSize();
-  nsRefPtr<SharedMemory> segment;
+  SharedMemory* segment = nullptr;
   // |2*pageSize| is for the front and back sentinel
   size_t segmentSize = SharedMemory::PageAlignedSize(aNBytes + 2*pageSize);
 
@@ -395,11 +398,11 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   if (aProtect)
     Protect(segment);
 
-  return segment.forget();
+  return segment;
 }
 
 // static
-already_AddRefed<Shmem::SharedMemory>
+Shmem::SharedMemory*
 Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
                     const IPC::Message& aDescriptor,
                     id_t* aId,
@@ -416,7 +419,7 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   if (!ShmemCreated::ReadInfo(&aDescriptor, &iter, aId, &size, &type))
     return nullptr;
 
-  nsRefPtr<SharedMemory> segment;
+  SharedMemory* segment = nullptr;
   size_t pageSize = SharedMemory::SystemPageSize();
   // |2*pageSize| is for the front and back sentinels
   size_t segmentSize = SharedMemory::PageAlignedSize(size + 2*pageSize);
@@ -457,6 +460,7 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
 
   if (size != header->mSize) {
     NS_ERROR("Wrong size for this Shmem!");
+    delete segment;
     return nullptr;
   }
 
@@ -465,7 +469,7 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   if (!header->mUnsafe && aProtect)
     Protect(segment);
 
-  return segment.forget();
+  return segment;
 }
 
 // static
@@ -495,14 +499,14 @@ Shmem::Dealloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
 #else  // !defined(DEBUG)
 
 // static
-already_AddRefed<Shmem::SharedMemory>
+Shmem::SharedMemory*
 Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
              size_t aNBytes,
              SharedMemoryType aType,
              bool /*unused*/,
              bool /*unused*/)
 {
-  nsRefPtr<SharedMemory> segment;
+  SharedMemory *segment = nullptr;
 
   if (aType == SharedMemory::TYPE_BASIC)
     segment = CreateSegment(SharedMemory::PageAlignedSize(aNBytes + sizeof(uint32_t)),
@@ -521,11 +525,11 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
 
   *PtrToSize(segment) = static_cast<uint32_t>(aNBytes);
 
-  return segment.forget();
+  return segment;
 }
 
 // static
-already_AddRefed<Shmem::SharedMemory>
+Shmem::SharedMemory*
 Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
                     const IPC::Message& aDescriptor,
                     id_t* aId,
@@ -541,7 +545,7 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   if (!ShmemCreated::ReadInfo(&aDescriptor, &iter, aId, &size, &type))
     return nullptr;
 
-  nsRefPtr<SharedMemory> segment;
+  SharedMemory* segment = nullptr;
   size_t segmentSize = SharedMemory::PageAlignedSize(size + sizeof(uint32_t));
 
   if (SharedMemory::TYPE_BASIC == type) {
@@ -576,10 +580,11 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
 
   // this is the only validity check done in non-DEBUG builds
   if (size != static_cast<size_t>(*PtrToSize(segment))) {
+    delete segment;
     return nullptr;
   }
 
-  return segment.forget();
+  return segment;
 }
 
 // static

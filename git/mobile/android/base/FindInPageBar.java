@@ -25,7 +25,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
 
     private final Context mContext;
     private CustomEditText mFindText;
-    private boolean mInflated;
+    private boolean mInflated = false;
 
     public FindInPageBar(Context context, AttributeSet attrs) {
         super(context, attrs);

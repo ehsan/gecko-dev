@@ -46,14 +46,14 @@ public class HomeBanner extends LinearLayout
     private boolean mSnapBannerToTop;
 
     // Tracks whether or not the banner should be shown on the current panel.
-    private boolean mActive;
+    private boolean mActive = false;
 
     // The user is currently swiping between HomePager pages
-    private boolean mScrollingPages;
+    private boolean mScrollingPages = false;
 
     // Tracks whether the user swiped the banner down, preventing us from autoshowing when the user
     // switches back to the default page.
-    private boolean mUserSwipedDown;
+    private boolean mUserSwipedDown = false;
 
     // We must use this custom TextView to address an issue on 2.3 and lower where ellipsized text
     // will not wrap more than 2 lines.

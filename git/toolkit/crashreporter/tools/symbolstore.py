@@ -20,7 +20,6 @@
 #     -s <srcdir>  : Use <srcdir> as the top source directory to
 #                    generate relative filenames.
 
-import errno
 import sys
 import platform
 import os
@@ -34,12 +33,6 @@ import multiprocessing
 import collections
 from optparse import OptionParser
 from xml.dom.minidom import parse
-
-from mozpack.copier import FileRegistry
-from mozpack.manifests import (
-    InstallManifest,
-    UnreadableInstallManifest,
-)
 
 # Utility classes
 
@@ -285,39 +278,6 @@ def GetVCSFilename(file, srcdirs):
     # we want forward slashes on win32 paths
     return (file.replace("\\", "/"), root)
 
-def validate_install_manifests(install_manifest_args):
-    args = []
-    for arg in install_manifest_args:
-        bits = arg.split(',')
-        if len(bits) != 2:
-            raise ValueError('Invalid format for --install-manifest: '
-                             'specify manifest,target_dir')
-        manifest_file, destination = map(os.path.abspath, bits)
-        if not os.path.isfile(manifest_file):
-            raise IOError(errno.ENOENT, 'Manifest file not found',
-                          manifest_file)
-        if not os.path.isdir(destination):
-            raise IOError(errno.ENOENT, 'Install directory not found',
-                          destination)
-        try:
-            manifest = InstallManifest(manifest_file)
-        except UnreadableInstallManifest:
-            raise IOError(errno.EINVAL, 'Error parsing manifest file',
-                          manifest_file)
-        args.append((manifest, destination))
-    return args
-
-def make_file_mapping(install_manifests):
-    file_mapping = {}
-    for manifest, destination in install_manifests:
-        destination = os.path.abspath(destination)
-        reg = FileRegistry()
-        manifest.populate_registry(reg)
-        for dst, src in reg:
-            if hasattr(src, 'path'):
-                file_mapping[os.path.join(destination, dst)] = src.path
-    return file_mapping
-
 def GetPlatformSpecificDumper(**kwargs):
     """This function simply returns a instance of a subclass of Dumper
     that is appropriate for the current platform."""
@@ -383,8 +343,7 @@ class Dumper:
                  vcsinfo=False,
                  srcsrv=False,
                  exclude=[],
-                 repo_manifest=None,
-                 file_mapping=None):
+                 repo_manifest=None):
         # popen likes absolute paths, at least on windows
         self.dump_syms = os.path.abspath(dump_syms)
         self.symbol_path = symbol_path
@@ -400,7 +359,6 @@ class Dumper:
         self.exclude = exclude[:]
         if repo_manifest:
             self.parse_repo_manifest(repo_manifest)
-        self.file_mapping = file_mapping or {}
 
         # book-keeping to keep track of our jobs and the cleanup work per file tuple
         self.files_record = {}
@@ -635,9 +593,13 @@ class Dumper:
                         if line.startswith("FILE"):
                             # FILE index filename
                             (x, index, filename) = line.rstrip().split(None, 2)
-                            filename = os.path.normpath(self.FixFilenameCase(filename))
-                            if filename in self.file_mapping:
-                                filename = self.file_mapping[filename]
+                            if sys.platform == "sunos5":
+                                for srcdir in self.srcdirs:
+                                    start = filename.find(self.srcdir)
+                                    if start != -1:
+                                        filename = filename[start:]
+                                        break
+                            filename = self.FixFilenameCase(filename)
                             sourcepath = filename
                             if self.vcsinfo:
                                 (filename, rootname) = GetVCSFilename(filename, self.srcdirs)
@@ -645,7 +607,7 @@ class Dumper:
                                 if vcs_root is None:
                                   if rootname:
                                      vcs_root = rootname
-                            # gather up files with hg for indexing
+                            # gather up files with hg for indexing   
                             if filename.startswith("hg"):
                                 (ver, checkout, source_file, revision) = filename.split(":", 3)
                                 sourceFileStream += sourcepath + "*" + source_file + '*' + revision + "\r\n"
@@ -920,13 +882,6 @@ def main():
                       help="""Get source information from this XML manifest
 produced by the `repo manifest -r` command.
 """)
-    parser.add_option("--install-manifest",
-                      action="append", dest="install_manifests",
-                      default=[],
-                      help="""Use this install manifest to map filenames back
-to canonical locations in the source repository. Specify
-<install manifest filename>,<install destination> as a comma-separated pair.
-""")
     (options, args) = parser.parse_args()
 
     #check to see if the pdbstr.exe exists
@@ -940,12 +895,6 @@ to canonical locations in the source repository. Specify
         parser.error("not enough arguments")
         exit(1)
 
-    try:
-        manifests = validate_install_manifests(options.install_manifests)
-    except (IOError, ValueError) as e:
-        parser.error(str(e))
-        exit(1)
-    file_mapping = make_file_mapping(manifests)
     dumper = GetPlatformSpecificDumper(dump_syms=args[0],
                                        symbol_path=args[1],
                                        copy_debug=options.copy_debug,
@@ -954,8 +903,7 @@ to canonical locations in the source repository. Specify
                                        vcsinfo=options.vcsinfo,
                                        srcsrv=options.srcsrv,
                                        exclude=options.exclude,
-                                       repo_manifest=options.repo_manifest,
-                                       file_mapping=file_mapping)
+                                       repo_manifest=options.repo_manifest)
     for arg in args[2:]:
         dumper.Process(arg)
     dumper.Finish()

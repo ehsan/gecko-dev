@@ -43,7 +43,6 @@ PARALLEL_DIRS += [
     'bindings',
     'battery',
     'browser-element',
-    'canvas',
     'contacts',
     'crypto',
     'phonenumberutils',
@@ -56,7 +55,6 @@ PARALLEL_DIRS += [
     'filesystem',
     'fmradio',
     'asmjscache',
-    'mathml',
     'media',
     'messages',
     'power',
@@ -84,7 +82,6 @@ PARALLEL_DIRS += [
     'inputmethod',
     'webidl',
     'xbl',
-    'xml',
     'xslt',
     'resourcestats',
 ]

@@ -16,12 +16,12 @@ public class INISection {
     private static final String LOGTAG = "INIParser";
 
     // default file to read and write to
-    private String mName;
+    private String mName = null;
     public String getName() { return mName; }
     public void setName(String name) { mName = name; }
 
     // show or hide debug logging
-    private  boolean mDebug;
+    private  boolean mDebug = false;
 
     // Global properties that aren't inside a section in the file
     protected Hashtable<String, Object> mProperties = null;

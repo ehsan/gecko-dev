@@ -70,7 +70,7 @@ public final class NotificationHelper implements GeckoEventListener {
     // Will not include ongoing or persistent notifications that are tied to Gecko's lifecycle.
     private HashMap<String, String> mClearableNotifications;
 
-    private boolean mInitialized;
+    private boolean mInitialized = false;
     private static NotificationHelper sInstance;
 
     private NotificationHelper(Context context) {

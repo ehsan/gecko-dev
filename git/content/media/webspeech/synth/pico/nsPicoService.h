@@ -37,6 +37,8 @@ public:
 
   nsPicoService();
 
+  virtual ~nsPicoService();
+
   static nsPicoService* GetInstance();
 
   static already_AddRefed<nsPicoService> GetInstanceForService();
@@ -44,8 +46,6 @@ public:
   static void Shutdown();
 
 private:
-
-  virtual ~nsPicoService();
 
   void Init();
 

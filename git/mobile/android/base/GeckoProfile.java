@@ -37,13 +37,13 @@ public final class GeckoProfile {
     private static final String GUEST_PROFILE = "guest";
 
     private static HashMap<String, GeckoProfile> sProfileCache = new HashMap<String, GeckoProfile>();
-    private static String sDefaultProfileName;
+    private static String sDefaultProfileName = null;
 
     // Caches the guest profile dir.
-    private static File sGuestDir;
-    private static GeckoProfile sGuestProfile;
+    private static File sGuestDir = null;
+    private static GeckoProfile sGuestProfile = null;
 
-    public static boolean sIsUsingCustomProfile;
+    public static boolean sIsUsingCustomProfile = false;
 
     private final String mName;
     private final File mMozillaDir;
@@ -64,7 +64,7 @@ public final class GeckoProfile {
     // These are volatile for an incremental improvement in thread safety,
     // but this is not a complete solution for concurrency.
     private volatile LockState mLocked = LockState.UNDEFINED;
-    private volatile boolean mInGuestMode;
+    private volatile boolean mInGuestMode = false;
 
     // Constants to cache whether or not a profile is "locked".
     private enum LockState {

@@ -34,7 +34,7 @@ public class TabCounter extends ThemedTextSwitcher
     private final AnimationSet mFlipOutBackward;
     private final LayoutInflater mInflater;
 
-    private int mCount;
+    private int mCount = 0;
 
     private enum FadeMode {
         FADE_IN,

@@ -5,13 +5,4 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 PARALLEL_DIRS += ['interfaces', 'src']
-
-XPCSHELL_TESTS_MANIFESTS += [
-    'tests/unit/xpcshell.ini',
-    'tests/unit_ipc/xpcshell.ini',
-]
-
-if CONFIG['tests/MOZ_B2G_RIL']:
-    XPCSHELL_TESTS_MANIFESTS += ['tests/unit_stats/xpcshell.ini']
-
-MOCHITEST_MANIFESTS += ['tests/mochitest.ini']
+TEST_DIRS += ['tests']

@@ -15,13 +15,10 @@ import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ProgressBar;
 
 public class PostSearchFragment extends Fragment {
 
     private static final String LOGTAG = "PostSearchFragment";
-
-    private ProgressBar progressBar;
     private WebView webview;
 
     private static final String HIDE_BANNER_SCRIPT = "javascript:(function(){var tag=document.createElement('style');" +
@@ -33,26 +30,15 @@ public class PostSearchFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View mainView = inflater.inflate(R.layout.search_fragment_post_search, container, false);
+        webview = (WebView) inflater.inflate(R.layout.search_fragment_post_search, container, false);
 
-        progressBar = (ProgressBar) mainView.findViewById(R.id.progress_bar);
-
-        webview = (WebView) mainView.findViewById(R.id.webview);
-        webview.setWebChromeClient(new ChromeClient());
         webview.setWebViewClient(new LinkInterceptingClient());
+        webview.setWebChromeClient(new StyleInjectingClient());
+
         // This is required for our greasemonkey terror script.
         webview.getSettings().setJavaScriptEnabled(true);
 
-        return mainView;
-    }
-
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        webview.setWebChromeClient(null);
-        webview.setWebViewClient(null);
-        webview = null;
-        progressBar = null;
+        return webview;
     }
 
     /**
@@ -104,24 +90,12 @@ public class PostSearchFragment extends Fragment {
      * event. Once the title is available, the page will have started parsing the
      * head element. The script injects its CSS into the head element.
      */
-    private class ChromeClient extends WebChromeClient {
+    private class StyleInjectingClient extends WebChromeClient {
 
         @Override
         public void onReceivedTitle(WebView view, String title) {
             super.onReceivedTitle(view, title);
             view.loadUrl(HIDE_BANNER_SCRIPT);
-        }
-
-        @Override
-        public void onProgressChanged(WebView view, int newProgress) {
-            if (newProgress < 100) {
-                if (progressBar.getVisibility() == View.INVISIBLE) {
-                    progressBar.setVisibility(View.VISIBLE);
-                }
-                progressBar.setProgress(newProgress);
-            } else {
-                progressBar.setVisibility(View.INVISIBLE);
-            }
         }
     }
 }

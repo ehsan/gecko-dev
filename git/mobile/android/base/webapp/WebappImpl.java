@@ -40,8 +40,8 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
     private static final String LOGTAG = "GeckoWebappImpl";
 
     private URI mOrigin;
-    private TextView mTitlebarText;
-    private View mTitlebar;
+    private TextView mTitlebarText = null;
+    private View mTitlebar = null;
 
     private View mSplashscreen;
 

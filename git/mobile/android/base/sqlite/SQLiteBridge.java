@@ -29,13 +29,13 @@ public class SQLiteBridge {
     private String mDb;
 
     // Pointer to the database if it was opened with openDatabase. 0 implies closed.
-    protected volatile long mDbPointer;
+    protected volatile long mDbPointer = 0L;
 
     // Values remembered after a query.
     private long[] mQueryResults;
 
-    private boolean mTransactionSuccess;
-    private boolean mInTransaction;
+    private boolean mTransactionSuccess = false;
+    private boolean mInTransaction = false;
 
     private static final int RESULT_INSERT_ROW_ID = 0;
     private static final int RESULT_ROWS_CHANGED = 1;

@@ -6,4 +6,4 @@
 
 PARALLEL_DIRS += ['interfaces', 'src']
 
-MOCHITEST_MANIFESTS += ['test/mochitest.ini']
+TEST_DIRS += ['test']

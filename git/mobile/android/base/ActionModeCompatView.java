@@ -34,7 +34,7 @@ class ActionModeCompatView extends LinearLayout implements GeckoMenu.ActionItemB
     // Maximum number of items to show as actions
     private static final int MAX_ACTION_ITEMS = 4;
 
-    private int mActionButtonsWidth;
+    private int mActionButtonsWidth = 0;
 
     public ActionModeCompatView(Context context) {
         super(context);

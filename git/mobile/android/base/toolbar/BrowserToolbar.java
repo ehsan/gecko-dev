@@ -143,9 +143,9 @@ public class BrowserToolbar extends ThemedRelativeLayout
     private final ThemedImageView editCancel;
 
     private final View[] tabletDisplayModeViews;
-    private boolean hidForwardButtonOnStartEditing;
+    private boolean hidForwardButtonOnStartEditing = false;
 
-    private boolean shouldShrinkURLBar;
+    private boolean shouldShrinkURLBar = false;
 
     private OnActivateListener activateListener;
     private OnFocusChangeListener focusChangeListener;

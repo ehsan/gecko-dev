@@ -37,7 +37,7 @@
 #include "ActiveLayerTracker.h"
 
 #ifdef MOZ_WEBGL
-#include "WebGL2Context.h"
+#include "../canvas/src/WebGL2Context.h"
 #endif
 
 using namespace mozilla::layers;

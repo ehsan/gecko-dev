@@ -35,11 +35,8 @@ public:
   virtual nsresult Shutdown() MOZ_OVERRIDE;
 
 protected:
-  AVFrame*        PrepareFrame();
-
   MediaTaskQueue* mTaskQueue;
-  AVCodecContext* mCodecContext;
-  AVFrame*        mFrame;
+  AVCodecContext mCodecContext;
   Vector<uint8_t> mExtraData;
 
 private:

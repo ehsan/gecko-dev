@@ -205,8 +205,6 @@ class OSXBootstrapper(BaseBootstrapper):
                     self._install_xcode_app_store()
                     assert False # Above should exit.
 
-                output = e.output
-
             # This isn't the most robust check in the world. It relies on the
             # default value not being in an application bundle, which seems to
             # hold on at least Mavericks.

@@ -127,8 +127,7 @@ GMPParent::CloseIfUnused()
        mState == GMPStateLoaded ||
        mState == GMPStateUnloading) &&
       mVideoDecoders.IsEmpty() &&
-      mVideoEncoders.IsEmpty() &&
-      mDecryptors.IsEmpty()) {
+      mVideoEncoders.IsEmpty()) {
     Shutdown();
   }
 }
@@ -152,11 +151,6 @@ GMPParent::CloseActive(bool aDieWhenUnloaded)
   // Invalidate and remove any remaining API objects.
   for (uint32_t i = mVideoEncoders.Length(); i > 0; i--) {
     mVideoEncoders[i - 1]->Shutdown();
-  }
-
-  // Invalidate and remove any remaining API objects.
-  for (uint32_t i = mDecryptors.Length(); i > 0; i--) {
-    mDecryptors[i - 1]->Shutdown();
   }
 
   // Note: the shutdown of the codecs is async!  don't kill
@@ -229,44 +223,6 @@ GMPParent::VideoEncoderDestroyed(GMPVideoEncoderParent* aEncoder)
     nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &GMPParent::CloseIfUnused);
     NS_DispatchToCurrentThread(event);
   }
-}
-
-void
-GMPParent::DecryptorDestroyed(GMPDecryptorParent* aSession)
-{
-  MOZ_ASSERT(GMPThread() == NS_GetCurrentThread());
-
-  MOZ_ALWAYS_TRUE(mDecryptors.RemoveElement(aSession));
-
-  // Recv__delete__ is on the stack, don't potentially destroy the top-level actor
-  // until after this has completed.
-  if (mDecryptors.IsEmpty()) {
-    nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &GMPParent::CloseIfUnused);
-    NS_DispatchToCurrentThread(event);
-  }
-}
-
-nsresult
-GMPParent::GetGMPDecryptor(GMPDecryptorParent** aGMPDP)
-{
-  MOZ_ASSERT(GMPThread() == NS_GetCurrentThread());
-
-  if (!EnsureProcessLoaded()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  PGMPDecryptorParent* pdp = SendPGMPDecryptorConstructor();
-  if (!pdp) {
-    return NS_ERROR_FAILURE;
-  }
-  GMPDecryptorParent* dp = static_cast<GMPDecryptorParent*>(pdp);
-  // This addref corresponds to the Proxy pointer the consumer is returned.
-  // It's dropped by calling Close() on the interface.
-  NS_ADDREF(dp);
-  mDecryptors.AppendElement(dp);
-  *aGMPDP = dp;
-
-  return NS_OK;
 }
 
 GMPState
@@ -502,22 +458,6 @@ GMPParent::DeallocPGMPVideoEncoderParent(PGMPVideoEncoderParent* aActor)
 {
   GMPVideoEncoderParent* vep = static_cast<GMPVideoEncoderParent*>(aActor);
   NS_RELEASE(vep);
-  return true;
-}
-
-PGMPDecryptorParent*
-GMPParent::AllocPGMPDecryptorParent()
-{
-  GMPDecryptorParent* ksp = new GMPDecryptorParent(this);
-  NS_ADDREF(ksp);
-  return ksp;
-}
-
-bool
-GMPParent::DeallocPGMPDecryptorParent(PGMPDecryptorParent* aActor)
-{
-  GMPDecryptorParent* ksp = static_cast<GMPDecryptorParent*>(aActor);
-  NS_RELEASE(ksp);
   return true;
 }
 

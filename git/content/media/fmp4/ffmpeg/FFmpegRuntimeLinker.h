@@ -7,8 +7,6 @@
 #ifndef __FFmpegRuntimeLinker_h__
 #define __FFmpegRuntimeLinker_h__
 
-#include <stdint.h>
-
 namespace mozilla
 {
 
@@ -26,7 +24,7 @@ private:
   static void* sLinkedLib;
   static const AvFormatLib* sLib;
 
-  static bool Bind(const char* aLibName, uint32_t Version);
+  static bool Bind(const char* aLibName);
 
   static enum LinkStatus {
     LinkStatus_INIT = 0,

@@ -48,7 +48,7 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
     private static int mMinRowSize;
     private static int mIconTextPadding;
     private static float mTextSize;
-    private static boolean mInitialized;
+    private static boolean mInitialized = false;
 
     PromptListAdapter(Context context, int textViewResourceId, PromptListItem[] objects) {
         super(context, textViewResourceId, objects);
