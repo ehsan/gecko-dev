@@ -403,11 +403,10 @@ JSONSpewer::spewIntervals(LinearScanAllocator *regalloc)
         LBlock *lir = regalloc->graph.getBlock(bno);
         for (LInstructionIterator ins = lir->begin(); ins != lir->end(); ins++) {
             for (size_t k = 0; k < ins->numDefs(); k++) {
-                uint32_t id = ins->getDef(k)->virtualRegister();
-                VirtualRegister *vreg = &regalloc->vregs[id];
+                VirtualRegister *vreg = &regalloc->vregs[ins->getDef(k)->virtualRegister()];
 
                 beginObject();
-                integerProperty("vreg", id);
+                integerProperty("vreg", vreg->id());
                 beginListProperty("intervals");
 
                 for (size_t i = 0; i < vreg->numIntervals(); i++) {

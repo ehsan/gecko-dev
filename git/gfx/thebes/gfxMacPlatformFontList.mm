@@ -62,12 +62,10 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 #include "nsCharTraits.h"
-#include "gfxFontConstants.h"
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/gfx/2D.h"
 
 #include <unistd.h>
 #include <time.h>

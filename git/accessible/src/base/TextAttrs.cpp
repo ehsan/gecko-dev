@@ -15,7 +15,6 @@
 #include "nsLayoutUtils.h"
 #include "HyperTextAccessible.h"
 #include "mozilla/AppUnits.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;

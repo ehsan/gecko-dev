@@ -131,6 +131,11 @@ RemoveGLDrawTarget(DrawTargetSkia* target)
 DrawTargetSkia::DrawTargetSkia()
   : mSnapshot(nullptr)
 {
+#ifdef ANDROID
+  mSoftClipping = false;
+#else
+  mSoftClipping = true;
+#endif
 }
 
 DrawTargetSkia::~DrawTargetSkia()
@@ -702,6 +707,9 @@ DrawTargetSkia::InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLCont
   mSize = aSize;
   mFormat = aFormat;
 
+  // Always use soft clipping when we're using GL
+  mSoftClipping = true;
+
   mGrGLInterface = aGrGLInterface;
   mGrGLInterface->fCallbackData = reinterpret_cast<GrGLInterfaceCallbackData>(this);
 
@@ -783,7 +791,7 @@ DrawTargetSkia::ClearRect(const Rect &aRect)
   MarkChanged();
   SkPaint paint;
   mCanvas->save();
-  mCanvas->clipRect(RectToSkRect(aRect), SkRegion::kIntersect_Op, true);
+  mCanvas->clipRect(RectToSkRect(aRect), SkRegion::kIntersect_Op, mSoftClipping);
   paint.setColor(SkColorSetARGB(0, 0, 0, 0));
   paint.setXfermodeMode(SkXfermode::kSrc_Mode);
   mCanvas->drawPaint(paint);
@@ -799,7 +807,7 @@ DrawTargetSkia::PushClip(const Path *aPath)
 
   const PathSkia *skiaPath = static_cast<const PathSkia*>(aPath);
   mCanvas->save(SkCanvas::kClip_SaveFlag);
-  mCanvas->clipPath(skiaPath->GetPath(), SkRegion::kIntersect_Op, true);
+  mCanvas->clipPath(skiaPath->GetPath(), SkRegion::kIntersect_Op, mSoftClipping);
 }
 
 void
@@ -808,7 +816,7 @@ DrawTargetSkia::PushClipRect(const Rect& aRect)
   SkRect rect = RectToSkRect(aRect);
 
   mCanvas->save(SkCanvas::kClip_SaveFlag);
-  mCanvas->clipRect(rect, SkRegion::kIntersect_Op, true);
+  mCanvas->clipRect(rect, SkRegion::kIntersect_Op, mSoftClipping);
 }
 
 void

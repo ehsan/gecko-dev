@@ -32,9 +32,4 @@ MOCHITEST_WEBAPPRT_CHROME_FILES = \
     debugger.webapp \
     debugger.webapp^headers^ \
     debugger.html \
-  browser_mozpay.js \
-    mozpay.webapp \
-    mozpay.webapp^headers^ \
-    mozpay.html \
-    mozpay-success.html \
   $(NULL)

@@ -11,6 +11,9 @@
 
 #include "cairo/cairo.h"
 
+#include "gfxFont.h"
+#include "gfxUserFontSet.h"
+
 struct gfxFontTestItem {
     gfxFontTestItem(const nsCString& fontName,
                     cairo_glyph_t *cglyphs, int nglyphs)

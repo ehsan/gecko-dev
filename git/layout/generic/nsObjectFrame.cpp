@@ -131,8 +131,8 @@ extern "C" {
     GWorldPtr *   offscreenGWorld,
     UInt32        PixelFormat,
     const Rect *  boundsRect,
-    CTabHandle    cTable,                /* can be nullptr */
-    GDHandle      aGDevice,              /* can be nullptr */
+    CTabHandle    cTable,                /* can be NULL */
+    GDHandle      aGDevice,              /* can be NULL */
     GWorldFlags   flags,
     Ptr           newBuffer,
     SInt32        rowBytes)
@@ -1348,8 +1348,7 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
     return;
   }
   GWorldPtr gWorld;
-  if (::NewGWorldFromPtr(&gWorld, k32ARGBPixelFormat, &gwBounds,
-                         nullptr, nullptr, 0,
+  if (::NewGWorldFromPtr(&gWorld, k32ARGBPixelFormat, &gwBounds, NULL, NULL, 0,
                          buffer.Elements(), window.width * 4) != noErr) {
     ::CGContextRelease(cgBuffer);
     nativeDraw.EndNativeDrawing();
@@ -1743,7 +1742,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
 
       // this rect is used only in the CoreGraphics drawing model
       gfxRect tmpRect(0, 0, 0, 0);
-      mInstanceOwner->Paint(tmpRect, nullptr);
+      mInstanceOwner->Paint(tmpRect, NULL);
     }
   }
 #elif defined(MOZ_X11)

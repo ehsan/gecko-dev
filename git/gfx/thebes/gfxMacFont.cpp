@@ -14,8 +14,6 @@
 #include "gfxPlatformMac.h"
 #include "gfxContext.h"
 #include "gfxFontUtils.h"
-#include "gfxMacPlatformFontList.h"
-#include "gfxFontConstants.h"
 
 #include "cairo-quartz.h"
 

@@ -26,7 +26,6 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIWindowsRegKey.h"
-#include "gfxFontConstants.h"
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Telemetry.h"

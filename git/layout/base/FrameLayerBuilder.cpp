@@ -122,7 +122,7 @@ FrameLayerBuilder::DisplayItemData::UpdateContents(Layer* aLayer, LayerState aSt
   }
 }
 
-static nsIFrame* sDestroyedFrame = nullptr;
+static nsIFrame* sDestroyedFrame = NULL;
 FrameLayerBuilder::DisplayItemData::~DisplayItemData()
 {
   for (uint32_t i = 0; i < mFrameList.Length(); i++) {
@@ -909,7 +909,7 @@ FrameLayerBuilder::RemoveFrameFromLayerManager(nsIFrame* aFrame,
 
   arrayCopy.Clear();
   delete array;
-  sDestroyedFrame = nullptr;
+  sDestroyedFrame = NULL;
 }
 
 void
@@ -2227,8 +2227,8 @@ ContainerState::InvalidateForLayerChange(nsDisplayItem* aItem,
 {
   NS_ASSERTION(aItem->GetPerFrameKey(),
                "Display items that render using Thebes must have a key");
-  nsDisplayItemGeometry *oldGeometry = nullptr;
-  DisplayItemClip* oldClip = nullptr;
+  nsDisplayItemGeometry *oldGeometry = NULL;
+  DisplayItemClip* oldClip = NULL;
   nsAutoTArray<nsIFrame*,4> changedFrames;
   bool isInvalid = false;
   Layer* oldLayer = mLayerBuilder->GetOldLayerFor(aItem, &oldGeometry, &oldClip, &changedFrames, &isInvalid);

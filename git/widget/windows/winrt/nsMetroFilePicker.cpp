@@ -77,7 +77,7 @@ HRESULT nsMetroFilePicker::OnPickSingleFile(IAsyncOperation<StorageFile*>* aFile
   HRESULT hr;
   ComPtr<IStorageFile> file;
   hr = aFile->GetResults(file.GetAddressOf());
-  // When the user cancels hr == S_OK and file is nullptr
+  // When the user cancels hr == S_OK and file is NULL
   if (FAILED(hr) || !file) {
     if (mCallback)
       mCallback->Done(nsIFilePicker::returnCancel);

@@ -5,9 +5,7 @@
 
 
 #include "mozilla/MemoryReporting.h"
-#if defined(HAVE_POSIX_MEMALIGN)
 #include "gfxAlphaRecovery.h"
-#endif
 #include "gfxImageSurface.h"
 
 #include "cairo.h"

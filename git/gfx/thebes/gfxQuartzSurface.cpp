@@ -5,7 +5,6 @@
 
 #include "gfxQuartzSurface.h"
 #include "gfxContext.h"
-#include "gfxImageSurface.h"
 
 #include "cairo-quartz.h"
 

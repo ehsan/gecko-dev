@@ -82,10 +82,6 @@ let UI = {
   },
 
   addHosted: function() {
-    let form = document.querySelector("#new-hosted-project-wrapper")
-    if (!form.checkValidity())
-      return;
-
     let urlInput = document.querySelector("#url-input");
     let manifestURL = urlInput.value;
     AppProjects.addHosted(manifestURL)
@@ -212,10 +208,8 @@ let UI = {
   },
 
   install: function(project) {
-    this.connection.log("Installing the " + project.manifest.name + " app...");
-    let installPromise;
     if (project.type == "packaged") {
-      installPromise = installPackaged(this.connection.client, this.listTabsResponse.webappsActor, project.location, project.packagedAppOrigin)
+      return installPackaged(this.connection.client, this.listTabsResponse.webappsActor, project.location, project.packagedAppOrigin)
         .then(({ appId }) => {
           // If the packaged app specified a custom origin override,
           // we need to update the local project origin
@@ -231,16 +225,8 @@ let UI = {
         origin: origin.spec,
         manifestURL: project.location
       };
-      installPromise = installHosted(this.connection.client, this.listTabsResponse.webappsActor, appId, metadata, project.manifest);
+      return installHosted(this.connection.client, this.listTabsResponse.webappsActor, appId, metadata, project.manifest);
     }
-
-    installPromise.then(() => {
-      this.connection.log("Install completed.");
-    }, () => {
-      this.connection.log("Install failed.");
-    });
-
-    return installPromise;
   },
 
   start: function(project) {

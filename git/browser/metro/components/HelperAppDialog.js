@@ -65,6 +65,7 @@ HelperAppLauncherDialog.prototype = {
   },
 
   _showDownloadInfobar: function do_showDownloadInfobar(aLauncher) {
+    Services.obs.notifyObservers(null, "dl-request", "");
     let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
 
     let runButtonText =

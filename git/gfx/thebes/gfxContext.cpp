@@ -9,6 +9,7 @@
 #include <math.h>
 
 #include "mozilla/Alignment.h"
+#include "mozilla/Constants.h"
 
 #include "cairo.h"
 
@@ -21,7 +22,6 @@
 #include "gfxPlatform.h"
 #include "gfxTeeSurface.h"
 #include "GeckoProfiler.h"
-#include "gfx2DGlue.h"
 #include <algorithm>
 
 #if CAIRO_HAS_DWRITE_FONT

@@ -352,7 +352,7 @@ private:
   class SynthesizingEvent {
   public:
     SynthesizingEvent() :
-      mWnd(nullptr), mMessage(0), mWParam(0), mLParam(0),
+      mWnd(NULL), mMessage(0), mWParam(0), mLParam(0),
       mStatus(NOT_SYNTHESIZING)
     {
     }

@@ -214,7 +214,7 @@ protected:
     HRESULT const hr;
 
     OleInitializeWrapper()
-      : hr(::OleInitialize(nullptr))
+      : hr(::OleInitialize(NULL))
     {
     }
 

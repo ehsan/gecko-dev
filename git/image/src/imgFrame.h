@@ -22,7 +22,6 @@
 #endif
 #include "nsAutoPtr.h"
 #include "imgIContainer.h"
-#include "gfxColor.h"
 
 class imgFrame
 {

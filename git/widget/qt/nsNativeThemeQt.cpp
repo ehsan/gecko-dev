@@ -212,28 +212,28 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
         QStyleOptionSlider opt;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)opt, QStyle::State_Horizontal);
         opt.orientation = Qt::Horizontal;
-        style->drawControl(QStyle::CE_ScrollBarSubLine, &opt, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarSubLine, &opt, qPainter, NULL);
         break;
         }
     case NS_THEME_SCROLLBAR_BUTTON_RIGHT: {
         QStyleOptionSlider opt;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)opt, QStyle::State_Horizontal);
         opt.orientation = Qt::Horizontal;
-        style->drawControl(QStyle::CE_ScrollBarAddLine, &opt, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarAddLine, &opt, qPainter, NULL);
         break;
         }
     case NS_THEME_SCROLLBAR_BUTTON_UP: {
         QStyleOptionSlider opt;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)opt);
         opt.orientation = Qt::Vertical;
-        style->drawControl(QStyle::CE_ScrollBarSubLine, &opt, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarSubLine, &opt, qPainter, NULL);
         break;
     }
     case NS_THEME_SCROLLBAR_BUTTON_DOWN: {
         QStyleOptionSlider opt;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)opt);
         opt.orientation = Qt::Vertical;
-        style->drawControl(QStyle::CE_ScrollBarAddLine, &opt, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarAddLine, &opt, qPainter, NULL);
         break;
     }
     case NS_THEME_SCROLLBAR_THUMB_HORIZONTAL: {
@@ -241,14 +241,14 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
         QStyleOptionSlider option;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)option, extraFlags);
         option.orientation = Qt::Horizontal;
-        style->drawControl(QStyle::CE_ScrollBarSlider, &option, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarSlider, &option, qPainter, NULL);
         break;
         }
     case NS_THEME_SCROLLBAR_THUMB_VERTICAL: {
         QStyleOptionSlider option;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)option, extraFlags);
         option.orientation = Qt::Vertical;
-        style->drawControl(QStyle::CE_ScrollBarSlider, &option, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarSlider, &option, qPainter, NULL);
         break;
     }
     case NS_THEME_DROPDOWN: {
@@ -289,13 +289,13 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
         }
         
         frameOpt.palette = mNoBackgroundPalette;
-        style->drawPrimitive(QStyle::PE_FrameLineEdit, &frameOpt, qPainter, nullptr);
+        style->drawPrimitive(QStyle::PE_FrameLineEdit, &frameOpt, qPainter, NULL);
         break;
     }
     case NS_THEME_MENUPOPUP: {
         QStyleOptionMenuItem option;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)option, extraFlags);
-        style->drawPrimitive(QStyle::PE_FrameMenu, &option, qPainter, nullptr);
+        style->drawPrimitive(QStyle::PE_FrameMenu, &option, qPainter, NULL);
         break;
     }
     default:
@@ -373,7 +373,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
                 QStyle::SE_CheckBoxIndicator :
                 QStyle::SE_RadioButtonIndicator,
             &option,
-            nullptr);
+            NULL);
 
         (*aResult).width = rect.width();
         (*aResult).height = rect.height();
@@ -391,7 +391,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
         QRect rect = s->subElementRect(
             QStyle::SE_PushButtonFocusRect,
             &option,
-            nullptr);
+            NULL);
 
         (*aResult).width = rect.width();
         (*aResult).height = rect.height();
@@ -442,8 +442,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
 
         InitComboStyle(aWidgetType, aFrame, qRect, comboOpt);
 
-        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt,
-                                          QStyle::SC_ComboBoxArrow, nullptr);
+        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt, QStyle::SC_ComboBoxArrow, NULL);
   
         (*aResult).width = subRect.width();
         (*aResult).height = subRect.height();
@@ -462,7 +461,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
         QRect subRect = s->subControlRect(QStyle::CC_ComboBox, 
                                           &comboOpt, 
                                           QStyle::SC_ComboBoxFrame, 
-                                          nullptr);
+                                          NULL);
 
         (*aResult).width = subRect.width();
         (*aResult).height = subRect.height();
@@ -478,8 +477,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
         
         comboOpt.rect = qRect;
 
-        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt,
-                                          QStyle::SC_ComboBoxEditField, nullptr);
+        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt, QStyle::SC_ComboBoxEditField, NULL);
        
         (*aResult).width = subRect.width();
         (*aResult).height = subRect.height();
@@ -495,10 +493,8 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
 
         comboOpt.rect = qRect;
 
-        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt,
-                                          QStyle::SC_ComboBoxArrow, nullptr);
-        QRect subRect2 = s->subControlRect(QStyle::CC_ComboBox, &comboOpt,
-                                           QStyle::SC_ComboBoxFrame, nullptr);
+        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt, QStyle::SC_ComboBoxArrow, NULL);
+        QRect subRect2 = s->subControlRect(QStyle::CC_ComboBox, &comboOpt, QStyle::SC_ComboBoxFrame, NULL);
 
         (*aResult).width = subRect.width() + subRect2.width();
         (*aResult).height = std::max(subRect.height(), subRect2.height());

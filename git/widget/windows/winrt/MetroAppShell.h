@@ -16,7 +16,7 @@ public:
   NS_DECL_NSIOBSERVER
 
   MetroAppShell() :
-    mEventWnd(nullptr),
+    mEventWnd(NULL),
     mPowerRequestCount(0)
   {
   }

@@ -5,7 +5,6 @@
 
 #include "gfxTeeSurface.h"
 #include "nsAutoPtr.h"
-#include "nsTArray.h"
 
 #include "cairo-tee.h"
 

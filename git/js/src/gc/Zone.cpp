@@ -239,10 +239,4 @@ js::ZoneOfObject(const JSObject &obj)
     return obj.zone();
 }
 
-JS::Zone *
-js::ZoneOfObjectFromAnyThread(const JSObject &obj)
-{
-    return obj.zoneFromAnyThread();
-}
-
 

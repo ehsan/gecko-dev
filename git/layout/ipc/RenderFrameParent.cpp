@@ -109,19 +109,19 @@ AssertInTopLevelChromeDoc(ContainerLayer* aContainer,
     "Expected frame to be in top-level chrome document");
 }
 
-// Return view for given ID in aArray, nullptr if not found.
+// Return view for given ID in aArray, NULL if not found.
 static nsContentView*
 FindViewForId(const ViewMap& aMap, ViewID aId)
 {
   ViewMap::const_iterator iter = aMap.find(aId);
-  return iter != aMap.end() ? iter->second : nullptr;
+  return iter != aMap.end() ? iter->second : NULL;
 }
 
 static const FrameMetrics*
 GetFrameMetrics(Layer* aLayer)
 {
   ContainerLayer* container = aLayer->AsContainerLayer();
-  return container ? &container->GetFrameMetrics() : nullptr;
+  return container ? &container->GetFrameMetrics() : NULL;
 }
 
 /**
@@ -737,7 +737,7 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
     // widget's layer manager changed out from under us.  We need to
     // FIXME handle the former case somehow, probably with an API to
     // draw a manager's subtree.  The latter is bad bad bad, but the
-    // the NS_ABORT_IF_FALSE() above will flag it.  Returning nullptr
+    // the NS_ABORT_IF_FALSE() above will flag it.  Returning NULL
     // here will just cause the shadow subtree not to be rendered.
     NS_WARNING("Remote iframe not rendered");
     return nullptr;
@@ -925,7 +925,7 @@ RenderFrameParent::BuildViewMap()
   if (GetRootLayer() && mFrameLoader->GetPrimaryFrameOfOwningContent()) {
     // Some of the content views in our hash map may no longer be active. To
     // tag them as inactive and to remove any chance of them using a dangling
-    // pointer, we set mContentView to nullptr.
+    // pointer, we set mContentView to NULL.
     //
     // BuildViewMap will restore mFrameLoader if the content view is still
     // in our hash table.
@@ -933,7 +933,7 @@ RenderFrameParent::BuildViewMap()
     for (ViewMap::const_iterator iter = mContentViews.begin();
          iter != mContentViews.end();
          ++iter) {
-      iter->second->mFrameLoader = nullptr;
+      iter->second->mFrameLoader = NULL;
     }
 
     mozilla::layout::BuildViewMap(mContentViews, newContentViews, mFrameLoader, GetRootLayer());

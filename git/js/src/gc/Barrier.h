@@ -152,14 +152,11 @@ class BarrieredCell : public gc::Cell
   public:
     JS_ALWAYS_INLINE JS::Zone *zone() const { return tenuredZone(); }
     JS_ALWAYS_INLINE JS::shadow::Zone *shadowZone() const { return JS::shadow::Zone::asShadowZone(zone()); }
-    JS_ALWAYS_INLINE JS::Zone *zoneFromAnyThread() const { return tenuredZoneFromAnyThread(); }
-    JS_ALWAYS_INLINE JS::shadow::Zone *shadowZoneFromAnyThread() const {
-        return JS::shadow::Zone::asShadowZone(zoneFromAnyThread());
-    }
+    bool isInsideZone(JS::Zone *zone_) const { return tenuredIsInsideZone(zone_); }
 
     static JS_ALWAYS_INLINE void readBarrier(T *thing) {
 #ifdef JSGC_INCREMENTAL
-        JS::shadow::Zone *shadowZone = thing->shadowZoneFromAnyThread();
+        JS::shadow::Zone *shadowZone = thing->shadowZone();
         if (shadowZone->needsBarrier()) {
             MOZ_ASSERT(!RuntimeFromMainThreadIsHeapMajorCollecting(shadowZone));
             T *tmp = thing;
@@ -184,7 +181,7 @@ class BarrieredCell : public gc::Cell
         if (isNullLike(thing) || !thing->shadowRuntimeFromAnyThread()->needsBarrier())
             return;
 
-        JS::shadow::Zone *shadowZone = thing->shadowZoneFromAnyThread();
+        JS::shadow::Zone *shadowZone = thing->shadowZone();
         if (shadowZone->needsBarrier()) {
             MOZ_ASSERT(!RuntimeFromMainThreadIsHeapMajorCollecting(shadowZone));
             T *tmp = thing;
@@ -226,31 +223,6 @@ ZoneOfValue(const JS::Value &value)
     if (value.isObject())
         return ZoneOfObject(value.toObject());
     return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZone();
-}
-
-JS::Zone *
-ZoneOfObjectFromAnyThread(const JSObject &obj);
-
-static inline JS::shadow::Zone *
-ShadowZoneOfObjectFromAnyThread(JSObject *obj)
-{
-    return JS::shadow::Zone::asShadowZone(ZoneOfObjectFromAnyThread(*obj));
-}
-
-static inline JS::shadow::Zone *
-ShadowZoneOfStringFromAnyThread(JSString *str)
-{
-    return JS::shadow::Zone::asShadowZone(
-        reinterpret_cast<const js::gc::Cell *>(str)->tenuredZoneFromAnyThread());
-}
-
-JS_ALWAYS_INLINE JS::Zone *
-ZoneOfValueFromAnyThread(const JS::Value &value)
-{
-    JS_ASSERT(value.isMarkable());
-    if (value.isObject())
-        return ZoneOfObjectFromAnyThread(value.toObject());
-    return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZoneFromAnyThread();
 }
 
 /*
@@ -595,7 +567,7 @@ class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
     static void writeBarrierPre(const Value &v) {
 #ifdef JSGC_INCREMENTAL
         if (v.isMarkable() && shadowRuntimeFromAnyThread(v)->needsBarrier())
-            writeBarrierPre(ZoneOfValueFromAnyThread(v), v);
+            writeBarrierPre(ZoneOfValue(v), v);
 #endif
     }
 
@@ -978,14 +950,14 @@ class EncapsulatedId
 #ifdef JSGC_INCREMENTAL
         if (JSID_IS_OBJECT(value)) {
             JSObject *obj = JSID_TO_OBJECT(value);
-            JS::shadow::Zone *shadowZone = ShadowZoneOfObjectFromAnyThread(obj);
+            JS::shadow::Zone *shadowZone = ShadowZoneOfObject(obj);
             if (shadowZone->needsBarrier()) {
                 js::gc::MarkObjectUnbarriered(shadowZone->barrierTracer(), &obj, "write barrier");
                 JS_ASSERT(obj == JSID_TO_OBJECT(value));
             }
         } else if (JSID_IS_STRING(value)) {
             JSString *str = JSID_TO_STRING(value);
-            JS::shadow::Zone *shadowZone = ShadowZoneOfStringFromAnyThread(str);
+            JS::shadow::Zone *shadowZone = ShadowZoneOfString(str);
             if (shadowZone->needsBarrier()) {
                 js::gc::MarkStringUnbarriered(shadowZone->barrierTracer(), &str, "write barrier");
                 JS_ASSERT(str == JSID_TO_STRING(value));

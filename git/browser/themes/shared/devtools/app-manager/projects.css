@@ -345,12 +345,6 @@ strong {
   text-transform: uppercase;
 }
 
-.project-buttons > button[disabled] {
-  background-color: transparent;
-  opacity: 0.4;
-  pointer-events: none;
-}
-
 .project-buttons > button:first-child {
   border-left-width: 1px;
 }
@@ -364,10 +358,6 @@ strong {
   color: #FFF;
 }
 
-.project-button-debug[disabled] {
-  color: #3498DB;
-}
-
 .project-button-update {
   color: #777;
 }
@@ -375,10 +365,6 @@ strong {
 .project-button-update:hover {
   background-color: #777;
   color: #FFF;
-}
-
-.project-button-update[disabled] {
-  color: #777;
 }
 
 

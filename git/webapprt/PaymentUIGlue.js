@@ -100,29 +100,22 @@ PaymentUI.prototype = {
 
     // Inject paymentSuccess and paymentFailed methods into the document after
     // its loaded.
-    win.addEventListener("DOMContentLoaded", function onDOMContentLoaded() {
-      win.removeEventListener("DOMContentLoaded", onDOMContentLoaded);
-
+    win.addEventListener("DOMWindowCreated", function() {
       let browserElement = win.document.getElementById("content");
       browserElement.
         setAttribute("src", aPaymentFlowInfo.uri + aPaymentFlowInfo.jwt);
 
-      browserElement.addEventListener("DOMWindowCreated",
-        function onDOMWindowCreated() {
-          browserElement.removeEventListener("DOMWindowCreated",
-                                             onDOMWindowCreated);
-
-
-          win.document.getElementById("content").contentDocument.defaultView
-             .wrappedJSObject.mozPaymentProvider = {
-               __exposedProps__: {
-                 paymentSuccess: 'r',
-                 paymentFailed: 'r'
-               },
-               paymentSuccess: paymentSuccess(aRequestId),
-               paymentFailed: paymentFailed(aRequestId)
-             };
-        }, true);
+      browserElement.addEventListener("DOMWindowCreated", function() {
+        win.document.getElementById("content").contentDocument.defaultView
+           .wrappedJSObject.mozPaymentProvider = {
+             __exposedProps__: {
+               paymentSuccess: 'r',
+               paymentFailed: 'r'
+             },
+             paymentSuccess: paymentSuccess(aRequestId),
+             paymentFailed: paymentFailed(aRequestId)
+           };
+      }, true);
     });
 
     let winObserver = function(aClosedWin, aTopic) {
@@ -130,7 +123,7 @@ PaymentUI.prototype = {
         // Fail the payment if the window is closed.
         if (aClosedWin == win) {
           Services.ww.unregisterNotification(winObserver);
-          if (payments[aRequestId] && !payments[aRequestId].handled) {
+          if (!payments[aRequestId].handled) {
             aErrorCb.onresult(aRequestId, "USER_CANCELLED");
           }
         }

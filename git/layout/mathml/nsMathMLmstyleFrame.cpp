@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsMathMLmstyleFrame.h"
-#include "mozilla/gfx/2D.h"
 
 //
 // <mstyle> -- style change

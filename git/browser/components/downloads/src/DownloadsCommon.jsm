@@ -757,7 +757,6 @@ DownloadsDataCtor.prototype = {
    */
   _updateDataItemState: function (aDataItem)
   {
-    let oldState = aDataItem.state;
     let wasInProgress = aDataItem.inProgress;
     let wasDone = aDataItem.done;
 
@@ -767,13 +766,11 @@ DownloadsDataCtor.prototype = {
       aDataItem.endTime = Date.now();
     }
 
-    if (oldState != aDataItem.state) {
-      for (let view of this._views) {
-        try {
-          view.getViewItem(aDataItem).onStateChange(oldState);
-        } catch (ex) {
-          Cu.reportError(ex);
-        }
+    for (let view of this._views) {
+      try {
+        view.getViewItem(aDataItem).onStateChange({});
+      } catch (ex) {
+        Cu.reportError(ex);
       }
     }
 

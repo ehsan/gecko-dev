@@ -4,8 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gfxBlur.h"
-#include "gfxContext.h"
-#include "gfxImageSurface.h"
 
 #include "mozilla/gfx/Blur.h"
 
