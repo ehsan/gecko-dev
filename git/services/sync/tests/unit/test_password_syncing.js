@@ -7,13 +7,17 @@ load("fake_login_manager.js");
 // ----------------------------------------
 
 function run_test() {
-  function passwdFactory() { return new PasswordEngine(); }
-  var syncTesting = new SyncTestingInfrastructure(passwdFactory);
+  var syncTesting = new SyncTestingInfrastructure(PasswordEngine);
   var fakeLoginManager = new FakeLoginManager(fakeSampleLogins);
 
-  syncTesting.doSync("initial sync");
+  function freshEngineSync(cb) {
+    let engine = new PasswordEngine();
+    engine.sync(cb);
+  };
 
-  syncTesting.doSync("trivial re-sync");
+  syncTesting.runAsyncFunc("initial sync", freshEngineSync);
+
+  syncTesting.runAsyncFunc("trivial re-sync", freshEngineSync);
 
   fakeLoginManager.fakeLogins.push(
     {hostname: "www.yoogle.com",
@@ -25,13 +29,13 @@ function run_test() {
      passwordField: "test_password2"}
   );
 
-  syncTesting.doSync("add user and re-sync");
+  syncTesting.runAsyncFunc("add user and re-sync", freshEngineSync);
 
   fakeLoginManager.fakeLogins.pop();
 
-  syncTesting.doSync("remove user and re-sync");
+  syncTesting.runAsyncFunc("remove user and re-sync", freshEngineSync);
 
   syncTesting.resetClientState();
 
-  syncTesting.doSync("resync on second computer");
+  syncTesting.runAsyncFunc("resync on second computer", freshEngineSync);
 }
