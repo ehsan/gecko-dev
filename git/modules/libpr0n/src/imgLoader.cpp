@@ -397,13 +397,23 @@ nsProgressNotificationProxy::GetInterface(const nsIID& iid,
   return NS_NOINTERFACE;
 }
 
-static void NewRequestAndEntry(bool aForcePrincipalCheckForCacheEntry,
-                               imgRequest **aRequest, imgCacheEntry **aEntry)
+static bool NewRequestAndEntry(bool forcePrincipalCheckForCacheEntry,
+                                 imgRequest **request, imgCacheEntry **entry)
 {
-  nsRefPtr<imgRequest> request = new imgRequest();
-  nsRefPtr<imgCacheEntry> entry = new imgCacheEntry(request, aForcePrincipalCheckForCacheEntry);
-  request.forget(aRequest);
-  entry.forget(aEntry);
+  *request = new imgRequest();
+  if (!*request)
+    return PR_FALSE;
+
+  *entry = new imgCacheEntry(*request, forcePrincipalCheckForCacheEntry);
+  if (!*entry) {
+    delete *request;
+    return PR_FALSE;
+  }
+
+  NS_ADDREF(*request);
+  NS_ADDREF(*entry);
+
+  return PR_TRUE;
 }
 
 static bool ShouldRevalidateEntry(imgCacheEntry *aEntry,
@@ -1687,8 +1697,9 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
     if (NS_FAILED(rv))
       return NS_ERROR_FAILURE;
 
-    NewRequestAndEntry(forcePrincipalCheck, getter_AddRefs(request),
-                       getter_AddRefs(entry));
+    if (!NewRequestAndEntry(forcePrincipalCheck, getter_AddRefs(request),
+                            getter_AddRefs(entry)))
+      return NS_ERROR_OUT_OF_MEMORY;
 
     PR_LOG(gImgLog, PR_LOG_DEBUG,
            ("[this=%p] imgLoader::LoadImage -- Created new imgRequest [request=%p]\n", this, request.get()));
@@ -1891,7 +1902,9 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
     // Default to doing a principal check because we don't know who
     // started that load and whether their principal ended up being
     // inherited on the channel.
-    NewRequestAndEntry(PR_TRUE, getter_AddRefs(request), getter_AddRefs(entry));
+    if (!NewRequestAndEntry(PR_TRUE, getter_AddRefs(request),
+                            getter_AddRefs(entry)))
+      return NS_ERROR_OUT_OF_MEMORY;
 
     // We use originalURI here to fulfil the imgIRequest contract on GetURI.
     nsCOMPtr<nsIURI> originalURI;
