@@ -1525,8 +1525,8 @@ static JSStdName standard_class_names[] = {
     {js_InitObjectClass,        EAGER_ATOM(eval), CLASP(Object)},
 
     /* Global properties and functions defined by the Number class. */
-    {js_InitNumberClass,        EAGER_ATOM(NaN), CLASP(Number)},
-    {js_InitNumberClass,        EAGER_ATOM(Infinity), CLASP(Number)},
+    {js_InitNumberClass,        LAZY_ATOM(NaN), CLASP(Number)},
+    {js_InitNumberClass,        LAZY_ATOM(Infinity), CLASP(Number)},
     {js_InitNumberClass,        LAZY_ATOM(isNaN), CLASP(Number)},
     {js_InitNumberClass,        LAZY_ATOM(isFinite), CLASP(Number)},
     {js_InitNumberClass,        LAZY_ATOM(parseFloat), CLASP(Number)},
@@ -3126,16 +3126,26 @@ LookupResult(JSContext *cx, JSObject *obj, JSObject *obj2, jsid id,
         }
 
         /* Peek at the native property's slot value, without doing a Get. */
-        if (obj2->containsSlot(shape->slot))
+        if (obj2->containsSlot(shape->slot)) {
             *vp = obj2->nativeGetSlot(shape->slot);
-        else
-            vp->setBoolean(true);
-    } else if (obj2->isDenseArray()) {
-        return js_GetDenseArrayElementValue(cx, obj2, id, vp);
+            return true;
+        }
     } else {
-        /* XXX bad API: no way to return "defined but value unknown" */
-        vp->setBoolean(true);
+        if (obj2->isDenseArray())
+            return js_GetDenseArrayElementValue(cx, obj2, id, vp);
+        if (obj2->isProxy()) {
+            AutoPropertyDescriptorRooter desc(cx);
+            if (!JSProxy::getPropertyDescriptor(cx, obj2, id, false, &desc))
+                return false;
+            if (!(desc.attrs & JSPROP_SHARED)) {
+                *vp = desc.value;
+                return true;
+            }
+        }
     }
+
+    /* XXX bad API: no way to return "defined but value unknown" */
+    vp->setBoolean(true);
     return true;
 }
 
