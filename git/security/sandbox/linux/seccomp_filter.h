@@ -111,15 +111,6 @@
 #define SECCOMP_WHITELIST_ARCH_DESKTOP_LINUX
 #endif
 
-/* Architecture-specific syscalls for B2G */
-#if defined(__i386__)
-#define SECCOMP_WHITELIST_ARCH_B2G_LOW
-#else
-#define SECCOMP_WHITELIST_ARCH_B2G_LOW \
-  ALLOW_SYSCALL(sendto), \
-  ALLOW_SYSCALL(recvfrom),
-#endif
-
 /* B2G specific syscalls */
 #if defined(MOZ_B2G)
 
@@ -134,7 +125,8 @@
   ALLOW_SYSCALL(poll),
 
 #define SECCOMP_WHITELIST_B2G_LOW \
-  SECCOMP_WHITELIST_ARCH_B2G_LOW \
+  ALLOW_SYSCALL(sendto), \
+  ALLOW_SYSCALL(recvfrom), \
   ALLOW_SYSCALL(getdents64), \
   ALLOW_SYSCALL(epoll_ctl), \
   ALLOW_SYSCALL(sched_yield), \

@@ -12,8 +12,6 @@
 #include "AudioConduit.h"
 #include "nsThreadUtils.h"
 
-#include "LoadManager.h"
-
 #include "webrtc/video_engine/include/vie_errors.h"
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -131,12 +129,6 @@ bool WebrtcVideoConduit::GetLocalSSRC(unsigned int* ssrc) {
 
 bool WebrtcVideoConduit::GetRemoteSSRC(unsigned int* ssrc) {
   return !mPtrRTP->GetRemoteSSRC(mChannel, *ssrc);
-}
-
-bool WebrtcVideoConduit::GetAVStats(int32_t* jitterBufferDelayMs,
-                                    int32_t* playoutBufferDelayMs,
-                                    int32_t* avSyncOffsetMs) {
-  return false;
 }
 
 bool WebrtcVideoConduit::GetRTPStats(unsigned int* jitterMs,
@@ -487,11 +479,6 @@ WebrtcVideoConduit::ConfigureSendMediaCodec(const VideoCodecConfig* codecConfig)
   }
 
   mEngineTransmitting = false;
-
-  if (codecConfig->mLoadManager) {
-    mPtrViEBase->RegisterCpuOveruseObserver(mChannel, codecConfig->mLoadManager);
-    mPtrViEBase->SetLoadManager(codecConfig->mLoadManager);
-  }
 
   // we should be good here to set the new codec.
   for(int idx=0; idx < mPtrViECodec->NumberOfCodecs(); idx++)

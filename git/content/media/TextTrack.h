@@ -20,6 +20,7 @@ class TextTrackList;
 class TextTrackCue;
 class TextTrackCueList;
 class TextTrackRegion;
+class TextTrackRegionList;
 
 class TextTrack MOZ_FINAL : public nsDOMEventTargetHelper
 {
@@ -86,8 +87,19 @@ public:
   TextTrackCueList* GetActiveCues();
   void GetActiveCueArray(nsTArray<nsRefPtr<TextTrackCue> >& aCues);
 
+  TextTrackRegionList* GetRegions() const
+  {
+    if (mMode != TextTrackMode::Disabled) {
+      return mRegionList;
+    }
+    return nullptr;
+  }
+
   uint16_t ReadyState() const;
   void SetReadyState(uint16_t aState);
+
+  void AddRegion(TextTrackRegion& aRegion);
+  void RemoveRegion(const TextTrackRegion& aRegion, ErrorResult& aRv);
 
   void AddCue(TextTrackCue& aCue);
   void RemoveCue(TextTrackCue& aCue, ErrorResult& aRv);
@@ -114,6 +126,7 @@ private:
 
   nsRefPtr<TextTrackCueList> mCueList;
   nsRefPtr<TextTrackCueList> mActiveCueList;
+  nsRefPtr<TextTrackRegionList> mRegionList;
 
   uint32_t mCuePos;
   uint16_t mReadyState;

@@ -60,6 +60,10 @@ MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
 #else
   AsyncLatencyLogger::Get()->AddRef();
 #endif
+  if (aPrefs.mLoadAdapt) {
+      mLoadMonitor = new LoadMonitor();
+      mLoadMonitor->Init(mLoadMonitor);
+  }
 }
 
 void
@@ -350,6 +354,9 @@ MediaEngineWebRTC::Shutdown()
 
   mVideoEngine = nullptr;
   mVoiceEngine = nullptr;
+
+  if (mLoadMonitor)
+    mLoadMonitor->Shutdown();
 }
 
 }

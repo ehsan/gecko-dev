@@ -175,7 +175,16 @@ WebVTTListener::OnCue(JS::Handle<JS::Value> aCue, JSContext* aCx)
 NS_IMETHODIMP
 WebVTTListener::OnRegion(JS::Handle<JS::Value> aRegion, JSContext* aCx)
 {
-  // Nothing for this callback to do.
+  if (!aRegion.isObject()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  TextTrackRegion* region;
+  nsresult rv = UNWRAP_OBJECT(VTTRegion, &aRegion.toObject(), region);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mElement->mTrack->AddRegion(*region);
+
   return NS_OK;
 }
 

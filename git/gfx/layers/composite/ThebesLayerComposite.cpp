@@ -183,7 +183,7 @@ ThebesLayerComposite::GetEffectiveResolution()
   for (ContainerLayer* parent = GetParent(); parent; parent = parent->GetParent()) {
     const FrameMetrics& metrics = parent->GetFrameMetrics();
     if (metrics.mScrollId != FrameMetrics::NULL_SCROLL_ID) {
-      return metrics.GetZoom();
+      return metrics.mZoom;
     }
   }
 

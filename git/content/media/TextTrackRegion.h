@@ -43,6 +43,21 @@ public:
   static already_AddRefed<TextTrackRegion>
   Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
 
+  TextTrack* GetTrack() const
+  {
+    return mTrack;
+  }
+
+  void  GetId(nsAString& aId) const
+  {
+    aId = mId;
+  }
+
+  void SetId(const nsAString& aId)
+  {
+    mId = aId;
+  }
+
   double Lines() const
   {
     return mLines;
@@ -130,6 +145,10 @@ public:
 
   /** end WebIDL Methods. */
 
+  void SetTextTrack(TextTrack* aTrack)
+  {
+    mTrack = aTrack;
+  }
 
   // Helper to aid copying of a given TextTrackRegion's width, lines,
   // anchor, viewport and scroll values.
@@ -141,8 +160,16 @@ public:
     return mScroll;
   }
 
+  const nsAString& Id() const
+  {
+    return mId;
+  }
+
+
 private:
   nsCOMPtr<nsISupports> mParent;
+  nsRefPtr<TextTrack> mTrack;
+  nsString mId;
   double mWidth;
   long mLines;
   double mRegionAnchorX;

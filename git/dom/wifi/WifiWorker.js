@@ -2304,10 +2304,8 @@ WifiWorker.prototype = {
       // Convert between netId-based and ssid-based indexing.
       for (let net in networks) {
         let network = networks[net];
-        delete networks[net];
-
         if (!network.ssid) {
-          WifiManager.removeNetwork(network.netId, function() {});
+          delete networks[net]; // TODO support these?
           continue;
         }
 
@@ -2315,11 +2313,8 @@ WifiWorker.prototype = {
           this._highestPriority = network.priority;
 
         let networkKey = getNetworkKey(network);
-        // Accept latest config of same network(same SSID and same security).
-        if (networks[networkKey]) {
-          WifiManager.removeNetwork(networks[networkKey].netId, function() {});
-        }
         networks[networkKey] = network;
+        delete networks[net];
       }
 
       this.configuredNetworks = networks;
@@ -2407,25 +2402,6 @@ WifiWorker.prototype = {
   _sendMessage: function(message, success, data, msg) {
     msg.manager.sendAsyncMessage(message + (success ? ":OK" : ":NO"),
                                  { data: data, rid: msg.rid, mid: msg.mid });
-    this._splicePendingRequest(msg);
-  },
-
-  _domRequest: [],
-
-  _splicePendingRequest: function(msg) {
-    for (let i = 0; i < this._domRequest.length; i++) {
-      if (this._domRequest[i].msg === msg) {
-        this._domRequest.splice(i, 1);
-        return;
-      }
-    }
-  },
-
-  _clearPendingRequest: function() {
-    if (this._domRequest.length === 0) return;
-    this._domRequest.forEach(function(req) {
-      this._sendMessage(req.name + ":Return", false, "Wifi is disabled", req.msg);
-    });
   },
 
   receiveMessage: function MessageManager_receiveMessage(aMessage) {
@@ -2455,11 +2431,6 @@ WifiWorker.prototype = {
 
     if (!aMessage.target.assertPermission("wifi-manage")) {
       return;
-    }
-
-    // We are interested in DOMRequests only.
-    if (aMessage.name != "WifiManager:getState") {
-      this._domRequest.push({name: aMessage.name, msg:msg});
     }
 
     switch (aMessage.name) {
@@ -2641,11 +2612,6 @@ WifiWorker.prototype = {
   },
 
   setWifiEnabled: function(enabled, callback) {
-    // Reply error to pending requests.
-    if (!enabled) {
-      this._clearPendingRequest();
-    }
-
     WifiManager.setWifiEnabled(enabled, callback);
   },
 

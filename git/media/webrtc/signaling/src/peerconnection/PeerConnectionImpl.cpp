@@ -50,7 +50,6 @@
 #include "nsDOMDataChannel.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/PublicSSL.h"
 #include "nsXULAppAPI.h"
 #include "nsContentUtils.h"
@@ -479,7 +478,6 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
   , mWindow(nullptr)
   , mIdentity(nullptr)
   , mSTSThread(nullptr)
-  , mLoadManager(nullptr)
   , mMedia(nullptr)
   , mNumAudioStreams(0)
   , mNumVideoStreams(0)
@@ -526,10 +524,6 @@ PeerConnectionImpl::~PeerConnectionImpl()
       destructorSafeDestroyNSSReference();
       shutdown(calledFromObject);
     }
-  }
-  if (mLoadManager) {
-      mozilla::LoadManagerDestroy(mLoadManager);
-      mLoadManager = nullptr;
   }
 #endif
 
@@ -853,12 +847,6 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
     CSFLogError(logTag, "%s: unable to get fingerprint", __FUNCTION__);
     return res;
   }
-
-#ifdef MOZILLA_INTERNAL_API
-  if (mozilla::Preferences::GetBool("media.navigator.load_adapt", false)) {
-    mLoadManager = mozilla::LoadManagerBuild();
-  }
-#endif
 
   return NS_OK;
 }
@@ -2141,8 +2129,7 @@ PeerConnectionImpl::ExecuteStatsQuery_s(RTCStatsQuery *query) {
 
   for (size_t p = 0; p < query->pipelines.Length(); ++p) {
     const MediaPipeline& mp = *query->pipelines[p];
-    bool isAudio = (mp.Conduit()->type() == MediaSessionConduit::AUDIO);
-    nsString idstr = isAudio ?
+    nsString idstr = (mp.Conduit()->type() == MediaSessionConduit::AUDIO) ?
         NS_LITERAL_STRING("audio_") : NS_LITERAL_STRING("video_");
     idstr.AppendInt(mp.trackid());
 
@@ -2251,18 +2238,6 @@ PeerConnectionImpl::ExecuteStatsQuery_s(RTCStatsQuery *query) {
         s.mIsRemote = false;
         s.mPacketsReceived.Construct(mp.rtp_packets_received());
         s.mBytesReceived.Construct(mp.rtp_bytes_received());
-
-        if (query->internalStats && isAudio) {
-          int32_t jitterBufferDelay;
-          int32_t playoutBufferDelay;
-          int32_t avSyncDelta;
-          if (mp.Conduit()->GetAVStats(&jitterBufferDelay,
-                                       &playoutBufferDelay,
-                                       &avSyncDelta)) {
-            s.mMozJitterBufferDelay.Construct(jitterBufferDelay);
-            s.mMozAvSyncDelay.Construct(avSyncDelta);
-          }
-        }
         query->report.mInboundRTPStreamStats.Value().AppendElement(s);
         break;
       }

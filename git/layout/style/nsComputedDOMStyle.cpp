@@ -3129,6 +3129,8 @@ nsComputedDOMStyle::DoGetTextCombineHorizontal()
 CSSValue*
 nsComputedDOMStyle::DoGetTextDecoration()
 {
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+
   const nsStyleTextReset* textReset = StyleTextReset();
 
   // If decoration style or color wasn't initial value, the author knew the
@@ -3149,7 +3151,6 @@ nsComputedDOMStyle::DoGetTextDecoration()
   // i.e., text-decoration was assumed as a longhand property.  In that case,
   // we should return computed value same as CSS 2.1 for backward compatibility.
 
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
   uint8_t line = textReset->mTextDecorationLine;
   // Clear the -moz-anchor-decoration bit and the OVERRIDE_ALL bits -- we
   // don't want these to appear in the computed style.
@@ -4419,7 +4420,7 @@ nsComputedDOMStyle::GetLineHeightCoord(nscoord& aCoord)
 
   // lie about font size inflation since we lie about font size (since
   // the inflation only applies to text)
-  aCoord = nsHTMLReflowState::CalcLineHeight(mContent, mStyleContextHolder,
+  aCoord = nsHTMLReflowState::CalcLineHeight(mStyleContextHolder,
                                              blockHeight, 1.0f);
 
   // CalcLineHeight uses font->mFont.size, but we want to use

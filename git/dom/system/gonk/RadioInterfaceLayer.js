@@ -69,7 +69,6 @@ const CDMAICCINFO_CID =
 
 const NS_XPCOM_SHUTDOWN_OBSERVER_ID      = "xpcom-shutdown";
 const kNetworkInterfaceStateChangedTopic = "network-interface-state-changed";
-const kNetworkConnStateChangedTopic      = "network-connection-state-changed";
 const kSmsReceivedObserverTopic          = "sms-received";
 const kSilentSmsReceivedObserverTopic    = "silent-sms-received";
 const kSmsSendingObserverTopic           = "sms-sending";
@@ -1877,6 +1876,9 @@ function RadioInterface(aClientId, aWorkerMessenger) {
 
   let lock = gSettingsService.createLock();
 
+  // Read preferred network type from the setting DB.
+  lock.get("ril.radio.preferredNetworkType", this);
+
   // Read the "time.clock.automatic-update.enabled" setting to see if
   // we need to adjust the system clock time by NITZ or SNTP.
   lock.get(kSettingsClockAutoUpdateEnabled, this);
@@ -1899,7 +1901,7 @@ function RadioInterface(aClientId, aWorkerMessenger) {
   Services.obs.addObserver(this, kSysClockChangeObserverTopic, false);
   Services.obs.addObserver(this, kScreenStateChangedTopic, false);
 
-  Services.obs.addObserver(this, kNetworkConnStateChangedTopic, false);
+  Services.obs.addObserver(this, kNetworkInterfaceStateChangedTopic, false);
   Services.prefs.addObserver(kPrefCellBroadcastDisabled, this, false);
 
   this.portAddressedSmsApps = {};
@@ -1938,7 +1940,7 @@ RadioInterface.prototype = {
     Services.obs.removeObserver(this, kMozSettingsChangedObserverTopic);
     Services.obs.removeObserver(this, kSysClockChangeObserverTopic);
     Services.obs.removeObserver(this, kScreenStateChangedTopic);
-    Services.obs.removeObserver(this, kNetworkConnStateChangedTopic);
+    Services.obs.removeObserver(this, kNetworkInterfaceStateChangedTopic);
   },
 
   /**
@@ -2505,10 +2507,16 @@ RadioInterface.prototype = {
     connHandler.updateRILNetworkInterface();
   },
 
+  _preferredNetworkType: null,
   getPreferredNetworkType: function(target, message) {
     this.workerMessenger.send("getPreferredNetworkType", message, (function(response) {
       if (response.success) {
-        response.type = RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[response.networkType];
+        this._preferredNetworkType = response.networkType;
+        response.type = RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[this._preferredNetworkType];
+        if (DEBUG) {
+          this.debug("_preferredNetworkType is now " +
+                     RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[this._preferredNetworkType]);
+        }
       }
 
       target.sendAsyncMessage("RIL:GetPreferredNetworkType", {
@@ -2520,6 +2528,7 @@ RadioInterface.prototype = {
   },
 
   setPreferredNetworkType: function(target, message) {
+    if (DEBUG) this.debug("setPreferredNetworkType: " + JSON.stringify(message));
     let networkType = RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.indexOf(message.type);
     if (networkType < 0) {
       message.errorMsg = RIL.GECKO_ERROR_INVALID_PARAMETER;
@@ -2532,10 +2541,55 @@ RadioInterface.prototype = {
     message.networkType = networkType;
 
     this.workerMessenger.send("setPreferredNetworkType", message, (function(response) {
+      if (response.success) {
+        this._preferredNetworkType = response.networkType;
+        if (DEBUG) {
+          this.debug("_preferredNetworkType is now " +
+                      RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[this._preferredNetworkType]);
+        }
+      }
+
       target.sendAsyncMessage("RIL:SetPreferredNetworkType", {
         clientId: this.clientId,
         data: response
       });
+      return false;
+    }).bind(this));
+  },
+
+  // TODO: Bug 946589 - B2G RIL: follow-up to bug 944225 - remove
+  // 'ril.radio.preferredNetworkType' setting handler
+  setPreferredNetworkTypeBySetting: function(value) {
+    let networkType = RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.indexOf(value);
+    if (networkType < 0) {
+      networkType = (this._preferredNetworkType != null)
+                    ? RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[this._preferredNetworkType]
+                    : RIL.GECKO_PREFERRED_NETWORK_TYPE_DEFAULT;
+      gSettingsService.createLock().set("ril.radio.preferredNetworkType",
+                                        networkType, null);
+      return;
+    }
+
+    if (networkType == this._preferredNetworkType) {
+      return;
+    }
+
+    this.workerMessenger.send("setPreferredNetworkType",
+                              { networkType: networkType },
+                              (function(response) {
+      if ((this._preferredNetworkType != null) && !response.success) {
+        gSettingsService.createLock().set("ril.radio.preferredNetworkType",
+                                          this._preferredNetworkType,
+                                          null);
+        return false;
+      }
+
+      this._preferredNetworkType = response.networkType;
+      if (DEBUG) {
+        this.debug("_preferredNetworkType is now " +
+                   RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[this._preferredNetworkType]);
+      }
+
       return false;
     }).bind(this));
   },
@@ -3128,7 +3182,7 @@ RadioInterface.prototype = {
         }
         this._sntp.updateOffset(offset);
         break;
-      case kNetworkConnStateChangedTopic:
+      case kNetworkInterfaceStateChangedTopic:
         let network = subject.QueryInterface(Ci.nsINetworkInterface);
         if (network.state != Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED) {
           return;
@@ -3222,6 +3276,12 @@ RadioInterface.prototype = {
   // nsISettingsServiceCallback
   handle: function(aName, aResult) {
     switch(aName) {
+      // TODO: Bug 946589 - B2G RIL: follow-up to bug 944225 - remove
+      // 'ril.radio.preferredNetworkType' setting handler
+      case "ril.radio.preferredNetworkType":
+        if (DEBUG) this.debug("'ril.radio.preferredNetworkType' is now " + aResult);
+        this.setPreferredNetworkTypeBySetting(aResult);
+        break;
       case kSettingsClockAutoUpdateEnabled:
         this._clockAutoUpdateEnabled = aResult;
         if (!this._clockAutoUpdateEnabled) {

@@ -199,7 +199,7 @@ var shell = {
 
         Services.obs.removeObserver(observer, topic);
       }
-    }, "network-connection-state-changed", false);
+    }, "network-interface-state-changed", false);
   },
 
   get contentBrowser() {

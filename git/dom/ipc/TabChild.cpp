@@ -321,16 +321,16 @@ TabChild::InitializeRootMetrics()
   mLastRootMetrics.mCompositionBounds = ParentLayerIntRect(
       ParentLayerIntPoint(),
       ViewAs<ParentLayerPixel>(mInnerSize, PixelCastJustification::ScreenToParentLayerForRoot));
-  mLastRootMetrics.SetZoom(mLastRootMetrics.CalculateIntrinsicScale());
+  mLastRootMetrics.mZoom = mLastRootMetrics.CalculateIntrinsicScale();
   mLastRootMetrics.mDevPixelsPerCSSPixel = mWidget->GetDefaultScale();
   // We use ScreenToLayerScale(1) below in order to turn the
   // async zoom amount into the gecko zoom amount.
   mLastRootMetrics.mCumulativeResolution =
-    mLastRootMetrics.GetZoom() / mLastRootMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
+    mLastRootMetrics.mZoom / mLastRootMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
   // This is the root layer, so the cumulative resolution is the same
   // as the resolution.
   mLastRootMetrics.mResolution = mLastRootMetrics.mCumulativeResolution / LayoutDeviceToParentLayerScale(1);
-  mLastRootMetrics.SetScrollOffset(CSSPoint(0, 0));
+  mLastRootMetrics.mScrollOffset = CSSPoint(0, 0);
 }
 
 bool
@@ -609,7 +609,7 @@ TabChild::HandlePossibleViewportChange()
   // within the screen width. Note that "actual content" may be different with
   // respect to CSS pixels because of the CSS viewport size changing.
   float oldIntrinsicScale = oldScreenWidth / oldBrowserWidth;
-  metrics.ZoomBy(metrics.CalculateIntrinsicScale().scale / oldIntrinsicScale);
+  metrics.mZoom.scale *= metrics.CalculateIntrinsicScale().scale / oldIntrinsicScale;
 
   // Changing the zoom when we're not doing a first paint will get ignored
   // by AsyncPanZoomController and causes a blurry flash.
@@ -626,12 +626,12 @@ TabChild::HandlePossibleViewportChange()
     CSSToScreenScale defaultZoom = viewportInfo.GetDefaultZoom();
     MOZ_ASSERT(viewportInfo.GetMinZoom() <= defaultZoom &&
                defaultZoom <= viewportInfo.GetMaxZoom());
-    metrics.SetZoom(defaultZoom);
+    metrics.mZoom = defaultZoom;
 
     metrics.mScrollId = viewId;
   }
 
-  metrics.mCumulativeResolution = metrics.GetZoom() / metrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
+  metrics.mCumulativeResolution = metrics.mZoom / metrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
   // This is the root layer, so the cumulative resolution is the same
   // as the resolution.
   metrics.mResolution = metrics.mCumulativeResolution / LayoutDeviceToParentLayerScale(1);
@@ -1526,8 +1526,8 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
     // for other functions it performs, such as double tap handling.
     // Note, %f must not be used because it is locale specific!
     nsCString data;
-    data.AppendPrintf("{ \"x\" : %d", NS_lround(newMetrics.GetScrollOffset().x));
-    data.AppendPrintf(", \"y\" : %d", NS_lround(newMetrics.GetScrollOffset().y));
+    data.AppendPrintf("{ \"x\" : %d", NS_lround(newMetrics.mScrollOffset.x));
+    data.AppendPrintf(", \"y\" : %d", NS_lround(newMetrics.mScrollOffset.y));
     data.AppendLiteral(", \"viewport\" : ");
         data.AppendLiteral("{ \"width\" : ");
         data.AppendFloat(newMetrics.mViewport.width);

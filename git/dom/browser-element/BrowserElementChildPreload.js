@@ -480,13 +480,6 @@ BrowserElementChild.prototype = {
 
   },
 
-  _manifestChangedHandler: function(e) {
-    debug('Got manifestchanged: (' + e.target.href + ')');
-    let manifest = { href: e.target.href };
-    sendAsyncMsg('manifestchange', manifest);
-
-  },
-
   // Processes the "rel" field in <link> tags and forward to specific handlers.
   _linkAddedHandler: function(e) {
     let win = e.target.ownerDocument.defaultView;
@@ -499,8 +492,7 @@ BrowserElementChild.prototype = {
 
     let handlers = {
       'icon': this._iconChangedHandler,
-      'search': this._openSearchHandler,
-      'manifest': this._manifestChangedHandler
+      'search': this._openSearchHandler
     };
 
     debug('Got linkAdded: (' + e.target.href + ') ' + e.target.rel);
