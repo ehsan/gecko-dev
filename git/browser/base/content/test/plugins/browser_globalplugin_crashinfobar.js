@@ -4,13 +4,11 @@
 
 let gTestBrowser = null;
 
-let crashedEventProperties = {
+let propBagProperties = {
   pluginName: "GlobalTestPlugin",
   pluginDumpID: "1234",
   browserDumpID: "5678",
-  submittedCrashReport: false,
-  bubbles: true,
-  cancelable: true
+  submittedCrashReport: false
 }
 
 // Test that plugin crash submissions still work properly after
@@ -36,9 +34,15 @@ function onPageLoad() {
 
 function generateCrashEvent() {
   let window = gTestBrowser.contentWindow;
-  let crashedEvent = new window.PluginCrashedEvent("PluginCrashed", crashedEventProperties);
+  let propBag = Cc["@mozilla.org/hash-property-bag;1"]
+                  .createInstance(Ci.nsIWritablePropertyBag);
+  for (let [name, val] of Iterator(propBagProperties)) {
+    propBag.setProperty(name, val);
+  }
 
-  window.dispatchEvent(crashedEvent);
+  let event = window.document.createEvent("CustomEvent");
+  event.initCustomEvent("PluginCrashed", true, true, propBag);
+  window.dispatchEvent(event);
 }
 
 
@@ -46,10 +50,13 @@ function onCrash(event) {
   let target = event.target;
   is (target, gTestBrowser.contentWindow, "Event target is the window.");
 
-  for (let [name, val] of Iterator(crashedEventProperties)) {
-    let propVal = event[name];
-
-    is (propVal, val, "Correct property: " + name + ".");
+  let propBag = event.detail.QueryInterface(Ci.nsIPropertyBag2);
+  for (let [name, val] of Iterator(propBagProperties)) {
+    let type = typeof val;
+    let propVal = type == "string"
+                  ? propBag.getPropertyAsAString(name)
+                  : propBag.getPropertyAsBool(name);
+    is (propVal, val, "Correct property in detail propBag: " + name + ".");
   }
 
   waitForNotificationBar("plugin-crashed", gTestBrowser, (notification) => {

@@ -214,7 +214,7 @@ void
 AppleVDADecoder::ClearReorderedFrames()
 {
   while (!mReorderQueue.IsEmpty()) {
-    mReorderQueue.Pop();
+    delete mReorderQueue.Pop();
   }
 }
 
@@ -250,7 +250,7 @@ AppleVDADecoder::OutputFrame(CVPixelBufferRef aImage,
     static_cast<layers::MacIOSurfaceImage*>(image.get());
   videoImage->SetSurface(macSurface);
 
-  nsRefPtr<VideoData> data;
+  nsAutoPtr<VideoData> data;
   data = VideoData::CreateFromImage(info,
                                     mImageContainer,
                                     aFrameRef->byte_offset,
@@ -268,10 +268,10 @@ AppleVDADecoder::OutputFrame(CVPixelBufferRef aImage,
 
   // Frames come out in DTS order but we need to output them
   // in composition order.
-  mReorderQueue.Push(data);
+  mReorderQueue.Push(data.forget());
   // Assume a frame with a PTS <= current DTS is ready.
   while (mReorderQueue.Length() > 0) {
-    nsRefPtr<VideoData> readyData = mReorderQueue.Pop();
+    VideoData* readyData = mReorderQueue.Pop();
     if (readyData->mTime <= aFrameRef->decode_timestamp) {
       LOG("returning queued frame with pts %lld", readyData->mTime);
       mCallback->Output(readyData);

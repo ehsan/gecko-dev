@@ -88,6 +88,7 @@ VideoData::VideoData(int64_t aOffset, int64_t aTime, int64_t aDuration, int64_t 
     mDuplicate(true),
     mKeyframe(false)
 {
+  MOZ_COUNT_CTOR(VideoData);
   NS_ASSERTION(mDuration >= 0, "Frame must have non-negative duration.");
 }
 
@@ -103,11 +104,13 @@ VideoData::VideoData(int64_t aOffset,
     mDuplicate(false),
     mKeyframe(aKeyframe)
 {
+  MOZ_COUNT_CTOR(VideoData);
   NS_ASSERTION(mDuration >= 0, "Frame must have non-negative duration.");
 }
 
 VideoData::~VideoData()
 {
+  MOZ_COUNT_DTOR(VideoData);
 }
 
 size_t
@@ -127,51 +130,48 @@ VideoData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 }
 
 /* static */
-already_AddRefed<VideoData>
-VideoData::ShallowCopyUpdateDuration(VideoData* aOther,
-                                     int64_t aDuration)
+VideoData* VideoData::ShallowCopyUpdateDuration(VideoData* aOther,
+                                                int64_t aDuration)
 {
-  nsRefPtr<VideoData> v = new VideoData(aOther->mOffset,
-                                        aOther->mTime,
-                                        aDuration,
-                                        aOther->mKeyframe,
-                                        aOther->mTimecode,
-                                        aOther->mDisplay);
+  VideoData* v = new VideoData(aOther->mOffset,
+                               aOther->mTime,
+                               aDuration,
+                               aOther->mKeyframe,
+                               aOther->mTimecode,
+                               aOther->mDisplay);
   v->mImage = aOther->mImage;
-  return v.forget();
+  return v;
 }
 
 /* static */
-already_AddRefed<VideoData>
-VideoData::ShallowCopyUpdateTimestamp(VideoData* aOther,
-                                      int64_t aTimestamp)
+VideoData* VideoData::ShallowCopyUpdateTimestamp(VideoData* aOther,
+                                                 int64_t aTimestamp)
 {
   NS_ENSURE_TRUE(aOther, nullptr);
-  nsRefPtr<VideoData> v = new VideoData(aOther->mOffset,
-                                        aTimestamp,
-                                        aOther->GetEndTime() - aTimestamp,
-                                        aOther->mKeyframe,
-                                        aOther->mTimecode,
-                                        aOther->mDisplay);
+  VideoData* v = new VideoData(aOther->mOffset,
+                               aTimestamp,
+                               aOther->GetEndTime() - aTimestamp,
+                               aOther->mKeyframe,
+                               aOther->mTimecode,
+                               aOther->mDisplay);
   v->mImage = aOther->mImage;
-  return v.forget();
+  return v;
 }
 
 /* static */
-already_AddRefed<VideoData>
-VideoData::ShallowCopyUpdateTimestampAndDuration(VideoData* aOther,
-                                                 int64_t aTimestamp,
-                                                 int64_t aDuration)
+VideoData* VideoData::ShallowCopyUpdateTimestampAndDuration(VideoData* aOther,
+                                                            int64_t aTimestamp,
+                                                            int64_t aDuration)
 {
   NS_ENSURE_TRUE(aOther, nullptr);
-  nsRefPtr<VideoData> v = new VideoData(aOther->mOffset,
-                                        aTimestamp,
-                                        aDuration,
-                                        aOther->mKeyframe,
-                                        aOther->mTimecode,
-                                        aOther->mDisplay);
+  VideoData* v = new VideoData(aOther->mOffset,
+                               aTimestamp,
+                               aDuration,
+                               aOther->mKeyframe,
+                               aOther->mTimecode,
+                               aOther->mDisplay);
   v->mImage = aOther->mImage;
-  return v.forget();
+  return v;
 }
 
 /* static */
@@ -213,27 +213,26 @@ void VideoData::SetVideoDataToImage(PlanarYCbCrImage* aVideoImage,
 }
 
 /* static */
-already_AddRefed<VideoData>
-VideoData::Create(VideoInfo& aInfo,
-                  ImageContainer* aContainer,
-                  Image* aImage,
-                  int64_t aOffset,
-                  int64_t aTime,
-                  int64_t aDuration,
-                  const YCbCrBuffer& aBuffer,
-                  bool aKeyframe,
-                  int64_t aTimecode,
-                  const IntRect& aPicture)
+VideoData* VideoData::Create(VideoInfo& aInfo,
+                             ImageContainer* aContainer,
+                             Image* aImage,
+                             int64_t aOffset,
+                             int64_t aTime,
+                             int64_t aDuration,
+                             const YCbCrBuffer& aBuffer,
+                             bool aKeyframe,
+                             int64_t aTimecode,
+                             const IntRect& aPicture)
 {
   if (!aImage && !aContainer) {
     // Create a dummy VideoData with no image. This gives us something to
     // send to media streams if necessary.
-    nsRefPtr<VideoData> v(new VideoData(aOffset,
-                                        aTime,
-                                        aDuration,
-                                        aKeyframe,
-                                        aTimecode,
-                                        aInfo.mDisplay.ToIntSize()));
+    nsAutoPtr<VideoData> v(new VideoData(aOffset,
+                                         aTime,
+                                         aDuration,
+                                         aKeyframe,
+                                         aTimecode,
+                                         aInfo.mDisplay.ToIntSize()));
     return v.forget();
   }
 
@@ -270,12 +269,12 @@ VideoData::Create(VideoInfo& aInfo,
     return nullptr;
   }
 
-  nsRefPtr<VideoData> v(new VideoData(aOffset,
-                                      aTime,
-                                      aDuration,
-                                      aKeyframe,
-                                      aTimecode,
-                                      aInfo.mDisplay.ToIntSize()));
+  nsAutoPtr<VideoData> v(new VideoData(aOffset,
+                                       aTime,
+                                       aDuration,
+                                       aKeyframe,
+                                       aTimecode,
+                                       aInfo.mDisplay.ToIntSize()));
 #ifdef MOZ_WIDGET_GONK
   const YCbCrBuffer::Plane &Y = aBuffer.mPlanes[0];
   const YCbCrBuffer::Plane &Cb = aBuffer.mPlanes[1];
@@ -329,81 +328,77 @@ VideoData::Create(VideoInfo& aInfo,
 }
 
 /* static */
-already_AddRefed<VideoData>
-VideoData::Create(VideoInfo& aInfo,
-                  ImageContainer* aContainer,
-                  int64_t aOffset,
-                  int64_t aTime,
-                  int64_t aDuration,
-                  const YCbCrBuffer& aBuffer,
-                  bool aKeyframe,
-                  int64_t aTimecode,
-                  const IntRect& aPicture)
+VideoData* VideoData::Create(VideoInfo& aInfo,
+                             ImageContainer* aContainer,
+                             int64_t aOffset,
+                             int64_t aTime,
+                             int64_t aDuration,
+                             const YCbCrBuffer& aBuffer,
+                             bool aKeyframe,
+                             int64_t aTimecode,
+                             const IntRect& aPicture)
 {
   return Create(aInfo, aContainer, nullptr, aOffset, aTime, aDuration, aBuffer,
                 aKeyframe, aTimecode, aPicture);
 }
 
 /* static */
-already_AddRefed<VideoData>
-VideoData::Create(VideoInfo& aInfo,
-                  Image* aImage,
-                  int64_t aOffset,
-                  int64_t aTime,
-                  int64_t aDuration,
-                  const YCbCrBuffer& aBuffer,
-                  bool aKeyframe,
-                  int64_t aTimecode,
-                  const IntRect& aPicture)
+VideoData* VideoData::Create(VideoInfo& aInfo,
+                             Image* aImage,
+                             int64_t aOffset,
+                             int64_t aTime,
+                             int64_t aDuration,
+                             const YCbCrBuffer& aBuffer,
+                             bool aKeyframe,
+                             int64_t aTimecode,
+                             const IntRect& aPicture)
 {
   return Create(aInfo, nullptr, aImage, aOffset, aTime, aDuration, aBuffer,
                 aKeyframe, aTimecode, aPicture);
 }
 
 /* static */
-already_AddRefed<VideoData>
-VideoData::CreateFromImage(VideoInfo& aInfo,
-                           ImageContainer* aContainer,
-                           int64_t aOffset,
-                           int64_t aTime,
-                           int64_t aDuration,
-                           const nsRefPtr<Image>& aImage,
-                           bool aKeyframe,
-                           int64_t aTimecode,
-                           const IntRect& aPicture)
+VideoData* VideoData::CreateFromImage(VideoInfo& aInfo,
+                                      ImageContainer* aContainer,
+                                      int64_t aOffset,
+                                      int64_t aTime,
+                                      int64_t aDuration,
+                                      const nsRefPtr<Image>& aImage,
+                                      bool aKeyframe,
+                                      int64_t aTimecode,
+                                      const IntRect& aPicture)
 {
-  nsRefPtr<VideoData> v(new VideoData(aOffset,
-                                      aTime,
-                                      aDuration,
-                                      aKeyframe,
-                                      aTimecode,
-                                      aInfo.mDisplay.ToIntSize()));
+  nsAutoPtr<VideoData> v(new VideoData(aOffset,
+                                       aTime,
+                                       aDuration,
+                                       aKeyframe,
+                                       aTimecode,
+                                       aInfo.mDisplay.ToIntSize()));
   v->mImage = aImage;
   return v.forget();
 }
 
 #ifdef MOZ_OMX_DECODER
 /* static */
-already_AddRefed<VideoData>
-VideoData::Create(VideoInfo& aInfo,
-                  ImageContainer* aContainer,
-                  int64_t aOffset,
-                  int64_t aTime,
-                  int64_t aDuration,
-                  mozilla::layers::TextureClient* aBuffer,
-                  bool aKeyframe,
-                  int64_t aTimecode,
-                  const IntRect& aPicture)
+VideoData* VideoData::Create(VideoInfo& aInfo,
+                             ImageContainer* aContainer,
+                             int64_t aOffset,
+                             int64_t aTime,
+                             int64_t aDuration,
+                             mozilla::layers::TextureClient* aBuffer,
+                             bool aKeyframe,
+                             int64_t aTimecode,
+                             const IntRect& aPicture)
 {
   if (!aContainer) {
     // Create a dummy VideoData with no image. This gives us something to
     // send to media streams if necessary.
-    nsRefPtr<VideoData> v(new VideoData(aOffset,
-                                        aTime,
-                                        aDuration,
-                                        aKeyframe,
-                                        aTimecode,
-                                        aInfo.mDisplay.ToIntSize()));
+    nsAutoPtr<VideoData> v(new VideoData(aOffset,
+                                         aTime,
+                                         aDuration,
+                                         aKeyframe,
+                                         aTimecode,
+                                         aInfo.mDisplay.ToIntSize()));
     return v.forget();
   }
 
@@ -425,12 +420,12 @@ VideoData::Create(VideoInfo& aInfo,
     return nullptr;
   }
 
-  nsRefPtr<VideoData> v(new VideoData(aOffset,
-                                      aTime,
-                                      aDuration,
-                                      aKeyframe,
-                                      aTimecode,
-                                      aInfo.mDisplay.ToIntSize()));
+  nsAutoPtr<VideoData> v(new VideoData(aOffset,
+                                       aTime,
+                                       aDuration,
+                                       aKeyframe,
+                                       aTimecode,
+                                       aInfo.mDisplay.ToIntSize()));
 
   v->mImage = aContainer->CreateImage(ImageFormat::GRALLOC_PLANAR_YCBCR);
   if (!v->mImage) {

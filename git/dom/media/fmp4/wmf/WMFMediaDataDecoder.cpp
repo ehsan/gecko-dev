@@ -90,11 +90,11 @@ WMFMediaDataDecoder::ProcessDecode(mp4_demuxer::MP4Sample* aSample)
 void
 WMFMediaDataDecoder::ProcessOutput()
 {
-  nsRefPtr<MediaData> output;
+  nsAutoPtr<MediaData> output;
   HRESULT hr = S_OK;
   while (SUCCEEDED(hr = mMFTManager->Output(mLastStreamOffset, output)) &&
          output) {
-    mCallback->Output(output);
+    mCallback->Output(output.forget());
   }
   if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) {
     if (mTaskQueue->IsEmpty()) {

@@ -14,33 +14,24 @@ function run_test()
   var order = 0;
 
   asyncOpenCacheEntry("http://x/", "disk", Ci.nsICacheStorage.OPEN_NORMALLY, null,
-    new OpenCallback(NORMAL|COMPLETE|NOTIFYBEFOREREAD, "x1m", "x1d", function(entry, beforeReading) {
-      if (beforeReading) {
-        ++order;
-        do_check_eq(order, newCacheBackEndUsed() ? 3 : 1);
-      } else {
-        mc.fired();
-      }
+    new OpenCallback(NORMAL|COMPLETE, "x1m", "x1d", function(entry) {
+      ++order;
+      do_check_eq(order, newCacheBackEndUsed() ? 3 : 1);
+      mc.fired();
     })
   );
   asyncOpenCacheEntry("http://x/", "disk", Ci.nsICacheStorage.OPEN_NORMALLY, null,
-    new OpenCallback(NORMAL|NOTIFYBEFOREREAD, "x1m", "x1d", function(entry, beforeReading) {
-      if (beforeReading) {
-        ++order;
-        do_check_eq(order, newCacheBackEndUsed() ? 1 : 2);
-      } else {
-        mc.fired();
-      }
+    new OpenCallback(NORMAL, "x1m", "x1d", function(entry) {
+      ++order;
+      do_check_eq(order, newCacheBackEndUsed() ? 1 : 2);
+      mc.fired();
     })
   );
   asyncOpenCacheEntry("http://x/", "disk", Ci.nsICacheStorage.OPEN_NORMALLY, null,
-    new OpenCallback(NORMAL|NOTIFYBEFOREREAD, "x1m", "x1d", function(entry, beforeReading) {
-      if (beforeReading) {
-        ++order;
-        do_check_eq(order, newCacheBackEndUsed() ? 2 : 3);
-      } else {
-        mc.fired();
-      }
+    new OpenCallback(NORMAL, "x1m", "x1d", function(entry) {
+      ++order;
+      do_check_eq(order, newCacheBackEndUsed() ? 2 : 3);
+      mc.fired();
     })
   );
 

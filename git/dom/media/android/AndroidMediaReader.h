@@ -39,7 +39,7 @@ class AndroidMediaReader : public MediaDecoderReader
   nsIntSize mInitialFrame;
   int64_t mVideoSeekTimeUs;
   int64_t mAudioSeekTimeUs;
-  nsRefPtr<VideoData> mLastVideoFrame;
+  nsAutoPtr<VideoData> mLastVideoFrame;
 public:
   AndroidMediaReader(AbstractMediaDecoder* aDecoder,
                      const nsACString& aContentType);

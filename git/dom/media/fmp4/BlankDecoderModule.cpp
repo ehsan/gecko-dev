@@ -51,10 +51,9 @@ public:
     }
     NS_IMETHOD Run() MOZ_OVERRIDE
     {
-      nsRefPtr<MediaData> data = mCreator->Create(mSample->composition_timestamp,
-                                                  mSample->duration,
-                                                  mSample->byte_offset);
-      mCallback->Output(data);
+      mCallback->Output(mCreator->Create(mSample->composition_timestamp,
+                                         mSample->duration,
+                                         mSample->byte_offset));
       return NS_OK;
     }
   private:
@@ -85,6 +84,7 @@ public:
 
 private:
   nsAutoPtr<BlankMediaDataCreator> mCreator;
+  nsAutoPtr<MediaData> mOutput;
   RefPtr<MediaTaskQueue> mTaskQueue;
   MediaDataDecoderCallback* mCallback;
 };
@@ -102,8 +102,9 @@ public:
     mPicture = gfx::IntRect(0, 0, mFrameWidth, mFrameHeight);
   }
 
-  already_AddRefed<MediaData>
-  Create(Microseconds aDTS, Microseconds aDuration, int64_t aOffsetInStream)
+  MediaData* Create(Microseconds aDTS,
+                    Microseconds aDuration,
+                    int64_t aOffsetInStream)
   {
     // Create a fake YUV buffer in a 420 format. That is, an 8bpp Y plane,
     // with a U and V plane that are half the size of the Y plane, i.e 8 bit,

@@ -14,7 +14,7 @@
 #include "nsCOMPtr.h"
 
 class nsTextControlFrame;
-class nsIDOMDataTransfer;
+class nsIDOMDragEvent;
 
 class nsFileControlFrame : public nsBlockFrame,
                            public nsIFormControlFrame,
@@ -117,8 +117,7 @@ protected:
 
     NS_DECL_NSIDOMEVENTLISTENER
 
-    static bool IsValidDropData(nsIDOMDataTransfer* aDOMDataTransfer);
-    static bool CanDropTheseFiles(nsIDOMDataTransfer* aDOMDataTransfer, bool aSupportsMultiple);
+    static bool IsValidDropData(nsIDOMDragEvent* aEvent);
   };
 
   virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
