@@ -1459,7 +1459,7 @@ var AddonDatabase = {
     try {
       return this.statementCache[aKey] = this.connection.createStatement(sql);
     } catch (e) {
-      ERROR("Error creating statement " + aKey + " (" + sql + ")");
+      ERROR("Error creating statement " + aKey + " (" + aSql + ")");
       throw e;
     }
   },
