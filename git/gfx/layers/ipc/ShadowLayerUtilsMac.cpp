@@ -7,7 +7,7 @@
 
 #include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
-
+ 
 #include "gfxPlatform.h"
 
 #include "gfxSharedQuartzSurface.h"
@@ -18,10 +18,10 @@ namespace mozilla {
 namespace layers {
 
 bool
-ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                                  gfxASurface::gfxContentType aContent,
-                                                  uint32_t aCaps,
-                                                  SurfaceDescriptor* aBuffer)
+ShadowLayerForwarder::PlatformAllocBuffer(const gfxIntSize& aSize,
+                                          gfxASurface::gfxContentType aContent,
+                                          uint32_t aCaps,
+                                          SurfaceDescriptor* aBuffer)
 {
   return false;
 }
@@ -77,7 +77,7 @@ ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 }
 
 bool
-ISurfaceAllocator::PlatformDestroySharedSurface(SurfaceDescriptor*)
+ShadowLayerManager::PlatformDestroySharedSurface(SurfaceDescriptor*)
 {
   return false;
 }
@@ -89,13 +89,6 @@ ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
 {
   return nullptr;
 }
-
-/*static*/ bool
-ShadowLayerManager::SupportsDirectTexturing()
-{
-  return false;
-}
-
 
 } // namespace layers
 } // namespace mozilla

@@ -1253,7 +1253,8 @@ TabParent::HandleDelayedDialogs()
 
 PRenderFrameParent*
 TabParent::AllocPRenderFrame(ScrollingBehavior* aScrolling,
-                             TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                             LayersBackend* aBackend,
+                             int32_t* aMaxTextureSize,
                              uint64_t* aLayersId)
 {
   MOZ_ASSERT(ManagedPRenderFrameParent().IsEmpty());
@@ -1267,7 +1268,7 @@ TabParent::AllocPRenderFrame(ScrollingBehavior* aScrolling,
   *aScrolling = UseAsyncPanZoom() ? ASYNC_PAN_ZOOM : DEFAULT_SCROLLING;
   return new RenderFrameParent(frameLoader,
                                *aScrolling,
-                               aTextureFactoryIdentifier, aLayersId);
+                               aBackend, aMaxTextureSize, aLayersId);
 }
 
 bool
@@ -1409,7 +1410,8 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
 bool
 TabParent::RecvPRenderFrameConstructor(PRenderFrameParent* actor,
                                        ScrollingBehavior* scrolling,
-                                       TextureFactoryIdentifier* factoryIdentifier,
+                                       LayersBackend* backend,
+                                       int32_t* maxTextureSize,
                                        uint64_t* layersId)
 {
   RenderFrameParent* rfp = GetRenderFrame();

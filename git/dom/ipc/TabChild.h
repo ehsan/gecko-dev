@@ -61,10 +61,6 @@ namespace layout {
 class RenderFrameChild;
 }
 
-namespace layers {
-struct TextureFactoryIdentifier;
-}
-
 namespace dom {
 
 class TabChild;
@@ -336,7 +332,8 @@ public:
 
 protected:
     virtual PRenderFrameChild* AllocPRenderFrame(ScrollingBehavior* aScrolling,
-                                                 TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                                                 LayersBackend* aBackend,
+                                                 int32_t* aMaxTextureSize,
                                                  uint64_t* aLayersId) MOZ_OVERRIDE;
     virtual bool DeallocPRenderFrame(PRenderFrameChild* aFrame) MOZ_OVERRIDE;
     virtual bool RecvDestroy() MOZ_OVERRIDE;

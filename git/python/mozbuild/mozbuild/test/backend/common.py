@@ -58,11 +58,6 @@ CONFIGS = {
         'non_global_defines': [],
         'substs': [],
     },
-    'exports': {
-        'defines': [],
-        'non_global_defines': [],
-        'substs': [],
-    },
 }
 
 

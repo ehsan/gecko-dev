@@ -31,7 +31,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
 #include "nsLayoutCID.h"
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsGUIEvent.h"
 #include "nsCExternalHandlerService.h"
 #include "nsMimeTypes.h"

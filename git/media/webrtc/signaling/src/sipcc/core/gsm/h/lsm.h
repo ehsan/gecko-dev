@@ -106,8 +106,7 @@ void lsm_ui_display_status(const char *pStatusStr, line_t line,
                            callid_t call_id);
 string_t lsm_parse_displaystr(string_t displaystr);
 void lsm_speaker_mode(short mode);
-cc_rcs_t lsm_add_remote_stream (line_t line, callid_t call_id, fsmdef_media_t *media,
-  int *pc_stream_id);
+void lsm_add_remote_stream (line_t line, callid_t call_id, fsmdef_media_t *media, int *pc_stream_id);
 
 #ifdef _WIN32
 void terminate_active_calls(void);

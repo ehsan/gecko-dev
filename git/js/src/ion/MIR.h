@@ -1306,8 +1306,6 @@ class MCall
     bool construct_;
     // Monomorphic cache of single target from TI, or NULL.
     CompilerRootFunction target_;
-    // Holds a target's Script alive.
-    CompilerRootScript targetScript_;
     // Original value of argc from the bytecode.
     uint32_t numActualArgs_;
     // The typeset of the callee, could be NULL.
@@ -1317,7 +1315,6 @@ class MCall
           types::StackTypeSet *calleeTypes)
       : construct_(construct),
         target_(target),
-        targetScript_(NULL),
         numActualArgs_(numActualArgs),
         calleeTypes_(calleeTypes)
     {
@@ -1352,13 +1349,6 @@ class MCall
 
     MDefinition *getArg(uint32_t index) const {
         return getOperand(NumNonArgumentOperands + index);
-    }
-
-    void rootTargetScript(JSFunction *target) {
-        targetScript_.setRoot(target->nonLazyScript());
-    }
-    bool hasRootedScript() {
-        return targetScript_ != NULL;
     }
 
     // For TI-informed monomorphic callsites.

@@ -18,8 +18,6 @@ namespace ipc {
 }
 namespace layers {
 
-class Image;
-
 /**
  * This class is a view on a YCbCrImage stored in a Shmem at a certain offset.
  * It is only meant as a convenience to access the image data, and does not own

@@ -76,9 +76,10 @@ struct BufferSlice : public InlineForwardListNode<BufferSlice<SliceSize> > {
 
 template<int SliceSize, class Inst>
 struct AssemblerBuffer
+  : public IonAllocPolicy
 {
   public:
-    AssemblerBuffer() : head(NULL), tail(NULL), m_oom(false), m_bail(false), bufferSize(0), LifoAlloc_(8192) {}
+    AssemblerBuffer() : head(NULL), tail(NULL), m_oom(false), m_bail(false), bufferSize(0) {}
   protected:
     typedef BufferSlice<SliceSize> Slice;
     typedef AssemblerBuffer<SliceSize, Inst> AssemblerBuffer_;
@@ -95,8 +96,8 @@ struct AssemblerBuffer
         JS_ASSERT((alignment & (alignment-1)) == 0);
         return !(size() & (alignment - 1));
     }
-    virtual Slice *newSlice(LifoAlloc &a) {
-        Slice *tmp = static_cast<Slice*>(a.alloc(sizeof(Slice)));
+    virtual Slice *newSlice() {
+        Slice *tmp = static_cast<Slice*>(malloc_(sizeof(Slice)));
         if (!tmp) {
             m_oom = true;
             return NULL;
@@ -107,7 +108,7 @@ struct AssemblerBuffer
     bool ensureSpace(int size) {
         if (tail != NULL && tail->size()+size <= SliceSize)
             return true;
-        Slice *tmp = newSlice(LifoAlloc_);
+        Slice *tmp = newSlice();
         if (tmp == NULL)
             return false;
         if (tail != NULL) {
@@ -192,7 +193,7 @@ struct AssemblerBuffer
 
     // Break the instruction stream so we can go back and edit it at this point
     void perforate() {
-        Slice *tmp = newSlice(LifoAlloc_);
+        Slice *tmp = newSlice();
         if (!tmp)
             m_oom = true;
         bufferSize += tail->size();
@@ -215,8 +216,7 @@ struct AssemblerBuffer
             return m_buffer->getInst(bo);
         }
     };
-  public:
-    LifoAlloc LifoAlloc_;
+
 };
 
 } // ion

@@ -193,9 +193,7 @@ Client::WaitForStoragesToComplete(nsTArray<nsIOfflineStorage*>& aStorages,
   nsTArray<IDBDatabase*> databases(aStorages.Length());
   for (uint32_t index = 0; index < aStorages.Length(); index++) {
     IDBDatabase* database = IDBDatabase::FromStorage(aStorages[index]);
-    if (!database) {
-      MOZ_CRASH();
-    }
+    NS_ASSERTION(database, "This shouldn't be null!");
 
     databases.AppendElement(database);
   }

@@ -371,6 +371,7 @@ SharedSurface_GLTexture::WaitSync()
     mConsGL->fWaitSync(mSync,
                        0,
                        LOCAL_GL_TIMEOUT_IGNORED);
+
     mConsGL->fDeleteSync(mSync);
     mSync = 0;
 

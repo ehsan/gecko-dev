@@ -60,7 +60,8 @@ class BaselineInspector
     }
 
     BaselineScript *baselineScript() const {
-        return script->baselineScript();
+        JS_ASSERT(hasBaselineScript());
+        return script->baseline;
     }
 
   private:

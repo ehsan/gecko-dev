@@ -15,7 +15,7 @@
 
 #include "mozilla/dom/FragmentOrElement.h"
 
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIAtom.h"
 #include "nsINodeInfo.h"

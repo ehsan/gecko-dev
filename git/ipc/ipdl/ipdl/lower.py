@@ -2394,8 +2394,7 @@ class _FindFriends(ipdl.ast.Visitor):
 
     def findFriends(self, ptype):
         self.mytype = ptype
-        for toplvl in ptype.toplevels():
-            self.walkDownTheProtocolTree(toplvl);
+        self.walkDownTheProtocolTree(ptype.toplevel())
         return self.friends
 
     # TODO could make this into a _iterProtocolTreeHelper ...

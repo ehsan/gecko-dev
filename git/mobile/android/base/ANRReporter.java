@@ -34,7 +34,6 @@ import java.nio.charset.Charset;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.util.UUID;
-import java.util.Locale;
 import java.util.regex.Pattern;
 
 public final class ANRReporter extends BroadcastReceiver
@@ -208,9 +207,9 @@ public final class ANRReporter extends BroadcastReceiver
             // Regex for finding our package name in the traces file
             Pattern pkgPattern = Pattern.compile(Pattern.quote(pkgName) + END_OF_PACKAGE_NAME);
             Pattern mangledPattern = null;
-            if (!AppConstants.MANGLED_ANDROID_PACKAGE_NAME.equals(pkgName)) {
+            if (!GeckoAppInfo.getMangledPackageName().equals(pkgName)) {
                 mangledPattern = Pattern.compile(Pattern.quote(
-                    AppConstants.MANGLED_ANDROID_PACKAGE_NAME) + END_OF_PACKAGE_NAME);
+                    GeckoAppInfo.getMangledPackageName()) + END_OF_PACKAGE_NAME);
             }
             if (DEBUG) {
                 Log.d(LOGTAG, "trying to match package: " + pkgName);
@@ -274,12 +273,6 @@ public final class ANRReporter extends BroadcastReceiver
         return 0L;
     }
 
-    private static String getLocale() {
-        // Having a different locale than system locale is not
-        // supported right now; assume we are using the system locale
-        return Locale.getDefault().toString().replace('_', '-');
-    }
-
     /*
         a saved telemetry ping file consists of JSON in the following format,
             {
@@ -336,16 +329,15 @@ public final class ANRReporter extends BroadcastReceiver
             "}," +
             "\"info\":{" +
                 "\"reason\":\"android-anr-report\"," +
-                "\"OS\":" + JSONObject.quote(AppConstants.OS_TARGET) + "," +
+                "\"OS\":" + JSONObject.quote(GeckoAppInfo.getOS()) + "," +
                 "\"version\":\"" + String.valueOf(Build.VERSION.SDK_INT) + "\"," +
-                "\"appID\":" + JSONObject.quote(AppConstants.MOZ_APP_ID) + "," +
-                "\"appVersion\":" + JSONObject.quote(AppConstants.MOZ_APP_VERSION)+ "," +
-                "\"appName\":" + JSONObject.quote(AppConstants.MOZ_APP_BASENAME) + "," +
-                "\"appBuildID\":" + JSONObject.quote(AppConstants.MOZ_APP_BUILDID) + "," +
-                "\"appUpdateChannel\":" + JSONObject.quote(AppConstants.MOZ_UPDATE_CHANNEL) + "," +
-                // Technically the platform build ID may be different, but we'll never know
-                "\"platformBuildID\":" + JSONObject.quote(AppConstants.MOZ_APP_BUILDID) + "," +
-                "\"locale\":" + JSONObject.quote(getLocale()) + "," +
+                "\"appID\":" + JSONObject.quote(GeckoAppInfo.getID()) + "," +
+                "\"appVersion\":" + JSONObject.quote(GeckoAppInfo.getVersion()) + "," +
+                "\"appName\":" + JSONObject.quote(GeckoAppInfo.getName()) + "," +
+                "\"appBuildID\":" + JSONObject.quote(GeckoAppInfo.getBuildID()) + "," +
+                "\"appUpdateChannel\":" + JSONObject.quote(GeckoAppInfo.getUpdateChannel()) + "," +
+                "\"platformBuildID\":" + JSONObject.quote(GeckoAppInfo.getPlatformBuildID()) + "," +
+                "\"locale\":" + JSONObject.quote(GeckoAppInfo.getLocale()) + "," +
                 "\"cpucount\":" + String.valueOf(Runtime.getRuntime().availableProcessors()) + "," +
                 "\"memsize\":" + String.valueOf(getTotalMem()) + "," +
                 "\"arch\":" + JSONObject.quote(System.getProperty("os.arch")) + "," +

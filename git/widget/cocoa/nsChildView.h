@@ -22,7 +22,6 @@
 #include "TextInputHandler.h"
 #include "nsCocoaUtils.h"
 #include "gfxQuartzSurface.h"
-#include "GLContext.h"
 
 #include "nsString.h"
 #include "nsIDragService.h"
@@ -262,9 +261,9 @@ typedef NSInteger NSEventGestureAxis;
   BOOL mDidForceRefreshOpenGL;
   BOOL mWaitingForPaint;
 
-#ifdef __LP64__
   // Support for fluid swipe tracking.
-  void (^mCancelSwipeAnimation)();
+#ifdef __LP64__
+  BOOL *mSwipeAnimationCancelled;
 #endif
 
   // Whether this uses off-main-thread compositing.

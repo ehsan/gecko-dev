@@ -415,10 +415,12 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // it need to have underlying frames from the subdocument. So we need to
       // calculate the bounds based on which frame will be the underlying frame
       // for the canvas background color item.
-      nsRect bounds = GetContentRectRelativeToSelf() +
-        aBuilder->ToReferenceFrame(this);
+      nsRect bounds;
+      nsRect subdocBoundsInParentUnits = GetContentRectRelativeToSelf();
       if (subdocRootFrame) {
-        bounds = bounds.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
+        bounds = subdocBoundsInParentUnits.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
+      } else {
+        bounds = subdocBoundsInParentUnits;
       }
 
       // If we are in print preview/page layout we want to paint the grey

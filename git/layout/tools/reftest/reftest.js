@@ -566,8 +566,6 @@ function BuildConditionSandbox(aURL) {
       gWindowUtils.layerManagerType != "Basic";
     sandbox.layersOpenGL =
       gWindowUtils.layerManagerType == "OpenGL";
-    sandbox.layersOMTC =
-      gWindowUtils.layerManagerRemote == true;
 
     // Shortcuts for widget toolkits.
     sandbox.B2G = xr.widgetToolkit == "gonk";

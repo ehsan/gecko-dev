@@ -6,7 +6,6 @@
 #include "nsScreenWin.h"
 #include "nsCoord.h"
 #include "gfxWindowsPlatform.h"
-#include "nsIWidget.h"
 
 
 nsScreenWin :: nsScreenWin ( HMONITOR inScreen )
@@ -90,16 +89,6 @@ nsScreenWin :: GetAvailRect(int32_t *outLeft, int32_t *outTop, int32_t *outWidth
   
 } // GetAvailRect
 
-static double
-GetDPIScale()
-{
-  double dpiScale= nsIWidget::DefaultScaleOverride();
-  if (dpiScale <= 0.0) {
-    dpiScale = gfxWindowsPlatform::GetPlatform()->GetDPIScale(); 
-  }
-  return dpiScale;
-}
-
 NS_IMETHODIMP
 nsScreenWin::GetRectDisplayPix(int32_t *outLeft,  int32_t *outTop,
                                int32_t *outWidth, int32_t *outHeight)
@@ -109,7 +98,7 @@ nsScreenWin::GetRectDisplayPix(int32_t *outLeft,  int32_t *outTop,
   if (NS_FAILED(rv)) {
     return rv;
   }
-  double scaleFactor = 1.0 / GetDPIScale();
+  double scaleFactor = 1.0 / gfxWindowsPlatform::GetPlatform()->GetDPIScale(); 
   *outLeft = NSToIntRound(left * scaleFactor);
   *outTop = NSToIntRound(top * scaleFactor);
   *outWidth = NSToIntRound(width * scaleFactor);
@@ -126,7 +115,7 @@ nsScreenWin::GetAvailRectDisplayPix(int32_t *outLeft,  int32_t *outTop,
   if (NS_FAILED(rv)) {
     return rv;
   }
-  double scaleFactor = 1.0 / GetDPIScale();
+  double scaleFactor = 1.0 / gfxWindowsPlatform::GetPlatform()->GetDPIScale(); 
   *outLeft = NSToIntRound(left * scaleFactor);
   *outTop = NSToIntRound(top * scaleFactor);
   *outWidth = NSToIntRound(width * scaleFactor);

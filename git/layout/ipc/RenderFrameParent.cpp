@@ -589,7 +589,8 @@ private:
 
 RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
                                      ScrollingBehavior aScrollingBehavior,
-                                     TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                                     LayersBackend* aBackendType,
+                                     int* aMaxTextureSize,
                                      uint64_t* aId)
   : mLayersId(0)
   , mFrameLoader(aFrameLoader)
@@ -599,14 +600,15 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
   mContentViews[FrameMetrics::ROOT_SCROLL_ID] =
     new nsContentView(aFrameLoader, FrameMetrics::ROOT_SCROLL_ID);
 
+  *aBackendType = mozilla::layers::LAYERS_NONE;
+  *aMaxTextureSize = 0;
   *aId = 0;
 
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
   // Perhaps the document containing this frame currently has no presentation?
-  if (lm && lm->AsShadowManager()) {
-    *aTextureFactoryIdentifier = lm->GetTextureFactoryIdentifier();
-  } else {
-    *aTextureFactoryIdentifier = TextureFactoryIdentifier();
+  if (lm) {
+    *aBackendType = lm->GetBackendType();
+    *aMaxTextureSize = lm->GetMaxTextureSize();
   }
 
   if (CompositorParent::CompositorLoop()) {

@@ -13,7 +13,10 @@
 # include <mach/mach.h>
 #endif
 
-#if defined(JS_ION)
+// asm.js compilation is only available on desktop x86/x64 at the moment.
+// Don't panic, mobile support is coming soon.
+#if defined(JS_ION) && \
+    (defined(JS_CPU_X86) || defined(JS_CPU_X64))
 # define JS_ASMJS
 #endif
 

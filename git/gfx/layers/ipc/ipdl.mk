@@ -4,12 +4,10 @@
 
 IPDLSRCS = \
   LayersSurfaces.ipdlh \
-  LayerTransaction.ipdlh \
-  PCompositable.ipdl \
   PCompositor.ipdl \
   PGrallocBuffer.ipdl \
   PImageBridge.ipdl \
+  PImageContainer.ipdl \
   PLayer.ipdl \
   PLayers.ipdl \
-  PTexture.ipdl \
   $(NULL)

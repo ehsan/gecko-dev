@@ -42,7 +42,6 @@ const TIME_TO_RELEASE_MMS_CONNECTION = 30000;
 const PREF_RETRIEVAL_MODE      = 'dom.mms.retrieval_mode';
 const RETRIEVAL_MODE_MANUAL    = "manual";
 const RETRIEVAL_MODE_AUTOMATIC = "automatic";
-const RETRIEVAL_MODE_AUTOMATIC_HOME = "automatic-home";
 const RETRIEVAL_MODE_NEVER     = "never";
 
 
@@ -159,17 +158,6 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
               "available later.");
         this.clearMmsProxySettings();
       }
-    },
-
-    /**
-     * Return the roaming status of data connection.
-     *
-     * @return true if data connection is roaming.
-     */
-    isDataConnRoaming: function isDataConnRoaming() {
-      let isRoaming = gRIL.rilContext.data.roaming;
-      debug("isDataConnRoaming = " + isRoaming);
-      return isRoaming;
     },
 
     /**
@@ -1090,10 +1078,7 @@ MmsService.prototype = {
         retrievalMode = Services.prefs.getCharPref(PREF_RETRIEVAL_MODE);
       } catch (e) {}
 
-      let isRoaming = gMmsConnection.isDataConnRoaming();
-      if ((retrievalMode === RETRIEVAL_MODE_AUTOMATIC_HOME && isRoaming) ||
-          RETRIEVAL_MODE_MANUAL === retrievalMode ||
-          RETRIEVAL_MODE_NEVER === retrievalMode) {
+      if (RETRIEVAL_MODE_AUTOMATIC !== retrievalMode) {
         let mmsStatus = RETRIEVAL_MODE_NEVER === retrievalMode
                       ? MMS.MMS_PDU_STATUS_REJECTED
                       : MMS.MMS_PDU_STATUS_DEFERRED;
@@ -1109,8 +1094,7 @@ MmsService.prototype = {
         return;
       }
 
-      // For RETRIEVAL_MODE_AUTOMATIC or RETRIEVAL_MODE_AUTOMATIC_HOME but not
-      // roaming, proceed to retrieve MMS.
+      // For RETRIEVAL_MODE_AUTOMATIC, proceed to retrieve MMS.
       this.retrieveMessage(url, (function responseNotify(mmsStatus,
                                                          retrievedMessage) {
         debug("retrievedMessage = " + JSON.stringify(retrievedMessage));
@@ -1353,17 +1337,6 @@ MmsService.prototype = {
           !aMessageRecord.headers["x-mms-content-location"]) {
         debug("Can't find mms content url in database.");
         aRequest.notifyGetMessageFailed(Ci.nsIMobileMessageCallback.INTERNAL_ERROR);
-        return;
-      }
-
-      // Cite 6.2 "Multimedia Message Notification" in OMA-TS-MMS_ENC-V1_3-20110913-A:
-      //   The field has only one format, relative. The recipient client calculates this
-      //   length of time relative to the time it receives the notification.
-      let expiriedDate = aMessageRecord.timestamp +
-        aMessageRecord.headers["x-mms-expiry"] * 1000;
-      if (expiriedDate < Date.now()) {
-        aRequest.notifyGetMessageFailed(Ci.nsIMobileMessageCallback.NOT_FOUND_ERROR);
-        debug("This notification indication is expired.");
         return;
       }
 

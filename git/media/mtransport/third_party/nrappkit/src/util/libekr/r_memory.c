@@ -154,7 +154,7 @@ void *r_realloc(ptr,size)
   }
 
 char *r_strdup(str)
-  const char *str;
+  char *str;
   {
     int len;
     char *nstr;

@@ -662,7 +662,7 @@ MacroAssembler::performOsr()
     const Register ionScript = regs.takeAny();
     const Register osrEntry = regs.takeAny();
 
-    loadPtr(Address(script, JSScript::offsetOfIonScript()), ionScript);
+    loadPtr(Address(script, offsetof(JSScript, ion)), ionScript);
     load32(Address(ionScript, IonScript::offsetOfOsrEntryOffset()), osrEntry);
 
     // Get ionScript->method->code, and scoot to the osrEntry.
@@ -935,7 +935,7 @@ MacroAssembler::loadBaselineOrIonCode(Register script, Register scratch, Label *
     bool baselineEnabled = ion::IsBaselineEnabled(GetIonContext()->cx);
 
     Label noIonScript, done;
-    Address scriptIon(script, JSScript::offsetOfIonScript());
+    Address scriptIon(script, offsetof(JSScript, ion));
     branchPtr(Assembler::BelowOrEqual, scriptIon, ImmWord(ION_COMPILING_SCRIPT),
               &noIonScript);
     {
@@ -956,7 +956,7 @@ MacroAssembler::loadBaselineOrIonCode(Register script, Register scratch, Label *
         // The script does not have an IonScript. If |failure| is NULL,
         // assume the script has a baseline script.
         if (baselineEnabled) {
-            loadPtr(Address(script, JSScript::offsetOfBaselineScript()), script);
+            loadPtr(Address(script, offsetof(JSScript, baseline)), script);
             if (failure)
                 branchPtr(Assembler::BelowOrEqual, script, ImmWord(BASELINE_DISABLED_SCRIPT), failure);
             loadPtr(Address(script, BaselineScript::offsetOfMethod()), script);

@@ -185,9 +185,6 @@ abstract public class GeckoApp
     abstract public boolean hasTabsSideBar();
     abstract protected String getDefaultProfileName();
 
-    private static final String RESTARTER_ACTION = "org.mozilla.gecko.restart";
-    private static final String RESTARTER_CLASS = "org.mozilla.gecko.Restarter";
-
     void toggleChrome(final boolean aShow) { }
 
     void focusChrome() { }
@@ -1310,7 +1307,7 @@ abstract public class GeckoApp
         GeckoAppShell.registerGlobalExceptionHandler();
 
         // Enable Android Strict Mode for developers' local builds (the "default" channel).
-        if ("default".equals(AppConstants.MOZ_UPDATE_CHANNEL)) {
+        if ("default".equals(GeckoAppInfo.getUpdateChannel())) {
             enableStrictMode();
         }
 
@@ -1761,20 +1758,8 @@ abstract public class GeckoApp
         mMainLayout.removeView(cameraView);
     }
 
-    public String getDefaultUAString() {
-        return HardwareUtils.isTablet() ? AppConstants.USER_AGENT_FENNEC_TABLET :
-                                          AppConstants.USER_AGENT_FENNEC_MOBILE;
-    }
-
-    public String getUAStringForHost(String host) {
-        // With our standard UA String, we get a 200 response code and
-        // client-side redirect from t.co. This bot-like UA gives us a
-        // 301 response code
-        if ("t.co".equals(host)) {
-            return AppConstants.USER_AGENT_BOT_LIKE;
-        }
-        return getDefaultUAString();
-    }
+    abstract public String getDefaultUAString();
+    abstract public String getUAStringForHost(String host);
 
     class PrefetchRunnable implements Runnable {
         private String mPrefetchUrl;
@@ -2087,9 +2072,9 @@ abstract public class GeckoApp
         return Boolean.TRUE;
     } 
 
-    public String getContentProcessName() {
-        return AppConstants.MOZ_CHILD_PROCESS_NAME;
-    }
+    @Override
+    abstract public String getPackageName();
+    abstract public String getContentProcessName();
 
     public void addEnvToIntent(Intent intent) {
         Map<String,String> envMap = System.getenv();
@@ -2105,14 +2090,15 @@ abstract public class GeckoApp
     }
 
     public void doRestart() {
-        doRestart(RESTARTER_ACTION);
+        doRestart("org.mozilla.gecko.restart");
     }
 
     public void doRestart(String action) {
         Log.d(LOGTAG, "doRestart(\"" + action + "\")");
         try {
             Intent intent = new Intent(action);
-            intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, RESTARTER_CLASS);
+            intent.setClassName(getPackageName(),
+                                getPackageName() + ".Restarter");
             /* TODO: addEnvToIntent(intent); */
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                             Intent.FLAG_ACTIVITY_MULTIPLE_TASK);

@@ -28,7 +28,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCycleCollector.h"
 #include "nsDocument.h"
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMAttributeMap.h"
 #include "nsDOMCID.h"
 #include "nsDOMCSSAttrDeclaration.h"

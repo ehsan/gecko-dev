@@ -20,6 +20,7 @@ EXTRA_JS_MODULES = \
 	SignInToWebsite.jsm \
 	webappsUI.jsm \
 	webrtcUI.jsm \
+	KeywordURLResetPrompter.jsm \
 	Social.jsm \
 	SharedFrame.jsm \
 	$(NULL)

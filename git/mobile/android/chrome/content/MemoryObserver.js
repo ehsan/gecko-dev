@@ -59,6 +59,6 @@ var MemoryObserver = {
 
   dumpMemoryStats: function(aLabel) {
     let memDumper = Cc["@mozilla.org/memory-info-dumper;1"].getService(Ci.nsIMemoryInfoDumper);
-    memDumper.dumpMemoryInfoToTempDir(aLabel, false, true);
+    memDumper.dumpMemoryReportsToFile(aLabel, false, true);
   },
 };

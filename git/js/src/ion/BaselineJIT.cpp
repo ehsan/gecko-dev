@@ -174,8 +174,10 @@ EnterBaseline(JSContext *cx, StackFrame *fp, void *jitcode, bool osr)
 IonExecStatus
 ion::EnterBaselineMethod(JSContext *cx, StackFrame *fp)
 {
-    BaselineScript *baseline = fp->script()->baselineScript();
-    void *jitcode = baseline->method()->raw();
+    RootedScript script(cx, fp->script());
+    BaselineScript *baseline = script->baseline;
+    IonCode *code = baseline->method();
+    void *jitcode = code->raw();
 
     return EnterBaseline(cx, fp, jitcode, /* osr = */false);
 }
@@ -185,8 +187,9 @@ ion::EnterBaselineAtBranch(JSContext *cx, StackFrame *fp, jsbytecode *pc)
 {
     JS_ASSERT(JSOp(*pc) == JSOP_LOOPENTRY);
 
-    BaselineScript *baseline = fp->script()->baselineScript();
-    uint8_t *jitcode = baseline->nativeCodeForPC(fp->script(), pc);
+    RootedScript script(cx, fp->script());
+    BaselineScript *baseline = script->baseline;
+    uint8_t *jitcode = baseline->nativeCodeForPC(script, pc);
 
     // Skip debug breakpoint/trap handler, the interpreter already handled it
     // for the current op.
@@ -199,8 +202,7 @@ ion::EnterBaselineAtBranch(JSContext *cx, StackFrame *fp, jsbytecode *pc)
 static MethodStatus
 BaselineCompile(JSContext *cx, HandleScript script)
 {
-    JS_ASSERT(!script->hasBaselineScript());
-    JS_ASSERT(script->canBaselineCompile());
+    JS_ASSERT(!script->baseline);
 
     LifoAlloc alloc(BASELINE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
 
@@ -217,11 +219,11 @@ BaselineCompile(JSContext *cx, HandleScript script)
     AutoFlushCache afc("BaselineJIT", cx->runtime->ionRuntime());
     MethodStatus status = compiler.compile();
 
-    JS_ASSERT_IF(status == Method_Compiled, script->hasBaselineScript());
-    JS_ASSERT_IF(status != Method_Compiled, !script->hasBaselineScript());
+    JS_ASSERT_IF(status == Method_Compiled, script->baseline);
+    JS_ASSERT_IF(status != Method_Compiled, !script->baseline);
 
     if (status == Method_CantCompile)
-        script->setBaselineScript(BASELINE_DISABLED_SCRIPT);
+        script->baseline = BASELINE_DISABLED_SCRIPT;
 
     return status;
 }
@@ -233,7 +235,7 @@ ion::CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, boo
     JS_ASSERT(ion::IsBaselineEnabled(cx));
 
     // Skip if the script has been disabled.
-    if (!scriptArg->canBaselineCompile())
+    if (scriptArg->baseline == BASELINE_DISABLED_SCRIPT)
         return Method_Skipped;
 
     if (scriptArg->length > BaselineScript::MAX_JSSCRIPT_LENGTH)
@@ -270,7 +272,7 @@ ion::CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, boo
         RootedScript original(cx, script->originalFunction()->nonLazyScript());
         JS_ASSERT(original != script);
 
-        if (!original->canBaselineCompile())
+        if (original->baseline == BASELINE_DISABLED_SCRIPT)
             return Method_CantCompile;
 
         if (!original->hasBaselineScript()) {
@@ -528,7 +530,7 @@ BaselineScript::copyPCMappingIndexEntries(const PCMappingIndexEntry *entries)
 uint8_t *
 BaselineScript::nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotInfo *slotInfo)
 {
-    JS_ASSERT(script->baselineScript() == this);
+    JS_ASSERT(script->baseline == this);
     JS_ASSERT(pc >= script->code);
     JS_ASSERT(pc < script->code + script->length);
 
@@ -579,7 +581,7 @@ BaselineScript::nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotI
 void
 BaselineScript::toggleDebugTraps(RawScript script, jsbytecode *pc)
 {
-    JS_ASSERT(script->baselineScript() == this);
+    JS_ASSERT(script->baseline == this);
 
     SrcNoteLineScanner scanner(script->notes(), script->lineno);
 
@@ -702,19 +704,19 @@ ion::FinishDiscardBaselineScript(FreeOp *fop, RawScript script)
     if (!script->hasBaselineScript())
         return;
 
-    if (script->baselineScript()->active()) {
+    if (script->baseline->active()) {
         // Script is live on the stack. Keep the BaselineScript, but destroy
         // stubs allocated in the optimized stub space.
-        script->baselineScript()->purgeOptimizedStubs(script->zone());
+        script->baseline->purgeOptimizedStubs(script->zone());
 
         // Reset |active| flag so that we don't need a separate script
         // iteration to unmark them.
-        script->baselineScript()->resetActive();
+        script->baseline->resetActive();
         return;
     }
 
-    BaselineScript::Destroy(fop, script->baselineScript());
-    script->setBaselineScript(NULL);
+    BaselineScript::Destroy(fop, script->baseline);
+    script->baseline = NULL;
 }
 
 void
@@ -734,7 +736,7 @@ ion::SizeOfBaselineData(JSScript *script, JSMallocSizeOfFun mallocSizeOf, size_t
     *fallbackStubs = 0;
 
     if (script->hasBaselineScript())
-        script->baselineScript()->sizeOfIncludingThis(mallocSizeOf, data, fallbackStubs);
+        script->baseline->sizeOfIncludingThis(mallocSizeOf, data, fallbackStubs);
 }
 
 void

@@ -53,5 +53,13 @@ ColorLayerOGL::RenderLayer(int,
   RenderColorLayer(this, mOGLManager, aOffset);
 }
 
+void
+ShadowColorLayerOGL::RenderLayer(int,
+                                 const nsIntPoint& aOffset)
+{
+  RenderColorLayer(this, mOGLManager, aOffset);
+}
+
+
 } /* layers */
 } /* mozilla */

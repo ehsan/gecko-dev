@@ -21,7 +21,7 @@
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
@@ -209,7 +209,7 @@ nsLayoutStatics::Initialize()
 #ifdef DEBUG
   nsFrame::DisplayReflowStartup();
 #endif
-  Attr::Initialize();
+  nsDOMAttribute::Initialize();
 
   rv = txMozillaXSLTProcessor::Startup();
   if (NS_FAILED(rv)) {
@@ -292,7 +292,7 @@ nsLayoutStatics::Shutdown()
 #endif
   nsDOMStorageManager::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
-  Attr::Shutdown();
+  nsDOMAttribute::Shutdown();
   nsEventListenerManager::Shutdown();
   nsIMEStateManager::Shutdown();
   nsComputedDOMStyle::Shutdown();

@@ -247,7 +247,7 @@ BreakpointSite::recompile(FreeOp *fop)
 
 #ifdef JS_ION
     if (script->hasBaselineScript())
-        script->baselineScript()->toggleDebugTraps(script, pc);
+        script->baseline->toggleDebugTraps(script, pc);
 #endif
 }
 

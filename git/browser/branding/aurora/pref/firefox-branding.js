@@ -1,5 +1,3 @@
-
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -19,11 +17,11 @@ pref("app.update.promptWaitTime", 86400);
 pref("app.update.url.manual", "http://www.mozilla.com/firefox/channel/");
 // A default value for the "More information about this update" link
 // supplied in the "An update is available" page of the update wizard. 
-pref("app.update.url.details", "http://www.mozilla.org/projects/firefox/");
+pref("app.update.url.details", "http://www.mozilla.org/projects/%APP%/");
 
 // Release notes and vendor URLs
-pref("app.releaseNotesURL", "http://www.mozilla.org/projects/firefox/%VERSION%/releasenotes/");
-pref("app.vendorURL", "http://www.mozilla.org/projects/firefox/");
+pref("app.releaseNotesURL", "http://www.mozilla.org/projects/%APP%/%VERSION%/releasenotes/");
+pref("app.vendorURL", "http://www.mozilla.org/projects/%APP%/");
 
 // Search codes belong only in builds with official branding
 pref("browser.search.param.yahoo-fr", "");

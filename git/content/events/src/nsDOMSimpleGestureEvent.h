@@ -31,11 +31,6 @@ public:
     return mozilla::dom::SimpleGestureEventBinding::Wrap(aCx, aScope, this);
   }
 
-  uint32_t AllowedDirections()
-  {
-    return static_cast<nsSimpleGestureEvent*>(mEvent)->allowedDirections;
-  }
-
   uint32_t Direction()
   {
     return static_cast<nsSimpleGestureEvent*>(mEvent)->direction;
@@ -66,7 +61,6 @@ public:
                               bool aMetaKey,
                               uint16_t aButton,
                               mozilla::dom::EventTarget* aRelatedTarget,
-                              uint32_t aAllowedDirections,
                               uint32_t aDirection,
                               double aDelta,
                               uint32_t aClickCount,
@@ -76,8 +70,8 @@ public:
                                  aView, aDetail, aScreenX, aScreenY,
                                  aClientX, aClientY, aCtrlKey, aAltKey,
                                  aShiftKey, aMetaKey, aButton,
-                                 aRelatedTarget, aAllowedDirections,
-                                 aDirection, aDelta, aClickCount);
+                                 aRelatedTarget, aDirection,
+                                 aDelta, aClickCount);
   }
 };
 

@@ -52,7 +52,6 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsIChannelPolicy.h"
 #include "nsILoadContext.h"
-#include "nsILoadGroupChild.h"
 
 #include "nsContentUtils.h"
 
@@ -1711,9 +1710,8 @@ nsresult imgLoader::LoadImage(nsIURI *aURI,
     // together as a logical group.
     nsCOMPtr<nsILoadGroup> loadGroup =
         do_CreateInstance(NS_LOADGROUP_CONTRACTID);
-    nsCOMPtr<nsILoadGroupChild> childLoadGroup = do_QueryInterface(loadGroup);
-    if (childLoadGroup)
-      childLoadGroup->SetParentLoadGroup(aLoadGroup);
+    if (loadGroup)
+      loadGroup->SetLoadGroup(aLoadGroup);
     newChannel->SetLoadGroup(loadGroup);
 
     request->Init(aURI, aURI, loadGroup, newChannel, entry, aCX,

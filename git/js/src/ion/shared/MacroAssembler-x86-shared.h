@@ -517,10 +517,6 @@ class MacroAssemblerX86Shared : public Assembler
     CodeOffsetLabel labelForPatch() {
         return CodeOffsetLabel(size());
     }
-    
-    void abiret() {
-        ret();
-    }
 };
 
 } // namespace ion

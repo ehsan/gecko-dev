@@ -123,14 +123,13 @@ BaselineCompiler::compile()
                                                          pcEntries.length());
     if (!baselineScript)
         return Method_Error;
-
-    baselineScript->setMethod(code);
-
-    script->setBaselineScript(baselineScript);
+    script->baseline = baselineScript;
 
     IonSpew(IonSpew_BaselineScripts, "Created BaselineScript %p (raw %p) for %s:%d",
-            (void *) script->baselineScript(), (void *) code->raw(),
+            (void *) script->baseline, (void *) code->raw(),
             script->filename(), script->lineno);
+
+    script->baseline->setMethod(code);
 
     JS_ASSERT(pcMappingIndexEntries.length() > 0);
     baselineScript->copyPCMappingIndexEntries(&pcMappingIndexEntries[0]);
@@ -413,7 +412,7 @@ BaselineCompiler::emitUseCountIncrement()
     masm.branch32(Assembler::LessThan, countReg, Imm32(minUses), &skipCall);
 
     masm.branchPtr(Assembler::Equal,
-                   Address(scriptReg, JSScript::offsetOfIonScript()),
+                   Address(scriptReg, offsetof(JSScript, ion)),
                    ImmWord(ION_COMPILING_SCRIPT), &skipCall);
 
     // Call IC.
@@ -2413,7 +2412,7 @@ BaselineCompiler::emit_JSOP_ARGUMENTS()
         // Load script->baseline.
         Register scratch = R1.scratchReg();
         masm.movePtr(ImmGCPtr(script), scratch);
-        masm.loadPtr(Address(scratch, JSScript::offsetOfBaselineScript()), scratch);
+        masm.loadPtr(Address(scratch, offsetof(JSScript, baseline)), scratch);
 
         // If we don't need an arguments object, skip the VM call.
         masm.branchTest32(Assembler::Zero, Address(scratch, BaselineScript::offsetOfFlags()),

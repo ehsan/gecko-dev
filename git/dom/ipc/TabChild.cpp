@@ -2029,7 +2029,8 @@ TabChild::RecvSetAppType(const nsString& aAppType)
 
 PRenderFrameChild*
 TabChild::AllocPRenderFrame(ScrollingBehavior* aScrolling,
-                            TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                            LayersBackend* aBackend,
+                            int32_t* aMaxTextureSize,
                             uint64_t* aLayersId)
 {
     return new RenderFrameChild();
@@ -2088,11 +2089,12 @@ TabChild::InitRenderingState()
 {
     static_cast<PuppetWidget*>(mWidget.get())->InitIMEState();
 
+    LayersBackend be;
     uint64_t id;
-    TextureFactoryIdentifier textureFactoryIdentifier;
+    int32_t maxTextureSize;
     RenderFrameChild* remoteFrame =
         static_cast<RenderFrameChild*>(SendPRenderFrameConstructor(
-                                         &mScrolling, &textureFactoryIdentifier, &id));
+                                           &mScrolling, &be, &maxTextureSize, &id));
     if (!remoteFrame) {
       NS_WARNING("failed to construct RenderFrame");
       return false;
@@ -2102,14 +2104,15 @@ TabChild::InitRenderingState()
     if (id != 0) {
         // Pushing layers transactions directly to a separate
         // compositor context.
-		PCompositorChild* compositorChild = CompositorChild::Get();
+        PCompositorChild* compositorChild = CompositorChild::Get();
         if (!compositorChild) {
           NS_WARNING("failed to get CompositorChild instance");
           return false;
         }
         shadowManager =
-            compositorChild->SendPLayersConstructor(textureFactoryIdentifier.mParentBackend,
-                                                    id, &textureFactoryIdentifier);
+            compositorChild->SendPLayersConstructor(be, id,
+                                                    &be,
+                                                    &maxTextureSize);
     } else {
         // Pushing transactions to the parent content.
         shadowManager = remoteFrame->SendPLayersConstructor();
@@ -2123,11 +2126,11 @@ TabChild::InitRenderingState()
     }
 
     ShadowLayerForwarder* lf =
-        mWidget->GetLayerManager(shadowManager, textureFactoryIdentifier.mParentBackend)
-               ->AsShadowForwarder();
+        mWidget->GetLayerManager(shadowManager, be)->AsShadowForwarder();
     NS_ABORT_IF_FALSE(lf && lf->HasShadowManager(),
                       "PuppetWidget should have shadow manager");
-    lf->IdentifyTextureHost(textureFactoryIdentifier);
+    lf->SetParentBackendType(be);
+    lf->SetMaxTextureSize(maxTextureSize);
 
     mRemoteFrame = remoteFrame;
 

@@ -66,7 +66,7 @@ using namespace QtMobility;
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Likely.h"
-#include "mozilla/layers/LayersTypes.h"
+#include "LayersTypes.h"
 #include "nsIWidgetListener.h"
 
 #include "nsIStringBundle.h"

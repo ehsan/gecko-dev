@@ -15,6 +15,7 @@
  * http://mxr.mozilla.org/mozilla-central/source/dom/interfaces/core/nsIDOMDocument.idl
  */
 
+interface Attr;
 interface Comment;
 interface StyleSheetList;
 interface Touch;
