@@ -273,8 +273,6 @@ class Vector : private AllocPolicy
     template <class U, size_t O, class BP> void internalAppend(const Vector<U,O,BP> &other);
 
   public:
-    static const size_t sMaxInlineStorage = N;
-
     typedef T ElementType;
 
     Vector(AllocPolicy = AllocPolicy());

@@ -522,8 +522,7 @@ public class GeckoAppShell
     }
 
     public static void notifyIMEEnabled(int state, String typeHint,
-                                        String actionHint, boolean landscapeFS)
-    {
+                                        String actionHint) {
         if (GeckoApp.surfaceView == null)
             return;
 
@@ -532,7 +531,6 @@ public class GeckoAppShell
         GeckoApp.surfaceView.mIMEState = state;
         GeckoApp.surfaceView.mIMETypeHint = typeHint;
         GeckoApp.surfaceView.mIMEActionHint = actionHint;
-        GeckoApp.surfaceView.mIMELandscapeFS = landscapeFS;
         IMEStateUpdater.enableIME();
     }
 

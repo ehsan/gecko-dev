@@ -2669,7 +2669,6 @@ ia64*-hpux*)
     RC=rc.exe
     RCFLAGS='-n'
     MOZ_USER_DIR="Mozilla"
-    ZIP="$ZIP -X"
 
     if test "$MOZTOOLS"; then
         MOZ_TOOLS_DIR=`echo $MOZTOOLS | sed -e 's|\\\\|/|g'`
@@ -4952,7 +4951,6 @@ MOZ_FEEDS=1
 MOZ_INSTALLER=1
 MOZ_JSDEBUGGER=1
 MOZ_MATHML=1
-MOZ_CSS_ANIMATIONS=1
 MOZ_MORK=
 MOZ_MORKREADER=1
 MOZ_AUTH_EXTENSION=1
@@ -6216,14 +6214,6 @@ MOZ_ARG_DISABLE_BOOL(universalchardet,
   MOZ_UNIVERSALCHARDET=,
   MOZ_UNIVERSALCHARDET=1 )
 
-if test -n "${JAVA_BIN_PATH}"; then
-  dnl Look for javac and jar in the specified path.
-  JAVA_PATH="$JAVA_BIN_PATH"
-else
-  dnl No path specified, so look for javac and jar in $JAVA_HOME & $PATH.
-  JAVA_PATH="$JAVA_HOME/bin:$PATH"
-fi
-
 MOZ_PATH_PROG(JAVA, java, :, [$JAVA_PATH])
 MOZ_PATH_PROG(JAVAC, javac, :, [$JAVA_PATH])
 MOZ_PATH_PROG(JAR, jar, :, [$JAVA_PATH])
@@ -6534,8 +6524,6 @@ MOZ_ARG_DISABLE_BOOL(mathml,
 if test "$MOZ_MATHML"; then
   AC_DEFINE(MOZ_MATHML)
 fi
-
-AC_DEFINE(MOZ_CSS_ANIMATIONS)
 
 dnl ========================================================
 dnl Keeping AC_DEFINE(MOZ_SVG) for the moment in case of something needs it.
@@ -8899,10 +8887,6 @@ if test "$MOZ_APP_COMPONENT_INCLUDE"; then
   AC_DEFINE_UNQUOTED(MOZ_APP_COMPONENT_INCLUDE, "$MOZ_APP_COMPONENT_INCLUDE")
 fi
 
-if test "$MOZ_APP_COMPONENT_MODULES"; then
-  AC_DEFINE_UNQUOTED(MOZ_APP_COMPONENT_MODULES, $MOZ_APP_COMPONENT_MODULES)
-fi
-
 dnl ========================================================
 dnl =
 dnl = Maintainer debug option (no --enable equivalent)
@@ -8931,7 +8915,6 @@ AC_SUBST(MINIMO)
 AC_SUBST(MOZ_PLATFORM_MAEMO)
 AC_SUBST(MOZ_AUTH_EXTENSION)
 AC_SUBST(MOZ_MATHML)
-AC_SUBST(MOZ_CSS_ANIMATIONS)
 AC_SUBST(MOZ_PERMISSIONS)
 AC_SUBST(MOZ_XTF)
 AC_SUBST(MOZ_PREF_EXTENSIONS)
@@ -8959,6 +8942,7 @@ AC_SUBST(MOZ_PROFILING)
 AC_SUBST(MOZ_QUANTIFY)
 AC_SUBST(LIBICONV)
 AC_SUBST(MOZ_PLACES)
+AC_SUBST(MOZ_PLACES_BOOKMARKS)
 AC_SUBST(MOZ_STORAGE)
 AC_SUBST(MOZ_TOOLKIT_SEARCH)
 AC_SUBST(MOZ_FEEDS)

@@ -88,20 +88,20 @@ nsSafeOptionListMutation::nsSafeOptionListMutation(nsIContent* aSelect,
                                                    nsIContent* aKid,
                                                    PRUint32 aIndex,
                                                    PRBool aNotify)
-  : mSelect(nsHTMLSelectElement::FromContent(aSelect))
-  , mTopLevelMutation(PR_FALSE)
-  , mNeedsRebuild(PR_FALSE)
+  : mSelect(do_QueryInterface(aSelect)), mTopLevelMutation(PR_FALSE),
+    mNeedsRebuild(PR_FALSE)
 {
-  if (mSelect) {
-    mTopLevelMutation = !mSelect->mMutating;
+  nsHTMLSelectElement* select = static_cast<nsHTMLSelectElement*>(mSelect.get());
+  if (select) {
+    mTopLevelMutation = !select->mMutating;
     if (mTopLevelMutation) {
-      mSelect->mMutating = PR_TRUE;
+      select->mMutating = PR_TRUE;
     } else {
       // This is very unfortunate, but to handle mutation events properly,
       // option list must be up-to-date before inserting or removing options.
       // Fortunately this is called only if mutation event listener
       // adds or removes options.
-      mSelect->RebuildOptionsArray(aNotify);
+      select->RebuildOptionsArray(aNotify);
     }
     nsresult rv;
     if (aKid) {
@@ -116,14 +116,16 @@ nsSafeOptionListMutation::nsSafeOptionListMutation(nsIContent* aSelect,
 nsSafeOptionListMutation::~nsSafeOptionListMutation()
 {
   if (mSelect) {
+    nsHTMLSelectElement* select =
+      static_cast<nsHTMLSelectElement*>(mSelect.get());
     if (mNeedsRebuild || (mTopLevelMutation && mGuard.Mutated(1))) {
-      mSelect->RebuildOptionsArray(PR_TRUE);
+      select->RebuildOptionsArray(PR_TRUE);
     }
     if (mTopLevelMutation) {
-      mSelect->mMutating = PR_FALSE;
+      select->mMutating = PR_FALSE;
     }
 #ifdef DEBUG
-    mSelect->VerifyOptionsArray();
+    select->VerifyOptionsArray();
 #endif
   }
 }
@@ -185,8 +187,9 @@ DOMCI_NODE_DATA(HTMLSelectElement, nsHTMLSelectElement)
 
 // QueryInterface implementation for nsHTMLSelectElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSelectElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLSelectElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLSelectElement,
                                    nsIDOMHTMLSelectElement,
+                                   nsISelectElement,
                                    nsIConstraintValidation)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLSelectElement,
                                                nsGenericHTMLFormElement)
@@ -1268,6 +1271,18 @@ NS_IMPL_STRING_ATTR(nsHTMLSelectElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Required, required)
 NS_IMPL_NON_NEGATIVE_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size, 0)
 NS_IMPL_INT_ATTR(nsHTMLSelectElement, TabIndex, tabindex)
+
+NS_IMETHODIMP
+nsHTMLSelectElement::Blur()
+{
+  return nsGenericHTMLElement::Blur();
+}
+
+NS_IMETHODIMP
+nsHTMLSelectElement::Focus()
+{
+  return nsGenericHTMLElement::Focus();
+}
 
 PRBool
 nsHTMLSelectElement::IsHTMLFocusable(PRBool aWithMouse,

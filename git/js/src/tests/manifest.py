@@ -7,14 +7,6 @@ from subprocess import *
 
 from tests import TestCase
 
-
-def split_path_into_dirs(path):
-    dirs = []
-    while path != "/":
-        path = os.path.dirname(path)
-        dirs.append(path)
-    return dirs
-
 class XULInfo:
     def __init__(self, abi, os, isdebug):
         self.abi = abi
@@ -37,19 +29,17 @@ class XULInfo:
 
         # Our strategy is to find the autoconf.mk generated for the build and
         # read the values from there.
-
+        
         # Find config/autoconf.mk.
-        dirs = split_path_into_dirs(os.getcwd()) + split_path_into_dirs(jsdir)
-
-        path = None
-        for dir in dirs:
-          path = os.path.join(dir, 'config/autoconf.mk')
-          if os.path.isfile(path):
-              break
-
-        if path == None:
-            print "Can't find config/autoconf.mk on a directory containing the JS shell (searched from %s)"%jsdir
-            sys.exit(1)
+        dir = jsdir
+        while True:
+            path = os.path.join(dir, 'config/autoconf.mk')
+            if os.path.isfile(path):
+                break
+            if os.path.dirname(dir) == dir:
+                print "Can't find config/autoconf.mk on a directory containing the JS shell (searched from %s)"%jsdir
+                sys.exit(1)
+            dir = os.path.dirname(dir)
 
         # Read the values.
         val_re = re.compile(r'(TARGET_XPCOM_ABI|OS_TARGET|MOZ_DEBUG)\s*=\s*(.*)')

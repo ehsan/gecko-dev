@@ -5772,6 +5772,12 @@ nsDocument::GetPrefix(nsAString& aPrefix)
 }
 
 NS_IMETHODIMP
+nsDocument::SetPrefix(const nsAString& aPrefix)
+{
+  return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
+}
+
+NS_IMETHODIMP
 nsDocument::GetLocalName(nsAString& aLocalName)
 {
   SetDOMStringToNull(aLocalName);
@@ -6750,8 +6756,10 @@ nsDocument::WalkRadioGroup(const nsAString& aName,
     return NS_OK;
   }
 
+  PRBool stop = PR_FALSE;
   for (int i = 0; i < radioGroup->mRadioButtons.Count(); i++) {
-    if (!aVisitor->Visit(radioGroup->mRadioButtons[i])) {
+    aVisitor->Visit(radioGroup->mRadioButtons[i], &stop);
+    if (stop) {
       return NS_OK;
     }
   }

@@ -56,7 +56,6 @@ function onLoad() {
   testConsoleLoggingAPI("info");
   testConsoleLoggingAPI("warn");
   testConsoleLoggingAPI("error");
-  testConsoleLoggingAPI("debug"); // bug 616742
 
   finishTest();
 }
