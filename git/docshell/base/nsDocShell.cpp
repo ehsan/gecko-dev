@@ -116,7 +116,6 @@
 #include "nsIFaviconService.h"
 #include "mozIAsyncFavicons.h"
 #endif
-#include "nsINetworkSeer.h"
 
 // Editor-related
 #include "nsIEditingSession.h"
@@ -4588,9 +4587,15 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
     errorPageUrl.AppendASCII(escapedDescription.get());
 
     // Append the manifest URL if the error comes from an app.
-    nsString manifestURL;
-    nsresult rv = GetAppManifestURL(manifestURL);
-    if (manifestURL.Length() > 0) {
+    uint32_t appId;
+    nsresult rv = GetAppId(&appId);
+    if (appId != nsIScriptSecurityManager::NO_APP_ID &&
+        appId != nsIScriptSecurityManager::UNKNOWN_APP_ID) {
+      nsCOMPtr<nsIAppsService> appsService =
+        do_GetService(APPS_SERVICE_CONTRACTID);
+      NS_ASSERTION(appsService, "No AppsService available");
+      nsAutoString manifestURL;
+      appsService->GetManifestURLByLocalId(appId, manifestURL);
       nsCString manifestParam;
       SAFE_ESCAPE(manifestParam,
                   NS_ConvertUTF16toUTF8(manifestURL).get(),
@@ -7014,12 +7019,9 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
                 aStatus = NS_ERROR_OFFLINE;
             DisplayLoadError(aStatus, url, nullptr, aChannel);
         }
-    } // if we have a host
-    else if (url && NS_SUCCEEDED(aStatus)) {
-        mozilla::net::SeerLearnRedirect(url, aChannel, this);
-    }
+  } // if we have a host
 
-    return NS_OK;
+  return NS_OK;
 }
 
 
@@ -9405,9 +9407,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
       srcdoc = aSrcdoc;
     else
       srcdoc = NullString();
-
-    mozilla::net::SeerPredict(aURI, nullptr, nsINetworkSeer::PREDICT_LOAD,
-                              this, nullptr);
 
     nsCOMPtr<nsIRequest> req;
     rv = DoURILoad(aURI, aReferrer,
@@ -12465,9 +12464,6 @@ nsDocShell::OnOverLink(nsIContent* aContent,
   rv = textToSubURI->UnEscapeURIForUI(charset, spec, uStr);    
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mozilla::net::SeerPredict(aURI, mCurrentURI, nsINetworkSeer::PREDICT_LINK,
-                            this, nullptr);
-
   if (browserChrome2) {
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aContent);
     rv = browserChrome2->SetStatusWithContext(nsIWebBrowserChrome::STATUS_LINK,
@@ -12733,25 +12729,6 @@ nsDocShell::GetAppId(uint32_t* aAppId)
     }
 
     return parent->GetAppId(aAppId);
-}
-
-NS_IMETHODIMP
-nsDocShell::GetAppManifestURL(nsAString& aAppManifestURL)
-{
-  uint32_t appId;
-  GetAppId(&appId);
-
-  if (appId != nsIScriptSecurityManager::NO_APP_ID &&
-      appId != nsIScriptSecurityManager::UNKNOWN_APP_ID) {
-    nsCOMPtr<nsIAppsService> appsService =
-      do_GetService(APPS_SERVICE_CONTRACTID);
-    NS_ASSERTION(appsService, "No AppsService available");
-    appsService->GetManifestURLByLocalId(appId, aAppManifestURL);
-  } else {
-    aAppManifestURL.SetLength(0);
-  }
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP

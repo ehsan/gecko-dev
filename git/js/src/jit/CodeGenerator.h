@@ -43,7 +43,7 @@ class OutOfLineCallPostWriteBarrier;
 
 class CodeGenerator : public CodeGeneratorSpecific
 {
-    bool generateArgumentsChecks(bool bailout = true);
+    bool generateArgumentsChecks();
     bool generateBody();
 
   public:

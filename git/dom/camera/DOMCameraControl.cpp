@@ -5,18 +5,15 @@
 #include "base/basictypes.h"
 #include "nsCOMPtr.h"
 #include "nsDOMClassInfo.h"
-#include "nsHashPropertyBag.h"
 #include "jsapi.h"
 #include "nsThread.h"
 #include "DeviceStorage.h"
 #include "mozilla/dom/CameraControlBinding.h"
-#include "mozilla/dom/TabChild.h"
+#include "mozilla/dom/ContentChild.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
-#include "nsIAppsService.h"
 #include "nsIObserverService.h"
 #include "nsIDOMDeviceStorage.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsXULAppAPI.h"
 #include "DOMCameraManager.h"
 #include "DOMCameraCapabilities.h"
@@ -281,16 +278,13 @@ nsDOMCameraControl::StartRecording(JSContext* aCx,
     return;
   }
 
-  nsRefPtr<nsHashPropertyBag> props = CreateRecordingDeviceEventsSubject();
-  obs->NotifyObservers(static_cast<nsIPropertyBag2*>(props),
+  obs->NotifyObservers(nullptr,
                        "recording-device-events",
                        NS_LITERAL_STRING("starting").get());
   // Forward recording events to parent process.
   // The events are gathered in chrome process and used for recording indicator
   if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    unused << TabChild::GetFrom(mWindow)->SendRecordingDeviceEvents(NS_LITERAL_STRING("starting"),
-                                                                    true /* isAudio */,
-                                                                    true /* isVideo */);
+    unused << ContentChild::GetSingleton()->SendRecordingDeviceEvents(NS_LITERAL_STRING("starting"));
   }
 
   #ifdef MOZ_B2G
@@ -324,16 +318,13 @@ nsDOMCameraControl::StopRecording(ErrorResult& aRv)
     aRv.Throw(NS_ERROR_FAILURE);
   }
 
-  nsRefPtr<nsHashPropertyBag> props = CreateRecordingDeviceEventsSubject();
-  obs->NotifyObservers(static_cast<nsIPropertyBag2*>(props) ,
+  obs->NotifyObservers(nullptr,
                        "recording-device-events",
                        NS_LITERAL_STRING("shutdown").get());
   // Forward recording events to parent process.
   // The events are gathered in chrome process and used for recording indicator
   if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    unused << TabChild::GetFrom(mWindow)->SendRecordingDeviceEvents(NS_LITERAL_STRING("shutdown"),
-                                                                    true /* isAudio */,
-                                                                    true /* isVideo */);
+    unused << ContentChild::GetSingleton()->SendRecordingDeviceEvents(NS_LITERAL_STRING("shutdown"));
   }
 
   #ifdef MOZ_B2G
@@ -532,40 +523,4 @@ nsRefPtr<ICameraControl>
 nsDOMCameraControl::GetNativeCameraControl()
 {
   return mCameraControl;
-}
-
-already_AddRefed<nsHashPropertyBag>
-nsDOMCameraControl::CreateRecordingDeviceEventsSubject()
-{
-  MOZ_ASSERT(mWindow);
-
-  nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
-  props->SetPropertyAsBool(NS_LITERAL_STRING("isAudio"), true);
-  props->SetPropertyAsBool(NS_LITERAL_STRING("isVideo"), true);
-
-  nsCOMPtr<nsIDocShell> docShell = mWindow->GetDocShell();
-  if (docShell) {
-    bool isApp;
-    DebugOnly<nsresult> rv = docShell->GetIsApp(&isApp);
-    MOZ_ASSERT(NS_SUCCEEDED(rv));
-
-    nsString requestURL;
-    if (isApp) {
-      rv = docShell->GetAppManifestURL(requestURL);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
-    } else {
-      nsCString pageURL;
-      nsCOMPtr<nsIURI> docURI = mWindow->GetDocumentURI();
-      MOZ_ASSERT(docURI);
-
-      rv = docURI->GetSpec(pageURL);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
-
-      requestURL = NS_ConvertUTF8toUTF16(pageURL);
-    }
-    props->SetPropertyAsBool(NS_LITERAL_STRING("isApp"), isApp);
-    props->SetPropertyAsAString(NS_LITERAL_STRING("requestURL"), requestURL);
-  }
-
-  return props.forget();
 }

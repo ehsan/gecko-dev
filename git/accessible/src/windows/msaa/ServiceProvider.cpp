@@ -11,7 +11,6 @@
 #include "DocAccessible.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
-#include "Relation.h"
 #include "uiaRawElmProvider.h"
 
 #include "mozilla/Preferences.h"
@@ -61,12 +60,33 @@ ServiceProvider::QueryService(REFGUID aGuidService, REFIID aIID,
     if (aIID != IID_IAccessible)
       return E_NOINTERFACE;
 
-    Relation rel = mAccessible->RelationByType(RelationType::CONTAINING_TAB_PANE);
-    AccessibleWrap* tabDoc = static_cast<AccessibleWrap*>(rel.Next());
-    if (!tabDoc)
+    nsCOMPtr<nsIDocShell> docShell =
+      nsCoreUtils::GetDocShellFor(mAccessible->GetNode());
+    if (!docShell)
+      return E_UNEXPECTED;
+
+    // Walk up the parent chain without crossing the boundary at which item
+    // types change, preventing us from walking up out of tab content.
+    nsCOMPtr<nsIDocShellTreeItem> root;
+    docShell->GetSameTypeRootTreeItem(getter_AddRefs(root));
+    if (!root)
+      return E_UNEXPECTED;
+
+
+    // If the item type is typeContent, we assume we are in browser tab content.
+    // Note this includes content such as about:addons, for consistency.
+    int32_t itemType;
+    root->GetItemType(&itemType);
+    if (itemType != nsIDocShellTreeItem::typeContent)
       return E_NOINTERFACE;
 
-    *aInstancePtr = static_cast<IAccessible*>(tabDoc);
+    // Make sure this is a document.
+    DocAccessible* docAcc = nsAccUtils::GetDocAccessibleFor(root);
+    if (!docAcc)
+      return E_UNEXPECTED;
+
+    *aInstancePtr = static_cast<IAccessible*>(docAcc);
+
     (reinterpret_cast<IUnknown*>(*aInstancePtr))->AddRef();
     return S_OK;
   }
