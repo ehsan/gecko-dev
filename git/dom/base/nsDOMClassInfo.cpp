@@ -3611,7 +3611,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_SVG_TEXT_CONTENT_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(SVGUnknownElement, nsIDOMSVGElement)
+  DOM_CLASSINFO_MAP_BEGIN(SVGUnknownElement, nsIDOMSVGElement)
     DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -8638,7 +8638,7 @@ static JSClass sHTMLDocumentAllClass = {
   JS_PropertyStub, JS_PropertyStub, nsHTMLDocumentSH::DocumentAllGetProperty,
   JS_StrictPropertyStub, JS_EnumerateStub,
   (JSResolveOp)nsHTMLDocumentSH::DocumentAllNewResolve, JS_ConvertStub,
-  nsHTMLDocumentSH::ReleaseDocument, nsnull, nsnull,
+  nsHTMLDocumentSH::ReleaseDocument, nsnull,
   nsHTMLDocumentSH::CallToGetPropMapper
 };
 
@@ -8658,7 +8658,7 @@ static JSClass sHTMLDocumentAllTagsClass = {
   JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE | JSCLASS_PRIVATE_IS_NSISUPPORTS,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, (JSResolveOp)nsHTMLDocumentSH::DocumentAllTagsNewResolve,
-  JS_ConvertStub, nsHTMLDocumentSH::ReleaseDocument, nsnull, nsnull,
+  JS_ConvertStub, nsHTMLDocumentSH::ReleaseDocument, nsnull,
   nsHTMLDocumentSH::CallToGetPropMapper
 };
 
