@@ -8,21 +8,6 @@ try {
                 .getService(Ci.IWeaveCrypto);
 }
 
-function run_test() {
-  
-  if ("makeSECItem" in cryptoSvc)   // Only for js-ctypes WeaveCrypto.
-    test_makeSECItem();
-  
-  if (this.gczeal) {
-    _("Running crypto tests with gczeal(2).");
-    gczeal(2);
-  }
-  test_bug_617650();
-  test_encrypt_decrypt();
-  if (this.gczeal)
-    gczeal(0);
-}
-
 function multiple_decrypts(iterations) {
   let iv = cryptoSvc.generateRandomIV();
   let key = cryptoSvc.generateRandomKey();
@@ -60,8 +45,13 @@ function test_makeSECItem() {
     do_check_eq(intData[i], "abcdefghi".charCodeAt(i));
 }
 
-function test_encrypt_decrypt() {
-
+function run_test() {
+  
+  if ("makeSECItem" in cryptoSvc)   // Only for js-ctypes WeaveCrypto.
+    test_makeSECItem();
+  
+  test_bug_617650();
+  
   // First, do a normal run with expected usage... Generate a random key and
   // iv, encrypt and decrypt a string.
   var iv = cryptoSvc.generateRandomIV();

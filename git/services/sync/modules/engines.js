@@ -115,9 +115,7 @@ Tracker.prototype = {
 
   loadChangedIDs: function T_loadChangedIDs() {
     Utils.jsonLoad("changes/" + this.file, this, function(json) {
-      if (json) {
-        this.changedIDs = json;
-      }
+      this.changedIDs = json;
     });
   },
 
@@ -305,6 +303,7 @@ EngineManagerSvc.prototype = {
       name = name.name || "";
 
       let out = "Could not initialize engine '" + name + "': " + mesg;
+      dump(out);
       this._log.error(out);
 
       return engineObject;
@@ -469,7 +468,6 @@ Engine.prototype = {
 
 function SyncEngine(name) {
   Engine.call(this, name || "SyncEngine");
-  this.loadToFetch();
 }
 SyncEngine.prototype = {
   __proto__: Engine.prototype,
@@ -511,24 +509,6 @@ SyncEngine.prototype = {
     Svc.Prefs.reset(this.name + ".lastSync");
     Svc.Prefs.set(this.name + ".lastSync", "0");
     this.lastSyncLocal = 0;
-  },
-
-  get toFetch() this._toFetch,
-  set toFetch(val) {
-    this._toFetch = val;
-    Utils.delay(function () {
-      Utils.jsonSave("toFetch/" + this.name, this, val);
-    }, 0, this, "_toFetchDelay");
-  },
-
-  loadToFetch: function loadToFetch() {
-    // Initialize to empty if there's no file
-    this._toFetch = [];
-    Utils.jsonLoad("toFetch/" + this.name, this, function(toFetch) {
-      if (toFetch) {
-        this._toFetch = toFetch;
-      }
-    });
   },
 
   /*
@@ -703,13 +683,14 @@ SyncEngine.prototype = {
     }
 
     // Mobile: check if we got the maximum that we requested; get the rest if so.
+    let toFetch = [];
     if (handled.length == newitems.limit) {
       let guidColl = new Collection(this.engineURL);
       
       // Sort and limit so that on mobile we only get the last X records.
       guidColl.limit = this.downloadLimit;
       guidColl.newer = this.lastSync;
-
+      
       // index: Orders by the sortindex descending (highest weight first).
       guidColl.sort  = "index";
 
@@ -721,22 +702,18 @@ SyncEngine.prototype = {
       // were already waiting and prepend the new ones
       let extra = Utils.arraySub(guids.obj, handled);
       if (extra.length > 0)
-        this.toFetch = extra.concat(Utils.arraySub(this.toFetch, extra));
-    }
-
-    // Fast-foward the lastSync timestamp since we have stored the
-    // remaining items in toFetch.
-    if (this.lastSync < this.lastModified) {
-      this.lastSync = this.lastModified;
+        toFetch = extra.concat(Utils.arraySub(toFetch, extra));
     }
 
     // Mobile: process any backlog of GUIDs
-    while (this.toFetch.length) {
+    while (toFetch.length) {
       // Reuse the original query, but get rid of the restricting params
-      // and batch remaining records.
       newitems.limit = 0;
       newitems.newer = 0;
-      newitems.ids = this.toFetch.slice(0, batchSize);
+
+      // Get the first bunch of records and save the rest for later
+      newitems.ids = toFetch.slice(0, batchSize);
+      toFetch = toFetch.slice(batchSize);
 
       // Reuse the existing record handler set earlier
       let resp = newitems.get();
@@ -744,13 +721,10 @@ SyncEngine.prototype = {
         resp.failureCode = ENGINE_DOWNLOAD_FAIL;
         throw resp;
       }
-
-      // This batch was successfully applied.
-      this.toFetch = this.toFetch.slice(batchSize);
-      if (this.lastSync < this.lastModified) {
-        this.lastSync = this.lastModified;
-      }
     }
+
+    if (this.lastSync < this.lastModified)
+      this.lastSync = this.lastModified;
 
     this._log.info(["Records:", count.applied, "applied,", count.reconciled,
       "reconciled."].join(" "));
@@ -995,7 +969,6 @@ SyncEngine.prototype = {
 
   _resetClient: function SyncEngine__resetClient() {
     this.resetLastSync();
-    this.toFetch = [];
   },
 
   wipeServer: function wipeServer() {
