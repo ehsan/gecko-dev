@@ -89,15 +89,13 @@ public:
 namespace mozilla {
 namespace ipc {
 
-RPCChannel::RPCChannel(RPCListener* aListener,
-                       RacyRPCPolicy aPolicy)
+RPCChannel::RPCChannel(RPCListener* aListener)
   : SyncChannel(aListener),
     mPending(),
     mStack(),
     mOutOfTurnReplies(),
     mDeferred(),
     mRemoteStackDepthGuess(0),
-    mRacePolicy(aPolicy),
     mBlockedOnParent(false),
     mCxxStackFrames(0)
 {
@@ -360,6 +358,11 @@ RPCChannel::OnMaybeDequeueOne()
     {
         MutexAutoLock lock(mMutex);
 
+        if (!Connected()) {
+            ReportConnectionError("RPCChannel");
+            return;
+        }
+
         if (!mDeferred.empty())
             return MaybeProcessDeferredIncall();
 
@@ -407,7 +410,8 @@ RPCChannel::Incall(const Message& call, size_t stackDepth)
         // the other side's in-call
         bool defer;
         const char* winner;
-        switch (mRacePolicy) {
+        switch (Listener()->MediateRPCRace(mChild ? call : mStack.top(),
+                                           mChild ? mStack.top() : call)) {
         case RRPChildWins:
             winner = "child";
             defer = mChild;
@@ -455,8 +459,7 @@ RPCChannel::DispatchIncall(const Message& call)
     Message* reply = nsnull;
 
     ++mRemoteStackDepthGuess;
-    Result rv =
-        static_cast<RPCListener*>(mListener)->OnCallReceived(call, reply);
+    Result rv = Listener()->OnCallReceived(call, reply);
     --mRemoteStackDepthGuess;
 
     if (!MaybeHandleError(rv, "RPCChannel")) {
@@ -623,6 +626,9 @@ RPCChannel::OnMessageReceived(const Message& msg)
 {
     AssertIOThread();
     MutexAutoLock lock(mMutex);
+
+    if (MaybeInterceptSpecialIOMessage(msg))
+        return;
 
     // regardless of the RPC stack, if we're awaiting a sync reply, we
     // know that it needs to be immediately handled to unblock us.
