@@ -414,7 +414,6 @@ IDBIndex::~IDBIndex()
   NS_ASSERTION(!mActorParent, "Actor parent owns us, how can we be dying?!");
 
   if (mRooted) {
-    mCachedKeyPath = JSVAL_VOID;
     NS_DROP_JS_OBJECTS(this, IDBIndex);
   }
 
@@ -678,7 +677,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBIndex)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mObjectStore)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mObjectStore)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBIndex)
@@ -1668,7 +1667,7 @@ GetAllHelper::UnpackResponseFromParentProcess(
 
   for (uint32_t index = 0; index < cloneInfos.Length(); index++) {
     const SerializedStructuredCloneReadInfo srcInfo = cloneInfos[index];
-    const InfallibleTArray<PBlobChild*>& blobs = blobArrays[index].blobsChild();
+    const InfallibleTArray<PBlobChild*> blobs = blobArrays[index].blobsChild();
 
     StructuredCloneReadInfo* destInfo = mCloneReadInfos.AppendElement();
     if (!destInfo->SetFromSerialized(srcInfo)) {

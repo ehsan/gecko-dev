@@ -62,7 +62,7 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_bug391221.html \
 		test_bug397427.html \
 		test_bug399349.html \
-		$(filter disabled-for-intermittent-failures--bug-701060, test_bug401046.html) \
+		$(warning test_bug401046.html is disabled for intermittent failures. Bug 701060) \
 		test_bug405818.html \
 		test_bug412901.html \
 		test_bug437915.html \
@@ -87,18 +87,14 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		file_bug645998-2.css \
 		test_bug716226.html \
 		test_bug765590.html \
-		test_bug798567.html \
 		test_cascade.html \
 		test_ch_ex_no_infloops.html \
 		test_compute_data_with_start_struct.html \
 		test_computed_style.html \
 		test_computed_style_no_pseudo.html \
-		test_condition_text.html \
-		test_condition_text_assignment.html \
 		test_default_computed_style.html \
 		test_css_cross_domain.html \
 		test_css_eof_handling.html \
-		test_css_supports.html \
 		test_default_bidi_css.html \
 		test_descriptor_storage.html \
 		test_descriptor_syntax_errors.html \
@@ -122,14 +118,12 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_parse_ident.html \
 		test_parse_rule.html \
 		test_parse_url.html \
-		test_parser_diagnostics_unprintables.html \
 		test_pixel_lengths.html \
 		test_pointer-events.html \
 		test_property_database.html \
 		test_priority_preservation.html \
 		test_property_syntax_errors.html \
 		test_rem_unit.html \
-		test_rule_insertion.html \
 		test_rule_serialization.html \
 		test_rules_out_of_sheets.html \
 		test_selectors.html \
@@ -193,7 +187,6 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		visited_image_loading_frame_empty.html \
 		test_load_events_on_stylesheets.html \
 		test_bug721136.html \
-		test_page_parser.html \
 		test_bug732153.html \
 		test_bug732209.html \
 		bug732209-css.sjs \

@@ -64,8 +64,7 @@ ApplicationAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 ApplicationAccessibleWrap::get_appName(BSTR* aName)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aName = NULL;
 
   if (IsDefunct())
@@ -82,14 +81,14 @@ ApplicationAccessibleWrap::get_appName(BSTR* aName)
   *aName = ::SysAllocStringLen(name.get(), name.Length());
   return *aName ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ApplicationAccessibleWrap::get_appVersion(BSTR* aVersion)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aVersion = NULL;
 
   if (IsDefunct())
@@ -106,14 +105,14 @@ ApplicationAccessibleWrap::get_appVersion(BSTR* aVersion)
   *aVersion = ::SysAllocStringLen(version.get(), version.Length());
   return *aVersion ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ApplicationAccessibleWrap::get_toolkitName(BSTR* aName)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -128,14 +127,14 @@ ApplicationAccessibleWrap::get_toolkitName(BSTR* aName)
   *aName = ::SysAllocStringLen(name.get(), name.Length());
   return *aName ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ApplicationAccessibleWrap::get_toolkitVersion(BSTR* aVersion)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aVersion = NULL;
 
   if (IsDefunct())
@@ -152,6 +151,20 @@ ApplicationAccessibleWrap::get_toolkitVersion(BSTR* aVersion)
   *aVersion = ::SysAllocStringLen(version.get(), version.Length());
   return *aVersion ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ApplicationAccessibleWrap public static
+
+void
+ApplicationAccessibleWrap::PreCreate()
+{
+}
+
+void
+ApplicationAccessibleWrap::Unload()
+{
 }
 

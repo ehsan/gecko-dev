@@ -681,7 +681,7 @@ fails-if(Android) != 376532-3.html 376532-3-ref.html
 == 379178-html.html 379178-html-ref.html
 == 379178-svg.svg 379178-svg-ref.svg
 == 379316-1.html 379316-1-ref.html
-fails-if(Android) random-if(cocoaWidget) random-if(/^Windows\x20NT\x206\.1/.test(http.oscpu)) fuzzy-if(gtk2Widget,1,191) == 379316-2.html 379316-2-ref.html # bug 379786
+fails-if(Android) random-if(cocoaWidget) random-if(/^Windows\x20NT\x206\.1/.test(http.oscpu)) == 379316-2.html 379316-2-ref.html # bug 379786
 == 379328-1.html 379328-1-ref.html
 # The next set of reftests all fail until bug 724978 has been fixed, and the
 # overflow container ability of nsColumnSetFrame is restored.
@@ -1714,8 +1714,6 @@ needs-focus == 731726-1.html 731726-1-ref.html
 == 758561-1.html 758561-1-ref.html
 fuzzy-if(true,1,19) == 759036-1.html 759036-1-ref.html
 fuzzy-if(true,17,5859) == 759036-2.html 759036-2-ref.html
-== 776443-1.html 776443-1-ref.html
-== 776443-2.html 776443-2-ref.html
 == 776265-1a.html 776265-1-ref.html
 == 776265-1b.html 776265-1-ref.html
 == 776265-1c.html 776265-1-ref.html
@@ -1725,16 +1723,7 @@ fuzzy-if(true,17,5859) == 759036-2.html 759036-2-ref.html
 == 776265-2c.html 776265-2-ref.html
 == 776265-2d.html 776265-2-ref.html
 == 787947-1.html 787947-1-ref.html
-== 796847-1.svg 796847-1-ref.svg
 fuzzy(40,800) == 797797-1.html 797797-1-ref.html # 'opacity:N' and rgba(,,,N) text don't match precisely
 fuzzy(40,800) == 797797-2.html 797797-2-ref.html # 'opacity:N' and rgba(,,,N) text don't match precisely
 == 801994-1.html 801994-1-ref.html
 == 804323-1.html 804323-1-ref.html
-== 811301-1.html 811301-1-ref.html
-== 812824-1.html 812824-1-ref.html
-== 814677.html 814677-ref.html
-== 815593-1.html 815593-1-ref.html
-== 814952-1.html 814952-1-ref.html
-== 816458-1.html 816458-1-ref.html
-== 816359-1.html 816359-1-ref.html
-== 818276-1.html 818276-1-ref.html

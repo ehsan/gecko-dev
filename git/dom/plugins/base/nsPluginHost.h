@@ -81,6 +81,7 @@ public:
                                nsPluginInstanceOwner *aOwner);
   nsresult IsPluginEnabledForType(const char* aMimeType);
   nsresult IsPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
+  bool     IsPluginClickToPlayForType(const char *aMimeType);
   bool     IsPluginPlayPreviewForType(const char *aMimeType);
   nsresult GetBlocklistStateForType(const char *aMimeType, uint32_t *state);
 
@@ -184,22 +185,35 @@ public:
 
   // The last argument should be false if we already have an in-flight stream
   // and don't need to set up a new stream.
-  nsresult InstantiatePluginInstance(const char *aMimeType, nsIURI* aURL,
-                                     nsObjectLoadingContent *aContent,
-                                     nsPluginInstanceOwner** aOwner);
+  nsresult InstantiateEmbeddedPluginInstance(const char *aMimeType, nsIURI* aURL,
+                                             nsObjectLoadingContent *aContent,
+                                             nsPluginInstanceOwner** aOwner);
+
+  nsresult InstantiateFullPagePluginInstance(const char *aMimeType,
+                                             nsIURI* aURI,
+                                             nsObjectLoadingContent *aContent,
+                                             nsPluginInstanceOwner **aOwner,
+                                             nsIStreamListener **aStreamListener);
 
   // Does not accept NULL and should never fail.
   nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
 
   nsresult GetPlugin(const char *aMimeType, nsNPAPIPlugin** aPlugin);
 
-  nsresult NewPluginStreamListener(nsIURI* aURL,
-                                   nsNPAPIPluginInstance* aInstance,
-                                   nsIStreamListener **aStreamListener);
+  nsresult NewEmbeddedPluginStreamListener(nsIURI* aURL, nsObjectLoadingContent *aContent,
+                                           nsNPAPIPluginInstance* aInstance,
+                                           nsIStreamListener **aStreamListener);
+
+  nsresult NewFullPagePluginStreamListener(nsIURI* aURI,
+                                           nsNPAPIPluginInstance *aInstance,
+                                           nsIStreamListener **aStreamListener);
 
 private:
   nsresult
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsPluginInstanceOwner *aOwner);
+
+  nsresult
+  NewEmbeddedPluginStream(nsIURI* aURL, nsObjectLoadingContent *aContent, nsNPAPIPluginInstance* aInstance);
 
   nsPluginTag*
   FindPreferredPlugin(const InfallibleTArray<nsPluginTag*>& matches);
@@ -291,7 +305,7 @@ private:
   // Helpers for ClearSiteData and SiteHasData.
   nsresult NormalizeHostname(nsCString& host);
   nsresult EnumerateSiteData(const nsACString& domain,
-                             const InfallibleTArray<nsCString>& sites,
+                             const nsTArray<nsCString>& sites,
                              InfallibleTArray<nsCString>& result,
                              bool firstMatchOnly);
 

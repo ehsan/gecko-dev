@@ -35,15 +35,14 @@ template<class T>
 class StaticAutoPtr
 {
   public:
-    // In debug builds, check that mRawPtr is initialized for us as we expect
-    // by the compiler.  In non-debug builds, don't declare a constructor
-    // so that the compiler can see that the constructor is trivial.
-#ifdef DEBUG
     StaticAutoPtr()
     {
+      // In debug builds, check that mRawPtr is initialized for us as we expect
+      // by the compiler.
       MOZ_ASSERT(!mRawPtr);
     }
-#endif
+
+    ~StaticAutoPtr() {}
 
     StaticAutoPtr<T>& operator=(T* rhs)
     {
@@ -73,13 +72,8 @@ class StaticAutoPtr
     }
 
   private:
-    // Disallow copy constructor, but only in debug mode.  We only define
-    // a default constructor in debug mode (see above); if we declared
-    // this constructor always, the compiler wouldn't generate a trivial
-    // default constructor for us in non-debug mode.
-#ifdef DEBUG
+    // Disallow copy constructor.
     StaticAutoPtr(StaticAutoPtr<T> &other);
-#endif
 
     void Assign(T* newPtr)
     {
@@ -96,15 +90,14 @@ template<class T>
 class StaticRefPtr
 {
 public:
-  // In debug builds, check that mRawPtr is initialized for us as we expect
-  // by the compiler.  In non-debug builds, don't declare a constructor
-  // so that the compiler can see that the constructor is trivial.
-#ifdef DEBUG
   StaticRefPtr()
   {
     MOZ_ASSERT(!mRawPtr);
   }
-#endif
+
+  ~StaticRefPtr()
+  {
+  }
 
   StaticRefPtr<T>& operator=(T* rhs)
   {

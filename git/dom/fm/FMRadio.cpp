@@ -38,7 +38,6 @@ using mozilla::Preferences;
 FMRadio::FMRadio()
   : mHeadphoneState(SWITCH_STATE_OFF)
   , mHasInternalAntenna(false)
-  , mHidden(true)
 {
   LOG("FMRadio is initialized.");
 
@@ -64,11 +63,19 @@ FMRadio::~FMRadio()
 
 DOMCI_DATA(FMRadio, FMRadio)
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_0(FMRadio, nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_CLASS(FMRadio)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(FMRadio,
+                                                  nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(FMRadio,
                                                nsDOMEventTargetHelper)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(FMRadio,
+                                                nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(FMRadio)
   NS_INTERFACE_MAP_ENTRY(nsIFMRadio)
@@ -115,23 +122,6 @@ NS_IMETHODIMP FMRadio::Enable(nsIFMRadioSettings *settings)
 
   int32_t upperLimit, lowerLimit, channelWidth;
 
-  if (!mAudioChannelAgent) {
-    nsresult rv;
-    mAudioChannelAgent = do_CreateInstance("@mozilla.org/audiochannelagent;1", &rv);
-    if (!mAudioChannelAgent) {
-      return NS_ERROR_FAILURE;
-    }
-    mAudioChannelAgent->Init(AUDIO_CHANNEL_CONTENT, this);
-  }
-
-  bool canPlay;
-  mAudioChannelAgent->SetVisibilityState(!mHidden);
-  mAudioChannelAgent->StartPlaying(&canPlay);
-  // We enable the hardware, but mute the audio stream, in order to
-  // simplify state handling.  This is simpler but worse for battery
-  // life; followup is bug 820282.
-  CanPlayChanged(canPlay);
-
   settings->GetUpperLimit(&upperLimit);
   settings->GetLowerLimit(&lowerLimit);
   settings->GetChannelWidth(&channelWidth);
@@ -158,17 +148,12 @@ NS_IMETHODIMP FMRadio::Disable()
   // DisableFMRadio should be called before SetFmRadioAudioEnabled to prevent
   // the annoying beep sound.
   DisableFMRadio();
-
+  
   nsCOMPtr<nsIAudioManager> audioManager =
     do_GetService(NS_AUDIOMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(audioManager, NS_OK);
 
   audioManager->SetFmRadioAudioEnabled(false);
-
-  if (mAudioChannelAgent) {
-    mAudioChannelAgent->StopPlaying();
-    mAudioChannelAgent = nullptr;
-  }
   return NS_OK;
 }
 
@@ -212,15 +197,6 @@ NS_IMETHODIMP FMRadio::SetFrequency(int32_t frequency)
   return NS_OK;
 }
 
-NS_IMETHODIMP FMRadio::UpdateVisible(bool aVisible)
-{
-  mHidden = !aVisible;
-  if (mAudioChannelAgent) {
-    mAudioChannelAgent->SetVisibilityState(!mHidden);
-  }
-  return NS_OK;
-}
-
 void FMRadio::Notify(const SwitchEvent& aEvent)
 {
   if (mHeadphoneState != aEvent.status()) {
@@ -243,27 +219,5 @@ void FMRadio::Notify(const FMRadioOperationInformation& info)
     case FM_RADIO_OPERATION_SEEK:
       DispatchTrustedEvent(RADIO_SEEK_COMPLETE_EVENT_NAME);
       break;
-    default:
-      MOZ_NOT_REACHED();
-      return;
   }
 }
-
-/* void canPlayChanged (in boolean canPlay); */
-NS_IMETHODIMP FMRadio::CanPlayChanged(bool canPlay)
-{
-  nsCOMPtr<nsIAudioManager> audioManager =
-    do_GetService(NS_AUDIOMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE(audioManager, NS_OK);
-  /* mute fm first, it should be better to stop&resume fm */
-  if (canPlay) {
-    int32_t volIdx = 0;
-    // Restore fm volume, that value is sync as music type
-    audioManager->GetStreamVolumeIndex(nsIAudioManager::STREAM_TYPE_MUSIC, &volIdx);
-    audioManager->SetStreamVolumeIndex(nsIAudioManager::STREAM_TYPE_FM, volIdx);
-  } else {
-    audioManager->SetStreamVolumeIndex(nsIAudioManager::STREAM_TYPE_FM, 0);
-  }
-  return NS_OK;
-}
-

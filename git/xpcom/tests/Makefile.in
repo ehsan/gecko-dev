@@ -12,9 +12,7 @@ relativesrcdir = @relativesrcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpcom
-ifndef _MSC_VER
 FAIL_ON_WARNINGS = 1
-endif # !_MSC_VER
 
 DIRS		= \
   external \
@@ -37,7 +35,6 @@ CPPSRCS = \
   nsIFileEnumerator.cpp \
   TestCallTemplates.cpp \
   TestINIParser.cpp \
-  TestPRIntN.cpp \
   TestRacingServiceManager.cpp \
   TestRegistrationOrder.cpp \
   TestThreadPoolListener.cpp \

@@ -36,7 +36,6 @@
 #include "nsSocketTransportService2.h"
 #include "nsAlgorithm.h"
 #include "ASpdySession.h"
-#include "mozIApplicationClearPrivateDataParams.h"
 
 #include "nsIXULAppInfo.h"
 
@@ -86,11 +85,7 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define NETWORK_ENABLEIDN       "network.enableIDN"
 #define BROWSER_PREF_PREFIX     "browser.cache."
 #define DONOTTRACK_HEADER_ENABLED "privacy.donottrackheader.enabled"
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-#define TELEMETRY_ENABLED        "toolkit.telemetry.enabledPreRelease"
-#else
 #define TELEMETRY_ENABLED        "toolkit.telemetry.enabled"
-#endif
 #define ALLOW_EXPERIMENTS        "network.allow-experiments"
 
 #define UA_PREF(_pref) UA_PREF_PREFIX _pref
@@ -183,8 +178,6 @@ nsHttpHandler::nsHttpHandler()
     , mSpdyPingThreshold(PR_SecondsToInterval(58))
     , mSpdyPingTimeout(PR_SecondsToInterval(8))
     , mConnectTimeout(90000)
-    , mParallelSpeculativeConnectLimit(6)
-    , mCritialRequestPrioritization(true)
 {
 #if defined(PR_LOGGING)
     gHttpLog = PR_NewLogModule("nsHttp");
@@ -286,15 +279,7 @@ nsHttpHandler::Init()
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
-#ifdef ANDROID
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
-#else
-    mProductSub.AssignLiteral(MOZ_UA_BUILDID);
-#endif
-    if (mProductSub.IsEmpty() && appInfo)
-        appInfo->GetPlatformBuildID(mProductSub);
-    if (mProductSub.Length() > 8)
-        mProductSub.SetLength(8);
 
 #if DEBUG
     // dump user agent prefs
@@ -326,7 +311,6 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "net:prune-dead-connections", true);
         mObserverService->AddObserver(this, "net:failed-to-process-uri-content", true);
         mObserverService->AddObserver(this, "last-pb-context-exited", true);
-        mObserverService->AddObserver(this, "webapps-clear-data", true);
     }
 
     return NS_OK;
@@ -390,7 +374,7 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request)
 
 nsresult
 nsHttpHandler::AddConnectionHeader(nsHttpHeaderArray *request,
-                                   uint32_t caps)
+                                   uint8_t caps)
 {
     // RFC2616 section 19.6.2 states that the "Connection: keep-alive"
     // and "Keep-alive" request headers should not be sent by HTTP/1.1
@@ -1146,22 +1130,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mConnectTimeout = clamped(val, 1, 0xffff) * PR_MSEC_PER_SEC;
     }
 
-    // The maximum number of current global half open sockets allowable
-    // for starting a new speculative connection.
-    if (PREF_CHANGED(HTTP_PREF("speculative-parallel-limit"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("speculative-parallel-limit"), &val);
-        if (NS_SUCCEEDED(rv))
-            mParallelSpeculativeConnectLimit = (uint32_t) clamped(val, 0, 1024);
-    }
-
-    // Whether or not to block requests for non head js/css items (e.g. media)
-    // while those elements load.
-    if (PREF_CHANGED(HTTP_PREF("rendering-critical-requests-prioritization"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("rendering-critical-requests-prioritization"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mCritialRequestPrioritization = cVar;
-    }
-
     // on transition of network.http.diagnostics to true print
     // a bunch of information to the console
     if (pref && PREF_CHANGED(HTTP_PREF("diagnostics"))) {
@@ -1516,7 +1484,7 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
         httpChannel = new nsHttpChannel();
     }
 
-    uint32_t caps = mCapabilities;
+    uint8_t caps = mCapabilities;
 
     if (https) {
         // enable pipelining over SSL if requested
@@ -1583,61 +1551,9 @@ nsHttpHandler::GetMisc(nsACString &value)
     return NS_OK;
 }
 
-/*static*/ void
-nsHttpHandler::GetCacheSessionNameForStoragePolicy(
-        nsCacheStoragePolicy storagePolicy,
-        bool isPrivate,
-        uint32_t appId,
-        bool inBrowser,
-        nsACString& sessionName)
-{
-    MOZ_ASSERT(!isPrivate || storagePolicy == nsICache::STORE_IN_MEMORY);
-
-    switch (storagePolicy) {
-        case nsICache::STORE_IN_MEMORY:
-            sessionName.AssignASCII(isPrivate ? "HTTP-memory-only-PB" : "HTTP-memory-only");
-            break;
-        case nsICache::STORE_OFFLINE:
-            sessionName.AssignLiteral("HTTP-offline");
-            break;
-        default:
-            sessionName.AssignLiteral("HTTP");
-            break;
-    }
-    if (appId != NECKO_NO_APP_ID || inBrowser) {
-        sessionName.Append('~');
-        sessionName.AppendInt(appId);
-        sessionName.Append('~');
-        sessionName.AppendInt(inBrowser);
-    }
-}
-
 //-----------------------------------------------------------------------------
 // nsHttpHandler::nsIObserver
 //-----------------------------------------------------------------------------
-
-static void
-EvictCacheSession(nsCacheStoragePolicy aPolicy,
-                  bool aPrivateBrowsing,
-                  uint32_t aAppId,
-                  bool aInBrowser)
-{
-    nsAutoCString clientId;
-    nsHttpHandler::GetCacheSessionNameForStoragePolicy(aPolicy,
-                                                       aPrivateBrowsing,
-                                                       aAppId, aInBrowser,
-                                                       clientId);
-    nsCOMPtr<nsICacheService> serv =
-        do_GetService(NS_CACHESERVICE_CONTRACTID);
-    nsCOMPtr<nsICacheSession> session;
-    nsresult rv = serv->CreateSession(clientId.get(),
-                                      nsICache::STORE_ANYWHERE,
-                                      nsICache::STREAM_BASED,
-                                      getter_AddRefs(session));
-    if (NS_SUCCEEDED(rv) && session) {
-        session->EvictEntries();
-    }
-}
 
 NS_IMETHODIMP
 nsHttpHandler::Observe(nsISupports *subject,
@@ -1689,45 +1605,6 @@ nsHttpHandler::Observe(nsISupports *subject,
     else if (strcmp(topic, "last-pb-context-exited") == 0) {
         mPrivateAuthCache.ClearAll();
     }
-    else if (strcmp(topic, "webapps-clear-data") == 0) {
-        nsCOMPtr<mozIApplicationClearPrivateDataParams> params =
-                do_QueryInterface(subject);
-        if (!params) {
-            NS_ERROR("'webapps-clear-data' notification's subject should be a mozIApplicationClearPrivateDataParams");
-            return NS_ERROR_UNEXPECTED;
-        }
-
-        uint32_t appId;
-        bool browserOnly;
-        nsresult rv = params->GetAppId(&appId);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = params->GetBrowserOnly(&browserOnly);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        MOZ_ASSERT(appId != NECKO_UNKNOWN_APP_ID);
-
-        // Now we ensure that all unique session name combinations are cleared.
-        struct {
-            nsCacheStoragePolicy policy;
-            bool privateBrowsing;
-        } policies[] = { {nsICache::STORE_OFFLINE, false},
-                         {nsICache::STORE_IN_MEMORY, false},
-                         {nsICache::STORE_IN_MEMORY, true},
-                         {nsICache::STORE_ON_DISK, false} };
-
-        for (uint32_t i = 0; i < NS_ARRAY_LENGTH(policies); i++) {
-            EvictCacheSession(policies[i].policy,
-                              policies[i].privateBrowsing,
-                              appId, browserOnly);
-
-            if (!browserOnly) {
-                EvictCacheSession(policies[i].policy,
-                                  policies[i].privateBrowsing,
-                                  appId, true);
-            }
-        }
-
-    }
 
     return NS_OK;
 }
@@ -1736,19 +1613,16 @@ nsHttpHandler::Observe(nsISupports *subject,
 
 NS_IMETHODIMP
 nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
-                                  nsIInterfaceRequestor *aCallbacks)
+                                  nsIInterfaceRequestor *aCallbacks,
+                                  nsIEventTarget *aTarget)
 {
     nsIStrictTransportSecurityService* stss = gHttpHandler->GetSTSService();
     bool isStsHost = false;
     if (!stss)
         return NS_OK;
 
-    nsCOMPtr<nsILoadContext> loadContext = do_GetInterface(aCallbacks);
-    uint32_t flags = 0;
-    if (loadContext && loadContext->UsePrivateBrowsing())
-        flags |= nsISocketProvider::NO_PERMANENT_STORAGE;
     nsCOMPtr<nsIURI> clone;
-    if (NS_SUCCEEDED(stss->IsStsURI(aURI, flags, &isStsHost)) && isStsHost) {
+    if (NS_SUCCEEDED(stss->IsStsURI(aURI, &isStsHost)) && isStsHost) {
         if (NS_SUCCEEDED(aURI->Clone(getter_AddRefs(clone)))) {
             clone->SetScheme(NS_LITERAL_CSTRING("https"));
             aURI = clone.get();
@@ -1791,7 +1665,7 @@ nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
     nsHttpConnectionInfo *ci =
         new nsHttpConnectionInfo(host, port, nullptr, usingSSL);
 
-    return SpeculativeConnect(ci, aCallbacks);
+    return SpeculativeConnect(ci, aCallbacks, aTarget);
 }
 
 //-----------------------------------------------------------------------------
@@ -1831,7 +1705,7 @@ nsHttpsHandler::GetDefaultPort(int32_t *aPort)
 NS_IMETHODIMP
 nsHttpsHandler::GetProtocolFlags(uint32_t *aProtocolFlags)
 {
-    *aProtocolFlags = NS_HTTP_PROTOCOL_FLAGS | URI_SAFE_TO_LOAD_IN_SECURE_CONTEXT;
+    *aProtocolFlags = NS_HTTP_PROTOCOL_FLAGS;
     return NS_OK;
 }
 

@@ -111,10 +111,6 @@ function run_test() {
   do_test_pending();
   do_register_cleanup(end_test);
 
-  if (IS_WIN) {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, true);
-  }
-
   removeUpdateDirsAndFiles();
 
   symlinkUpdateFilesIntoBundleDirectory();
@@ -168,14 +164,6 @@ function run_test() {
   reloadUpdateManagerData();
   gActiveUpdate = gUpdateManager.activeUpdate;
   do_check_true(!!gActiveUpdate);
-
-  // Backup the updater.ini if it exists by moving it. This prevents the post
-  // update executable from being launched if it is specified.
-  let updaterIni = processDir.clone();
-  updaterIni.append(FILE_UPDATER_INI);
-  if (updaterIni.exists()) {
-    updaterIni.moveTo(processDir, FILE_UPDATER_INI_BAK);
-  }
 
   let updateSettingsIni = processDir.clone();
   updateSettingsIni.append(UPDATE_SETTINGS_INI_FILE);
@@ -243,14 +231,6 @@ function end_test() {
   }
 
   resetEnvironment();
-
-  let processDir = getAppDir();
-  // Restore the backup of the updater.ini if it exists
-  let updaterIni = processDir.clone();
-  updaterIni.append(FILE_UPDATER_INI_BAK);
-  if (updaterIni.exists()) {
-    updaterIni.moveTo(processDir, FILE_UPDATER_INI);
-  }
 
   // Remove the files added by the update.
   let updateTestDir = getUpdateTestDir();

@@ -14,7 +14,6 @@
 interface mozAudioContext {
 
     readonly attribute AudioDestinationNode destination;
-    readonly attribute float sampleRate;
     readonly attribute AudioListener listener;
 
     [Creator, Throws]
@@ -30,7 +29,7 @@ interface mozAudioContext {
     [Creator]
     GainNode createGain();
     [Creator, Throws]
-    DelayNode createDelay(optional double maxDelayTime = 1);
+    DelayNode createDelay(optional float maxDelayTime = 1);
     [Creator]
     BiquadFilterNode createBiquadFilter();
     [Creator]

@@ -18,7 +18,7 @@
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMCDATASection.h"
-#include "DocumentType.h"
+#include "nsDOMDocumentType.h"
 #include "nsHTMLParts.h"
 #include "nsCRT.h"
 #include "nsCSSStyleSheet.h"
@@ -34,6 +34,7 @@
 #include "prlog.h"
 #include "prmem.h"
 #include "nsRect.h"
+#include "nsGenericElement.h"
 #include "nsIWebNavigation.h"
 #include "nsIScriptElement.h"
 #include "nsScriptLoader.h"
@@ -100,6 +101,7 @@ nsXMLContentSink::nsXMLContentSink()
 
 nsXMLContentSink::~nsXMLContentSink()
 {
+  NS_IF_RELEASE(mDocElement);
   if (mText) {
     PR_Free(mText);  //  Doesn't null out, unlike PR_FREEIF
   }
@@ -141,8 +143,8 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsXMLContentSink)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXMLContentSink,
                                                   nsContentSink)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCurrentHead)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCurrentHead)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mDocElement)
   for (uint32_t i = 0, count = tmp->mContentStack.Length(); i < count; i++) {
     const StackNode& node = tmp->mContentStack.ElementAt(i);
     cb.NoteXPCOMChild(node.mContent);
@@ -534,6 +536,9 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
 #endif
         nodeInfo->NameAtom() == nsGkAtoms::object ||
         nodeInfo->NameAtom() == nsGkAtoms::applet))
+#ifdef MOZ_XTF
+      || nodeInfo->NamespaceID() > kNameSpaceID_LastBuiltin
+#endif
       || nodeInfo->NameAtom() == nsGkAtoms::title
       ) {
     aContent->DoneAddingChildren(HaveNotifiedForCurrentContent());
@@ -922,6 +927,7 @@ nsXMLContentSink::SetDocElement(int32_t aNameSpaceID,
   }
 
   mDocElement = aContent;
+  NS_ADDREF(mDocElement);
   nsresult rv = mDocument->AppendChildTo(mDocElement, NotifyForDocElement());
   if (NS_FAILED(rv)) {
     // If we return false here, the caller will bail out because it won't
@@ -1013,6 +1019,11 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
       nodeInfo->SetIDAttributeAtom(IDAttr);
     }
   }
+  
+#ifdef MOZ_XTF
+  if (nameSpaceID > kNameSpaceID_LastBuiltin)
+    content->BeginAddingChildren();
+#endif
 
   // Set the attributes on the new content element
   result = AddAttributes(aAtts, content);
@@ -1390,7 +1401,7 @@ nsXMLContentSink::ReportError(const PRUnichar* aErrorText,
       node->RemoveChild(child, getter_AddRefs(dummy));
     }
   }
-  mDocElement = nullptr;
+  NS_IF_RELEASE(mDocElement); 
 
   // Clear any buffered-up text we have.  It's enough to set the length to 0.
   // The buffer itself is allocated when we're created and deleted in our

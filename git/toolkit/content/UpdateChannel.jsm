@@ -1,5 +1,3 @@
-#filter substitution
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -17,12 +15,12 @@ this.UpdateChannel = {
    * to other instances of the application that may use the same profile.
    */
   get: function UpdateChannel_get() {
-    let channel = "@MOZ_UPDATE_CHANNEL@";
+    let channel = "default";
     let defaults = Services.prefs.getDefaultBranch(null);
     try {
       channel = defaults.getCharPref("app.update.channel");
     } catch (e) {
-      // use default value when pref not found
+      // use default when pref not found
     }
 
     try {

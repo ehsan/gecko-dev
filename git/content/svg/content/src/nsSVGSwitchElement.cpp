@@ -26,11 +26,11 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Switch)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsSVGSwitchElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGSwitchElement,
                                                   nsSVGSwitchElementBase)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mActiveChild)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mActiveChild)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGSwitchElement,
                                                 nsSVGSwitchElementBase)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mActiveChild)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mActiveChild)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsSVGSwitchElement,nsSVGSwitchElementBase)
@@ -68,8 +68,7 @@ nsSVGSwitchElement::MaybeInvalidate()
 
   nsIFrame *frame = GetPrimaryFrame();
   if (frame) {
-    nsSVGUtils::InvalidateBounds(frame, false);
-    nsSVGUtils::ScheduleReflowSVG(frame);
+    nsSVGUtils::InvalidateAndScheduleReflowSVG(frame);
   }
 
   mActiveChild = newActiveChild;

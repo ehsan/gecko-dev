@@ -39,8 +39,6 @@
 #include "nsIScrollableFrame.h"
 #include "nsCSSProps.h"
 #include "mozilla/Likely.h"
-#include <cstdlib> // for std::abs(int/long)
-#include <cmath> // for std::abs(float/double)
 
 using namespace mozilla;
 using namespace mozilla::layout;
@@ -160,6 +158,7 @@ nsTableFrame::nsTableFrame(nsStyleContext* aContext)
 }
 
 NS_QUERYFRAME_HEAD(nsTableFrame)
+  NS_QUERYFRAME_ENTRY(nsITableLayout)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 NS_IMETHODIMP
@@ -179,6 +178,9 @@ nsTableFrame::Init(nsIContent*      aContent,
   const nsStyleTableBorder* tableStyle = GetStyleTableBorder();
   bool borderCollapse = (NS_STYLE_BORDER_COLLAPSE == tableStyle->mBorderCollapse);
   SetBorderCollapse(borderCollapse);
+
+  // Transforms need to affect the outer frame, not the inner frame (bug 722777)
+  mState &= ~NS_FRAME_MAY_BE_TRANSFORMED;
 
   // Create the cell map if this frame is the first-in-flow.
   if (!aPrevInFlow) {
@@ -1163,7 +1165,7 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
     // handling events.
     // XXX how to handle collapsed borders?
     if (aBuilder->IsForEventDelivery()) {
-      nsresult rv = nsDisplayBackgroundImage::AppendBackgroundItemsToTop(aBuilder, aFrame,
+      nsresult rv = nsDisplayBackground::AppendBackgroundItemsToTop(aBuilder, aFrame,
                                                                     lists->BorderBackground());
       NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -1241,7 +1243,7 @@ nsTableFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // in its own display item, so do that to take advantage of
       // opacity and visibility optimizations
       if (deflate == nsMargin(0, 0, 0, 0)) {
-        nsDisplayBackgroundImage* bg;
+        nsDisplayBackground* bg;
         nsresult rv = DisplayBackgroundUnconditional(aBuilder, aLists, false, &bg);
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -1541,9 +1543,8 @@ nsTableFrame::AncestorsHaveStyleHeight(const nsHTMLReflowState& aParentReflowSta
         (nsGkAtoms::tableRowFrame      == frameType) ||
         (nsGkAtoms::tableRowGroupFrame == frameType)) {
       const nsStyleCoord &height = rs->mStylePosition->mHeight;
-      // calc() with percentages treated like 'auto' on internal table elements
-      if (height.GetUnit() != eStyleUnit_Auto &&
-          (!height.IsCalcUnit() || !height.HasPercent())) {
+      // calc() treated like 'auto' on internal table elements
+      if (height.GetUnit() != eStyleUnit_Auto && !height.IsCalcUnit()) {
         return true;
       }
     }
@@ -2269,10 +2270,14 @@ nsTableFrame::HomogenousInsertFrames(ChildListID     aListID,
   return;
 }
 
-void
-nsTableFrame::DoRemoveFrame(ChildListID     aListID,
-                            nsIFrame*       aOldFrame)
+NS_IMETHODIMP
+nsTableFrame::RemoveFrame(ChildListID     aListID,
+                          nsIFrame*       aOldFrame)
 {
+  NS_ASSERTION(aListID == kColGroupList ||
+               NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP !=
+                 aOldFrame->GetStyleDisplay()->mDisplay,
+               "Wrong list name; use kColGroupList iff colgroup");
   if (aListID == kColGroupList) {
     nsIFrame* nextColGroupFrame = aOldFrame->GetNextSibling();
     nsTableColGroupFrame* colGroup = (nsTableColGroupFrame*)aOldFrame;
@@ -2316,41 +2321,17 @@ nsTableFrame::DoRemoveFrame(ChildListID     aListID,
       nsIntRect damageArea;
       cellMap->RebuildConsideringCells(nullptr, nullptr, 0, 0, false, damageArea);
 
-      ((nsTableFrame*)GetFirstInFlow())->MatchCellMapToColCache(cellMap);
+      MatchCellMapToColCache(cellMap);
     }
   }
-}
-
-NS_IMETHODIMP
-nsTableFrame::RemoveFrame(ChildListID     aListID,
-                          nsIFrame*       aOldFrame)
-{
-  NS_ASSERTION(aListID == kColGroupList ||
-               NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP !=
-                 aOldFrame->GetStyleDisplay()->mDisplay,
-               "Wrong list name; use kColGroupList iff colgroup");
-  nsIPresShell* shell = PresContext()->PresShell();
-  nsTableFrame* lastParent = nullptr;
-  while (aOldFrame) {
-    nsIFrame* oldFrameNextContinuation = aOldFrame->GetNextContinuation();
-    nsTableFrame* parent = static_cast<nsTableFrame*>(aOldFrame->GetParent());
-    if (parent != lastParent) {
-      parent->DrainSelfOverflowList();
-    }
-    parent->DoRemoveFrame(aListID, aOldFrame);
-    aOldFrame = oldFrameNextContinuation;
-    if (parent != lastParent) {
-      // for now, just bail and recalc all of the collapsing borders
-      // as the cellmap changes we need to recalc
-      if (parent->IsBorderCollapse()) {
-        parent->SetFullBCDamageArea();
-      }
-      parent->SetGeometryDirty();
-      shell->FrameNeedsReflow(parent, nsIPresShell::eTreeChange,
-                              NS_FRAME_HAS_DIRTY_CHILDREN);
-      lastParent = parent;
-    }
+  // for now, just bail and recalc all of the collapsing borders
+  // as the cellmap changes we need to recalc
+  if (IsBorderCollapse()) {
+    SetFullBCDamageArea();
   }
+  PresContext()->PresShell()->FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                                               NS_FRAME_HAS_DIRTY_CHILDREN);
+  SetGeometryDirty();
 #ifdef DEBUG_TABLE_CELLMAP
   printf("=== TableFrame::RemoveFrame\n");
   Dump(true, true, true);
@@ -2938,24 +2919,29 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
             break;
           }
 
-          // Insert the kid's new next-in-flow into our sibling list...
+          // Insert the continuing frame into the sibling list.
           mFrames.InsertFrame(nullptr, kidFrame, kidNextInFlow);
-          // and in rowGroups after childX so that it will get pushed below.
-          rowGroups.InsertElementAt(childX + 1,
-                      static_cast <nsTableRowGroupFrame*>(kidNextInFlow));
+
+          // Fall through and update |rowGroups| with the new rowgroup, just as
+          // it would have been if we had called OrderRowGroups again.
+          // Note that rowGroups doesn't get used again after we PushChildren
+          // below, anyway.
         }
 
+        // Put the nextinflow so that it will get pushed
+        rowGroups.InsertElementAt(childX + 1,
+                           static_cast <nsTableRowGroupFrame*>(kidNextInFlow));
+
         // We've used up all of our available space so push the remaining
-        // children.
+        // children to the next-in-flow
         if (allowRepeatedFooter) {
           PlaceRepeatedFooter(aReflowState, tfoot, footerHeight);
         }
         else if (tfoot && tfoot->IsRepeatable()) {
           tfoot->SetRepeatable(false);
         }
-
         nsIFrame* nextSibling = kidFrame->GetNextSibling();
-        if (nextSibling) {
+        if (nullptr != nextSibling) {
           PushChildren(rowGroups, childX + 1);
         }
         break;
@@ -3684,6 +3670,108 @@ int32_t nsTableIterator::Count()
   }
   return mCount;
 }
+
+/*------------------ nsITableLayout methods ------------------------------*/
+NS_IMETHODIMP
+nsTableFrame::GetCellDataAt(int32_t        aRowIndex,
+                            int32_t        aColIndex,
+                            nsIDOMElement* &aCell,   //out params
+                            int32_t&       aStartRowIndex,
+                            int32_t&       aStartColIndex,
+                            int32_t&       aRowSpan,
+                            int32_t&       aColSpan,
+                            int32_t&       aActualRowSpan,
+                            int32_t&       aActualColSpan,
+                            bool&          aIsSelected)
+{
+  // Initialize out params
+  aCell = nullptr;
+  aStartRowIndex = 0;
+  aStartColIndex = 0;
+  aRowSpan = 0;
+  aColSpan = 0;
+  aIsSelected = false;
+
+  nsTableCellMap* cellMap = GetCellMap();
+  if (!cellMap) { return NS_ERROR_NOT_INITIALIZED;}
+
+  bool originates;
+  int32_t colSpan; // Is this the "effective" or "html" value?
+
+  nsTableCellFrame *cellFrame = cellMap->GetCellInfoAt(aRowIndex, aColIndex, &originates, &colSpan);
+  if (!cellFrame) return NS_TABLELAYOUT_CELL_NOT_FOUND;
+
+  nsresult result= cellFrame->GetRowIndex(aStartRowIndex);
+  if (NS_FAILED(result)) return result;
+  result = cellFrame->GetColIndex(aStartColIndex);
+  if (NS_FAILED(result)) return result;
+  //This returns HTML value, which may be 0
+  aRowSpan = cellFrame->GetRowSpan();
+  aColSpan = cellFrame->GetColSpan();
+  aActualRowSpan = GetEffectiveRowSpan(*cellFrame);
+  aActualColSpan = GetEffectiveColSpan(*cellFrame);
+
+  // If these aren't at least 1, we have a cellmap error
+  if (aActualRowSpan == 0 || aActualColSpan == 0)
+    return NS_ERROR_FAILURE;
+
+  aIsSelected = cellFrame->IsSelected();
+
+  // do this last, because it addrefs,
+  // and we don't want the caller leaking it on error
+  nsIContent* content = cellFrame->GetContent();
+  if (!content) return NS_ERROR_FAILURE;
+
+  return CallQueryInterface(content, &aCell);
+}
+
+NS_IMETHODIMP nsTableFrame::GetTableSize(int32_t& aRowCount, int32_t& aColCount)
+{
+  nsTableCellMap* cellMap = GetCellMap();
+  // Initialize out params
+  aRowCount = 0;
+  aColCount = 0;
+  if (!cellMap) { return NS_ERROR_NOT_INITIALIZED;}
+
+  aRowCount = cellMap->GetRowCount();
+  aColCount = cellMap->GetColCount();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsTableFrame::GetIndexByRowAndColumn(int32_t aRow, int32_t aColumn,
+                                     int32_t *aIndex)
+{
+  NS_ENSURE_ARG_POINTER(aIndex);
+  *aIndex = -1;
+
+  nsTableCellMap* cellMap = GetCellMap();
+  if (!cellMap)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  *aIndex = cellMap->GetIndexByRowAndColumn(aRow, aColumn);
+  return (*aIndex == -1) ? NS_TABLELAYOUT_CELL_NOT_FOUND : NS_OK;
+}
+
+NS_IMETHODIMP
+nsTableFrame::GetRowAndColumnByIndex(int32_t aIndex,
+                                    int32_t *aRow, int32_t *aColumn)
+{
+  NS_ENSURE_ARG_POINTER(aRow);
+  *aRow = -1;
+
+  NS_ENSURE_ARG_POINTER(aColumn);
+  *aColumn = -1;
+
+  nsTableCellMap* cellMap = GetCellMap();
+  if (!cellMap)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  cellMap->GetRowAndColumnByIndex(aIndex, aRow, aColumn);
+  return NS_OK;
+}
+
+/*---------------- end of nsITableLayout implementation ------------------*/
 
 bool
 nsTableFrame::ColumnHasCellSpacingBefore(int32_t aColIndex) const
@@ -6253,7 +6341,7 @@ BCPaintBorderIterator::SetDamageArea(const nsRect& aDirtyRect)
   if (!haveIntersect)
     return false;
   mDamageArea = nsIntRect(startColIndex, startRowIndex,
-                          1 + std::abs(int32_t(endColIndex - startColIndex)),
+                          1 + NS_ABS(int32_t(endColIndex - startColIndex)),
                           1 + endRowIndex - startRowIndex);
 
   Reset();
@@ -7189,9 +7277,8 @@ nsTableFrame::InvalidateTableFrame(nsIFrame* aFrame,
     // XXXbz this doesn't handle outlines, does it?
     aFrame->InvalidateFrame();
     parent->InvalidateFrameWithRect(aOrigVisualOverflow + aOrigRect.TopLeft());
-  } else if (aOrigRect.Size() != aFrame->GetSize() ||
-             aOrigVisualOverflow.Size() != visualOverflow.Size()){
-    aFrame->InvalidateFrameWithRect(aOrigVisualOverflow);
+  } else {
+    aFrame->InvalidateFrameWithRect(aOrigVisualOverflow);;
     aFrame->InvalidateFrame();
     parent->InvalidateFrameWithRect(aOrigRect);;
     parent->InvalidateFrame();

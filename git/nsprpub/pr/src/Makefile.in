@@ -33,6 +33,9 @@ endif
 #
 
 ifeq ($(OS_ARCH),SunOS)
+ifeq ($(OS_RELEASE),4.1.3_U1)
+OS_LIBS			= -lm
+else	# 4.1.3_U1
 MAPFILE = $(OBJDIR)/nsprmap.sun
 GARBAGE += $(MAPFILE)
 ifdef NS_USE_GCC
@@ -64,6 +67,7 @@ ifndef USE_64
 DSO_LDOPTS	+= -Wl,-f,\$$ORIGIN/cpu/\$$ISALIST/lib$(ULTRASPARC_LIBRARY)$(LIBRARY_VERSION).so
 endif
 endif	# sparc
+endif	# 4.1.3_U1
 endif	# SunOS
 
 ifeq ($(OS_ARCH), IRIX)
@@ -129,7 +133,6 @@ endif
 else
 OS_LIBS		= -ldl
 endif
-OS_LIBS		+= -lrt
 endif
 
 ifeq ($(OS_ARCH),HP-UX)
@@ -157,6 +160,10 @@ endif
 
 ifeq ($(OS_ARCH),UNIXWARE)
 OS_LIBS		= -lsocket -lc
+endif
+
+ifeq ($(OS_ARCH),NEWS-OS)
+OS_LIBS		= -lsocket -lnsl -lgen -lresolv
 endif
 
 ifeq ($(OS_ARCH),WINNT)

@@ -35,7 +35,7 @@ AssertInnerizedScopeChain(JSContext *cx, JSObject &scopeobj)
 }
 
 static bool
-IsEvalCacheCandidate(UnrootedScript script)
+IsEvalCacheCandidate(JSScript *script)
 {
     // Make sure there are no inner objects which might use the wrong parent
     // and/or call scope by reusing the previous eval's script. Skip the
@@ -57,7 +57,7 @@ EvalCacheHashPolicy::hash(const EvalCacheLookup &l)
 }
 
 /* static */ bool
-EvalCacheHashPolicy::match(UnrootedScript script, const EvalCacheLookup &l)
+EvalCacheHashPolicy::match(JSScript *script, const EvalCacheLookup &l)
 {
     JS_ASSERT(IsEvalCacheCandidate(script));
 
@@ -121,13 +121,13 @@ class EvalScriptGuard
         if (p_) {
             script_ = *p_;
             cx_->runtime->evalCache.remove(p_);
-            CallNewScriptHook(cx_, script_, NullPtr());
+            js_CallNewScriptHook(cx_, script_, NULL);
             script_->isCachedEval = false;
             script_->isActiveEval = true;
         }
     }
 
-    void setNewScript(UnrootedScript script) {
+    void setNewScript(JSScript *script) {
         // JSScript::initFromEmitter has already called js_CallNewScriptHook.
         JS_ASSERT(!script_ && script);
         script_ = script;
@@ -226,7 +226,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
     if (length > 2 &&
         ((chars[0] == '[' && chars[length - 1] == ']') ||
         (chars[0] == '(' && chars[length - 1] == ')')) &&
-         (!caller || !caller->script()->strict))
+         (!caller || !caller->script()->strictModeCode))
     {
         // Remarkably, JavaScript syntax is not a superset of JSON syntax:
         // strings in JavaScript cannot contain the Unicode line and paragraph
@@ -274,8 +274,8 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
                .setNoScriptRval(false)
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
-        UnrootedScript compiled = frontend::CompileScript(cx, scopeobj, caller, options,
-                                                          chars, length, stableStr, staticLevel);
+        JSScript *compiled = frontend::CompileScript(cx, scopeobj, caller, options,
+                                                     chars, length, stableStr, staticLevel);
         if (!compiled)
             return false;
 
@@ -328,8 +328,6 @@ js::DirectEval(JSContext *cx, const CallArgs &args)
     StackFrame *caller = cx->fp();
     JS_ASSERT(IsBuiltinEvalForScope(caller->scopeChain(), args.calleev()));
     JS_ASSERT(JSOp(*cx->regs().pc) == JSOP_EVAL);
-    JS_ASSERT_IF(caller->isFunctionFrame(),
-                 caller->compartment() == caller->callee().compartment());
 
     if (!WarnOnTooManyArgs(cx, args))
         return false;

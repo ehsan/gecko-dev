@@ -17,8 +17,6 @@
 #include "nsIDNSListener.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "mozilla/net/DNS.h"
-#include "mozilla/net/DashboardTypes.h"
 
 class nsHostResolver;
 class nsHostRecord;
@@ -70,8 +68,8 @@ public:
      */
     Mutex        addr_info_lock;
     int          addr_info_gencnt; /* generation count of |addr_info| */
-    mozilla::net::AddrInfo *addr_info;
-    mozilla::net::NetAddr  *addr;
+    PRAddrInfo  *addr_info;
+    PRNetAddr   *addr;
     bool         negative;   /* True if this record is a cache of a failed lookup.
                                 Negative cache entries are valid just like any other
                                 (though never for more than 60 seconds), but a use
@@ -82,9 +80,9 @@ public:
     bool HasResult() const { return addr_info || addr || negative; }
 
     // hold addr_info_lock when calling the blacklist functions
-    bool   Blacklisted(mozilla::net::NetAddr *query);
+    bool Blacklisted(PRNetAddr *query);
     void   ResetBlacklist();
-    void   ReportUnusable(mozilla::net::NetAddr *addr);
+    void   ReportUnusable(PRNetAddr *addr);
 
 private:
     friend class nsHostResolver;
@@ -239,7 +237,7 @@ private:
     nsresult Init();
     nsresult IssueLookup(nsHostRecord *);
     bool     GetHostToLookup(nsHostRecord **m);
-    void     OnLookupComplete(nsHostRecord *, nsresult, mozilla::net::AddrInfo *);
+    void     OnLookupComplete(nsHostRecord *, nsresult, PRAddrInfo *);
     void     DeQueue(PRCList &aQ, nsHostRecord **aResult);
     void     ClearPendingQueue(PRCList *aPendingQueue);
     nsresult ConditionallyCreateThread(nsHostRecord *rec);
@@ -277,12 +275,6 @@ private:
     bool          mShutdown;
     PRIntervalTime mLongIdleTimeout;
     PRIntervalTime mShortIdleTimeout;
-
-public:
-    /*
-     * Called by the networking dashboard via the DnsService2
-     */
-    void GetDNSCacheEntries(nsTArray<mozilla::net::DNSCacheEntries> *);
 };
 
 #endif // nsHostResolver_h__

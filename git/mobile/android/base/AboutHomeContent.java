@@ -5,16 +5,11 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.db.BrowserContract.Thumbnails;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.db.BrowserDB.PinnedSite;
-import org.mozilla.gecko.db.BrowserDB.TopSitesCursorWrapper;
+import org.mozilla.gecko.db.BrowserContract.Images;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
-import org.mozilla.gecko.util.ActivityResultHandler;
 import org.mozilla.gecko.util.GeckoAsyncTask;
 
 import org.json.JSONArray;
@@ -24,7 +19,6 @@ import org.json.JSONObject;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.accounts.OnAccountsUpdateListener;
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -35,29 +29,21 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.graphics.Path;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
-import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 import android.text.SpannableString;
 import android.text.TextUtils;
 import android.text.style.StyleSpan;
-import android.text.style.TextAppearanceSpan;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.SparseArray;
-import android.view.ContextMenu;
-import android.util.SparseArray;
 import android.view.LayoutInflater;
-import android.view.MenuInflater;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.AbsListView;
 import android.widget.GridView;
@@ -103,6 +89,7 @@ public class AboutHomeContent extends ScrollView
 
     private Context mContext;
     private BrowserApp mActivity;
+    private Cursor mCursor;
     UriLoadCallback mUriLoadCallback = null;
     VoidCallback mLoadCompleteCallback = null;
     private LayoutInflater mInflater;
@@ -110,7 +97,7 @@ public class AboutHomeContent extends ScrollView
     private AccountManager mAccountManager;
     private OnAccountsUpdateListener mAccountListener = null;
 
-    protected TopSitesCursorAdapter mTopSitesAdapter;
+    protected SimpleCursorAdapter mTopSitesAdapter;
     protected TopSitesGridView mTopSitesGrid;
 
     private AboutHomePromoBox mPromoBox;
@@ -120,9 +107,6 @@ public class AboutHomeContent extends ScrollView
     protected AboutHomeSection mRemoteTabs;
 
     private View.OnClickListener mRemoteTabClickListener;
-
-    private static Rect sIconBounds;
-    private static TextAppearanceSpan sSubTitleSpan;
 
     public interface UriLoadCallback {
         public void callback(String uriSpec);
@@ -135,7 +119,6 @@ public class AboutHomeContent extends ScrollView
     public AboutHomeContent(Context context) {
         super(context);
         mContext = context;
-        mActivity = (BrowserApp) context;
     }
 
     public AboutHomeContent(Context context, AttributeSet attrs) {
@@ -145,10 +128,6 @@ public class AboutHomeContent extends ScrollView
     }
 
     public void init() {
-        int iconSize = mContext.getResources().getDimensionPixelSize(R.dimen.abouthome_addon_icon_size);
-        sIconBounds = new Rect(0, 0, iconSize, iconSize); 
-        sSubTitleSpan = new TextAppearanceSpan(mContext, R.style.AboutHome_TextAppearance_SubTitle);
-
         inflate();
 
         mAccountManager = AccountManager.get(mContext);
@@ -178,40 +157,13 @@ public class AboutHomeContent extends ScrollView
         mTopSitesGrid = (TopSitesGridView)findViewById(R.id.top_sites_grid);
         mTopSitesGrid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-                TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
-                String spec = holder.url;
+                Cursor c = (Cursor) parent.getItemAtPosition(position);
 
-                // If we don't have a url, this must be an empty row. Show the edit dialog box
-                if (TextUtils.isEmpty(spec)) {
-                    editSite(spec, position);
-                    return;
-                }
+                String spec = c.getString(c.getColumnIndex(URLColumns.URL));
+                Log.i(LOGTAG, "clicked: " + spec);
 
                 if (mUriLoadCallback != null)
                     mUriLoadCallback.callback(spec);
-            }
-        });
-
-        mTopSitesGrid.setOnCreateContextMenuListener(new View.OnCreateContextMenuListener() {
-            public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
-                AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo)menuInfo;
-                mTopSitesGrid.setSelectedPosition(info.position);
-
-                MenuInflater inflater = mActivity.getMenuInflater();
-                inflater.inflate(R.menu.abouthome_topsites_contextmenu, menu);
-
-                // If nothing is pinned at all, hide both clear items
-                TopSitesCursorWrapper cursor = (TopSitesCursorWrapper)mTopSitesAdapter.getCursor();
-                if (!cursor.hasPinnedSites()) {
-                    menu.findItem(R.id.abouthome_topsites_clearall).setVisible(false);
-                    menu.findItem(R.id.abouthome_topsites_clear).setVisible(false);
-                } else {
-                    // If there's nothing pinned here, hide the clear item
-                    PinnedSite site = cursor.getPinnedSite(info.position);
-                    if (site == null) {
-                        menu.findItem(R.id.abouthome_topsites_clear).setVisible(false);
-                    }
-                }
             }
         });
 
@@ -254,11 +206,8 @@ public class AboutHomeContent extends ScrollView
             mAccountListener = null;
         }
 
-        if (mTopSitesAdapter != null) {
-            Cursor cursor = mTopSitesAdapter.getCursor();
-            if (cursor != null && !cursor.isClosed())
-                cursor.close();
-        }
+        if (mCursor != null && !mCursor.isClosed())
+            mCursor.close();
     }
 
     void setLastTabsVisibility(boolean visible) {
@@ -307,26 +256,23 @@ public class AboutHomeContent extends ScrollView
         final boolean syncIsSetup = SyncAccounts.syncAccountsExist(mActivity);
 
         final ContentResolver resolver = mActivity.getContentResolver();
-        Cursor old = null;
-        if (mTopSitesAdapter != null) {
-            old = mTopSitesAdapter.getCursor();
-        }
+        final Cursor oldCursor = mCursor;
         // Swap in the new cursor.
-        final Cursor oldCursor = old;
-        final Cursor newCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
+        mCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
 
         post(new Runnable() {
             public void run() {
                 if (mTopSitesAdapter == null) {
                     mTopSitesAdapter = new TopSitesCursorAdapter(mActivity,
                                                                  R.layout.abouthome_topsite_item,
-                                                                 newCursor,
+                                                                 mCursor,
                                                                  new String[] { URLColumns.TITLE },
                                                                  new int[] { R.id.title });
 
+                    mTopSitesAdapter.setViewBinder(new TopSitesViewBinder());
                     mTopSitesGrid.setAdapter(mTopSitesAdapter);
                 } else {
-                    mTopSitesAdapter.changeCursor(newCursor);
+                    mTopSitesAdapter.changeCursor(mCursor);
                 }
 
                 if (mTopSitesAdapter.getCount() > 0)
@@ -381,28 +327,19 @@ public class AboutHomeContent extends ScrollView
     }
 
     private void updateTopSitesThumbnails(Map<String, Bitmap> thumbnails) {
-        for (int i = 0; i < mTopSitesAdapter.getCount(); i++) {
+        for (int i = 0; i < mTopSitesGrid.getChildCount(); i++) {
             final View view = mTopSitesGrid.getChildAt(i);
 
-            // The grid view might get temporarily out of sync with the
-            // adapter refreshes (e.g. on device rotation)
-            if (view == null)
-                continue;
+            Cursor c = (Cursor) mTopSitesGrid.getItemAtPosition(i);
+            final String url = c.getString(c.getColumnIndex(URLColumns.URL));
 
-            TopSitesViewHolder holder = (TopSitesViewHolder)view.getTag();
-            final String url = holder.url;
-            if (TextUtils.isEmpty(url)) {
-                holder.thumbnailView.setImageResource(R.drawable.abouthome_thumbnail_add);
-                holder.thumbnailView.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            } else {
-                displayThumbnail(view, thumbnails.get(url));
-            }
+            displayThumbnail(view, thumbnails.get(url));
         }
 
         mTopSitesGrid.invalidate();
     }
 
-    public Map<String, Bitmap> getThumbnailsFromCursor(Cursor c) {
+    public Map<String, Bitmap> getTopSitesThumbnails(Cursor c) {
         Map<String, Bitmap> thumbnails = new HashMap<String, Bitmap>();
 
         try {
@@ -410,8 +347,8 @@ public class AboutHomeContent extends ScrollView
                 return thumbnails;
 
             do {
-                final String url = c.getString(c.getColumnIndexOrThrow(Thumbnails.URL));
-                final byte[] b = c.getBlob(c.getColumnIndexOrThrow(Thumbnails.DATA));
+                final String url = c.getString(c.getColumnIndexOrThrow(Images.URL));
+                final byte[] b = c.getBlob(c.getColumnIndexOrThrow(Images.THUMBNAIL));
                 if (b == null)
                     continue;
 
@@ -442,7 +379,7 @@ public class AboutHomeContent extends ScrollView
 
             @Override
             public void onPostExecute(Cursor c) {
-                updateTopSitesThumbnails(getThumbnailsFromCursor(c));
+                updateTopSitesThumbnails(getTopSitesThumbnails(c));
             }
         }).execute();
     }
@@ -596,19 +533,10 @@ public class AboutHomeContent extends ScrollView
 
                     for (int i = 0; i < array.length(); i++) {
                         JSONObject jsonobj = array.getJSONObject(i);
-                        String name = jsonobj.getString("name");
-                        String version = jsonobj.getString("version");
-                        String text = name + " " + version;
 
-                        SpannableString spannable = new SpannableString(text);
-                        spannable.setSpan(sSubTitleSpan, name.length() + 1, text.length(), 0);
-
-                        final TextView row = (TextView) mInflater.inflate(R.layout.abouthome_addon_row, mAddons.getItemsContainer(), false);
-                        row.setText(spannable, TextView.BufferType.SPANNABLE);
-
-                        Drawable drawable = mContext.getResources().getDrawable(R.drawable.ic_addons_empty);
-                        drawable.setBounds(sIconBounds);
-                        row.setCompoundDrawables(drawable, null, null, null);
+                        final View row = mInflater.inflate(R.layout.abouthome_addon_row, mAddons.getItemsContainer(), false);
+                        ((TextView) row.findViewById(R.id.addon_title)).setText(jsonobj.getString("name"));
+                        ((TextView) row.findViewById(R.id.addon_version)).setText(jsonobj.getString("version"));
 
                         String iconUrl = jsonobj.getString("iconURL");
                         String pageUrl = getPageUrlFromIconUrl(iconUrl);
@@ -621,14 +549,13 @@ public class AboutHomeContent extends ScrollView
                             }
                         });
 
-                        Favicons favicons = Favicons.getInstance();
+                        Favicons favicons = mActivity.getFavicons();
                         favicons.loadFavicon(pageUrl, iconUrl, true,
                                     new Favicons.OnFaviconLoadedListener() {
                             public void onFaviconLoaded(String url, Bitmap favicon) {
                                 if (favicon != null) {
-                                    Drawable drawable = new BitmapDrawable(favicon);
-                                    drawable.setBounds(sIconBounds);
-                                    row.setCompoundDrawables(drawable, null, null, null);
+                                    ImageView icon = (ImageView) row.findViewById(R.id.addon_icon);
+                                    icon.setImageBitmap(favicon);
                                 }
                             }
                         });
@@ -739,8 +666,8 @@ public class AboutHomeContent extends ScrollView
             else if (!TextUtils.equals(client, tab.name))
                 break;
 
-            final TextView row = (TextView) mInflater.inflate(R.layout.abouthome_remote_tab_row, mRemoteTabs.getItemsContainer(), false);
-            row.setText(TextUtils.isEmpty(tab.title) ? tab.url : tab.title);
+            final RelativeLayout row = (RelativeLayout) mInflater.inflate(R.layout.abouthome_remote_tab_row, mRemoteTabs.getItemsContainer(), false);
+            ((TextView) row.findViewById(R.id.remote_tab_title)).setText(TextUtils.isEmpty(tab.title) ? tab.url : tab.title);
             row.setTag(tab.url);
             mRemoteTabs.addItem(row);
             row.setOnClickListener(mRemoteTabClickListener);
@@ -752,35 +679,16 @@ public class AboutHomeContent extends ScrollView
 
     @Override
     public void onLightweightThemeChanged() {
-        LightweightThemeDrawable drawable = mActivity.getLightweightTheme().getColorDrawable(this);
+        final Drawable drawable = mActivity.getLightweightTheme().getDrawableWithAlpha(this, 255, 0);
         if (drawable == null)
             return;
 
-         drawable.setAlpha(255, 0);
          setBackgroundDrawable(drawable);
-
-         boolean isLight = mActivity.getLightweightTheme().isLightTheme();
-
-         if (mAddons != null) {
-             mAddons.setTheme(isLight);
-             mLastTabs.setTheme(isLight);
-             mRemoteTabs.setTheme(isLight);
-             ((GeckoImageView) findViewById(R.id.abouthome_logo)).setTheme(isLight);
-             ((GeckoTextView) findViewById(R.id.top_sites_title)).setTheme(isLight);
-         }
     }
 
     @Override
     public void onLightweightThemeReset() {
         setBackgroundResource(R.drawable.abouthome_bg_repeat);
-
-        if (mAddons != null) {
-            mAddons.resetTheme();
-            mLastTabs.resetTheme();
-            mRemoteTabs.resetTheme();
-            ((GeckoImageView) findViewById(R.id.abouthome_logo)).resetTheme();
-            ((GeckoTextView) findViewById(R.id.top_sites_title)).resetTheme();
-        }
     }
 
     @Override
@@ -790,8 +698,6 @@ public class AboutHomeContent extends ScrollView
     }
 
     public static class TopSitesGridView extends GridView {
-        int mSelected = -1;
-
         public TopSitesGridView(Context context, AttributeSet attrs) {
             super(context, attrs);
         }
@@ -831,25 +737,11 @@ public class AboutHomeContent extends ScrollView
             // Just using getWidth() will use incorrect values during onMeasure when rotating the device
             // Instead we pass in the measuredWidth, which is correct
             int w = getColumnWidth(measuredWidth);
-            ThumbnailHelper.getInstance().setThumbnailWidth(w);
-            heightMeasureSpec = MeasureSpec.makeMeasureSpec((int)(w*ThumbnailHelper.THUMBNAIL_ASPECT_RATIO*numRows) + getPaddingTop() + getPaddingBottom(),
+            Tabs.setThumbnailWidth(w);
+            heightMeasureSpec = MeasureSpec.makeMeasureSpec((int)(w*Tabs.getThumbnailAspectRatio()*numRows) + getPaddingTop() + getPaddingBottom(),
                                                                  MeasureSpec.EXACTLY);
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         }
-
-        public void setSelectedPosition(int position) {
-            mSelected = position;
-        }
-
-        public int getSelectedPosition() {
-            return mSelected;
-        }
-    }
-
-    private class TopSitesViewHolder {
-        public TextView titleView = null;
-        public ImageView thumbnailView = null;
-        public String url = null;
     }
 
     public class TopSitesCursorAdapter extends SimpleCursorAdapter {
@@ -870,141 +762,39 @@ public class AboutHomeContent extends ScrollView
             return;
         }
 
-        private View buildView(String url, String title, View convertView) {
-            TopSitesViewHolder viewHolder;
-            if (convertView == null) {
-                convertView = mInflater.inflate(R.layout.abouthome_topsite_item, null);
+        @Override
+        public void bindView(View view, Context context, Cursor cursor) {
+            super.bindView(view, context, cursor);
+            view.setLayoutParams(new AbsListView.LayoutParams(mTopSitesGrid.getColumnWidth(),
+                                                            Math.round(mTopSitesGrid.getColumnWidth()*Tabs.getThumbnailAspectRatio())));
+        }
+    }
 
-                viewHolder = new TopSitesViewHolder();
-                viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
-                viewHolder.thumbnailView = (ImageView) convertView.findViewById(R.id.thumbnail);
-                convertView.setTag(viewHolder);
-            } else {
-                viewHolder = (TopSitesViewHolder) convertView.getTag();
+    class TopSitesViewBinder implements SimpleCursorAdapter.ViewBinder {
+        private boolean updateTitle(View view, Cursor cursor, int titleIndex) {
+            String title = cursor.getString(titleIndex);
+            TextView titleView = (TextView) view;
+
+            // Use the URL instead of an empty title for consistency with the normal URL
+            // bar view - this is the equivalent of getDisplayTitle() in Tab.java
+            if (title == null || title.length() == 0) {
+                int urlIndex = cursor.getColumnIndexOrThrow(URLColumns.URL);
+                title = cursor.getString(urlIndex);
             }
 
-            viewHolder.titleView.setVisibility(TextUtils.isEmpty(title) ? View.INVISIBLE : View.VISIBLE);
-            viewHolder.titleView.setText(title);
-            viewHolder.url = url;
-
-            // Force the view to fit inside this slot in the grid
-            convertView.setLayoutParams(new AbsListView.LayoutParams(mTopSitesGrid.getColumnWidth(),
-                        Math.round(mTopSitesGrid.getColumnWidth()*ThumbnailHelper.THUMBNAIL_ASPECT_RATIO)));
-
-            return convertView;
+            titleView.setText(title);
+            return true;
         }
 
         @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            String url = "";
-            String title = "";
-
-            Cursor c = getCursor();
-            c.moveToPosition(position);
-            if (!c.isAfterLast()) {
-                url = c.getString(c.getColumnIndex(URLColumns.URL));
-                title = c.getString(c.getColumnIndex(URLColumns.TITLE));
+        public boolean setViewValue(View view, Cursor cursor, int columnIndex) {
+            int titleIndex = cursor.getColumnIndexOrThrow(URLColumns.TITLE);
+            if (columnIndex == titleIndex) {
+                return updateTitle(view, cursor, titleIndex);
             }
-            return buildView(url, title, convertView);
+
+            // Other columns are handled automatically
+            return false;
         }
-    }
-
-    private void clearThumbnail(TopSitesViewHolder holder) {
-        holder.titleView.setText("");
-        holder.url = "";
-        holder.thumbnailView.setImageResource(R.drawable.abouthome_thumbnail_bg);
-        holder.thumbnailView.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    }
-
-    public void clearAllSites() {
-        final ContentResolver resolver = mActivity.getContentResolver();
-
-        // Clear the view quickly to make things appear responsive
-        for (int i = 0; i < mTopSitesGrid.getChildCount(); i++) {
-            View v = mTopSitesGrid.getChildAt(i);
-            TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
-            clearThumbnail(holder);
-        }
-
-        (new GeckoAsyncTask<Void, Void, Void>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
-            @Override
-            public Void doInBackground(Void... params) {
-                ContentResolver resolver = mActivity.getContentResolver();
-                BrowserDB.unpinAllSites(resolver);
-                return null;
-            }
-
-            @Override
-            public void onPostExecute(Void v) {
-                update(EnumSet.of(UpdateFlags.TOP_SITES));
-            }
-        }).execute();
-    }
-
-    public void clearSite() {
-        final int position = mTopSitesGrid.getSelectedPosition();
-        View v = mTopSitesGrid.getChildAt(position);
-        TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
-
-        // Quickly update the view so that there isn't as much lag between the request and response
-        clearThumbnail(holder);
-        (new GeckoAsyncTask<Void, Void, Void>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
-            @Override
-            public Void doInBackground(Void... params) {
-                ContentResolver resolver = mActivity.getContentResolver();
-                BrowserDB.unpinSite(resolver, position);
-                return null;
-            }
-
-            @Override
-            public void onPostExecute(Void v) {
-                update(EnumSet.of(UpdateFlags.TOP_SITES));
-            }
-        }).execute();
-    }
-
-    public void editSite() {
-        int position = mTopSitesGrid.getSelectedPosition();
-       View v = mTopSitesGrid.getChildAt(position);
-
-        TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
-        editSite(holder.url, position);
-    }
-
-    // Edit the site at position. Provide a url to start editing with
-    public void editSite(String url, final int position) {
-        Intent intent = new Intent(mContext, AwesomeBar.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
-        intent.putExtra(AwesomeBar.TARGET_KEY, AwesomeBar.Target.PICK_SITE.toString());
-        if (url != null && !TextUtils.isEmpty(url)) {
-            intent.putExtra(AwesomeBar.CURRENT_URL_KEY, url);
-        }
-
-        int requestCode = GeckoAppShell.sActivityHelper.makeRequestCode(new ActivityResultHandler() {
-            public void onActivityResult(int resultCode, Intent data) {
-                if (resultCode == Activity.RESULT_CANCELED || data == null)
-                    return;
-
-                final String title = data.getStringExtra(AwesomeBar.TITLE_KEY);
-                final String url = data.getStringExtra(AwesomeBar.URL_KEY);
-
-                // update the database on a background thread
-                (new GeckoAsyncTask<Void, Void, Void>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
-                    @Override
-                    public Void doInBackground(Void... params) {
-                        final ContentResolver resolver = mActivity.getContentResolver();
-                        BrowserDB.pinSite(resolver, url, (title == null ? url : title), position);
-                        return null;
-                    }
-        
-                    @Override
-                    public void onPostExecute(Void v) {
-                        update(EnumSet.of(UpdateFlags.TOP_SITES));
-                    }
-                }).execute();
-            }
-        });
-
-        mActivity.startActivityForResult(intent, requestCode);
     }
 }

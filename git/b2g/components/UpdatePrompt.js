@@ -18,9 +18,14 @@ let log =
   function log_dump(msg) { dump("UpdatePrompt: "+ msg +"\n"); } :
   function log_noop(msg) { };
 
-const PREF_APPLY_PROMPT_TIMEOUT = "b2g.update.apply-prompt-timeout";
-const PREF_APPLY_IDLE_TIMEOUT   = "b2g.update.apply-idle-timeout";
+const APPLY_PROMPT_TIMEOUT =
+      Services.prefs.getIntPref("b2g.update.apply-prompt-timeout");
+const APPLY_IDLE_TIMEOUT =
+      Services.prefs.getIntPref("b2g.update.apply-idle-timeout");
+const SELF_DESTRUCT_TIMEOUT =
+      Services.prefs.getIntPref("b2g.update.self-destruct-timeout");
 
+const APPLY_IDLE_TIMEOUT_SECONDS = APPLY_IDLE_TIMEOUT / 1000;
 const NETWORK_ERROR_OFFLINE = 111;
 
 XPCOMUtils.defineLazyServiceGetter(Services, "aus",
@@ -86,7 +91,6 @@ UpdateCheckListener.prototype = {
 function UpdatePrompt() {
   this.wrappedJSObject = this;
   this._updateCheckListener = new UpdateCheckListener(this);
-  Services.obs.addObserver(this, "update-check-start", false);
 }
 
 UpdatePrompt.prototype = {
@@ -102,14 +106,6 @@ UpdatePrompt.prototype = {
   _applyPromptTimer: null,
   _waitingForIdle: false,
   _updateCheckListner: null,
-
-  get applyPromptTimeout() {
-    return Services.prefs.getIntPref(PREF_APPLY_PROMPT_TIMEOUT);
-  },
-
-  get applyIdleTimeout() {
-    return Services.prefs.getIntPref(PREF_APPLY_IDLE_TIMEOUT);
-  },
 
   // nsIUpdatePrompt
 
@@ -133,15 +129,14 @@ UpdatePrompt.prototype = {
     // update quietly without user intervention.
     this.sendUpdateEvent("update-downloaded", aUpdate);
 
-    if (Services.idle.idleTime >= this.applyIdleTimeout) {
+    if (Services.idle.idleTime >= APPLY_IDLE_TIMEOUT) {
       this.showApplyPrompt(aUpdate);
       return;
     }
 
-    let applyIdleTimeoutSeconds = this.applyIdleTimeout / 1000;
     // We haven't been idle long enough, so register an observer
     log("Update is ready to apply, registering idle timeout of " +
-        applyIdleTimeoutSeconds + " seconds before prompting.");
+        APPLY_IDLE_TIMEOUT_SECONDS + " seconds before prompting.");
 
     this._update = aUpdate;
     this.waitForIdle();
@@ -156,10 +151,7 @@ UpdatePrompt.prototype = {
   },
 
   showUpdateHistory: function UP_showUpdateHistory(aParent) { },
-  showUpdateInstalled: function UP_showUpdateInstalled() {
-    let lock = Services.settings.createLock();
-    lock.set("deviceinfo.last_updated", Date.now(), null, null);
-  },
+  showUpdateInstalled: function UP_showUpdateInstalled() { },
 
   // Custom functions
 
@@ -169,7 +161,7 @@ UpdatePrompt.prototype = {
     }
 
     this._waitingForIdle = true;
-    Services.idle.addIdleObserver(this, this.applyIdleTimeout / 1000);
+    Services.idle.addIdleObserver(this, APPLY_IDLE_TIMEOUT_SECONDS);
     Services.obs.addObserver(this, "quit-application", false);
   },
 
@@ -189,18 +181,18 @@ UpdatePrompt.prototype = {
 
     // Schedule a fallback timeout in case the UI is unable to respond or show
     // a prompt for some reason.
-    this._applyPromptTimer = this.createTimer(this.applyPromptTimeout);
+    this._applyPromptTimer = this.createTimer(APPLY_PROMPT_TIMEOUT);
   },
 
-  _copyProperties: ["appVersion", "buildID", "detailsURL", "displayVersion",
-                    "errorCode", "isOSUpdate", "platformVersion",
-                    "previousAppVersion", "state", "statusText"],
-
   sendUpdateEvent: function UP_sendUpdateEvent(aType, aUpdate) {
-    let detail = {};
-    for each (let property in this._copyProperties) {
-      detail[property] = aUpdate[property];
-    }
+    let detail = {
+      displayVersion: aUpdate.displayVersion,
+      detailsURL: aUpdate.detailsURL,
+      statusText: aUpdate.statusText,
+      state: aUpdate.state,
+      errorCode: aUpdate.errorCode,
+      isOSUpdate: aUpdate.isOSUpdate
+    };
 
     let patch = aUpdate.selectedPatch;
     if (!patch && aUpdate.patchCount > 0) {
@@ -264,21 +256,8 @@ UpdatePrompt.prototype = {
   },
 
   downloadUpdate: function UP_downloadUpdate(aUpdate) {
-    if (!aUpdate) {
-      aUpdate = Services.um.activeUpdate;
-      if (!aUpdate) {
-        log("No active update found to download");
-        return;
-      }
-    }
-
     Services.aus.downloadUpdate(aUpdate, true);
     Services.aus.addDownloadListener(this);
-  },
-
-  handleDownloadCancel: function UP_handleDownloadCancel() {
-    log("Pausing download");
-    Services.aus.pauseDownload();
   },
 
   finishUpdate: function UP_finishUpdate() {
@@ -341,6 +320,14 @@ UpdatePrompt.prototype = {
   forceUpdateCheck: function UP_forceUpdateCheck() {
     log("Forcing update check");
 
+    // If we already have an active update available, don't try to
+    // download again, just prompt for install.
+    if (Services.um.activeUpdate) {
+      this.setUpdateStatus("check-complete");
+      this.showApplyPrompt(Services.um.activeUpdate);
+      return;
+    }
+
     let checker = Cc["@mozilla.org/updates/update-checker;1"]
                     .createInstance(Ci.nsIUpdateChecker);
     checker.checkForUpdates(this._updateCheckListener, true);
@@ -364,63 +351,9 @@ UpdatePrompt.prototype = {
         this.handleAvailableResult(detail);
         this._update = null;
         break;
-      case "update-download-cancel":
-        this.handleDownloadCancel();
-        break;
       case "update-prompt-apply-result":
         this.handleApplyPromptResult(detail);
         break;
-    }
-  },
-
-  appsUpdated: function UP_appsUpdated(aApps) {
-    log("appsUpdated: " + aApps.length + " apps to update");
-    let lock = Services.settings.createLock();
-    lock.set("apps.updateStatus", "check-complete", null);
-    this.sendChromeEvent("apps-update-check", { apps: aApps });
-    this._checkingApps = false;
-  },
-
-  // Trigger apps update check and wait for all to be done before
-  // notifying gaia.
-  onUpdateCheckStart: function UP_onUpdateCheckStart() {
-    // Don't start twice.
-    if (this._checkingApps) {
-      return;
-    }
-
-    this._checkingApps = true;
-
-    let self = this;
-
-    let window = Services.wm.getMostRecentWindow("navigator:browser");
-    let all = window.navigator.mozApps.mgmt.getAll();
-
-    all.onsuccess = function() {
-      let appsCount = this.result.length;
-      let appsChecked = 0;
-      let appsToUpdate = [];
-      this.result.forEach(function updateApp(aApp) {
-        let update = aApp.checkForUpdate();
-        update.onsuccess = function() {
-          appsChecked += 1;
-          appsToUpdate.push(aApp.manifestURL);
-          if (appsChecked == appsCount) {
-            self.appsUpdated(appsToUpdate);
-          }
-        }
-        update.onerror = function() {
-          appsChecked += 1;
-          if (appsChecked == appsCount) {
-            self.appsUpdated(appsToUpdate);
-          }
-        }
-      });
-    }
-
-    all.onerror = function() {
-      // Could not get the app list, just notify to update nothing.
-      self.appsUpdated([]);
     }
   },
 
@@ -433,11 +366,8 @@ UpdatePrompt.prototype = {
         this.showApplyPrompt(this._update);
         // Fall through
       case "quit-application":
-        Services.idle.removeIdleObserver(this, this.applyIdleTimeout / 1000);
+        Services.idle.removeIdleObserver(this, APPLY_IDLE_TIMEOUT_SECONDS);
         Services.obs.removeObserver(this, "quit-application");
-        break;
-      case "update-check-start":
-        this.onUpdateCheckStart();
         break;
     }
   },

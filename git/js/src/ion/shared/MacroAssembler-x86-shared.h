@@ -8,8 +8,6 @@
 #ifndef jsion_macro_assembler_x86_shared_h__
 #define jsion_macro_assembler_x86_shared_h__
 
-#include "mozilla/DebugOnly.h"
-
 #ifdef JS_CPU_X86
 # include "ion/x86/Assembler-x86.h"
 #elif JS_CPU_X64
@@ -31,7 +29,7 @@ class MacroAssemblerX86Shared : public Assembler
     // reserved for unexpected spills or C++ function calls. It is maintained
     // by functions which track stack alignment, which for clear distinction
     // use StudlyCaps (for example, Push, Pop).
-    uint32_t framePushed_;
+    uint32 framePushed_;
 
   public:
     MacroAssemblerX86Shared()
@@ -66,6 +64,9 @@ class MacroAssemblerX86Shared : public Assembler
         j(ConditionFromDoubleCondition(cond), label);
     }
 
+    void move32(const Address &address, const Register &dest) {
+        movl(Operand(address), dest);
+    }
     void move32(const Imm32 &imm, const Register &dest) {
         if (imm.value == 0)
             xorl(dest, dest);
@@ -160,14 +161,14 @@ class MacroAssemblerX86Shared : public Assembler
         pop(reg);
         framePushed_ -= STACK_SLOT_SIZE;
     }
-    void implicitPop(uint32_t args) {
+    void implicitPop(uint32 args) {
         JS_ASSERT(args % STACK_SLOT_SIZE == 0);
         framePushed_ -= args;
     }
-    uint32_t framePushed() const {
+    uint32 framePushed() const {
         return framePushed_;
     }
-    void setFramePushed(uint32_t framePushed) {
+    void setFramePushed(uint32 framePushed) {
         framePushed_ = framePushed;
     }
 
@@ -176,9 +177,6 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void jump(RepatchLabel *label) {
         jmp(label);
-    }
-    void jump(Register reg) {
-        jmp(Operand(reg));
     }
 
     void convertInt32ToDouble(const Register &src, const FloatRegister &dest) {
@@ -251,14 +249,6 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void zeroDouble(FloatRegister reg) {
         xorpd(reg, reg);
-    }
-    void negateDouble(FloatRegister reg) {
-        // From MacroAssemblerX86Shared::maybeInlineDouble
-        pcmpeqw(ScratchFloatReg, ScratchFloatReg);
-        psllq(Imm32(63), ScratchFloatReg);
-
-        // XOR the float in a float register with -0.0.
-        xorpd(ScratchFloatReg, reg); // s ^ 0x80000000000000
     }
     void addDouble(FloatRegister src, FloatRegister dest) {
         addsd(src, dest);
@@ -362,15 +352,15 @@ class MacroAssemblerX86Shared : public Assembler
 
     // Builds an exit frame on the stack, with a return address to an internal
     // non-function. Returns offset to be passed to markSafepointAt().
-    bool buildFakeExitFrame(const Register &scratch, uint32_t *offset) {
-        mozilla::DebugOnly<uint32_t> initialDepth = framePushed();
+    bool buildFakeExitFrame(const Register &scratch, uint32 *offset) {
+        mozilla::DebugOnly<uint32> initialDepth = framePushed();
 
         CodeLabel *cl = new CodeLabel();
         if (!addCodeLabel(cl))
             return false;
         mov(cl->dest(), scratch);
 
-        uint32_t descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
+        uint32 descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
         Push(Imm32(descriptor));
         Push(scratch);
 
@@ -382,14 +372,14 @@ class MacroAssemblerX86Shared : public Assembler
     }
 
     bool buildOOLFakeExitFrame(void *fakeReturnAddr) {
-        uint32_t descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
+        uint32 descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
         Push(Imm32(descriptor));
         Push(ImmWord(fakeReturnAddr));
         return true;
     }
 
     void callWithExitFrame(IonCode *target) {
-        uint32_t descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
+        uint32 descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
         Push(Imm32(descriptor));
         call(target);
     }

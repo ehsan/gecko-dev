@@ -934,8 +934,7 @@ bool nsCaret::IsMenuPopupHidingCaret()
 #ifdef MOZ_XUL
   // Check if there are open popups.
   nsXULPopupManager *popMgr = nsXULPopupManager::GetInstance();
-  nsTArray<nsIFrame*> popups;
-  popMgr->GetVisiblePopups(popups);
+  nsTArray<nsIFrame*> popups = popMgr->GetVisiblePopups();
 
   if (popups.Length() == 0)
     return false; // No popups, so caret can't be hidden by them.
@@ -986,7 +985,7 @@ void nsCaret::DrawCaret(bool aInvalidate)
   
   // Can we draw the caret now?
   nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
-  NS_ENSURE_TRUE_VOID(presShell);
+  NS_ENSURE_TRUE(presShell, /**/);
   {
     if (presShell->IsPaintingSuppressed())
     {

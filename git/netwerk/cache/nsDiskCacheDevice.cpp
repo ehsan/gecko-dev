@@ -6,10 +6,6 @@
 
 #include <limits.h>
 
-#include "mozilla/DebugOnly.h"
-
-#include "nsCache.h"
-
 // include files for ftruncate (or equivalent)
 #if defined(XP_UNIX)
 #include <unistd.h>
@@ -36,6 +32,7 @@
 #include "nsDiskCache.h"
 
 #include "nsCacheService.h"
+#include "nsCache.h"
 
 #include "nsDeleteDir.h"
 
@@ -49,6 +46,7 @@
 
 #include "nsThreadUtils.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/Util.h"
 
 static const char DISK_CACHE_DEVICE_ID[] = { "disk" };
 using namespace mozilla;

@@ -5,7 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
 
 #include "jscntxt.h"
@@ -27,18 +26,17 @@
 #include "methodjit/StubCalls.h"
 #include "methodjit/Retcon.h"
 
-#include "jsatominlines.h"
-#include "jsboolinlines.h"
-#include "jscntxtinlines.h"
-#include "jsfuninlines.h"
 #include "jsinterpinlines.h"
-#include "jsnuminlines.h"
-#include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 #include "jsscriptinlines.h"
+#include "jsnuminlines.h"
+#include "jsobjinlines.h"
+#include "jscntxtinlines.h"
+#include "jsatominlines.h"
+#include "StubCalls-inl.h"
+#include "jsfuninlines.h"
 #include "jstypedarray.h"
 
-#include "StubCalls-inl.h"
 #include "vm/RegExpObject-inl.h"
 #include "vm/String-inl.h"
 
@@ -95,15 +93,6 @@ stubs::Name(VMFrame &f)
 {
     RootedValue rval(f.cx);
     if (!NameOperation(f.cx, f.pc(), &rval))
-        THROW();
-    f.regs.sp[0] = rval;
-}
-
-void JS_FASTCALL
-stubs::IntrinsicName(VMFrame &f, PropertyName *name)
-{
-    RootedValue rval(f.cx);
-    if (!f.cx->global().get()->getIntrinsicValue(f.cx, name, &rval))
         THROW();
     f.regs.sp[0] = rval;
 }
@@ -530,11 +519,9 @@ StubEqualityOp(VMFrame &f)
         }
     } else {
         if (lval.isNullOrUndefined()) {
-            cond = (rval.isNullOrUndefined() ||
-                    (rval.isObject() && EmulatesUndefined(&rval.toObject()))) ==
-                    EQ;
+            cond = rval.isNullOrUndefined() == EQ;
         } else if (rval.isNullOrUndefined()) {
-            cond = (lval.isObject() && EmulatesUndefined(&lval.toObject())) == EQ;
+            cond = !EQ;
         } else {
             if (!ToPrimitive(cx, &lval))
                 return false;
@@ -814,32 +801,13 @@ stubs::TriggerIonCompile(VMFrame &f)
     RootedScript script(f.cx, f.script());
 
     if (ion::js_IonOptions.parallelCompilation) {
-        if (script->hasIonScript()) {
-            /*
-             * Normally TriggerIonCompile is not called if !script->ion, but the
-             * latter jump can be bypassed if DisableScriptCodeForIon wants this
-             * code to be destroyed so that the Ion code can start running.
-             */
-            ExpandInlineFrames(f.cx->compartment);
-            Recompiler::clearStackReferences(f.cx->runtime->defaultFreeOp(), script);
-            f.jit()->destroyChunk(f.cx->runtime->defaultFreeOp(), f.chunkIndex(),
-                                  /* resetUses = */ false);
-            return;
-        }
-
-        /*
-         * Also check for other possible values of script->ion, which could show up
-         * if Ion code was invalidated after calling DisableScriptCodeForIon.
-         */
-        if (!script->canIonCompile() || script->isIonCompilingOffThread())
-            return;
+        JS_ASSERT(!script->ion);
 
         jsbytecode *osrPC = f.regs.pc;
         if (*osrPC != JSOP_LOOPENTRY)
             osrPC = NULL;
 
-        RootedFunction scriptFunction(f.cx, script->function());
-        if (!ion::TestIonCompile(f.cx, script, scriptFunction, osrPC, f.fp()->isConstructing())) {
+        if (!ion::TestIonCompile(f.cx, script, script->function(), osrPC, f.fp()->isConstructing())) {
             if (f.cx->isExceptionPending())
                 THROW();
         }
@@ -871,7 +839,7 @@ stubs::RecompileForInline(VMFrame &f)
 {
     AutoAssertNoGC nogc;
     ExpandInlineFrames(f.cx->compartment);
-    Recompiler::clearStackReferences(f.cx->runtime->defaultFreeOp(), f.script());
+    Recompiler::clearStackReferences(f.cx->runtime->defaultFreeOp(), f.script().get(nogc));
     f.jit()->destroyChunk(f.cx->runtime->defaultFreeOp(), f.chunkIndex(), /* resetUses = */ false);
 }
 
@@ -1003,7 +971,7 @@ stubs::NewInitObject(VMFrame &f, JSObject *baseobj)
 }
 
 void JS_FASTCALL
-stubs::InitElem(VMFrame &f)
+stubs::InitElem(VMFrame &f, uint32_t last)
 {
     JSContext *cx = f.cx;
     FrameRegs &regs = f.regs;
@@ -1011,15 +979,33 @@ stubs::InitElem(VMFrame &f)
     /* Pop the element's value into rval. */
     JS_ASSERT(regs.stackDepth() >= 3);
     HandleValue rref = HandleValue::fromMarkedLocation(&regs.sp[-1]);
-    MutableHandleValue idval = MutableHandleValue::fromMarkedLocation(&regs.sp[-2]);
 
     /* Find the object being initialized at top of stack. */
     const Value &lref = regs.sp[-3];
     JS_ASSERT(lref.isObject());
     RootedObject obj(cx, &lref.toObject());
 
-    if (!InitElemOperation(cx, obj, idval, rref))
+    /* Fetch id now that we have obj. */
+    RootedId id(cx);
+    MutableHandleValue idval = MutableHandleValue::fromMarkedLocation(&regs.sp[-2]);
+    if (!FetchElementId(f.cx, obj, idval, id.address(), idval))
         THROW();
+
+    /*
+     * If rref is a hole, do not call JSObject::defineProperty. In this case,
+     * obj must be an array, so if the current op is the last element
+     * initialiser, set the array length to one greater than id.
+     */
+    if (rref.isMagic(JS_ARRAY_HOLE)) {
+        JS_ASSERT(obj->isArray());
+        JS_ASSERT(JSID_IS_INT(id));
+        JS_ASSERT(uint32_t(JSID_TO_INT(id)) < StackSpace::ARGS_LENGTH_MAX);
+        if (last && !SetLengthProperty(cx, obj, (uint32_t) (JSID_TO_INT(id) + 1)))
+            THROW();
+    } else {
+        if (!JSObject::defineGeneric(cx, obj, id, rref, NULL, NULL, JSPROP_ENUMERATE))
+            THROW();
+    }
 }
 
 void JS_FASTCALL
@@ -1321,7 +1307,7 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
 {
     AutoAssertNoGC nogc;
     jsbytecode *jpc = pc;
-    UnrootedScript script = f.fp()->script();
+    JSScript *script = f.fp()->script().get(nogc);
 
     /* This is correct because the compiler adjusts the stack beforehand. */
     Value lval = f.regs.sp[-1];
@@ -1444,7 +1430,7 @@ stubs::DelName(VMFrame &f, PropertyName *name_)
         THROW();
 
     /* Strict mode code should never contain JSOP_DELNAME opcodes. */
-    JS_ASSERT(!f.script()->strict);
+    JS_ASSERT(!f.script()->strictModeCode);
 
     /* ECMA says to return true if name is undefined or inherited. */
     f.regs.sp++;
@@ -1619,7 +1605,7 @@ stubs::CheckArgumentTypes(VMFrame &f)
 {
     StackFrame *fp = f.fp();
     JSFunction *fun = fp->fun();
-    RootedScript fscript(f.cx, fun->nonLazyScript());
+    RootedScript fscript(f.cx, fun->script());
     RecompilationMonitor monitor(f.cx);
 
     {
@@ -1647,7 +1633,7 @@ stubs::AssertArgumentTypes(VMFrame &f)
     AutoAssertNoGC nogc;
     StackFrame *fp = f.fp();
     JSFunction *fun = fp->fun();
-    UnrootedScript script = fun->nonLazyScript();
+    RawScript script = fun->script().get(nogc);
 
     /*
      * Don't check the type of 'this' for constructor frames, the 'this' value
@@ -1692,7 +1678,7 @@ stubs::InvariantFailure(VMFrame &f, void *rval)
     *frameAddr = repatchCode;
 
     /* Recompile the outermost script, and don't hoist any bounds checks. */
-    UnrootedScript script = f.fp()->script();
+    RawScript script = f.fp()->script().get(nogc);
     JS_ASSERT(!script->failedBoundsCheck);
     script->failedBoundsCheck = true;
 

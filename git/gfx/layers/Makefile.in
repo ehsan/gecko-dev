@@ -31,7 +31,6 @@ EXPORTS = \
         BasicLayers.h \
         BasicTiledThebesLayer.h \
         BasicImplData.h \
-        Composer2D.h \
         GonkIOSurfaceImage.h \
         FrameMetrics.h \
         CompositorChild.h \
@@ -141,9 +140,7 @@ EXPORTS_mozilla/layers =\
         ShadowLayersManager.h \
         RenderTrace.h \
         SharedImageUtils.h \
-        SharedRGBImage.h \
         ShmemYCbCrImage.h \
-        TaskThrottler.h \
         $(NULL)
 
 CPPSRCS += \
@@ -162,9 +159,7 @@ CPPSRCS += \
         ShadowLayersChild.cpp \
         ShadowLayerParent.cpp \
         ShadowLayersParent.cpp \
-        SharedRGBImage.cpp \
         ShmemYCbCrImage.cpp \
-        TaskThrottler.cpp \
         $(NULL)
 
 ifdef MOZ_X11 #{

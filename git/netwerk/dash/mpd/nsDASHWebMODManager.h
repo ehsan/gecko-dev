@@ -21,7 +21,7 @@
  * DASH is an adaptive bitrate streaming technology where a multimedia file is
  * partitioned into one or more segments and delivered to a client using HTTP.
  *
- * (see DASHDecoder.cpp for info on DASH interaction with the media engine).
+ * (see nsDASHDecoder.cpp for info on DASH interaction with the media engine).
  *
  *
  * Media Presentation Description (MPD) Manager for WebM On Demand Profile.
@@ -79,14 +79,6 @@ public:
                               nsAString &aUrl) const;
   double GetStartTime() const;
   double GetDuration() const;
-
-  // Gets index of the |Representation| with next highest bitrate to the
-  // estimated bandwidth passed in. Returns true if there is at least one
-  // |Representation| with a bitrate lower than |aBandwidth|; otherwise returns
-  // false. Depends on |mRepresentations| being an ordered list.
-  bool GetBestRepForBandwidth(uint32_t aAdaptSetIdx,
-                              uint64_t aBandwidth,
-                              uint32_t &aRepIdx) const MOZ_OVERRIDE;
 
 private:
   // Internal helper functions.

@@ -6,6 +6,8 @@
 
 #include "nsISupports.idl"
 
+interface imgIDecoderObserver;
+
 %{C++
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
@@ -55,7 +57,7 @@ native gfxGraphicsFilter(gfxPattern::GraphicsFilter);
  *
  * Internally, imgIContainer also manages animation of images.
  */
-[scriptable, builtinclass, uuid(01e12ac9-7d9f-40d9-9ec1-70b64c53ce7a)]
+[scriptable, uuid(d6c58749-ceb6-4afe-ab72-ff3086433e1f)]
 interface imgIContainer : nsISupports
 {
   /**
@@ -156,7 +158,7 @@ interface imgIContainer : nsISupports
    * Attempts to create an ImageContainer (and Image) containing the current
    * frame. Only valid for RASTER type images.
    */
-  [noscript] ImageContainer getImageContainer(in LayerManager aManager);
+  [noscript] ImageContainer getImageContainer();
 
   /**
    * Create and return a new copy of the given frame that you can write to

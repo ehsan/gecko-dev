@@ -20,7 +20,6 @@
  "content/base/test/test_fileapi_slice.html": "bug 775227",
  "content/base/test/test_mozfiledataurl.html": "TIMED_OUT",
  "content/base/test/test_mixed_content_blocker.html": "TIMED_OUT, SSL_REQUIRED",
- "content/base/test/test_mixed_content_blocker_bug803225.html": "TIMED_OUT, SSL_REQUIRED",
  "content/base/test/test_mutationobservers.html": "",
  "content/base/test/test_plugin_freezing.html": "CLICK_TO_PLAY",
  "content/base/test/test_range_bounds.html": "",
@@ -120,7 +119,6 @@
  "content/xul/content/test/test_bug486990.xul": "TIMED_OUT",
  "docshell/test/navigation/test_bug13871.html": "RANDOM",
  "docshell/test/navigation/test_bug430723.html": "TIMED_OUT",
- "docshell/test/navigation/test_popup-navigates-children.html": "bug 783589",
  "docshell/test/navigation/test_sessionhistory.html": "RANDOM",
  "docshell/test/test_bug344861.html": "",
  "docshell/test/test_bug94514.html": "TIMED_OUT",
@@ -128,7 +126,6 @@
  "docshell/test/test_bug598895.html": "",
  "docshell/test/test_bug637644.html": "",
  "docshell/test/test_bug668513.html": "RANDOM",
- "docshell/test/test_framedhistoryframes.html": "bug 784321",
  "dom/browser-element/mochitest/test_browserElement_oop_SecurityChange.html": "TIMED_OUT, bug 766586",
  "dom/browser-element/mochitest/test_browserElement_inproc_AppFramePermission.html": "",
  "dom/browser-element/mochitest/test_browserElement_inproc_AppWindowNamespace.html": "TIMED_OUT, bug 783509",
@@ -182,7 +179,6 @@
  "dom/tests/mochitest/bugs/test_bug641552.html": "",
  "dom/tests/mochitest/bugs/test_devicemotion_multiple_listeners.html": "bug 775227",
  "dom/tests/mochitest/bugs/test_resize_move_windows.html": "TIMED_OUT",
- "dom/tests/mochitest/bugs/test_sizetocontent_clamp.html": "TIMED_OUT",
  "dom/tests/mochitest/bugs/test_window_bar.html": "",
  "dom/tests/mochitest/dom-level2-core/test_documentimportnode03.html": "",
  "dom/tests/mochitest/dom-level2-core/test_documentimportnode04.html": "",
@@ -218,7 +214,6 @@
  "dom/tests/mochitest/sessionstorage/test_sessionStorageHttpHttps.html": "TIMED_OUT",
  "dom/tests/mochitest/webapps/test_bug_779982.html": "Bug 793211",
  "dom/tests/mochitest/whatwg/test_bug500328.html": "TIMED_OUT",
- "dom/workers/test/test_xhr_timeout.html": "bug 798220",
  "editor/composer/test/test_bug389350.html": "",
  "editor/libeditor/base/tests/test_bug408231.html": "",
  "editor/libeditor/base/tests/test_bug586662.html": "",
@@ -328,7 +323,6 @@
  "uriloader/exthandler/tests/mochitest/test_handlerApps.xhtml": "",
  "widget/tests/test_bug760802.html": "",
  "dom/tests/mochitest/ajax/offline": "SLOW_DIRECTORY",
- "layout/base/tests": "SLOW_DIRECTORY",
- "Harness_sanity/test_bug816847.html": "No test app installed"
+ "layout/base/tests": "SLOW_DIRECTORY"
  }
 }

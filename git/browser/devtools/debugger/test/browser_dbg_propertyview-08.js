@@ -17,7 +17,7 @@ function test()
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
 
     testFrameParameters();
   });
@@ -92,9 +92,9 @@ function testFrameParameters()
           window.clearInterval(intervalID);
           return resumeAndFinish();
         }
-        if (!thisNode._retrieved ||
-            !argumentsNode._retrieved ||
-            !cNode._retrieved) {
+        if (!thisNode.fetched ||
+            !argumentsNode.fetched ||
+            !cNode.fetched) {
           return;
         }
         window.clearInterval(intervalID);

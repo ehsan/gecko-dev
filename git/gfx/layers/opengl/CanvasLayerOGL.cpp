@@ -129,7 +129,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
   } else if (aData.mSurface) {
     mCanvasSurface = aData.mSurface;
     mNeedsYFlip = false;
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
     if (aData.mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         gfxXlibSurface *xsurf = static_cast<gfxXlibSurface*>(aData.mSurface);
         mPixmap = xsurf->GetGLXPixmap();
@@ -162,8 +162,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
       
   // Check the maximum texture size supported by GL. glTexImage2D supports
   // images of up to 2 + GL_MAX_TEXTURE_SIZE
-  GLint texSize;
-  gl()->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &texSize);
+  GLint texSize = gl()->GetMaxTextureSize();
   if (mBounds.width > (2 + texSize) || mBounds.height > (2 + texSize)) {
     mDelayedUpdates = true;
     MakeTextureIfNeeded(gl(), mTexture);
@@ -189,7 +188,7 @@ CanvasLayerOGL::UpdateSurface()
     return;
   }
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
   if (mPixmap) {
     return;
   }
@@ -309,7 +308,7 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
     program = mOGLManager->GetProgram(mLayerProgram, GetMaskLayer());
   }
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
   if (mPixmap && !mDelayedUpdates) {
     sDefGLXLib.BindTexImage(mPixmap);
   }
@@ -335,7 +334,7 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
     mOGLManager->BindAndDrawQuadWithTextureRect(program, drawRect, drawRect.Size());
   }
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
   if (mPixmap && !mDelayedUpdates) {
     sDefGLXLib.ReleaseTexImage(mPixmap);
   }
@@ -421,10 +420,7 @@ ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
   } else if (IsValidSharedTexDescriptor(aNewFront)) {
     MakeTextureIfNeeded(gl(), mTexture);
     if (!IsValidSharedTexDescriptor(mFrontBufferDescriptor)) {
-      mFrontBufferDescriptor = SharedTextureDescriptor(GLContext::SameProcess,
-                                                       0,
-                                                       nsIntSize(0, 0),
-                                                       false);
+      mFrontBufferDescriptor = SharedTextureDescriptor(TextureImage::ThreadShared, 0, nsIntSize(0, 0), false);
     }
     *aNewBack = mFrontBufferDescriptor;
     mFrontBufferDescriptor = aNewFront;
@@ -478,16 +474,6 @@ Layer*
 ShadowCanvasLayerOGL::GetLayer()
 {
   return this;
-}
-
-LayerRenderState
-ShadowCanvasLayerOGL::GetRenderState()
-{
-  if (mDestroyed) {
-    return LayerRenderState();
-  }
-  return LayerRenderState(&mFrontBufferDescriptor,
-                          mNeedsYFlip ? LAYER_RENDER_STATE_Y_FLIPPED : 0);
 }
 
 void

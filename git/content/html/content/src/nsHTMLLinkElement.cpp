@@ -52,7 +52,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLLinkElement
   NS_DECL_NSIDOMHTMLLINKELEMENT
@@ -134,8 +134,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLLinkElement,
   tmp->nsStyleLinkElement::Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLLinkElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLLinkElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLLinkElement, nsHTMLLinkElement)
@@ -212,7 +212,7 @@ nsHTMLLinkElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers)
 {
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
 
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
@@ -250,7 +250,7 @@ nsHTMLLinkElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
   // If this link is ever reinserted into a document, it might
   // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
 
   // Once we have XPCOMGC we shouldn't need to call UnbindFromTree during Unlink
   // and so this messy event dispatch can go away.
@@ -322,7 +322,7 @@ nsHTMLLinkElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   // that content states have changed will call IntrinsicState, which will try
   // to get updated information about the visitedness from Link.
   if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify, true);
+    Link::ResetLinkState(!!aNotify);
   }
 
   if (NS_SUCCEEDED(rv) && aNameSpaceID == kNameSpaceID_None &&
@@ -370,7 +370,7 @@ nsHTMLLinkElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
   // that content states have changed will call IntrinsicState, which will try
   // to get updated information about the visitedness from Link.
   if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify, false);
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;

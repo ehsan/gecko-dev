@@ -134,11 +134,6 @@ public:
   virtual void DidPaintWindow() { }
 
   /**
-   * Request that layout schedules a repaint on the next refresh driver tick.
-   */
-  virtual void RequestRepaint() { }
-
-  /**
    * Handle an event.
    */
   virtual nsEventStatus HandleEvent(nsGUIEvent* event, bool useAttachedEvents)

@@ -53,7 +53,6 @@ class nsIDOMRange;
 class nsIDocument;
 class nsIDocumentStateListener;
 class nsIEditActionListener;
-class nsIEditorObserver;
 class nsIInlineSpellChecker;
 class nsINode;
 class nsIPresShell;
@@ -539,8 +538,8 @@ public:
    * Get the rightmost child of aCurrentNode;
    * return nullptr if aCurrentNode has no children.
    */
-  nsIDOMNode* GetRightmostChild(nsIDOMNode* aCurrentNode,
-                                bool bNoBlockCrossing = false);
+  already_AddRefed<nsIDOMNode> GetRightmostChild(nsIDOMNode *aCurrentNode, 
+                                                 bool        bNoBlockCrossing = false);
   nsIContent* GetRightmostChild(nsINode *aCurrentNode,
                                 bool     bNoBlockCrossing = false);
 
@@ -548,8 +547,8 @@ public:
    * Get the leftmost child of aCurrentNode;
    * return nullptr if aCurrentNode has no children.
    */
-  nsIDOMNode* GetLeftmostChild(nsIDOMNode* aCurrentNode,
-                               bool bNoBlockCrossing = false);
+  already_AddRefed<nsIDOMNode> GetLeftmostChild(nsIDOMNode  *aCurrentNode, 
+                                                bool        bNoBlockCrossing = false);
   nsIContent* GetLeftmostChild(nsINode *aCurrentNode,
                                bool     bNoBlockCrossing = false);
 
@@ -854,7 +853,7 @@ protected:
 
   // various listeners
   nsCOMArray<nsIEditActionListener> mActionListeners;  // listens to all low level actions on the doc
-  nsCOMArray<nsIEditorObserver> mEditorObservers;  // just notify once per high level change
+  EditActionListener* mEditActionListener;  // just notify once per high level change
   nsCOMArray<nsIDocumentStateListener> mDocStateListeners;// listen to overall doc state (dirty or not, just created, etc)
 
   nsSelectionState  mSavedSel;           // cached selection for nsAutoSelectionReset

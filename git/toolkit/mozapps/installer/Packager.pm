@@ -300,15 +300,8 @@ sub do_copyfile
     }
   }
 
-  # Translate: */../../*/bin/*
-  #      into: */../../*/*
-  # (where the *'s are interpreted using shell-notation and
-  #  it matches not only forward slashes but also backslashes.)
-  # $1 = */../../*/
-  # $2 = bin/
-  # $3 = *
   if ($flat) {
-    $destpath =~ s|(.*[/\\]\.\.[/\\]\.\.[/\\].+[/\\])(bin[/\\])(.*)|$1$3|;
+    $destpath =~ s|bin[/\\]||;
   }
 
   # create the destination path if it doesn't exist

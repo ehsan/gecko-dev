@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict"
-
 let DEBUG = 0;
 let debug;
 if (DEBUG) {
@@ -18,14 +16,11 @@ const Cr = Components.results;
 const Cu = Components.utils;
 const Cc = Components.classes;
 
-const PROMPT_FOR_UNKNOWN = ['geolocation'];
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Webapps.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/PermissionsInstaller.jsm");
-Cu.import("resource://gre/modules/PermissionsTable.jsm");
 
 var permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
 var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
@@ -41,9 +36,7 @@ function rememberPermission(aPermission, aPrincipal)
   {
     let type =
       permissionManager.testExactPermissionFromPrincipal(aPrincipal, aPerm);
-    if (type == Ci.nsIPermissionManager.PROMPT_ACTION ||
-        (type == Ci.nsIPermissionManager.UNKNOWN_ACTION &&
-        PROMPT_FOR_UNKNOWN.indexOf(aPermission) >= 0)) {
+    if (type == Ci.nsIPermissionManager.PROMPT_ACTION) {
       permissionManager.addFromPrincipal(aPrincipal,
                                          aPerm,
                                          Ci.nsIPermissionManager.ALLOW_ACTION);
@@ -56,7 +49,8 @@ function rememberPermission(aPermission, aPrincipal)
     for (let idx in access) {
       convertPermToAllow(aPermission + "-" + access[idx], aPrincipal);
     }
-  } else {
+  }
+  else {
     convertPermToAllow(aPermission, aPrincipal);
   }
 }
@@ -66,15 +60,12 @@ function ContentPermissionPrompt() {}
 ContentPermissionPrompt.prototype = {
 
   handleExistingPermission: function handleExistingPermission(request) {
-    let access = (request.access && request.access !== "unused") ? request.type + "-" + request.access :
-                                                                   request.type;
-    let result = Services.perms.testExactPermissionFromPrincipal(request.principal, access);
+    let result = Services.perms.testExactPermissionFromPrincipal(request.principal, request.type);
     if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
       request.allow();
       return true;
     }
-    if (result == Ci.nsIPermissionManager.DENY_ACTION ||
-        result == Ci.nsIPermissionManager.UNKNOWN_ACTION && PROMPT_FOR_UNKNOWN.indexOf(access) < 0) {
+    if (result == Ci.nsIPermissionManager.DENY_ACTION) {
       request.cancel();
       return true;
     }
@@ -92,9 +83,6 @@ ContentPermissionPrompt.prototype = {
     if (!content)
       return;
 
-    let access = (request.access && request.access !== "unused") ? request.type + "-" + request.access :
-                                                                   request.type;
-
     let requestId = this._id++;
     content.addEventListener("mozContentEvent", function contentEvent(evt) {
       if (evt.detail.id != requestId)
@@ -104,6 +92,8 @@ ContentPermissionPrompt.prototype = {
       if (evt.detail.type == "permission-allow") {
         if (evt.detail.remember) {
           rememberPermission(request.type, request.principal);
+          Services.perms.addFromPrincipal(request.principal, request.type,
+                                          Ci.nsIPermissionManager.ALLOW_ACTION);
         }
 
         request.allow();
@@ -111,7 +101,7 @@ ContentPermissionPrompt.prototype = {
       }
 
       if (evt.detail.remember) {
-        Services.perms.addFromPrincipal(request.principal, access,
+        Services.perms.addFromPrincipal(request.principal, request.type,
                                         Ci.nsIPermissionManager.DENY_ACTION);
       }
 
@@ -120,9 +110,6 @@ ContentPermissionPrompt.prototype = {
 
     let principal = request.principal;
     let isApp = principal.appStatus != Ci.nsIPrincipal.APP_STATUS_NOT_INSTALLED;
-    let remember = principal.appStatus == Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
-                   ? true
-                   : request.remember;
 
     let details = {
       type: "permission-prompt",
@@ -130,10 +117,10 @@ ContentPermissionPrompt.prototype = {
       id: requestId,
       origin: principal.origin,
       isApp: isApp,
-      remember: remember
+      remember: request.remember
     };
 
-    this._permission = access;
+    this._permission = request.type;
     this._uri = request.principal.URI.spec;
     this._origin = request.principal.origin;
 

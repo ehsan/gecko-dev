@@ -18,7 +18,6 @@ gTests.push({
   desc: "Bug 430148 - Remove or hide the more/less button in details pane...",
   run: function() {
     var PO = gLibrary.PlacesOrganizer;
-    let ContentTree = gLibrary.ContentTree;
     var infoBoxExpanderWrapper = getAndCheckElmtById("infoBoxExpanderWrapper");
 
     // add a visit to browser history
@@ -58,7 +57,7 @@ gTests.push({
     checkAddInfoFieldsCollapsed(PO);
 
     // open history item
-    var view = ContentTree.view.treeBoxObject.view;
+    var view = PO._content.treeBoxObject.view;
     ok(view.rowCount > 0, "History item exists.");
     view.selection.select(0);
     ok(infoBoxExpanderWrapper.hidden,
@@ -95,7 +94,7 @@ gTests.push({
     checkAddInfoFieldsNotCollapsed(PO);
 
     // open first bookmark
-    var view = ContentTree.view.treeBoxObject.view;
+    var view = PO._content.treeBoxObject.view;
     ok(view.rowCount > 0, "Bookmark item exists.");
     view.selection.select(0);
     checkInfoBoxSelected(PO);

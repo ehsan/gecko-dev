@@ -164,8 +164,8 @@ js::ObjectImpl::checkShapeConsistency()
 
     MOZ_ASSERT(isNative());
 
-    UnrootedShape shape = lastProperty();
-    UnrootedShape prev = NULL;
+    Shape *shape = lastProperty();
+    Shape *prev = NULL;
 
     if (inDictionaryMode()) {
         MOZ_ASSERT(shape->hasTable());
@@ -177,7 +177,7 @@ js::ObjectImpl::checkShapeConsistency()
         }
 
         for (int n = throttle; --n >= 0 && shape->parent; shape = shape->parent) {
-            MOZ_ASSERT_IF(lastProperty() != shape, !shape->hasTable());
+            MOZ_ASSERT_IF(shape != lastProperty(), !shape->hasTable());
 
             Shape **spp = table.search(shape->propid(), false);
             MOZ_ASSERT(SHAPE_FETCH(spp) == shape);
@@ -187,7 +187,7 @@ js::ObjectImpl::checkShapeConsistency()
         for (int n = throttle; --n >= 0 && shape; shape = shape->parent) {
             MOZ_ASSERT_IF(shape->slot() != SHAPE_INVALID_SLOT, shape->slot() < slotSpan());
             if (!prev) {
-                MOZ_ASSERT(lastProperty() == shape);
+                MOZ_ASSERT(shape == lastProperty());
                 MOZ_ASSERT(shape->listp == &shape_);
             } else {
                 MOZ_ASSERT(shape->listp == &prev->parent);
@@ -257,17 +257,15 @@ js::ObjectImpl::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
  */
 MOZ_NEVER_INLINE
 #endif
-UnrootedShape
-js::ObjectImpl::nativeLookup(JSContext *cx, jsid idArg)
+Shape *
+js::ObjectImpl::nativeLookup(JSContext *cx, jsid id)
 {
-    AssertCanGC();
     MOZ_ASSERT(isNative());
     Shape **spp;
-    RootedId id(cx, idArg);
     return Shape::search(cx, lastProperty(), id, &spp);
 }
 
-UnrootedShape
+Shape *
 js::ObjectImpl::nativeLookupNoAllocation(jsid id)
 {
     MOZ_ASSERT(isNative());
@@ -505,11 +503,8 @@ js::GetOwnProperty(JSContext *cx, Handle<ObjectImpl*> obj, PropertyId pid_, unsi
         return false;
     }
 
-    /* |shape| is always set /after/ a GC. */
-    UnrootedShape shape = obj->nativeLookup(cx, pid);
+    Shape *shape = obj->nativeLookup(cx, pid);
     if (!shape) {
-        DropUnrooted(shape);
-
         /* Not found: attempt to resolve it. */
         Class *clasp = obj->getClass();
         JSResolveOp resolve = clasp->resolve;

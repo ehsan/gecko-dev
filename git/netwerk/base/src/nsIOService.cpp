@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsIOService.h"
 #include "nsIProtocolHandler.h"
 #include "nsIFileProtocolHandler.h"
@@ -44,6 +42,7 @@
 #include "nsIProxiedChannel.h"
 #include "nsIProtocolProxyCallback.h"
 #include "nsICancelable.h"
+#include "mozilla/Util.h"
 
 #if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
 #include "nsNativeConnectionHelper.h"
@@ -154,6 +153,7 @@ nsIOService::nsIOService()
     , mShutdown(false)
     , mNetworkLinkServiceInitialized(false)
     , mChannelEventSinks(NS_CHANNEL_EVENT_SINK_CATEGORY)
+    , mContentSniffers(NS_CONTENT_SNIFFER_CATEGORY)
     , mAutoDialEnabled(false)
 {
 }
@@ -665,7 +665,7 @@ nsIOService::SetOffline(bool offline)
 {
     // When someone wants to go online (!offline) after we got XPCOM shutdown
     // throw ERROR_NOT_AVAILABLE to prevent return to online state.
-    if ((mShutdown || mOfflineForProfileChange) && !offline)
+    if (mShutdown && !offline)
         return NS_ERROR_NOT_AVAILABLE;
 
     // SetOffline() may re-enter while it's shutting down services.
@@ -742,7 +742,7 @@ nsIOService::SetOffline(bool offline)
     }
 
     // Don't notify here, as the above notifications (if used) suffice.
-    if ((mShutdown || mOfflineForProfileChange) && mOffline) {
+    if (mShutdown && mOffline) {
         // be sure to try and shutdown both (even if the first fails)...
         // shutdown dns service first, because it has callbacks for socket transport
         if (mDNSService) {
@@ -913,8 +913,8 @@ nsIOService::Observe(nsISupports *subject,
     }
     else if (!strcmp(topic, kProfileChangeNetTeardownTopic)) {
         if (!mOffline) {
-            mOfflineForProfileChange = true;
             SetOffline(true);
+            mOfflineForProfileChange = true;
         }
     }
     else if (!strcmp(topic, kProfileChangeNetRestoreTopic)) {
@@ -1178,13 +1178,16 @@ public:
     NS_DECL_NSIPROTOCOLPROXYCALLBACK
 
     IOServiceProxyCallback(nsIInterfaceRequestor *aCallbacks,
+                           nsIEventTarget *aTarget,
                            nsIOService *aIOService)
         : mCallbacks(aCallbacks)
+        , mTarget(aTarget)
         , mIOService(aIOService)
     { }
 
 private:
     nsRefPtr<nsIInterfaceRequestor> mCallbacks;
+    nsRefPtr<nsIEventTarget>        mTarget;
     nsRefPtr<nsIOService>           mIOService;
 };
 
@@ -1220,13 +1223,15 @@ IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIURI *aURI,
         return NS_OK;
 
     speculativeHandler->SpeculativeConnect(aURI,
-                                           mCallbacks);
+                                           mCallbacks,
+                                           mTarget);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsIOService::SpeculativeConnect(nsIURI *aURI,
-                                nsIInterfaceRequestor *aCallbacks)
+                                nsIInterfaceRequestor *aCallbacks,
+                                nsIEventTarget *aTarget)
 {
     // Check for proxy information. If there is a proxy configured then a
     // speculative connect should not be performed because the potential
@@ -1239,6 +1244,6 @@ nsIOService::SpeculativeConnect(nsIURI *aURI,
 
     nsCOMPtr<nsICancelable> cancelable;
     nsRefPtr<IOServiceProxyCallback> callback =
-        new IOServiceProxyCallback(aCallbacks, this);
+        new IOServiceProxyCallback(aCallbacks, aTarget, this);
     return pps->AsyncResolve(aURI, 0, callback, getter_AddRefs(cancelable));
 }

@@ -14,7 +14,7 @@
 #include "EnableWebAudioCheck.h"
 #include "nsAutoPtr.h"
 
-struct JSContext;
+class JSContext;
 class nsIDOMWindow;
 
 namespace mozilla {
@@ -49,8 +49,6 @@ public:
     return mWindow;
   }
 
-  void Shutdown() {}
-
   virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
                                bool* aTriedToWrap);
 
@@ -60,11 +58,6 @@ public:
   AudioDestinationNode* Destination() const
   {
     return mDestination;
-  }
-
-  float SampleRate() const
-  {
-    return mSampleRate;
   }
 
   AudioListener* Listener();
@@ -80,7 +73,7 @@ public:
   CreateGain();
 
   already_AddRefed<DelayNode>
-  CreateDelay(double aMaxDelayTime, ErrorResult& aRv);
+  CreateDelay(float aMaxDelayTime, ErrorResult& aRv);
 
   already_AddRefed<PannerNode>
   CreatePanner();
@@ -95,7 +88,6 @@ private:
   nsCOMPtr<nsIDOMWindow> mWindow;
   nsRefPtr<AudioDestinationNode> mDestination;
   nsRefPtr<AudioListener> mListener;
-  float mSampleRate;
 };
 
 }

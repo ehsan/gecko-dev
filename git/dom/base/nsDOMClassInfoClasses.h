@@ -54,6 +54,8 @@ DOMCI_CLASS(DeviceRotationRate)
 DOMCI_CLASS(HTMLDocument)
 DOMCI_CLASS(HTMLOptionsCollection)
 DOMCI_CLASS(HTMLCollection)
+DOMCI_CLASS(HTMLPropertiesCollection)
+DOMCI_CLASS(PropertyNodeList)
 
 // HTML element classes
 DOMCI_CLASS(HTMLElement)
@@ -128,6 +130,7 @@ DOMCI_CLASS(CSSGroupRuleRuleList)
 DOMCI_CLASS(MediaList)
 DOMCI_CLASS(StyleSheetList)
 DOMCI_CLASS(CSSStyleSheet)
+DOMCI_CLASS(ROCSSPrimitiveValue)
 
 // Range classes
 DOMCI_CLASS(Range)
@@ -158,6 +161,13 @@ DOMCI_CLASS(CSSRect)
 
 // DOM Chrome Window class, almost identical to Window
 DOMCI_CLASS(ChromeWindow)
+
+// RGBColor object used by getComputedStyle
+DOMCI_CLASS(CSSRGBColor)
+
+// CSSValueList object that represents an nsIDOMCSSValueList, used
+// by DOM CSS
+DOMCI_CLASS(CSSValueList)
 
 // ContentList object used for various live NodeLists
 DOMCI_CLASS(ContentList)
@@ -255,17 +265,52 @@ DOMCI_CLASS(SVGUseElement)
 DOMCI_CLASS(SVGViewElement)
 
 // other SVG classes
+DOMCI_CLASS(SVGAngle)
+DOMCI_CLASS(SVGAnimatedAngle)
+DOMCI_CLASS(SVGAnimatedBoolean)
 DOMCI_CLASS(SVGAnimatedEnumeration)
 DOMCI_CLASS(SVGAnimatedInteger)
 DOMCI_CLASS(SVGAnimatedLength)
+DOMCI_CLASS(SVGAnimatedLengthList)
 DOMCI_CLASS(SVGAnimatedNumber)
+DOMCI_CLASS(SVGAnimatedNumberList)
+DOMCI_CLASS(SVGAnimatedPreserveAspectRatio)
 DOMCI_CLASS(SVGAnimatedRect)
 DOMCI_CLASS(SVGAnimatedString)
+DOMCI_CLASS(SVGAnimatedTransformList)
 DOMCI_CLASS(SVGEvent)
 DOMCI_CLASS(SVGLength)
+DOMCI_CLASS(SVGLengthList)
+DOMCI_CLASS(SVGMatrix)
 DOMCI_CLASS(SVGNumber)
+DOMCI_CLASS(SVGNumberList)
+DOMCI_CLASS(SVGPathSegArcAbs)
+DOMCI_CLASS(SVGPathSegArcRel)
+DOMCI_CLASS(SVGPathSegClosePath)
+DOMCI_CLASS(SVGPathSegCurvetoCubicAbs)
+DOMCI_CLASS(SVGPathSegCurvetoCubicRel)
+DOMCI_CLASS(SVGPathSegCurvetoCubicSmoothAbs)
+DOMCI_CLASS(SVGPathSegCurvetoCubicSmoothRel)
+DOMCI_CLASS(SVGPathSegCurvetoQuadraticAbs)
+DOMCI_CLASS(SVGPathSegCurvetoQuadraticRel)
+DOMCI_CLASS(SVGPathSegCurvetoQuadraticSmoothAbs)
+DOMCI_CLASS(SVGPathSegCurvetoQuadraticSmoothRel)
+DOMCI_CLASS(SVGPathSegLinetoAbs)
+DOMCI_CLASS(SVGPathSegLinetoHorizontalAbs)
+DOMCI_CLASS(SVGPathSegLinetoHorizontalRel)
+DOMCI_CLASS(SVGPathSegLinetoRel)
+DOMCI_CLASS(SVGPathSegLinetoVerticalAbs)
+DOMCI_CLASS(SVGPathSegLinetoVerticalRel)
+DOMCI_CLASS(SVGPathSegList)
+DOMCI_CLASS(SVGPathSegMovetoAbs)
+DOMCI_CLASS(SVGPathSegMovetoRel)
+DOMCI_CLASS(SVGPoint)
+DOMCI_CLASS(SVGPointList)
+DOMCI_CLASS(SVGPreserveAspectRatio)
 DOMCI_CLASS(SVGRect)
 DOMCI_CLASS(SVGStringList)
+DOMCI_CLASS(SVGTransform)
+DOMCI_CLASS(SVGTransformList)
 DOMCI_CLASS(SVGZoomEvent)
 
 // Canvas
@@ -285,6 +330,7 @@ DOMCI_CLASS(WindowUtils)
 DOMCI_CLASS(XSLTProcessor)
 
 // DOM Level 3 XPath objects
+DOMCI_CLASS(XPathEvaluator)
 DOMCI_CLASS(XPathExpression)
 DOMCI_CLASS(XPathNSResolver)
 DOMCI_CLASS(XPathResult)
@@ -294,8 +340,16 @@ DOMCI_CLASS(StorageObsolete)
 DOMCI_CLASS(Storage)
 DOMCI_CLASS(StorageItem)
 
+// DOMParser, XMLSerializer
+DOMCI_CLASS(DOMParser)
+DOMCI_CLASS(XMLSerializer)
+
 // XMLHttpRequest
 DOMCI_CLASS(XMLHttpProgressEvent)
+DOMCI_CLASS(XMLHttpRequest)
+
+// Server-sent events
+DOMCI_CLASS(EventSource)
 
 DOMCI_CLASS(ClientRect)
 DOMCI_CLASS(ClientRectList)
@@ -348,7 +402,6 @@ DOMCI_CLASS(MozSmsCursor)
 DOMCI_CLASS(MozConnection)
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(MozMobileConnection)
-DOMCI_CLASS(MozCellBroadcast)
 #endif
 
 DOMCI_CLASS(USSDReceivedEvent)
@@ -370,6 +423,8 @@ DOMCI_CLASS(TimeRanges)
 DOMCI_CLASS(MediaStream)
 DOMCI_CLASS(LocalMediaStream)
 #endif
+
+DOMCI_CLASS(XMLHttpRequestUpload)
 
 // DOM Traversal NodeIterator class
 DOMCI_CLASS(NodeIterator)
@@ -398,6 +453,8 @@ DOMCI_CLASS(ContentFrameMessageManager)
 DOMCI_CLASS(ChromeMessageBroadcaster)
 DOMCI_CLASS(ChromeMessageSender)
 
+DOMCI_CLASS(FormData)
+
 DOMCI_CLASS(DesktopNotification)
 DOMCI_CLASS(DesktopNotificationCenter)
 
@@ -421,9 +478,10 @@ DOMCI_CLASS(TouchEvent)
 DOMCI_CLASS(MozCSSKeyframeRule)
 DOMCI_CLASS(MozCSSKeyframesRule)
 
-DOMCI_CLASS(CSSPageRule)
-
 DOMCI_CLASS(MediaQueryList)
+
+DOMCI_CLASS(MutationObserver)
+DOMCI_CLASS(MutationRecord)
 
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(Telephony)
@@ -453,7 +511,6 @@ DOMCI_CLASS(CameraCapabilities)
 DOMCI_CLASS(DOMError)
 DOMCI_CLASS(DOMRequest)
 DOMCI_CLASS(OpenWindowEventDetail)
-DOMCI_CLASS(AsyncScrollEventDetail)
 
 DOMCI_CLASS(DOMFileHandle)
 DOMCI_CLASS(FileRequest)
@@ -469,8 +526,4 @@ DOMCI_CLASS(MozTimeManager)
 
 #ifdef MOZ_WEBRTC
 DOMCI_CLASS(DataChannel)
-#endif
-
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-DOMCI_CLASS(AudioChannelManager)
 #endif

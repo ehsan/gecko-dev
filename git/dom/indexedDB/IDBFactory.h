@@ -15,8 +15,6 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsIAtom;
-class nsIFile;
-class nsIFileURL;
 class nsPIDOMWindow;
 
 namespace mozilla {
@@ -77,12 +75,8 @@ public:
   static nsresult Create(ContentParent* aContentParent,
                          IDBFactory** aFactory);
 
-  static already_AddRefed<nsIFileURL>
-  GetDatabaseFileURL(nsIFile* aDatabaseFile, const nsACString& aOrigin);
-
   static already_AddRefed<mozIStorageConnection>
-  GetConnection(const nsAString& aDatabaseFilePath,
-                const nsACString& aOrigin);
+  GetConnection(const nsAString& aDatabaseFilePath);
 
   static nsresult
   LoadDatabaseInformation(mozIStorageConnection* aConnection,

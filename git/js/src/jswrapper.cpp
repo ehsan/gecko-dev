@@ -29,7 +29,9 @@
 using namespace js;
 using namespace js::gc;
 
-int js::sWrapperFamily;
+namespace js {
+int sWrapperFamily;
+}
 
 void *
 Wrapper::getWrapperFamily()
@@ -107,18 +109,19 @@ js::UnwrapObject(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 }
 
 JS_FRIEND_API(JSObject *)
-js::UnwrapObjectChecked(RawObject obj)
+js::UnwrapObjectChecked(JSContext *cx, RawObject objArg)
 {
+    RootedObject obj(cx, objArg);
     while (true) {
         JSObject *wrapper = obj;
-        obj = UnwrapOneChecked(obj);
+        obj = UnwrapOneChecked(cx, obj);
         if (!obj || obj == wrapper)
             return obj;
     }
 }
 
 JS_FRIEND_API(JSObject *)
-js::UnwrapOneChecked(RawObject obj)
+js::UnwrapOneChecked(JSContext *cx, HandleObject obj)
 {
     // Checked unwraps should never unwrap outer windows.
     if (!obj->isWrapper() ||
@@ -128,7 +131,13 @@ js::UnwrapOneChecked(RawObject obj)
     }
 
     Wrapper *handler = Wrapper::wrapperHandler(obj);
-    return handler->isSafeToUnwrap() ? Wrapper::wrappedObject(obj) : NULL;
+    bool rvOnFailure;
+    if (!handler->enter(cx, obj, JSID_VOID, Wrapper::PUNCTURE, &rvOnFailure))
+        return rvOnFailure ? (JSObject*) obj : NULL;
+    JSObject *ret = Wrapper::wrappedObject(obj);
+    JS_ASSERT(ret);
+
+    return ret;
 }
 
 bool
@@ -151,7 +160,6 @@ js::IsCrossCompartmentWrapper(RawObject wrapper)
 
 Wrapper::Wrapper(unsigned flags, bool hasPrototype) : DirectProxyHandler(&sWrapperFamily)
                                                     , mFlags(flags)
-                                                    , mSafeToUnwrap(true)
 {
     setHasPrototype(hasPrototype);
 }
@@ -213,22 +221,25 @@ Wrapper::enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 }
 
 /*
- * Ordinarily, the convert trap would require unwrapping. However, the default
+ * Ordinarily, the convert trap would require a PUNCTURE. However, the default
  * implementation of convert, JS_ConvertStub, obtains a default value by calling
- * the toString/valueOf method on the wrapper, if any. Throwing if we can't unwrap
- * in this case would be overly conservative. To make matters worse, XPConnect sometimes
+ * the toString/valueOf method on the wrapper, if any. Doing a PUNCTURE in this
+ * case would be overly conservative. To make matters worse, XPConnect sometimes
  * installs a custom convert trap that obtains a default value by calling the
  * toString method on the wrapper. Doing a puncture in this case would be overly
- * conservative as well. We deal with these anomalies by falling back to the DefaultValue
- * algorithm whenever unwrapping is forbidden.
+ * conservative as well. We deal with these anomalies by clearing the pending
+ * exception and falling back to the DefaultValue algorithm whenever the
+ * PUNCTURE fails.
  */
 bool
 Wrapper::defaultValue(JSContext *cx, JSObject *wrapper_, JSType hint, Value *vp)
 {
     RootedObject wrapper(cx, wrapper_);
 
-    if (!wrapperHandler(wrapper)->isSafeToUnwrap()) {
+    bool status;
+    if (!enter(cx, wrapper_, JSID_VOID, PUNCTURE, &status)) {
         RootedValue v(cx);
+        JS_ClearPendingException(cx);
         if (!DefaultValue(cx, wrapper, hint, &v))
             return false;
         *vp = v;
@@ -743,6 +754,15 @@ CrossCompartmentWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType h
 }
 
 bool
+CrossCompartmentWrapper::iteratorNext(JSContext *cx, JSObject *wrapper, Value *vp)
+{
+    PIERCE(cx, wrapper, GET,
+           NOTHING,
+           DirectProxyHandler::iteratorNext(cx, wrapper, vp),
+           cx->compartment->wrap(cx, vp));
+}
+
+bool
 CrossCompartmentWrapper::getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **protop)
 {
     assertSameCompartment(cx, proxy);
@@ -776,34 +796,29 @@ CrossCompartmentWrapper CrossCompartmentWrapper::singleton(0u);
 template <class Base>
 SecurityWrapper<Base>::SecurityWrapper(unsigned flags)
   : Base(flags)
-{
-    Base::setSafeToUnwrap(false);
-}
+{}
 
 template <class Base>
 bool
-SecurityWrapper<Base>::enter(JSContext *cx, JSObject *wrapper, jsid id,
-                             Wrapper::Action act, bool *bp)
-{
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNWRAP_DENIED);
-    *bp = false;
-    return false;
-}
-
- template <class Base>
- bool
 SecurityWrapper<Base>::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
                                   CallArgs args)
 {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNWRAP_DENIED);
-    return false;
+    /*
+     * Let this through until compartment-per-global lets us have stronger
+     * invariants wrt document.domain (bug 714547).
+     */
+    return Base::nativeCall(cx, test, impl, args);
 }
 
 template <class Base>
 bool
 SecurityWrapper<Base>::objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx)
 {
-    return false;
+    /*
+     * Let this through until compartment-per-global lets us have stronger
+     * invariants wrt document.domain (bug 714547).
+     */
+    return Base::objectClassIs(obj, classValue, cx);
 }
 
 template <class Base>
@@ -816,6 +831,8 @@ SecurityWrapper<Base>::regexp_toShared(JSContext *cx, JSObject *obj, RegExpGuard
 
 template class js::SecurityWrapper<Wrapper>;
 template class js::SecurityWrapper<CrossCompartmentWrapper>;
+
+namespace js {
 
 DeadObjectProxy::DeadObjectProxy()
   : BaseProxyHandler(&sDeadObjectFamily)
@@ -935,6 +952,13 @@ DeadObjectProxy::defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *
 }
 
 bool
+DeadObjectProxy::iteratorNext(JSContext *cx, JSObject *proxy, Value *vp)
+{
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEAD_OBJECT);
+    return false;
+}
+
+bool
 DeadObjectProxy::getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *receiver,
                                      uint32_t index, Value *vp, bool *present)
 {
@@ -951,6 +975,8 @@ DeadObjectProxy::getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **proto
 
 DeadObjectProxy DeadObjectProxy::singleton;
 int DeadObjectProxy::sDeadObjectFamily;
+
+} // namespace js
 
 JSObject *
 js::NewDeadProxyObject(JSContext *cx, JSObject *parent)
@@ -983,8 +1009,6 @@ js::NukeCrossCompartmentWrapper(JSContext *cx, JSObject *wrapper)
 {
     JS_ASSERT(IsCrossCompartmentWrapper(wrapper));
 
-    NotifyGCNukeWrapper(wrapper);
-
     NukeSlot(wrapper, JSSLOT_PROXY_PRIVATE, NullValue());
     SetProxyHandler(wrapper, &DeadObjectProxy::singleton);
 
@@ -995,8 +1019,6 @@ js::NukeCrossCompartmentWrapper(JSContext *cx, JSObject *wrapper)
 
     NukeSlot(wrapper, JSSLOT_PROXY_EXTRA + 0, NullValue());
     NukeSlot(wrapper, JSSLOT_PROXY_EXTRA + 1, NullValue());
-
-    JS_ASSERT(IsDeadProxyObject(wrapper));
 }
 
 /*
@@ -1008,7 +1030,7 @@ js::NukeCrossCompartmentWrapper(JSContext *cx, JSObject *wrapper)
  * option of how to handle the global object.
  */
 JS_FRIEND_API(JSBool)
-js::NukeCrossCompartmentWrappers(JSContext* cx,
+js::NukeCrossCompartmentWrappers(JSContext* cx, 
                                  const CompartmentFilter& sourceFilter,
                                  const CompartmentFilter& targetFilter,
                                  js::NukeReferencesToWindow nukeReferencesToWindow)
@@ -1024,7 +1046,8 @@ js::NukeCrossCompartmentWrappers(JSContext* cx,
             continue;
 
         // Iterate the wrappers looking for anything interesting.
-        for (JSCompartment::WrapperEnum e(c); !e.empty(); e.popFront()) {
+        WrapperMap &pmap = c->crossCompartmentWrappers;
+        for (WrapperMap::Enum e(pmap); !e.empty(); e.popFront()) {
             // Some cross-compartment wrappers are for strings.  We're not
             // interested in those.
             const CrossCompartmentKey &k = e.front().key;
@@ -1061,18 +1084,17 @@ js::RemapWrapper(JSContext *cx, JSObject *wobj, JSObject *newTarget)
     JS_ASSERT(origTarget);
     Value origv = ObjectValue(*origTarget);
     JSCompartment *wcompartment = wobj->compartment();
+    WrapperMap &pmap = wcompartment->crossCompartmentWrappers;
 
     // If we're mapping to a different target (as opposed to just recomputing
     // for the same target), we must not have an existing wrapper for the new
     // target, otherwise this will break.
-    JS_ASSERT_IF(origTarget != newTarget,
-                 !wcompartment->lookupWrapper(ObjectValue(*newTarget)));
+    JS_ASSERT_IF(origTarget != newTarget, !pmap.has(ObjectValue(*newTarget)));
 
     // The old value should still be in the cross-compartment wrapper map, and
     // the lookup should return wobj.
-    WrapperMap::Ptr p = wcompartment->lookupWrapper(origv);
-    JS_ASSERT(&p->value.unsafeGet()->toObject() == wobj);
-    wcompartment->removeWrapper(p);
+    JS_ASSERT(&pmap.lookup(origv)->value.unsafeGet()->toObject() == wobj);
+    pmap.remove(origv);
 
     // When we remove origv from the wrapper map, its wrapper, wobj, must
     // immediately cease to be a cross-compartment wrapper. Neuter it.
@@ -1104,7 +1126,7 @@ js::RemapWrapper(JSContext *cx, JSObject *wobj, JSObject *newTarget)
 
     // Update the entry in the compartment's wrapper map to point to the old
     // wrapper, which has now been updated (via reuse or swap).
-    wcompartment->putWrapper(ObjectValue(*newTarget), ObjectValue(*wobj));
+    pmap.put(ObjectValue(*newTarget), ObjectValue(*wobj));
     return true;
 }
 
@@ -1121,7 +1143,8 @@ js::RemapAllWrappersForObject(JSContext *cx, JSObject *oldTarget,
         return false;
 
     for (CompartmentsIter c(cx->runtime); !c.done(); c.next()) {
-        if (WrapperMap::Ptr wp = c->lookupWrapper(origv)) {
+        WrapperMap &pmap = c->crossCompartmentWrappers;
+        if (WrapperMap::Ptr wp = pmap.lookup(origv)) {
             // We found a wrapper. Remember and root it.
             toTransplant.infallibleAppend(WrapperValue(wp));
         }
@@ -1141,7 +1164,7 @@ JS_FRIEND_API(bool)
 js::RecomputeWrappers(JSContext *cx, const CompartmentFilter &sourceFilter,
                       const CompartmentFilter &targetFilter)
 {
-    AutoMaybeTouchDeadCompartments agc(cx);
+    AutoTransplantGC agc(cx);
 
     AutoWrapperVector toRecompute(cx);
 
@@ -1151,7 +1174,8 @@ js::RecomputeWrappers(JSContext *cx, const CompartmentFilter &sourceFilter,
             continue;
 
         // Iterate over the wrappers, filtering appropriately.
-        for (JSCompartment::WrapperEnum e(c); !e.empty(); e.popFront()) {
+        WrapperMap &pmap = c->crossCompartmentWrappers;
+        for (WrapperMap::Enum e(pmap); !e.empty(); e.popFront()) {
             // Filter out non-objects.
             const CrossCompartmentKey &k = e.front().key;
             if (k.kind != CrossCompartmentKey::ObjectWrapper)

@@ -276,12 +276,9 @@ DisableWakeLockNotifications()
 }
 
 void
-ModifyWakeLockInternal(const nsAString &aTopic,
-                       WakeLockControl aLockAdjust,
-                       WakeLockControl aHiddenAdjust,
-                       uint64_t aProcessID)
+ModifyWakeLock(const nsAString &aTopic, WakeLockControl aLockAdjust, WakeLockControl aHiddenAdjust)
 {
-  Hal()->SendModifyWakeLock(nsString(aTopic), aLockAdjust, aHiddenAdjust, aProcessID);
+  Hal()->SendModifyWakeLock(nsString(aTopic), aLockAdjust, aHiddenAdjust);
 }
 
 void
@@ -339,58 +336,61 @@ SetProcessPriority(int aPid, ProcessPriority aPriority)
 void
 EnableFMRadio(const hal::FMRadioSettings& aSettings)
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
+  Hal()->SendEnableFMRadio(aSettings);
 }
 
 void
 DisableFMRadio()
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
+  Hal()->SendDisableFMRadio();
 }
 
 void
 FMRadioSeek(const hal::FMRadioSeekDirection& aDirection)
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
+  Hal()->SendFMRadioSeek(aDirection);
 }
 
 void
 GetFMRadioSettings(FMRadioSettings* aSettings)
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
+  Hal()->SendGetFMRadioSettings(aSettings);
 }
 
 void
 SetFMRadioFrequency(const uint32_t aFrequency)
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
+  Hal()->SendSetFMRadioFrequency(aFrequency);
 }
 
 uint32_t
 GetFMRadioFrequency()
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
-  return 0;
+  uint32_t frequency;
+  Hal()->SendGetFMRadioFrequency(&frequency);
+  return frequency;
 }
 
 bool
 IsFMRadioOn()
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
-  return false;
+  bool FMRadioOn;
+  Hal()->SendIsFMRadioOn(&FMRadioOn);
+  return FMRadioOn;
 }
 
 uint32_t
 GetFMRadioSignalStrength()
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
-  return 0;
+  uint32_t strength;
+  Hal()->SendGetFMRadioSignalStrength(&strength);
+  return strength;
 }
 
 void
 CancelFMRadioSeek()
 {
-  NS_RUNTIMEABORT("FM radio cannot be called from sandboxed contexts.");
+  Hal()->SendCancelFMRadioSeek();
 }
 
 void
@@ -425,10 +425,6 @@ public:
     hal::UnregisterWakeLockObserver(this);
     hal::UnregisterSystemClockChangeObserver(this);
     hal::UnregisterSystemTimezoneChangeObserver(this);
-    for (int32_t switchDevice = SWITCH_DEVICE_UNKNOWN + 1;
-         switchDevice < NUM_SWITCH_DEVICE; ++switchDevice) {
-      hal::UnregisterSwitchObserver(SwitchDevice(switchDevice), this);
-    }
   }
 
   virtual bool
@@ -707,13 +703,12 @@ public:
   }
 
   virtual bool
-  RecvModifyWakeLock(const nsString& aTopic,
-                     const WakeLockControl& aLockAdjust,
-                     const WakeLockControl& aHiddenAdjust,
-                     const uint64_t& aProcessID) MOZ_OVERRIDE
+  RecvModifyWakeLock(const nsString &aTopic,
+                     const WakeLockControl &aLockAdjust,
+                     const WakeLockControl &aHiddenAdjust) MOZ_OVERRIDE
   {
     // We allow arbitrary content to use wake locks.
-    hal::ModifyWakeLockInternal(aTopic, aLockAdjust, aHiddenAdjust, aProcessID);
+    hal::ModifyWakeLock(aTopic, aLockAdjust, aHiddenAdjust);
     return true;
   }
 
@@ -751,8 +746,7 @@ public:
   RecvEnableSwitchNotifications(const SwitchDevice& aDevice) MOZ_OVERRIDE
   {
     // Content has no reason to listen to switch events currently.
-    hal::RegisterSwitchObserver(aDevice, this);
-    return true;
+    return false;
   }
 
   virtual bool
@@ -771,8 +765,7 @@ public:
   RecvGetCurrentSwitchState(const SwitchDevice& aDevice, hal::SwitchState *aState) MOZ_OVERRIDE
   {
     // Content has no reason to listen to switch events currently.
-    *aState = hal::GetCurrentSwitchState(aDevice);
-    return true;
+    return false;
   }
 
   virtual bool
@@ -792,6 +785,101 @@ public:
   void Notify(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
   {
     unused << SendNotifySystemTimezoneChange(aSystemTimezoneChangeInfo);
+  }
+
+  virtual bool
+  RecvEnableFMRadio(const hal::FMRadioSettings& aSettings)
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    hal::EnableFMRadio(aSettings);
+    return true;
+  }
+
+  virtual bool
+  RecvDisableFMRadio()
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    hal::DisableFMRadio();
+    return true;
+  }
+
+  virtual bool
+  RecvFMRadioSeek(const hal::FMRadioSeekDirection& aDirection)
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    hal::FMRadioSeek(aDirection);
+    return true;
+  }
+
+  virtual bool
+  RecvGetFMRadioSettings(hal::FMRadioSettings* aSettings)
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    hal::GetFMRadioSettings(aSettings);
+    return true;
+  }
+
+  virtual bool
+  RecvSetFMRadioFrequency(const uint32_t& aFrequency)
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    hal::SetFMRadioFrequency(aFrequency);
+    return true;
+  }
+
+  virtual bool
+  RecvGetFMRadioFrequency(uint32_t* aFrequency)
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    *aFrequency = hal::GetFMRadioFrequency();
+    return true;
+  }
+
+  void Notify(const hal::FMRadioOperationInformation& aRadioStatus)
+  {
+    unused << SendNotifyFMRadioStatus(aRadioStatus);
+  }
+
+  virtual bool
+  RecvIsFMRadioOn(bool* radioOn)
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    *radioOn = hal::IsFMRadioOn();
+    return true;
+  }
+
+  virtual bool
+  RecvGetFMRadioSignalStrength(uint32_t* strength)
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    *strength = hal::GetFMRadioSignalStrength();
+    return true;
+  }
+
+  virtual bool
+  RecvCancelFMRadioSeek()
+  {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
+    hal::CancelFMRadioSeek();
+    return true;
   }
 
   virtual bool
@@ -856,6 +944,12 @@ public:
   RecvNotifySystemTimezoneChange(
     const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo) {
     hal::NotifySystemTimezoneChange(aSystemTimezoneChangeInfo);
+    return true;
+  }
+
+  virtual bool
+  RecvNotifyFMRadioStatus(const FMRadioOperationInformation& aRadioStatus) {
+    hal::NotifyFMRadioStatus(aRadioStatus);
     return true;
   }
 };

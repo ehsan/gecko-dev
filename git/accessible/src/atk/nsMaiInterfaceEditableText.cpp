@@ -6,14 +6,11 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "Accessible-inl.h"
 #include "HyperTextAccessible.h"
 #include "nsMai.h"
 
 #include "nsString.h"
 #include "mozilla/Likely.h"
-
-using namespace mozilla::a11y;
 
 extern "C" {
 static void
@@ -26,6 +23,8 @@ setTextContentsCB(AtkEditableText *aText, const gchar *aString)
   HyperTextAccessible* text = accWrap->AsHyperText();
   if (!text || !text->IsTextRole())
     return;
+
+  MAI_LOG_DEBUG(("EditableText: setTextContentsCB, aString=%s", aString));
 
   NS_ConvertUTF8toUTF16 strContent(aString);
   text->SetTextContents(strContent);
@@ -45,6 +44,9 @@ insertTextCB(AtkEditableText *aText,
 
   NS_ConvertUTF8toUTF16 strContent(aString, aLength);
   text->InsertText(strContent, *aPosition);
+
+  MAI_LOG_DEBUG(("EditableText: insert aString=%s, aLength=%d, aPosition=%d",
+                 aString, aLength, *aPosition));
 }
 
 static void
@@ -58,6 +60,8 @@ copyTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
   if (!text || !text->IsTextRole())
     return;
 
+  MAI_LOG_DEBUG(("EditableText: copyTextCB, aStartPos=%d, aEndPos=%d",
+                 aStartPos, aEndPos));
   text->CopyText(aStartPos, aEndPos);
 }
 
@@ -72,6 +76,8 @@ cutTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
   if (!text || !text->IsTextRole())
     return;
 
+  MAI_LOG_DEBUG(("EditableText: cutTextCB, aStartPos=%d, aEndPos=%d",
+                 aStartPos, aEndPos));
   text->CutText(aStartPos, aEndPos);
 }
 
@@ -86,6 +92,8 @@ deleteTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
   if (!text || !text->IsTextRole())
     return;
 
+  MAI_LOG_DEBUG(("EditableText: deleteTextCB, aStartPos=%d, aEndPos=%d",
+                 aStartPos, aEndPos));
   text->DeleteText(aStartPos, aEndPos);
 }
 
@@ -100,6 +108,7 @@ pasteTextCB(AtkEditableText *aText, gint aPosition)
   if (!text || !text->IsTextRole())
     return;
 
+  MAI_LOG_DEBUG(("EditableText: pasteTextCB, aPosition=%d", aPosition));
   text->PasteText(aPosition);
 }
 }

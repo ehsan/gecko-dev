@@ -74,7 +74,7 @@ typedef enum JSOp {
 #define JOF_POST         (1U<<12) /* postorder increment or decrement */
 #define JOF_ASSIGNING     JOF_SET /* hint for Class.resolve, used for ops
                                      that do simplex assignment */
-#define JOF_DETECTING    (1U<<14) /* object detection for warning-quelling */
+#define JOF_DETECTING    (1U<<14) /* object detection for JSNewResolveOp */
 #define JOF_BACKPATCH    (1U<<15) /* backpatch placeholder during codegen */
 #define JOF_LEFTASSOC    (1U<<16) /* left-associative operator */
 /* (1U<<17) is unused */
@@ -106,6 +106,9 @@ typedef enum JSOp {
 /* Shorthands for mode from format and mode from opcode. */
 #define JOF_MODE(fmt)   ((fmt) & JOF_MODEMASK)
 #define JOF_OPMODE(op)  JOF_MODE(js_CodeSpec[op].format)
+
+#define JOF_TYPE_IS_EXTENDED_JUMP(t) \
+    ((unsigned)((t) - JOF_JUMP) <= (unsigned)(JOF_LOOKUPSWITCH - JOF_JUMP))
 
 /*
  * Immediate operand getters, setters, and bounds.
@@ -293,6 +296,14 @@ StackDefs(JSScript *script, jsbytecode *pc);
 /*
  * Decompilers, for script, function, and expression pretty-printing.
  */
+extern JSBool
+js_DecompileScript(JSPrinter *jp, JSScript *script);
+
+extern JSBool
+js_DecompileFunctionBody(JSPrinter *jp);
+
+extern JSBool
+js_DecompileFunction(JSPrinter *jp);
 
 /*
  * Some C++ compilers treat the language linkage (extern "C" vs.
@@ -352,13 +363,6 @@ DecompileValueGenerator(JSContext *cx, int spindex, HandleValue v,
                         HandleString fallback, int skipStackHits = 0);
 
 /*
- * Decompile the formal argument at formalIndex in the nearest non-builtin
- * stack frame, falling back with converting v to source.
- */
-char *
-DecompileArgument(JSContext *cx, int formalIndex, HandleValue v);
-
-/*
  * Sprintf, but with unlimited and automatically allocated buffering.
  */
 class Sprinter
@@ -387,7 +391,6 @@ class Sprinter
     char                    *base;          /* malloc'd buffer address */
     size_t                  size;           /* size of buffer allocated at base */
     ptrdiff_t               offset;         /* offset of next free char in buffer */
-    bool                    reportedOOM;    /* this sprinter has reported OOM in string ops */
 
     bool realloc_(size_t newSize);
 
@@ -436,16 +439,6 @@ class Sprinter
     /* Get the offset */
     ptrdiff_t getOffset() const;
     ptrdiff_t getOffsetOf(const char *string) const;
-
-    /*
-     * Report that a string operation failed to get the memory it requested. The
-     * first call to this function calls JS_ReportOutOfMemory, and sets this
-     * Sprinter's outOfMemory flag; subsequent calls do nothing.
-     */
-    void reportOutOfMemory();
-
-    /* Return true if this Sprinter ran out of memory. */
-    bool hadOutOfMemory() const;
 };
 
 extern ptrdiff_t
@@ -525,7 +518,7 @@ IsSetterPC(jsbytecode *pc)
  */
 class PCCounts
 {
-    friend class ::JSScript;
+    friend struct ::JSScript;
     double *counts;
 #ifdef DEBUG
     size_t capacity;

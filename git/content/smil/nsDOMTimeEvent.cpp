@@ -25,8 +25,8 @@ nsDOMTimeEvent::nsDOMTimeEvent(nsPresContext* aPresContext, nsEvent* aEvent)
     mDetail = event->detail;
   }
 
-  mEvent->mFlags.mBubbles = false;
-  mEvent->mFlags.mCancelable = false;
+  mEvent->flags |= NS_EVENT_FLAG_CANT_BUBBLE |
+                   NS_EVENT_FLAG_CANT_CANCEL;
 
   if (mPresContext) {
     nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
@@ -42,11 +42,11 @@ nsDOMTimeEvent::nsDOMTimeEvent(nsPresContext* aPresContext, nsEvent* aEvent)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMTimeEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMTimeEvent, nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mView)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mView)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMTimeEvent, nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mView)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mView)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsDOMTimeEvent, nsDOMEvent)

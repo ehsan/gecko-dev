@@ -16,6 +16,10 @@
     throw new Error("osfile_win_front.jsm cannot be used from the main thread yet");
   }
 
+  importScripts("resource://gre/modules/osfile/osfile_win_back.jsm");
+  importScripts("resource://gre/modules/osfile/ospath_win_back.jsm");
+  importScripts("resource://gre/modules/osfile/osfile_shared_front.jsm");
+
   (function(exports) {
      "use strict";
 
@@ -749,19 +753,15 @@
          let value = ctypes.UInt64.join(this._nFileSizeHigh, this._nFileSizeLow);
          return exports.OS.Shared.Type.uint64_t.importFromC(value);
        },
-       // Deprecated
-       get creationDate() {
-         return this.winBirthDate;
-       },
        /**
-        * The date of creation of this file.
+        * The date of creation of this file
         *
         * @type {Date}
         */
-       get winBirthDate() {
-         delete this.winBirthDate;
+       get creationDate() {
+         delete this.creationDate;
          let date = FILETIME_to_Date(this._ftCreationTime);
-         Object.defineProperty(this, "winBirthDate", { value: date });
+         Object.defineProperty(this, "creationDate", { value: date });
          return date;
        },
        /**

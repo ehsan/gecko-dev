@@ -107,8 +107,7 @@ nsSVGAFrame::AttributeChanged(int32_t         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       aAttribute == nsGkAtoms::transform) {
-    nsSVGUtils::InvalidateBounds(this, false);
-    nsSVGUtils::ScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
     NotifySVGChanged(TRANSFORM_CHANGED);
   }
 

@@ -259,16 +259,16 @@ nsContentView::GetId(nsContentViewId* aId)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsFrameLoader)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsFrameLoader)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocShell)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mMessageManager)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChildMessageManager)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocShell)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMessageManager)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChildMessageManager)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFrameLoader)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocShell)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocShell)
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "nsFrameLoader::mMessageManager");
   cb.NoteXPCOMChild(static_cast<nsIContentFrameMessageManager*>(tmp->mMessageManager.get()));
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildMessageManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChildMessageManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameLoader)
@@ -642,16 +642,14 @@ SetTreeOwnerAndChromeEventHandlerOnDocshellTree(nsIDocShellTreeItem* aItem,
   NS_PRECONDITION(aItem, "Must have item");
 
   aItem->SetTreeOwner(aOwner);
+  nsCOMPtr<nsIDocShell> shell(do_QueryInterface(aItem));
+  shell->SetChromeEventHandler(aHandler);
 
   int32_t childCount = 0;
   aItem->GetChildCount(&childCount);
   for (int32_t i = 0; i < childCount; ++i) {
     nsCOMPtr<nsIDocShellTreeItem> item;
     aItem->GetChildAt(i, getter_AddRefs(item));
-    if (aHandler) {
-      nsCOMPtr<nsIDocShell> shell(do_QueryInterface(item));
-      shell->SetChromeEventHandler(aHandler);
-    }
     SetTreeOwnerAndChromeEventHandlerOnDocshellTree(item, aOwner, aHandler);
   }
 }
@@ -789,6 +787,10 @@ nsFrameLoader::Show(int32_t marginWidth, int32_t marginHeight,
   if (!mRemoteFrame) {
     if (!mDocShell)
       return false;
+    nsCOMPtr<nsIPresShell> presShell;
+    mDocShell->GetPresShell(getter_AddRefs(presShell));
+    if (presShell)
+      return true;
 
     mDocShell->SetMarginWidth(marginWidth);
     mDocShell->SetMarginHeight(marginHeight);
@@ -799,19 +801,6 @@ nsFrameLoader::Show(int32_t marginWidth, int32_t marginHeight,
                                          scrollbarPrefX);
       sc->SetDefaultScrollbarPreferences(nsIScrollable::ScrollOrientation_Y,
                                          scrollbarPrefY);
-    }
-
-    nsCOMPtr<nsIPresShell> presShell;
-    mDocShell->GetPresShell(getter_AddRefs(presShell));
-    if (presShell) {
-      // Ensure root scroll frame is reflowed in case scroll preferences or
-      // margins have changed
-      nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
-      if (rootScrollFrame) {
-        presShell->FrameNeedsReflow(rootScrollFrame, nsIPresShell::eResize,
-                                    NS_FRAME_IS_DIRTY);
-      }
-      return true;
     }
   }
 
@@ -1058,8 +1047,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   }
 
   // Also make sure that the two docshells are the same type. Otherwise
-  // swapping is certainly not safe. If this needs to be changed then
-  // the code below needs to be audited as it assumes identical types.
+  // swapping is certainly not safe.
   int32_t ourType = nsIDocShellTreeItem::typeChrome;
   int32_t otherType = nsIDocShellTreeItem::typeChrome;
   ourTreeItem->GetItemType(&ourType);
@@ -1208,15 +1196,11 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   ourParentItem->AddChild(otherTreeItem);
   otherParentItem->AddChild(ourTreeItem);
 
-  // Restore the correct chrome event handlers.
-  ourDocshell->SetChromeEventHandler(otherChromeEventHandler);
-  otherDocshell->SetChromeEventHandler(ourChromeEventHandler);
   // Restore the correct treeowners
-  // (and also chrome event handlers for content frames only).
   SetTreeOwnerAndChromeEventHandlerOnDocshellTree(ourTreeItem, otherOwner,
-    ourType == nsIDocShellTreeItem::typeContent ? otherChromeEventHandler : nullptr);
+                                                  otherChromeEventHandler);
   SetTreeOwnerAndChromeEventHandlerOnDocshellTree(otherTreeItem, ourOwner,
-    ourType == nsIDocShellTreeItem::typeContent ? ourChromeEventHandler : nullptr);
+                                                  ourChromeEventHandler);
 
   // Switch the owner content before we start calling AddTreeItemToTreeOwner.
   // Note that we rely on this to deal with setting mObservingOwnerContent to
@@ -2052,32 +2036,17 @@ nsFrameLoader::TryRemoteBrowser()
   MutableTabContext context;
   nsCOMPtr<mozIApplication> ownApp = GetOwnApp();
   nsCOMPtr<mozIApplication> containingApp = GetContainingApp();
-  ScrollingBehavior scrollingBehavior = DEFAULT_SCROLLING;
-  if (mOwnerContent->AttrValueIs(kNameSpaceID_None,
-                                 nsGkAtoms::mozasyncpanzoom,
-                                 nsGkAtoms::_true,
-                                 eCaseMatters)) {
-    scrollingBehavior = ASYNC_PAN_ZOOM;
-  }
   if (ownApp) {
-    context.SetTabContextForAppFrame(ownApp, containingApp, scrollingBehavior);
+    context.SetTabContextForAppFrame(ownApp, containingApp);
   } else if (OwnerIsBrowserFrame()) {
     // The |else| above is unnecessary; OwnerIsBrowserFrame() implies !ownApp.
-    context.SetTabContextForBrowserFrame(containingApp, scrollingBehavior);
+    context.SetTabContextForBrowserFrame(containingApp);
   }
 
   mRemoteBrowser = ContentParent::CreateBrowserOrApp(context);
   if (mRemoteBrowser) {
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mOwnerContent);
     mRemoteBrowser->SetOwnerElement(element);
-
-    // If we're an app, send the frame element's mozapptype down to the child
-    // process.  This ends up in TabChild::GetAppType().
-    if (ownApp) {
-      nsAutoString appType;
-      mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::mozapptype, appType);
-      mRemoteBrowser->SendSetAppType(appType);
-    }
 
     nsCOMPtr<nsIDocShellTreeItem> rootItem;
     parentAsItem->GetRootTreeItem(getter_AddRefs(rootItem));

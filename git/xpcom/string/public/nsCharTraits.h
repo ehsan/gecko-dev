@@ -9,6 +9,18 @@
 #include <ctype.h>
   // for |EOF|, |WEOF|
 
+#define FORCED_CPP_2BYTE_WCHAR_T
+  // disable special optimizations for now through this hack
+
+#if defined(HAVE_CPP_2BYTE_WCHAR_T) && !defined(FORCED_CPP_2BYTE_WCHAR_T)
+#define USE_CPP_WCHAR_FUNCS
+#endif
+
+#ifdef USE_CPP_WCHAR_FUNCS
+#include <wchar.h>
+  // for |wmemset|, et al
+#endif
+
 #include <string.h>
   // for |memcpy|, et al
 
@@ -111,7 +123,12 @@ struct nsCharTraits<PRUnichar>
 
 
       // integer representation of characters:
+
+#ifdef USE_CPP_WCHAR_FUNCS
+    typedef wint_t int_type;
+#else
     typedef int int_type;
+#endif
 
     static
     char_type
@@ -183,16 +200,23 @@ struct nsCharTraits<PRUnichar>
     char_type*
     assign( char_type* s, size_t n, char_type c )
       {
+#ifdef USE_CPP_WCHAR_FUNCS
+        return static_cast<char_type*>(wmemset(s, to_int_type(c), n));
+#else
         char_type* result = s;
         while ( n-- )
           assign(*s++, c);
         return result;
+#endif
       }
 
     static
     int
     compare( const char_type* s1, const char_type* s2, size_t n )
       {
+#ifdef USE_CPP_WCHAR_FUNCS
+        return wmemcmp(s1, s2, n);
+#else
         for ( ; n--; ++s1, ++s2 )
           {
             if ( !eq(*s1, *s2) )
@@ -200,6 +224,7 @@ struct nsCharTraits<PRUnichar>
           }
 
         return 0;
+#endif
       }
 
     static
@@ -239,17 +264,32 @@ struct nsCharTraits<PRUnichar>
       }
 
     /**
-     * Convert c to its lower-case form, but only if c is in the ASCII
-     * range. Otherwise leave it alone.
+     * Convert c to its lower-case form, but only if the lower-case form is
+     * ASCII. Otherwise leave it alone.
+     *
+     * There are only two non-ASCII Unicode characters whose lowercase
+     * equivalents are ASCII: KELVIN SIGN and LATIN CAPITAL LETTER I WITH
+     * DOT ABOVE. So it's a simple matter to handle those explicitly.
      */
     static
     char_type
     ASCIIToLower( char_type c )
       {
-        if (c >= 'A' && c <= 'Z')
-          return char_type(c + ('a' - 'A'));
+        if (c < 0x100)
+          {
+            if (c >= 'A' && c <= 'Z')
+              return char_type(c + ('a' - 'A'));
           
-        return c;
+            return c;
+          }
+        else
+          {
+            if (c == 0x212A) // KELVIN SIGN
+              return 'k';
+            if (c == 0x0130) // LATIN CAPITAL LETTER I WITH DOT ABOVE
+              return 'i';
+            return c;
+          }
       }
 
     static
@@ -298,16 +338,23 @@ struct nsCharTraits<PRUnichar>
     size_t
     length( const char_type* s )
       {
+#ifdef USE_CPP_WCHAR_FUNCS
+        return wcslen(s);
+#else
         size_t result = 0;
         while ( !eq(*s++, char_type(0)) )
           ++result;
         return result;
+#endif
       }
 
     static
     const char_type*
     find( const char_type* s, size_t n, char_type c )
       {
+#ifdef USE_CPP_WCHAR_FUNCS
+        return reinterpret_cast<const char_type*>(wmemchr(s, to_int_type(c), n));
+#else
         while ( n-- )
           {
             if ( eq(*s, c) )
@@ -316,7 +363,36 @@ struct nsCharTraits<PRUnichar>
           }
 
         return 0;
+#endif
       }
+
+#if 0
+      // I/O related:
+
+    typedef streamoff off_type;
+    typedef streampos pos_type;
+    typedef mbstate_t state_type;
+
+    static
+    int_type
+    eof()
+      {
+#ifdef USE_CPP_WCHAR_FUNCS
+        return WEOF;
+#else
+        return EOF;
+#endif
+      }
+
+    static
+    int_type
+    not_eof( int_type c )
+      {
+        return eq_int_type(c, eof()) ? ~eof() : c;
+      }
+
+    // static state_type get_state( pos_type );
+#endif
   };
 
 template <>
@@ -520,6 +596,30 @@ struct nsCharTraits<char>
       {
         return reinterpret_cast<const char_type*>(memchr(s, to_int_type(c), n));
       }
+
+#if 0
+      // I/O related:
+
+    typedef streamoff off_type;
+    typedef streampos pos_type;
+    typedef mbstate_t state_type;
+
+    static
+    int_type
+    eof()
+      {
+        return EOF;
+      }
+
+    static
+    int_type
+    not_eof( int_type c )
+      {
+        return eq_int_type(c, eof()) ? ~eof() : c;
+      }
+
+    // static state_type get_state( pos_type );
+#endif
   };
 
 template <class InputIterator>

@@ -450,9 +450,9 @@ SVGMotionSMILAnimationFunction::SetRotate(const nsAString& aRotate,
 
     // Convert to radian units, if we're not already in radians.
     uint8_t angleUnit = svgAngle.GetBaseValueUnit();
-    if (angleUnit != SVG_ANGLETYPE_RAD) {
+    if (angleUnit != nsIDOMSVGAngle::SVG_ANGLETYPE_RAD) {
       mRotateAngle *= nsSVGAngle::GetDegreesPerUnit(angleUnit) /
-        nsSVGAngle::GetDegreesPerUnit(SVG_ANGLETYPE_RAD);
+        nsSVGAngle::GetDegreesPerUnit(nsIDOMSVGAngle::SVG_ANGLETYPE_RAD);
     }
   }
   return NS_OK;

@@ -76,11 +76,7 @@ class nsRefreshDriver;
 class nsARefreshObserver;
 #ifdef ACCESSIBILITY
 class nsAccessibilityService;
-namespace mozilla {
-namespace a11y {
 class DocAccessible;
-} // namespace a11y
-} // namespace mozilla
 #endif
 class nsIWidget;
 struct nsArenaMemoryStats;
@@ -106,7 +102,7 @@ class LayerManager;
 #define CAPTURE_RETARGETTOELEMENT 2
 // true if the current capture wants drags to be prevented
 #define CAPTURE_PREVENTDRAG 4
-// true when the mouse is pointer locked, and events are sent to locked element
+// true when the mouse is pointer locked, and events are sent to locked elemnt
 #define CAPTURE_POINTERLOCK 8
 
 typedef struct CapturingContentInfo {
@@ -118,10 +114,10 @@ typedef struct CapturingContentInfo {
   nsIContent* mContent;
 } CapturingContentInfo;
 
-// a43e26cd-9573-44c7-8fe5-859549eff814
+// 307910dd-7355-4535-84e7-6b95a4edffbe
 #define NS_IPRESSHELL_IID \
-{ 0x13b031cb, 0x738a, 0x4e97, \
-  { 0xb0, 0xca, 0x8b, 0x4b, 0x6c, 0xbb, 0xea, 0xa9 } }
+{ 0x307910dd, 0x7355, 0x4535, \
+  { 0x84, 0xe7, 0x6b, 0x95, 0xa4, 0xed, 0xff, 0xbe } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -278,7 +274,7 @@ public:
   /**
    * Return the document accessible for this pres shell if there is one.
    */
-  mozilla::a11y::DocAccessible* GetDocAccessible() const
+  DocAccessible* GetDocAccessible() const
   {
     return mDocAccessible;
   }
@@ -286,7 +282,7 @@ public:
   /**
    * Set the document accessible for this pres shell.
    */
-  void SetDocAccessible(mozilla::a11y::DocAccessible* aDocAccessible)
+  void SetDocAccessible(DocAccessible* aDocAccessible)
   {
     mDocAccessible = aDocAccessible;
   }
@@ -524,7 +520,6 @@ public:
    * @param aType the type of notifications to flush
    */
   virtual NS_HIDDEN_(void) FlushPendingNotifications(mozFlushType aType) = 0;
-  virtual NS_HIDDEN_(void) FlushPendingNotifications(mozilla::ChangesToFlush aType) = 0;
 
   /**
    * Callbacks will be called even if reflow itself fails for
@@ -790,7 +785,7 @@ public:
    * Get and set the history state for the current document 
    */
 
-  virtual NS_HIDDEN_(nsresult) CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState) = 0;
+  virtual NS_HIDDEN_(nsresult) CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState, bool aLeavingPage = false) = 0;
 
   /**
    * Determine if reflow is currently locked
@@ -1295,14 +1290,6 @@ public:
     return mFontSizeInflationLineThreshold;
   }
 
-  bool FontSizeInflationForceEnabled() const {
-    return mFontSizeInflationForceEnabled;
-  }
-
-  bool FontSizeInflationDisabledInMasterProcess() const {
-    return mFontSizeInflationDisabledInMasterProcess;
-  }
-
   virtual void AddInvalidateHiddenPresShellObserver(nsRefreshDriver *aDriver) = 0;
 
   void InvalidatePresShellIfHidden();
@@ -1390,7 +1377,7 @@ protected:
   nsWeakPtr                 mForwardingContainer;
   nsRefreshDriver*          mHiddenInvalidationObserverRefreshDriver;
 #ifdef ACCESSIBILITY
-  mozilla::a11y::DocAccessible* mDocAccessible;
+  DocAccessible* mDocAccessible;
 #endif
 
 #ifdef DEBUG
@@ -1454,8 +1441,6 @@ protected:
   uint32_t mFontSizeInflationEmPerLine;
   uint32_t mFontSizeInflationMinTwips;
   uint32_t mFontSizeInflationLineThreshold;
-  bool mFontSizeInflationForceEnabled;
-  bool mFontSizeInflationDisabledInMasterProcess;
 
   // The maximum width of a line box. Text on a single line that exceeds this
   // width will be wrapped. A value of 0 indicates that no limit is enforced.

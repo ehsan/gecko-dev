@@ -11,9 +11,9 @@
 #include "AudioSampleFormat.h"
 #include "SharedBuffer.h"
 
-namespace mozilla {
+class nsAudioStream;
 
-class AudioStream;
+namespace mozilla {
 
 struct AudioChunk {
   typedef mozilla::AudioSampleFormat SampleFormat;
@@ -99,7 +99,7 @@ public:
    * aOutput must have a matching number of channels, but we will automatically
    * convert sample formats.
    */
-  void WriteTo(AudioStream* aOutput);
+  void WriteTo(nsAudioStream* aOutput);
 
   // Segment-generic methods not in MediaSegmentBase
   void InitFrom(const AudioSegment& aOther)

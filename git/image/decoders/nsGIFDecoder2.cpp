@@ -42,6 +42,7 @@ mailing address.
 
 #include "nsGIFDecoder2.h"
 #include "nsIInputStream.h"
+#include "imgIContainerObserver.h"
 #include "RasterImage.h"
 
 #include "gfxColor.h"
@@ -71,7 +72,7 @@ namespace image {
 //////////////////////////////////////////////////////////////////////
 // GIF Decoder Implementation
 
-nsGIFDecoder2::nsGIFDecoder2(RasterImage &aImage, imgDecoderObserver* aObserver)
+nsGIFDecoder2::nsGIFDecoder2(RasterImage &aImage, imgIDecoderObserver* aObserver)
   : Decoder(aImage, aObserver)
   , mCurrentRow(-1)
   , mLastFlushedRow(-1)
@@ -218,7 +219,9 @@ nsresult nsGIFDecoder2::BeginImageFrame(uint16_t aDepth)
     // Otherwise, the area may never be refreshed and the placeholder will remain
     // on the screen. (Bug 37589)
     if (mGIFStruct.y_offset > 0) {
-      nsIntRect r(0, 0, mGIFStruct.screen_width, mGIFStruct.y_offset);
+      int32_t imgWidth;
+      mImage.GetWidth(&imgWidth);
+      nsIntRect r(0, 0, imgWidth, mGIFStruct.y_offset);
       PostInvalidation(r);
     }
   }
@@ -335,8 +338,16 @@ uint32_t nsGIFDecoder2::OutputRow()
     uint8_t *from = rowp + mGIFStruct.width;
     uint32_t *to = ((uint32_t*)rowp) + mGIFStruct.width;
     uint32_t *cmap = mColormap;
-    for (uint32_t c = mGIFStruct.width; c > 0; c--) {
-      *--to = cmap[*--from];
+    if (mColorMask == 0xFF) {
+      for (uint32_t c = mGIFStruct.width; c > 0; c--) {
+        *--to = cmap[*--from];
+      }
+    } else {
+      // Make sure that pixels within range of colormap.
+      uint8_t mask = mColorMask;
+      for (uint32_t c = mGIFStruct.width; c > 0; c--) {
+        *--to = cmap[(*--from) & mask];
+      }
     }
   
     // check for alpha (only for first frame)
@@ -456,7 +467,7 @@ nsGIFDecoder2::DoLzw(const uint8_t *q)
       if (oldcode == -1) {
         if (code >= MAX_BITS)
           return false;
-        *rowp++ = suffix[code] & mColorMask; // ensure index is within colormap
+        *rowp++ = suffix[code];
         if (rowp == rowend)
           OUTPUT_ROW();
 
@@ -506,7 +517,7 @@ nsGIFDecoder2::DoLzw(const uint8_t *q)
 
       /* Copy the decoded data out to the scanline buffer. */
       do {
-        *rowp++ = *--stackp & mColorMask; // ensure index is within colormap
+        *rowp++ = *--stackp;
         if (rowp == rowend)
           OUTPUT_ROW();
       } while (stackp > stack);

@@ -34,19 +34,14 @@ public:
                         const char* aNumber, bool aIsActive);
   void EnumerateCallState(int aCallIndex, int aCallState,
                           const char* aNumber, bool aIsActive);
-  void SetupCIND(int aCallIndex, int aCallState,
-                 const char* aPhoneNumber, bool aInitial);
+  void SetupCIND(int aCallIndex, int aCallState, bool aInitial);
   bool Listen();
-  void SetVolume(int aVolume);
 
 private:
   friend class BluetoothHfpManagerObserver;
   BluetoothHfpManager();
-  nsresult HandleIccInfoChanged();
-  nsresult HandleShutdown();
   nsresult HandleVolumeChanged(const nsAString& aData);
-  nsresult HandleVoiceConnectionChanged();
-
+  nsresult HandleShutdown();
   bool Init();
   void Cleanup();
   void NotifyDialer(const nsAString& aCommand);
@@ -57,10 +52,8 @@ private:
 
   int mCurrentVgs;
   int mCurrentCallIndex;
-  bool mCLIP;
   bool mReceiveVgsFlag;
   nsString mDevicePath;
-  nsString mMsisdn;
   enum mozilla::ipc::SocketConnectionStatus mSocketStatus;
   nsTArray<int> mCurrentCallStateArray;
   nsAutoPtr<BluetoothRilListener> mListener;

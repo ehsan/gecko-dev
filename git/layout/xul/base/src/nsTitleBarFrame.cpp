@@ -172,5 +172,6 @@ nsTitleBarFrame::MouseClicked(nsPresContext* aPresContext, nsGUIEvent* aEvent)
 {
   // Execute the oncommand event handler.
   nsContentUtils::DispatchXULCommand(mContent,
-                                     aEvent && aEvent->mFlags.mIsTrusted);
+                                     aEvent ?
+                                       NS_IS_TRUSTED_EVENT(aEvent) : false);
 }

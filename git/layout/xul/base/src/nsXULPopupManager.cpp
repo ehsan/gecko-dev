@@ -1325,15 +1325,15 @@ nsXULPopupManager::GetTopPopup(nsPopupType aType)
   return nullptr;
 }
 
-void
-nsXULPopupManager::GetVisiblePopups(nsTArray<nsIFrame *>& aPopups)
+nsTArray<nsIFrame *>
+nsXULPopupManager::GetVisiblePopups()
 {
-  aPopups.Clear();
+  nsTArray<nsIFrame *> popups;
 
   nsMenuChainItem* item = mPopups;
   while (item) {
     if (item->Frame()->PopupState() == ePopupOpenAndVisible)
-      aPopups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
+      popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
     item = item->GetParent();
   }
 
@@ -1342,10 +1342,12 @@ nsXULPopupManager::GetVisiblePopups(nsTArray<nsIFrame *>& aPopups)
     // skip panels which are not open and visible as well as draggable popups,
     // as those don't respond to events.
     if (item->Frame()->PopupState() == ePopupOpenAndVisible && !item->Frame()->IsDragPopup()) {
-      aPopups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
+      popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
     }
     item = item->GetParent();
   }
+
+  return popups;
 }
 
 already_AddRefed<nsIDOMNode>

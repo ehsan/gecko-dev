@@ -88,16 +88,8 @@ public:                                                                     \
   {                                                                         \
     return p->InnerObject();                                                \
   }                                                                         \
-  static nsXPCOMCycleCollectionParticipant* GetParticipant()                   \
-  {                                                                            \
-    static const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>    \
-    ::Type participant = {                                                     \
-      NS_IMPL_CYCLE_COLLECTION_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class))   \
-    };                                                                         \
-    return NS_PARTICIPANT_AS(nsXPCOMCycleCollectionParticipant,                \
-                                    &participant);                             \
-  }                                                                            \
-};
+};                                                                          \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 // Put this in your class's constructor:
 #define NS_INIT_AGGREGATED(outer)                                           \

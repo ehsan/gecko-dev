@@ -4,13 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-function run_test()
-{
-  run_next_test();
-}
-
-add_task(function test_execute()
-{
+function run_test() {
   try {
     var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
                   getService(Ci.nsINavHistoryService);
@@ -20,9 +14,11 @@ add_task(function test_execute()
     do_throw("Unable to initialize Places services");
   }
 
+
   // add a visit
   var testURI = uri("http://test");
-  yield promiseAddVisits(testURI);
+  histsvc.addVisit(testURI, Date.now() * 1000, null,
+                   histsvc.TRANSITION_TYPED, false, 0);
 
   // query for the visit
   var options = histsvc.getNewQueryOptions();
@@ -53,4 +49,4 @@ add_task(function test_execute()
   queryNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);
   do_check_eq(queryNode.hasChildren, true);
   root.containerOpen = false;
-});
+}

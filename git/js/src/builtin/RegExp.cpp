@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -50,9 +50,9 @@ class RegExpMatchBuilder
     }
 };
 
-bool
-js::CreateRegExpMatchResult(JSContext *cx, JSString *input_, StableCharPtr chars, size_t length,
-                            MatchPairs &matches, Value *rval)
+static bool
+CreateRegExpMatchResult(JSContext *cx, JSString *input_, StableCharPtr chars, size_t length,
+                        MatchPairs *matchPairs, Value *rval)
 {
     RootedString input(cx, input_);
 
@@ -78,11 +78,8 @@ js::CreateRegExpMatchResult(JSContext *cx, JSString *input_, StableCharPtr chars
     RegExpMatchBuilder builder(cx, array);
     RootedValue undefinedValue(cx, UndefinedValue());
 
-    size_t numPairs = matches.length();
-    JS_ASSERT(numPairs > 0);
-
-    for (size_t i = 0; i < numPairs; ++i) {
-        const MatchPair &pair = matches[i];
+    for (size_t i = 0; i < matchPairs->pairCount(); ++i) {
+        MatchPair pair = matchPairs->pair(i);
 
         JSString *captured;
         if (pair.isUndefined()) {
@@ -97,78 +94,61 @@ js::CreateRegExpMatchResult(JSContext *cx, JSString *input_, StableCharPtr chars
         }
     }
 
-    if (!builder.setIndex(matches[0].start) || !builder.setInput(input))
+    if (!builder.setIndex(matchPairs->pair(0).start) || !builder.setInput(input))
         return false;
 
     *rval = ObjectValue(*array);
     return true;
 }
 
+template <class T>
 bool
-js::CreateRegExpMatchResult(JSContext *cx, HandleString string, MatchPairs &matches, Value *rval)
+ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, T &re, JSLinearString *input,
+                  StableCharPtr chars, size_t length,
+                  size_t *lastIndex, RegExpExecType type, Value *rval)
 {
-    Rooted<JSStableString*> input(cx, string->ensureStable(cx));
-    if (!input)
+    LifoAllocScope allocScope(&cx->tempLifoAlloc());
+    MatchPairs *matchPairs = NULL;
+    RegExpRunStatus status = re.execute(cx, chars, length, lastIndex, &matchPairs);
+
+    switch (status) {
+      case RegExpRunStatus_Error:
         return false;
-    return CreateRegExpMatchResult(cx, input, input->chars(), input->length(), matches, rval);
-}
-
-RegExpRunStatus
-ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, RegExpShared &re, RegExpObject &regexp,
-                  JSLinearString *input, StableCharPtr chars, size_t length,
-                  size_t *lastIndex, MatchConduit &matches)
-{
-    RegExpRunStatus status;
-
-    /* Switch between MatchOnly and IncludeSubpatterns modes. */
-    if (matches.isPair) {
-        size_t lastIndex_orig = *lastIndex;
-        /* Only one MatchPair slot provided: execute short-circuiting regexp. */
-        status = re.executeMatchOnly(cx, chars, length, lastIndex, *matches.u.pair);
-        if (status == RegExpRunStatus_Success && res)
-            res->updateLazily(cx, input, &regexp, lastIndex_orig);
-    } else {
-        /* Vector of MatchPairs provided: execute full regexp. */
-        status = re.execute(cx, chars, length, lastIndex, *matches.u.pairs);
-        if (status == RegExpRunStatus_Success && res)
-            res->updateFromMatchPairs(cx, input, *matches.u.pairs);
+      case RegExpRunStatus_Success_NotFound:
+        *rval = NullValue();
+        return true;
+      default:
+        JS_ASSERT(status == RegExpRunStatus_Success);
+        JS_ASSERT(matchPairs);
     }
 
-    return status;
-}
+    if (res)
+        res->updateFromMatchPairs(cx, input, matchPairs);
 
-/* Legacy ExecuteRegExp behavior is baked into the JSAPI. */
-bool
-js::ExecuteRegExpLegacy(JSContext *cx, RegExpStatics *res, RegExpObject &reobj,
-                        Handle<JSStableString*> input, StableCharPtr chars, size_t length,
-                        size_t *lastIndex, JSBool test, jsval *rval)
-{
-    RegExpGuard shared;
-    if (!reobj.getShared(cx, &shared))
-        return false;
+    *lastIndex = matchPairs->pair(0).limit;
 
-    ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    MatchConduit conduit(&matches);
-
-    RegExpRunStatus status =
-        ExecuteRegExpImpl(cx, res, *shared, reobj, input, chars, length, lastIndex, conduit);
-
-    if (status == RegExpRunStatus_Error)
-        return false;
-
-    if (status == RegExpRunStatus_Success_NotFound) {
-        /* ExecuteRegExp() previously returned an array or null. */
-        rval->setNull();
+    if (type == RegExpTest) {
+        *rval = BooleanValue(true);
         return true;
     }
 
-    if (test) {
-        /* Forbid an array, as an optimization. */
-        rval->setBoolean(true);
-        return true;
-    }
+    return CreateRegExpMatchResult(cx, input, chars, length, matchPairs, rval);
+}
 
-    return CreateRegExpMatchResult(cx, input, chars, length, matches, rval);
+bool
+js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpShared &shared,
+                  Handle<JSStableString*> input, StableCharPtr chars, size_t length,
+                  size_t *lastIndex, RegExpExecType type, Value *rval)
+{
+    return ExecuteRegExpImpl(cx, res, shared, input, chars, length, lastIndex, type, rval);
+}
+
+bool
+js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpObject &reobj,
+                  Handle<JSStableString*> input, StableCharPtr chars, size_t length,
+                  size_t *lastIndex, RegExpExecType type, Value *rval)
+{
+    return ExecuteRegExpImpl(cx, res, reobj, input, chars, length, lastIndex, type, rval);
 }
 
 /* Note: returns the original if no escaping need be performed. */
@@ -304,7 +284,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
     if (!escapedSourceStr)
         return false;
 
-    if (!js::RegExpShared::checkSyntax(cx, NULL, escapedSourceStr))
+    if (!js::detail::RegExpCode::checkSyntax(cx, NULL, escapedSourceStr))
         return false;
 
     RegExpStatics *res = cx->regExpStatics();
@@ -550,22 +530,61 @@ js_InitRegExpClass(JSContext *cx, HandleObject obj)
     return proto;
 }
 
-RegExpRunStatus
-js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string, MatchConduit &matches)
+
+static const jschar GreedyStarChars[] = {'.', '*'};
+
+static inline bool
+StartsWithGreedyStar(JSAtom *source)
+{
+    return false;
+
+#if 0
+    if (source->length() < 3)
+        return false;
+
+    const jschar *chars = source->chars();
+    return chars[0] == GreedyStarChars[0] &&
+           chars[1] == GreedyStarChars[1] &&
+           chars[2] != '?';
+#endif
+}
+
+static inline bool
+GetSharedForGreedyStar(JSContext *cx, JSAtom *source, RegExpFlag flags, RegExpGuard *g)
+{
+    if (cx->compartment->regExps.lookupHack(source, flags, cx, g))
+        return true;
+
+    JSAtom *hackedSource = AtomizeChars(cx, source->chars() + ArrayLength(GreedyStarChars),
+                                        source->length() - ArrayLength(GreedyStarChars));
+    if (!hackedSource)
+        return false;
+
+    return cx->compartment->regExps.getHack(cx, source, hackedSource, flags, g);
+}
+
+bool
+js::ExecuteRegExp(JSContext *cx, RegExpExecType execType, HandleObject regexp,
+                  HandleString string, MutableHandleValue rval)
 {
     /* Step 1 (b) was performed by CallNonGenericMethod. */
     Rooted<RegExpObject*> reobj(cx, &regexp->asRegExp());
 
     RegExpGuard re;
-    if (!reobj->getShared(cx, &re))
-        return RegExpRunStatus_Error;
+    if (StartsWithGreedyStar(reobj->getSource())) {
+        if (!GetSharedForGreedyStar(cx, reobj->getSource(), reobj->getFlags(), &re))
+            return false;
+    } else {
+        if (!reobj->getShared(cx, &re))
+            return false;
+    }
 
     RegExpStatics *res = cx->regExpStatics();
 
     /* Step 3. */
     Rooted<JSStableString*> stableInput(cx, string->ensureStable(cx));
     if (!stableInput)
-        return RegExpRunStatus_Error;
+        return false;
 
     /* Step 4. */
     Value lastIndex = reobj->getLastIndex();
@@ -573,7 +592,7 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string, Match
     /* Step 5. */
     double i;
     if (!ToInteger(cx, lastIndex, &i))
-        return RegExpRunStatus_Error;
+        return false;
 
     /* Steps 6-7 (with sticky extension). */
     if (!re->global() && !re->sticky())
@@ -585,31 +604,36 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string, Match
     /* Step 9a. */
     if (i < 0 || i > length) {
         reobj->zeroLastIndex();
-        return RegExpRunStatus_Success_NotFound;
+        rval.setNull();
+        return true;
     }
 
     /* Steps 8-21. */
     size_t lastIndexInt(i);
-    RegExpRunStatus status =
-        ExecuteRegExpImpl(cx, res, *re, *reobj, stableInput, chars, length, &lastIndexInt, matches);
-
-    if (status == RegExpRunStatus_Error)
-        return RegExpRunStatus_Error;
+    if (!ExecuteRegExp(cx, res, *re, stableInput, chars, length, &lastIndexInt, execType,
+                       rval.address())) {
+        return false;
+    }
 
     /* Step 11 (with sticky extension). */
-    if (re->global() || (status == RegExpRunStatus_Success && re->sticky())) {
-        if (status == RegExpRunStatus_Success_NotFound)
+    if (re->global() || (!rval.isNull() && re->sticky())) {
+        if (rval.isNull())
             reobj->zeroLastIndex();
         else
             reobj->setLastIndex(lastIndexInt);
     }
 
-    return status;
+    return true;
 }
 
-/* ES5 15.10.6.2 (and 15.10.6.3, which calls 15.10.6.2). */
-static RegExpRunStatus
-ExecuteRegExp(JSContext *cx, CallArgs args, MatchConduit &matches)
+/*
+ * ES5 15.10.6.2 (and 15.10.6.3, which calls 15.10.6.2).
+ *
+ * RegExp.prototype.test doesn't need to create a results array, and we use
+ * |execType| to perform this optimization.
+ */
+static bool
+ExecuteRegExp(JSContext *cx, RegExpExecType execType, CallArgs args)
 {
     /* Step 1 (a) was performed by CallNonGenericMethod. */
     RootedObject regexp(cx, &args.thisv().toObject());
@@ -617,39 +641,16 @@ ExecuteRegExp(JSContext *cx, CallArgs args, MatchConduit &matches)
     /* Step 2. */
     RootedString string(cx, ToString(cx, (args.length() > 0) ? args[0] : UndefinedValue()));
     if (!string)
-        return RegExpRunStatus_Error;
+        return false;
 
-    return ExecuteRegExp(cx, regexp, string, matches);
+    return ExecuteRegExp(cx, execType, regexp, string, args.rval());
 }
 
 /* ES5 15.10.6.2. */
 static bool
 regexp_exec_impl(JSContext *cx, CallArgs args)
 {
-    /* Execute regular expression and gather matches. */
-    ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    MatchConduit conduit(&matches);
-
-    /*
-     * Extract arguments to share between ExecuteRegExp()
-     * and CreateRegExpMatchResult().
-     */
-    RootedObject regexp(cx, &args.thisv().toObject());
-    RootedString string(cx, ToString(cx, (args.length() > 0) ? args[0] : UndefinedValue()));
-    if (!string)
-        return false;
-
-    RegExpRunStatus status = ExecuteRegExp(cx, regexp, string, conduit);
-
-    if (status == RegExpRunStatus_Error)
-        return false;
-
-    if (status == RegExpRunStatus_Success_NotFound) {
-        args.rval().setNull();
-        return true;
-    }
-
-    return CreateRegExpMatchResult(cx, string, matches, args.rval().address());
+    return ExecuteRegExp(cx, RegExpExec, args);
 }
 
 JSBool
@@ -663,22 +664,11 @@ js::regexp_exec(JSContext *cx, unsigned argc, Value *vp)
 static bool
 regexp_test_impl(JSContext *cx, CallArgs args)
 {
-    MatchPair match;
-    MatchConduit conduit(&match);
-    RegExpRunStatus status = ExecuteRegExp(cx, args, conduit);
-    args.rval().setBoolean(status == RegExpRunStatus_Success);
-    return (status != RegExpRunStatus_Error);
-}
-
-/* Separate interface for use by IonMonkey. */
-bool
-js::regexp_test_raw(JSContext *cx, HandleObject regexp, HandleString input, JSBool *result)
-{
-    MatchPair match;
-    MatchConduit conduit(&match);
-    RegExpRunStatus status = ExecuteRegExp(cx, regexp, input, conduit);
-    *result = (status == RegExpRunStatus_Success);
-    return (status != RegExpRunStatus_Error);
+    if (!ExecuteRegExp(cx, RegExpTest, args))
+        return false;
+    if (!args.rval().isTrue())
+        args.rval().setBoolean(false);
+    return true;
 }
 
 JSBool

@@ -306,7 +306,7 @@ public:
 
   size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   {
-    return aMallocSizeOf(this) + mTreeData.SizeOfExcludingThis(aMallocSizeOf);
+    return aMallocSizeOf(this) + aMallocSizeOf(mTreeData.Elements());
   }
 };
 

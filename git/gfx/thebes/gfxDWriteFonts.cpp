@@ -154,10 +154,7 @@ gfxDWriteFont::GetFakeMetricsForArialBlack(DWRITE_FONT_METRICS *aFontMetrics)
     gfxFontStyle style(mStyle);
     style.weight = 700;
     bool needsBold;
-
-    gfxFontEntry* fe =
-        gfxPlatformFontList::PlatformFontList()->
-            FindFontForFamily(NS_LITERAL_STRING("Arial"), &style, needsBold);
+    gfxFontEntry *fe = mFontEntry->Family()->FindFontForStyle(style, needsBold);
     if (!fe || fe == mFontEntry) {
         return false;
     }
@@ -175,7 +172,7 @@ gfxDWriteFont::ComputeMetrics(AntialiasOption anAAOption)
     DWRITE_FONT_METRICS fontMetrics;
     if (!(mFontEntry->Weight() == 900 &&
           !mFontEntry->IsUserFont() &&
-          mFontEntry->Name().EqualsLiteral("Arial Black") &&
+          mFontEntry->FamilyName().EqualsLiteral("Arial") &&
           GetFakeMetricsForArialBlack(&fontMetrics)))
     {
         mFontFace->GetMetrics(&fontMetrics);
@@ -488,7 +485,7 @@ gfxDWriteFont::GetSpaceGlyph()
 bool
 gfxDWriteFont::SetupCairoFont(gfxContext *aContext)
 {
-    cairo_scaled_font_t *scaledFont = GetCairoScaledFont();
+    cairo_scaled_font_t *scaledFont = CairoScaledFont();
     if (cairo_scaled_font_status(scaledFont) != CAIRO_STATUS_SUCCESS) {
         // Don't cairo_set_scaled_font as that would propagate the error to
         // the cairo_t, precluding any further drawing.
@@ -525,7 +522,7 @@ gfxDWriteFont::CairoFontFace()
 
 
 cairo_scaled_font_t *
-gfxDWriteFont::GetCairoScaledFont()
+gfxDWriteFont::CairoScaledFont()
 {
     if (!mScaledFont) {
         cairo_matrix_t sizeMatrix;
@@ -766,7 +763,7 @@ gfxDWriteFont::GetScaledFont(mozilla::gfx::DrawTarget *aTarget)
   if (wantCairo) {
     mAzureScaledFont = Factory::CreateScaledFontWithCairo(nativeFont,
                                                         GetAdjustedSize(),
-                                                        GetCairoScaledFont());
+                                                        CairoScaledFont());
   } else {
     mAzureScaledFont = Factory::CreateScaledFontForNativeFont(nativeFont,
                                                             GetAdjustedSize());

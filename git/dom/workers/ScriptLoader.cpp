@@ -666,11 +666,11 @@ LoadAllScripts(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
   aWorkerPrivate->AssertIsOnWorkerThread();
   NS_ASSERTION(!aLoadInfos.IsEmpty(), "Bad arguments!");
 
-  AutoSyncLoopHolder syncLoop(aWorkerPrivate);
+  uint32_t syncQueueKey = aWorkerPrivate->CreateNewSyncLoop();
 
   nsRefPtr<ScriptLoaderRunnable> loader =
-    new ScriptLoaderRunnable(aWorkerPrivate, syncLoop.SyncQueueKey(),
-                             aLoadInfos, aIsWorkerScript);
+    new ScriptLoaderRunnable(aWorkerPrivate, syncQueueKey, aLoadInfos,
+                             aIsWorkerScript);
 
   NS_ASSERTION(aLoadInfos.IsEmpty(), "Should have swapped!");
 
@@ -685,7 +685,7 @@ LoadAllScripts(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
     return false;
   }
 
-  return syncLoop.RunAndForget(aCx);
+  return aWorkerPrivate->RunSyncLoop(aCx, syncQueueKey);
 }
 
 } /* anonymous namespace */

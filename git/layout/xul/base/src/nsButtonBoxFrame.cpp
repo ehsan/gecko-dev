@@ -136,7 +136,7 @@ nsButtonBoxFrame::DoMouseClick(nsGUIEvent* aEvent, bool aTrustEvent)
   if (shell) {
     nsContentUtils::DispatchXULCommand(mContent,
                                        aEvent ?
-                                         aEvent->mFlags.mIsTrusted : aTrustEvent,
+                                         NS_IS_TRUSTED_EVENT(aEvent) : aTrustEvent,
                                        nullptr, shell,
                                        isControl, isAlt, isShift, isMeta);
   }

@@ -32,7 +32,6 @@ SEARCH_PATHS = [
     'testing',
     'testing/xpcshell',
     'testing/mozbase/mozprocess',
-    'testing/mozbase/mozfile',
     'testing/mozbase/mozinfo',
 ]
 

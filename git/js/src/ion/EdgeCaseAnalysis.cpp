@@ -25,16 +25,11 @@ EdgeCaseAnalysis::EdgeCaseAnalysis(MIRGenerator *mir, MIRGraph &graph)
 bool
 EdgeCaseAnalysis::analyzeLate()
 {
-    // Renumber definitions for NeedNegativeZeroCheck under analyzeEdgeCasesBackward.
-    uint32_t nextId = 1;
-
     for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
         if (mir->shouldCancel("Analyze Late (first loop)"))
             return false;
-        for (MDefinitionIterator iter(*block); iter; iter++) {
-            iter->setId(nextId++);
+        for (MDefinitionIterator iter(*block); iter; iter++)
             iter->analyzeEdgeCasesForward();
-        }
     }
 
     for (PostorderIterator block(graph.poBegin()); block != graph.poEnd(); block++) {
@@ -65,9 +60,8 @@ bool
 EdgeCaseAnalysis::AllUsesTruncate(MInstruction *m)
 {
     for (MUseIterator use = m->usesBegin(); use != m->usesEnd(); use++) {
-        // See #809485 why this is allowed
         if (use->node()->isResumePoint())
-            continue;
+            return false;
 
         MDefinition *def = use->node()->toDefinition();
         if (def->isTruncateToInt32())

@@ -431,8 +431,8 @@ NativeIterator::allocateIterator(JSContext *cx, uint32_t slength, const AutoIdVe
     size_t plength = props.length();
     NativeIterator *ni = (NativeIterator *)
         cx->malloc_(sizeof(NativeIterator)
-                    + plength * sizeof(RawString)
-                    + slength * sizeof(RawShape));
+                    + plength * sizeof(JSString *)
+                    + slength * sizeof(Shape *));
     if (!ni)
         return NULL;
     AutoValueVector strings(cx);
@@ -517,16 +517,18 @@ VectorToKeyIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVecto
     return true;
 }
 
+namespace js {
+
 bool
-js::VectorToKeyIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVector &props,
-                        MutableHandleValue vp)
+VectorToKeyIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVector &props,
+                    MutableHandleValue vp)
 {
     return VectorToKeyIterator(cx, obj, flags, props, 0, 0, vp);
 }
 
 bool
-js::VectorToValueIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVector &keys,
-                          MutableHandleValue vp)
+VectorToValueIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVector &keys,
+                      MutableHandleValue vp)
 {
     JS_ASSERT(flags & JSITER_FOREACH);
 
@@ -553,8 +555,8 @@ js::VectorToValueIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoI
 }
 
 bool
-js::EnumeratedIdVectorToIterator(JSContext *cx, HandleObject obj, unsigned flags,
-                                 AutoIdVector &props, MutableHandleValue vp)
+EnumeratedIdVectorToIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVector &props,
+                             MutableHandleValue vp)
 {
     if (!(flags & JSITER_FOREACH))
         return VectorToKeyIterator(cx, obj, flags, props, vp);
@@ -571,7 +573,7 @@ UpdateNativeIterator(NativeIterator *ni, RawObject obj)
 }
 
 bool
-js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleValue vp)
+GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleValue vp)
 {
     if (flags == JSITER_FOR_OF) {
         // for-of loop. The iterator is simply |obj.iterator()|.
@@ -602,7 +604,7 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
         return true;
     }
 
-    Vector<RawShape, 8> shapes(cx);
+    Vector<Shape *, 8> shapes(cx);
     uint32_t key = 0;
 
     bool keysOnly = (flags == JSITER_ENUMERATE);
@@ -651,7 +653,6 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
              * currently active.
              */
             {
-                AutoAssertNoGC nogc;
                 RawObject pobj = obj;
                 do {
                     if (!pobj->isNative() ||
@@ -661,9 +662,9 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
                         shapes.clear();
                         goto miss;
                     }
-                    RawShape shape = pobj->lastProperty();
+                    Shape *shape = pobj->lastProperty();
                     key = (key + (key << 16)) ^ (uintptr_t(shape) >> 3);
-                    if (!shapes.append(shape))
+                    if (!shapes.append((Shape *) shape))
                         return false;
                     pobj = pobj->getProto();
                 } while (pobj);
@@ -728,13 +729,15 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
 }
 
 JSObject *
-js::GetIteratorObject(JSContext *cx, HandleObject obj, uint32_t flags)
+GetIteratorObject(JSContext *cx, HandleObject obj, uint32_t flags)
 {
     RootedValue value(cx);
     if (!GetIterator(cx, obj, flags, &value))
         return NULL;
     return &value.toObject();
 }
+
+} /* namespace js */
 
 JSBool
 js_ThrowStopIteration(JSContext *cx)
@@ -948,7 +951,7 @@ ElementIteratorObject::next_impl(JSContext *cx, CallArgs args)
 }
 
 Class js::ElementIteratorClass = {
-    "Array Iterator",
+    "Iterator",
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(ElementIteratorObject::NumSlots),
     JS_PropertyStub,         /* addProperty */
@@ -1527,7 +1530,6 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
      */
     GeneratorWriteBarrierPre(cx, gen);
 
-    JSGeneratorState futureState;
     JS_ASSERT(gen->state == JSGEN_NEWBORN || gen->state == JSGEN_OPEN);
     switch (op) {
       case JSGENOP_NEXT:
@@ -1539,18 +1541,18 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
              */
             gen->regs.sp[-1] = arg;
         }
-        futureState = JSGEN_RUNNING;
+        gen->state = JSGEN_RUNNING;
         break;
 
       case JSGENOP_THROW:
         cx->setPendingException(arg);
-        futureState = JSGEN_RUNNING;
+        gen->state = JSGEN_RUNNING;
         break;
 
       default:
         JS_ASSERT(op == JSGENOP_CLOSE);
         cx->setPendingException(MagicValue(JS_GENERATOR_CLOSING));
-        futureState = JSGEN_CLOSING;
+        gen->state = JSGEN_CLOSING;
         break;
     }
 
@@ -1561,12 +1563,6 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
             SetGeneratorClosed(cx, gen);
             return JS_FALSE;
         }
-
-        /*
-         * Don't change the state until after the frame is successfully pushed
-         * or else we might fail to scan some generator values.
-         */
-        gen->state = futureState;
 
         StackFrame *fp = gfg.fp();
         gen->regs = cx->regs();

@@ -22,12 +22,8 @@ const PC_MANAGER_CID = Components.ID("{7293e901-2be3-4c02-b4bd-cbef6fc24f78}");
 // Global list of PeerConnection objects, so they can be cleaned up when
 // a page is torn down. (Maps inner window ID to an array of PC objects).
 function GlobalPCList() {
-  this._list = [];
-  this._networkdown = false; // XXX Need to query current state somehow
+  this._list = {};
   Services.obs.addObserver(this, "inner-window-destroyed", true);
-  Services.obs.addObserver(this, "profile-change-net-teardown", true);
-  Services.obs.addObserver(this, "network:offline-about-to-go-offline", true);
-  Services.obs.addObserver(this, "network:offline-status-changed", true);
 }
 GlobalPCList.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
@@ -67,41 +63,19 @@ GlobalPCList.prototype = {
   },
 
   observe: function(subject, topic, data) {
-    if (topic == "inner-window-destroyed") {
-      let winID = subject.QueryInterface(Ci.nsISupportsPRUint64).data;
-      if (this._list[winID]) {
-        this._list[winID].forEach(function(pc) {
-          pc._pc.close(false);
-          delete pc._observer;
-          pc._pc = null;
-        });
-        delete this._list[winID];
-      }
-    } else if (topic == "profile-change-net-teardown" ||
-               topic == "network:offline-about-to-go-offline") {
-      // Delete all peerconnections on shutdown - synchronously (we need
-      // them to be done deleting transports before we return)!
-      // Also kill them if "Work Offline" is selected - more can be created 
-      // while offline, but attempts to connect them should fail.
-      let array;
-      while ((array = this._list.pop()) != undefined) {
-        array.forEach(function(pc) {
-          pc._pc.close(true);
-          delete pc._observer;
-          pc._pc = null;
-        });
-      };
-      this._networkdown = true;
+    if (topic != "inner-window-destroyed") {
+      return;
     }
-    else if (topic == "network:offline-status-changed") {
-      if (data == "offline") {
-	// this._list shold be empty here
-        this._networkdown = true;
-      } else if (data == "online") {
-        this._networkdown = false;
-      }
+    let winID = subject.QueryInterface(Ci.nsISupportsPRUint64).data;
+    if (this._list[winID]) {
+      this._list[winID].forEach(function(pc) {
+        pc._pc.close();
+        delete pc._observer;
+        pc._pc = null;
+      });
+      delete this._list[winID];
     }
-  },
+  }
 };
 let _globalPCList = new GlobalPCList();
 
@@ -125,19 +99,14 @@ IceCandidate.prototype = {
     Ci.nsIDOMRTCIceCandidate, Ci.nsIDOMGlobalObjectConstructor
   ]),
 
-  constructor: function(win, candidateInitDict) {
+  constructor: function(win, cand, mid, mline) {
     if (this._win) {
       throw new Error("Constructor already called");
     }
     this._win = win;
-    if (candidateInitDict !== undefined) {
-      this.candidate = candidateInitDict.candidate || null;
-      this.sdpMid = candidateInitDict.sdbMid || null;
-      this.sdpMLineIndex = candidateInitDict.sdpMLineIndex === null ?
-            null : candidateInitDict.sdpMLineIndex + 1;
-    } else {
-      this.candidate = this.sdpMid = this.sdpMLineIndex = null;
-    }
+    this.candidate = cand;
+    this.sdpMid = mid;
+    this.sdpMLineIndex = mline;
   }
 };
 
@@ -160,17 +129,13 @@ SessionDescription.prototype = {
     Ci.nsIDOMRTCSessionDescription, Ci.nsIDOMGlobalObjectConstructor
   ]),
 
-  constructor: function(win, descriptionInitDict) {
+  constructor: function(win, type, sdp) {
     if (this._win) {
       throw new Error("Constructor already called");
     }
     this._win = win;
-    if (descriptionInitDict !== undefined) {
-      this.type = descriptionInitDict.type || null;
-      this.sdp = descriptionInitDict.sdp || null;
-    } else {
-      this.type = this.sdp = null;
-    }
+    this.type = type;
+    this.sdp = sdp;
   },
 
   toString: function() {
@@ -204,13 +169,11 @@ function PeerConnection() {
 
   // Public attributes.
   this.onaddstream = null;
-  this.onopen = null;
   this.onremovestream = null;
   this.onicecandidate = null;
   this.onstatechange = null;
   this.ongatheringchange = null;
   this.onicechange = null;
-  this.localDescription = null;
   this.remoteDescription = null;
 
   // Data channel.
@@ -240,9 +203,6 @@ PeerConnection.prototype = {
     }
     if (this._win) {
       throw new Error("Constructor already called");
-    }
-    if (_globalPCList._networkdown) {
-      throw new Error("Can't create RTPPeerConnections when the network is down");
     }
 
     this._pc = Cc["@mozilla.org/peerconnection;1"].
@@ -442,11 +402,6 @@ PeerConnection.prototype = {
         break;
     }
 
-    this.localDescription = {
-      type: desc.type, sdp: desc.sdp,
-      __exposedProps__: { type: "rw", sdp: "rw"}
-    };
-
     this.remoteDescription = {
       type: desc.type, sdp: desc.sdp,
       __exposedProps__: { type: "rw", sdp: "rw" }
@@ -465,16 +420,15 @@ PeerConnection.prototype = {
 
   addIceCandidate: function(cand) {
     if (!cand) {
-      throw "NULL candidate passed to addIceCandidate!";
+      throw "Invalid candidate passed to addIceCandidate!";
     }
-
-    if (!cand.candidate || !cand.sdpMLineIndex) {
+    if (!cand.candidate || !cand.sdpMid || !cand.sdpMLineIndex) {
       throw "Invalid candidate passed to addIceCandidate!";
     }
 
     this._queueOrRun({
       func: this._pc.addIceCandidate,
-      args: [cand.candidate, cand.sdpMid || "", cand.sdpMLineIndex],
+      args: [cand.candidate, cand.sdpMid, cand.sdpMLineIndex],
       wait: false
     });
   },
@@ -499,7 +453,7 @@ PeerConnection.prototype = {
   close: function() {
     this._queueOrRun({
       func: this._pc.close,
-      args: [false],
+      args: [],
       wait: false
     });
     this._closed = true;

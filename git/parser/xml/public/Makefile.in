@@ -22,7 +22,6 @@ XPIDLSRCS	= \
                 nsISAXLocator.idl \
                 nsISAXXMLReader.idl \
                 nsISAXXMLFilter.idl \
-                nsIMozSAXXMLDeclarationHandler.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

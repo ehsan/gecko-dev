@@ -176,13 +176,10 @@ static void
 LogPresShell(nsIDocument* aDocumentNode)
 {
   nsIPresShell* ps = aDocumentNode->GetShell();
-  printf("presshell: %p", static_cast<void*>(ps));
-
-  nsIScrollableFrame* sf = nullptr;
-  if (ps) {
-    printf(", is %s destroying", (ps->IsDestroying() ? "" : "not"));
-    sf = ps->GetRootScrollFrameAsScrollable();
-  }
+  printf("presshell: %p, is %s destroying", static_cast<void*>(ps),
+         (ps->IsDestroying() ? "" : "not"));
+  nsIScrollableFrame *sf = ps ?
+    ps->GetRootScrollFrameAsScrollableExternal() : nullptr;
   printf(", root scroll frame: %p", static_cast<void*>(sf));
 }
 
@@ -400,7 +397,8 @@ logging::DocLoad(const char* aMsg, nsIWebProgress* aWebProgress,
   }
 
   nsCOMPtr<nsIDocument> documentNode(do_QueryInterface(DOMDocument));
-  DocAccessible* document = GetExistingDocAccessible(documentNode);
+  DocAccessible* document =
+    GetAccService()->GetDocAccessibleFromCache(documentNode);
 
   LogDocInfo(documentNode, document);
 
@@ -424,7 +422,8 @@ logging::DocLoad(const char* aMsg, nsIDocument* aDocumentNode)
 {
   MsgBegin(sDocLoadTitle, aMsg);
 
-  DocAccessible* document = GetExistingDocAccessible(aDocumentNode);
+  DocAccessible* document =
+    GetAccService()->GetDocAccessibleFromCache(aDocumentNode);
   LogDocInfo(aDocumentNode, document);
 
   MsgEnd();
@@ -472,9 +471,12 @@ logging::DocLoadEventHandled(AccEvent* aEvent)
 
   MsgBegin(sDocEventTitle, "handled '%s' event", strEventType.get());
 
-  DocAccessible* document = aEvent->GetAccessible()->AsDoc();
-  if (document)
-    LogDocInfo(document->DocumentNode(), document);
+  nsINode* node = aEvent->GetNode();
+  if (node->IsNodeOfType(nsINode::eDOCUMENT)) {
+    nsIDocument* documentNode = static_cast<nsIDocument*>(node);
+    DocAccessible* document = aEvent->GetDocAccessible();
+    LogDocInfo(documentNode, document);
+  }
 
   MsgEnd();
 }
@@ -484,7 +486,7 @@ logging::DocCreate(const char* aMsg, nsIDocument* aDocumentNode,
                    DocAccessible* aDocument)
 {
   DocAccessible* document = aDocument ?
-    aDocument : GetExistingDocAccessible(aDocumentNode);
+    aDocument : GetAccService()->GetDocAccessibleFromCache(aDocumentNode);
 
   MsgBegin(sDocCreateTitle, aMsg);
   LogDocInfo(aDocumentNode, document);
@@ -496,7 +498,7 @@ logging::DocDestroy(const char* aMsg, nsIDocument* aDocumentNode,
                     DocAccessible* aDocument)
 {
   DocAccessible* document = aDocument ?
-    aDocument : GetExistingDocAccessible(aDocumentNode);
+    aDocument : GetAccService()->GetDocAccessibleFromCache(aDocumentNode);
 
   MsgBegin(sDocDestroyTitle, aMsg);
   LogDocInfo(aDocumentNode, document);

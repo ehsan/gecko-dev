@@ -9,7 +9,6 @@
 #include "CameraCommon.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThread, uint64_t aWindowId)
   : mCameraId(aCameraId)
@@ -23,6 +22,8 @@ CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThrea
   , mAutoFocusOnErrorCb(nullptr)
   , mTakePictureOnSuccessCb(nullptr)
   , mTakePictureOnErrorCb(nullptr)
+  , mStartRecordingOnSuccessCb(nullptr)
+  , mStartRecordingOnErrorCb(nullptr)
   , mOnShutterCb(nullptr)
   , mOnClosedCb(nullptr)
   , mOnRecorderStateChangeCb(nullptr)
@@ -249,6 +250,8 @@ CameraControlImpl::Shutdown()
   mAutoFocusOnErrorCb = nullptr;
   mTakePictureOnSuccessCb = nullptr;
   mTakePictureOnErrorCb = nullptr;
+  mStartRecordingOnSuccessCb = nullptr;
+  mStartRecordingOnErrorCb = nullptr;
   mOnShutterCb = nullptr;
   mOnClosedCb = nullptr;
   mOnRecorderStateChangeCb = nullptr;
@@ -307,8 +310,15 @@ CameraControlImpl::OnRecorderStateChange(const nsString& aStateMsg, int32_t aSta
 nsresult
 CameraControlImpl::GetPreviewStream(CameraSize aSize, nsICameraPreviewStreamCallback* onSuccess, nsICameraErrorCallback* onError)
 {
+  /**
+   * The camera preview stream object is DOM-facing, and as such
+   * must be a cycle-collection participant created on the main
+   * thread.
+   */
+  MOZ_ASSERT(NS_IsMainThread());
+
   nsCOMPtr<nsIRunnable> getPreviewStreamTask = new GetPreviewStreamTask(this, aSize, onSuccess, onError);
-  return mCameraThread->Dispatch(getPreviewStreamTask, NS_DISPATCH_NORMAL);
+  return NS_DispatchToCurrentThread(getPreviewStreamTask);
 }
 
 nsresult
@@ -363,13 +373,6 @@ CameraControlImpl::GetPreviewStreamVideoMode(CameraRecorderOptions* aOptions, ns
   return mCameraThread->Dispatch(getPreviewStreamVideoModeTask, NS_DISPATCH_NORMAL);
 }
 
-nsresult
-CameraControlImpl::ReleaseHardware(nsICameraReleaseCallback* onSuccess, nsICameraErrorCallback* onError)
-{
-  nsCOMPtr<nsIRunnable> releaseHardwareTask = new ReleaseHardwareTask(this, onSuccess, onError);
-  return mCameraThread->Dispatch(releaseHardwareTask, NS_DISPATCH_NORMAL);
-}
-
 bool
 CameraControlImpl::ReceiveFrame(void* aBuffer, ImageFormat aFormat, FrameBuilder aBuilder)
 {
@@ -383,11 +386,6 @@ CameraControlImpl::ReceiveFrame(void* aBuffer, ImageFormat aFormat, FrameBuilder
 NS_IMETHODIMP
 GetPreviewStreamResult::Run()
 {
-  /**
-   * The camera preview stream object is DOM-facing, and as such
-   * must be a cycle-collection participant created on the main
-   * thread.
-   */
   MOZ_ASSERT(NS_IsMainThread());
 
   if (mOnSuccessCb && nsDOMCameraManager::IsWindowStillActive(mWindowId)) {

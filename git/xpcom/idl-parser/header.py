@@ -140,7 +140,7 @@ jspubtd_include = """
 
 infallible_includes = """
 #include "mozilla/Assertions.h"
-#include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 """
 
 header_end = """/* For IDL files that don't want to include root IDL files. */

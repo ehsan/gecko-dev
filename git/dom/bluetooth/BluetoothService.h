@@ -264,7 +264,7 @@ public:
   virtual nsresult
   PrepareAdapterInternal(const nsAString& aPath) = 0;
 
-  virtual void
+  virtual bool
   Connect(const nsAString& aDeviceAddress,
           const nsAString& aAdapterPath,
           uint16_t aProfileId,
@@ -303,14 +303,12 @@ public:
     return mEnabled;
   }
 
-  bool
-  IsToggling() const;
-
 protected:
   BluetoothService()
-  : mEnabled(false)
+  : mEnabled(false), mSettingsCheckInProgress(false),
+    mRegisteredForLocalAgent(false)
 #ifdef DEBUG
-  , mLastRequestedEnable(false)
+    , mLastRequestedEnable(false)
 #endif
   {
     mBluetoothSignalObserverTable.Init();
@@ -400,6 +398,8 @@ protected:
   BluetoothManagerList mLiveManagers;
 
   bool mEnabled;
+  bool mSettingsCheckInProgress;
+  bool mRegisteredForLocalAgent;
 
 #ifdef DEBUG
   bool mLastRequestedEnable;

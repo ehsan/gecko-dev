@@ -10,9 +10,7 @@ Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   const PREF = "browser.newtab.url";
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
   const TOPIC = "private-browsing-transition-complete";
-#endif
 
   function getNewTabPageURL() {
     if (!Services.prefs.prefHasUserValue(PREF)) {
@@ -28,16 +26,12 @@ XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   }
 
   Services.prefs.addObserver(PREF, update, false);
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
   Services.obs.addObserver(update, TOPIC, false);
-#endif
 
   addEventListener("unload", function onUnload() {
     removeEventListener("unload", onUnload);
     Services.prefs.removeObserver(PREF, update);
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
     Services.obs.removeObserver(update, TOPIC);
-#endif
   });
 
   return getNewTabPageURL();
@@ -112,7 +106,7 @@ function openUILink(url, event, aIgnoreButton, aIgnoreAlt, aAllowThirdPartyFixup
       allowThirdPartyFixup: aAllowThirdPartyFixup,
       postData: aPostData,
       referrerURI: aReferrerURI,
-      initiatingDoc: event ? event.target.ownerDocument : null
+      initiatingDoc: event.target.ownerDocument
     };
   }
 
@@ -228,14 +222,8 @@ function openLinkIn(url, where, params) {
   // Currently, this parameter works only for where=="tab" or "current"
   var aIsUTF8               = params.isUTF8;
   var aInitiatingDoc        = params.initiatingDoc;
-  var aIsPrivate            = params.private;
 
   if (where == "save") {
-    if (!aInitiatingDoc) {
-      Components.utils.reportError("openUILink/openLinkIn was called with " +
-        "where == 'save' but without initiatingDoc.  See bug 814264.");
-      return;
-    }
     saveURL(url, null, null, true, null, aReferrerURI, aInitiatingDoc);
     return;
   }
@@ -274,14 +262,8 @@ function openLinkIn(url, where, params) {
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
 
-    let features = "chrome,dialog=no,all";
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-    if (aIsPrivate) {
-      features += ",private";
-    }
-#endif
-
-    Services.ww.openWindow(w || window, getBrowserURL(), null, features, sa);
+    Services.ww.openWindow(w || window, getBrowserURL(),
+                           null, "chrome,dialog=no,all", sa);
     return;
   }
 

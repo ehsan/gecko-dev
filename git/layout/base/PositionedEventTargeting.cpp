@@ -68,7 +68,7 @@ static EventRadiusPrefs sMouseEventRadiusPrefs;
 static EventRadiusPrefs sTouchEventRadiusPrefs;
 
 static const EventRadiusPrefs*
-GetPrefsFor(nsEventStructType aEventStructType)
+GetPrefsFor(uint8_t aEventStructType)
 {
   EventRadiusPrefs* prefs = nullptr;
   const char* prefBranch = nullptr;
@@ -235,7 +235,7 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
 }
 
 nsIFrame*
-FindFrameTargetedByInputEvent(nsEventStructType aEventStructType,
+FindFrameTargetedByInputEvent(uint8_t aEventStructType,
                               nsIFrame* aRootFrame,
                               const nsPoint& aPointRelativeToRootFrame,
                               uint32_t aFlags)

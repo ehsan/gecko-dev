@@ -358,7 +358,7 @@ HTMLTextFieldAccessible::Value(nsString& aValue)
     textArea->GetValue(aValue);
     return;
   }
-
+  
   nsHTMLInputElement* input = nsHTMLInputElement::FromContent(mContent);
   if (input)
     input->GetValue(aValue);
@@ -475,7 +475,7 @@ HTMLTextFieldAccessible::DoAction(uint8_t aIndex)
   if (aIndex == 0) {
     nsHTMLInputElement* element = nsHTMLInputElement::FromContent(mContent);
     if (element)
-      return element->Focus();
+      return element->DOMFocus();
 
     return NS_ERROR_FAILURE;
   }
@@ -532,7 +532,7 @@ HTMLFileInputAccessible::
 HTMLFileInputAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HyperTextAccessibleWrap(aContent, aDoc)
 {
-  mType = eHTMLFileInputType;
+  mFlags |= eHTMLFileInputAccessible;
 }
 
 role

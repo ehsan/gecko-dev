@@ -196,8 +196,6 @@ setlcdfilter_in_tree.patch: bug 790139; force cairo to use FT_Library_SetLcdFilt
 
 dwrite-font-match-robustness.patch: bug 717178, don't crash when _name_tables_match is passed a nil scaled-font
 
-handle-multi-path-clip.patch: bug 813124, handle multiple clip paths correctly
-
 ==== pixman patches ====
 
 pixman-android-cpu-detect.patch: Add CPU detection support for Android, where we can't reliably access /proc/self/auxv.
@@ -221,8 +219,6 @@ pixman-dither.patch: Add dithering of 16 bit gradients
 quartz-support-color-emoji-font.patch: support Apple Color Emoji font in cairo-quartz backend
 
 use-show-text-glyphs-if-glyph-path-fails.patch: fall back to show_text_glyphs even at huge sizes if scaled_font_glyph_path didn't work
-
-pixman-enable-altivec-acceleration.patch: enable building the altivec acceleration
 
 ==== disable printing patch ====
 

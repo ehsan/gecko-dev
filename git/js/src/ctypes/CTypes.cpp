@@ -1330,28 +1330,6 @@ JS_SetCTypesCallbacks(JSRawObject ctypesObj, JSCTypesCallbacks* callbacks)
 }
 
 namespace js {
-
-JS_FRIEND_API(size_t)
-SizeOfDataIfCDataObject(JSMallocSizeOfFun mallocSizeOf, JSObject *obj)
-{
-    if (!CData::IsCData(obj))
-        return 0;
-
-    size_t n = 0;
-    jsval slot = JS_GetReservedSlot(obj, ctypes::SLOT_OWNS);
-    if (!JSVAL_IS_VOID(slot)) {
-        JSBool owns = JSVAL_TO_BOOLEAN(slot);
-        slot = JS_GetReservedSlot(obj, ctypes::SLOT_DATA);
-        if (!JSVAL_IS_VOID(slot)) {
-            char** buffer = static_cast<char**>(JSVAL_TO_PRIVATE(slot));
-            n += mallocSizeOf(buffer);
-            if (owns)
-                n += mallocSizeOf(*buffer);
-        }
-    }
-    return n;
-}
-
 namespace ctypes {
 
 /*******************************************************************************
@@ -2138,7 +2116,7 @@ bool CanConvertTypedArrayItemTo(JSObject *baseType, JSObject *valObj, JSContext 
     return true;
   }
   TypeCode elementTypeCode;
-  switch (JS_GetTypedArrayType(valObj)) {
+  switch (JS_GetTypedArrayType(valObj, cx)) {
   case TypedArray::TYPE_INT8:
     elementTypeCode = TYPE_int8_t;
     break;
@@ -2363,13 +2341,13 @@ ImplicitConvert(JSContext* cx,
         return TypeError(cx, "string pointer", val);
       }
       break;
-    } else if (!JSVAL_IS_PRIMITIVE(val) && JS_IsArrayBufferObject(valObj)) {
+    } else if (!JSVAL_IS_PRIMITIVE(val) && JS_IsArrayBufferObject(valObj, cx)) {
       // Convert ArrayBuffer to pointer without any copy.
       // Just as with C arrays, we make no effort to
       // keep the ArrayBuffer alive.
-      *static_cast<void**>(buffer) = JS_GetArrayBufferData(valObj);
+      *static_cast<void**>(buffer) = JS_GetArrayBufferData(valObj, cx);
       break;
-    } if (!JSVAL_IS_PRIMITIVE(val) && JS_IsTypedArrayObject(valObj)) {
+    } if (!JSVAL_IS_PRIMITIVE(val) && JS_IsTypedArrayObject(valObj, cx)) {
       if(!CanConvertTypedArrayItemTo(baseType, valObj, cx)) {
         return TypeError(cx, "typed array with the appropriate type", val);
       }
@@ -2377,7 +2355,7 @@ ImplicitConvert(JSContext* cx,
       // Convert TypedArray to pointer without any copy.
       // Just as with C arrays, we make no effort to
       // keep the TypedArray alive.
-      *static_cast<void**>(buffer) = JS_GetArrayBufferViewData(valObj);
+      *static_cast<void**>(buffer) = JS_GetArrayBufferViewData(valObj, cx);
       break;
     }
     return TypeError(cx, "pointer", val);
@@ -2466,34 +2444,34 @@ ImplicitConvert(JSContext* cx,
       memcpy(buffer, intermediate.get(), arraySize);
 
     } else if (!JSVAL_IS_PRIMITIVE(val) &&
-               JS_IsArrayBufferObject(valObj)) {
+               JS_IsArrayBufferObject(valObj, cx)) {
       // Check that array is consistent with type, then
       // copy the array.
-      uint32_t sourceLength = JS_GetArrayBufferByteLength(valObj);
+      uint32_t sourceLength = JS_GetArrayBufferByteLength(valObj, cx);
       size_t elementSize = CType::GetSize(baseType);
       size_t arraySize = elementSize * targetLength;
       if (arraySize != size_t(sourceLength)) {
         JS_ReportError(cx, "ArrayType length does not match source ArrayBuffer length");
         return false;
       }
-      memcpy(buffer, JS_GetArrayBufferData(valObj), sourceLength);
+      memcpy(buffer, JS_GetArrayBufferData(valObj, cx), sourceLength);
       break;
     }  else if (!JSVAL_IS_PRIMITIVE(val) &&
-               JS_IsTypedArrayObject(valObj)) {
+               JS_IsTypedArrayObject(valObj, cx)) {
       // Check that array is consistent with type, then
       // copy the array.
       if(!CanConvertTypedArrayItemTo(baseType, valObj, cx)) {
         return TypeError(cx, "typed array with the appropriate type", val);
       }
 
-      uint32_t sourceLength = JS_GetTypedArrayByteLength(valObj);
+      uint32_t sourceLength = JS_GetTypedArrayByteLength(valObj, cx);
       size_t elementSize = CType::GetSize(baseType);
       size_t arraySize = elementSize * targetLength;
       if (arraySize != size_t(sourceLength)) {
         JS_ReportError(cx, "typed array length does not match source TypedArray length");
         return false;
       }
-      memcpy(buffer, JS_GetArrayBufferViewData(valObj), sourceLength);
+      memcpy(buffer, JS_GetArrayBufferViewData(valObj, cx), sourceLength);
       break;
     } else {
       // Don't implicitly convert to string. Users can implicitly convert

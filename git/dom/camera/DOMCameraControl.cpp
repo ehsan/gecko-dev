@@ -20,8 +20,15 @@ using namespace dom;
 
 DOMCI_DATA(CameraControl, nsICameraControl)
 
-NS_IMPL_CYCLE_COLLECTION_1(nsDOMCameraControl,
-                           mDOMCapabilities)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMCameraControl)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMCameraControl)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDOMCapabilities)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMCameraControl)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDOMCapabilities)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMCameraControl)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -260,19 +267,6 @@ nsDOMCameraControl::StartRecording(const JS::Value& aOptions, nsIDOMDeviceStorag
                        "recording-device-events",
                        NS_LITERAL_STRING("starting").get());
 
-  #ifdef MOZ_B2G
-  if (!mAudioChannelAgent) {
-    mAudioChannelAgent = do_CreateInstance("@mozilla.org/audiochannelagent;1");
-    if (mAudioChannelAgent) {
-      // Camera app will stop recording when it falls to the background, so no callback is necessary.
-      mAudioChannelAgent->Init(AUDIO_CHANNEL_CONTENT, nullptr);
-      // Video recording doesn't output any sound, so it's not necessary to check canPlay.
-      bool canPlay;
-      mAudioChannelAgent->StartPlaying(&canPlay);
-    }
-  }
-  #endif
-
   nsCOMPtr<nsIFile> folder;
   storageArea->GetRootDirectory(getter_AddRefs(folder));
   return mCameraControl->StartRecording(&options, folder, filename, onSuccess, onError);
@@ -291,13 +285,6 @@ nsDOMCameraControl::StopRecording()
   obs->NotifyObservers(nullptr,
                        "recording-device-events",
                        NS_LITERAL_STRING("shutdown").get());
-
-  #ifdef MOZ_B2G
-  if (mAudioChannelAgent) {
-    mAudioChannelAgent->StopPlaying();
-    mAudioChannelAgent = nullptr;
-  }
-  #endif
 
   return mCameraControl->StopRecording();
 }
@@ -371,12 +358,6 @@ nsDOMCameraControl::GetPreviewStreamVideoMode(const JS::Value& aOptions, nsICame
   NS_ENSURE_SUCCESS(rv, rv);
 
   return mCameraControl->GetPreviewStreamVideoMode(&options, onSuccess, onError);
-}
-
-NS_IMETHODIMP
-nsDOMCameraControl::ReleaseHardware(nsICameraReleaseCallback* onSuccess, nsICameraErrorCallback* onError)
-{
-  return mCameraControl->ReleaseHardware(onSuccess, onError);
 }
 
 class GetCameraResult : public nsRunnable

@@ -8,10 +8,8 @@
  * nsIDOMCDATASection, and nsIDOMProcessingInstruction nodes.
  */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsGenericDOMDataNode.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "nsIDocument.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMDocument.h"
@@ -28,7 +26,6 @@
 #include "nsEventDispatcher.h"
 #include "nsCOMArray.h"
 #include "nsNodeUtils.h"
-#include "mozilla/dom/DirectionalityUtils.h"
 #include "nsBindingManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozAutoDocUpdate.h"
@@ -39,7 +36,6 @@
 #include "nsWrapperCacheInlines.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsGenericDOMDataNode::nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsIContent(aNodeInfo)
@@ -69,15 +65,15 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericDOMDataNode)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkip(tmp, aRemovingAllowed);
+  return nsGenericElement::CanSkip(tmp, aRemovingAllowed);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkipInCC(tmp);
+  return nsGenericElement::CanSkipInCC(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkipThis(tmp);
+  return nsGenericElement::CanSkipThis(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
@@ -282,10 +278,6 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
     nsNodeUtils::CharacterDataWillChange(this, &info);
   }
 
-  if (NodeType() == nsIDOMNode::TEXT_NODE) {
-    SetDirectionFromChangedTextNode(this, aOffset, aBuffer, aLength, aNotify);
-  }
-
   if (aOffset == 0 && endOffset == textLength) {
     // Replacing whole text or old text was empty.  Don't bother to check for
     // bidi in this string if the document already has bidi enabled.
@@ -477,7 +469,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // if we do this any later).
     ClearSubtreeRootPointer();
 
-    // XXX See the comment in Element::BindToTree
+    // XXX See the comment in nsGenericElement::BindToTree
     SetInDocument();
     if (mText.IsBidi()) {
       aDocument->SetBidiEnabled();
@@ -846,7 +838,6 @@ nsGenericDOMDataNode::AppendText(const PRUnichar* aBuffer,
 bool
 nsGenericDOMDataNode::TextIsOnlyWhitespace()
 {
-  // FIXME: should this method take content language into account?
   if (mText.Is2b()) {
     // The fragment contains non-8bit characters and such characters
     // are never considered whitespace.
@@ -859,7 +850,7 @@ nsGenericDOMDataNode::TextIsOnlyWhitespace()
   while (cp < end) {
     char ch = *cp;
 
-    if (!dom::IsSpaceCharacter(ch)) {
+    if (!XP_IS_SPACE(ch)) {
       return false;
     }
 

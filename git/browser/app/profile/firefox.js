@@ -205,7 +205,6 @@ pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://
 
 pref("xpinstall.whitelist.add", "addons.mozilla.org");
 pref("xpinstall.whitelist.add.36", "getpersonas.com");
-pref("xpinstall.whitelist.add.180", "marketplace.firefox.com");
 
 pref("lightweightThemes.update.enabled", true);
 
@@ -224,7 +223,19 @@ pref("general.autoScroll", false);
 pref("general.autoScroll", true);
 #endif
 
-pref("general.useragent.complexOverride.moodle", false); // bug 797703
+pref("general.useragent.complexOverride.moodle", true); // bug 797703
+pref("general.useragent.override.bank.barclays.co.uk",   "Gecko/[^ ]*#Gecko/20100101"); // bug 804169
+pref("general.useragent.override.bankmillennium.pl",     "Gecko/[^ ]*#Gecko/20100101"); // bug 804103
+pref("general.useragent.override.becu.org",              "Gecko/[^ ]*#Gecko/20100101"); // bug 804170
+pref("general.useragent.override.becuonlinebanking.org", "Gecko/[^ ]*#Gecko/20100101"); // bug 804170
+pref("general.useragent.override.bfsfcu.org",            "Gecko/[^ ]*#Gecko/20100101"); // bug 804171
+pref("general.useragent.override.cenfedcu.org",          "Gecko/[^ ]*#Gecko/20100101"); // bug 804172
+pref("general.useragent.override.coastal24.com",         "Gecko/[^ ]*#Gecko/20100101"); // bug 804175
+pref("general.useragent.override.mtb.com",               "Gecko/[^ ]*#Gecko/20100101"); // bug 795350
+pref("general.useragent.override.mandtbank.com",         "Gecko/[^ ]*#Gecko/20100101"); // bug 795350
+pref("general.useragent.override.natweststockbrokers.co.uk", "Gecko/[^ ]*#Gecko/20100101"); // bug 804179
+pref("general.useragent.override.natweststockbrokers.com", "Gecko/[^ ]*#Gecko/20100101"); // bug 804179
+pref("general.useragent.override.raiffeisen.hu",         "Gecko/[^ ]*#Gecko/20100101"); // bug 795348
 
 // At startup, check if we're the default browser and prompt user if not.
 pref("browser.shell.checkDefaultBrowser", true);
@@ -244,6 +255,7 @@ pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
 // browser.warnOnQuit == false will override all other possible prompts when quitting or restarting
 pref("browser.warnOnQuit", true);
+pref("browser.warnOnRestart", false);
 // browser.showQuitWarning specifically controls the quit warning dialog. We
 // might still show the window closing dialog with showQuitWarning == false.
 pref("browser.showQuitWarning", false);
@@ -531,17 +543,12 @@ pref("browser.gesture.tap", "cmd_fullZoomReset");
 // scrolling to shift+wheel.
 pref("mousewheel.with_alt.action", 2);
 pref("mousewheel.with_shift.action", 1);
-// On MacOS X, control+wheel is typically handled by system and we don't
-// receive the event.  So, command key which is the main modifier key for
-// acceleration is the best modifier for zoom-in/out.  However, we should keep
-// the control key setting for backward compatibility.
-pref("mousewheel.with_meta.action", 3); // command key on Mac
 #else
 pref("mousewheel.with_alt.action", 1);
 pref("mousewheel.with_shift.action", 2);
-pref("mousewheel.with_meta.action", 1); // win key on Win, Super/Hyper on Linux
 #endif
 pref("mousewheel.with_control.action",3);
+pref("mousewheel.with_meta.action", 1);  // command key on Mac
 pref("mousewheel.with_win.action", 1);
 
 pref("browser.xul.error_pages.enabled", true);
@@ -740,7 +747,7 @@ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
 // the database.
-pref("urlclassifier.max-complete-age", 2700);
+pref("urlclassifier.confirm-age", 2700);
 #endif
 
 pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
@@ -861,10 +868,8 @@ pref("security.alternate_certificate_error_page", "certerror");
 // Whether to start the private browsing mode at application startup
 pref("browser.privatebrowsing.autostart", false);
 
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
 // Whether we should skip prompting before starting the private browsing mode
 pref("browser.privatebrowsing.dont_prompt_on_enter", false);
-#endif
 
 // Don't try to alter this pref, it'll be reset the next time you use the
 // bookmarking dialog
@@ -1005,16 +1010,11 @@ pref("devtools.toolbar.visible", false);
 pref("devtools.gcli.allowSet", false);
 pref("devtools.commands.dir", "");
 
-// Toolbox preferences
-pref("devtools.toolbox.footer.height", 250);
-pref("devtools.toolbox.sidebar.width", 500);
-pref("devtools.toolbox.host", "bottom");
-pref("devtools.toolbox.selectedTool", "webconsole");
-pref("devtools.toolbox.toolbarSpec", '["tilt toggle","scratchpad","resize toggle"]');
-pref("devtools.toolbox.sideEnabled", false);
-
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);
+pref("devtools.inspector.htmlHeight", 112);
+pref("devtools.inspector.htmlPanelOpen", false);
+pref("devtools.inspector.sidebarOpen", false);
 pref("devtools.inspector.activeSidebar", "ruleview");
 pref("devtools.inspector.markupPreview", false);
 
@@ -1034,6 +1034,7 @@ pref("devtools.debugger.remote-connection-retries", 3);
 pref("devtools.debugger.remote-timeout", 20000);
 
 // The default Debugger UI settings
+pref("devtools.debugger.ui.height", 250);
 pref("devtools.debugger.ui.win-x", 0);
 pref("devtools.debugger.ui.win-y", 0);
 pref("devtools.debugger.ui.win-width", 900);
@@ -1042,16 +1043,19 @@ pref("devtools.debugger.ui.stackframes-width", 200);
 pref("devtools.debugger.ui.variables-width", 300);
 pref("devtools.debugger.ui.panes-visible-on-startup", false);
 pref("devtools.debugger.ui.variables-sorting-enabled", true);
-pref("devtools.debugger.ui.variables-only-enum-visible", false);
+pref("devtools.debugger.ui.variables-non-enum-visible", true);
 pref("devtools.debugger.ui.variables-searchbox-visible", false);
 
-// Enable the Profiler
-pref("devtools.profiler.enabled", true);
+// Enable the style inspector
+pref("devtools.styleinspector.enabled", true);
 
 // Enable the Tilt inspector
 pref("devtools.tilt.enabled", true);
 pref("devtools.tilt.intro_transition", true);
 pref("devtools.tilt.outro_transition", true);
+
+// Enable the rules view
+pref("devtools.ruleview.enabled", true);
 
 // Enable the Scratchpad tool.
 pref("devtools.scratchpad.enabled", true);
@@ -1076,6 +1080,17 @@ pref("devtools.gcli.eagerHelper", 2);
 
 // Do we allow the 'pref set' command
 pref("devtools.gcli.allowSet", false);
+
+// The last Web Console height. This is initially 0 which means that the Web
+// Console will use the default height next time it shows.
+// Change to -1 if you do not want the Web Console to remember its last height.
+pref("devtools.hud.height", 0);
+
+// Remember the Web Console position. Possible values:
+//   above - above the web page,
+//   below - below the web page,
+//   window - in a separate window/popup panel.
+pref("devtools.webconsole.position", "below");
 
 // Remember the Web Console filters
 pref("devtools.webconsole.filter.network", true);
@@ -1166,15 +1181,14 @@ pref("pdfjs.previousHandler.alwaysAskBeforeHandling", false);
 // (This is intentionally on the high side; see bug 746055.)
 pref("image.mem.max_decoded_image_kb", 256000);
 
-// Default social providers
+// Example social provider
 pref("social.manifest.facebook", "{\"origin\":\"https://www.facebook.com\",\"name\":\"Facebook Messenger\",\"workerURL\":\"https://www.facebook.com/desktop/fbdesktop2/socialfox/fbworker.js.php\",\"iconURL\":\"data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8%2F9hAAAAX0lEQVQ4jWP4%2F%2F8%2FAyUYTFhHzjgDxP9JxGeQDSBVMxgTbUBCxer%2Fr999%2BQ8DJBuArJksA9A10s8AXIBoA0B%2BR%2FY%2FjD%2BEwoBoA1yT5v3PbdmCE8MAshhID%2FUMoDgzUYIBj0Cgi7ar4coAAAAASUVORK5CYII%3D\",\"sidebarURL\":\"https://www.facebook.com/desktop/fbdesktop2/?socialfox=true\"}");
-
 // Comma-separated list of nsIURI::prePaths that are allowed to activate
 // built-in social functionality.
 pref("social.activation.whitelist", "https://www.facebook.com");
-
 pref("social.sidebar.open", true);
 pref("social.sidebar.unload_timeout_ms", 10000);
+pref("social.active", false);
 pref("social.toast-notifications.enabled", true);
 
 pref("dom.identity.enabled", false);

@@ -44,8 +44,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
   virtual void GetInnerHTML(nsAString& aInnerHTML,
                             mozilla::ErrorResult& aError) MOZ_OVERRIDE;
   virtual void SetInnerHTML(const nsAString& aInnerHTML,
@@ -119,8 +118,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLStyleElement,
   tmp->nsStyleLinkElement::Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLStyleElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLStyleElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLStyleElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLStyleElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLStyleElement, nsHTMLStyleElement)

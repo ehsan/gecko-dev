@@ -27,11 +27,9 @@
 #include "nsJSEnvironment.h"
 #include "nsInProcessTabChildGlobal.h"
 #include "nsFrameLoader.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "xpcpublic.h"
 #include "nsObserverService.h"
-
-using namespace mozilla::dom;
 
 static bool sInited = 0;
 uint32_t nsCCUncollectableMarker::sGeneration = 0;
@@ -78,7 +76,7 @@ MarkUserData(void* aNode, nsIAtom* aKey, void* aValue, void* aData)
 {
   nsIDocument* d = static_cast<nsINode*>(aNode)->GetCurrentDoc();
   if (d && nsCCUncollectableMarker::InGeneration(d->GetMarkedCCGeneration())) {
-    Element::MarkUserData(aNode, aKey, aValue, aData);
+    nsGenericElement::MarkUserData(aNode, aKey, aValue, aData);
   }
 }
 
@@ -87,7 +85,7 @@ MarkUserDataHandler(void* aNode, nsIAtom* aKey, void* aValue, void* aData)
 {
   nsIDocument* d = static_cast<nsINode*>(aNode)->GetCurrentDoc();
   if (d && nsCCUncollectableMarker::InGeneration(d->GetMarkedCCGeneration())) {
-    Element::MarkUserDataHandler(aNode, aKey, aValue, aData);
+    nsGenericElement::MarkUserDataHandler(aNode, aKey, aValue, aData);
   }
 }
 
@@ -298,7 +296,7 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
                                  const PRUnichar* aData)
 {
   if (!strcmp(aTopic, "xpcom-shutdown")) {
-    Element::ClearContentUnbinder();
+    nsGenericElement::ClearContentUnbinder();
 
     nsCOMPtr<nsIObserverService> obs =
       mozilla::services::GetObserverService();
@@ -325,7 +323,7 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
 
   bool prepareForCC = !strcmp(aTopic, "cycle-collector-begin");
   if (prepareForCC) {
-    Element::ClearContentUnbinder();
+    nsGenericElement::ClearContentUnbinder();
   }
 
   // Increase generation to effectivly unmark all current objects

@@ -394,12 +394,7 @@ bool ParseCoverageFormat2(const uint8_t *data, size_t length,
         !subtable.ReadU16(&start_coverage_index)) {
       return OTS_FAILURE();
     }
-
-    // Some of the Adobe Pro fonts have ranges that overlap by one element: the
-    // start of one range is equal to the end of the previous range. Therefore
-    // the < in the following condition should be <= were it not for this.
-    // See crbug.com/134135.
-    if (start > end || (last_end && start < last_end)) {
+    if (start > end || (last_end && start <= last_end)) {
       OTS_WARNING("glyph range is overlapping.");
       return OTS_FAILURE();
     }

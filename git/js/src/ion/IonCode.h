@@ -18,7 +18,7 @@ namespace JSC {
     class ExecutablePool;
 }
 
-class JSScript;
+struct JSScript;
 
 namespace js {
 namespace ion {
@@ -26,11 +26,11 @@ namespace ion {
 // The maximum size of any buffer associated with an assembler or code object.
 // This is chosen to not overflow a signed integer, leaving room for an extra
 // bit on offsets.
-static const uint32_t MAX_BUFFER_SIZE = (1 << 30) - 1;
+static const uint32 MAX_BUFFER_SIZE = (1 << 30) - 1;
 
 // Maximum number of scripted arg and stack slots.
-static const uint32_t SNAPSHOT_MAX_NARGS = 127;
-static const uint32_t SNAPSHOT_MAX_STACK = 127;
+static const uint32 SNAPSHOT_MAX_NARGS = 127;
+static const uint32 SNAPSHOT_MAX_STACK = 127;
 
 class MacroAssembler;
 class CodeOffsetLabel;
@@ -38,13 +38,13 @@ class CodeOffsetLabel;
 class IonCode : public gc::Cell
 {
   protected:
-    uint8_t *code_;
+    uint8 *code_;
     JSC::ExecutablePool *pool_;
-    uint32_t bufferSize_;             // Total buffer size.
-    uint32_t insnSize_;               // Instruction stream size.
-    uint32_t dataSize_;               // Size of the read-only data area.
-    uint32_t jumpRelocTableBytes_;    // Size of the jump relocation table.
-    uint32_t dataRelocTableBytes_;    // Size of the data relocation table.
+    uint32 bufferSize_;             // Total buffer size.
+    uint32 insnSize_;               // Instruction stream size.
+    uint32 dataSize_;               // Size of the read-only data area.
+    uint32 jumpRelocTableBytes_;    // Size of the jump relocation table.
+    uint32 dataRelocTableBytes_;    // Size of the data relocation table.
     JSBool invalidated_;            // Whether the code object has been invalidated.
                                     // This is necessary to prevent GC tracing.
 
@@ -52,7 +52,7 @@ class IonCode : public gc::Cell
       : code_(NULL),
         pool_(NULL)
     { }
-    IonCode(uint8_t *code, uint32_t bufferSize, JSC::ExecutablePool *pool)
+    IonCode(uint8 *code, uint32 bufferSize, JSC::ExecutablePool *pool)
       : code_(code),
         pool_(pool),
         bufferSize_(bufferSize),
@@ -63,18 +63,18 @@ class IonCode : public gc::Cell
         invalidated_(false)
     { }
 
-    uint32_t dataOffset() const {
+    uint32 dataOffset() const {
         return insnSize_;
     }
-    uint32_t jumpRelocTableOffset() const {
+    uint32 jumpRelocTableOffset() const {
         return dataOffset() + dataSize_;
     }
-    uint32_t dataRelocTableOffset() const {
+    uint32 dataRelocTableOffset() const {
         return jumpRelocTableOffset() + jumpRelocTableBytes_;
     }
 
   public:
-    uint8_t *raw() const {
+    uint8 *raw() const {
         return code_;
     }
     size_t instructionsSize() const {
@@ -99,7 +99,7 @@ class IonCode : public gc::Cell
 
     void copyFrom(MacroAssembler &masm);
 
-    static IonCode *FromExecutable(uint8_t *buffer) {
+    static IonCode *FromExecutable(uint8 *buffer) {
         IonCode *code = *(IonCode **)(buffer - sizeof(IonCode *));
         JS_ASSERT(code->raw() == buffer);
         return code;
@@ -109,14 +109,14 @@ class IonCode : public gc::Cell
         return offsetof(IonCode, code_);
     }
 
-    uint8_t *jumpRelocTable() {
+    uint8 *jumpRelocTable() {
         return code_ + jumpRelocTableOffset();
     }
 
     // Allocates a new IonCode object which will be managed by the GC. If no
     // object can be allocated, NULL is returned. On failure, |pool| is
     // automatically released, so the code may be freed.
-    static IonCode *New(JSContext *cx, uint8_t *code, uint32_t bufferSize, JSC::ExecutablePool *pool);
+    static IonCode *New(JSContext *cx, uint8 *code, uint32 bufferSize, JSC::ExecutablePool *pool);
 
   public:
     static void readBarrier(IonCode *code);
@@ -144,64 +144,64 @@ struct IonScript
     jsbytecode *osrPc_;
 
     // Offset to OSR entrypoint from method_->raw(), or 0.
-    uint32_t osrEntryOffset_;
+    uint32 osrEntryOffset_;
 
     // Offset of the invalidation epilogue (which pushes this IonScript
     // and calls the invalidation thunk).
-    uint32_t invalidateEpilogueOffset_;
+    uint32 invalidateEpilogueOffset_;
 
     // The offset immediately after the IonScript immediate.
     // NOTE: technically a constant delta from
     // |invalidateEpilogueOffset_|, so we could hard-code this
     // per-platform if we want.
-    uint32_t invalidateEpilogueDataOffset_;
+    uint32 invalidateEpilogueDataOffset_;
 
     // Flag set when we bailout, to avoid frequent bailouts.
     bool bailoutExpected_;
 
     // Offset from the start of the code buffer to its snapshot buffer.
-    uint32_t snapshots_;
-    uint32_t snapshotsSize_;
+    uint32 snapshots_;
+    uint32 snapshotsSize_;
 
     // Table mapping bailout IDs to snapshot offsets.
-    uint32_t bailoutTable_;
-    uint32_t bailoutEntries_;
+    uint32 bailoutTable_;
+    uint32 bailoutEntries_;
 
     // Constant table for constants stored in snapshots.
-    uint32_t constantTable_;
-    uint32_t constantEntries_;
+    uint32 constantTable_;
+    uint32 constantEntries_;
 
     // Map code displacement to safepoint / OSI-patch-delta.
-    uint32_t safepointIndexOffset_;
-    uint32_t safepointIndexEntries_;
+    uint32 safepointIndexOffset_;
+    uint32 safepointIndexEntries_;
 
     // Number of STACK_SLOT_SIZE-length slots this function reserves on the
     // stack.
-    uint32_t frameSlots_;
+    uint32 frameSlots_;
 
     // Frame size is the value that can be added to the StackPointer along
     // with the frame prefix to get a valid IonJSFrameLayout.
-    uint32_t frameSize_;
+    uint32 frameSize_;
 
     // Map OSI-point displacement to snapshot.
-    uint32_t osiIndexOffset_;
-    uint32_t osiIndexEntries_;
+    uint32 osiIndexOffset_;
+    uint32 osiIndexEntries_;
 
     // State for polymorphic caches in the compiled code.
-    uint32_t cacheList_;
-    uint32_t cacheEntries_;
+    uint32 cacheList_;
+    uint32 cacheEntries_;
 
     // Offset list for patchable pre-barriers.
-    uint32_t prebarrierList_;
-    uint32_t prebarrierEntries_;
+    uint32 prebarrierList_;
+    uint32 prebarrierEntries_;
 
     // Offset to and length of the safepoint table in bytes.
-    uint32_t safepointsStart_;
-    uint32_t safepointsSize_;
+    uint32 safepointsStart_;
+    uint32 safepointsSize_;
 
     // List of compiled/inlined JSScript's.
-    uint32_t scriptList_;
-    uint32_t scriptEntries_;
+    uint32 scriptList_;
+    uint32 scriptEntries_;
 
     // Number of references from invalidation records.
     size_t refcount_;
@@ -210,34 +210,34 @@ struct IonScript
 
   public:
     // Number of times this function has tried to call a non-IM compileable function
-    uint32_t slowCallCount;
+    uint32 slowCallCount;
 
     SnapshotOffset *bailoutTable() {
-        return (SnapshotOffset *)(reinterpret_cast<uint8_t *>(this) + bailoutTable_);
+        return (SnapshotOffset *)(reinterpret_cast<uint8 *>(this) + bailoutTable_);
     }
     HeapValue *constants() {
-        return (HeapValue *)(reinterpret_cast<uint8_t *>(this) + constantTable_);
+        return (HeapValue *)(reinterpret_cast<uint8 *>(this) + constantTable_);
     }
     const SafepointIndex *safepointIndices() const {
         return const_cast<IonScript *>(this)->safepointIndices();
     }
     SafepointIndex *safepointIndices() {
-        return (SafepointIndex *)(reinterpret_cast<uint8_t *>(this) + safepointIndexOffset_);
+        return (SafepointIndex *)(reinterpret_cast<uint8 *>(this) + safepointIndexOffset_);
     }
     const OsiIndex *osiIndices() const {
         return const_cast<IonScript *>(this)->osiIndices();
     }
     OsiIndex *osiIndices() {
-        return (OsiIndex *)(reinterpret_cast<uint8_t *>(this) + osiIndexOffset_);
+        return (OsiIndex *)(reinterpret_cast<uint8 *>(this) + osiIndexOffset_);
     }
     IonCache *cacheList() {
-        return (IonCache *)(reinterpret_cast<uint8_t *>(this) + cacheList_);
+        return (IonCache *)(reinterpret_cast<uint8 *>(this) + cacheList_);
     }
     CodeOffsetLabel *prebarrierList() {
-        return (CodeOffsetLabel *)(reinterpret_cast<uint8_t *>(this) + prebarrierList_);
+        return (CodeOffsetLabel *)(reinterpret_cast<uint8 *>(this) + prebarrierList_);
     }
     JSScript **scriptList() const {
-        return (JSScript **)(reinterpret_cast<const uint8_t *>(this) + scriptList_);
+        return (JSScript **)(reinterpret_cast<const uint8 *>(this) + scriptList_);
     }
 
   private:
@@ -247,7 +247,7 @@ struct IonScript
     // Do not call directly, use IonScript::New. This is public for cx->new_.
     IonScript();
 
-    static IonScript *New(JSContext *cx, uint32_t frameLocals, uint32_t frameSize,
+    static IonScript *New(JSContext *cx, uint32 frameLocals, uint32 frameSize,
                           size_t snapshotsSize, size_t snapshotEntries,
                           size_t constants, size_t safepointIndexEntries, size_t osiIndexEntries,
                           size_t cacheEntries, size_t prebarrierEntries, size_t safepointsSize,
@@ -279,34 +279,34 @@ struct IonScript
     jsbytecode *osrPc() const {
         return osrPc_;
     }
-    void setOsrEntryOffset(uint32_t offset) {
+    void setOsrEntryOffset(uint32 offset) {
         JS_ASSERT(!osrEntryOffset_);
         osrEntryOffset_ = offset;
     }
-    uint32_t osrEntryOffset() const {
+    uint32 osrEntryOffset() const {
         return osrEntryOffset_;
     }
-    bool containsCodeAddress(uint8_t *addr) const {
+    bool containsCodeAddress(uint8 *addr) const {
         return method()->raw() <= addr && addr <= method()->raw() + method()->instructionsSize();
     }
-    bool containsReturnAddress(uint8_t *addr) const {
+    bool containsReturnAddress(uint8 *addr) const {
         // This accounts for an off by one error caused by the return address of a
         // bailout sitting outside the range of the containing function.
         return method()->raw() <= addr && addr <= method()->raw() + method()->instructionsSize();
     }
-    void setInvalidationEpilogueOffset(uint32_t offset) {
+    void setInvalidationEpilogueOffset(uint32 offset) {
         JS_ASSERT(!invalidateEpilogueOffset_);
         invalidateEpilogueOffset_ = offset;
     }
-    uint32_t invalidateEpilogueOffset() const {
+    uint32 invalidateEpilogueOffset() const {
         JS_ASSERT(invalidateEpilogueOffset_);
         return invalidateEpilogueOffset_;
     }
-    void setInvalidationEpilogueDataOffset(uint32_t offset) {
+    void setInvalidationEpilogueDataOffset(uint32 offset) {
         JS_ASSERT(!invalidateEpilogueDataOffset_);
         invalidateEpilogueDataOffset_ = offset;
     }
-    uint32_t invalidateEpilogueDataOffset() const {
+    uint32 invalidateEpilogueDataOffset() const {
         JS_ASSERT(invalidateEpilogueDataOffset_);
         return invalidateEpilogueDataOffset_;
     }
@@ -316,19 +316,19 @@ struct IonScript
     bool bailoutExpected() const {
         return bailoutExpected_;
     }
-    const uint8_t *snapshots() const {
-        return reinterpret_cast<const uint8_t *>(this) + snapshots_;
+    const uint8 *snapshots() const {
+        return reinterpret_cast<const uint8 *>(this) + snapshots_;
     }
     size_t snapshotsSize() const {
         return snapshotsSize_;
     }
-    const uint8_t *safepoints() const {
-        return reinterpret_cast<const uint8_t *>(this) + safepointsStart_;
+    const uint8 *safepoints() const {
+        return reinterpret_cast<const uint8 *>(this) + safepointsStart_;
     }
     size_t safepointsSize() const {
         return safepointsSize_;
     }
-    UnrootedScript getScript(size_t i) const {
+    JSScript *getScript(size_t i) const {
         JS_ASSERT(i < scriptEntries_);
         return scriptList()[i];
     }
@@ -345,23 +345,23 @@ struct IonScript
     size_t numConstants() const {
         return constantEntries_;
     }
-    uint32_t frameSlots() const {
+    uint32 frameSlots() const {
         return frameSlots_;
     }
-    uint32_t frameSize() const {
+    uint32 frameSize() const {
         return frameSize_;
     }
-    SnapshotOffset bailoutToSnapshot(uint32_t bailoutId) {
+    SnapshotOffset bailoutToSnapshot(uint32 bailoutId) {
         JS_ASSERT(bailoutId < bailoutEntries_);
         return bailoutTable()[bailoutId];
     }
-    const SafepointIndex *getSafepointIndex(uint32_t disp) const;
-    const SafepointIndex *getSafepointIndex(uint8_t *retAddr) const {
+    const SafepointIndex *getSafepointIndex(uint32 disp) const;
+    const SafepointIndex *getSafepointIndex(uint8 *retAddr) const {
         JS_ASSERT(containsCodeAddress(retAddr));
         return getSafepointIndex(retAddr - method()->raw());
     }
-    const OsiIndex *getOsiIndex(uint32_t disp) const;
-    const OsiIndex *getOsiIndex(uint8_t *retAddr) const;
+    const OsiIndex *getOsiIndex(uint32 disp) const;
+    const OsiIndex *getOsiIndex(uint8 *retAddr) const;
     inline IonCache &getCache(size_t index);
     size_t numCaches() const {
         return cacheEntries_;
@@ -402,162 +402,6 @@ struct IonScript
     }
 };
 
-// Execution information for a basic block which may persist after the
-// accompanying IonScript is destroyed, for use during profiling.
-struct IonBlockCounts
-{
-  private:
-    uint32_t id_;
-
-    // Approximate bytecode in the outer (not inlined) script this block
-    // was generated from.
-    uint32_t offset_;
-
-    // ids for successors of this block.
-    uint32_t numSuccessors_;
-    uint32_t *successors_;
-
-    // Hit count for this block.
-    uint64_t hitCount_;
-
-    // Text information about the code generated for this block.
-    char *code_;
-
-    // Number of bytes of code generated in this block. Spill code is counted
-    // separately from other, instruction implementing code.
-    uint32_t instructionBytes_;
-    uint32_t spillBytes_;
-
-  public:
-
-    bool init(uint32_t id, uint32_t offset, uint32_t numSuccessors) {
-        id_ = id;
-        offset_ = offset;
-        numSuccessors_ = numSuccessors;
-        if (numSuccessors) {
-            successors_ = (uint32_t *) js_calloc(numSuccessors * sizeof(uint32_t));
-            if (!successors_)
-                return false;
-        }
-        return true;
-    }
-
-    void destroy() {
-        if (successors_)
-            js_free(successors_);
-        if (code_)
-            js_free(code_);
-    }
-
-    uint32_t id() const {
-        return id_;
-    }
-
-    uint32_t offset() const {
-        return offset_;
-    }
-
-    size_t numSuccessors() const {
-        return numSuccessors_;
-    }
-
-    void setSuccessor(size_t i, uint32_t id) {
-        JS_ASSERT(i < numSuccessors_);
-        successors_[i] = id;
-    }
-
-    uint32_t successor(size_t i) const {
-        JS_ASSERT(i < numSuccessors_);
-        return successors_[i];
-    }
-
-    uint64_t *addressOfHitCount() {
-        return &hitCount_;
-    }
-
-    uint64_t hitCount() const {
-        return hitCount_;
-    }
-
-    void setCode(const char *code) {
-        char *ncode = (char *) js_malloc(strlen(code) + 1);
-        if (ncode) {
-            strcpy(ncode, code);
-            code_ = ncode;
-        }
-    }
-
-    const char *code() const {
-        return code_;
-    }
-
-    void setInstructionBytes(uint32_t bytes) {
-        instructionBytes_ = bytes;
-    }
-
-    uint32_t instructionBytes() const {
-        return instructionBytes_;
-    }
-
-    void setSpillBytes(uint32_t bytes) {
-        spillBytes_ = bytes;
-    }
-
-    uint32_t spillBytes() const {
-        return spillBytes_;
-    }
-};
-
-// Execution information for a compiled script which may persist after the
-// IonScript is destroyed, for use during profiling.
-struct IonScriptCounts
-{
-  private:
-    // Any previous invalidated compilation(s) for the script.
-    IonScriptCounts *previous_;
-
-    // Information about basic blocks in this script.
-    size_t numBlocks_;
-    IonBlockCounts *blocks_;
-
-  public:
-
-    IonScriptCounts() {
-        PodZero(this);
-    }
-
-    ~IonScriptCounts() {
-        for (size_t i = 0; i < numBlocks_; i++)
-            blocks_[i].destroy();
-        js_free(blocks_);
-        if (previous_)
-            js_delete(previous_);
-    }
-
-    bool init(size_t numBlocks) {
-        numBlocks_ = numBlocks;
-        blocks_ = (IonBlockCounts *) js_calloc(numBlocks * sizeof(IonBlockCounts));
-        return blocks_ != NULL;
-    }
-
-    size_t numBlocks() const {
-        return numBlocks_;
-    }
-
-    IonBlockCounts &block(size_t i) {
-        JS_ASSERT(i < numBlocks_);
-        return blocks_[i];
-    }
-
-    void setPrevious(IonScriptCounts *previous) {
-        previous_ = previous;
-    }
-
-    IonScriptCounts *previous() const {
-        return previous_;
-    }
-};
-
 struct VMFunction;
 
 class IonCompartment;
@@ -576,25 +420,8 @@ struct AutoFlushCache {
     static void updateTop(uintptr_t p, size_t len);
     ~AutoFlushCache();
     AutoFlushCache(const char * nonce, IonCompartment *comp = NULL);
-    void flushAnyway();
 };
 
-// If you are currently in the middle of modifing Ion-compiled code, which
-// is going to be flushed at *some* point, but determine that you *must*
-// call a function *right* *now*, two things can go wrong:
-//   1)  The flusher that you were using is still active, but you are about to
-//       enter jitted code, so it needs to be flushed
-//   2) the called function can re-enter a compilation/modification path which
-//       will use your AFC, and thus not flush when his compilation is done
-
-struct AutoFlushInhibitor {
-  private:
-    IonCompartment *ic_;
-    AutoFlushCache *afc;
-  public:
-    AutoFlushInhibitor(IonCompartment *ic);
-    ~AutoFlushInhibitor();
-};
 } // namespace ion
 
 namespace gc {

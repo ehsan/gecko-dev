@@ -100,7 +100,6 @@ interface TestInterface {
   void passOptionalByteWithDefault(optional byte arg = 0);
   void passNullableByte(byte? arg);
   void passOptionalNullableByte(optional byte? arg);
-  void passVariadicByte(byte... arg);
 
   readonly attribute short readonlyShort;
   attribute short writableShort;
@@ -150,40 +149,6 @@ interface TestInterface {
   unsigned long long receiveUnsignedLongLong();
   void passOptionalUnsignedLongLong(optional unsigned long long arg);
   void passOptionalUnsignedLongLongWithDefault(optional unsigned long long arg = 17);
-
-  attribute float writableFloat;
-  attribute unrestricted float writableUnrestrictedFloat;
-  attribute float? writableNullableFloat;
-  attribute unrestricted float? writableNullableUnrestrictedFloat;
-  attribute double writableDouble;
-  attribute unrestricted double writableUnrestrictedDouble;
-  attribute double? writableNullableDouble;
-  attribute unrestricted double? writableNullableUnrestrictedDouble;
-  void passFloat(float arg1, unrestricted float arg2,
-                 float? arg3, unrestricted float? arg4,
-                 double arg5, unrestricted double arg6,
-                 double? arg7, unrestricted double? arg8,
-                 sequence<float> arg9, sequence<unrestricted float> arg10,
-                 sequence<float?> arg11, sequence<unrestricted float?> arg12,
-                 sequence<double> arg13, sequence<unrestricted double> arg14,
-                 sequence<double?> arg15, sequence<unrestricted double?> arg16);
-  [LenientFloat]
-  void passLenientFloat(float arg1, unrestricted float arg2,
-                        float? arg3, unrestricted float? arg4,
-                        double arg5, unrestricted double arg6,
-                        double? arg7, unrestricted double? arg8,
-                        sequence<float> arg9,
-                        sequence<unrestricted float> arg10,
-                        sequence<float?> arg11,
-                        sequence<unrestricted float?> arg12,
-                        sequence<double> arg13,
-                        sequence<unrestricted double> arg14,
-                        sequence<double?> arg15,
-                        sequence<unrestricted double?> arg16);
-  [LenientFloat]
-  attribute float lenientFloatAttr;
-  [LenientFloat]
-  attribute double lenientDoubleAttr;
 
   // Castable interface types
   // XXXbz add tests for throwing versions of all the castable interface stuff
@@ -300,8 +265,6 @@ interface TestInterface {
   void passOptionalNullableSequence(optional sequence<long>? arg);
   void passOptionalNullableSequenceWithDefaultValue(optional sequence<long>? arg = null);
   void passOptionalObjectSequence(optional sequence<TestInterface> arg);
-  void passExternalInterfaceSequence(sequence<TestExternalInterface> arg);
-  void passNullableExternalInterfaceSequence(sequence<TestExternalInterface?> arg);
 
   sequence<DOMString> receiveStringSequence();
   void passStringSequence(sequence<DOMString> arg);
@@ -334,7 +297,6 @@ interface TestInterface {
   void passOptionalStringWithDefaultValue(optional DOMString arg = "abc");
   void passOptionalNullableString(optional DOMString? arg);
   void passOptionalNullableStringWithDefaultValue(optional DOMString? arg = null);
-  void passVariadicString(DOMString... arg);
 
   // Enumerated types
   void passEnum(TestEnum arg);
@@ -426,14 +388,6 @@ interface TestInterface {
   static attribute boolean staticAttribute;
   static void staticMethod(boolean arg);
 
-  // Overload resolution tests
-  //void overload1(DOMString... strs);
-  boolean overload1(TestInterface arg);
-  TestInterface overload1(DOMString strs, TestInterface arg);
-
-  // Variadic handling
-  void passVariadicThirdArg(DOMString arg1, long arg2, TestInterface... arg3);
-
   // Miscellania
   [LenientThis] attribute long attrWithLenientThis;
   [Unforgeable] readonly attribute long unforgeableAttr;
@@ -449,9 +403,6 @@ interface TestInterface {
   [SetterThrows] attribute boolean throwingSetterAttr;
 
   // If you add things here, add them to TestExampleGen as well
-};
-
-interface TestChildInterface : TestInterface {
 };
 
 interface TestNonWrapperCacheInterface {
@@ -510,10 +461,6 @@ dictionary Dict : ParentDict {
   TestEnum otherEnum = "b";
   DOMString otherStr = "def";
   DOMString? yetAnotherStr = null;
-  DOMString template;
-  object someObj;
-  object? anotherObj = null;
-  TestCallback? someCallback = null;
 };
 
 dictionary ParentDict : GrandparentDict {

@@ -21,14 +21,18 @@ typedef Vector<MDefinition *, 4, IonAllocPolicy> InstructionVector;
 class LoopAliasInfo : public TempObject {
   private:
     LoopAliasInfo *outer_;
+    AliasSet loopStores_;
     MBasicBlock *loopHeader_;
     InstructionVector invariantLoads_;
 
   public:
     LoopAliasInfo(LoopAliasInfo *outer, MBasicBlock *loopHeader)
-      : outer_(outer), loopHeader_(loopHeader)
+      : outer_(outer), loopStores_(AliasSet::None()), loopHeader_(loopHeader)
     { }
 
+    void addStore(AliasSet store) {
+        loopStores_ = loopStores_ | store;
+    }
     MBasicBlock *loopHeader() const {
         return loopHeader_;
     }
@@ -40,6 +44,9 @@ class LoopAliasInfo : public TempObject {
     }
     const InstructionVector& invariantLoads() const {
         return invariantLoads_;
+    }
+    AliasSet loopStores() const {
+        return loopStores_;
     }
     MDefinition *firstInstruction() const {
         return *loopHeader_->begin();

@@ -69,6 +69,7 @@ class CodeGeneratorARM : public CodeGeneratorShared
   public:
     // Instruction visitors.
     virtual bool visitMinMaxD(LMinMaxD *ins);
+    virtual bool visitNegD(LNegD *ins);
     virtual bool visitAbsD(LAbsD *ins);
     virtual bool visitSqrtD(LSqrtD *ins);
     virtual bool visitAddI(LAddI *ins);
@@ -95,8 +96,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
     virtual bool visitCompareDAndBranch(LCompareDAndBranch *comp);
     virtual bool visitCompareB(LCompareB *lir);
     virtual bool visitCompareBAndBranch(LCompareBAndBranch *lir);
-    virtual bool visitCompareV(LCompareV *lir);
-    virtual bool visitCompareVAndBranch(LCompareVAndBranch *lir);
     virtual bool visitNotI(LNotI *ins);
     virtual bool visitNotD(LNotD *ins);
 
@@ -111,7 +110,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
   protected:
     ValueOperand ToValue(LInstruction *ins, size_t pos);
     ValueOperand ToOutValue(LInstruction *ins);
-    ValueOperand ToTempValue(LInstruction *ins, size_t pos);
 
     // Functions for LTestVAndBranch.
     Register splitTagForTest(const ValueOperand &value);
@@ -123,7 +121,7 @@ class CodeGeneratorARM : public CodeGeneratorShared
     void linkAbsoluteLabels();
 
   public:
-    CodeGeneratorARM(MIRGenerator *gen, LIRGraph *graph);
+    CodeGeneratorARM(MIRGenerator *gen, LIRGraph &graph);
 
   public:
     bool visitBox(LBox *box);
@@ -155,10 +153,10 @@ typedef CodeGeneratorARM CodeGeneratorSpecific;
 class OutOfLineBailout : public OutOfLineCodeBase<CodeGeneratorARM>
 {
     LSnapshot *snapshot_;
-    uint32_t frameSize_;
+    uint32 frameSize_;
 
   public:
-    OutOfLineBailout(LSnapshot *snapshot, uint32_t frameSize)
+    OutOfLineBailout(LSnapshot *snapshot, uint32 frameSize)
       : snapshot_(snapshot),
         frameSize_(frameSize)
     { }

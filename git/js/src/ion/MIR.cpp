@@ -10,7 +10,6 @@
 #include "MIR.h"
 #include "MIRGraph.h"
 #include "EdgeCaseAnalysis.h"
-#include "RangeAnalysis.h"
 #include "IonSpewer.h"
 #include "jsnum.h"
 #include "jsstr.h"
@@ -91,8 +90,8 @@ EvaluateConstantOperands(MBinaryInstruction *ins)
         ret = Int32Value(lhs.toInt32() >> (rhs.toInt32() & 0x1F));
         break;
       case MDefinition::Op_Ursh: {
-        uint32_t unsignedLhs = (uint32_t)lhs.toInt32();
-        ret.setNumber(uint32_t(unsignedLhs >> (rhs.toInt32() & 0x1F)));
+        uint32 unsignedLhs = (uint32_t)lhs.toInt32();
+        ret.setNumber(uint32(unsignedLhs >> (rhs.toInt32() & 0x1F)));
         break;
       }
       case MDefinition::Op_Add:
@@ -136,7 +135,7 @@ MDefinition::valueHash() const
 {
     HashNumber out = op();
     for (size_t i = 0; i < numOperands(); i++) {
-        uint32_t valueNumber = getOperand(i)->valueNumber();
+        uint32 valueNumber = getOperand(i)->valueNumber();
         out = valueNumber + (out << 6) + (out << 16) - out;
     }
     return out;
@@ -187,26 +186,6 @@ void
 MDefinition::analyzeTruncateBackward()
 {
     return;
-}
-
-static bool
-MaybeEmulatesUndefined(types::StackTypeSet *types, JSContext *cx)
-{
-    if (!types->maybeObject())
-        return false;
-    return types->hasObjectFlags(cx, types::OBJECT_FLAG_EMULATES_UNDEFINED);
-}
-
-void
-MTest::infer(const TypeOracle::UnaryTypes &u, JSContext *cx)
-{
-    if (!u.inTypes)
-        return;
-
-    JS_ASSERT(operandMightEmulateUndefined());
-
-    if (!MaybeEmulatesUndefined(u.inTypes, cx))
-        markOperandCantEmulateUndefined();
 }
 
 MDefinition *
@@ -289,7 +268,7 @@ MDefinition::replaceAllUsesWith(MDefinition *dom)
 }
 
 static inline bool
-IsPowerOfTwo(uint32_t n)
+IsPowerOfTwo(uint32 n)
 {
     return (n > 0) && ((n & (n - 1)) == 0);
 }
@@ -305,6 +284,11 @@ MConstant::MConstant(const js::Value &vp)
 {
     setResultType(MIRTypeFromValue(vp));
     setMovable();
+
+    if (type() == MIRType_Int32) {
+        range()->setLower(value().toInt32());
+        range()->setUpper(value().toInt32());
+    }
 }
 
 HashNumber
@@ -367,7 +351,7 @@ MConstantElements::printOpcode(FILE *fp)
 }
 
 MParameter *
-MParameter::New(int32_t index, const types::StackTypeSet *types)
+MParameter::New(int32 index, types::StackTypeSet *types)
 {
     return new MParameter(index, types);
 }
@@ -436,7 +420,7 @@ MCompare::New(MDefinition *left, MDefinition *right, JSOp op)
 }
 
 MTableSwitch *
-MTableSwitch::New(MDefinition *ins, int32_t low, int32_t high)
+MTableSwitch::New(MDefinition *ins, int32 low, int32 high)
 {
     return new MTableSwitch(ins, low, high);
 }
@@ -449,29 +433,9 @@ MGoto::New(MBasicBlock *target)
 }
 
 MPhi *
-MPhi::New(uint32_t slot)
+MPhi::New(uint32 slot)
 {
     return new MPhi(slot);
-}
-
-void
-MPhi::removeOperand(size_t index)
-{
-    JS_ASSERT(index < inputs_.length());
-    JS_ASSERT(inputs_.length() > 1);
-
-    // If we have phi(..., a, b, c, d, ..., z) and we plan
-    // on removing a, then first shift downward so that we have
-    // phi(..., b, c, d, ..., z, z):
-    size_t length = inputs_.length();
-    for (size_t i = index + 1; i < length; i++)
-        replaceOperand(i - 1, getOperand(i));
-
-    // remove the final operand that now appears twice:
-    replaceOperand(length - 1, NULL);
-
-    // truncate the inputs_ list:
-    inputs_.shrinkBy(1);
 }
 
 MDefinition *
@@ -512,7 +476,54 @@ MPhi::addInput(MDefinition *ins)
     return inputs_.append(ins);
 }
 
-uint32_t
+bool
+MPhi::recomputeRange()
+{
+    if (type() != MIRType_Int32)
+        return false;
+
+    // Use RangeUpdater rather than Range because it needs to
+    // track if it has been updated yet.
+    RangeUpdater r;
+    JS_ASSERT(getOperand(0)->op() != MDefinition::Op_OsrValue);
+    bool updated = false;
+    for (size_t i = 0; i < numOperands(); i++) {
+        if (getOperand(i)->block()->earlyAbort()) {
+            IonSpew(IonSpew_Range, "Ignoring unreachable input %d", getOperand(i)->id());
+            continue;
+        }
+
+        if (!isOSRLikeValue(getOperand(i))) {
+            if (block()->isLoopHeader()) {
+                IonSpew(IonSpew_Range, "    Updating input #%d (inst %d)", i, getOperand(i)->id());
+                changeCounts_[i].updateRange(getOperand(i)->range());
+                r.unionWith(&changeCounts_[i]);
+            } else {
+                r.unionWith(getOperand(i)->range());
+            }
+
+#ifdef DEBUG
+            if (IonSpewEnabled(IonSpew_Range)) {
+                fprintf(IonSpewFile, "    %d:", getOperand(i)->id());
+                getOperand(i)->range()->printRange(IonSpewFile);
+                fprintf(IonSpewFile, " => ");
+                r.printRange(IonSpewFile);
+                fprintf(IonSpewFile, "\n");
+            }
+#endif
+
+
+        }
+     }
+     if (!updated) {
+         IonSpew(IonSpew_Range, "My block is unreachable %d", id());
+         block()->setEarlyAbort();
+         return false;
+     }
+     return range()->update(r.getRange());
+}
+
+uint32
 MPrepareCall::argc() const
 {
     JS_ASSERT(useCount() == 1);
@@ -628,67 +639,48 @@ MUrsh::infer(const TypeOracle::BinaryTypes &b)
 static inline bool
 NeedNegativeZeroCheck(MDefinition *def)
 {
-    // Test if all uses have the same semantics for -0 and 0
+    // Test if all uses have the same symantic for -0 and 0
     for (MUseIterator use = def->usesBegin(); use != def->usesEnd(); use++) {
         if (use->node()->isResumePoint())
-            continue;
+            return true;
 
         MDefinition *use_def = use->node()->toDefinition();
         switch (use_def->op()) {
           case MDefinition::Op_Add: {
-            // If add is truncating -0 and 0 are observed as the same.
-            if (use_def->toAdd()->isTruncated())
-                break;
-
             // x + y gives -0, when both x and y are -0
+            // - When other operand can't produce -0 (i.e. all opcodes, except Mul/Div/ToInt32)
+            //   Remove negative zero check on this operand 
+            // - When both operands can produce -0 (both Mul/Div/ToInt32 opcode)
+            //   We can remove the check eagerly on this operand.
+            MDefinition *operand = use_def->getOperand(0);
+            if (operand == def) {
+                operand = use_def->getOperand(1);
 
-            // Figure out the order in which the addition's operands will
-            // execute. EdgeCaseAnalysis::analyzeLate has renumbered the MIR
-            // definitions for us so that this just requires comparing ids.
-            MDefinition *first = use_def->getOperand(0);
-            MDefinition *second = use_def->getOperand(1);
-            if (first->id() > second->id()) {
-                MDefinition *temp = first;
-                first = second;
-                second = temp;
-            }
-
-            if (def == first) {
-                // Negative zero checks can be removed on the first executed
-                // operand only if it is guaranteed the second executed operand
-                // will produce a value other than -0. While the second is
-                // typed as an int32, a bailout taken between execution of the
-                // operands may change that type and cause a -0 to flow to the
-                // second.
-                //
-                // There is no way to test whether there are any bailouts
-                // between execution of the operands, so remove negative
-                // zero checks from the first only if the second's type is
-                // independent from type changes that may occur after bailing.
-                switch (second->op()) {
-                  case MDefinition::Op_Constant:
-                  case MDefinition::Op_BitAnd:
-                  case MDefinition::Op_BitOr:
-                  case MDefinition::Op_BitXor:
-                  case MDefinition::Op_BitNot:
-                  case MDefinition::Op_Lsh:
-                  case MDefinition::Op_Rsh:
-                    break;
-                  default:
+                // Don't remove check when both operands are same definition
+                // As removing it from one operand, will remove it from both.
+                if (operand == def)
                     return true;
-                }
             }
 
-            // The negative zero check can always be removed on the second
-            // executed operand; by the time this executes the first will have
-            // been evaluated as int32 and the addition's result cannot be -0.
+            // Check if check is possibly eagerly removed on other operand
+            // and don't remove check eagerly on this operand in that case.
+            if (operand->isMul()) {
+                MMul *mul = operand->toMul();
+                if (!mul->canBeNegativeZero())
+                    return true;
+            } else if (operand->isDiv()) {
+                MDiv *div = operand->toDiv();
+                if (!div->canBeNegativeZero())
+                    return true;
+            } else if (operand->isToInt32()) {
+                MToInt32 *int32 = operand->toToInt32();
+                if (!int32->canBeNegativeZero())
+                    return true;
+            } else if (operand->isPhi()) {
+                return true;
+            }
             break;
           }
-          case MDefinition::Op_Sub:
-            // If sub is truncating -0 and 0 are observed as the same
-            if (use_def->toSub()->isTruncated())
-                break;
-            /* Fall through...  */
           case MDefinition::Op_StoreElement:
           case MDefinition::Op_StoreElementHole:
           case MDefinition::Op_LoadElement:
@@ -697,6 +689,7 @@ NeedNegativeZeroCheck(MDefinition *def)
           case MDefinition::Op_LoadTypedArrayElementHole:
           case MDefinition::Op_CharCodeAt:
           case MDefinition::Op_Mod:
+          case MDefinition::Op_Sub:
             // Only allowed to remove check when definition is the second operand
             if (use_def->getOperand(0) == def)
                 return true;
@@ -720,7 +713,6 @@ NeedNegativeZeroCheck(MDefinition *def)
           case MDefinition::Op_BitOr:
           case MDefinition::Op_BitXor:
           case MDefinition::Op_Abs:
-          case MDefinition::Op_TruncateToInt32:
             // Always allowed to remove check. No matter which operand.
             break;
           default:
@@ -758,12 +750,6 @@ MBinaryArithInstruction::foldsTo(bool useValueNumbers)
     return this;
 }
 
-bool
-MAbs::fallible() const
-{
-    return !range() || !range()->isFinite();
-}
-
 MDefinition *
 MDiv::foldsTo(bool useValueNumbers)
 {
@@ -790,36 +776,36 @@ MDiv::analyzeEdgeCasesForward()
     // If lhs is a constant int != INT32_MIN, then
     // negative overflow check can be skipped.
     if (lhs()->isConstant() && !lhs()->toConstant()->value().isInt32(INT32_MIN))
-        setCanBeNegativeZero(false);
+        canBeNegativeOverflow_ = false;
 
     // If rhs is a constant int != -1, likewise.
     if (rhs()->isConstant() && !rhs()->toConstant()->value().isInt32(-1))
-        setCanBeNegativeZero(false);
+        canBeNegativeOverflow_ = false;
 
     // If lhs is != 0, then negative zero check can be skipped.
     if (lhs()->isConstant() && !lhs()->toConstant()->value().isInt32(0))
-        setCanBeNegativeZero(false);
+        canBeNegativeZero_ = false;
 
     // If rhs is >= 0, likewise.
     if (rhs()->isConstant()) {
         const js::Value &val = rhs()->toConstant()->value();
         if (val.isInt32() && val.toInt32() >= 0)
-            setCanBeNegativeZero(false);
+            canBeNegativeZero_ = false;
     }
 }
 
 void
 MDiv::analyzeEdgeCasesBackward()
 {
-    if (canBeNegativeZero() && !NeedNegativeZeroCheck(this))
-        setCanBeNegativeZero(false);
+    if (canBeNegativeZero_)
+        canBeNegativeZero_ = NeedNegativeZeroCheck(this);
 }
 
 void
 MDiv::analyzeTruncateBackward()
 {
-    if (!isTruncated() && js::ion::EdgeCaseAnalysis::AllUsesTruncate(this))
-        setTruncated(true);
+    if (!isTruncated())
+        setTruncated(js::ion::EdgeCaseAnalysis::AllUsesTruncate(this));
 }
 
 bool
@@ -829,7 +815,8 @@ MDiv::updateForReplacement(MDefinition *ins_)
     MDiv *ins = ins_->toDiv();
     // Since EdgeCaseAnalysis is not being run before GVN, its information does
     // not need to be merged here.
-    setTruncated(isTruncated() && ins->isTruncated());
+    if (isTruncated())
+        setTruncated(ins->isTruncated());
     return true;
 }
 
@@ -893,8 +880,8 @@ MMod::foldsTo(bool useValueNumbers)
 void
 MAdd::analyzeTruncateBackward()
 {
-    if (!isTruncated() && js::ion::EdgeCaseAnalysis::AllUsesTruncate(this))
-        setTruncated(true);
+    if (!isTruncated())
+        setTruncated(js::ion::EdgeCaseAnalysis::AllUsesTruncate(this));
 }
 
 bool
@@ -902,21 +889,16 @@ MAdd::updateForReplacement(MDefinition *ins_)
 {
     JS_ASSERT(ins_->isAdd());
     MAdd *ins = ins_->toAdd();
-    setTruncated(isTruncated() && ins->isTruncated());
+    if (isTruncated())
+        setTruncated(ins->isTruncated());
     return true;
-}
-
-bool
-MAdd::fallible()
-{
-    return !isTruncated() && (!range() || !range()->isFinite());
 }
 
 void
 MSub::analyzeTruncateBackward()
 {
-    if (!isTruncated() && js::ion::EdgeCaseAnalysis::AllUsesTruncate(this))
-        setTruncated(true);
+    if (!isTruncated())
+        setTruncated(js::ion::EdgeCaseAnalysis::AllUsesTruncate(this));
 }
 
 bool
@@ -924,14 +906,9 @@ MSub::updateForReplacement(MDefinition *ins_)
 {
     JS_ASSERT(ins_->isSub());
     MSub *ins = ins_->toSub();
-    setTruncated(isTruncated() && ins->isTruncated());
+    if (isTruncated())
+        setTruncated(ins->isTruncated());
     return true;
-}
-
-bool
-MSub::fallible()
-{
-    return !isTruncated() && (!range() || !range()->isFinite());
 }
 
 MDefinition *
@@ -945,7 +922,7 @@ MMul::foldsTo(bool useValueNumbers)
         return this;
 
     if (EqualValues(useValueNumbers, lhs(), rhs()))
-        setCanBeNegativeZero(false);
+        canBeNegativeZero_ = false;
 
     return this;
 }
@@ -962,14 +939,14 @@ MMul::analyzeEdgeCasesForward()
     if (lhs()->isConstant()) {
         const js::Value &val = lhs()->toConstant()->value();
         if (val.isInt32() && val.toInt32() > 0)
-            setCanBeNegativeZero(false);
+            canBeNegativeZero_ = false;
     }
 
     // If rhs is > 0, likewise.
     if (rhs()->isConstant()) {
         const js::Value &val = rhs()->toConstant()->value();
         if (val.isInt32() && val.toInt32() > 0)
-            setCanBeNegativeZero(false);
+            canBeNegativeZero_ = false;
     }
 
 }
@@ -977,15 +954,15 @@ MMul::analyzeEdgeCasesForward()
 void
 MMul::analyzeEdgeCasesBackward()
 {
-    if (canBeNegativeZero() && !NeedNegativeZeroCheck(this))
-        setCanBeNegativeZero(false);
+    if (canBeNegativeZero_)
+        canBeNegativeZero_ = NeedNegativeZeroCheck(this);
 }
 
 void
 MMul::analyzeTruncateBackward()
 {
-    if (!isPossibleTruncated() && js::ion::EdgeCaseAnalysis::AllUsesTruncate(this))
-        setPossibleTruncated(true);
+    if (!isPossibleTruncated())
+        setPossibleTruncated(js::ion::EdgeCaseAnalysis::AllUsesTruncate(this));
 }
 
 bool
@@ -993,28 +970,16 @@ MMul::updateForReplacement(MDefinition *ins_)
 {
     JS_ASSERT(ins_->isMul());
     MMul *ins = ins_->toMul();
-    // setPossibleTruncated can reset the canBenegativeZero check,
-    // therefore first query the state, before setting the new state.
-    bool truncated = isPossibleTruncated() && ins->isPossibleTruncated();
-    bool negativeZero = canBeNegativeZero() || ins->canBeNegativeZero();
-    setPossibleTruncated(truncated);
-    setCanBeNegativeZero(negativeZero);
+    if (isPossibleTruncated())
+        setPossibleTruncated(ins->isPossibleTruncated());
     return true;
 }
 
-bool
-MMul::canOverflow()
-{
-    if (implicitTruncate_)
-        return false;
-    return !range() || !range()->isFinite();
-}
-
 void
-MBinaryArithInstruction::infer(const TypeOracle::BinaryTypes &b, JSContext *cx)
+MBinaryArithInstruction::infer(JSContext *cx, const TypeOracle::BinaryTypes &b)
 {
     // Retrieve type information of lhs and rhs
-    // Rhs is defaulted to int32 first,
+    // Rhs is defaulted to int32 first, 
     // because in some cases there is no rhs type information
     MIRType lhs = MIRTypeFromValueType(b.lhsTypes->getKnownTypeTag());
     MIRType rhs = MIRType_Int32;
@@ -1084,203 +1049,97 @@ SafelyCoercesToDouble(JSContext *cx, types::StackTypeSet *types)
     return false;
 }
 
-static bool
-CanDoValueBitwiseCmp(JSContext *cx, types::StackTypeSet *lhs, types::StackTypeSet *rhs, bool looseEq)
-{
-    // Only primitive (not double/string) or objects are supported.
-    // I.e. Undefined/Null/Boolean/Int32 and Object
-    if (!lhs->knownPrimitiveOrObject() ||
-        lhs->hasAnyFlag(types::TYPE_FLAG_STRING) ||
-        lhs->hasAnyFlag(types::TYPE_FLAG_DOUBLE) ||
-        !rhs->knownPrimitiveOrObject() ||
-        rhs->hasAnyFlag(types::TYPE_FLAG_STRING) ||
-        rhs->hasAnyFlag(types::TYPE_FLAG_DOUBLE))
-    {
-        return false;
-    }
-
-    // Objects with special equality or that emulates undefined are not supported.
-    if (lhs->maybeObject() &&
-        (lhs->hasObjectFlags(cx, types::OBJECT_FLAG_SPECIAL_EQUALITY) ||
-         lhs->hasObjectFlags(cx, types::OBJECT_FLAG_EMULATES_UNDEFINED)))
-    {
-        return false;
-    }
-    if (rhs->maybeObject() &&
-        (rhs->hasObjectFlags(cx, types::OBJECT_FLAG_SPECIAL_EQUALITY) ||
-         rhs->hasObjectFlags(cx, types::OBJECT_FLAG_EMULATES_UNDEFINED)))
-    {
-        return false;
-    }
-
-    // In the loose comparison more values could be the same,
-    // but value comparison reporting otherwise.
-    if (looseEq) {
-
-        // Undefined compared loosy to Null is not supported,
-        // because tag is different, but value can be the same (undefined == null).
-        if ((lhs->hasAnyFlag(types::TYPE_FLAG_UNDEFINED) &&
-             rhs->hasAnyFlag(types::TYPE_FLAG_NULL)) ||
-            (lhs->hasAnyFlag(types::TYPE_FLAG_NULL) &&
-             rhs->hasAnyFlag(types::TYPE_FLAG_UNDEFINED)))
-        {
-            return false;
-        }
-
-        // Int32 compared loosy to Boolean is not supported,
-        // because tag is different, but value can be the same (1 == true).
-        if ((lhs->hasAnyFlag(types::TYPE_FLAG_INT32) &&
-             rhs->hasAnyFlag(types::TYPE_FLAG_BOOLEAN)) ||
-            (lhs->hasAnyFlag(types::TYPE_FLAG_BOOLEAN) &&
-             rhs->hasAnyFlag(types::TYPE_FLAG_INT32)))
-        {
-            return false;
-        }
-
-        // For loosy comparison of an object with a Boolean/Number/String
-        // the valueOf the object is taken. Therefore not supported.
-        types::TypeFlags numbers = types::TYPE_FLAG_BOOLEAN |
-                                   types::TYPE_FLAG_INT32;
-        if ((lhs->maybeObject() && rhs->hasAnyFlag(numbers)) ||
-            (rhs->maybeObject() && lhs->hasAnyFlag(numbers)))
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-MIRType
-MCompare::inputType()
-{
-    switch(compareType_) {
-      case Compare_Undefined:
-        return MIRType_Undefined;
-      case Compare_Null:
-        return MIRType_Null;
-      case Compare_Boolean:
-        return MIRType_Boolean;
-      case Compare_Int32:
-        return MIRType_Int32;
-      case Compare_Double:
-        return MIRType_Double;
-      case Compare_String:
-        return MIRType_String;
-      case Compare_Object:
-        return MIRType_Object;
-      case Compare_Unknown:
-      case Compare_Value:
-        return MIRType_Value;
-      default:
-        JS_NOT_REACHED("No known conversion");
-        return MIRType_None;
-    }
-}
-
 void
-MCompare::infer(const TypeOracle::BinaryTypes &b, JSContext *cx)
+MCompare::infer(JSContext *cx, const TypeOracle::BinaryTypes &b)
 {
     if (!b.lhsTypes || !b.rhsTypes)
         return;
 
-    JS_ASSERT(operandMightEmulateUndefined());
-
-    if (!MaybeEmulatesUndefined(b.lhsTypes, cx) && !MaybeEmulatesUndefined(b.rhsTypes, cx))
-        markNoOperandEmulatesUndefined();
-
     MIRType lhs = MIRTypeFromValueType(b.lhsTypes->getKnownTypeTag());
     MIRType rhs = MIRTypeFromValueType(b.rhsTypes->getKnownTypeTag());
 
-    bool looseEq = jsop() == JSOP_EQ || jsop() == JSOP_NE;
-    bool strictEq = jsop() == JSOP_STRICTEQ || jsop() == JSOP_STRICTNE;
-    bool relationalEq = !(looseEq || strictEq);
-
-    // Integer to integer or boolean to boolean comparisons may be treated as Int32.
+    // Strict integer or boolean comparisons may be treated as Int32.
     if ((lhs == MIRType_Int32 && rhs == MIRType_Int32) ||
         (lhs == MIRType_Boolean && rhs == MIRType_Boolean))
     {
-        compareType_ = Compare_Int32;
+        specialization_ = MIRType_Int32;
         return;
     }
 
-    // Loose/relational cross-integer/boolean comparisons may be treated as Int32.
-    if (!strictEq &&
+    // Loose cross-integer/boolean comparisons may be treated as Int32.
+    if (jsop() != JSOP_STRICTEQ && jsop() != JSOP_STRICTNE &&
         (lhs == MIRType_Int32 || lhs == MIRType_Boolean) &&
         (rhs == MIRType_Int32 || rhs == MIRType_Boolean))
     {
-        compareType_ = Compare_Int32;
+        specialization_ = MIRType_Int32;
         return;
     }
 
     // Numeric comparisons against a double coerce to double.
     if (IsNumberType(lhs) && IsNumberType(rhs)) {
-        compareType_ = Compare_Double;
+        specialization_ = MIRType_Double;
         return;
     }
 
-    // Any comparison is allowed except strict eq.
-    if (!strictEq &&
+    // Handle double comparisons against something that safely coerces to double.
+    if (jsop() != JSOP_STRICTEQ && jsop() != JSOP_STRICTNE &&
         ((lhs == MIRType_Double && SafelyCoercesToDouble(cx, b.rhsTypes)) ||
          (rhs == MIRType_Double && SafelyCoercesToDouble(cx, b.lhsTypes))))
     {
-        compareType_ = Compare_Double;
+        specialization_ = MIRType_Double;
         return;
     }
 
-    // Handle object comparison.
-    if (!relationalEq && lhs == MIRType_Object && rhs == MIRType_Object) {
-        if (b.lhsTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPECIAL_EQUALITY) ||
-            b.rhsTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPECIAL_EQUALITY))
-        {
+    if (jsop() == JSOP_STRICTEQ || jsop() == JSOP_EQ ||
+        jsop() == JSOP_STRICTNE || jsop() == JSOP_NE)
+    {
+        if (lhs == MIRType_Object && rhs == MIRType_Object) {
+            if (b.lhsTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPECIAL_EQUALITY) ||
+                b.rhsTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPECIAL_EQUALITY))
+            {
+                return;
+            }
+            specialization_ = MIRType_Object;
             return;
         }
 
-        compareType_ = Compare_Object;
-        return;
+        if (lhs == MIRType_String && rhs == MIRType_String) {
+            // We don't yet want to optimize relational string compares.
+            specialization_ = MIRType_String;
+            return;
+        }
+
+        if (IsNullOrUndefined(lhs)) {
+            // Lowering expects the rhs to be null/undefined, so we have to
+            // swap the operands. This is necessary since we may not know which
+            // operand was null/undefined during lowering (both operands may have
+            // MIRType_Value).
+            specialization_ = lhs;
+            swapOperands();
+            return;
+        }
+
+        if (IsNullOrUndefined(rhs)) {
+            specialization_ = rhs;
+            return;
+        }
     }
 
-    // Handle string comparisons. (Relational string compares are still unsupported).
-    if (!relationalEq && lhs == MIRType_String && rhs == MIRType_String) {
-        compareType_ = Compare_String;
-        return;
-    }
-
-    // Handle compare with lhs being Undefined or Null.
-    if (!relationalEq && IsNullOrUndefined(lhs)) {
-        // Lowering expects the rhs to be null/undefined, so we have to
-        // swap the operands. This is necessary since we may not know which
-        // operand was null/undefined during lowering (both operands may have
-        // MIRType_Value).
-        compareType_ = (lhs == MIRType_Null) ? Compare_Null : Compare_Undefined;
-        swapOperands();
-        return;
-    }
-
-    // Handle compare with rhs being Undefined or Null.
-    if (!relationalEq && IsNullOrUndefined(rhs)) {
-        compareType_ = (rhs == MIRType_Null) ? Compare_Null : Compare_Undefined;
-        return;
-    }
-
-    // Handle strict comparison with lhs/rhs being typed Boolean.
-    if (strictEq && (lhs == MIRType_Boolean || rhs == MIRType_Boolean)) {
+    if (jsop() == JSOP_STRICTEQ || jsop() == JSOP_STRICTNE) {
         // bool/bool case got an int32 specialization earlier.
         JS_ASSERT(!(lhs == MIRType_Boolean && rhs == MIRType_Boolean));
 
-        // Ensure the boolean is on the right so that the type policy knows
-        // which side to unbox.
-        if (lhs == MIRType_Boolean)
-             swapOperands();
-
-        compareType_ = Compare_Boolean;
-        return;
-    }
-
-    // Determine if we can do the compare based on a quick value check.
-    if (!relationalEq && CanDoValueBitwiseCmp(cx, b.lhsTypes, b.rhsTypes, looseEq)) {
-        compareType_ = Compare_Value;
-        return;
+        if (lhs == MIRType_Boolean) {
+            // Ensure the boolean is on the right so that the type policy knows
+            // which side to unbox.
+            swapOperands();
+            specialization_ = MIRType_Boolean;
+            return;
+        }
+        if (rhs == MIRType_Boolean) {
+            specialization_ = MIRType_Boolean;
+            return;
+        }
     }
 }
 
@@ -1397,7 +1256,6 @@ MResumePoint::MResumePoint(MBasicBlock *block, jsbytecode *pc, MResumePoint *cal
     stackDepth_(block->stackDepth()),
     pc_(pc),
     caller_(caller),
-    instruction_(NULL),
     mode_(mode)
 {
 }
@@ -1436,8 +1294,7 @@ MToInt32::foldsTo(bool useValueNumbers)
 void
 MToInt32::analyzeEdgeCasesBackward()
 {
-    if (!NeedNegativeZeroCheck(this))
-        setCanBeNegativeZero(false);
+    canBeNegativeZero_ = NeedNegativeZeroCheck(this);
 }
 
 MDefinition *
@@ -1449,7 +1306,7 @@ MTruncateToInt32::foldsTo(bool useValueNumbers)
 
     if (input->type() == MIRType_Double && input->isConstant()) {
         const Value &v = input->toConstant()->value();
-        uint32_t ret = ToInt32(v.toDouble());
+        uint32 ret = ToInt32(v.toDouble());
         return MConstant::New(Int32Value(ret));
     }
 
@@ -1498,7 +1355,7 @@ MCompare::tryFold(bool *result)
 {
     JSOp op = jsop();
 
-    if (compareType_ == Compare_Null || compareType_ == Compare_Undefined) {
+    if (IsNullOrUndefined(specialization())) {
         JS_ASSERT(op == JSOP_EQ || op == JSOP_STRICTEQ ||
                   op == JSOP_NE || op == JSOP_STRICTNE);
 
@@ -1508,7 +1365,7 @@ MCompare::tryFold(bool *result)
             return false;
           case MIRType_Undefined:
           case MIRType_Null:
-            if (lhs()->type() == inputType()) {
+            if (lhs()->type() == specialization()) {
                 // Both sides have the same type, null or undefined.
                 *result = (op == JSOP_EQ || op == JSOP_STRICTEQ);
             } else {
@@ -1517,13 +1374,10 @@ MCompare::tryFold(bool *result)
                 *result = (op == JSOP_EQ || op == JSOP_STRICTNE);
             }
             return true;
-          case MIRType_Object:
-            if ((op == JSOP_EQ || op == JSOP_NE) && operandMightEmulateUndefined())
-                return false;
-            /* FALL THROUGH */
           case MIRType_Int32:
           case MIRType_Double:
           case MIRType_String:
+          case MIRType_Object:
           case MIRType_Boolean:
             *result = (op == JSOP_NE || op == JSOP_STRICTNE);
             return true;
@@ -1533,7 +1387,7 @@ MCompare::tryFold(bool *result)
         }
     }
 
-    if (compareType_ == Compare_Boolean) {
+    if (specialization_ == MIRType_Boolean) {
         JS_ASSERT(op == JSOP_STRICTEQ || op == JSOP_STRICTNE);
         JS_ASSERT(rhs()->type() == MIRType_Boolean);
 
@@ -1655,43 +1509,25 @@ MCompare::foldsTo(bool useValueNumbers)
     return this;
 }
 
-void
-MNot::infer(const TypeOracle::UnaryTypes &u, JSContext *cx)
-{
-    if (!u.inTypes)
-        return;
-
-    JS_ASSERT(operandMightEmulateUndefined());
-
-    if (!MaybeEmulatesUndefined(u.inTypes, cx))
-        markOperandCantEmulateUndefined();
-}
-
 MDefinition *
 MNot::foldsTo(bool useValueNumbers)
 {
     // Fold if the input is constant
     if (operand()->isConstant()) {
        const Value &v = operand()->toConstant()->value();
-        // ToBoolean can cause no side effects, so this is safe.
+        // ValueToBoolean can cause no side-effects, so this is safe.
         return MConstant::New(BooleanValue(!ToBoolean(v)));
     }
+
+    // NOT of an object is always false
+    if (operand()->type() == MIRType_Object)
+        return MConstant::New(BooleanValue(false));
 
     // NOT of an undefined or null value is always true
     if (operand()->type() == MIRType_Undefined || operand()->type() == MIRType_Null)
         return MConstant::New(BooleanValue(true));
 
-    // NOT of an object that can't emulate undefined is always false.
-    if (operand()->type() == MIRType_Object && !operandMightEmulateUndefined())
-        return MConstant::New(BooleanValue(false));
-
     return this;
-}
-
-bool
-MBoundsCheckLower::fallible()
-{
-    return !range() || range()->lower() < minimum_;
 }
 
 void
@@ -1701,39 +1537,17 @@ MBeta::printOpcode(FILE *fp)
     fprintf(fp, " ");
     getOperand(0)->printName(fp);
     fprintf(fp, " ");
-
-    Sprinter sp(GetIonContext()->cx);
-    sp.init();
-    comparison_->print(sp);
-    fprintf(fp, "%s", sp.string());
+    comparison_.printRange(fp);
 }
 
-void
-MBeta::computeRange()
+bool
+MBeta::recomputeRange()
 {
-    bool emptyRange = false;
-
-    Range *range = Range::intersect(val_->range(), comparison_, &emptyRange);
-    if (emptyRange) {
-        IonSpew(IonSpew_Range, "Marking block for inst %d unexitable", id());
-        block()->setEarlyAbort();
-    } else {
-        setRange(range);
+    bool nullRange = false;
+    bool ret = range()->update(Range::intersect(val_->range(), &comparison_, &nullRange));
+    if (nullRange) {
+            IonSpew(IonSpew_Range, "Marking block for inst %d unexitable", id());
+            block()->setEarlyAbort();
     }
-}
-
-bool
-MLoadFixedSlot::mightAlias(MDefinition *store)
-{
-    if (store->isStoreFixedSlot() && store->toStoreFixedSlot()->slot() != slot())
-        return false;
-    return true;
-}
-
-bool
-MLoadSlot::mightAlias(MDefinition *store)
-{
-    if (store->isStoreSlot() && store->toStoreSlot()->slot() != slot())
-        return false;
-    return true;
+    return ret;
 }

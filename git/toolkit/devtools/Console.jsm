@@ -162,21 +162,7 @@ function log(aThing) {
   if (typeof aThing == "object") {
     let reply = "";
     let type = getCtorName(aThing);
-    if (type == "Map") {
-      reply += "Map\n";
-      for (let [key, value] of aThing) {
-        reply += logProperty(key, value);
-      }
-    }
-    else if (type == "Set") {
-      let i = 0;
-      reply += "Set\n";
-      for (let value of aThing) {
-        reply += logProperty('' + i, value);
-        i++;
-      }
-    }
-    else if (type == "Error") {
+    if (type == "Error") {
       reply += "  " + aThing.message + "\n";
       reply += logProperty("stack", aThing.stack);
     }
@@ -189,7 +175,7 @@ function log(aThing) {
         reply += type + "\n";
         keys.forEach(function(aProp) {
           reply += logProperty(aProp, aThing[aProp]);
-        });
+        }, this);
       }
       else {
         reply += type + "\n";
@@ -264,7 +250,7 @@ function parseStack(aStack) {
       line: posn.split(":")[1],
       call: line.substring(0, at)
     });
-  });
+  }, this);
   return trace;
 }
 
@@ -329,7 +315,7 @@ function createDumper(aLevel) {
     let data = args.map(function(arg) {
       return stringify(arg);
     });
-    dump("console." + aLevel + ": " + data.join(", ") + "\n");
+    dump(aLevel + ": " + data.join(", ") + "\n");
   };
 }
 
@@ -346,7 +332,7 @@ function createDumper(aLevel) {
  */
 function createMultiLineDumper(aLevel) {
   return function() {
-    dump("console." + aLevel + ": \n");
+    dump(aLevel + "\n");
     let args = Array.prototype.slice.call(arguments, 0);
     args.forEach(function(arg) {
       dump(log(arg));

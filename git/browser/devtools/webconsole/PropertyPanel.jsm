@@ -147,10 +147,6 @@ PropertyTreeView.prototype = {
           let val = aItem[aProp];
           if (val && val.actor) {
             this._objectActors.push(val.actor);
-            if (typeof val.displayString == "object" &&
-                val.displayString.type == "longString") {
-              this._objectActors.push(val.displayString.actor);
-            }
           }
         }, this);
       }

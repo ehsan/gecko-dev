@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #ifdef MOZ_WIDGET_ANDROID
 // For ScreenOrientation.h and Hal.h
 #include "base/basictypes.h"
@@ -33,11 +31,9 @@
 #include "nsSize.h"
 #include "nsNetCID.h"
 #include "nsIContent.h"
-#include "nsVersionComparator.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/unused.h"
 
-using namespace mozilla;
+#include "mozilla/Preferences.h"
+#include "nsVersionComparator.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "ANPBase.h"
@@ -51,6 +47,7 @@ using namespace mozilla;
 #include "GLContextProvider.h"
 #include "TexturePoolOGL.h"
 
+using namespace mozilla;
 using namespace mozilla::gl;
 
 typedef nsNPAPIPluginInstance::TextureInfo TextureInfo;
@@ -132,10 +129,7 @@ public:
     if (mTextureInfo.mWidth == 0 || mTextureInfo.mHeight == 0)
       return 0;
 
-    SharedTextureHandle handle =
-      sPluginContext->CreateSharedHandle(GLContext::SameProcess,
-                                         (void*)mTextureInfo.mTexture,
-                                         GLContext::TextureID);
+    SharedTextureHandle handle = sPluginContext->CreateSharedHandle(TextureImage::ThreadShared, (void*)mTextureInfo.mTexture, GLContext::TextureID);
 
     // We want forget about this now, so delete the texture. Assigning it to zero
     // ensures that we create a new one in Lock()
@@ -155,7 +149,6 @@ private:
 
 using namespace mozilla;
 using namespace mozilla::plugins::parent;
-using namespace mozilla::layers;
 
 static NS_DEFINE_IID(kIOutputStreamIID, NS_IOUTPUTSTREAM_IID);
 
@@ -201,8 +194,6 @@ nsNPAPIPluginInstance::~nsNPAPIPluginInstance()
     mMIMEType = nullptr;
   }
 }
-
-uint32_t nsNPAPIPluginInstance::gInPluginCalls = 0;
 
 void
 nsNPAPIPluginInstance::Destroy()
@@ -521,6 +512,19 @@ nsNPAPIPluginInstance::Start()
   // before returning. If the plugin returns failure, we'll clear it out below.
   mRunning = RUNNING;
 
+#if MOZ_WIDGET_ANDROID
+  // Flash creates some local JNI references during initialization (NPP_New). It does not
+  // remove these references later, so essentially they are leaked. AutoLocalJNIFrame
+  // prevents this by pushing a JNI frame. As a result, all local references created
+  // by Flash are contained in this frame. AutoLocalJNIFrame pops the frame once we
+  // go out of scope and the local references are deleted, preventing the leak.
+  JNIEnv* env = AndroidBridge::GetJNIEnv();
+  if (!env)
+    return NS_ERROR_FAILURE;
+
+  mozilla::AutoLocalJNIFrame frame(env);
+#endif
+
   nsresult newResult = library->NPP_New((char*)mimetype, &mNPP, (uint16_t)mode, count, (char**)names, (char**)values, NULL, &error);
   mInPluginInitCall = oldVal;
 
@@ -570,7 +574,7 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 
     NPPAutoPusher nppPusher(&mNPP);
 
-    DebugOnly<NPError> error;
+    NPError error;
     NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setwindow)(&mNPP, (NPWindow*)window), this);
 
     mInPluginInitCall = oldVal;
@@ -578,7 +582,7 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP SetWindow called: this=%p, [x=%d,y=%d,w=%d,h=%d], clip[t=%d,b=%d,l=%d,r=%d], return=%d\n",
     this, window->x, window->y, window->width, window->height,
-    window->clipRect.top, window->clipRect.bottom, window->clipRect.left, window->clipRect.right, (NPError)error));
+    window->clipRect.top, window->clipRect.bottom, window->clipRect.left, window->clipRect.right, error));
   }
   return NS_OK;
 }
@@ -679,7 +683,6 @@ nsresult nsNPAPIPluginInstance::HandleEvent(void* event, int16_t* result)
 #if defined(XP_WIN) || defined(XP_OS2)
     NS_TRY_SAFE_CALL_RETURN(tmpResult, (*pluginFunctions->event)(&mNPP, event), this);
 #else
-    MAIN_THREAD_JNI_REF_GUARD;
     tmpResult = (*pluginFunctions->event)(&mNPP, event);
 #endif
     NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
@@ -996,9 +999,7 @@ SharedTextureHandle nsNPAPIPluginInstance::CreateSharedHandle()
     return mContentTexture->CreateSharedHandle();
   } else if (mContentSurface) {
     EnsureGLContext();
-    return sPluginContext->CreateSharedHandle(GLContext::SameProcess,
-                                              mContentSurface,
-                                              GLContext::SurfaceTexture);
+    return sPluginContext->CreateSharedHandle(TextureImage::ThreadShared, mContentSurface, GLContext::SurfaceTexture);
   } else return 0;
 }
 
@@ -1379,12 +1380,34 @@ nsNPAPIPluginInstance::PrivateModeStateChanged(bool enabled)
     return NS_ERROR_FAILURE;
 
   PluginDestructionGuard guard(this);
-
+    
   NPError error;
   NPBool value = static_cast<NPBool>(enabled);
   NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setvalue)(&mNPP, NPNVprivateModeBool, &value), this);
   return (error == NPERR_NO_ERROR) ? NS_OK : NS_ERROR_FAILURE;
 }
+
+class DelayUnscheduleEvent : public nsRunnable {
+public:
+  nsRefPtr<nsNPAPIPluginInstance> mInstance;
+  uint32_t mTimerID;
+  DelayUnscheduleEvent(nsNPAPIPluginInstance* aInstance, uint32_t aTimerId)
+    : mInstance(aInstance)
+    , mTimerID(aTimerId)
+  {}
+
+  ~DelayUnscheduleEvent() {}
+
+  NS_IMETHOD Run();
+};
+
+NS_IMETHODIMP
+DelayUnscheduleEvent::Run()
+{
+  mInstance->UnscheduleTimer(mTimerID);
+  return NS_OK;
+}
+
 
 static void
 PluginTimerCallback(nsITimer *aTimer, void *aClosure)
@@ -1393,9 +1416,6 @@ PluginTimerCallback(nsITimer *aTimer, void *aClosure)
   NPP npp = t->npp;
   uint32_t id = t->id;
 
-  PLUGIN_LOG(PLUGIN_LOG_NOISY, ("nsNPAPIPluginInstance running plugin timer callback this=%p\n", npp->ndata));
-
-  MAIN_THREAD_JNI_REF_GUARD;
   // Some plugins (Flash on Android) calls unscheduletimer
   // from this callback.
   t->inCallback = true;
@@ -1411,8 +1431,8 @@ PluginTimerCallback(nsITimer *aTimer, void *aClosure)
   // use UnscheduleTimer to clean up if this is a one-shot timer
   uint32_t timerType;
   t->timer->GetType(&timerType);
-  if (t->needUnschedule || timerType == nsITimer::TYPE_ONE_SHOT)
-    inst->UnscheduleTimer(id);
+  if (timerType == nsITimer::TYPE_ONE_SHOT)
+      inst->UnscheduleTimer(id);
 }
 
 nsNPAPITimer*
@@ -1437,7 +1457,7 @@ nsNPAPIPluginInstance::ScheduleTimer(uint32_t interval, NPBool repeat, void (*ti
 
   nsNPAPITimer *newTimer = new nsNPAPITimer();
 
-  newTimer->inCallback = newTimer->needUnschedule = false;
+  newTimer->inCallback = false;
   newTimer->npp = &mNPP;
 
   // generate ID that is unique to this instance
@@ -1476,7 +1496,8 @@ nsNPAPIPluginInstance::UnscheduleTimer(uint32_t timerID)
     return;
 
   if (t->inCallback) {
-    t->needUnschedule = true;
+    nsCOMPtr<nsIRunnable> e = new DelayUnscheduleEvent(this, timerID);
+    NS_DispatchToCurrentThread(e);
     return;
   }
 
@@ -1740,14 +1761,8 @@ nsNPAPIPluginInstance::CheckJavaC2PJSObjectQuirk(uint16_t paramCount,
 
   nsRefPtr<nsPluginHost> pluginHost =
     already_AddRefed<nsPluginHost>(nsPluginHost::GetInst());
-  if (!pluginHost) {
-    return;
-  }
-
-  bool isClickToPlay;
-  nsAutoCString mimeType(mMIMEType);
-  rv = pluginHost->IsPluginClickToPlayForType(mimeType, &isClickToPlay);
-  if (NS_FAILED(rv) || !isClickToPlay) {
+  if (!pluginHost ||
+      !pluginHost->IsPluginClickToPlayForType(mMIMEType)) {
     return;
   }
 

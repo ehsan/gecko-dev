@@ -44,6 +44,7 @@ DIRS += \
   html \
   jsat \
   xpcom \
+  xforms \
   $(null)
 
 ifdef MOZ_XUL

@@ -320,7 +320,7 @@ BarrieredSetPair(JSCompartment *comp,
     v2.post();
 }
 
-class Shape;
+struct Shape;
 class BaseShape;
 namespace types { struct TypeObject; }
 
@@ -612,8 +612,6 @@ class ReadBarriered
   public:
     ReadBarriered() : value(NULL) {}
     ReadBarriered(T *value) : value(value) {}
-    ReadBarriered(const Unrooted<T*> &unrooted) : value(unrooted) {}
-    ReadBarriered(const Rooted<T*> &rooted) : value(rooted) {}
 
     T *get() const {
         if (!value)
@@ -628,7 +626,6 @@ class ReadBarriered
     T *operator->() const { return get(); }
 
     T **unsafeGet() { return &value; }
-    T * const * unsafeGet() const { return &value; }
 
     void set(T *v) { value = v; }
 

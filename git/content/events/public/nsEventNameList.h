@@ -408,53 +408,49 @@ FORWARDED_EVENT(scroll,
 
 WINDOW_EVENT(afterprint,
              NS_AFTERPRINT,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
 WINDOW_EVENT(beforeprint,
              NS_BEFOREPRINT,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
 BEFOREUNLOAD_EVENT(beforeunload,
                    NS_BEFORE_PAGE_UNLOAD,
-                   EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+                   EventNameType_HTMLXUL,
                    NS_EVENT)
 WINDOW_EVENT(hashchange,
              NS_HASHCHANGE,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
-// XXXbz Should the onmessage attribute on <body> really not work?  If so, do we
-// need a different macro to flag things like that (IDL, but not content
-// attributes on body/frameset), or is just using EventNameType_None enough?
 WINDOW_EVENT(message,
              NS_MESSAGE,
              EventNameType_None,
              NS_EVENT)
 WINDOW_EVENT(offline,
              NS_OFFLINE,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
 WINDOW_EVENT(online,
              NS_ONLINE,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
 WINDOW_EVENT(pagehide,
              NS_PAGE_HIDE,
-             EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTML,
              NS_EVENT)
 WINDOW_EVENT(pageshow,
              NS_PAGE_SHOW,
-             EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTML,
              NS_EVENT)
 WINDOW_EVENT(popstate,
              NS_POPSTATE,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT_NULL)
 // Not supported yet
 // WINDOW_EVENT(redo)
 WINDOW_EVENT(resize,
              NS_RESIZE_EVENT,
-             (EventNameType_XUL | EventNameType_SVGSVG |
-              EventNameType_HTMLBodyOrFramesetOnly),
+             (EventNameType_HTMLXUL | EventNameType_SVGSVG),
              NS_EVENT)
 // Not supported yet
 // WINDOW_EVENT(storage)
@@ -462,8 +458,7 @@ WINDOW_EVENT(resize,
 // WINDOW_EVENT(undo)
 WINDOW_EVENT(unload,
              NS_PAGE_UNLOAD,
-             (EventNameType_XUL | EventNameType_SVGSVG |
-              EventNameType_HTMLBodyOrFramesetOnly),
+             (EventNameType_HTMLXUL | EventNameType_SVGSVG),
              NS_EVENT)
 
 WINDOW_ONLY_EVENT(devicemotion,

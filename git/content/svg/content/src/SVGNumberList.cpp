@@ -13,6 +13,7 @@
 #include "nsSVGElement.h"
 #include "nsTextFormatter.h"
 #include "prdtoa.h"
+#include "string.h"
 #include "SVGAnimatedNumberList.h"
 #include "SVGContentUtils.h"
 

@@ -51,11 +51,10 @@
 #include "nsRegion.h"
 #include "Layers.h"
 #include "LayerManagerOGL.h"
-#include "GLTextureImage.h"
+#include "GLContext.h"
 #include "mozilla/layers/CompositorCocoaWidgetHelper.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
-#include "mozilla/a11y/Platform.h"
 #endif
 
 #include "mozilla/Preferences.h"
@@ -796,18 +795,15 @@ NS_IMETHODIMP nsChildView::ConstrainPosition(bool aAllowSlop,
 }
 
 // Move this component, aX and aY are in the parent widget coordinate system
-NS_IMETHODIMP nsChildView::Move(double aX, double aY)
+NS_IMETHODIMP nsChildView::Move(int32_t aX, int32_t aY)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  int32_t x = NSToIntRound(aX);
-  int32_t y = NSToIntRound(aY);
-
-  if (!mView || (mBounds.x == x && mBounds.y == y))
+  if (!mView || (mBounds.x == aX && mBounds.y == aY))
     return NS_OK;
 
-  mBounds.x = x;
-  mBounds.y = y;
+  mBounds.x = aX;
+  mBounds.y = aY;
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
 
@@ -822,18 +818,15 @@ NS_IMETHODIMP nsChildView::Move(double aX, double aY)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsChildView::Resize(double aWidth, double aHeight, bool aRepaint)
+NS_IMETHODIMP nsChildView::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  int32_t width = NSToIntRound(aWidth);
-  int32_t height = NSToIntRound(aHeight);
-
-  if (!mView || (mBounds.width == width && mBounds.height == height))
+  if (!mView || (mBounds.width == aWidth && mBounds.height == aHeight))
     return NS_OK;
 
-  mBounds.width  = width;
-  mBounds.height = height;
+  mBounds.width  = aWidth;
+  mBounds.height = aHeight;
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
 
@@ -848,28 +841,22 @@ NS_IMETHODIMP nsChildView::Resize(double aWidth, double aHeight, bool aRepaint)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsChildView::Resize(double aX, double aY,
-                                  double aWidth, double aHeight, bool aRepaint)
+NS_IMETHODIMP nsChildView::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  int32_t x = NSToIntRound(aX);
-  int32_t y = NSToIntRound(aY);
-  int32_t width = NSToIntRound(aWidth);
-  int32_t height = NSToIntRound(aHeight);
-
-  BOOL isMoving = (mBounds.x != x || mBounds.y != y);
-  BOOL isResizing = (mBounds.width != width || mBounds.height != height);
+  BOOL isMoving = (mBounds.x != aX || mBounds.y != aY);
+  BOOL isResizing = (mBounds.width != aWidth || mBounds.height != aHeight);
   if (!mView || (!isMoving && !isResizing))
     return NS_OK;
 
   if (isMoving) {
-    mBounds.x = x;
-    mBounds.y = y;
+    mBounds.x = aX;
+    mBounds.y = aY;
   }
   if (isResizing) {
-    mBounds.width  = width;
-    mBounds.height = height;
+    mBounds.width  = aWidth;
+    mBounds.height = aHeight;
   }
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
@@ -1325,14 +1312,14 @@ NS_IMETHODIMP nsChildView::Invalidate(const nsIntRect &aRect)
 }
 
 bool
-nsChildView::ComputeShouldAccelerate(bool aDefault)
+nsChildView::GetShouldAccelerate()
 {
   // Don't use OpenGL for transparent windows or for popup windows.
   if (!mView || ![[mView window] isOpaque] ||
       [[mView window] isKindOfClass:[PopupWindow class]])
     return false;
 
-  return nsBaseWidget::ComputeShouldAccelerate(aDefault);
+  return nsBaseWidget::GetShouldAccelerate();
 }
 
 bool
@@ -1340,8 +1327,7 @@ nsChildView::UseOffMainThreadCompositing()
 {
   // OMTC doesn't work with Basic Layers on OS X right now. Once it works, we'll
   // still want to disable it for certain kinds of windows (e.g. popups).
-  return nsBaseWidget::UseOffMainThreadCompositing() &&
-         ComputeShouldAccelerate(mUseLayersAcceleration);
+  return nsBaseWidget::UseOffMainThreadCompositing() && GetShouldAccelerate();
 }
 
 inline uint16_t COLOR8TOCOLOR16(uint8_t color8)
@@ -1674,7 +1660,8 @@ NS_IMETHODIMP nsChildView::OnIMEFocusChange(bool aFocus)
 {
   NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
   mTextInputHandler->OnFocusChangeInGecko(aFocus);
-  return NS_OK;
+  // XXX Return NS_ERROR_NOT_IMPLEMENTED, see bug 496360.
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NSView<mozView>* nsChildView::GetEditorView()
@@ -1705,7 +1692,8 @@ nsChildView::CreateCompositor()
     LayerManagerOGL *manager =
       static_cast<LayerManagerOGL*>(compositor::GetLayerManager(mCompositorParent));
 
-    NSOpenGLContext *glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
+    NSOpenGLContext *glContext =
+      (NSOpenGLContext *) manager->gl()->GetNativeData(GLContext::NativeGLContext);
 
     [(ChildView *)mView setGLContext:glContext];
     [(ChildView *)mView setUsingOMTCompositor:true];
@@ -1768,11 +1756,10 @@ nsChildView::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
   }
 
   if (!mResizerImage) {
-    mResizerImage = TextureImage::Create(manager->gl(),
-                                         nsIntSize(15, 15),
-                                         gfxASurface::CONTENT_COLOR_ALPHA,
-                                         LOCAL_GL_CLAMP_TO_EDGE,
-                                         TextureImage::UseNearestFilter);
+    mResizerImage = manager->gl()->CreateTextureImage(nsIntSize(15, 15),
+                                                      gfxASurface::CONTENT_COLOR_ALPHA,
+                                                      LOCAL_GL_CLAMP_TO_EDGE,
+                                                      TextureImage::UseNearestFilter);
 
     // Creation of texture images can fail.
     if (!mResizerImage)
@@ -1867,13 +1854,13 @@ nsChildView::EndSecureKeyboardInput()
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<a11y::Accessible>
+already_AddRefed<Accessible>
 nsChildView::GetDocumentAccessible()
 {
   if (!mozilla::a11y::ShouldA11yBeEnabled())
     return nullptr;
 
-  a11y::Accessible* docAccessible = nullptr;
+  Accessible *docAccessible = nullptr;
   if (mAccessible) {
     CallQueryReferent(mAccessible.get(), &docAccessible);
     return docAccessible;
@@ -1881,7 +1868,7 @@ nsChildView::GetDocumentAccessible()
 
   // need to fetch the accessible anew, because it has gone away.
   // cache the accessible in our weak ptr
-  a11y::Accessible* acc = GetAccessible();
+  Accessible* acc = GetAccessible();
   mAccessible = do_GetWeakReference(static_cast<nsIAccessible *>(acc));
 
   NS_IF_ADDREF(acc);
@@ -2470,7 +2457,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
     LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(layerManager);
     manager->SetClippingRegion(region);
-    glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
+    glContext = (NSOpenGLContext *)manager->gl()->GetNativeData(mozilla::gl::GLContext::NativeGLContext);
 
     if (!mGLContext) {
       [self setGLContext:glContext];
@@ -2673,9 +2660,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
 
   nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  NS_ENSURE_TRUE_VOID(rollupListener);
   nsCOMPtr<nsIWidget> widget = rollupListener->GetRollupWidget();
-  NS_ENSURE_TRUE_VOID(widget);
+  if (!widget)
+    return;
 
   NSWindow *popupWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
   if (!popupWindow || ![popupWindow isKindOfClass:[PopupWindow class]])
@@ -2698,7 +2685,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   BOOL consumeEvent = NO;
 
   nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  NS_ENSURE_TRUE(rollupListener, false);
   nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
   if (rollupWidget) {
     NSWindow* currentPopup = static_cast<NSWindow*>(rollupWidget->GetNativeData(NS_NATIVE_WINDOW));
@@ -4611,7 +4597,7 @@ static int32_t RoundUp(double aDouble)
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   nsCOMPtr<nsIWidget> kungFuDeathGrip2(mGeckoChild);
-  nsRefPtr<a11y::Accessible> accessible = mGeckoChild->GetDocumentAccessible();
+  nsRefPtr<Accessible> accessible = mGeckoChild->GetDocumentAccessible();
   if (!accessible)
     return nil;
 

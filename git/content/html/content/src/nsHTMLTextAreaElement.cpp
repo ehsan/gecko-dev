@@ -77,8 +77,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
   // nsIDOMHTMLTextAreaElement
@@ -154,7 +153,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(Element* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest);
 
   /**
    * Called when an attribute is about to be changed
@@ -240,7 +239,7 @@ protected:
    * Return if an element should have a specific validity UI
    * (with :-moz-ui-invalid and :-moz-ui-valid pseudo-classes).
    *
-   * @return Whether the element should have a validity UI.
+   * @return Whether the elemnet should have a validity UI.
    */
   bool ShouldShowValidityUI() const {
     /**
@@ -302,17 +301,17 @@ nsHTMLTextAreaElement::nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNode
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTextAreaElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLTextAreaElement,
                                                 nsGenericHTMLFormElement)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mControllers)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mControllers)
   tmp->mState.Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTextAreaElement,
                                                   nsGenericHTMLFormElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mControllers)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mControllers)
   tmp->mState.Traverse(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLTextAreaElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLTextAreaElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLTextAreaElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLTextAreaElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLTextAreaElement, nsHTMLTextAreaElement)
@@ -688,17 +687,16 @@ nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
     mHandlingSelect = true;
   }
 
-  // If noContentDispatch is true we will not allow content to handle
+  // If NS_EVENT_FLAG_NO_CONTENT_DISPATCH is set we will not allow content to handle
   // this event.  But to allow middle mouse button paste to work we must allow 
   // middle clicks to go to text fields anyway.
-  if (aVisitor.mEvent->mFlags.mNoContentDispatch) {
+  if (aVisitor.mEvent->flags & NS_EVENT_FLAG_NO_CONTENT_DISPATCH)
     aVisitor.mItemFlags |= NS_NO_CONTENT_DISPATCH;
-  }
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK &&
       aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
       static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
         nsMouseEvent::eMiddleButton) {
-    aVisitor.mEvent->mFlags.mNoContentDispatch = false;
+    aVisitor.mEvent->flags &= ~NS_EVENT_FLAG_NO_CONTENT_DISPATCH;
   }
 
   // Fire onchange (if necessary), before we do the blur, bug 370521.
@@ -754,8 +752,8 @@ nsHTMLTextAreaElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   }
 
   // Reset the flag for other content besides this text field
-  aVisitor.mEvent->mFlags.mNoContentDispatch =
-    ((aVisitor.mItemFlags & NS_NO_CONTENT_DISPATCH) != 0);
+  aVisitor.mEvent->flags |= (aVisitor.mItemFlags & NS_NO_CONTENT_DISPATCH)
+    ? NS_EVENT_FLAG_NO_CONTENT_DISPATCH : NS_EVENT_FLAG_NONE;
 
   return NS_OK;
 }
@@ -1279,7 +1277,7 @@ nsHTMLTextAreaElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLTextAreaElement::CopyInnerTo(Element* aDest)
+nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest)
 {
   nsresult rv = nsGenericHTMLFormElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);

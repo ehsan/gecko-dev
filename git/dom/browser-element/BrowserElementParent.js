@@ -176,7 +176,6 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
   this._domRequestCounter = 0;
   this._pendingDOMRequests = {};
   this._hasRemoteFrame = hasRemoteFrame;
-  this._nextPaintListeners = [];
 
   this._frameLoader = frameLoader;
   this._frameElement = frameLoader.QueryInterface(Ci.nsIFrameLoader).ownerElement;
@@ -214,7 +213,6 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
   addMessageListener("error", this._fireEventFromMsg);
   addMessageListener("scroll", this._fireEventFromMsg);
   addMessageListener("firstpaint", this._fireEventFromMsg);
-  addMessageListener("nextpaint", this._recvNextPaint);
   addMessageListener("keyevent", this._fireKeyEvent);
   addMessageListener("showmodalprompt", this._handleShowModalPrompt);
   addMessageListener('got-purge-history', this._gotDOMRequestResult);
@@ -259,14 +257,12 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
   defineMethod('stop', this._stop);
   defineMethod('purgeHistory', this._purgeHistory);
   defineMethod('getScreenshot', this._getScreenshot);
-  defineMethod('addNextPaintListener', this._addNextPaintListener);
-  defineMethod('removeNextPaintListener', this._removeNextPaintListener);
   defineDOMRequestMethod('getCanGoBack', 'get-can-go-back');
   defineDOMRequestMethod('getCanGoForward', 'get-can-go-forward');
 
-  // Listen to visibilitychange on the iframe's owner window, and forward it
+  // Listen to mozvisibilitychange on the iframe's owner window, and forward it
   // down to the child.
-  this._window.addEventListener('visibilitychange',
+  this._window.addEventListener('mozvisibilitychange',
                                 this._ownerVisibilityChange.bind(this),
                                 /* useCapture = */ false,
                                 /* wantsUntrusted = */ false);
@@ -369,7 +365,7 @@ BrowserElementParent.prototype = {
     // that we must do so here, rather than in the BrowserElementParent
     // constructor, because the BrowserElementChild may not be initialized when
     // we run our constructor.
-    if (this._window.document.hidden) {
+    if (this._window.document.mozHidden) {
       this._ownerVisibilityChange();
     }
   },
@@ -598,41 +594,6 @@ BrowserElementParent.prototype = {
                                 {width: width, height: height});
   },
 
-  _recvNextPaint: function(data) {
-    let listeners = this._nextPaintListeners;
-    this._nextPaintListeners = [];
-    for (let listener of listeners) {
-      try {
-        listener();
-      } catch (e) {
-        // If a listener throws we'll continue.
-      }
-    }
-  },
-
-  _addNextPaintListener: function(listener) {
-    if (typeof listener != 'function')
-      throw Components.Exception("Invalid argument", Cr.NS_ERROR_INVALID_ARG);
-
-    if (this._nextPaintListeners.push(listener) == 1)
-      this._sendAsyncMsg('activate-next-paint-listener');
-  },
-
-  _removeNextPaintListener: function(listener) {
-    if (typeof listener != 'function')
-      throw Components.Exception("Invalid argument", Cr.NS_ERROR_INVALID_ARG);
-
-    for (let i = this._nextPaintListeners.length - 1; i >= 0; i--) {
-      if (this._nextPaintListeners[i] == listener) {
-        this._nextPaintListeners.splice(i, 1);
-        break;
-      }
-    }
-
-    if (this._nextPaintListeners.length == 0)
-      this._sendAsyncMsg('deactivate-next-paint-listener');
-  },
-
   _fireKeyEvent: function(data) {
     let evt = this._window.document.createEvent("KeyboardEvent");
     evt.initKeyEvent(data.json.type, true, true, this._window,
@@ -648,7 +609,7 @@ BrowserElementParent.prototype = {
    */
   _ownerVisibilityChange: function() {
     this._sendAsyncMsg('owner-visibility-change',
-                       {visible: !this._window.document.hidden});
+                       {visible: !this._window.document.mozHidden});
   },
 
   _exitFullscreen: function() {

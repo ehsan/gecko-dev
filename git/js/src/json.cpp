@@ -630,7 +630,7 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
             if (replacer->isDenseArray())
                 len = Min(len, replacer->getDenseArrayCapacity());
 
-            HashSet<jsid, JsidHasher> idSet(cx);
+            HashSet<jsid> idSet(cx);
             if (!idSet.init(len))
                 return false;
 
@@ -667,7 +667,7 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
                 }
 
                 /* Step 4b(iv)(6). */
-                HashSet<jsid, JsidHasher>::AddPtr p = idSet.lookupForAdd(id);
+                HashSet<jsid>::AddPtr p = idSet.lookupForAdd(id);
                 if (!p) {
                     /* Step 4b(iv)(6)(a). */
                     if (!idSet.add(p, id) || !propertyList.append(id))
@@ -862,9 +862,11 @@ Revive(JSContext *cx, HandleValue reviver, MutableHandleValue vp)
     return Walk(cx, obj, id, reviver, vp);
 }
 
+namespace js {
+
 JSBool
-js::ParseJSONWithReviver(JSContext *cx, StableCharPtr chars, size_t length, HandleValue reviver,
-                         MutableHandleValue vp, DecodingMode decodingMode /* = STRICT */)
+ParseJSONWithReviver(JSContext *cx, StableCharPtr chars, size_t length, HandleValue reviver,
+                     MutableHandleValue vp, DecodingMode decodingMode /* = STRICT */)
 {
     /* 15.12.2 steps 2-3. */
     JSONParser parser(cx, chars, length,
@@ -877,6 +879,8 @@ js::ParseJSONWithReviver(JSContext *cx, StableCharPtr chars, size_t length, Hand
         return Revive(cx, reviver, vp);
     return true;
 }
+
+} /* namespace js */
 
 #if JS_HAS_TOSOURCE
 static JSBool

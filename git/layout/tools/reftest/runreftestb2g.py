@@ -105,11 +105,7 @@ class B2GOptions(ReftestOptions):
                         help="the path to a gecko distribution that should "
                         "be installed on the emulator prior to test")
         defaults["geckoPath"] = None
-        self.add_option("--logcat-dir", action="store",
-                        type="string", dest="logcat_dir",
-                        help="directory to store logcat dump files")
-        defaults["logcat_dir"] = None
-        defaults["remoteTestRoot"] = "/data/local/tests"
+        defaults["remoteTestRoot"] = None
         defaults["logFile"] = "reftest.log"
         defaults["autorun"] = True
         defaults["closeWhenDone"] = True
@@ -118,8 +114,7 @@ class B2GOptions(ReftestOptions):
         self.set_defaults(**defaults)
 
     def verifyRemoteOptions(self, options):
-        if not options.remoteTestRoot:
-            options.remoteTestRoot = self._automation._devicemanager.getDeviceRoot() + "/reftest"
+        options.remoteTestRoot = self._automation._devicemanager.getDeviceRoot() + "/reftest"
         options.remoteProfile = options.remoteTestRoot + "/profile"
 
         productRoot = options.remoteTestRoot + "/" + self._automation._product
@@ -137,9 +132,6 @@ class B2GOptions(ReftestOptions):
 
         if options.geckoPath and not options.emulator:
             self.error("You must specify --emulator if you specify --gecko-path")
-
-        if options.logcat_dir and not options.emulator:
-            self.error("You must specify --emulator if you specify --logcat-dir")
 
         #if not options.emulator and not options.deviceIP:
         #    print "ERROR: you must provide a device IP"
@@ -218,6 +210,7 @@ class B2GReftest(RefTest):
         self.remoteLogFile = options.remoteLogFile
         self.bundlesDir = '/system/b2g/distribution/bundles'
         self.userJS = '/data/local/user.js'
+        self.testDir = '/data/local/tests'
         self.remoteMozillaPath = '/data/b2g/mozilla'
         self.remoteProfilesIniPath = os.path.join(self.remoteMozillaPath, 'profiles.ini')
         self.originalProfilesIni = None
@@ -260,7 +253,7 @@ class B2GReftest(RefTest):
 
             # Restore the original user.js.
             self._devicemanager._checkCmdAs(['shell', 'rm', '-f', self.userJS])
-            if self._devicemanager._useDDCopy:
+            if self._devicemanager.useDDCopy:
                 self._devicemanager._checkCmdAs(['shell', 'dd', 'if=%s.orig' % self.userJS, 'of=%s' % self.userJS])
             else:
                 self._devicemanager._checkCmdAs(['shell', 'cp', '%s.orig' % self.userJS, self.userJS])
@@ -405,10 +398,7 @@ user_pref("font.size.inflation.minTwips", 0);
 user_pref("reftest.browser.iframe.enabled", true);
 user_pref("reftest.remote", true);
 user_pref("reftest.uri", "%s");
-// Set a future policy version to avoid the telemetry prompt.
-user_pref("toolkit.telemetry.prompted", 999);
-user_pref("toolkit.telemetry.notifiedOptOut", 999);
-user_pref("marionette.loadearly", true);
+user_pref("toolkit.telemetry.prompted", true);
 """ % reftestlist)
 
         #workaround for jsreftests.
@@ -445,7 +435,7 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
         # In B2G, user.js is always read from /data/local, not the profile
         # directory.  Backup the original user.js first so we can restore it.
         self._devicemanager._checkCmdAs(['shell', 'rm', '-f', '%s.orig' % self.userJS])
-        if self._devicemanager._useDDCopy:
+        if self._devicemanager.useDDCopy:
             self._devicemanager._checkCmdAs(['shell', 'dd', 'if=%s' % self.userJS, 'of=%s.orig' % self.userJS])
         else:
             self._devicemanager._checkCmdAs(['shell', 'cp', self.userJS, '%s.orig' % self.userJS])
@@ -480,10 +470,6 @@ def main(args=sys.argv[1:]):
         auto.setEmulator(True)
         if options.noWindow:
             kwargs['noWindow'] = True
-        if options.geckoPath:
-            kwargs['gecko_path'] = options.geckoPath
-        if options.logcat_dir:
-            kwargs['logcat_dir'] = options.logcat_dir
     if options.emulator_res:
         kwargs['emulator_res'] = options.emulator_res
     if options.b2gPath:
@@ -492,12 +478,13 @@ def main(args=sys.argv[1:]):
         host,port = options.marionette.split(':')
         kwargs['host'] = host
         kwargs['port'] = int(port)
-    marionette = Marionette.getMarionetteOrExit(**kwargs)
+    if options.geckoPath:
+        kwargs['gecko_path'] = options.geckoPath
+    marionette = Marionette(**kwargs)
     auto.marionette = marionette
 
     # create the DeviceManager
-    kwargs = {'adbPath': options.adbPath,
-              'deviceRoot': options.remoteTestRoot}
+    kwargs = {'adbPath': options.adbPath}
     if options.deviceIP:
         kwargs.update({'host': options.deviceIP,
                        'port': options.devicePort})
@@ -524,6 +511,9 @@ def main(args=sys.argv[1:]):
     auto.logFinish = "REFTEST TEST-START | Shutdown"
 
     reftest = B2GReftest(auto, dm, options, SCRIPT_DIRECTORY)
+    # Create /data/local/tests, to force its use by DeviceManagerADB;
+    # B2G won't run correctly with the profile installed to /mnt/sdcard.
+    dm.mkDirs(reftest.testDir)
 
     logParent = os.path.dirname(options.remoteLogFile)
     dm.mkDir(logParent);

@@ -55,8 +55,6 @@
 #include "prenv.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/Element.h"
-#include <cstdlib> // for std::abs(int/long)
-#include <cmath> // for std::abs(float/double)
 
 using namespace mozilla;
 
@@ -97,7 +95,6 @@ nsXULWindow::nsXULWindow(uint32_t aChromeFlags)
     mIgnoreXULPosition(false),
     mChromeFlagsFrozen(false),
     mIgnoreXULSizeMode(false),
-    mDestroying(false),
     mContextFlags(0),
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
@@ -412,13 +409,6 @@ NS_IMETHODIMP nsXULWindow::Destroy()
   if (!mWindow)
      return NS_OK;
 
-  // Ensure we don't reenter this code
-  if (mDestroying)
-    return NS_OK;
-
-  mozilla::AutoRestore<bool> guard(mDestroying);
-  mDestroying = true;
-
   nsCOMPtr<nsIAppShellService> appShell(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
   NS_ASSERTION(appShell, "Couldn't get appShell... xpcom shutdown?");
   if (appShell)
@@ -534,9 +524,7 @@ NS_IMETHODIMP nsXULWindow::SetPosition(int32_t aX, int32_t aY)
 {
   // Don't reset the window's size mode here - platforms that don't want to move
   // maximized windows should reset it in their respective Move implementation.
-  double invScale = 1.0 / mWindow->GetDefaultScale();
-  nsresult rv = mWindow->Move(aX * invScale, aY * invScale);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(mWindow->Move(aX, aY), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
     // window at this position. We don't persist this one-time position.
@@ -562,9 +550,7 @@ NS_IMETHODIMP nsXULWindow::SetSize(int32_t aCX, int32_t aCY, bool aRepaint)
 
   mIntrinsicallySized = false;
 
-  double invScale = 1.0 / mWindow->GetDefaultScale();
-  nsresult rv = mWindow->Resize(aCX * invScale, aCY * invScale, aRepaint);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(mWindow->Resize(aCX, aCY, aRepaint), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
     // window at this size & in the normal size mode (since it is the only mode
@@ -594,11 +580,7 @@ NS_IMETHODIMP nsXULWindow::SetPositionAndSize(int32_t aX, int32_t aY,
 
   mIntrinsicallySized = false;
 
-  double invScale = 1.0 / mWindow->GetDefaultScale();
-  nsresult rv = mWindow->Resize(aX * invScale, aY * invScale,
-                                aCX * invScale, aCY * invScale,
-                                aRepaint);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(mWindow->Resize(aX, aY, aCX, aCY, aRepaint), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
     // window at this size and position. We don't persist this one-time setting.
@@ -985,17 +967,9 @@ void nsXULWindow::OnChromeLoaded()
       // (if LoadSizeFromXUL set the size, mIntrinsicallySized will be false)
       nsCOMPtr<nsIContentViewer> cv;
       mDocShell->GetContentViewer(getter_AddRefs(cv));
-      nsCOMPtr<nsIMarkupDocumentViewer> markupViewer = do_QueryInterface(cv);
-      if (markupViewer) {
-        nsCOMPtr<nsIDocShellTreeItem> docShellAsItem = do_QueryInterface(mDocShell);
-        nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
-        docShellAsItem->GetTreeOwner(getter_AddRefs(treeOwner));
-        if (treeOwner) {
-          int32_t width, height;
-          markupViewer->GetContentSize(&width, &height);
-          treeOwner->SizeShellTo(docShellAsItem, width, height);
-        }
-      }
+      nsCOMPtr<nsIMarkupDocumentViewer> markupViewer(do_QueryInterface(cv));
+      if (markupViewer)
+        markupViewer->SizeToContent();
     }
 
     bool positionSet = !mIgnoreXULPosition;
@@ -1348,8 +1322,8 @@ void nsXULWindow::StaggerPosition(int32_t &aRequestedX, int32_t &aRequestedY,
           listY = NSToIntRound(listY / scale);
         }
 
-        if (std::abs(listX - aRequestedX) <= kSlop &&
-            std::abs(listY - aRequestedY) <= kSlop) {
+        if (NS_ABS(listX - aRequestedX) <= kSlop &&
+            NS_ABS(listY - aRequestedY) <= kSlop) {
           // collision! offset and start over
           if (bouncedX & 0x1)
             aRequestedX -= kOffset;
@@ -1413,7 +1387,7 @@ void nsXULWindow::SyncAttributesToWidget()
   bool isAccelerated;
   rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
   if (NS_SUCCEEDED(rv)) {
-    mWindow->SetLayersAcceleration(isAccelerated);
+    mWindow->SetAcceleratedRendering(isAccelerated);
   }
 
   // "windowtype" attribute

@@ -9,7 +9,6 @@
 #include "CameraCommon.h"
 
 using namespace mozilla;
-using namespace mozilla::layers;
 
 /**
  * 'PreviewControl' is a helper class that dispatches preview control
@@ -91,10 +90,9 @@ public:
 
   void NotifyConsumptionChanged(MediaStreamGraph* aGraph, Consumption aConsuming)
   {
-    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-
-#ifdef PR_LOGGING
     const char* state;
+
+    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
 
     switch (aConsuming) {
       case NOT_CONSUMED:
@@ -111,7 +109,6 @@ public:
     }
 
     DOM_CAMERA_LOGA("camera viewfinder is %s\n", state);
-#endif
     nsCOMPtr<nsIRunnable> previewControl;
 
     switch (aConsuming) {
@@ -212,7 +209,7 @@ DOMCameraPreview::Start()
    * This reference is removed in SetStateStopped().
    */
   NS_ADDREF_THIS();
-  DOM_CAMERA_SETSTATE(STARTING);
+  mState = STARTING;
   mCameraControl->StartPreview(this);
 }
 
@@ -221,7 +218,7 @@ DOMCameraPreview::SetStateStarted()
 {
   NS_ASSERTION(NS_IsMainThread(), "SetStateStarted() not called from main thread");
 
-  DOM_CAMERA_SETSTATE(STARTED);
+  mState = STARTED;
   DOM_CAMERA_LOGI("Preview stream started\n");
 }
 
@@ -249,7 +246,7 @@ DOMCameraPreview::StopPreview()
   }
 
   DOM_CAMERA_LOGI("Stopping preview stream\n");
-  DOM_CAMERA_SETSTATE(STOPPING);
+  mState = STOPPING;
   mCameraControl->StopPreview();
   mInput->EndTrack(TRACK_VIDEO);
   mInput->Finish();
@@ -260,12 +257,7 @@ DOMCameraPreview::SetStateStopped()
 {
   NS_ASSERTION(NS_IsMainThread(), "SetStateStopped() not called from main thread");
 
-  // see bug 809259 and bug 817367.
-  if (mState != STOPPING) {
-    mInput->EndTrack(TRACK_VIDEO);
-    mInput->Finish();
-  }
-  DOM_CAMERA_SETSTATE(STOPPED);
+  mState = STOPPED;
   DOM_CAMERA_LOGI("Preview stream stopped\n");
 
   /**

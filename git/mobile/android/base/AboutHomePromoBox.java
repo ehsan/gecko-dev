@@ -18,6 +18,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
@@ -26,7 +27,7 @@ import android.widget.TextView;
  * To do this, add a new Type value and update show() to call setResources() for your values -
  * including a set[Box Type]Resources() helper method is recommended.
  */
-public class AboutHomePromoBox extends TextView implements View.OnClickListener {
+public class AboutHomePromoBox extends LinearLayout implements View.OnClickListener {
     private static final String LOGTAG = "AboutHomePromoBox";
 
     public enum Type { NONE, SYNC, APPS };
@@ -34,6 +35,8 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
     private Type mType;
 
     private final Context mContext;
+    private final TextView mTextView;
+    private final ImageView mImageView;
 
     // Use setResources() to set these variables for each PromoBox type.
     private int mTextResource;
@@ -43,7 +46,12 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
     public AboutHomePromoBox(Context context, AttributeSet attrs) {
         super(context, attrs);
 
+        final LayoutInflater inflater = LayoutInflater.from(context);
+        inflater.inflate(R.layout.abouthome_promo_box, this);
+
         mContext = context;
+        mTextView = (TextView) findViewById(R.id.text);
+        mImageView = (ImageView) findViewById(R.id.icon);
         setOnClickListener(this);
     }
 
@@ -103,7 +111,7 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
 
     private void updateViewResources() {
         updateTextViewResources();
-        setCompoundDrawablesWithIntrinsicBounds(mImageResource, 0, 0, 0);
+        mImageView.setImageResource(mImageResource);
     }
 
     private void updateTextViewResources() {
@@ -111,12 +119,12 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
         final String boldName = mContext.getResources().getString(mBoldTextResource);
         final int styleIndex = promoText.indexOf(boldName);
         if (styleIndex < 0)
-            setText(promoText);
+            mTextView.setText(promoText);
         else {
             final SpannableString spannableText = new SpannableString(promoText);
             spannableText.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), styleIndex,
                     styleIndex + boldName.length(), 0);
-            setText(spannableText, TextView.BufferType.SPANNABLE);
+            mTextView.setText(spannableText, TextView.BufferType.SPANNABLE);
         }
     }
 

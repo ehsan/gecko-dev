@@ -13,9 +13,8 @@
 #include "nsStyleContext.h"
 
 #include "imgIRequest.h"
+#include "imgIDecoderObserver.h"
 #include "imgINotificationObserver.h"
-
-class imgRequestProxy;
 
 #define BULLET_FRAME_IMAGE_LOADING NS_FRAME_STATE_BIT(63)
 #define BULLET_FRAME_HAS_FONT_INFLATION NS_FRAME_STATE_BIT(62)
@@ -99,8 +98,6 @@ public:
   }
   void SetFontSizeInflation(float aInflation);
 
-  int32_t GetOrdinal() { return mOrdinal; }
-
 protected:
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
 
@@ -112,7 +109,7 @@ protected:
   void GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGroup);
 
   nsMargin mPadding;
-  nsRefPtr<imgRequestProxy> mImageRequest;
+  nsCOMPtr<imgIRequest> mImageRequest;
   nsRefPtr<nsBulletListener> mListener;
 
   nsSize mIntrinsicSize;

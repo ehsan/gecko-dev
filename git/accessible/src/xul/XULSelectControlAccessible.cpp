@@ -31,7 +31,7 @@ XULSelectControlAccessible::
   XULSelectControlAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc)
 {
-  mGenericTypes |= eSelect;
+  mFlags |= eSelectAccessible;
   mSelectControl = do_QueryInterface(aContent);
 }
 

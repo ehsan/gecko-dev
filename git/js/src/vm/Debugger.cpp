@@ -24,7 +24,6 @@
 #include "methodjit/Retcon.h"
 #include "js/Vector.h"
 
-#include "gc/FindSCCs-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;
@@ -56,7 +55,6 @@ extern Class DebuggerEnv_class;
 
 enum {
     JSSLOT_DEBUGENV_OWNER,
-    JSSLOT_DEBUGENV_GC_GRAY_LINK,
     JSSLOT_DEBUGENV_COUNT
 };
 
@@ -64,7 +62,6 @@ extern Class DebuggerObject_class;
 
 enum {
     JSSLOT_DEBUGOBJECT_OWNER,
-    JSSLOT_DEBUGOBJECT_GC_GRAY_LINK,
     JSSLOT_DEBUGOBJECT_COUNT
 };
 
@@ -72,7 +69,6 @@ extern Class DebuggerScript_class;
 
 enum {
     JSSLOT_DEBUGSCRIPT_OWNER,
-    JSSLOT_DEBUGSCRIPT_GC_GRAY_LINK,
     JSSLOT_DEBUGSCRIPT_COUNT
 };
 
@@ -361,6 +357,7 @@ Breakpoint::nextInSite()
     return (link == &site->breakpoints) ? NULL : fromSiteLinks(link);
 }
 
+
 /*** Debugger hook dispatch **********************************************************************/
 
 Debugger::Debugger(JSContext *cx, JSObject *dbg)
@@ -369,7 +366,8 @@ Debugger::Debugger(JSContext *cx, JSObject *dbg)
 {
     assertSameCompartment(cx, dbg);
 
-    cx->runtime->debuggerList.insertBack(this);
+    JSRuntime *rt = cx->runtime;
+    JS_APPEND_LINK(&link, &rt->debuggerList);
     JS_INIT_CLIST(&breakpoints);
     JS_INIT_CLIST(&onNewGlobalObjectWatchersLink);
 }
@@ -380,6 +378,7 @@ Debugger::~Debugger()
 
     /* This always happens in the GC thread, so no locking is required. */
     JS_ASSERT(object->compartment()->rt->isHeapBusy());
+    JS_REMOVE_LINK(&link);
 
     /*
      * Since the inactive state for this link is a singleton cycle, it's always
@@ -652,7 +651,7 @@ Debugger::wrapEnvironment(JSContext *cx, Handle<Env*> env, Value *rval)
         }
 
         CrossCompartmentKey key(CrossCompartmentKey::DebuggerEnvironment, object, env);
-        if (!object->compartment()->putWrapper(key, ObjectValue(*envobj))) {
+        if (!object->compartment()->crossCompartmentWrappers.put(key, ObjectValue(*envobj))) {
             environments.remove(env);
             js_ReportOutOfMemory(cx);
             return false;
@@ -690,7 +689,7 @@ Debugger::wrapDebuggeeValue(JSContext *cx, Value *vp)
 
             if (obj->compartment() != object->compartment()) {
                 CrossCompartmentKey key(CrossCompartmentKey::DebuggerObject, object, obj);
-                if (!object->compartment()->putWrapper(key, ObjectValue(*dobj))) {
+                if (!object->compartment()->crossCompartmentWrappers.put(key, ObjectValue(*dobj))) {
                     objects.remove(obj);
                     js_ReportOutOfMemory(cx);
                     return false;
@@ -849,7 +848,7 @@ Debugger::parseResumptionValue(Maybe<AutoCompartment> &ac, bool ok, const Value 
     /* Check that rv is {return: val} or {throw: val}. */
     JSContext *cx = ac.ref().context();
     Rooted<JSObject*> obj(cx);
-    RootedShape shape(cx);
+    Shape *shape;
     jsid returnId = NameToId(cx->names().return_);
     jsid throwId = NameToId(cx->names().throw_);
     bool okResumption = rv.isObject();
@@ -869,10 +868,8 @@ Debugger::parseResumptionValue(Maybe<AutoCompartment> &ac, bool ok, const Value 
         return handleUncaughtException(ac, vp, callHook);
     }
 
-    RootedValue v(cx, *vp);
-    if (!js_NativeGet(cx, obj, obj, shape, 0, &v) || !unwrapDebuggeeValue(cx, v.address()))
-        return handleUncaughtException(ac, v.address(), callHook);
-    *vp = v;
+    if (!js_NativeGet(cx, obj, obj, shape, 0, vp) || !unwrapDebuggeeValue(cx, vp))
+        return handleUncaughtException(ac, vp, callHook);
 
     ac.destroy();
     if (!cx->compartment->wrap(cx, vp)) {
@@ -1200,7 +1197,7 @@ Debugger::onSingleStep(JSContext *cx, Value *vp)
     {
         AutoAssertNoGC nogc;
         uint32_t stepperCount = 0;
-        UnrootedScript trappingScript = fp->script();
+        JSScript *trappingScript = fp->script().get(nogc);
         GlobalObject *global = &fp->global();
         if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
             for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
@@ -1336,26 +1333,6 @@ Debugger::slowPathOnNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global
 
 /*** Debugger JSObjects **************************************************************************/
 
-JS_STATIC_ASSERT(unsigned(JSSLOT_DEBUGENV_GC_GRAY_LINK) ==
-                 unsigned(JSSLOT_DEBUGOBJECT_GC_GRAY_LINK));
-JS_STATIC_ASSERT(unsigned(JSSLOT_DEBUGENV_GC_GRAY_LINK) ==
-                 unsigned(JSSLOT_DEBUGSCRIPT_GC_GRAY_LINK));
-
-/* static */ unsigned
-Debugger::gcGrayLinkSlot()
-{
-    return JSSLOT_DEBUGOBJECT_GC_GRAY_LINK;
-}
-
-/* static */ bool
-Debugger::isDebugWrapper(RawObject o)
-{
-    Class *c = o->getClass();
-    return c == &DebuggerObject_class ||
-           c == &DebuggerEnv_class ||
-           c == &DebuggerScript_class;
-}
-
 void
 Debugger::markKeysInCompartment(JSTracer *tracer)
 {
@@ -1364,9 +1341,29 @@ Debugger::markKeysInCompartment(JSTracer *tracer)
      * enumerating WeakMap keys. However in this case we need access, so we
      * make a base-class reference. Range is public in HashMap.
      */
-    objects.markKeys(tracer);
-    environments.markKeys(tracer);
-    scripts.markKeys(tracer);
+    ObjectWeakMap::Base &objStorage = objects;
+    for (ObjectWeakMap::Base::Range r = objStorage.all(); !r.empty(); r.popFront()) {
+        const EncapsulatedPtrObject key = r.front().key;
+        HeapPtrObject tmp(key);
+        gc::MarkObject(tracer, &tmp, "cross-compartment WeakMap key");
+        JS_ASSERT(tmp == key);
+    }
+
+    ObjectWeakMap::Base &envStorage = environments;
+    for (ObjectWeakMap::Base::Range r = envStorage.all(); !r.empty(); r.popFront()) {
+        const EncapsulatedPtrObject &key = r.front().key;
+        HeapPtrObject tmp(key);
+        js::gc::MarkObject(tracer, &tmp, "cross-compartment WeakMap key");
+        JS_ASSERT(tmp == key);
+    }
+
+    const ScriptWeakMap::Base &scriptStorage = scripts;
+    for (ScriptWeakMap::Base::Range r = scriptStorage.all(); !r.empty(); r.popFront()) {
+        const EncapsulatedPtrScript &key = r.front().key;
+        HeapPtrScript tmp(key);
+        gc::MarkScript(tracer, &tmp, "cross-compartment WeakMap key");
+        JS_ASSERT(tmp == key);
+    }
 }
 
 /*
@@ -1399,7 +1396,8 @@ Debugger::markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer)
      * Mark all objects in comp that are referents of Debugger.Objects in other
      * compartments.
      */
-    for (Debugger *dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
+    for (JSCList *p = &rt->debuggerList; (p = JS_NEXT_LINK(p)) != &rt->debuggerList;) {
+        Debugger *dbg = Debugger::fromLinks(p);
         if (!dbg->object->compartment()->isCollecting())
             dbg->markKeysInCompartment(tracer);
     }
@@ -1445,12 +1443,12 @@ Debugger::markAllIteratively(GCMarker *trc)
 
                 /*
                  * dbg is a Debugger with at least one debuggee. Check three things:
-                 *   - dbg is actually in a compartment that is being marked
+                 *   - dbg is actually in a compartment being GC'd
                  *   - it isn't already marked
                  *   - it actually has hooks that might be called
                  */
                 HeapPtrObject &dbgobj = dbg->toJSObjectRef();
-                if (!dbgobj->compartment()->isGCMarking())
+                if (!dbgobj->compartment()->isCollecting())
                     continue;
 
                 bool dbgMarked = IsObjectMarked(&dbgobj);
@@ -1527,8 +1525,10 @@ Debugger::sweepAll(FreeOp *fop)
 {
     JSRuntime *rt = fop->runtime();
 
-    for (Debugger *dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
-        if (IsObjectAboutToBeFinalized(&dbg->object)) {
+    for (JSCList *p = &rt->debuggerList; (p = JS_NEXT_LINK(p)) != &rt->debuggerList;) {
+        Debugger *dbg = Debugger::fromLinks(p);
+
+        if (!IsObjectMarked(&dbg->object)) {
             /*
              * dbg is being GC'd. Detach it from its debuggees. The debuggee
              * might be GC'd too. Since detaching requires access to both
@@ -1544,7 +1544,7 @@ Debugger::sweepAll(FreeOp *fop)
         GlobalObjectSet &debuggees = (*c)->getDebuggees();
         for (GlobalObjectSet::Enum e(debuggees); !e.empty(); e.popFront()) {
             GlobalObject *global = e.front();
-            if (IsObjectAboutToBeFinalized(&global))
+            if (!IsObjectMarked(&global))
                 detachAllDebuggersFromGlobal(fop, global, &e);
             else if (global != e.front())
                 e.rekeyFront(global);
@@ -1560,28 +1560,6 @@ Debugger::detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global,
     JS_ASSERT(!debuggers->empty());
     while (!debuggers->empty())
         debuggers->back()->removeDebuggeeGlobal(fop, global, compartmentEnum, NULL);
-}
-
-/* static */ void
-Debugger::findCompartmentEdges(JSCompartment *comp, js::gc::ComponentFinder<JSCompartment> &finder)
-{
-    /*
-     * For debugger cross compartment wrappers, add edges in the opposite
-     * direction to those already added by JSCompartment::findOutgoingEdges.
-     * This ensure that debuggers and their debuggees are finalized in the same
-     * group.
-     */
-    for (Debugger *dbg = comp->rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
-        JSCompartment *w = dbg->object->compartment();
-        if (w == comp || !w->isGCMarking())
-            continue;
-        if (dbg->scripts.hasKeyInCompartment(comp) ||
-            dbg->objects.hasKeyInCompartment(comp) ||
-            dbg->environments.hasKeyInCompartment(comp))
-        {
-            finder.addEdgeTo(w);
-        }
-    }
 }
 
 void
@@ -1841,11 +1819,9 @@ Debugger::unwrapDebuggeeArgument(JSContext *cx, const Value &v)
     }
 
     /* If we have a cross-compartment wrapper, dereference as far as is secure. */
-    obj = UnwrapObjectChecked(obj);
-    if (!obj) {
-        JS_ReportError(cx, "Permission denied to access object");
+    obj = UnwrapObjectChecked(cx, obj);
+    if (!obj)
         return NULL;
-    }
 
     /* If that produced an outer window, innerize it. */
     obj = GetInnerObject(cx, obj);
@@ -2503,13 +2479,6 @@ Debugger::findAllGlobals(JSContext *cx, unsigned argc, Value *vp)
 
         GlobalObject *global = c->maybeGlobal();
         if (global) {
-            /*
-             * We pulled |global| out of nowhere, so it's possible that it was
-             * marked gray by XPConnect. Since we're now exposing it to JS code,
-             * we need to mark it black.
-             */
-            ExposeGCThingToActiveJS(global, JSTRACE_OBJECT);
-
             Value globalValue(ObjectValue(*global));
             if (!dbg->wrapDebuggeeValue(cx, &globalValue))
                 return false;
@@ -2571,7 +2540,7 @@ DebuggerScript_trace(JSTracer *trc, RawObject obj)
 {
     /* This comes from a private pointer, so no barrier needed. */
     if (JSScript *script = GetScriptReferent(obj)) {
-        MarkCrossCompartmentScriptUnbarriered(trc, obj, &script, "Debugger.Script referent");
+        MarkCrossCompartmentScriptUnbarriered(trc, &script, "Debugger.Script referent");
         obj->setPrivateUnbarriered(script);
     }
 }
@@ -2623,7 +2592,7 @@ Debugger::wrapScript(JSContext *cx, HandleScript script)
         }
 
         CrossCompartmentKey key(CrossCompartmentKey::DebuggerScript, object, script);
-        if (!object->compartment()->putWrapper(key, ObjectValue(*scriptobj))) {
+        if (!object->compartment()->crossCompartmentWrappers.put(key, ObjectValue(*scriptobj))) {
             scripts.remove(script);
             js_ReportOutOfMemory(cx);
             return NULL;
@@ -2760,7 +2729,7 @@ DebuggerScript_getChildScripts(JSContext *cx, unsigned argc, Value *vp)
             obj = objects->vector[i];
             if (obj->isFunction()) {
                 fun = static_cast<JSFunction *>(obj.get());
-                funScript = fun->nonLazyScript();
+                funScript = fun->script();
                 s = dbg->wrapScript(cx, funScript);
                 if (!s || !js_NewbornArrayPush(cx, result, ObjectValue(*s)))
                     return false;
@@ -3474,7 +3443,7 @@ DebuggerFrame_getScript(JSContext *cx, unsigned argc, Value *vp)
     if (fp->isFunctionFrame() && !fp->isEvalFrame()) {
         JSFunction &callee = fp->callee();
         if (callee.isInterpreted()) {
-            RootedScript script(cx, callee.nonLazyScript());
+            RootedScript script(cx, callee.script());
             scriptObject = debug->wrapScript(cx, script);
             if (!scriptObject)
                 return false;
@@ -3498,7 +3467,7 @@ DebuggerFrame_getOffset(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_FRAME(cx, argc, vp, "get offset", args, thisobj, fp);
     AutoAssertNoGC nogc;
-    UnrootedScript script = fp->script();
+    RawScript script = fp->script().get(nogc);
     jsbytecode *pc = fp->pcQuadratic(cx);
     JS_ASSERT(script->code <= pc);
     JS_ASSERT(pc < script->code + script->length);
@@ -3625,8 +3594,7 @@ js::EvaluateInEnv(JSContext *cx, Handle<Env*> env, HandleValue thisv, StackFrame
         return false;
 
     script->isActiveEval = true;
-    ExecuteType type = !fp && env->isGlobal() ? EXECUTE_DEBUG_GLOBAL : EXECUTE_DEBUG;
-    return ExecuteKernel(cx, script, *env, thisv, type, fp, rval);
+    return ExecuteKernel(cx, script, *env, thisv, EXECUTE_DEBUG, fp, rval);
 }
 
 static JSBool
@@ -3782,7 +3750,7 @@ DebuggerObject_trace(JSTracer *trc, RawObject obj)
      * is okay.
      */
     if (JSObject *referent = (JSObject *) obj->getPrivate()) {
-        MarkCrossCompartmentObjectUnbarriered(trc, obj, &referent, "Debugger.Object referent");
+        MarkCrossCompartmentObjectUnbarriered(trc, &referent, "Debugger.Object referent");
         obj->setPrivateUnbarriered(referent);
     }
 }
@@ -3955,11 +3923,11 @@ DebuggerObject_getParameterNames(JSContext *cx, unsigned argc, Value *vp)
     result->ensureDenseArrayInitializedLength(cx, 0, fun->nargs);
 
     if (fun->isInterpreted()) {
-        JS_ASSERT(fun->nargs == fun->nonLazyScript()->bindings.numArgs());
+        JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
 
         if (fun->nargs > 0) {
             BindingVector bindings(cx);
-            RootedScript script(cx, fun->nonLazyScript());
+            RootedScript script(cx, fun->script());
             if (!FillBindingVector(script, &bindings))
                 return false;
             for (size_t i = 0; i < fun->nargs; i++) {
@@ -3997,7 +3965,7 @@ DebuggerObject_getScript(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
 
-    RootedScript script(cx, fun->nonLazyScript());
+    RootedScript script(cx, fun->script());
     RootedObject scriptObject(cx, dbg->wrapScript(cx, script));
     if (!scriptObject)
         return false;
@@ -4151,8 +4119,6 @@ DebuggerObject_defineProperty(JSContext *cx, unsigned argc, Value *vp)
     PropDesc *unwrappedDesc = descs.append();
     if (!unwrappedDesc || !desc->unwrapDebuggerObjectsInto(cx, dbg, obj, unwrappedDesc))
         return false;
-    if (!unwrappedDesc->checkGetter(cx) || !unwrappedDesc->checkSetter(cx))
-        return false;
 
     {
         PropDesc *rewrappedDesc = descs.append();
@@ -4197,8 +4163,6 @@ DebuggerObject_defineProperties(JSContext *cx, unsigned argc, Value *vp)
         if (!unwrappedDescs.append())
             return false;
         if (!descs[i].unwrapDebuggerObjectsInto(cx, dbg, obj, &unwrappedDescs[i]))
-            return false;
-        if (!unwrappedDescs[i].checkGetter(cx) || !unwrappedDescs[i].checkSetter(cx))
             return false;
     }
 
@@ -4501,8 +4465,18 @@ static JSBool
 DebuggerObject_unwrap(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGOBJECT_OWNER_REFERENT(cx, argc, vp, "unwrap", args, dbg, referent);
-    JSObject *unwrapped = UnwrapOneChecked(referent);
+    JSObject *unwrapped = UnwrapOneChecked(cx, referent);
     if (!unwrapped) {
+        // If we were terminated, then pass that along.
+        if (!cx->isExceptionPending())
+            return false;
+
+        // If the unwrap operation threw an exception, assume it's a
+        // security exception, and return null. It seems like the wrappers
+        // in use in Firefox just call JS_ReportError, so we have no way to
+        // distinguish genuine should-not-unwrap errors from other kinds of
+        // errors.
+        cx->clearPendingException();
         vp->setNull();
         return true;
     }
@@ -4558,7 +4532,7 @@ DebuggerEnv_trace(JSTracer *trc, RawObject obj)
      * is okay.
      */
     if (Env *referent = (JSObject *) obj->getPrivate()) {
-        MarkCrossCompartmentObjectUnbarriered(trc, obj, &referent, "Debugger.Environment referent");
+        MarkCrossCompartmentObjectUnbarriered(trc, &referent, "Debugger.Environment referent");
         obj->setPrivateUnbarriered(referent);
     }
 }

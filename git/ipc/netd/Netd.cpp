@@ -59,7 +59,6 @@ InitRndisAddress()
 
   property_get("ro.serialno", serialno, "1234567890ABCDEF");
 
-  memset(address, 0, sizeof(address));
   // First byte is 0x02 to signify a locally administered address.
   address[0] = 0x02;
   length = strlen(serialno);
@@ -86,8 +85,8 @@ namespace ipc {
 
 NetdClient::NetdClient()
   : LineWatcher('\0', MAX_COMMAND_SIZE)
-  , mIOLoop(MessageLoopForIO::current())
   , mSocket(INVALID_SOCKET)
+  , mIOLoop(MessageLoopForIO::current())
   , mCurrentWriteOffset(0)
   , mReConnectTimes(0)
 {

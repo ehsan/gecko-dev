@@ -337,6 +337,7 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
     wrote += r;
   } while (wrote < nbytes);
 
+  ALOG("%p - Wrote %u", s,  nbytes);
   s->amountWritten += nbytes;
 
   (*jenv)->PopLocalFrame(jenv, NULL);
@@ -557,7 +558,6 @@ UNSUPPORTED(int sa_stream_pwrite_ni(sa_stream_t *s, unsigned int channel, const 
 UNSUPPORTED(int sa_stream_get_read_size(sa_stream_t *s, size_t *size))
 UNSUPPORTED(int sa_stream_get_volume_abs(sa_stream_t *s, float *vol))
 UNSUPPORTED(int sa_stream_get_min_write(sa_stream_t *s, size_t *size))
-UNSUPPORTED(int sa_stream_set_stream_type(sa_stream_t *s, const sa_stream_type_t stream_type))
 
 const char *sa_strerror(int code) { return NULL; }
 

@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsDOMWindowUtils_h_
-#define nsDOMWindowUtils_h_
-
 #include "nsAutoPtr.h"
 #include "nsWeakReference.h"
 
@@ -51,5 +48,3 @@ protected:
 
   static mozilla::widget::Modifiers GetWidgetModifiers(int32_t aModifiers);
 };
-
-#endif

@@ -13,7 +13,6 @@
 #ifdef MOZ_ENABLE_D3D9_LAYER
 # include "LayerManagerD3D9.h"
 #endif //MOZ_ENABLE_D3D9_LAYER
-#include "mozilla/BrowserElementParent.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/layers/AsyncPanZoomController.h"
 #include "mozilla/layers/CompositorParent.h"
@@ -166,7 +165,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
   nsIntPoint scrollOffset =
     aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
   // metricsScrollOffset is in layer coordinates.
-  gfxPoint metricsScrollOffset = aMetrics->GetScrollOffsetInLayerPixels();
+  gfx::Point metricsScrollOffset = aMetrics->GetScrollOffsetInLayerPixels();
   nsIntPoint roundedMetricsScrollOffset =
     nsIntPoint(NS_lround(metricsScrollOffset.x), NS_lround(metricsScrollOffset.y));
 
@@ -490,12 +489,19 @@ public:
 
   virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics) MOZ_OVERRIDE
   {
-    // We always need to post requests into the "UI thread" otherwise the
-    // requests may get processed out of order.
-    mUILoop->PostTask(
-      FROM_HERE,
-      NewRunnableMethod(this, &RemoteContentController::DoRequestContentRepaint,
-                        aFrameMetrics));
+    if (MessageLoop::current() != mUILoop) {
+      // We have to send this message from the "UI thread" (main
+      // thread).
+      mUILoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &RemoteContentController::RequestContentRepaint,
+                          aFrameMetrics));
+      return;
+    }
+    if (mRenderFrame) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      browser->UpdateFrame(aFrameMetrics);
+    }
   }
 
   virtual void HandleDoubleTap(const nsIntPoint& aPoint) MOZ_OVERRIDE
@@ -551,33 +557,7 @@ public:
 
   void ClearRenderFrame() { mRenderFrame = nullptr; }
 
-  virtual void SendAsyncScrollDOMEvent(const gfx::Rect& aContentRect,
-                                       const gfx::Size& aContentSize) MOZ_OVERRIDE
-  {
-    if (MessageLoop::current() != mUILoop) {
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this,
-                          &RemoteContentController::SendAsyncScrollDOMEvent,
-                          aContentRect, aContentSize));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      BrowserElementParent::DispatchAsyncScrollEvent(browser, aContentRect,
-                                                     aContentSize);
-    }
-  }
-
 private:
-  void DoRequestContentRepaint(const FrameMetrics& aFrameMetrics)
-  {
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->UpdateFrame(aFrameMetrics);
-    }
-  }
-
   MessageLoop* mUILoop;
   RenderFrameParent* mRenderFrame;
 };
@@ -678,15 +658,13 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
                     mContainer->Manager() == aManager,
                     "retaining manager changed out from under us ... HELP!");
 
-  if (IsTempLayerManager(aManager) ||
-      (mContainer && mContainer->Manager() != aManager)) {
+  if (mContainer && mContainer->Manager() != aManager) {
     // This can happen if aManager is a "temporary" manager, or if the
     // widget's layer manager changed out from under us.  We need to
     // FIXME handle the former case somehow, probably with an API to
     // draw a manager's subtree.  The latter is bad bad bad, but the
     // the NS_ABORT_IF_FALSE() above will flag it.  Returning NULL
     // here will just cause the shadow subtree not to be rendered.
-    NS_WARNING("Remote iframe not rendered");
     return nullptr;
   }
 
@@ -901,7 +879,7 @@ RenderFrameParent::TriggerRepaint()
 ShadowLayersParent*
 RenderFrameParent::GetShadowLayers() const
 {
-  const InfallibleTArray<PLayersParent*>& shadowParents = ManagedPLayersParent();
+  const nsTArray<PLayersParent*>& shadowParents = ManagedPLayersParent();
   NS_ABORT_IF_FALSE(shadowParents.Length() <= 1,
                     "can only support at most 1 ShadowLayersParent");
   return (shadowParents.Length() == 1) ?

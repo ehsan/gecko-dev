@@ -21,8 +21,7 @@ public:
   ProgressMeterAccessible(nsIContent* aContent, DocAccessible* aDoc) :
     LeafAccessible(aContent, aDoc)
   {
-    mStateFlags |= eHasNumericValue;
-    mType = eProgressType;
+    mFlags |= eHasNumericValue | eProgressAccessible;
   }
 
   NS_DECL_ISUPPORTS_INHERITED

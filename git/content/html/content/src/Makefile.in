@@ -13,32 +13,16 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= content
 LIBRARY_NAME	= gkconhtmlcon_s
 LIBXUL_LIBRARY	= 1
-ifndef _MSC_VER
 FAIL_ON_WARNINGS = 1
-endif # !_MSC_VER
 
 
 EXPORTS		= \
-		HTMLPropertiesCollection.h \
 		nsGenericHTMLElement.h \
 		nsHTMLIFrameElement.h \
 		nsClientRect.h \
 		nsHTMLDNSPrefetch.h \
 		nsTimeRanges.h \
 		$(NULL)
-
-EXPORTS_NAMESPACES = mozilla/dom
-
-EXPORTS_mozilla/dom = \
-		HTMLBodyElement.h \
-		HTMLDataListElement.h \
-		HTMLDivElement.h \
-		HTMLFontElement.h \
-		HTMLFrameSetElement.h \
-		HTMLHeadingElement.h \
-		HTMLLabelElement.h \
-		HTMLTitleElement.h \
-		HTMLUnknownElement.h
 
 CPPSRCS		= \
 		HTMLPropertiesCollection.cpp \
@@ -48,27 +32,27 @@ CPPSRCS		= \
 		nsGenericHTMLFrameElement.cpp \
 		nsFormSubmission.cpp \
 		nsTextEditorState.cpp \
-		HTMLElement.cpp \
+		nsHTMLElement.cpp \
 		nsHTMLAnchorElement.cpp \
 		nsHTMLAreaElement.cpp \
 		nsHTMLBRElement.cpp \
-		HTMLBodyElement.cpp \
+		nsHTMLBodyElement.cpp \
 		nsHTMLButtonElement.cpp \
 		nsHTMLCanvasElement.cpp \
-		HTMLDataListElement.cpp \
-		HTMLDivElement.cpp \
+		nsHTMLDataListElement.cpp \
+		nsHTMLDivElement.cpp \
 		nsHTMLFieldSetElement.cpp \
-		HTMLFontElement.cpp \
+		nsHTMLFontElement.cpp \
 		nsHTMLFormElement.cpp \
 		nsHTMLFrameElement.cpp \
-		HTMLFrameSetElement.cpp \
+		nsHTMLFrameSetElement.cpp \
 		nsHTMLHRElement.cpp \
-		HTMLHeadingElement.cpp \
+		nsHTMLHeadingElement.cpp \
 		nsHTMLIFrameElement.cpp \
 		nsHTMLImageElement.cpp \
 		nsHTMLInputElement.cpp \
 		nsHTMLLIElement.cpp \
-		HTMLLabelElement.cpp \
+		nsHTMLLabelElement.cpp \
 		nsHTMLLegendElement.cpp \
 		nsHTMLLinkElement.cpp \
 		nsHTMLMapElement.cpp \
@@ -98,8 +82,8 @@ CPPSRCS		= \
 		nsHTMLTableRowElement.cpp \
 		nsHTMLTableSectionElement.cpp \
 		nsHTMLTextAreaElement.cpp \
-		HTMLTitleElement.cpp \
-		HTMLUnknownElement.cpp \
+		nsHTMLTitleElement.cpp \
+		nsHTMLUnknownElement.cpp \
 		nsDOMValidityState.cpp \
 		nsIConstraintValidation.cpp \
 		nsRadioVisitor.cpp \
@@ -125,7 +109,6 @@ include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 INCLUDES	+= \
-		-I$(srcdir)/../../document/src \
 		-I$(srcdir)/../../../base/src \
 		-I$(srcdir)/../../../events/src \
 		-I$(srcdir)/../../../xbl/src \

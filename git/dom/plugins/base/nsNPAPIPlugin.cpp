@@ -186,20 +186,12 @@ enum eNPPStreamTypeInternal {
 
 static NS_DEFINE_IID(kMemoryCID, NS_MEMORY_CID);
 
-PRIntervalTime NS_NotifyBeginPluginCall()
-{
-  nsNPAPIPluginInstance::BeginPluginCall();
-  return PR_IntervalNow();
-}
-
 // This function sends a notification using the observer service to any object
 // registered to listen to the "experimental-notify-plugin-call" subject.
 // Each "experimental-notify-plugin-call" notification carries with it the run
 // time value in milliseconds that the call took to execute.
 void NS_NotifyPluginCall(PRIntervalTime startTime) 
 {
-  nsNPAPIPluginInstance::EndPluginCall();
-
   PRIntervalTime endTime = PR_IntervalNow() - startTime;
   nsCOMPtr<nsIObserverService> notifyUIService =
     mozilla::services::GetObserverService();
@@ -675,23 +667,6 @@ GetPrivacyFromNPP(NPP npp, bool* aPrivate)
   nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
   *aPrivate = loadContext && loadContext->UsePrivateBrowsing();
   return NS_OK;
-}
-
-static already_AddRefed<nsIChannel>
-GetChannelFromNPP(NPP npp)
-{
-  nsCOMPtr<nsIDocument> doc = GetDocumentFromNPP(npp);
-  if (!doc)
-    return nullptr;
-  nsCOMPtr<nsPIDOMWindow> domwindow = doc->GetWindow();
-  nsCOMPtr<nsIChannel> channel;
-  if (domwindow) {
-    nsCOMPtr<nsIDocShell> docShell = domwindow->GetDocShell();
-    if (docShell) {
-      docShell->GetCurrentDocumentChannel(getter_AddRefs(channel));
-    }
-  }
-  return channel.forget();
 }
 
 static NPIdentifier
@@ -1593,7 +1568,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
                   npp, npobj, script->UTF8Characters));
 
   nsresult rv = scx->EvaluateStringWithValue(utf16script, obj, principal,
-                                             spec, 0, 0, false, rval, nullptr);
+                                             spec, 0, 0, rval, nullptr);
 
   return NS_SUCCEEDED(rv) &&
          (!result || JSValToNPVariant(npp, cx, *rval, result));
@@ -2665,9 +2640,7 @@ _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
         return NPERR_GENERIC_ERROR;
       }
 
-      nsCOMPtr<nsIChannel> channel = GetChannelFromNPP(instance);
-
-      if (NS_FAILED(cookieService->GetCookieString(uri, channel, value)) ||
+      if (NS_FAILED(cookieService->GetCookieString(uri, nullptr, value)) ||
           !*value) {
         return NPERR_GENERIC_ERROR;
       }
@@ -2720,12 +2693,10 @@ _setvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
       nsCOMPtr<nsIPrompt> prompt;
       nsPluginHost::GetPrompt(nullptr, getter_AddRefs(prompt));
 
-      nsCOMPtr<nsIChannel> channel = GetChannelFromNPP(instance);
-
       char *cookie = (char*)value;
       char c = cookie[len];
       cookie[len] = '\0';
-      rv = cookieService->SetCookieString(uriIn, prompt, cookie, channel);
+      rv = cookieService->SetCookieString(uriIn, prompt, cookie, nullptr);
       cookie[len] = c;
       if (NS_SUCCEEDED(rv))
         return NPERR_NO_ERROR;
@@ -2771,16 +2742,12 @@ _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
   bool authPrivate = false;
   GetPrivacyFromNPP(instance, &authPrivate);
 
-  nsIDocument *doc = GetDocumentFromNPP(instance);
-  NS_ENSURE_TRUE(doc, NPERR_GENERIC_ERROR);
-  nsIPrincipal *principal = doc->NodePrincipal();
-
   nsAutoString unused, uname16, pwd16;
   if (NS_FAILED(authManager->GetAuthIdentity(proto, nsDependentCString(host),
                                              port, nsDependentCString(scheme),
                                              nsDependentCString(realm),
                                              EmptyCString(), unused, uname16,
-                                             pwd16, authPrivate, principal))) {
+                                             pwd16, authPrivate))) {
     return NPERR_GENERIC_ERROR;
   }
 

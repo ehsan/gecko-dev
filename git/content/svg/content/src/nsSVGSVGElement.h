@@ -10,25 +10,24 @@
 #include "mozilla/dom/FromParser.h"
 #include "nsIDOMSVGFitToViewBox.h"
 #include "nsIDOMSVGLocatable.h"
-#include "nsISVGPoint.h"
+#include "nsIDOMSVGPoint.h"
 #include "nsIDOMSVGSVGElement.h"
 #include "nsIDOMSVGZoomAndPan.h"
 #include "nsSVGEnum.h"
 #include "nsSVGLength2.h"
-#include "nsSVGElement.h"
+#include "nsSVGStylableElement.h"
 #include "nsSVGViewBox.h"
-#include "SVGPreserveAspectRatio.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "mozilla/Attributes.h"
 
+class nsIDOMSVGMatrix;
 class nsSMILTimeContainer;
 class nsSVGViewElement;
 namespace mozilla {
-  class DOMSVGMatrix;
   class SVGFragmentIdentifier;
 }
 
-typedef nsSVGElement nsSVGSVGElementBase;
+typedef nsSVGStylableElement nsSVGSVGElementBase;
 
 class nsSVGSVGElement;
 
@@ -53,7 +52,7 @@ public:
   float GetY() const
     { return mY; }
 
-  nsresult ToDOMVal(nsSVGSVGElement *aElement, nsISupports **aResult);
+  nsresult ToDOMVal(nsSVGSVGElement *aElement, nsIDOMSVGPoint **aResult);
 
   bool operator!=(const nsSVGTranslatePoint &rhs) const {
     return mX != rhs.mX || mY != rhs.mY;
@@ -61,21 +60,23 @@ public:
 
 private:
 
-  struct DOMVal MOZ_FINAL : public mozilla::nsISVGPoint {
-    DOMVal(nsSVGTranslatePoint* aVal, nsSVGSVGElement *aElement)
-      : mozilla::nsISVGPoint(), mVal(aVal), mElement(aElement) {}
-
+  struct DOMVal MOZ_FINAL : public nsIDOMSVGPoint {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMVal)
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMVal)
 
-    // WebIDL
-    virtual float X() { return mVal->GetX(); }
-    virtual float Y() { return mVal->GetY(); }
-    virtual void SetX(float aValue, mozilla::ErrorResult& rv);
-    virtual void SetY(float aValue, mozilla::ErrorResult& rv);
-    virtual already_AddRefed<mozilla::nsISVGPoint> MatrixTransform(mozilla::DOMSVGMatrix& matrix);
+    DOMVal(nsSVGTranslatePoint* aVal, nsSVGSVGElement *aElement)
+      : mVal(aVal), mElement(aElement) {}
 
-    virtual nsISupports* GetParentObject() MOZ_OVERRIDE;
+    NS_IMETHOD GetX(float *aValue)
+      { *aValue = mVal->GetX(); return NS_OK; }
+    NS_IMETHOD GetY(float *aValue)
+      { *aValue = mVal->GetY(); return NS_OK; }
+
+    NS_IMETHOD SetX(float aValue);
+    NS_IMETHOD SetY(float aValue);
+
+    NS_IMETHOD MatrixTransform(nsIDOMSVGMatrix *matrix,
+                               nsIDOMSVGPoint **_retval);
 
     nsSVGTranslatePoint *mVal; // kept alive because it belongs to mElement
     nsRefPtr<nsSVGSVGElement> mElement;
@@ -209,8 +210,6 @@ public:
     return mHasChildrenOnlyTransform;
   }
 
-  void UpdateHasChildrenOnlyTransform();
-
   enum ChildrenOnlyTransformChangedFlags {
     eDuringReflow = 1
   };
@@ -304,7 +303,7 @@ private:
    * While binding to the tree we need to determine if we will be the outermost
    * <svg> element _before_ the children are bound (as they want to know what
    * timed document root to register with) and therefore _before_ our parent is
-   * set (both actions are performed by Element::BindToTree) so we
+   * set (both actions are performed by nsGenericElement::BindToTree) so we
    * can't use GetOwnerSVGElement() as it relies on GetParent(). This code is
    * basically a simplified version of GetOwnerSVGElement that uses the parent
    * parameters passed in instead.

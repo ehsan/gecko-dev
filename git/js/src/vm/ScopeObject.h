@@ -65,13 +65,13 @@ class StaticScopeIter
 
     /* Return whether this static scope will be on the dynamic scope chain. */
     bool hasDynamicScopeObject() const;
-    UnrootedShape scopeShape() const;
+    Shape *scopeShape() const;
 
     enum Type { BLOCK, FUNCTION, NAMED_LAMBDA };
     Type type() const;
 
     StaticBlockObject &block() const;
-    UnrootedScript funScript() const;
+    JSScript *funScript() const;
 };
 
 /*****************************************************************************/
@@ -189,11 +189,9 @@ class CallObject : public ScopeObject
     create(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot *slots);
 
     static CallObject *
-    createTemplateObject(JSContext *cx, HandleScript script);
+    createTemplateObject(JSContext *cx, JSScript *script);
 
     static const uint32_t RESERVED_SLOTS = 2;
-
-    static CallObject *createForFunction(JSContext *cx, HandleObject enclosing, HandleFunction callee);
 
     static CallObject *createForFunction(JSContext *cx, StackFrame *fp);
     static CallObject *createForStrictEval(JSContext *cx, StackFrame *fp);
@@ -220,21 +218,11 @@ class CallObject : public ScopeObject
 
 class DeclEnvObject : public ScopeObject
 {
-    // Pre-allocated slot for the named lambda.
-    static const uint32_t LAMBDA_SLOT = 1;
-
   public:
-    static const uint32_t RESERVED_SLOTS = 2;
+    static const uint32_t RESERVED_SLOTS = 1;
     static const gc::AllocKind FINALIZE_KIND = gc::FINALIZE_OBJECT2;
 
-    static DeclEnvObject *
-    createTemplateObject(JSContext *cx, HandleFunction fun);
-
-    static DeclEnvObject *create(JSContext *cx, HandleObject enclosing, HandleFunction callee);
-
-    static inline size_t lambdaSlot() {
-        return LAMBDA_SLOT;
-    }
+    static DeclEnvObject *create(JSContext *cx, StackFrame *fp);
 };
 
 class NestedScopeObject : public ScopeObject
@@ -346,8 +334,8 @@ class StaticBlockObject : public BlockObject
     void initPrevBlockChainFromParser(StaticBlockObject *prev);
     void resetPrevBlockChainFromParser();
 
-    static UnrootedShape addVar(JSContext *cx, Handle<StaticBlockObject*> block, HandleId id,
-                                int index, bool *redeclared);
+    static Shape *addVar(JSContext *cx, Handle<StaticBlockObject*> block, HandleId id,
+                         int index, bool *redeclared);
 };
 
 class ClonedBlockObject : public BlockObject
@@ -546,9 +534,11 @@ class DebugScopeObject : public JSObject
     bool isForDeclarative() const;
 };
 
-/* Maintains per-compartment debug scope bookkeeping information. */
+/* Maintains runtime-wide debug scope bookkeeping information. */
 class DebugScopes
 {
+    JSRuntime *rt;
+
     /* The map from (non-debug) scopes to debug scopes. */
     typedef WeakMap<EncapsulatedPtrObject, RelocatablePtrObject> ObjectWeakMap;
     ObjectWeakMap proxiedScopes;
@@ -577,37 +567,32 @@ class DebugScopes
     LiveScopeMap liveScopes;
 
   public:
-    DebugScopes(JSContext *c);
+    DebugScopes(JSRuntime *rt);
     ~DebugScopes();
-
-  private:
     bool init();
 
-    static DebugScopes *ensureCompartmentData(JSContext *cx);
-
-  public:
     void mark(JSTracer *trc);
-    void sweep(JSRuntime *rt);
+    void sweep();
 
-    static DebugScopeObject *hasDebugScope(JSContext *cx, ScopeObject &scope);
-    static bool addDebugScope(JSContext *cx, ScopeObject &scope, DebugScopeObject &debugScope);
+    DebugScopeObject *hasDebugScope(JSContext *cx, ScopeObject &scope) const;
+    bool addDebugScope(JSContext *cx, ScopeObject &scope, DebugScopeObject &debugScope);
 
-    static DebugScopeObject *hasDebugScope(JSContext *cx, const ScopeIter &si);
-    static bool addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject &debugScope);
+    DebugScopeObject *hasDebugScope(JSContext *cx, const ScopeIter &si) const;
+    bool addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject &debugScope);
 
-    static bool updateLiveScopes(JSContext *cx);
-    static StackFrame *hasLiveFrame(ScopeObject &scope);
+    bool updateLiveScopes(JSContext *cx);
+    StackFrame *hasLiveFrame(ScopeObject &scope);
 
     /*
      * In debug-mode, these must be called whenever exiting a call/block or
      * when activating/yielding a generator.
      */
-    static void onPopCall(StackFrame *fp, JSContext *cx);
-    static void onPopBlock(JSContext *cx, StackFrame *fp);
-    static void onPopWith(StackFrame *fp);
-    static void onPopStrictEvalScope(StackFrame *fp);
-    static void onGeneratorFrameChange(StackFrame *from, StackFrame *to, JSContext *cx);
-    static void onCompartmentLeaveDebugMode(JSCompartment *c);
+    void onPopCall(StackFrame *fp, JSContext *cx);
+    void onPopBlock(JSContext *cx, StackFrame *fp);
+    void onPopWith(StackFrame *fp);
+    void onPopStrictEvalScope(StackFrame *fp);
+    void onGeneratorFrameChange(StackFrame *from, StackFrame *to, JSContext *cx);
+    void onCompartmentLeaveDebugMode(JSCompartment *c);
 };
 
 }  /* namespace js */

@@ -12,7 +12,8 @@ namespace mozilla {
 namespace dom {
 
 void
-TextEncoderBase::Init(const nsAString& aEncoding, ErrorResult& aRv)
+TextEncoder::Init(const nsAString& aEncoding,
+                  ErrorResult& aRv)
 {
   nsAutoString label(aEncoding);
   EncodingUtils::TrimSpaceCharacters(label);
@@ -48,10 +49,10 @@ TextEncoderBase::Init(const nsAString& aEncoding, ErrorResult& aRv)
 }
 
 JSObject*
-TextEncoderBase::Encode(JSContext* aCx,
-                        const nsAString& aString,
-                        const bool aStream,
-                        ErrorResult& aRv)
+TextEncoder::Encode(JSContext* aCx,
+                    const nsAString& aString,
+                    const TextEncodeOptions& aOptions,
+                    ErrorResult& aRv)
 {
   // Run the steps of the encoding algorithm.
   int32_t srcLen = aString.Length();
@@ -76,7 +77,7 @@ TextEncoderBase::Encode(JSContext* aCx,
 
   // If the internal streaming flag is not set, then reset
   // the encoding algorithm state to the default values for encoding.
-  if (!aStream) {
+  if (!aOptions.stream) {
     int32_t finishLen = maxLen - dstLen;
     rv = mEncoder->Finish(buf + dstLen, &finishLen);
     if (NS_SUCCEEDED(rv)) {
@@ -87,11 +88,8 @@ TextEncoderBase::Encode(JSContext* aCx,
   JSObject* outView = nullptr;
   if (NS_SUCCEEDED(rv)) {
     buf[dstLen] = '\0';
-    outView = CreateUint8Array(aCx, buf, dstLen);
-    if (!outView) {
-      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-      return nullptr;
-    }
+    outView = Uint8Array::Create(aCx, this, dstLen,
+                                 reinterpret_cast<uint8_t*>(buf.get()));
   }
 
   if (NS_FAILED(rv)) {
@@ -101,8 +99,18 @@ TextEncoderBase::Encode(JSContext* aCx,
 }
 
 void
-TextEncoderBase::GetEncoding(nsAString& aEncoding)
+TextEncoder::GetEncoding(nsAString& aEncoding)
 {
+  // Our utf-16 converter does not comply with the Encoding Standard.
+  // As a result the utf-16le converter is used for the encoding label
+  // "utf-16".
+  // This workaround should not be exposed to the public API and so "utf-16"
+  // is returned by GetEncoding() if the internal encoding name is "utf-16le".
+  if (mEncoding.EqualsLiteral("UTF-16LE")) {
+    aEncoding.AssignLiteral("utf-16");
+    return;
+  }
+
   CopyASCIItoUTF16(mEncoding, aEncoding);
   nsContentUtils::ASCIIToLower(aEncoding);
 }

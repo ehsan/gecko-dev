@@ -74,11 +74,11 @@ using namespace mozilla::places;
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsNavHistoryResultNode)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsNavHistoryResultNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mParent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END 
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsNavHistoryResultNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParent);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mParent, nsINavHistoryContainerResultNode);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsNavHistoryResultNode)
@@ -105,8 +105,7 @@ nsNavHistoryResultNode::nsNavHistoryResultNode(
   mDateAdded(0),
   mLastModified(0),
   mIndentLevel(-1),
-  mFrecency(0),
-  mHidden(false)
+  mFrecency(0)
 {
   mTags.SetIsVoid(true);
 }
@@ -330,13 +329,13 @@ nsNavHistoryFullVisitResultNode::nsNavHistoryFullVisitResultNode(
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsNavHistoryContainerResultNode)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsNavHistoryContainerResultNode, nsNavHistoryResultNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mResult)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChildren)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mResult)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mChildren)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END 
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsNavHistoryContainerResultNode, nsNavHistoryResultNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResult)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildren)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mResult, nsINavHistoryResult)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mChildren)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsNavHistoryContainerResultNode, nsNavHistoryResultNode)
@@ -881,7 +880,7 @@ bool
 nsNavHistoryContainerResultNode::DoesChildNeedResorting(uint32_t aIndex,
     SortComparator aComparator, const char* aData)
 {
-  NS_ASSERTION(aIndex < uint32_t(mChildren.Count()),
+  NS_ASSERTION(aIndex >= 0 && aIndex < uint32_t(mChildren.Count()),
                "Input index out of range");
   if (mChildren.Count() == 1)
     return false;
@@ -2530,12 +2529,8 @@ nsNavHistoryQueryResultNode::OnVisit(nsIURI* aURI, int64_t aVisitId,
                                      int64_t aReferringId,
                                      uint32_t aTransitionType,
                                      const nsACString& aGUID,
-                                     bool aHidden,
                                      uint32_t* aAdded)
 {
-  if (aHidden && !mOptions->IncludeHidden())
-    return NS_OK;
-
   nsNavHistoryResult* result = GetResult();
   NS_ENSURE_STATE(result);
   if (result->mBatchInProgress &&
@@ -4029,7 +4024,8 @@ nsNavHistoryFolderResultNode::OnItemMoved(int64_t aItemId,
       NS_NOTREACHED("Can't find folder that is moving!");
       return NS_ERROR_FAILURE;
     }
-    NS_ASSERTION(index < uint32_t(mChildren.Count()), "Invalid index!");
+    NS_ASSERTION(index >= 0 && index < uint32_t(mChildren.Count()),
+                 "Invalid index!");
     node->mBookmarkIndex = aNewIndex;
 
     // adjust position
@@ -4084,11 +4080,11 @@ RemoveBookmarkFolderObserversCallback(nsTrimInt64HashKey::KeyType aKey,
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsNavHistoryResult)
   tmp->StopObserving();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRootNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mObservers)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRootNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mObservers)
   tmp->mBookmarkFolderObservers.Enumerate(&RemoveBookmarkFolderObserversCallback, nullptr);
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAllBookmarksObservers)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mHistoryObservers)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mAllBookmarksObservers)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mHistoryObservers)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 static PLDHashOperator
@@ -4121,11 +4117,11 @@ traverseResultObservers(nsMaybeWeakPtrArray<nsINavHistoryResultObserver> aObserv
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsNavHistoryResult)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRootNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRootNode, nsINavHistoryContainerResultNode)
   traverseResultObservers(tmp->mObservers, &cb);
   tmp->mBookmarkFolderObservers.Enumerate(&TraverseBookmarkFolderObservers, &cb);
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAllBookmarksObservers)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mHistoryObservers)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_MEMBER(mAllBookmarksObservers, nsNavHistoryQueryResultNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_MEMBER(mHistoryObservers, nsNavHistoryQueryResultNode)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNavHistoryResult)
@@ -4724,13 +4720,13 @@ NS_IMETHODIMP
 nsNavHistoryResult::OnVisit(nsIURI* aURI, int64_t aVisitId, PRTime aTime,
                             int64_t aSessionId, int64_t aReferringId,
                             uint32_t aTransitionType, const nsACString& aGUID,
-                            bool aHidden)
+                            uint32_t* aAdded)
 {
   uint32_t added = 0;
 
   ENUMERATE_HISTORY_OBSERVERS(OnVisit(aURI, aVisitId, aTime, aSessionId,
                                       aReferringId, aTransitionType, aGUID,
-                                      aHidden, &added));
+                                      &added));
 
   if (!mRootNode->mExpanded)
     return NS_OK;

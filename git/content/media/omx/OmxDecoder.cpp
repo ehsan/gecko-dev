@@ -7,7 +7,6 @@
 #include <fcntl.h>
 
 #include "base/basictypes.h"
-#include <cutils/properties.h>
 #include <stagefright/DataSource.h>
 #include <stagefright/MediaExtractor.h>
 #include <stagefright/MetaData.h>
@@ -30,7 +29,6 @@ PRLogModuleInfo *gOmxDecoderLog;
 #endif
 
 using namespace MPAPI;
-using namespace mozilla;
 
 namespace mozilla {
 namespace layers {
@@ -65,7 +63,7 @@ VideoGraphicBuffer::Unlock()
 namespace android {
 
 MediaStreamSource::MediaStreamSource(MediaResource *aResource,
-                                     AbstractMediaDecoder *aDecoder) :
+                                     nsBuiltinDecoder *aDecoder) :
   mDecoder(aDecoder), mResource(aResource)
 {
 }
@@ -90,11 +88,6 @@ ssize_t MediaStreamSource::readAt(off64_t offset, void *data, size_t size)
         NS_FAILED(mResource->Read(ptr, todo, &bytesRead))) {
       return ERROR_IO;
     }
-
-    if (bytesRead == 0) {
-      return size - todo;
-    }
-
     offset += bytesRead;
     todo -= bytesRead;
     ptr += bytesRead;
@@ -118,7 +111,7 @@ status_t MediaStreamSource::getSize(off64_t *size)
 using namespace android;
 
 OmxDecoder::OmxDecoder(MediaResource *aResource,
-                       AbstractMediaDecoder *aDecoder) :
+                       nsBuiltinDecoder *aDecoder) :
   mResource(aResource),
   mDecoder(aDecoder),
   mVideoWidth(0),
@@ -185,7 +178,7 @@ bool OmxDecoder::Init() {
     return false;
   }
 
-  mResource->SetReadMode(MediaCacheStream::MODE_METADATA);
+  mResource->SetReadMode(nsMediaCacheStream::MODE_METADATA);
 
   sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
   if (extractor == nullptr) {
@@ -222,7 +215,7 @@ bool OmxDecoder::Init() {
     return false;
   }
 
-  mResource->SetReadMode(MediaCacheStream::MODE_PLAYBACK);
+  mResource->SetReadMode(nsMediaCacheStream::MODE_PLAYBACK);
 
   int64_t totalDurationUs = 0;
 
@@ -233,51 +226,21 @@ bool OmxDecoder::Init() {
   if (videoTrackIndex != -1 && (videoTrack = extractor->getTrack(videoTrackIndex)) != nullptr) {
     int flags = 0; // prefer hw codecs
 
-    // XXX is this called off the main thread?
     if (mozilla::Preferences::GetBool("media.omx.prefer_software_codecs", false)) {
       flags |= kPreferSoftwareCodecs;
     }
 
-    do {
-      videoSource = OMXCodec::Create(GetOMX(),
-                                     videoTrack->getFormat(),
-                                     false, // decoder
-                                     videoTrack,
-                                     nullptr,
-                                     flags,
-                                     mNativeWindow);
-      if (videoSource == nullptr) {
-        NS_WARNING("Couldn't create OMX video source");
-        return false;
-      }
-
-      if (flags & kSoftwareCodecsOnly) {
-        break;
-      }
-
-      // Check if this video is sized such that we're comfortable
-      // possibly using a hardware decoder.  If we can't get the size,
-      // fall back on SW to be safe.
-      int32_t maxWidth, maxHeight;
-      char propValue[PROPERTY_VALUE_MAX];
-      property_get("ro.moz.omx.hw.max_width", propValue, "-1");
-      maxWidth = atoi(propValue);
-      property_get("ro.moz.omx.hw.max_height", propValue, "-1");
-      maxHeight = atoi(propValue);
-
-      int32_t width = -1, height = -1;
-      if (maxWidth > 0 && maxHeight > 0 &&
-          !(videoSource->getFormat()->findInt32(kKeyWidth, &width) &&
-            videoSource->getFormat()->findInt32(kKeyHeight, &height) &&
-            width * height <= maxWidth * maxHeight)) {
-        printf_stderr("Failed to get video size, or it was too large for HW decoder (<w=%d, h=%d> but <maxW=%d, maxH=%d>)",
-                      width, height, maxWidth, maxHeight);
-        videoSource.clear();
-        flags |= kSoftwareCodecsOnly;
-        continue;
-      }
-      break;
-    } while(true);
+    videoSource = OMXCodec::Create(GetOMX(),
+                                   videoTrack->getFormat(),
+                                   false, // decoder
+                                   videoTrack,
+                                   nullptr,
+                                   flags,
+                                   mNativeWindow);
+    if (videoSource == nullptr) {
+      NS_WARNING("Couldn't create OMX video source");
+      return false;
+    }
 
     if (videoSource->start() != OK) {
       NS_WARNING("Couldn't start OMX video source");
@@ -489,9 +452,10 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
 
   status_t err;
 
-  if (aDoSeek) {
+  if (aDoSeek || aKeyframeSkip) {
     MediaSource::ReadOptions options;
-    options.setSeekTo(aTimeUs, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
+    options.setSeekTo(aTimeUs, aDoSeek ? MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC :
+                                         MediaSource::ReadOptions::SEEK_NEXT_SYNC);
     err = mVideoSource->read(&mVideoBuffer, &options);
   } else {
     err = mVideoSource->read(&mVideoBuffer);
@@ -544,10 +508,6 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
       aFrame->mEndTimeUs = timeUs + durationUs;
     }
 
-    if (aKeyframeSkip && timeUs < aTimeUs) {
-      aFrame->mShouldSkip = true;
-    }
-
   }
   else if (err == INFO_FORMAT_CHANGED) {
     // If the format changed, update our cached info.
@@ -560,11 +520,6 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
   else if (err == ERROR_END_OF_STREAM) {
     return false;
   }
-  else if (err == UNKNOWN_ERROR) {
-    // This sometimes is used to mean "out of memory", but regardless,
-    // don't keep trying to decode if the decoder doesn't want to.
-    return false;
-  }
 
   return true;
 }
@@ -572,10 +527,6 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
 bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
 {
   status_t err;
-
-  if (!mAudioBuffer) {
-    return false;
-  }
 
   if (mAudioMetadataRead && aSeekTimeUs == -1) {
     // Use the data read into the buffer during metadata time
@@ -613,14 +564,6 @@ bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
     } else {
       return ReadAudio(aFrame, aSeekTimeUs);
     }
-  }
-  else if (err == ERROR_END_OF_STREAM) {
-    if (aFrame->mSize == 0) {
-      return false;
-    }
-  }
-  else if (err == UNKNOWN_ERROR) {
-    return false;
   }
 
   return true;

@@ -5,9 +5,6 @@
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef nsXBLService_h_
-#define nsXBLService_h_
-
 #include "nsString.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
@@ -134,21 +131,13 @@ class nsXBLJSClass : public JSCList, public JSClass
 {
 private:
   nsrefcnt mRefCnt;
-  nsCString mKey;
-  static uint64_t sIdCount;
   nsrefcnt Destroy();
 
 public:
-  nsXBLJSClass(const nsAFlatCString& aClassName, const nsCString& aKey);
+  nsXBLJSClass(const nsAFlatCString& aClassName);
   ~nsXBLJSClass() { nsMemory::Free((void*) name); }
-
-  static uint64_t NewId() { return ++sIdCount; }
-
-  nsCString& Key() { return mKey; }
-  void SetKey(const nsCString& aKey) { mKey = aKey; }
 
   nsrefcnt Hold() { return ++mRefCnt; }
   nsrefcnt Drop() { return --mRefCnt ? mRefCnt : Destroy(); }
 };
 
-#endif

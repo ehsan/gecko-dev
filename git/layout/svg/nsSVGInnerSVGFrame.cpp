@@ -169,8 +169,7 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
 
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGUtils::InvalidateBounds(this, false);
-      nsSVGUtils::ScheduleReflowSVG(this);
+      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
 
       if (content->HasViewBoxOrSyntheticViewBox()) {
         // make sure our cached transform matrix gets (lazily) updated
@@ -194,8 +193,7 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nullptr;
 
-      nsSVGUtils::InvalidateBounds(this, false);
-      nsSVGUtils::ScheduleReflowSVG(this);
+      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
 
       nsSVGUtils::NotifyChildrenOfSVGChange(
           this, aAttribute == nsGkAtoms::viewBox ?

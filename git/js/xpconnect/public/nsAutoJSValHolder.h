@@ -18,8 +18,7 @@
 class nsAutoJSValHolder
 {
 public:
-  nsAutoJSValHolder()
-    : mVal(JSVAL_NULL), mRt(nullptr)
+  nsAutoJSValHolder() : mVal(JSVAL_NULL), mRt(nullptr)
   {
     // nothing to do
   }
@@ -31,9 +30,7 @@ public:
     Release();
   }
 
-  nsAutoJSValHolder(const nsAutoJSValHolder& aOther)
-    : mVal(JSVAL_NULL), mRt(nullptr)
-  {
+  nsAutoJSValHolder(const nsAutoJSValHolder& aOther) {
     *this = aOther;
   }
 

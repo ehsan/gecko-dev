@@ -104,7 +104,6 @@
 #include "nsICSSDeclaration.h"
 
 namespace css = mozilla::css;
-namespace dom = mozilla::dom;
 
 //----------------------------------------------------------------------
 
@@ -142,7 +141,7 @@ public:
     NS_ADDREF(*aStyle);
     return NS_OK;
   }
-  NS_FORWARD_NSIFRAMELOADEROWNER(static_cast<nsXULElement*>(mElement.get())->)
+  NS_FORWARD_NSIFRAMELOADEROWNER(static_cast<nsXULElement*>(mElement.get())->);
 private:
   nsCOMPtr<nsIDOMXULElement> mElement;
 };
@@ -686,7 +685,7 @@ nsXULElement::MaybeAddPopupListener(nsIAtom* aLocalName)
 void
 nsXULElement::UpdateEditableState(bool aNotify)
 {
-    // Don't call through to Element here because the things
+    // Don't call through to nsGenericElement here because the things
     // it does don't work for cases when we're an editable control.
     nsIContent *parent = GetParent();
 
@@ -1156,7 +1155,7 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                     static_cast<nsInputEvent*>(aVisitor.mEvent);
                 nsContentUtils::DispatchXULCommand(
                   commandContent,
-                  aVisitor.mEvent->mFlags.mIsTrusted,
+                  NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
                   aVisitor.mDOMEvent,
                   nullptr,
                   orig->IsControl(),
@@ -1580,11 +1579,13 @@ nsXULElement::AddPopupListener(nsIAtom* aName)
     if (isContext) {
       manager->AddEventListenerByType(listener,
                                       NS_LITERAL_STRING("contextmenu"),
-                                      dom::TrustedEventsAtSystemGroupBubble());
+                                      NS_EVENT_FLAG_BUBBLE |
+                                      NS_EVENT_FLAG_SYSTEM_EVENT);
     } else {
       manager->AddEventListenerByType(listener,
                                       NS_LITERAL_STRING("mousedown"),
-                                      dom::TrustedEventsAtSystemGroupBubble());
+                                      NS_EVENT_FLAG_BUBBLE |
+                                      NS_EVENT_FLAG_SYSTEM_EVENT);
     }
     return NS_OK;
 }
@@ -1827,7 +1828,7 @@ nsXULElement::RecompileScriptEventListeners()
 
 NS_IMPL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsXULPrototypeNode)
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Element) {
         static_cast<nsXULPrototypeElement*>(tmp)->Unlink();
     }
@@ -1835,7 +1836,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeNode)
         static_cast<nsXULPrototypeScript*>(tmp)->UnlinkJSObjects();
     }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeNode)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Element) {
         nsXULPrototypeElement *elem =
             static_cast<nsXULPrototypeElement*>(tmp);
@@ -1850,17 +1851,20 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeNode)
                 cb.NoteXPCOMChild(name.NodeInfo());
             }
         }
-        ImplCycleCollectionTraverse(cb, elem->mChildren, "mChildren");
+        for (i = 0; i < elem->mChildren.Length(); ++i) {
+            NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(elem->mChildren[i].get(),
+                                                         nsXULPrototypeNode,
+                                                         "mChildren[i]")
+        }
     }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXULPrototypeNode)
+NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Script) {
         nsXULPrototypeScript *script =
             static_cast<nsXULPrototypeScript*>(tmp);
-        NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(script->GetScriptObject(),
-                                                   "mScriptObject")
-
+        NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(script->mScriptObject.mObject,
+                                                   "mScriptObject.mObject")
     }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -1976,7 +1980,7 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
                   rv = tmp;
                 }
 
-                if (script->GetScriptObject()) {
+                if (script->mScriptObject.mObject) {
                     // This may return NS_OK without muxing script->mSrcURI's
                     // data into the cache file, in the case where that
                     // muxed document is already there (written by a prior
@@ -2237,7 +2241,7 @@ nsXULPrototypeScript::nsXULPrototypeScript(uint32_t aLineNo, uint32_t aVersion)
       mOutOfLine(true),
       mSrcLoadWaiters(nullptr),
       mLangVersion(aVersion),
-      mScriptObject(nullptr)
+      mScriptObject()
 {
 }
 
@@ -2254,9 +2258,9 @@ nsXULPrototypeScript::Serialize(nsIObjectOutputStream* aStream,
 {
     nsIScriptContext *context = aGlobal->GetScriptContext();
     NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nullptr ||
-                 !mScriptObject,
+                 !mScriptObject.mObject,
                  "script source still loading when serializing?!");
-    if (!mScriptObject)
+    if (!mScriptObject.mObject)
         return NS_ERROR_FAILURE;
 
     // Write basic prototype data
@@ -2266,7 +2270,7 @@ nsXULPrototypeScript::Serialize(nsIObjectOutputStream* aStream,
     rv = aStream->Write32(mLangVersion);
     if (NS_FAILED(rv)) return rv;
     // And delegate the writing to the nsIScriptContext
-    rv = context->Serialize(aStream, mScriptObject);
+    rv = context->Serialize(aStream, mScriptObject.mObject);
     if (NS_FAILED(rv)) return rv;
 
     return NS_OK;
@@ -2329,7 +2333,7 @@ nsXULPrototypeScript::Deserialize(nsIObjectInputStream* aStream,
     nsresult rv;
 
     NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nullptr ||
-                 !mScriptObject,
+                 !mScriptObject.mObject,
                  "prototype script not well-initialized when deserializing?!");
 
     // Read basic prototype data
@@ -2382,7 +2386,7 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
             }
         }
 
-        if (!mScriptObject) {
+        if (! mScriptObject.mObject) {
             if (mSrcURI) {
                 rv = cache->GetInputStream(mSrcURI, getter_AddRefs(objectInput));
             } 
@@ -2403,7 +2407,7 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
                     bool isChrome = false;
                     mSrcURI->SchemeIs("chrome", &isChrome);
                     if (isChrome)
-                        cache->PutScript(mSrcURI, mScriptObject);
+                        cache->PutScript(mSrcURI, mScriptObject.mObject);
                 }
                 cache->FinishInputStream(mSrcURI);
             } else {
@@ -2490,24 +2494,26 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
 void
 nsXULPrototypeScript::UnlinkJSObjects()
 {
-    if (mScriptObject) {
-        mScriptObject = nullptr;
+    if (mScriptObject.mObject) {
         nsContentUtils::DropJSObjects(this);
+        mScriptObject.mObject = nullptr;
     }
 }
 
 void
 nsXULPrototypeScript::Set(JSScript* aObject)
 {
-    MOZ_ASSERT(!mScriptObject, "Leaking script object.");
+    NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
     if (!aObject) {
-        mScriptObject = nullptr;
+        mScriptObject.mObject = nullptr;
         return;
     }
 
-    nsContentUtils::HoldJSObjects(
+    nsresult rv = nsContentUtils::HoldJSObjects(
         this, NS_CYCLE_COLLECTION_PARTICIPANT(nsXULPrototypeNode));
-    mScriptObject = aObject;
+    if (NS_SUCCEEDED(rv)) {
+        mScriptObject.mObject = aObject;
+    }
 }
 
 //----------------------------------------------------------------------

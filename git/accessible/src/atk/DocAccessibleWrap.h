@@ -13,9 +13,6 @@
 
 #include "DocAccessible.h"
 
-namespace mozilla {
-namespace a11y {
-
 class DocAccessibleWrap : public DocAccessible
 {
 public:
@@ -25,8 +22,5 @@ public:
 
   bool mActivated;
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

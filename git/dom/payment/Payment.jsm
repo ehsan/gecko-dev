@@ -16,7 +16,6 @@ const PAYMENT_IPC_MSG_NAMES = ["Payment:Pay",
                                "Payment:Failed"];
 
 const PREF_PAYMENTPROVIDERS_BRANCH = "dom.payment.provider.";
-const PREF_PAYMENT_BRANCH = "dom.payment.";
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
@@ -32,21 +31,12 @@ function debug (s) {
 
 let PaymentManager =  {
   init: function init() {
+    this.requestId = null;
+
     // Payment providers data are stored as a preference.
     this.registeredProviders = null;
 
     this.messageManagers = {};
-
-    // The dom.payment.skipHTTPSCheck pref is supposed to be used only during
-    // development process. This preference should not be active for a
-    // production build.
-    let paymentPrefs = prefService.getBranch(PREF_PAYMENT_BRANCH);
-    this.checkHttps = true;
-    try {
-      if (paymentPrefs.getPrefType("skipHTTPSCheck")) {
-        this.checkHttps = !paymentPrefs.getBoolPref("skipHTTPSCheck");
-      }
-    } catch(e) {}
 
     for each (let msgname in PAYMENT_IPC_MSG_NAMES) {
       ppmm.addMessageListener(msgname, this);
@@ -63,6 +53,10 @@ let PaymentManager =  {
     let msg = aMessage.json;
     debug("Received '" + name + "' message from content process");
 
+    if (msg.requestId) {
+      this.requestId = msg.requestId;
+    }
+
     switch (name) {
       case "Payment:Pay": {
         // First of all, we register the payment providers.
@@ -73,8 +67,7 @@ let PaymentManager =  {
 
         // We save the message target message manager so we can later dispatch
         // back messages without broadcasting to all child processes.
-        let requestId = msg.requestId;
-        this.messageManagers[requestId] = aMessage.target;
+        this.messageManagers[this.requestId] = aMessage.target;
 
         // We check the jwt type and look for a match within the
         // registered payment providers to get the correct payment request
@@ -82,7 +75,7 @@ let PaymentManager =  {
         let paymentRequests = [];
         let jwtTypes = [];
         for (let i in msg.jwts) {
-          let pr = this.getPaymentRequestInfo(requestId, msg.jwts[i]);
+          let pr = this.getPaymentRequestInfo(msg.jwts[i]);
           if (!pr) {
             continue;
           }
@@ -91,8 +84,7 @@ let PaymentManager =  {
           }
           // We consider jwt type repetition an error.
           if (jwtTypes[pr.type]) {
-            this.paymentFailed(requestId,
-                               "PAY_REQUEST_ERROR_DUPLICATED_JWT_TYPE");
+            this.paymentFailed("PAY_REQUEST_ERROR_DUPLICATED_JWT_TYPE");
             return;
           }
           jwtTypes[pr.type] = true;
@@ -100,8 +92,7 @@ let PaymentManager =  {
         }
 
         if (!paymentRequests.length) {
-          this.paymentFailed(requestId,
-                             "PAY_REQUEST_ERROR_NO_VALID_REQUEST_FOUND");
+          this.paymentFailed("PAY_REQUEST_ERROR_NO_VALID_REQUEST_FOUND");
           return;
         }
 
@@ -113,20 +104,17 @@ let PaymentManager =  {
                    .createInstance(Ci.nsIPaymentUIGlue);
         if (!glue) {
           debug("Could not create nsIPaymentUIGlue instance");
-          this.paymentFailed(requestId,
-                             "INTERNAL_ERROR_CREATE_PAYMENT_GLUE_FAILED");
+          this.paymentFailed("INTERNAL_ERROR_CREATE_PAYMENT_GLUE_FAILED");
           return;
         }
 
-        let confirmPaymentSuccessCb = function successCb(aRequestId,
-                                                         aResult) {
+        let confirmPaymentSuccessCb = function successCb(aResult) {
           // Get the appropriate payment provider data based on user's choice.
           let selectedProvider = this.registeredProviders[aResult];
           if (!selectedProvider || !selectedProvider.uri) {
             debug("Could not retrieve a valid provider based on user's " +
                   "selection");
-            this.paymentFailed(aRequestId,
-                               "INTERNAL_ERROR_NO_VALID_SELECTED_PROVIDER");
+            this.paymentFailed("INTERNAL_ERROR_NO_VALID_SELECTED_PROVIDER");
             return;
           }
 
@@ -139,27 +127,25 @@ let PaymentManager =  {
           }
           if (!jwt) {
             debug("The selected request has no JWT information associated");
-            this.paymentFailed(aRequestId,
-                               "INTERNAL_ERROR_NO_JWT_ASSOCIATED_TO_REQUEST");
+            this.paymentFailed("INTERNAL_ERROR_NO_JWT_ASSOCIATED_TO_REQUEST");
             return;
           }
 
-          this.showPaymentFlow(aRequestId, selectedProvider, jwt);
+          this.showPaymentFlow(selectedProvider, jwt);
         };
 
         let confirmPaymentErrorCb = this.paymentFailed;
 
-        glue.confirmPaymentRequest(requestId,
-                                   paymentRequests,
+        glue.confirmPaymentRequest(paymentRequests,
                                    confirmPaymentSuccessCb.bind(this),
                                    confirmPaymentErrorCb.bind(this));
         break;
       }
       case "Payment:Success":
       case "Payment:Failed": {
-        let mm = this.messageManagers[msg.requestId];
+        let mm = this.messageManagers[this.requestId];
         mm.sendAsyncMessage(name, {
-          requestId: msg.requestId,
+          requestId: this.requestId,
           result: msg.result,
           errorMsg: msg.errorMsg
         });
@@ -217,10 +203,10 @@ let PaymentManager =  {
   /**
    * Helper for sending a Payment:Failed message to the parent process.
    */
-  paymentFailed: function paymentFailed(aRequestId, aErrorMsg) {
-    let mm = this.messageManagers[aRequestId];
+  paymentFailed: function paymentFailed(aErrorMsg) {
+    let mm = this.messageManagers[this.requestId];
     mm.sendAsyncMessage("Payment:Failed", {
-      requestId: aRequestId,
+      requestId: this.requestId,
       errorMsg: aErrorMsg
     });
   },
@@ -229,9 +215,9 @@ let PaymentManager =  {
    * Helper function to get the payment request info according to the jwt
    * type. Payment provider's data is stored as a preference.
    */
-  getPaymentRequestInfo: function getPaymentRequestInfo(aRequestId, aJwt) {
+  getPaymentRequestInfo: function getPaymentRequestInfo(aJwt) {
     if (!aJwt) {
-      this.paymentFailed(aRequestId, "INTERNAL_ERROR_CALL_WITH_MISSING_JWT");
+      this.paymentFailed("INTERNAL_ERROR_CALL_WITH_MISSING_JWT");
       return true;
     }
 
@@ -244,8 +230,7 @@ let PaymentManager =  {
     if (segments.length !== 3) {
       debug("Error getting payment provider's uri. " +
             "Not enough or too many segments");
-      this.paymentFailed(aRequestId,
-                         "PAY_REQUEST_ERROR_WRONG_SEGMENTS_COUNT");
+      this.paymentFailed("PAY_REQUEST_ERROR_WRONG_SEGMENTS_COUNT");
       return true;
     }
 
@@ -257,7 +242,7 @@ let PaymentManager =  {
       let payload = atob(segments[1]);
       debug("Payload " + payload);
       if (!payload.length) {
-        this.paymentFailed(aRequestId, "PAY_REQUEST_ERROR_EMPTY_PAYLOAD");
+        this.paymentFailed("PAY_REQUEST_ERROR_EMPTY_PAYLOAD");
         return true;
       }
 
@@ -273,25 +258,21 @@ let PaymentManager =  {
 
       payloadObject = JSON.parse(payload);
       if (!payloadObject) {
-        this.paymentFailed(aRequestId,
-                           "PAY_REQUEST_ERROR_ERROR_PARSING_JWT_PAYLOAD");
+        this.paymentFailed("PAY_REQUEST_ERROR_ERROR_PARSING_JWT_PAYLOAD");
         return true;
       }
     } catch (e) {
-      this.paymentFailed(aRequestId,
-                         "PAY_REQUEST_ERROR_ERROR_DECODING_JWT");
+      this.paymentFailed("PAY_REQUEST_ERROR_ERROR_DECODING_JWT");
       return true;
     }
 
     if (!payloadObject.typ) {
-      this.paymentFailed(aRequestId,
-                         "PAY_REQUEST_ERROR_NO_TYP_PARAMETER");
+      this.paymentFailed("PAY_REQUEST_ERROR_NO_TYP_PARAMETER");
       return true;
     }
 
     if (!payloadObject.request) {
-      this.paymentFailed(aRequestId,
-                         "PAY_REQUEST_ERROR_NO_REQUEST_PARAMETER");
+      this.paymentFailed("PAY_REQUEST_ERROR_NO_REQUEST_PARAMETER");
       return true;
     }
 
@@ -309,17 +290,15 @@ let PaymentManager =  {
     }
 
     if (!provider.uri || !provider.name) {
-      this.paymentFailed(aRequestId,
-                         "INTERNAL_ERROR_WRONG_REGISTERED_PAY_PROVIDER");
+      this.paymentFailed("INTERNAL_ERROR_WRONG_REGISTERED_PAY_PROVIDER");
       return true;
     }
 
     // We only allow https for payment providers uris.
-    if (this.checkHttps && !/^https/.exec(provider.uri.toLowerCase())) {
+    if (!/^https/.exec(provider.uri.toLowerCase())) {
       // We should never get this far.
       debug("Payment provider uris must be https: " + provider.uri);
-      this.paymentFailed(aRequestId,
-                         "INTERNAL_ERROR_NON_HTTPS_PROVIDER_URI");
+      this.paymentFailed("INTERNAL_ERROR_NON_HTTPS_PROVIDER_URI");
       return true;
     }
 
@@ -327,8 +306,7 @@ let PaymentManager =  {
     let request = Cc["@mozilla.org/payment/request-info;1"]
                   .createInstance(Ci.nsIDOMPaymentRequestInfo);
     if (!request) {
-      this.paymentFailed(aRequestId,
-                         "INTERNAL_ERROR_ERROR_CREATING_PAY_REQUEST");
+      this.paymentFailed("INTERNAL_ERROR_ERROR_CREATING_PAY_REQUEST");
       return true;
     }
     request.wrappedJSObject.init(aJwt,
@@ -337,9 +315,7 @@ let PaymentManager =  {
     return request;
   },
 
-  showPaymentFlow: function showPaymentFlow(aRequestId,
-                                            aPaymentProvider,
-                                            aJwt) {
+  showPaymentFlow: function showPaymentFlow(aPaymentProvider, aJwt) {
     let paymentFlowInfo = Cc["@mozilla.org/payment/flow-info;1"]
                           .createInstance(Ci.nsIPaymentFlowInfo);
     paymentFlowInfo.uri = aPaymentProvider.uri;
@@ -350,13 +326,10 @@ let PaymentManager =  {
                .createInstance(Ci.nsIPaymentUIGlue);
     if (!glue) {
       debug("Could not create nsIPaymentUIGlue instance");
-      this.paymentFailed(aRequestId,
-                         "INTERNAL_ERROR_CREATE_PAYMENT_GLUE_FAILED");
+      this.paymentFailed("INTERNAL_ERROR_CREATE_PAYMENT_GLUE_FAILED");
       return false;
     }
-    glue.showPaymentFlow(aRequestId,
-                         paymentFlowInfo,
-                         this.paymentFailed.bind(this));
+    glue.showPaymentFlow(paymentFlowInfo, this.paymentFailed.bind(this));
   },
 
   // nsIObserver

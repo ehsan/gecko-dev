@@ -11,6 +11,7 @@
  */
 function ToolbarView() {
   dumpn("ToolbarView was instantiated");
+  this._onCloseClick = this._onCloseClick.bind(this);
   this._onTogglePanesPressed = this._onTogglePanesPressed.bind(this);
   this._onResumePressed = this._onResumePressed.bind(this);
   this._onStepOverPressed = this._onStepOverPressed.bind(this);
@@ -24,6 +25,7 @@ ToolbarView.prototype = {
    */
   initialize: function DVT_initialize() {
     dumpn("Initializing the ToolbarView");
+    this._closeButton = document.getElementById("close");
     this._togglePanesButton = document.getElementById("toggle-panes");
     this._resumeButton = document.getElementById("resume");
     this._stepOverButton = document.getElementById("step-over");
@@ -32,16 +34,17 @@ ToolbarView.prototype = {
     this._chromeGlobals = document.getElementById("chrome-globals");
     this._scripts = document.getElementById("sources");
 
-    let resumeKey = LayoutHelpers.prettyKey(document.getElementById("resumeKey"), true);
-    let stepOverKey = LayoutHelpers.prettyKey(document.getElementById("stepOverKey"), true);
-    let stepInKey = LayoutHelpers.prettyKey(document.getElementById("stepInKey"), true);
-    let stepOutKey = LayoutHelpers.prettyKey(document.getElementById("stepOutKey"), true);
+    let resumeKey = LayoutHelpers.prettyKey(document.getElementById("resumeKey"));
+    let stepOverKey = LayoutHelpers.prettyKey(document.getElementById("stepOverKey"));
+    let stepInKey = LayoutHelpers.prettyKey(document.getElementById("stepInKey"));
+    let stepOutKey = LayoutHelpers.prettyKey(document.getElementById("stepOutKey"));
     this._resumeTooltip = L10N.getFormatStr("resumeButtonTooltip", [resumeKey]);
     this._pauseTooltip = L10N.getFormatStr("pauseButtonTooltip", [resumeKey]);
     this._stepOverTooltip = L10N.getFormatStr("stepOverTooltip", [stepOverKey]);
     this._stepInTooltip = L10N.getFormatStr("stepInTooltip", [stepInKey]);
     this._stepOutTooltip = L10N.getFormatStr("stepOutTooltip", [stepOutKey]);
 
+    this._closeButton.addEventListener("click", this._onCloseClick, false);
     this._togglePanesButton.addEventListener("mousedown", this._onTogglePanesPressed, false);
     this._resumeButton.addEventListener("mousedown", this._onResumePressed, false);
     this._stepOverButton.addEventListener("mousedown", this._onStepOverPressed, false);
@@ -52,6 +55,7 @@ ToolbarView.prototype = {
     this._stepInButton.setAttribute("tooltiptext", this._stepInTooltip);
     this._stepOutButton.setAttribute("tooltiptext", this._stepOutTooltip);
 
+    this.toggleCloseButton(!window._isRemoteDebugger && !window._isChromeDebugger);
     // TODO: bug 806775
     // this.toggleChromeGlobalsContainer(window._isChromeDebugger);
   },
@@ -61,11 +65,22 @@ ToolbarView.prototype = {
    */
   destroy: function DVT_destroy() {
     dumpn("Destroying the ToolbarView");
+    this._closeButton.removeEventListener("click", this._onCloseClick, false);
     this._togglePanesButton.removeEventListener("mousedown", this._onTogglePanesPressed, false);
     this._resumeButton.removeEventListener("mousedown", this._onResumePressed, false);
     this._stepOverButton.removeEventListener("mousedown", this._onStepOverPressed, false);
     this._stepInButton.removeEventListener("mousedown", this._onStepInPressed, false);
     this._stepOutButton.removeEventListener("mousedown", this._onStepOutPressed, false);
+  },
+
+  /**
+   * Sets the close button hidden or visible. It's hidden by default.
+   *
+   * @param boolean aVisibleFlag
+   *        Specifies the intended visibility.
+   */
+  toggleCloseButton: function DVT_toggleCloseButton(aVisibleFlag) {
+    this._closeButton.setAttribute("hidden", !aVisibleFlag);
   },
 
   /**
@@ -105,6 +120,13 @@ ToolbarView.prototype = {
    */
   toggleSourcesContainer: function DVT_toggleSourcesContainer(aVisibleFlag) {
     this._sources.setAttribute("hidden", !aVisibleFlag);
+  },
+
+  /**
+   * Listener handling the close button click event.
+   */
+  _onCloseClick: function DVT__onCloseClick() {
+    DebuggerController._shutdownDebugger();
   },
 
   /**
@@ -155,6 +177,7 @@ ToolbarView.prototype = {
     }
   },
 
+  _closeButton: null,
   _togglePanesButton: null,
   _resumeButton: null,
   _stepOverButton: null,
@@ -176,8 +199,8 @@ function OptionsView() {
   dumpn("OptionsView was instantiated");
   this._togglePauseOnExceptions = this._togglePauseOnExceptions.bind(this);
   this._toggleShowPanesOnStartup = this._toggleShowPanesOnStartup.bind(this);
-  this._toggleShowVariablesOnlyEnum = this._toggleShowVariablesOnlyEnum.bind(this);
-  this._toggleShowVariablesFilterBox = this._toggleShowVariablesFilterBox.bind(this);
+  this._toggleShowVariablesNonEnum = this._toggleShowVariablesNonEnum.bind(this);
+  this._toggleShowVariablesSearchbox = this._toggleShowVariablesSearchbox.bind(this);
 }
 
 OptionsView.prototype = {
@@ -189,13 +212,13 @@ OptionsView.prototype = {
     this._button = document.getElementById("debugger-options");
     this._pauseOnExceptionsItem = document.getElementById("pause-on-exceptions");
     this._showPanesOnStartupItem = document.getElementById("show-panes-on-startup");
-    this._showVariablesOnlyEnumItem = document.getElementById("show-vars-only-enum");
-    this._showVariablesFilterBoxItem = document.getElementById("show-vars-filter-box");
+    this._showVariablesNonEnumItem = document.getElementById("show-vars-nonenum");
+    this._showVariablesSearchboxItem = document.getElementById("show-vars-searchbox");
 
     this._pauseOnExceptionsItem.setAttribute("checked", "false");
     this._showPanesOnStartupItem.setAttribute("checked", Prefs.panesVisibleOnStartup);
-    this._showVariablesOnlyEnumItem.setAttribute("checked", Prefs.variablesOnlyEnumVisible);
-    this._showVariablesFilterBoxItem.setAttribute("checked", Prefs.variablesSearchboxVisible);
+    this._showVariablesNonEnumItem.setAttribute("checked", Prefs.variablesNonEnumVisible);
+    this._showVariablesSearchboxItem.setAttribute("checked", Prefs.variablesSearchboxVisible);
   },
 
   /**
@@ -239,24 +262,24 @@ OptionsView.prototype = {
   /**
    * Listener handling the 'show non-enumerables' menuitem command.
    */
-  _toggleShowVariablesOnlyEnum: function DVO__toggleShowVariablesOnlyEnum() {
-    DebuggerView.Variables.onlyEnumVisible = Prefs.variablesOnlyEnumVisible =
-      this._showVariablesOnlyEnumItem.getAttribute("checked") == "true";
+  _toggleShowVariablesNonEnum: function DVO__toggleShowVariablesNonEnum() {
+    DebuggerView.Variables.nonEnumVisible = Prefs.variablesNonEnumVisible =
+      this._showVariablesNonEnumItem.getAttribute("checked") == "true";
   },
 
   /**
    * Listener handling the 'show variables searchbox' menuitem command.
    */
-  _toggleShowVariablesFilterBox: function DVO__toggleShowVariablesFilterBox() {
+  _toggleShowVariablesSearchbox: function DVO__toggleShowVariablesSearchbox() {
     DebuggerView.Variables.searchEnabled = Prefs.variablesSearchboxVisible =
-      this._showVariablesFilterBoxItem.getAttribute("checked") == "true";
+      this._showVariablesSearchboxItem.getAttribute("checked") == "true";
   },
 
   _button: null,
   _pauseOnExceptionsItem: null,
   _showPanesOnStartupItem: null,
-  _showVariablesOnlyEnumItem: null,
-  _showVariablesFilterBoxItem: null
+  _showVariablesNonEnumItem: null,
+  _showVariablesSearchboxItem: null
 };
 
 /**
@@ -345,20 +368,6 @@ create({ constructor: SourcesView, proto: MenuContainer.prototype }, {
     dumpn("Destroying the SourcesView");
     this._container.removeEventListener("select", this._onSelect, false);
     this._container.removeEventListener("click", this._onClick, false);
-  },
-
-  /**
-   * Sets the preferred source url to be displayed in this container.
-   * @param string aValue
-   */
-  set preferredSource(aValue) {
-    this._preferredValue = aValue;
-
-    // Selects the element with the specified value in this container,
-    // if already inserted.
-    if (this.containsValue(aValue)) {
-      this.selectedValue = aValue;
-    }
   },
 
   /**
@@ -568,11 +577,11 @@ FilterView.prototype = {
     this._variableOperatorButton = document.getElementById("variable-operator-button");
     this._variableOperatorLabel = document.getElementById("variable-operator-label");
 
-    this._fileSearchKey = LayoutHelpers.prettyKey(document.getElementById("fileSearchKey"), true);
-    this._globalSearchKey = LayoutHelpers.prettyKey(document.getElementById("globalSearchKey"), true);
-    this._tokenSearchKey = LayoutHelpers.prettyKey(document.getElementById("tokenSearchKey"), true);
-    this._lineSearchKey = LayoutHelpers.prettyKey(document.getElementById("lineSearchKey"), true);
-    this._variableSearchKey = LayoutHelpers.prettyKey(document.getElementById("variableSearchKey"), true);
+    this._globalSearchKey = LayoutHelpers.prettyKey(document.getElementById("globalSearchKey"));
+    this._fileSearchKey = LayoutHelpers.prettyKey(document.getElementById("fileSearchKey"));
+    this._lineSearchKey = LayoutHelpers.prettyKey(document.getElementById("lineSearchKey"));
+    this._tokenSearchKey = LayoutHelpers.prettyKey(document.getElementById("tokenSearchKey"));
+    this._variableSearchKey = LayoutHelpers.prettyKey(document.getElementById("variableSearchKey"));
 
     this._searchbox.addEventListener("click", this._onClick, false);
     this._searchbox.addEventListener("select", this._onSearch, false);
@@ -619,7 +628,7 @@ FilterView.prototype = {
    * @param object aView
    */
   set target(aView) {
-    let placeholder = "";
+    var placeholder = "";
     switch (aView) {
       case DebuggerView.ChromeGlobals:
         placeholder = L10N.getFormatStr("emptyChromeGlobalsFilterText", [this._fileSearchKey]);
@@ -657,7 +666,7 @@ FilterView.prototype = {
         : rawLength;
 
       file = rawValue.slice(0, fileEnd);
-      line = ~~(rawValue.slice(fileEnd + 1, lineEnd)) || 0;
+      line = ~~(rawValue.slice(fileEnd + 1, lineEnd)) || -1;
       token = rawValue.slice(lineEnd + 1);
       isGlobal = false;
       isVariable = false;
@@ -665,7 +674,7 @@ FilterView.prototype = {
     // Global searches dissalow the use of file or line flags.
     else if (globalFlagIndex == 0) {
       file = "";
-      line = 0;
+      line = -1;
       token = rawValue.slice(1);
       isGlobal = true;
       isVariable = false;
@@ -673,7 +682,7 @@ FilterView.prototype = {
     // Variable searches dissalow the use of file or line flags.
     else if (variableFlagIndex == 0) {
       file = "";
-      line = 0;
+      line = -1;
       token = rawValue.slice(1);
       isGlobal = false;
       isVariable = true;
@@ -705,7 +714,7 @@ FilterView.prototype = {
    */
   clearSearch: function DVF_clearSearch() {
     this._searchbox.value = "";
-    this._searchboxPanel.hidePopup();
+    this._onSearch();
   },
 
   /**
@@ -746,7 +755,6 @@ FilterView.prototype = {
           if (!found) {
             found = true;
             view.selectedItem = item;
-            view.refresh();
           }
         }
         // Item not matched, hide the corresponding node.
@@ -759,9 +767,6 @@ FilterView.prototype = {
         view.setUnavailable();
       }
     }
-    // Synchronize with the view's filtered sources container.
-    DebuggerView.FilteredSources.syncFileSearch();
-
     this._prevSearchedFile = aFile;
   },
 
@@ -774,12 +779,8 @@ FilterView.prototype = {
    */
   _performLineSearch: function DVF__performLineSearch(aLine) {
     // Don't search for lines if the input hasn't changed.
-    if (this._prevSearchedLine != aLine && aLine) {
+    if (this._prevSearchedLine != aLine && aLine > -1) {
       DebuggerView.editor.setCaretPosition(aLine - 1);
-    }
-    // Can't search for lines and tokens at the same time.
-    if (this._prevSearchedToken && !aLine) {
-      this._target.refresh();
     }
     this._prevSearchedLine = aLine;
   },
@@ -793,16 +794,12 @@ FilterView.prototype = {
    */
   _performTokenSearch: function DVF__performTokenSearch(aToken) {
     // Don't search for tokens if the input hasn't changed.
-    if (this._prevSearchedToken != aToken && aToken) {
+    if (this._prevSearchedToken != aToken && aToken.length > 0) {
       let editor = DebuggerView.editor;
       let offset = editor.find(aToken, { ignoreCase: true });
       if (offset > -1) {
         editor.setSelection(offset, offset + aToken.length)
       }
-    }
-    // Can't search for tokens and lines at the same time.
-    if (this._prevSearchedLine && !aToken) {
-      this._target.refresh();
     }
     this._prevSearchedToken = aToken;
   },
@@ -824,16 +821,14 @@ FilterView.prototype = {
     // If this is a global search, schedule it for when the user stops typing,
     // or hide the corresponding pane otherwise.
     if (isGlobal) {
-      DebuggerView.GlobalSearch.scheduleSearch(token);
-      this._prevSearchedToken = token;
+      DebuggerView.GlobalSearch.scheduleSearch();
       return;
     }
 
     // If this is a variable search, defer the action to the corresponding
     // variables view instance.
     if (isVariable) {
-      DebuggerView.Variables.scheduleSearch(token);
-      this._prevSearchedToken = token;
+      DebuggerView.Variables.performSearch(token);
       return;
     }
 
@@ -847,39 +842,13 @@ FilterView.prototype = {
    * The key press listener for the search container.
    */
   _onKeyPress: function DVF__onScriptsKeyPress(e) {
-    // This attribute is not implemented in Gecko at this time, see bug 680830.
-    e.char = String.fromCharCode(e.charCode);
-
     let [file, line, token, isGlobal, isVariable] = this.searchboxInfo;
-    let isFileSearch, isLineSearch, isDifferentToken, isReturnKey;
-    let action = -1;
+    let action;
 
-    if (file && !line && !token) {
-      isFileSearch = true;
-    }
-    if (line && !token) {
-      isLineSearch = true;
-    }
-    if (this._prevSearchedToken != token) {
-      isDifferentToken = true;
-    }
-
-    // Meta+G and Ctrl+N focus next matches.
-    if ((e.char == "g" && e.metaKey) || e.char == "n" && e.ctrlKey) {
-      action = 0;
-    }
-    // Meta+Shift+G and Ctrl+P focus previous matches.
-    else if ((e.char == "G" && e.metaKey) || e.char == "p" && e.ctrlKey) {
-      action = 1;
-    }
-    // Return, enter down and up keys focus next or previous matches, while
-    // the escape key switches focus from the search container.
-    else switch (e.keyCode) {
+    switch (e.keyCode) {
+      case e.DOM_VK_DOWN:
       case e.DOM_VK_RETURN:
       case e.DOM_VK_ENTER:
-        isReturnKey = true;
-        // fall through
-      case e.DOM_VK_DOWN:
         action = 0;
         break;
       case e.DOM_VK_UP:
@@ -888,64 +857,34 @@ FilterView.prototype = {
       case e.DOM_VK_ESCAPE:
         action = 2;
         break;
+      default:
+        action = -1;
     }
 
     if (action == 2) {
       DebuggerView.editor.focus();
       return;
     }
-    if (action == -1 || (!file && !line && !token)) {
-      DebuggerView.FilteredSources.hidden = true;
+    if (action == -1 || !token) {
       return;
     }
 
     e.preventDefault();
     e.stopPropagation();
 
-    // Select the next or previous file search entry.
-    if (isFileSearch) {
-      if (isReturnKey) {
-        DebuggerView.FilteredSources.hidden = true;
-        DebuggerView.editor.focus();
-        this.clearSearch();
-      } else {
-        DebuggerView.FilteredSources[["focusNext", "focusPrev"][action]]();
-      }
-      this._prevSearchedFile = file;
-      return;
-    }
-
     // Perform a global search based on the specified operator.
     if (isGlobal) {
-      if (isReturnKey && (isDifferentToken || DebuggerView.GlobalSearch.hidden)) {
-        DebuggerView.GlobalSearch.performSearch(token);
+      if (DebuggerView.GlobalSearch.hidden) {
+        DebuggerView.GlobalSearch.scheduleSearch();
       } else {
         DebuggerView.GlobalSearch[["focusNextMatch", "focusPrevMatch"][action]]();
       }
-      this._prevSearchedToken = token;
       return;
     }
 
     // Perform a variable search based on the specified operator.
     if (isVariable) {
-      if (isReturnKey && isDifferentToken) {
-        DebuggerView.Variables.performSearch(token);
-      } else {
-        DebuggerView.Variables.expandFirstSearchResults();
-      }
-      this._prevSearchedToken = token;
-      return;
-    }
-
-    // Increment or decrement the specified line.
-    if (isLineSearch && !isReturnKey) {
-      line += action == 0 ? 1 : -1;
-      let lineCount = DebuggerView.editor.getLineCount();
-      let lineTarget = line < 1 ? 1 : line > lineCount ? lineCount : line;
-
-      DebuggerView.editor.setCaretPosition(lineTarget - 1);
-      this._searchbox.value = file + SEARCH_LINE_FLAG + lineTarget;
-      this._prevSearchedLine = lineTarget;
+      DebuggerView.Variables.expandFirstSearchResults();
       return;
     }
 
@@ -974,6 +913,7 @@ FilterView.prototype = {
   _doSearch: function DVF__doSearch(aOperator = "") {
     this._searchbox.focus();
     this._searchbox.value = aOperator;
+    DebuggerView.GlobalSearch.clearView();
   },
 
   /**
@@ -985,10 +925,10 @@ FilterView.prototype = {
   },
 
   /**
-   * Called when the global search filter key sequence was pressed.
+   * Called when the source line filter key sequence was pressed.
    */
-  _doGlobalSearch: function DVF__doGlobalSearch() {
-    this._doSearch(SEARCH_GLOBAL_FLAG);
+  _doLineSearch: function DVF__doLineSearch() {
+    this._doSearch(SEARCH_LINE_FLAG);
     this._searchboxPanel.hidePopup();
   },
 
@@ -1001,10 +941,10 @@ FilterView.prototype = {
   },
 
   /**
-   * Called when the source line filter key sequence was pressed.
+   * Called when the global search filter key sequence was pressed.
    */
-  _doLineSearch: function DVF__doLineSearch() {
-    this._doSearch(SEARCH_LINE_FLAG);
+  _doGlobalSearch: function DVF__doGlobalSearch() {
+    this._doSearch(SEARCH_GLOBAL_FLAG);
     this._searchboxPanel.hidePopup();
   },
 
@@ -1012,7 +952,6 @@ FilterView.prototype = {
    * Called when the variable search filter key sequence was pressed.
    */
   _doVariableSearch: function DVF__doVariableSearch() {
-    DebuggerView.Variables.performSearch("");
     this._doSearch(SEARCH_VARIABLE_FLAG);
     this._searchboxPanel.hidePopup();
   },
@@ -1025,180 +964,15 @@ FilterView.prototype = {
   _tokenOperatorLabel: null,
   _lineOperatorButton: null,
   _lineOperatorLabel: null,
-  _variableOperatorButton: null,
-  _variableOperatorLabel: null,
-  _fileSearchKey: "",
   _globalSearchKey: "",
-  _tokenSearchKey: "",
+  _fileSearchKey: "",
   _lineSearchKey: "",
-  _variableSearchKey: "",
+  _tokenSearchKey: "",
   _target: null,
   _prevSearchedFile: "",
-  _prevSearchedLine: 0,
+  _prevSearchedLine: -1,
   _prevSearchedToken: ""
 };
-
-/**
- * Functions handling the filtered sources UI.
- */
-function FilteredSourcesView() {
-  MenuContainer.call(this);
-  this._onClick = this._onClick.bind(this);
-}
-
-create({ constructor: FilteredSourcesView, proto: MenuContainer.prototype }, {
-  /**
-   * Initialization function, called when the debugger is started.
-   */
-  initialize: function DVFS_initialize() {
-    dumpn("Initializing the FilteredSourcesView");
-
-    let panel = this._panel = document.createElement("panel");
-    panel.id = "filtered-sources-panel";
-    panel.setAttribute("noautofocus", "true");
-    panel.setAttribute("position", FILTERED_SOURCES_POPUP_POSITION);
-    document.documentElement.appendChild(panel);
-
-    this._searchbox = document.getElementById("searchbox");
-    this._container = new StackList(panel);
-
-    this._container.itemFactory = this._createItemView;
-    this._container.itemType = "vbox";
-    this._container.addEventListener("click", this._onClick, false);
-  },
-
-  /**
-   * Destruction function, called when the debugger is closed.
-   */
-  destroy: function DVFS_destroy() {
-    dumpn("Destroying the FilteredSourcesView");
-    document.documentElement.removeChild(this._panel);
-    this._container.removeEventListener("click", this._onClick, false);
-  },
-
-  /**
-   * Sets the files container hidden or visible. It's hidden by default.
-   * @param boolean aFlag
-   */
-  set hidden(aFlag) {
-    if (aFlag) {
-      this._container._parent.hidePopup();
-    } else {
-      this._container._parent.openPopup(this._searchbox);
-    }
-  },
-
-  /**
-   * Updates the list of sources displayed in this container.
-   */
-  syncFileSearch: function DVFS_syncFileSearch() {
-    this.empty();
-
-    // If there's no currently searched file, or there are no matches found,
-    // hide the popup.
-    if (!DebuggerView.Filtering.searchedFile ||
-        !DebuggerView.Sources.visibleItems.length) {
-      this.hidden = true;
-      return;
-    }
-
-    // Get the currently visible items in the sources container.
-    let visibleItems = DebuggerView.Sources.visibleItems;
-    let displayedItems = visibleItems.slice(0, FILTERED_SOURCES_MAX_RESULTS);
-
-    for (let item of displayedItems) {
-      // Append a location item item to this container.
-      let trimmedLabel = SourceUtils.trimUrlLength(item.label);
-      let trimmedValue = SourceUtils.trimUrlLength(item.value);
-
-      let locationItem = this.push(trimmedLabel, trimmedValue, {
-        forced: true,
-        relaxed: true,
-        unsorted: true,
-        attachment: {
-          fullLabel: item.label,
-          fullValue: item.value
-        }
-      });
-
-      let element = locationItem.target;
-      element.className = "dbg-source-item list-item";
-      element.labelNode.className = "dbg-source-item-name plain";
-      element.valueNode.className = "dbg-source-item-details plain";
-    }
-
-    this._updateSelection(this.getItemAtIndex(0));
-    this.hidden = false;
-  },
-
-  /**
-   * Focuses the next found match in this container.
-   */
-  focusNext: function DVFS_focusNext() {
-    let nextIndex = this.selectedIndex + 1;
-    if (nextIndex >= this.totalItems) {
-      nextIndex = 0;
-    }
-    this._updateSelection(this.getItemAtIndex(nextIndex));
-  },
-
-  /**
-   * Focuses the previously found match in this container.
-   */
-  focusPrev: function DVFS_focusPrev() {
-    let prevIndex = this.selectedIndex - 1;
-    if (prevIndex < 0) {
-      prevIndex = this.totalItems - 1;
-    }
-    this._updateSelection(this.getItemAtIndex(prevIndex));
-  },
-
-  /**
-   * The click listener for this container.
-   */
-  _onClick: function DVFS__onClick(e) {
-    let locationItem = this.getItemForElement(e.target);
-    if (locationItem) {
-      this._updateSelection(locationItem);
-    }
-  },
-
-  /**
-   * Updates the selected item in this container and other views.
-   *
-   * @param MenuItem aItem
-   *        The item associated with the element to select.
-   */
-  _updateSelection: function DVFS__updateSelection(aItem) {
-    this.selectedItem = aItem;
-    DebuggerView.Filtering._target.selectedValue = aItem.attachment.fullValue;
-  },
-
-  /**
-   * Customization function for creating an item's UI.
-   *
-   * @param string aLabel
-   *        The item's label.
-   * @param string aValue
-   *        The item's value.
-   */
-  _createItemView: function DVFS__createItemView(aElementNode, aLabel, aValue) {
-    let labelNode = document.createElement("label");
-    let valueNode = document.createElement("label");
-
-    labelNode.setAttribute("value", aLabel);
-    valueNode.setAttribute("value", aValue);
-
-    aElementNode.appendChild(labelNode);
-    aElementNode.appendChild(valueNode);
-
-    aElementNode.labelNode = labelNode;
-    aElementNode.valueNode = valueNode;
-  },
-
-  _panel: null,
-  _searchbox: null
-});
 
 /**
  * Preliminary setup for the DebuggerView object.
@@ -1208,4 +982,3 @@ DebuggerView.Options = new OptionsView();
 DebuggerView.ChromeGlobals = new ChromeGlobalsView();
 DebuggerView.Sources = new SourcesView();
 DebuggerView.Filtering = new FilterView();
-DebuggerView.FilteredSources = new FilteredSourcesView();

@@ -14,7 +14,6 @@
 #include "gfxContext.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsSVGElement::LengthInfo nsSVGImageElement::sLengthInfo[4] =
 {
@@ -97,9 +96,9 @@ NS_IMETHODIMP nsSVGImageElement::GetHeight(nsIDOMSVGAnimatedLength * *aHeight)
   return mLengthAttributes[HEIGHT].ToDOMAnimatedLength(aHeight, this);
 }
 
-/* readonly attribute SVGPreserveAspectRatio preserveAspectRatio; */
+/* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGImageElement::GetPreserveAspectRatio(nsISupports
+nsSVGImageElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
                                           **aPreserveAspectRatio)
 {
   return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
@@ -275,7 +274,7 @@ nsSVGImageElement::GetStringInfo()
 }
 
 nsresult
-nsSVGImageElement::CopyInnerTo(Element* aDest)
+nsSVGImageElement::CopyInnerTo(nsGenericElement* aDest)
 {
   if (aDest->OwnerDoc()->IsStaticDocument()) {
     CreateStaticImageClone(static_cast<nsSVGImageElement*>(aDest));

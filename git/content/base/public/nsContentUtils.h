@@ -19,6 +19,7 @@
 #endif
 
 #include "nsAString.h"
+#include "nsIStatefulFrame.h"
 #include "nsNodeInfoManager.h"
 #include "nsIXPCScriptable.h"
 #include "nsDataHashtable.h"
@@ -34,6 +35,8 @@
 #include "nsThreadUtils.h"
 #include "nsIContent.h"
 #include "nsCharSeparatedTokenizer.h"
+#include "gfxContext.h"
+#include "gfxFont.h"
 #include "nsContentList.h"
 
 #include "mozilla/AutoRestore.h"
@@ -63,8 +66,8 @@ class nsIIOService;
 class nsIURI;
 class imgIContainer;
 class imgINotificationObserver;
-class imgRequestProxy;
-class imgLoader;
+class imgIRequest;
+class imgILoader;
 class imgICache;
 class nsIImageLoadingContent;
 class nsIDOMHTMLFormElement;
@@ -88,6 +91,9 @@ class nsIWidget;
 class nsIDragSession;
 class nsIPresShell;
 class nsIXPConnectJSObjectHolder;
+#ifdef MOZ_XTF
+class nsIXTFService;
+#endif
 #ifdef IBMBIDI
 class nsIBidiKeyboard;
 #endif
@@ -100,8 +106,7 @@ struct nsIntMargin;
 class nsPIDOMWindow;
 class nsIDocumentLoaderFactory;
 class nsIDOMHTMLInputElement;
-
-class nsViewportInfo;
+class gfxTextObjectPaint;
 
 namespace mozilla {
 
@@ -125,11 +130,44 @@ enum EventNameType {
   EventNameType_XUL = 0x0002,
   EventNameType_SVGGraphic = 0x0004, // svg graphic elements
   EventNameType_SVGSVG = 0x0008, // the svg element
-  EventNameType_SMIL = 0x0010, // smil elements
-  EventNameType_HTMLBodyOrFramesetOnly = 0x0020,
+  EventNameType_SMIL = 0x0016, // smil elements
 
   EventNameType_HTMLXUL = 0x0003,
   EventNameType_All = 0xFFFF
+};
+
+/**
+ * Information retrieved from the <meta name="viewport"> tag. See
+ * GetViewportInfo for more information on this functionality.
+ */
+struct ViewportInfo
+{
+    // Default zoom indicates the level at which the display is 'zoomed in'
+    // initially for the user, upon loading of the page.
+    double defaultZoom;
+
+    // The minimum zoom level permitted by the page.
+    double minZoom;
+
+    // The maximum zoom level permitted by the page.
+    double maxZoom;
+
+    // The width of the viewport, specified by the <meta name="viewport"> tag,
+    // in CSS pixels.
+    uint32_t width;
+
+    // The height of the viewport, specified by the <meta name="viewport"> tag,
+    // in CSS pixels.
+    uint32_t height;
+
+    // Whether or not we should automatically size the viewport to the device's
+    // width. This is true if the document has been optimized for mobile, and
+    // the width property of a specified <meta name="viewport"> tag is either
+    // not specified, or is set to the special value 'device-width'.
+    bool autoSize;
+
+    // Whether or not the user can zoom in and out on the page. Default is true.
+    bool allowZoom;
 };
 
 struct EventNameMapping
@@ -164,7 +202,6 @@ public:
   static JSContext* GetContextFromDocument(nsIDocument *aDocument);
 
   static bool     IsCallerChrome();
-  static bool     IsCallerXBL();
 
   static bool     IsImageSrcSetDisabled();
 
@@ -354,10 +391,10 @@ public:
   /**
    * Checks whether two nodes come from the same origin.
    */
-  static nsresult CheckSameOrigin(const nsINode* aTrustedNode,
+  static nsresult CheckSameOrigin(nsINode* aTrustedNode,
                                   nsIDOMNode* aUnTrustedNode);
-  static nsresult CheckSameOrigin(const nsINode* aTrustedNode,
-                                  const nsINode* unTrustedNode);
+  static nsresult CheckSameOrigin(nsINode* aTrustedNode,
+                                  nsINode* unTrustedNode);
 
   // Check if the (JS) caller can access aNode.
   static bool CanCallerAccess(nsIDOMNode *aNode);
@@ -421,6 +458,10 @@ public:
     return sIOService;
   }
 
+#ifdef MOZ_XTF
+  static nsIXTFService* GetXTFService();
+#endif
+
 #ifdef IBMBIDI
   static nsIBidiKeyboard* GetBidiKeyboard();
 #endif
@@ -440,6 +481,7 @@ public:
 
   static nsresult GenerateStateKey(nsIContent* aContent,
                                    const nsIDocument* aDocument,
+                                   nsIStatefulFrame::SpecialStateID aID,
                                    nsACString& aKey);
 
   /**
@@ -608,14 +650,14 @@ public:
                             nsIURI* aReferrer,
                             imgINotificationObserver* aObserver,
                             int32_t aLoadFlags,
-                            imgRequestProxy** aRequest);
+                            imgIRequest** aRequest);
 
   /**
    * Obtain an image loader that respects the given document/channel's privacy status.
    * Null document/channel arguments return the public image loader.
    */
-  static imgLoader* GetImgLoaderForDocument(nsIDocument* aDoc);
-  static imgLoader* GetImgLoaderForChannel(nsIChannel* aChannel);
+  static imgILoader* GetImgLoaderForDocument(nsIDocument* aDoc);
+  static imgILoader* GetImgLoaderForChannel(nsIChannel* aChannel);
 
   /**
    * Returns whether the given URI is in the image cache.
@@ -634,7 +676,7 @@ public:
   /**
    * Helper method to call imgIRequest::GetStaticRequest.
    */
-  static already_AddRefed<imgRequestProxy> GetStaticRequest(imgRequestProxy* aRequest);
+  static already_AddRefed<imgIRequest> GetStaticRequest(imgIRequest* aRequest);
 
   /**
    * Method that decides whether a content node is draggable
@@ -765,7 +807,6 @@ public:
     eSVG_PROPERTIES,
     eBRAND_PROPERTIES,
     eCOMMON_DIALOG_PROPERTIES,
-    eMATHML_PROPERTIES,
     PropertiesFile_COUNT
   };
   static nsresult ReportToConsole(uint32_t aErrorFlags,
@@ -1149,6 +1190,34 @@ public:
                                      uint32_t aWrapCol);
 
   /**
+   * Creates a new XML document, which is marked to be loaded as data.
+   *
+   * @param aNamespaceURI Namespace for the root element to create and insert in
+   *                      the document. Only used if aQualifiedName is not
+   *                      empty.
+   * @param aQualifiedName Qualified name for the root element to create and
+   *                       insert in the document. If empty no root element will
+   *                       be created.
+   * @param aDoctype Doctype node to insert in the document.
+   * @param aDocumentURI URI of the document. Must not be null.
+   * @param aBaseURI Base URI of the document. Must not be null.
+   * @param aPrincipal Prinicpal of the document. Must not be null.
+   * @param aScriptObject The object from which the context for event handling
+   *                      can be got.
+   * @param aFlavor Select the kind of document to create.
+   * @param aResult [out] The document that was created.
+   */
+  static nsresult CreateDocument(const nsAString& aNamespaceURI, 
+                                 const nsAString& aQualifiedName, 
+                                 nsIDOMDocumentType* aDoctype,
+                                 nsIURI* aDocumentURI,
+                                 nsIURI* aBaseURI,
+                                 nsIPrincipal* aPrincipal,
+                                 nsIScriptGlobalObject* aScriptObject,
+                                 DocumentFlavor aFlavor,
+                                 nsIDOMDocument** aResult);
+
+  /**
    * Sets the text contents of a node by replacing all existing children
    * with a single text child.
    *
@@ -1224,8 +1293,8 @@ public:
    *                            keep alive
    * @param aTracer the tracer for aScriptObject
    */
-  static void HoldJSObjects(void* aScriptObjectHolder,
-                            nsScriptObjectTracer* aTracer);
+  static nsresult HoldJSObjects(void* aScriptObjectHolder,
+                                nsScriptObjectTracer* aTracer);
 
   /**
    * Drop the JS objects held by aScriptObjectHolder.
@@ -1233,7 +1302,7 @@ public:
    * @param aScriptObjectHolder the object that holds JS objects that we want to
    *                            drop
    */
-  static void DropJSObjects(void* aScriptObjectHolder);
+  static nsresult DropJSObjects(void* aScriptObjectHolder);
 
 #ifdef DEBUG
   static bool AreJSObjectsHeld(void* aScriptObjectHolder); 
@@ -1518,9 +1587,16 @@ public:
    * NOTE: If the site is optimized for mobile (via the doctype), this
    * will return viewport information that specifies default information.
    */
-  static nsViewportInfo GetViewportInfo(nsIDocument* aDocument,
-                                        uint32_t aDisplayWidth,
-                                        uint32_t aDisplayHeight);
+  static ViewportInfo GetViewportInfo(nsIDocument* aDocument,
+                                      uint32_t aDisplayWidth,
+                                      uint32_t aDisplayHeight);
+
+  /**
+   * Constrain the viewport calculations from the GetViewportInfo() function
+   * in order to always return sane minimum/maximum values. This modifies the
+   * ViewportInfo struct passed as an input parameter, in place.
+   */
+  static void ConstrainViewportValues(ViewportInfo& aViewInfo);
 
   /**
    * The device-pixel-to-CSS-px ratio used to adjust meta viewport values.
@@ -2082,6 +2158,13 @@ public:
 
   static nsIEditor* GetHTMLEditor(nsPresContext* aPresContext);
 
+  static bool PaintSVGGlyph(Element *aElement, gfxContext *aContext,
+                            gfxFont::DrawMode aDrawMode,
+                            gfxTextObjectPaint *aObjectPaint);
+
+  static bool GetSVGGlyphExtents(Element *aElement, const gfxMatrix& aSVGToAppSpace,
+                                 gfxRect *aResult);
+
   /**
    * Check whether a spec feature/version is supported.
    * @param aObject the object, which should support the feature,
@@ -2140,12 +2223,16 @@ private:
 
   static nsIIOService *sIOService;
 
+#ifdef MOZ_XTF
+  static nsIXTFService *sXTFService;
+#endif
+
   static bool sImgLoaderInitialized;
   static void InitImgLoader();
 
   // The following four members are initialized lazily
-  static imgLoader* sImgLoader;
-  static imgLoader* sPrivateImgLoader;
+  static imgILoader* sImgLoader;
+  static imgILoader* sPrivateImgLoader;
   static imgICache* sImgCache;
   static imgICache* sPrivateImgCache;
 
@@ -2163,6 +2250,8 @@ private:
 
   static nsILineBreaker* sLineBreaker;
   static nsIWordBreaker* sWordBreaker;
+
+  static uint32_t sJSGCThingRootCount;
 
 #ifdef IBMBIDI
   static nsIBidiKeyboard* sBidiKeyboard;

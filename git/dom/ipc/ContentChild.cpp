@@ -15,6 +15,9 @@
 #include "ContentChild.h"
 #include "CrashReporterChild.h"
 #include "TabChild.h"
+#if defined(MOZ_SYDNEYAUDIO)
+#include "AudioChild.h"
+#endif
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
@@ -31,6 +34,9 @@
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
 
+#if defined(MOZ_SYDNEYAUDIO)
+#include "nsAudioStream.h"
+#endif
 #include "nsIMemoryReporter.h"
 #include "nsIMemoryInfoDumper.h"
 #include "nsIObserverService.h"
@@ -98,7 +104,6 @@
 #include "nsContentUtils.h"
 #include "nsIPrincipal.h"
 #include "nsDeviceStorage.h"
-#include "AudioChannelService.h"
 
 using namespace base;
 using namespace mozilla::docshell;
@@ -305,18 +310,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
 void
 ContentChild::SetProcessName(const nsAString& aName)
 {
-    char* name;
-    if ((name = PR_GetEnv("MOZ_DEBUG_APP_PROCESS")) &&
-        aName.EqualsASCII(name)) {
-#ifdef OS_POSIX
-        printf_stderr("\n\nCHILDCHILDCHILDCHILD\n  [%s] debug me @%d\n\n", name, getpid());
-        sleep(30);
-#elif defined(OS_WIN)
-        printf_stderr("\n\nCHILDCHILDCHILDCHILD\n  [%s] debug me @%d\n\n", name, _getpid());
-        Sleep(30000);
-#endif
-    }
-
     mProcessName = aName;
     mozilla::ipc::SetThisProcessName(NS_LossyConvertUTF16toASCII(aName).get());
 }
@@ -445,17 +438,6 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
 }
 
 bool
-ContentChild::RecvAudioChannelNotify()
-{
-    nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetAudioChannelService();
-    if (service) {
-        service->Notify();
-    }
-    return true;
-}
-
-bool
 ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
 {
     delete actor;
@@ -499,12 +481,8 @@ ContentChild::AllocPImageBridge(mozilla::ipc::Transport* aTransport,
     return ImageBridgeChild::StartUpInChildProcess(aTransport, aOtherProcess);
 }
 
-static CancelableTask* sFirstIdleTask;
-
 static void FirstIdle(void)
 {
-    MOZ_ASSERT(sFirstIdleTask);
-    sFirstIdleTask = nullptr;
     ContentChild::GetSingleton()->SendFirstIdle();
 }
 
@@ -514,9 +492,7 @@ ContentChild::AllocPBrowser(const IPCTabContext& aContext,
 {
     static bool firstIdleTaskPosted = false;
     if (!firstIdleTaskPosted) {
-        MOZ_ASSERT(!sFirstIdleTask);
-        sFirstIdleTask = NewRunnableFunction(FirstIdle);
-        MessageLoop::current()->PostIdleTask(FROM_HERE, sFirstIdleTask);
+        MessageLoop::current()->PostIdleTask(FROM_HERE, NewRunnableFunction(FirstIdle));
         firstIdleTaskPosted = true;
     }
 
@@ -686,6 +662,29 @@ ContentChild::RecvPTestShellConstructor(PTestShellChild* actor)
     return true;
 }
 
+PAudioChild*
+ContentChild::AllocPAudio(const int32_t& numChannels,
+                          const int32_t& rate)
+{
+#if defined(MOZ_SYDNEYAUDIO)
+    AudioChild *child = new AudioChild();
+    NS_ADDREF(child);
+    return child;
+#else
+    return nullptr;
+#endif
+}
+
+bool
+ContentChild::DeallocPAudio(PAudioChild* doomed)
+{
+#if defined(MOZ_SYDNEYAUDIO)
+    AudioChild *child = static_cast<AudioChild*>(doomed);
+    NS_RELEASE(child);
+#endif
+    return true;
+}
+
 PDeviceStorageRequestChild*
 ContentChild::AllocPDeviceStorageRequest(const DeviceStorageParams& aParams)
 {
@@ -823,10 +822,6 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
     // keep persistent state.
     QuickExit();
 #endif
-
-    if (sFirstIdleTask) {
-        sFirstIdleTask->Cancel();
-    }
 
     mAlertObservers.Clear();
 

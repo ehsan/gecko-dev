@@ -71,7 +71,7 @@ function test_paste(aCurrentTest) {
     element.removeEventListener("focus", arguments.callee, false);
     executeSoon(function() {
       // Pasting is async because the Accel+V codepath ends up going through
-      // nsDocumentViewer::FireClipboardEvent.
+      // DocumentViewerImpl::FireClipboardEvent.
       info("Pasting into " + element.id);
       EventUtils.synthesizeKey("v", { accelKey: true });
     });

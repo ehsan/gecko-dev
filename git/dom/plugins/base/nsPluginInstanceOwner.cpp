@@ -93,7 +93,6 @@ using namespace mozilla::dom;
 #endif
 
 using namespace mozilla;
-using namespace mozilla::layers;
 
 // special class for handeling DOM context menu events because for
 // some reason it starves other mouse events if implemented on the
@@ -186,7 +185,7 @@ nsPluginInstanceOwner::GetImageContainer()
 
   SharedTextureImage::Data data;
   data.mHandle = mInstance->CreateSharedHandle();
-  data.mShareType = mozilla::gl::GLContext::SameProcess;
+  data.mShareType = mozilla::gl::TextureImage::ThreadShared;
   data.mInverted = mInstance->Inverted();
 
   gfxRect r = GetPluginRect();
@@ -537,7 +536,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetURL(const char *aURL,
   nsAutoString  unitarget;
   unitarget.AssignASCII(aTarget); // XXX could this be nonascii?
 
-  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
 
   // Create an absolute URL
   nsCOMPtr<nsIURI> uri;
@@ -563,7 +562,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetURL(const char *aURL,
     Preferences::GetInt("privacy.popups.disable_from_plugins");
   nsAutoPopupStatePusher popupStatePusher((PopupControlState)blockPopups);
 
-  rv = lh->OnLinkClick(mContent, uri, unitarget.get(), NullString(),
+  rv = lh->OnLinkClick(mContent, uri, unitarget.get(), 
                        aPostStream, headersDataStream, true);
 
   return rv;
@@ -914,7 +913,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetParameter(const char* name, const char* 
 
   return NS_ERROR_FAILURE;
 }
-
+  
 NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentBase(const char* *result)
 {
   NS_ENSURE_ARG_POINTER(result);
@@ -965,7 +964,7 @@ static const moz2javaCharset charsets[] =
     {"windows-1257",    "Cp1257"},
     {"windows-1258",    "Cp1258"},
     {"EUC-JP",          "EUC_JP"},
-    {"EUC-KR",          "MS949"},
+    {"EUC-KR",          "EUC_KR"},
     {"x-euc-tw",        "EUC_TW"},
     {"gb18030",         "GB18030"},
     {"gbk",             "GBK"},
@@ -983,6 +982,7 @@ static const moz2javaCharset charsets[] =
     {"x-johab",         "Johab"},
     {"KOI8-R",          "KOI8_R"},
     {"TIS-620",         "MS874"},
+    {"x-windows-949",   "MS949"},
     {"x-mac-arabic",    "MacArabic"},
     {"x-mac-croatian",  "MacCroatia"},
     {"x-mac-cyrillic",  "MacCyrillic"},
@@ -1018,7 +1018,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentEncoding(const char* *result)
   if (charset.EqualsLiteral("us-ascii")) {
     *result = PL_strdup("US_ASCII");
   } else if (charset.EqualsLiteral("ISO-8859-1") ||
-      !nsCRT::strncmp(charset.get(), "UTF", 3)) {
+      !nsCRT::strncmp(PromiseFlatCString(charset).get(), "UTF", 3)) {
     *result = ToNewCString(charset);
   } else {
     if (!gCharsetMap) {
@@ -1723,10 +1723,8 @@ already_AddRefed<ImageContainer> nsPluginInstanceOwner::GetImageContainerForVide
 
   SharedTextureImage::Data data;
 
-  data.mShareType = gl::GLContext::SameProcess;
-  data.mHandle = mInstance->GLContext()->CreateSharedHandle(data.mShareType,
-                                                            aVideoInfo->mSurfaceTexture,
-                                                            gl::GLContext::SurfaceTexture);
+  data.mHandle = mInstance->GLContext()->CreateSharedHandle(gl::TextureImage::ThreadShared, aVideoInfo->mSurfaceTexture, gl::GLContext::SurfaceTexture);
+  data.mShareType = mozilla::gl::TextureImage::ThreadShared;
 
   // The logic below for Honeycomb is just a guess, but seems to work. We don't have a separate
   // inverted flag for video.
@@ -1828,7 +1826,7 @@ nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
   nsEvent* theEvent = aFocusEvent->GetInternalNSEvent();
   if (theEvent) {
     // we only care about the message in ProcessEvent
-    nsGUIEvent focusEvent(theEvent->mFlags.mIsTrusted, theEvent->message,
+    nsGUIEvent focusEvent(NS_IS_TRUSTED_EVENT(theEvent), theEvent->message,
                           nullptr);
     nsEventStatus rv = ProcessEvent(focusEvent);
     if (nsEventStatus_eConsumeNoDefault == rv) {
@@ -2002,7 +2000,7 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
   nsCOMPtr<nsIDOMDragEvent> dragEvent(do_QueryInterface(aEvent));
   if (dragEvent && mInstance) {
     nsEvent* ievent = aEvent->GetInternalNSEvent();
-    if ((ievent && ievent->mFlags.mIsTrusted) &&
+    if ((ievent && NS_IS_TRUSTED_EVENT(ievent)) &&
          ievent->message != NS_DRAGDROP_ENTER && ievent->message != NS_DRAGDROP_OVER) {
       aEvent->PreventDefault();
     }
@@ -2571,10 +2569,6 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
          mInstance->HandleEvent(pluginEvent, nullptr);
        }
      }
-     break;
-
-    default:
-      break;
     }
     rv = nsEventStatus_eConsumeNoDefault;
 #endif
@@ -3383,8 +3377,6 @@ nsPluginInstanceOwner::UpdateDocumentActiveState(bool aIsActive)
   if (mInstance) {
     if (!mPluginDocumentActiveState)
       RemovePluginView();
-    else if (mPluginDocumentActiveState && mFullScreen)
-      AddPluginView();
 
     mInstance->NotifyOnScreen(mPluginDocumentActiveState);
 
@@ -3479,8 +3471,9 @@ nsObjectFrame* nsPluginInstanceOwner::GetFrame()
 // |value| for certain inputs of |name|
 void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
 {
-  if (name.LowerCaseEqualsLiteral("pluginspage")) {
-    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  if (name.LowerCaseEqualsLiteral("pluginurl") ||
+      name.LowerCaseEqualsLiteral("pluginspage")) {        
+    nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
     nsAutoString newURL;
     NS_MakeAbsoluteURI(newURL, value, baseURI);
     if (!newURL.IsEmpty())
@@ -3491,14 +3484,6 @@ void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
 NS_IMETHODIMP nsPluginInstanceOwner::PrivateModeChanged(bool aEnabled)
 {
   return mInstance ? mInstance->PrivateModeStateChanged(aEnabled) : NS_OK;
-}
-
-already_AddRefed<nsIURI> nsPluginInstanceOwner::GetBaseURI() const
-{
-  if (!mContent) {
-    return nullptr;
-  }
-  return mContent->GetBaseURI();
 }
 
 // nsPluginDOMContextMenuListener class implementation

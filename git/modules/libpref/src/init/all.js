@@ -150,9 +150,6 @@ pref("media.cache_size", 512000);
 // Master HTML5 media volume scale.
 pref("media.volume_scale", "1.0");
 
-#ifdef MOZ_WMF
-pref("media.windows-media-foundation.enabled", false);
-#endif
 #ifdef MOZ_RAW
 pref("media.raw.enabled", true);
 #endif
@@ -169,7 +166,7 @@ pref("media.wave.enabled", true);
 pref("media.webm.enabled", true);
 #endif
 #ifdef MOZ_DASH
-pref("media.dash.enabled", false);
+pref("media.dash.enabled", true);
 #endif
 #ifdef MOZ_GSTREAMER
 pref("media.gstreamer.enabled", true);
@@ -191,7 +188,7 @@ pref("media.webaudio.enabled", false);
 pref("media.autoplay.enabled", true);
 
 // The default number of decoded video frames that are enqueued in
-// MediaDecoderReader's mVideoQueue.
+// nsBuiltinDecoderReader's mVideoQueue.
 pref("media.video-queue.default-size", 10);
 
 #ifdef XP_MACOSX
@@ -350,11 +347,7 @@ pref("toolkit.scrollbox.horizontalScrollDistance", 5);
 pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 
 // Telemetry
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-pref("toolkit.telemetry.enabledPreRelease", true);
-#else
 pref("toolkit.telemetry.enabled", false);
-#endif
 pref("toolkit.telemetry.server", "https://data.mozilla.com");
 // Telemetry server owner. Please change if you set toolkit.telemetry.server to a different server
 pref("toolkit.telemetry.server_owner", "Mozilla");
@@ -719,12 +712,11 @@ pref("javascript.options.strict.debug",     true);
 pref("javascript.options.methodjit.content", true);
 pref("javascript.options.methodjit.chrome",  true);
 pref("javascript.options.ion.content",      true);
-pref("javascript.options.ion.parallel_compilation", true);
 pref("javascript.options.pccounts.content", false);
 pref("javascript.options.pccounts.chrome",  false);
 pref("javascript.options.methodjit_always", false);
 pref("javascript.options.xml.content", false);
-pref("javascript.options.xml.chrome", false);
+pref("javascript.options.xml.chrome", true);
 pref("javascript.options.jit_hardening", true);
 pref("javascript.options.typeinference", true);
 // This preference limits the memory usage of javascript.
@@ -772,9 +764,6 @@ pref("security.fileuri.strict_origin_policy", true);
 // telemetry is also enabled as otherwise there is no way to report
 // the results
 pref("network.allow-experiments", true);
-
-// Turn off interprocess security checks. Needed to run xpcshell tests.
-pref("network.disable.ipc.security", false);
 
 // Default action for unlisted external protocol handlers
 pref("network.protocol-handler.external-default", true);      // OK to load
@@ -919,14 +908,6 @@ pref("network.http.connection-retry-timeout", 250);
 // The number of seconds after sending initial SYN for an HTTP connection
 // to give up if the OS does not give up first
 pref("network.http.connection-timeout", 90);
-
-// The maximum number of current global half open sockets allowable
-// when starting a new speculative connection.
-pref("network.http.speculative-parallel-limit", 6);
-
-// Whether or not to block requests for non head js/css items (e.g. media)
-// while those elements load.
-pref("network.http.rendering-critical-requests-prioritization", true);
 
 // Disable IPv6 for backup connections to workaround problems about broken
 // IPv6 connectivity.
@@ -1284,9 +1265,10 @@ pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/in
 pref("intl.charsetmenu.browser.static",     "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.more1",      "ISO-8859-1, ISO-8859-15, IBM850, macintosh, windows-1252, ISO-8859-14, ISO-8859-7, x-mac-greek, windows-1253, x-mac-icelandic, ISO-8859-10, ISO-8859-3");
 pref("intl.charsetmenu.browser.more2",      "ISO-8859-4, ISO-8859-13, windows-1257, IBM852, ISO-8859-2, x-mac-ce, windows-1250, x-mac-croatian, IBM855, ISO-8859-5, ISO-IR-111, KOI8-R, x-mac-cyrillic, windows-1251, IBM866, KOI8-U, x-mac-ukrainian, ISO-8859-16, x-mac-romanian");
-pref("intl.charsetmenu.browser.more3",      "GB2312, gbk, gb18030, HZ-GB-2312, ISO-2022-CN, Big5, Big5-HKSCS, x-euc-tw, EUC-JP, ISO-2022-JP, Shift_JIS, EUC-KR, x-johab, ISO-2022-KR");
+pref("intl.charsetmenu.browser.more3",      "GB2312, gbk, gb18030, HZ-GB-2312, ISO-2022-CN, Big5, Big5-HKSCS, x-euc-tw, EUC-JP, ISO-2022-JP, Shift_JIS, EUC-KR, x-windows-949, x-johab, ISO-2022-KR");
 pref("intl.charsetmenu.browser.more4",      "armscii-8, TIS-620, ISO-8859-11, windows-874, IBM857, ISO-8859-9, x-mac-turkish, windows-1254, x-viet-tcvn5712, VISCII, x-viet-vps, windows-1258, x-mac-devanagari, x-mac-gujarati, x-mac-gurmukhi");
 pref("intl.charsetmenu.browser.more5",      "ISO-8859-6, windows-1256, ISO-8859-8-I, windows-1255, ISO-8859-8, IBM862");
+pref("intl.charsetmenu.browser.unicode",    "UTF-8, UTF-16LE, UTF-16BE");
 pref("intl.charsetmenu.mailedit",           "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.cache",      "");
 pref("intl.charsetmenu.mailview.cache",     "");
@@ -1453,17 +1435,6 @@ pref("mousewheel.with_control.action", 3);
 pref("mousewheel.with_meta.action", 1);  // command key on Mac
 pref("mousewheel.with_shift.action", 1);
 pref("mousewheel.with_win.action", 1);
-
-// mousewheel.*.action.override_x will override the action
-// when the mouse wheel is rotated along the x direction.
-// -1: Don't override the action.
-// 0 to 3: Override the action with the specified value.
-pref("mousewheel.default.action.override_x", -1);
-pref("mousewheel.with_alt.action.override_x", -1);
-pref("mousewheel.with_control.action.override_x", -1);
-pref("mousewheel.with_meta.action.override_x", -1);  // command key on Mac
-pref("mousewheel.with_shift.action.override_x", -1);
-pref("mousewheel.with_win.action.override_x", -1);
 
 // mousewheel.*.delta_multiplier_* can specify the value muliplied by the delta
 // value.  The values will be used after divided by 100.  I.e., 100 means 1.0,
@@ -1638,35 +1609,17 @@ pref("layout.css.dpi", -1);
 // of a CSS "px". This is only used for windows on the screen, not for printing.
 pref("layout.css.devPixelsPerPx", "-1.0");
 
-// Is support for CSS Masking features enabled?
-#ifdef RELEASE_BUILD
-pref("layout.css.masking.enabled", false);
-#else
-pref("layout.css.masking.enabled", true);
-#endif
-
 // Is support for the the @supports rule enabled?
-#ifdef RELEASE_BUILD
-pref("layout.css.supports-rule.enabled", false);
-#else
 pref("layout.css.supports-rule.enabled", true);
-#endif
 
 // Is support for CSS Flexbox enabled?
-pref("layout.css.flexbox.enabled", true);
+pref("layout.css.flexbox.enabled", false);
 
 // Are sets of prefixed properties supported?
 pref("layout.css.prefixes.border-image", true);
 pref("layout.css.prefixes.transforms", true);
 pref("layout.css.prefixes.transitions", true);
 pref("layout.css.prefixes.animations", true);
-
-// Is support for the :scope selector enabled?
-#ifdef RELEASE_BUILD
-pref("layout.css.scope-pseudo.enabled", false);
-#else
-pref("layout.css.scope-pseudo.enabled", true);
-#endif
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1762,11 +1715,9 @@ pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
 pref("dom.ipc.plugins.parentTimeoutSecs", 0);
 #endif
 
-#ifdef XP_WIN
-// Disable oopp for java on windows. They run their own
-// process isolation which conflicts with our implementation.
+// Disable oopp for standard java. They run their own process isolation (which
+// conflicts with our implementation, at least on Windows).
 pref("dom.ipc.plugins.java.enabled", false);
-#endif
 
 pref("dom.ipc.plugins.flash.subprocess.crashreporter.enabled", true);
 
@@ -1833,27 +1784,6 @@ pref("font.size.inflation.emPerLine", 0);
  * used.
  */
 pref("font.size.inflation.minTwips", 0);
-/*
- * In products with multi-mode pan-and-zoom and non-pan-and-zoom UIs,
- * this pref forces font inflation to always be enabled in all modes.
- * That is, any heuristics used to detect pan-and-zoom
- * vs. non-pan-and-zoom modes are disabled and all content is treated
- * as pan-and-zoom mode wrt font inflation.
- *
- * This pref has no effect if font inflation is not enabled through
- * either of the prefs above.  It has no meaning in single-mode UIs.
- */
-pref("font.size.inflation.forceEnabled", false);
-/*
- * In products with multi-mode pan-and-zoom and non-pan-and-zoom UIs,
- * this pref disables font inflation in master-process contexts where
- * existing heuristics can't be used determine enabled-ness.
- *
- * This pref has no effect if font inflation is not enabled through
- * either of the prefs above.  The "forceEnabled" pref above overrides
- * this pref.
- */
-pref("font.size.inflation.disabledInMasterProcess", false);
 /*
  * Since the goal of font size inflation is to avoid having to
  * repeatedly scroll side to side to read a block of text, and there are
@@ -3097,10 +3027,10 @@ pref("font.name.monospace.he", "Droid Sans Mono");
 pref("font.name-list.sans-serif.he", "Droid Sans Hebrew, Droid Sans");
 
 pref("font.name.serif.ja", "Droid Serif");
-pref("font.name.sans-serif.ja", "Droid Sans");
+pref("font.name.sans-serif.ja", "Droid Sans Japanese");
 pref("font.name.monospace.ja", "MotoyaLMaru");
-pref("font.name-list.sans-serif.ja", "Roboto, Droid Sans, MotoyaLMaru, MotoyaLCedar, Droid Sans Japanese");
-pref("font.name-list.monospace.ja", "MotoyaLMaru, MotoyaLCedar, Droid Sans Mono");
+pref("font.name-list.sans-serif.ja", "MotoyaLMaru, MotoyaLCedar, Droid Sans Japanese");
+pref("font.name-list.monospace.ja", "MotoyaLMaru, MotoyaLCedar");
 
 pref("font.name.serif.ko", "Droid Serif");
 pref("font.name.sans-serif.ko", "Droid Sans");
@@ -3684,7 +3614,7 @@ pref("image.mem.decodeondraw", true);
 pref("image.mem.min_discard_timeout_ms", 10000);
 
 // Chunk size for calls to the image decoders
-pref("image.mem.decode_bytes_at_a_time", 16384);
+pref("image.mem.decode_bytes_at_a_time", 4096);
 
 // The longest time we can spend in an iteration of an async decode
 pref("image.mem.max_ms_before_yield", 5);
@@ -3705,7 +3635,6 @@ pref("webgl.msaa-force", false);
 pref("webgl.prefer-16bpp", false);
 pref("webgl.default-no-alpha", false);
 pref("webgl.force-layers-readback", false);
-pref("webgl.lose-context-on-heap-minimize", false);
 
 // Stagefright prefs
 pref("stagefright.force-enabled", false);
@@ -3737,9 +3666,6 @@ pref("layers.offmainthreadcomposition.animate-opacity", false);
 pref("layers.offmainthreadcomposition.animate-transform", false);
 pref("layers.offmainthreadcomposition.log-animations", false);
 
-// Whether to (try) to use a Composer2D if available on this platform.
-pref("layers.composer2d.enabled", false);
-
 #ifdef MOZ_X11
 #ifdef MOZ_WIDGET_GTK2
 pref("gfx.xrender.enabled",true);
@@ -3760,9 +3686,6 @@ pref("gfx.direct2d.force-enabled", false);
 pref("layers.prefer-opengl", false);
 pref("layers.prefer-d3d9", false);
 #endif
-
-// Force all possible layers to be always active layers
-pref("layers.force-active", false);
 
 // Enable/Disable the geolocation API for content
 pref("geo.enabled", true);
@@ -3887,9 +3810,6 @@ pref("memory.low_memory_notification_interval_ms", 10000);
 // window to be collected via the GC/CC.
 pref("memory.ghost_window_timeout_seconds", 60);
 
-// Disable freeing dirty pages when minimizing memory.
-pref("memory.free_dirty_pages", false);
-
 pref("social.enabled", false);
 
 // Disable idle observer fuzz, because only privileged content can access idle
@@ -3921,8 +3841,3 @@ pref("dom.browserElement.maxScreenshotDelayMS", 2000);
 
 // Whether we should show the placeholder when the element is focused but empty.
 pref("dom.placeholder.show_on_focus", true);
-
-// UAProfile settings
-pref("wap.UAProf.url", "");
-pref("wap.UAProf.tagname", "x-wap-profile");
-

@@ -16,7 +16,7 @@
 using namespace js;
 using namespace js::ion;
 
-CodeGeneratorX64::CodeGeneratorX64(MIRGenerator *gen, LIRGraph *graph)
+CodeGeneratorX64::CodeGeneratorX64(MIRGenerator *gen, LIRGraph &graph)
   : CodeGeneratorX86Shared(gen, graph)
 {
 }
@@ -33,12 +33,6 @@ CodeGeneratorX64::ToOutValue(LInstruction *ins)
     return ValueOperand(ToRegister(ins->getDef(0)));
 }
 
-ValueOperand
-CodeGeneratorX64::ToTempValue(LInstruction *ins, size_t pos)
-{
-    return ValueOperand(ToRegister(ins->getTemp(pos)));
-}
-
 bool
 CodeGeneratorX64::visitDouble(LDouble *ins)
 {
@@ -48,18 +42,12 @@ CodeGeneratorX64::visitDouble(LDouble *ins)
 }
 
 FrameSizeClass
-FrameSizeClass::FromDepth(uint32_t frameDepth)
+FrameSizeClass::FromDepth(uint32 frameDepth)
 {
     return FrameSizeClass::None();
 }
 
-FrameSizeClass
-FrameSizeClass::ClassLimit()
-{
-    return FrameSizeClass(0);
-}
-
-uint32_t
+uint32
 FrameSizeClass::frameSize() const
 {
     JS_NOT_REACHED("x64 does not use frame size classes");
@@ -156,7 +144,7 @@ CodeGeneratorX64::visitLoadSlotV(LLoadSlotV *load)
 {
     Register dest = ToRegister(load->outputValue());
     Register base = ToRegister(load->input());
-    int32_t offset = load->mir()->slot() * sizeof(js::Value);
+    int32 offset = load->mir()->slot() * sizeof(js::Value);
 
     masm.movq(Operand(base, offset), dest);
     return true;
@@ -189,7 +177,7 @@ bool
 CodeGeneratorX64::visitLoadSlotT(LLoadSlotT *load)
 {
     Register base = ToRegister(load->input());
-    int32_t offset = load->mir()->slot() * sizeof(js::Value);
+    int32 offset = load->mir()->slot() * sizeof(js::Value);
 
     loadUnboxedValue(Operand(base, offset), load->mir()->type(), load->output());
 
@@ -232,7 +220,7 @@ bool
 CodeGeneratorX64::visitStoreSlotT(LStoreSlotT *store)
 {
     Register base = ToRegister(store->slots());
-    int32_t offset = store->mir()->slot() * sizeof(js::Value);
+    int32 offset = store->mir()->slot() * sizeof(js::Value);
 
     const LAllocation *value = store->value();
     MIRType valueType = store->mir()->value()->type();
@@ -299,13 +287,13 @@ CodeGeneratorX64::visitRecompileCheck(LRecompileCheck *lir)
     return true;
 }
 
-typedef bool (*InterruptCheckFn)(JSContext *);
-static const VMFunction InterruptCheckInfo = FunctionInfo<InterruptCheckFn>(InterruptCheck);
-
 bool
 CodeGeneratorX64::visitInterruptCheck(LInterruptCheck *lir)
 {
-    OutOfLineCode *ool = oolCallVM(InterruptCheckInfo, lir, (ArgList()), StoreNothing());
+    typedef bool (*pf)(JSContext *);
+    static const VMFunction interruptCheckInfo = FunctionInfo<pf>(InterruptCheck);
+
+    OutOfLineCode *ool = oolCallVM(interruptCheckInfo, lir, (ArgList()), StoreNothing());
     if (!ool)
         return false;
 
@@ -358,37 +346,6 @@ CodeGeneratorX64::visitCompareBAndBranch(LCompareBAndBranch *lir)
 
     // Perform the comparison.
     masm.cmpq(lhs.valueReg(), ScratchReg);
-    emitBranch(JSOpToCondition(mir->jsop()), lir->ifTrue(), lir->ifFalse());
-    return true;
-}
-bool
-CodeGeneratorX64::visitCompareV(LCompareV *lir)
-{
-    MCompare *mir = lir->mir();
-    const ValueOperand lhs = ToValue(lir, LCompareV::LhsInput);
-    const ValueOperand rhs = ToValue(lir, LCompareV::RhsInput);
-    const Register output = ToRegister(lir->output());
-
-    JS_ASSERT(mir->jsop() == JSOP_EQ || mir->jsop() == JSOP_STRICTEQ ||
-              mir->jsop() == JSOP_NE || mir->jsop() == JSOP_STRICTNE);
-
-    masm.cmpq(lhs.valueReg(), rhs.valueReg());
-    emitSet(JSOpToCondition(mir->jsop()), output);
-    return true;
-}
-
-bool
-CodeGeneratorX64::visitCompareVAndBranch(LCompareVAndBranch *lir)
-{
-    MCompare *mir = lir->mir();
-
-    const ValueOperand lhs = ToValue(lir, LCompareVAndBranch::LhsInput);
-    const ValueOperand rhs = ToValue(lir, LCompareVAndBranch::RhsInput);
-
-    JS_ASSERT(mir->jsop() == JSOP_EQ || mir->jsop() == JSOP_STRICTEQ ||
-              mir->jsop() == JSOP_NE || mir->jsop() == JSOP_STRICTNE);
-
-    masm.cmpq(lhs.valueReg(), rhs.valueReg());
     emitBranch(JSOpToCondition(mir->jsop()), lir->ifTrue(), lir->ifFalse());
     return true;
 }

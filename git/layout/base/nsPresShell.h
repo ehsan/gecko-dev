@@ -102,7 +102,6 @@ public:
   virtual NS_HIDDEN_(void) CancelAllPendingReflows();
   virtual NS_HIDDEN_(bool) IsSafeToFlush() const;
   virtual NS_HIDDEN_(void) FlushPendingNotifications(mozFlushType aType);
-  virtual NS_HIDDEN_(void) FlushPendingNotifications(mozilla::ChangesToFlush aType);
 
   /**
    * Recreates the frames for a node
@@ -136,7 +135,7 @@ public:
   virtual NS_HIDDEN_(void) SetIgnoreFrameDestruction(bool aIgnore);
   virtual NS_HIDDEN_(void) NotifyDestroyingFrame(nsIFrame* aFrame);
 
-  virtual NS_HIDDEN_(nsresult) CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState);
+  virtual NS_HIDDEN_(nsresult) CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState, bool aLeavingPage);
 
   virtual NS_HIDDEN_(void) UnsuppressPainting();
 
@@ -560,7 +559,7 @@ protected:
   public:
     nsDelayedMouseEvent(nsMouseEvent* aEvent) : nsDelayedInputEvent()
     {
-      mEvent = new nsMouseEvent(aEvent->mFlags.mIsTrusted,
+      mEvent = new nsMouseEvent(NS_IS_TRUSTED_EVENT(aEvent),
                                 aEvent->message,
                                 aEvent->widget,
                                 aEvent->reason,
@@ -580,7 +579,7 @@ protected:
   public:
     nsDelayedKeyEvent(nsKeyEvent* aEvent) : nsDelayedInputEvent()
     {
-      mEvent = new nsKeyEvent(aEvent->mFlags.mIsTrusted,
+      mEvent = new nsKeyEvent(NS_IS_TRUSTED_EVENT(aEvent),
                               aEvent->message,
                               aEvent->widget);
       Init(aEvent);

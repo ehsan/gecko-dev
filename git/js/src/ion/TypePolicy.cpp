@@ -96,31 +96,16 @@ BinaryStringPolicy::adjustInputs(MInstruction *ins)
 bool
 ComparePolicy::adjustInputs(MInstruction *def)
 {
-    JS_ASSERT(def->isCompare());
-    MCompare *compare = def->toCompare();
-    MIRType type = compare->inputType();
-
-    // Box inputs to get value
-    if (type == MIRType_Value)
+    if (specialization_ == MIRType_None)
         return BoxInputsPolicy::adjustInputs(def);
 
-    // Nothing to do for undefined and null, lowering handles all types.
-    if (type == MIRType_Undefined || type == MIRType_Null)
+    if (IsNullOrUndefined(specialization_)) {
+        // Nothing to do, lowering handles all types.
         return true;
-
-    // MIRType_Boolean specialization is done for "Anything === Bool"
-    // If the LHS is boolean, we set the specialization to Compare_Int32.
-    // This matches other comparisons of the form bool === bool and
-    // generated code of Compare_Int32 is more efficient.
-    if (type == MIRType_Boolean && def->getOperand(0)->type() == MIRType_Boolean) {
-       compare->setCompareType(MCompare::Compare_Int32);
-       type = compare->inputType();
     }
 
-    // MIRType_Boolean specialization is done for "Anything === Bool"
-    // As of previous line Anything can't be Boolean
-    if (type == MIRType_Boolean) {
-        // Unbox rhs that is definitely Boolean
+    if (specialization_ == MIRType_Boolean) {
+        // The RHS is boolean, unbox if needed.
         MDefinition *rhs = def->getOperand(1);
 
         if (rhs->type() == MIRType_Value) {
@@ -129,15 +114,24 @@ ComparePolicy::adjustInputs(MInstruction *def)
             def->replaceOperand(1, unbox);
         }
 
-        JS_ASSERT(def->getOperand(0)->type() != MIRType_Boolean);
         JS_ASSERT(def->getOperand(1)->type() == MIRType_Boolean);
-        return true;
+
+        // Allow the LHS to have any type other than boolean. Value === boolean
+        // is handled by LCompareB, comparisons with other non-boolean types are
+        // folded.
+        if (def->getOperand(0)->type() != MIRType_Boolean)
+            return true;
+
+        // If the LHS is boolean, we set the specialization to int32 and
+        // fall-through. This matches other comparisons of the form
+        // bool === bool and allows us to use LCompare, which is much more
+        // efficient than LCompareB.
+        specialization_ = MIRType_Int32;
     }
 
-    // Convert all inputs to the right input type
     for (size_t i = 0; i < 2; i++) {
         MDefinition *in = def->getOperand(i);
-        if (in->type() == type)
+        if (in->type() == specialization_)
             continue;
 
         MInstruction *replace;
@@ -146,11 +140,12 @@ ComparePolicy::adjustInputs(MInstruction *def)
         if (in->type() == MIRType_Object || in->type() == MIRType_String)
             in = boxAt(def, in);
 
-        switch (type) {
+        switch (specialization_) {
           case MIRType_Double:
             replace = MToDouble::New(in);
             break;
           case MIRType_Int32:
+          case MIRType_Boolean:
             replace = MToInt32::New(in);
             break;
           case MIRType_Object:
@@ -391,6 +386,9 @@ InstanceOfPolicy::adjustInputs(MInstruction *def)
        BoxPolicy<0>::staticAdjustInputs(def);
     }
 
+    // Unbox second operand forcefully to an object, 
+    // so it bailouts with other types
+    ObjectPolicy<1>::staticAdjustInputs(def);
     return true;
 }
 
@@ -413,13 +411,11 @@ StoreTypedArrayPolicy::adjustInputs(MInstruction *ins)
       case MIRType_Value:
         break;
       case MIRType_Null:
-        value->setFoldedUnchecked();
         value = MConstant::New(Int32Value(0));
         ins->block()->insertBefore(ins, value->toInstruction());
         break;
       case MIRType_Object:
       case MIRType_Undefined:
-        value->setFoldedUnchecked();
         value = MConstant::New(DoubleValue(js_NaN));
         ins->block()->insertBefore(ins, value->toInstruction());
         break;

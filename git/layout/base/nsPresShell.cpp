@@ -179,7 +179,6 @@
 #include "mozilla/css/ImageLoader.h"
 
 #include "Layers.h"
-#include "nsTransitionManager.h"
 #include "LayerTreeInvalidation.h"
 #include "nsAsyncDOMEvent.h"
 
@@ -187,7 +186,6 @@
   (nsIPresShell::SCROLL_OVERFLOW_HIDDEN | nsIPresShell::SCROLL_NO_PARENT_FRAMES)
 
 using namespace mozilla;
-using namespace mozilla::css;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 
@@ -1141,7 +1139,7 @@ PresShell::SetPreferenceStyleRules(bool aForceReflow)
   // If the document doesn't have a window there's no need to notify
   // its presshell about changes to preferences since the document is
   // in a state where it doesn't matter any more (see
-  // nsDocumentViewer::Close()).
+  // DocumentViewerImpl::Close()).
 
   if (!window) {
     return NS_ERROR_NULL_POINTER;
@@ -1477,7 +1475,7 @@ nsresult PresShell::SetPrefFocusRules(void)
 void
 PresShell::AddUserSheet(nsISupports* aSheet)
 {
-  // Make sure this does what nsDocumentViewer::CreateStyleSet does wrt
+  // Make sure this does what DocumentViewerImpl::CreateStyleSet does wrt
   // ordering. We want this new sheet to come after all the existing stylesheet
   // service sheets, but before other user sheets; see nsIStyleSheetService.idl
   // for the ordering.  Just remove and readd all the nsStyleSheetService
@@ -1510,7 +1508,7 @@ PresShell::AddUserSheet(nsISupports* aSheet)
 void
 PresShell::AddAgentSheet(nsISupports* aSheet)
 {
-  // Make sure this does what nsDocumentViewer::CreateStyleSet does
+  // Make sure this does what DocumentViewerImpl::CreateStyleSet does
   // wrt ordering.
   nsCOMPtr<nsIStyleSheet> sheet = do_QueryInterface(aSheet);
   if (!sheet) {
@@ -2430,10 +2428,29 @@ PresShell::EndUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType)
 void
 PresShell::RestoreRootScrollPosition()
 {
-  nsIScrollableFrame* scrollableFrame = GetRootScrollFrameAsScrollable();
-  if (scrollableFrame) {
-    scrollableFrame->ScrollToRestoredPosition();
+  // Restore frame state for the root scroll frame
+  nsCOMPtr<nsILayoutHistoryState> historyState =
+    mDocument->GetLayoutHistoryState();
+  // Make sure we don't reenter reflow via the sync paint that happens while
+  // we're scrolling to our restored position.  Entering reflow for the
+  // scrollable frame will cause it to reenter ScrollToRestoredPosition(), and
+  // it'll get all confused.
+  nsAutoScriptBlocker scriptBlocker;
+  ++mChangeNestCount;
+
+  if (historyState) {
+    nsIFrame* scrollFrame = GetRootScrollFrame();
+    if (scrollFrame) {
+      nsIScrollableFrame* scrollableFrame = do_QueryFrame(scrollFrame);
+      if (scrollableFrame) {
+        mFrameConstructor->RestoreFrameStateFor(scrollFrame, historyState,
+                                                nsIStatefulFrame::eDocumentScrollState);
+        scrollableFrame->ScrollToRestoredPosition();
+      }
+    }
   }
+
+  --mChangeNestCount;
 }
 
 void
@@ -2727,9 +2744,7 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
 
   // Mark ourselves as not safe to flush while we're doing frame construction.
   ++mChangeNestCount;
-  css::OverflowChangedTracker tracker;
-  nsresult rv = mFrameConstructor->ProcessRestyledFrames(changeList, tracker);
-  tracker.Flush();
+  nsresult rv = mFrameConstructor->ProcessRestyledFrames(changeList);
   --mChangeNestCount;
   
   return rv;
@@ -3525,7 +3540,7 @@ nsIPresShell::ClearMouseCapture(nsIFrame* aFrame)
 }
 
 nsresult
-PresShell::CaptureHistoryState(nsILayoutHistoryState** aState)
+PresShell::CaptureHistoryState(nsILayoutHistoryState** aState, bool aLeavingPage)
 {
   nsresult rv = NS_OK;
 
@@ -3565,6 +3580,17 @@ PresShell::CaptureHistoryState(nsILayoutHistoryState** aState)
   // Capture frame state for the entire frame hierarchy
   nsIFrame* rootFrame = mFrameConstructor->GetRootFrame();
   if (!rootFrame) return NS_OK;
+  // Capture frame state for the root scroll frame
+  // Don't capture state when first creating doc element hierarchy
+  // As the scroll position is 0 and this will cause us to lose
+  // our previously saved place!
+  if (aLeavingPage) {
+    nsIFrame* scrollFrame = GetRootScrollFrame();
+    if (scrollFrame) {
+      mFrameConstructor->CaptureFrameStateFor(scrollFrame, historyState,
+                                              nsIStatefulFrame::eDocumentScrollState);
+    }
+  }
 
   mFrameConstructor->CaptureFrameState(rootFrame, historyState);  
  
@@ -3752,20 +3778,11 @@ PresShell::IsSafeToFlush() const
 void
 PresShell::FlushPendingNotifications(mozFlushType aType)
 {
-  // by default, flush animations if aType >= Flush_Style
-  mozilla::ChangesToFlush flush(aType, aType >= Flush_Style);
-  FlushPendingNotifications(flush);
-}
-
-void
-PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
-{
   /**
    * VERY IMPORTANT: If you add some sort of new flushing to this
    * method, make sure to add the relevant SetNeedLayoutFlush or
    * SetNeedStyleFlush calls on the document.
    */
-  mozFlushType flushType = aFlush.mFlushType;
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
   static const char flushTypeNames[][20] = {
@@ -3776,12 +3793,11 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
     "Layout",
     "Display"
   };
-
   // Make sure that we don't miss things added to mozFlushType!
-  MOZ_ASSERT(static_cast<uint32_t>(flushType) <= ArrayLength(flushTypeNames));
+  MOZ_ASSERT(static_cast<uint32_t>(aType) <= ArrayLength(flushTypeNames));
 
   SAMPLE_LABEL_PRINTF("layout", "Flush", "(Flush_%s)",
-                      flushTypeNames[flushType - 1]);
+                      flushTypeNames[aType - 1]);
 #endif
 
 #ifdef ACCESSIBILITY
@@ -3794,7 +3810,7 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
 #endif
 #endif
 
-  NS_ASSERTION(flushType >= Flush_Frames, "Why did we get called?");
+  NS_ASSERTION(aType >= Flush_Frames, "Why did we get called?");
 
   bool isSafeToFlush = IsSafeToFlush();
 
@@ -3827,7 +3843,7 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
     // filter to work). We only need external resources to be flushed when the
     // main document is flushing >= Flush_Frames, so we flush external
     // resources here instead of nsDocument::FlushPendingNotifications.
-    mDocument->FlushExternalResources(flushType);
+    mDocument->FlushExternalResources(aType);
 
     // Force flushing of any pending content notifications that might have
     // queued up while our event was pending.  That will ensure that we don't
@@ -3849,16 +3865,6 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
       // Flush any requested SMIL samples.
       if (mDocument->HasAnimationController()) {
         mDocument->GetAnimationController()->FlushResampleRequests();
-      }
-
-      if (aFlush.mFlushAnimations &&
-          (!CommonAnimationManager::ThrottlingEnabled() ||
-           !mPresContext->StyleUpdateForAllAnimationsIsUpToDate())) {
-        mPresContext->AnimationManager()->
-          FlushAnimations(CommonAnimationManager::Cannot_Throttle);
-        mPresContext->TransitionManager()->
-          FlushTransitions(CommonAnimationManager::Cannot_Throttle);
-        mPresContext->TickLastStyleUpdateForAllAnimations();
       }
 
       // The FlushResampleRequests() above flushed style changes.
@@ -3900,11 +3906,11 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
     // worry about them.  They can't be triggered during reflow, so we should
     // be good.
 
-    if (flushType >= (mSuppressInterruptibleReflows ? Flush_Layout : Flush_InterruptibleLayout) &&
+    if (aType >= (mSuppressInterruptibleReflows ? Flush_Layout : Flush_InterruptibleLayout) &&
         !mIsDestroying) {
       mFrameConstructor->RecalcQuotesAndCounters();
       mViewManager->FlushDelayedResize(true);
-      if (ProcessReflowCommands(flushType < Flush_Layout) && mContentToScrollTo) {
+      if (ProcessReflowCommands(aType < Flush_Layout) && mContentToScrollTo) {
         // We didn't get interrupted.  Go ahead and scroll to our content
         DoScrollContentIntoView();
         if (mContentToScrollTo) {
@@ -3913,13 +3919,13 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
         }
       }
     } else if (!mIsDestroying && mSuppressInterruptibleReflows &&
-               flushType == Flush_InterruptibleLayout) {
+               aType == Flush_InterruptibleLayout) {
       // We suppressed this flush, but the document thinks it doesn't
       // need to flush anymore.  Let it know what's really going on.
       mDocument->SetNeedLayoutFlush();
     }
 
-    if (flushType >= Flush_Layout) {
+    if (aType >= Flush_Layout) {
       if (!mIsDestroying) {
         mViewManager->UpdateWidgetGeometry();
       }
@@ -4831,8 +4837,8 @@ AddCanvasBackgroundColor(const nsDisplayList& aList, nsIFrame* aCanvasFrame,
 {
   for (nsDisplayItem* i = aList.GetBottom(); i; i = i->GetAbove()) {
     if (i->GetUnderlyingFrame() == aCanvasFrame &&
-        i->GetType() == nsDisplayItem::TYPE_CANVAS_BACKGROUND_COLOR) {
-      nsDisplayCanvasBackgroundColor* bg = static_cast<nsDisplayCanvasBackgroundColor*>(i);
+        i->GetType() == nsDisplayItem::TYPE_CANVAS_BACKGROUND) {
+      nsDisplayCanvasBackground* bg = static_cast<nsDisplayCanvasBackground*>(i);
       bg->SetExtraBackgroundColor(aColor);
       return true;
     }
@@ -5267,12 +5273,7 @@ PresShell::Paint(nsIView*        aViewToPaint,
     aViewToPaint->GetWidget()->GetLayerManager(&isRetainingManager);
   NS_ASSERTION(layerManager, "Must be in paint event");
 
-  // Whether or not we should set first paint when painting is
-  // suppressed is debatable. For now we'll do it because
-  // B2G relies on first paint to configure the viewport and
-  // we only want to do that when we have real content to paint.
-  // See Bug 798245
-  if (mIsFirstPaint && !mPaintingSuppressed) {
+  if (mIsFirstPaint) {
     layerManager->SetIsFirstPaint();
     mIsFirstPaint = false;
   }
@@ -5309,7 +5310,7 @@ PresShell::Paint(nsIView*        aViewToPaint,
 
       if (layerManager->EndEmptyTransaction((aFlags & PAINT_COMPOSITE) ?
             LayerManager::END_DEFAULT : LayerManager::END_NO_COMPOSITE)) {
-        nsIntRegion invalid;
+        nsIntRect invalid;
         if (props) {
           invalid = props->ComputeDifferences(layerManager->GetRoot(), computeInvalidFunc);
         } else {
@@ -5317,13 +5318,12 @@ PresShell::Paint(nsIView*        aViewToPaint,
         }
         if (props) {
           if (!invalid.IsEmpty()) {
-            nsIntRect bounds = invalid.GetBounds();
-            nsRect rect(presContext->DevPixelsToAppUnits(bounds.x),
-                        presContext->DevPixelsToAppUnits(bounds.y),
-                        presContext->DevPixelsToAppUnits(bounds.width),
-                        presContext->DevPixelsToAppUnits(bounds.height));
+            nsRect rect(presContext->DevPixelsToAppUnits(invalid.x),
+                        presContext->DevPixelsToAppUnits(invalid.y),
+                        presContext->DevPixelsToAppUnits(invalid.width),
+                        presContext->DevPixelsToAppUnits(invalid.height));
             aViewToPaint->GetViewManager()->InvalidateViewNoSuppression(aViewToPaint, rect);
-            presContext->NotifyInvalidation(bounds, 0);
+            presContext->NotifyInvalidation(invalid, 0);
           }
         } else {
           aViewToPaint->GetViewManager()->InvalidateView(aViewToPaint);
@@ -5700,8 +5700,8 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
   NS_ASSERTION(aFrame, "null frame");
 
   if (mIsDestroying ||
-      (sDisableNonTestMouseEvents && !aEvent->mFlags.mIsSynthesizedForTests &&
-       NS_IS_MOUSE_EVENT(aEvent))) {
+      (sDisableNonTestMouseEvents && NS_IS_MOUSE_EVENT(aEvent) &&
+       !(aEvent->flags & NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT))) {
     return NS_OK;
   }
 
@@ -6371,7 +6371,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
     bool isHandlingUserInput = false;
 
     // XXX How about IME events and input events for plugins?
-    if (aEvent->mFlags.mIsTrusted) {
+    if (NS_IS_TRUSTED_EVENT(aEvent)) {
       switch (aEvent->message) {
       case NS_KEY_PRESS:
       case NS_KEY_DOWN:
@@ -6386,8 +6386,8 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
           // DOM full-screen mode. This prevents the browser ESC key
           // handler from stopping all loads in the document, which
           // would cause <video> loads to stop.
-          aEvent->mFlags.mDefaultPrevented = true;
-          aEvent->mFlags.mOnlyChromeDispatch = true;
+          aEvent->flags |= (NS_EVENT_FLAG_NO_DEFAULT |
+                            NS_EVENT_FLAG_ONLY_CHROME_DISPATCH);
 
           if (aEvent->message == NS_KEY_UP) {
              // ESC key released while in DOM full-screen mode.
@@ -6493,7 +6493,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
           bool onlyChromeDrop = false;
           session->GetOnlyChromeDrop(&onlyChromeDrop);
           if (onlyChromeDrop) {
-            aEvent->mFlags.mOnlyChromeDispatch = true;
+            aEvent->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH;
           }
         }
         break;
@@ -6509,16 +6509,15 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
           !AdjustContextMenuKeyEvent(me)) {
         return NS_OK;
       }
-      if (me->IsShift()) {
-        aEvent->mFlags.mOnlyChromeDispatch = true;
-        aEvent->mFlags.mRetargetToNonNativeAnonymous = true;
-      }
+      if (me->IsShift())
+        aEvent->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH |
+                         NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS;
     }
 
     nsAutoHandlingUserInputStatePusher userInpStatePusher(isHandlingUserInput,
                                                           aEvent, mDocument);
 
-    if (aEvent->mFlags.mIsTrusted && aEvent->message == NS_MOUSE_MOVE) {
+    if (NS_IS_TRUSTED_EVENT(aEvent) && aEvent->message == NS_MOUSE_MOVE) {
       nsIPresShell::AllowMouseCapture(
         nsEventStateManager::GetActiveEventStateManager() == manager);
     }
@@ -6563,34 +6562,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
             }
           }
           if (eventTarget) {
-#ifdef MOZ_B2G
-            // Horrible hack for B2G to propagate events even from
-            // disabled form elements to chrome. See bug 804811.
-            // See also nsGenericHTMLFormElement::IsElementDisabledForEvents.
-            if (aEvent->message != NS_MOUSE_MOVE) {
-              nsINode* possibleFormElement = eventTarget->ChromeOnlyAccess() ?
-                static_cast<nsIContent*>(eventTarget.get())->
-                  FindFirstNonChromeOnlyAccessContent() :
-                eventTarget;
-              if (possibleFormElement &&
-                  possibleFormElement->IsNodeOfType(nsINode::eHTML_FORM_CONTROL)) {
-                nsEvent event(true, NS_EVENT_TYPE_NULL);
-                nsCOMArray<nsIDOMEventTarget> targets;
-                nsEventDispatcher::Dispatch(eventTarget, nullptr, &event, nullptr,
-                                            nullptr, nullptr, &targets);
-                nsCOMPtr<nsIContent> last;
-                if (targets.Count()) {
-                  last = do_QueryInterface(targets[targets.Count() - 1]);
-                }
-                if (!targets.Count() ||
-                    (last &&
-                     nsContentUtils::ContentIsDescendantOf(last,
-                                                           possibleFormElement))) {
-                  aEvent->mFlags.mOnlyChromeDispatch = true;
-                }
-              }
-            }
-#endif
             if (aEvent->eventStructType == NS_COMPOSITION_EVENT ||
                 aEvent->eventStructType == NS_TEXT_EVENT) {
               nsIMEStateManager::DispatchCompositionEvent(eventTarget,
@@ -6661,7 +6632,9 @@ PresShell::DispatchTouchEvent(nsEvent *aEvent,
       content = capturingContent;
     }
     // copy the event
-    nsTouchEvent newEvent(touchEvent->mFlags.mIsTrusted, touchEvent);
+    nsTouchEvent newEvent(NS_IS_TRUSTED_EVENT(touchEvent) ?
+                            true : false,
+                          touchEvent);
     newEvent.target = targetPtr;
 
     nsRefPtr<PresShell> contentPresShell;
@@ -7140,7 +7113,7 @@ PresShell::WillPaint(bool aWillSendDidPaint)
   // reflow being interspersed.  Note that we _do_ allow this to be
   // interruptible; if we can't do all the reflows it's better to flicker a bit
   // than to freeze up.
-  FlushPendingNotifications(ChangesToFlush(Flush_InterruptibleLayout, false));
+  FlushPendingNotifications(Flush_InterruptibleLayout);
 }
 
 void
@@ -7153,9 +7126,7 @@ PresShell::WillPaintWindow(bool aWillSendDidPaint)
     return;
   }
 
-#ifndef XP_MACOSX
   rootPresContext->ApplyPluginGeometryUpdates();
-#endif
 }
 
 void
@@ -7522,7 +7493,7 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   if (rootFrame == target) {
     // When the root frame is being reflowed with unconstrained height
     // (which happens when we're called from
-    // nsDocumentViewer::SizeToContent), we're effectively doing a
+    // DocumentViewerImpl::SizeToContent), we're effectively doing a
     // vertical resize, since it changes the meaning of percentage
     // heights even if no heights actually changed.  The same applies
     // when we reflow again after that computation.  This is an unusual
@@ -7588,7 +7559,7 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   nsContainerFrame::SyncWindowProperties(mPresContext, target,
                                          target->GetView(), rcx);
 
-  target->DidReflow(mPresContext, nullptr, nsDidReflowStatus::FINISHED);
+  target->DidReflow(mPresContext, nullptr, NS_FRAME_REFLOW_FINISHED);
   if (target == rootFrame && size.height == NS_UNCONSTRAINEDSIZE) {
     mPresContext->SetVisibleArea(boundsRelativeToTarget);
   }
@@ -7868,9 +7839,7 @@ PresShell::Observe(nsISupports* aSubject,
         {
           nsAutoScriptBlocker scriptBlocker;
           ++mChangeNestCount;
-          css::OverflowChangedTracker tracker;
-          mFrameConstructor->ProcessRestyledFrames(changeList, tracker);
-          tracker.Flush();
+          mFrameConstructor->ProcessRestyledFrames(changeList);
           --mChangeNestCount;
         }
       }
@@ -9225,8 +9194,6 @@ PresShell::SetupFontInflation()
   mFontSizeInflationEmPerLine = nsLayoutUtils::FontSizeInflationEmPerLine();
   mFontSizeInflationMinTwips = nsLayoutUtils::FontSizeInflationMinTwips();
   mFontSizeInflationLineThreshold = nsLayoutUtils::FontSizeInflationLineThreshold();
-  mFontSizeInflationForceEnabled = nsLayoutUtils::FontSizeInflationForceEnabled();
-  mFontSizeInflationDisabledInMasterProcess = nsLayoutUtils::FontSizeInflationDisabledInMasterProcess();
 }
 
 void

@@ -12,11 +12,6 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
-  return Cc["@mozilla.org/network/util;1"]
-           .getService(Ci.nsINetUtil);
-});
-
 // Shared code for AppsServiceChild.jsm, Webapps.jsm and Webapps.js
 
 this.EXPORTED_SYMBOLS = ["AppsUtils", "ManifestHelper"];
@@ -38,9 +33,7 @@ this.AppsUtils = {
       manifestURL: aApp.manifestURL,
       appStatus: aApp.appStatus,
       removable: aApp.removable,
-      id: aApp.id,
       localId: aApp.localId,
-      basePath: aApp.basePath,
       progress: aApp.progress || 0.0,
       installState: aApp.installState || "installed",
       downloadAvailable: aApp.downloadAvailable,
@@ -48,11 +41,7 @@ this.AppsUtils = {
       readyToApplyDownload: aApp.readyToApplyDownload,
       downloadSize: aApp.downloadSize || 0,
       lastUpdateCheck: aApp.lastUpdateCheck,
-      updateTime: aApp.updateTime,
-      etag: aApp.etag,
-      packageEtag: aApp.packageEtag,
-      installerAppId: aApp.installerAppId || Ci.nsIScriptSecurityManager.NO_APP_ID,
-      installerIsBrowser: !!aApp.installerIsBrowser
+      etag: aApp.etag
     };
   },
 
@@ -157,16 +146,24 @@ this.AppsUtils = {
    * from https://developer.mozilla.org/en/OpenWebApps/The_Manifest
    * only the name property is mandatory
    */
-  checkManifest: function(aManifest) {
+  checkManifest: function(aManifest, aInstallOrigin) {
     if (aManifest.name == undefined)
       return false;
 
+    function cbCheckAllowedOrigin(aOrigin) {
+      return aOrigin == "*" || aOrigin == aInstallOrigin;
+    }
+
+    if (aManifest.installs_allowed_from && !aManifest.installs_allowed_from.some(cbCheckAllowedOrigin))
+      return false;
+
     function isAbsolute(uri) {
-      // See bug 810551
-      let foo = Services.io.newURI("http://foo", null, null);
-      let bar = Services.io.newURI("http://bar", null, null);
-      return Services.io.newURI(uri, null, foo).prePath != foo.prePath ||
-             Services.io.newURI(uri, null, bar).prePath != bar.prePath;
+      try {
+        Services.io.newURI(uri, null, null);
+      } catch (e if e.result == Cr.NS_ERROR_MALFORMED_URI) {
+        return false;
+      }
+      return true;
     }
 
     // launch_path and entry_points launch paths can't be absolute
@@ -194,42 +191,12 @@ this.AppsUtils = {
     return true;
   },
 
-  checkManifestContentType: function
-     checkManifestContentType(aInstallOrigin, aWebappOrigin, aContentType) {
-    let hadCharset = { };
-    let charset = { };
-    let contentType = NetUtil.parseContentType(aContentType, charset, hadCharset);
-    if (aInstallOrigin != aWebappOrigin &&
-        contentType != "application/x-web-app-manifest+json") {
-      return false;
-    }
-    return true;
-  },
-
   /**
-   * Determines whether the manifest allows installs for the given origin.
-   * @param object aManifest
-   * @param string aInstallOrigin
-   * @return boolean
-   **/
-  checkInstallAllowed: function checkInstallAllowed(aManifest, aInstallOrigin) {
-    if (!aManifest.installs_allowed_from) {
-      return true;
-    }
-
-    function cbCheckAllowedOrigin(aOrigin) {
-      return aOrigin == "*" || aOrigin == aInstallOrigin;
-    }
-
-    return aManifest.installs_allowed_from.some(cbCheckAllowedOrigin);
-  },
-
-  /**
-   * Determine the type of app (app, privileged, certified)
-   * that is installed by the manifest
-   * @param object aManifest
-   * @returns integer
-   **/
+ * Determine the type of app (app, privileged, certified)
+ * that is installed by the manifest
+ * @param object aManifest
+ * @returns integer
+ **/
   getAppManifestStatus: function getAppManifestStatus(aManifest) {
     let type = aManifest.type || "web";
 
@@ -268,63 +235,6 @@ this.AppsUtils = {
 
     return ((mstone != savedmstone) || (buildID != savedBuildID));
   },
-
-  /**
-   * Check if two manifests have the same set of properties and that the
-   * values of these properties are the same, in each locale.
-   * Manifests here are raw json ones.
-   */
-  compareManifests: function compareManifests(aManifest1, aManifest2) {
-    // 1. check if we have the same locales in both manifests.
-    let locales1 = [];
-    let locales2 = [];
-    if (aManifest1.locales) {
-      for (let locale in aManifest1.locales) {
-        locales1.push(locale);
-      }
-    }
-    if (aManifest2.locales) {
-      for (let locale in aManifest2.locales) {
-        locales2.push(locale);
-      }
-    }
-    if (locales1.sort().join() !== locales2.sort().join()) {
-      return false;
-    }
-
-    // Helper function to check the app name and developer information for
-    // two given roots.
-    let checkNameAndDev = function(aRoot1, aRoot2) {
-      let name1 = aRoot1.name;
-      let name2 = aRoot2.name;
-      if (name1 !== name2) {
-        return false;
-      }
-
-      let dev1 = aRoot1.developer;
-      let dev2 = aRoot2.developer;
-      if ((dev1 && !dev2) || (dev2 && !dev1)) {
-        return false;
-      }
-
-      return (dev1.name === dev2.name && dev1.url === dev2.url);
-    }
-
-    // 2. For each locale, check if the name and dev info are the same.
-    if (!checkNameAndDev(aManifest1, aManifest2)) {
-      return false;
-    }
-
-    for (let locale in aManifest1.locales) {
-      if (!checkNameAndDev(aManifest1.locales[locale],
-                           aManifest2.locales[locale])) {
-        return false;
-      }
-    }
-
-    // Nothing failed.
-    return true;
-  }
 }
 
 /**
@@ -335,7 +245,7 @@ this.ManifestHelper = function(aManifest, aOrigin) {
   this._manifest = aManifest;
   let chrome = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(Ci.nsIXULChromeRegistry)
                                                           .QueryInterface(Ci.nsIToolkitChromeRegistry);
-  let locale = chrome.getSelectedLocale("global").toLowerCase();
+  let locale = chrome.getSelectedLocale("browser").toLowerCase();
   this._localeRoot = this._manifest;
 
   if (this._manifest.locales && this._manifest.locales[locale]) {

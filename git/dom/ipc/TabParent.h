@@ -54,7 +54,6 @@ class TabParent : public PBrowserParent
                 , public TabContext
 {
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
-    typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
 
 public:
     TabParent(const TabContext& aContext);
@@ -185,12 +184,14 @@ public:
     virtual bool DeallocPDocumentRenderer(PDocumentRendererParent* actor);
 
     virtual PContentPermissionRequestParent*
-    AllocPContentPermissionRequest(const nsCString& aType, const nsCString& aAccess, const IPC::Principal& aPrincipal);
+    AllocPContentPermissionRequest(const nsCString& aType, const IPC::Principal& aPrincipal);
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
 
     virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(
             const URIParams& aManifestURI,
             const URIParams& aDocumentURI,
+            const bool& isInBrowserElement,
+            const uint32_t& appId,
             const bool& stickDocument);
     virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateParent* actor);
 
@@ -295,9 +296,6 @@ private:
     // dispatch to content.
     void MaybeForwardEventToRenderFrame(const nsInputEvent& aEvent,
                                         nsInputEvent* aOutEvent);
-    // When true, the TabParent is invalid and we should not send IPC messages
-    // anymore.
-    bool mIsDestroyed;
 };
 
 } // namespace dom

@@ -28,7 +28,7 @@ Bindings::Bindings()
 {}
 
 inline
-AliasedFormalIter::AliasedFormalIter(js::UnrootedScript script)
+AliasedFormalIter::AliasedFormalIter(JSScript *script)
   : begin_(script->bindings.bindingArray()),
     p_(begin_),
     end_(begin_ + (script->funHasAnyAliasedFormal ? script->bindings.numArgs() : 0)),
@@ -48,7 +48,7 @@ CurrentScriptFileLineOrigin(JSContext *cx, const char **file, unsigned *linenop,
         AutoAssertNoGC nogc;
         JS_ASSERT(JSOp(*cx->regs().pc) == JSOP_EVAL);
         JS_ASSERT(*(cx->regs().pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
-        UnrootedScript script = cx->fp()->script();
+        RawScript script = cx->fp()->script().get(nogc);
         *file = script->filename;
         *linenop = GET_UINT16(cx->regs().pc + JSOP_EVAL_LENGTH);
         *origin = script->originPrincipals;
@@ -62,7 +62,6 @@ inline void
 ScriptCounts::destroy(FreeOp *fop)
 {
     fop->free_(pcCountsVector);
-    fop->delete_(ionCounts);
 }
 
 inline void
@@ -151,7 +150,7 @@ JSScript::destroyMJITInfo(js::FreeOp *fop)
 #endif /* JS_METHODJIT */
 
 inline void
-JSScript::writeBarrierPre(js::UnrootedScript script)
+JSScript::writeBarrierPre(JSScript *script)
 {
 #ifdef JSGC_INCREMENTAL
     if (!script)
@@ -160,7 +159,7 @@ JSScript::writeBarrierPre(js::UnrootedScript script)
     JSCompartment *comp = script->compartment();
     if (comp->needsBarrier()) {
         JS_ASSERT(!comp->rt->isHeapBusy());
-        js::UnrootedScript tmp = script;
+        JSScript *tmp = script;
         MarkScriptUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == script);
     }
@@ -168,7 +167,7 @@ JSScript::writeBarrierPre(js::UnrootedScript script)
 }
 
 inline void
-JSScript::writeBarrierPost(js::UnrootedScript script, void *addr)
+JSScript::writeBarrierPost(JSScript *script, void *addr)
 {
 }
 

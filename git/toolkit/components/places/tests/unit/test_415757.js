@@ -52,42 +52,49 @@ function uri_in_db(aURI) {
 const TOTAL_SITES = 20;
 
 // main
-function run_test()
-{
-  run_next_test();
-}
+function run_test() {
 
-add_task(function test_execute()
-{
   // add pages to global history
-  for (var i = 0; i < TOTAL_SITES; i++) {
-    let site = "http://www.test-" + i + ".com/";
-    let testURI = uri(site);
-    let when = Date.now() * 1000 + (i * TOTAL_SITES);
-    yield promiseAddVisits({ uri: testURI, visitDate: when });
-  }
-  for (var i = 0; i < TOTAL_SITES; i++) {
-    let site = "http://www.test.com/" + i + "/";
-    let testURI = uri(site);
-    let when = Date.now() * 1000 + (i * TOTAL_SITES);
-    yield promiseAddVisits({ uri: testURI, visitDate: when });
+  try {
+    for (var i = 0; i < TOTAL_SITES; i++) {
+      let site = "http://www.test-" + i + ".com/";
+      let testURI = uri(site);
+      let when = Date.now() * 1000 + (i * TOTAL_SITES);
+      histsvc.addVisit(testURI, when, null, histsvc.TRANSITION_TYPED, false, 0);
+    }
+    for (var i = 0; i < TOTAL_SITES; i++) {
+      let site = "http://www.test.com/" + i + "/";
+      let testURI = uri(site);
+      let when = Date.now() * 1000 + (i * TOTAL_SITES);
+      histsvc.addVisit(testURI, when, null, histsvc.TRANSITION_TYPED, false, 0);
+    }
+  } catch(ex) {
+    do_throw("addVisit failed");
   }
 
   // set a page annotation on one of the urls that will be removed
   var testAnnoDeletedURI = uri("http://www.test.com/1/");
   var testAnnoDeletedName = "foo";
   var testAnnoDeletedValue = "bar";
-  annosvc.setPageAnnotation(testAnnoDeletedURI, testAnnoDeletedName,
-                            testAnnoDeletedValue, 0,
-                            annosvc.EXPIRE_WITH_HISTORY);
+  try {
+    annosvc.setPageAnnotation(testAnnoDeletedURI, testAnnoDeletedName,
+                              testAnnoDeletedValue, 0,
+                              annosvc.EXPIRE_WITH_HISTORY);
+  } catch(ex) {
+    do_throw("setPageAnnotation failed");
+  }
 
   // set a page annotation on one of the urls that will NOT be removed
   var testAnnoRetainedURI = uri("http://www.test-1.com/");
   var testAnnoRetainedName = "foo";
   var testAnnoRetainedValue = "bar";
-  annosvc.setPageAnnotation(testAnnoRetainedURI, testAnnoRetainedName,
-                            testAnnoRetainedValue, 0,
-                            annosvc.EXPIRE_WITH_HISTORY);
+  try {
+    annosvc.setPageAnnotation(testAnnoRetainedURI, testAnnoRetainedName,
+                              testAnnoRetainedValue, 0,
+                              annosvc.EXPIRE_WITH_HISTORY);
+  } catch(ex) {
+    do_throw("setPageAnnotation failed");
+  }
 
   // remove pages from www.test.com
   bhist.removePagesFromHost("www.test.com", false);
@@ -121,4 +128,4 @@ add_task(function test_execute()
   }
   do_check_eq(annoVal, testAnnoRetainedValue);
 
-});
+}

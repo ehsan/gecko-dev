@@ -450,13 +450,6 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
 
   *aPresContext = presShell->GetPresContext();
 
-  // convert mouse position to dev pixels of the prescontext
-  int32_t sx = aScreenX, sy = aScreenY;
-  ConvertToUnscaledDevPixels(*aPresContext, &sx, &sy);
-
-  aScreenDragRect->x = sx - mImageX;
-  aScreenDragRect->y = sy - mImageY;
-
   // check if drag images are disabled
   bool enableDragImages = Preferences::GetBool(DRAGIMAGES_PREF, true);
 
@@ -508,15 +501,15 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   if (mImage) {
     nsCOMPtr<nsICanvasElementExternal> canvas = do_QueryInterface(dragNode);
     if (canvas) {
-      return DrawDragForImage(*aPresContext, nullptr, canvas, sx, sy,
-                              aScreenDragRect, aSurface);
+      return DrawDragForImage(*aPresContext, nullptr, canvas, aScreenX,
+                              aScreenY, aScreenDragRect, aSurface);
     }
 
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(dragNode);
     // for image nodes, create the drag image from the actual image data
     if (imageLoader) {
-      return DrawDragForImage(*aPresContext, imageLoader, nullptr, sx, sy,
-                              aScreenDragRect, aSurface);
+      return DrawDragForImage(*aPresContext, imageLoader, nullptr, aScreenX,
+                              aScreenY, aScreenDragRect, aSurface);
     }
 
     // If the image is a popup, use that as the image. This allows custom drag
@@ -547,8 +540,8 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   // if an image was specified, reposition the drag rectangle to
   // the supplied offset in mImageX and mImageY.
   if (mImage) {
-    aScreenDragRect->x = sx - mImageX;
-    aScreenDragRect->y = sy - mImageY;
+    aScreenDragRect->x = aScreenX - mImageX;
+    aScreenDragRect->y = aScreenY - mImageY;
   }
 
   *aSurface = surface;

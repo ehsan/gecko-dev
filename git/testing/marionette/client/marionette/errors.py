@@ -6,24 +6,18 @@
 class MarionetteException(Exception):
 
     def __init__(self, message=None, status=500, stacktrace=None):
-        self.msg = message
+        self.message = message
         self.status = status
         self.stacktrace = stacktrace
 
     def __str__(self):
         if self.stacktrace:
-            return '%s\nstacktrace:\n%s' % (str(self.msg),
+            return '%s\nstacktrace:\n%s' % (str(self.message),
                 ''.join(['\t%s\n' % x for x in self.stacktrace.split('\n')]))
         else:
-            return str(self.msg)
-
-class InstallGeckoError(MarionetteException):
-    pass
+            return str(self.message)
 
 class TimeoutException(MarionetteException):
-    pass
-
-class InvalidResponseException(MarionetteException):
     pass
 
 class NoSuchAttributeException(MarionetteException):
@@ -96,4 +90,3 @@ class ErrorCodes(object):
     MOVE_TARGET_OUT_OF_BOUNDS = 34
     INVALID_XPATH_SELECTOR = 51
     INVALID_XPATH_SELECTOR_RETURN_TYPER = 52
-    INVALID_RESPONSE = 53

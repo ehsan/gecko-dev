@@ -10,6 +10,7 @@
 #include "BluetoothPropertyEvent.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
+#include "BluetoothServiceUuid.h"
 #include "BluetoothUtils.h"
 #include "GeneratedEvents.h"
 
@@ -163,8 +164,6 @@ BluetoothAdapter::Unroot()
   if (!mIsRooted) {
     return;
   }
-  mJsUuids = nullptr;
-  mJsDeviceAddresses = nullptr;
   NS_DROP_JS_OBJECTS(this, BluetoothAdapter);
   mIsRooted = false;
 }
@@ -745,11 +744,15 @@ BluetoothAdapter::Connect(const nsAString& aDeviceAddress,
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<BluetoothVoidReplyRunnable> results =
-    new BluetoothVoidReplyRunnable(req);
-  bs->Connect(aDeviceAddress, mPath, aProfileId, results);
+  nsRefPtr<BluetoothVoidReplyRunnable> result = new BluetoothVoidReplyRunnable(req);
+
+  if (!bs->Connect(aDeviceAddress, mPath, aProfileId, result)) {
+    NS_WARNING("Creating RFCOMM socket failed or unknown profile.");
+    return NS_ERROR_FAILURE;
+  }
 
   req.forget(aRequest);
+
   return NS_OK;
 }
 
@@ -776,11 +779,12 @@ BluetoothAdapter::Disconnect(uint16_t aProfileId,
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<BluetoothVoidReplyRunnable> result =
-    new BluetoothVoidReplyRunnable(req);
+  nsRefPtr<BluetoothVoidReplyRunnable> result = new BluetoothVoidReplyRunnable(req);
+
   bs->Disconnect(aProfileId, result);
 
   req.forget(aRequest);
+
   return NS_OK;
 }
 

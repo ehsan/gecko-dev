@@ -7,17 +7,14 @@
 #include <algorithm>
 #include <stdarg.h>
 
-#include "mozilla/DebugOnly.h"
-
 #include "BindingUtils.h"
 
 #include "AccessCheck.h"
-#include "nsContentUtils.h"
-#include "nsIXPConnect.h"
 #include "WrapperFactory.h"
 #include "xpcprivate.h"
+#include "nsContentUtils.h"
 #include "XPCQuickStubs.h"
-#include "XrayWrapper.h"
+#include "nsIXPConnect.h"
 
 namespace mozilla {
 namespace dom {
@@ -224,18 +221,12 @@ CreateInterfaceObject(JSContext* cx, JSObject* global,
                       const char* name)
 {
   JSObject* constructor;
-  bool isCallbackInterface = constructorClass == js::Jsvalify(&js::ObjectClass);
   if (constructorClass) {
-    JSObject* constructorProto;
-    if (isCallbackInterface) {
-      constructorProto = JS_GetObjectPrototype(cx, global);
-    } else {
-      constructorProto = JS_GetFunctionPrototype(cx, global);
-    }
-    if (!constructorProto) {
+    JSObject* functionProto = JS_GetFunctionPrototype(cx, global);
+    if (!functionProto) {
       return NULL;
     }
-    constructor = JS_NewObject(cx, constructorClass, constructorProto, global);
+    constructor = JS_NewObject(cx, constructorClass, functionProto, global);
   } else {
     MOZ_ASSERT(constructorNative);
     JSFunction* fun = js::NewFunctionWithReserved(cx, Constructor, ctorNargs,
@@ -253,9 +244,7 @@ CreateInterfaceObject(JSContext* cx, JSObject* global,
     return NULL;
   }
 
-  if (constructorClass && !isCallbackInterface) {
-    // Have to shadow Function.prototype.toString, since that throws
-    // on things that are not js::FunctionClass.
+  if (constructorClass) {
     JSFunction* toString = js::DefineFunctionWithReserved(cx, constructor,
                                                           "toString",
                                                           InterfaceObjectToString,
@@ -274,11 +263,6 @@ CreateInterfaceObject(JSContext* cx, JSObject* global,
     }
     js::SetFunctionNativeReserved(toStringObj, TOSTRING_NAME_RESERVED_SLOT,
                                   STRING_TO_JSVAL(str));
-
-    if (!JS_DefineProperty(cx, constructor, "length", JS::Int32Value(ctorNargs),
-                           nullptr, nullptr, JSPROP_READONLY | JSPROP_PERMANENT)) {
-      return NULL;
-    }
   }
 
   if (properties) {
@@ -333,22 +317,6 @@ CreateInterfaceObject(JSContext* cx, JSObject* global,
   }
 
   return constructor;
-}
-
-bool
-DefineWebIDLBindingPropertiesOnXPCProto(JSContext* cx, JSObject* proto, const NativeProperties* properties)
-{
-  if (properties->methods &&
-      !DefinePrefable(cx, proto, properties->methods)) {
-    return false;
-  }
-
-  if (properties->attributes &&
-      !DefinePrefable(cx, proto, properties->attributes)) {
-    return false;
-  }
-
-  return true;
 }
 
 static JSObject*
@@ -469,17 +437,16 @@ CreateInterfaceObjects(JSContext* cx, JSObject* global, JSObject* protoProto,
   }
 }
 
-bool
-NativeInterface2JSObjectAndThrowIfFailed(JSContext* aCx,
-                                         JSObject* aScope,
+static bool
+NativeInterface2JSObjectAndThrowIfFailed(XPCLazyCallContext& aLccx,
+                                         JSContext* aCx,
                                          JS::Value* aRetval,
                                          xpcObjectHelper& aHelper,
                                          const nsIID* aIID,
                                          bool aAllowNativeWrapper)
 {
   nsresult rv;
-  XPCLazyCallContext lccx(JS_CALLER, aCx, aScope);
-  if (!XPCConvert::NativeInterface2JSObject(lccx, aRetval, NULL, aHelper, aIID,
+  if (!XPCConvert::NativeInterface2JSObject(aLccx, aRetval, NULL, aHelper, aIID,
                                             NULL, aAllowNativeWrapper, &rv)) {
     // I can't tell if NativeInterface2JSObject throws JS exceptions
     // or not.  This is a sloppy stab at the right semantics; the
@@ -490,6 +457,25 @@ NativeInterface2JSObjectAndThrowIfFailed(JSContext* aCx,
     return false;
   }
   return true;
+}
+
+bool
+DoHandleNewBindingWrappingFailure(JSContext* cx, JSObject* scope,
+                                  nsISupports* value, JS::Value* vp)
+{
+  if (JS_IsExceptionPending(cx)) {
+    return false;
+  }
+
+  XPCLazyCallContext lccx(JS_CALLER, cx, scope);
+
+  if (value) {
+    xpcObjectHelper helper(value);
+    return NativeInterface2JSObjectAndThrowIfFailed(lccx, cx, vp, helper, NULL,
+                                                    true);
+  }
+
+  return Throw<true>(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
 }
 
 // Can only be called with the immediate prototype of the instance object. Can
@@ -509,7 +495,9 @@ bool
 XPCOMObjectToJsval(JSContext* cx, JSObject* scope, xpcObjectHelper &helper,
                    const nsIID* iid, bool allowNativeWrapper, JS::Value* rval)
 {
-  if (!NativeInterface2JSObjectAndThrowIfFailed(cx, scope, rval, helper, iid,
+  XPCLazyCallContext lccx(JS_CALLER, cx, scope);
+
+  if (!NativeInterface2JSObjectAndThrowIfFailed(lccx, cx, rval, helper, iid,
                                                 allowNativeWrapper)) {
     return false;
   }
@@ -534,11 +522,9 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
   // Get the object. It might be a security wrapper, in which case we do a checked
   // unwrap.
   JSObject* origObj = JSVAL_TO_OBJECT(thisv);
-  JSObject* obj = js::UnwrapObjectChecked(origObj);
-  if (!obj) {
-      JS_ReportError(cx, "Permission denied to access object");
+  JSObject* obj = js::UnwrapObjectChecked(cx, origObj);
+  if (!obj)
       return false;
-  }
 
   nsISupports* native;
   if (!UnwrapDOMObjectToISupports(obj, native)) {
@@ -586,8 +572,8 @@ ThrowingConstructor(JSContext* cx, unsigned argc, JS::Value* vp)
 inline const NativePropertyHooks*
 GetNativePropertyHooks(JSContext *cx, JSObject *obj, DOMObjectType& type)
 {
-  const DOMClass* domClass = GetDOMClass(obj);
-  if (domClass) {
+  const DOMClass* domClass;
+  if (GetDOMClass(obj, domClass) != eNonDOMObject) {
     type = eInstance;
     return domClass->mNativeHooks;
   }
@@ -1253,164 +1239,6 @@ NativeToString(JSContext* cx, JSObject* wrapper, JSObject* obj, const char* pre,
 
   v->setString(str);
   return JS_WrapValue(cx, v);
-}
-
-// Dynamically ensure that two objects don't end up with the same reserved slot.
-class AutoCloneDOMObjectSlotGuard NS_STACK_CLASS
-{
-public:
-  AutoCloneDOMObjectSlotGuard(JSObject* aOld, JSObject* aNew)
-    : mOldReflector(aOld), mNewReflector(aNew)
-  {
-    MOZ_ASSERT(js::GetReservedSlot(aOld, DOM_OBJECT_SLOT) ==
-                 js::GetReservedSlot(aNew, DOM_OBJECT_SLOT));
-  }
-
-  ~AutoCloneDOMObjectSlotGuard()
-  {
-    if (js::GetReservedSlot(mOldReflector, DOM_OBJECT_SLOT).toPrivate()) {
-      js::SetReservedSlot(mNewReflector, DOM_OBJECT_SLOT,
-                          JS::PrivateValue(nullptr));
-    }
-  }
-
-private:
-  JSObject* mOldReflector;
-  JSObject* mNewReflector;
-};
-
-nsresult
-ReparentWrapper(JSContext* aCx, JSObject* aObj)
-{
-  const DOMClass* domClass = GetDOMClass(aObj);
-
-  JSObject* oldParent = JS_GetParent(aObj);
-  JSObject* newParent = domClass->mGetParent(aCx, aObj);
-
-  JSAutoCompartment oldAc(aCx, oldParent);
-
-  if (js::GetObjectCompartment(oldParent) ==
-      js::GetObjectCompartment(newParent)) {
-    if (!JS_SetParent(aCx, aObj, newParent)) {
-      MOZ_CRASH();
-    }
-    return NS_OK;
-  }
-
-  nsISupports* native;
-  if (!UnwrapDOMObjectToISupports(aObj, native)) {
-    return NS_OK;
-  }
-
-  // Before proceeding, eagerly create any same-compartment security wrappers
-  // that the object might have. This forces us to take the 'WithWrapper' path
-  // while transplanting that handles this stuff correctly.
-  JSObject* ww = xpc::WrapperFactory::WrapForSameCompartment(aCx, aObj);
-  if (!ww) {
-    return NS_ERROR_FAILURE;
-  }
-
-  JSAutoCompartment newAc(aCx, newParent);
-
-  // First we clone the reflector. We get a copy of its properties and clone its
-  // expando chain. The only part that is dangerous here is that if we have to
-  // return early we must avoid ending up with two reflectors pointing to the
-  // same native. Other than that, the objects we create will just go away.
-
-  JSObject *proto =
-    (domClass->mGetProto)(aCx,
-                          js::GetGlobalForObjectCrossCompartment(newParent));
-  if (!proto) {
-    return NS_ERROR_FAILURE;
-  }
-
-  JSObject *newobj = JS_CloneObject(aCx, aObj, proto, newParent);
-  if (!newobj) {
-    return NS_ERROR_FAILURE;
-  }
-
-  js::SetReservedSlot(newobj, DOM_OBJECT_SLOT,
-                      js::GetReservedSlot(aObj, DOM_OBJECT_SLOT));
-
-  // At this point, both |aObj| and |newobj| point to the same native
-  // which is bad, because one of them will end up being finalized with a
-  // native it does not own. |cloneGuard| ensures that if we exit before
-  // clearing |aObj|'s reserved slot the reserved slot of |newobj| will be
-  // set to null. |aObj| will go away soon, because we swap it with
-  // another object during the transplant and let that object die.
-  JSObject *propertyHolder;
-  {
-    AutoCloneDOMObjectSlotGuard cloneGuard(aObj, newobj);
-
-    propertyHolder = JS_NewObjectWithGivenProto(aCx, nullptr, nullptr,
-                                                newParent);
-    if (!propertyHolder) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    if (!JS_CopyPropertiesFrom(aCx, propertyHolder, aObj)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    // Expandos from other compartments are attached to the target JS object.
-    // Copy them over, and let the old ones die a natural death.
-    SetXrayExpandoChain(newobj, nullptr);
-    if (!xpc::XrayUtils::CloneExpandoChain(aCx, newobj, aObj)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    // We've set up |newobj|, so we make it own the native by nulling
-    // out the reserved slot of |obj|.
-    //
-    // NB: It's important to do this _after_ copying the properties to
-    // propertyHolder. Otherwise, an object with |foo.x === foo| will
-    // crash when JS_CopyPropertiesFrom tries to call wrap() on foo.x.
-    js::SetReservedSlot(aObj, DOM_OBJECT_SLOT, JS::PrivateValue(nullptr));
-  }
-
-  nsWrapperCache* cache = nullptr;
-  CallQueryInterface(native, &cache);
-  if (ww != aObj) {
-    MOZ_ASSERT(cache->HasSystemOnlyWrapper());
-
-    JSObject *newwrapper =
-      xpc::WrapperFactory::WrapSOWObject(aCx, newobj);
-    if (!newwrapper) {
-      MOZ_CRASH();
-    }
-
-    // Ok, now we do the special object-plus-wrapper transplant.
-    ww = xpc::TransplantObjectWithWrapper(aCx, aObj, ww, newobj, newwrapper);
-    if (!ww) {
-      MOZ_CRASH();
-    }
-
-    aObj = newobj;
-    SetSystemOnlyWrapperSlot(aObj, JS::ObjectValue(*ww));
-  } else {
-    aObj = xpc::TransplantObject(aCx, aObj, newobj);
-    if (!aObj) {
-      MOZ_CRASH();
-    }
-  }
-
-  bool preserving = cache->PreservingWrapper();
-  cache->SetPreservingWrapper(false);
-  cache->SetWrapper(aObj);
-  cache->SetPreservingWrapper(preserving);
-  if (!JS_CopyPropertiesFrom(aCx, aObj, propertyHolder)) {
-    MOZ_CRASH();
-  }
-
-  // We might need to call a hook here similar to PostTransplant.
-
-  // Now we can just fix up the parent and return the wrapper
-
-  if (newParent && !JS_SetParent(aCx, aObj, newParent)) {
-    MOZ_CRASH();
-  }
-
-  return NS_OK;
 }
 
 } // namespace dom

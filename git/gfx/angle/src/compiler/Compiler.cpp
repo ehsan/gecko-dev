@@ -14,7 +14,6 @@
 #include "compiler/RenameFunction.h"
 #include "compiler/ShHandle.h"
 #include "compiler/ValidateLimitations.h"
-#include "compiler/VariablePacker.h"
 #include "compiler/depgraph/DependencyGraph.h"
 #include "compiler/depgraph/DependencyGraphOutput.h"
 #include "compiler/timing/RestrictFragmentShaderTiming.h"
@@ -114,9 +113,6 @@ TCompiler::~TCompiler()
 
 bool TCompiler::Init(const ShBuiltInResources& resources)
 {
-    maxUniformVectors = (shaderType == SH_VERTEX_SHADER) ?
-        resources.MaxVertexUniformVectors :
-        resources.MaxFragmentUniformVectors;
     TScopedPoolAllocator scopedAlloc(&allocator, false);
 
     // Generate built-in symbol table.
@@ -196,15 +192,8 @@ bool TCompiler::compile(const char* const shaderStrings[],
         if (success && (compileOptions & SH_MAP_LONG_VARIABLE_NAMES))
             mapLongVariableNames(root);
 
-        if (success && (compileOptions & SH_ATTRIBUTES_UNIFORMS)) {
+        if (success && (compileOptions & SH_ATTRIBUTES_UNIFORMS))
             collectAttribsUniforms(root);
-            if (compileOptions & SH_ENFORCE_PACKING_RESTRICTIONS) {
-                success = enforcePackingRestrictions();
-                if (!success) {
-                    infoSink.info.message(EPrefixError, "too many uniforms");
-                }
-            }
-        }
 
         if (success && (compileOptions & SH_INTERMEDIATE_TREE))
             intermediate.outputTree(root);
@@ -319,12 +308,6 @@ void TCompiler::collectAttribsUniforms(TIntermNode* root)
 {
     CollectAttribsUniforms collect(attribs, uniforms);
     root->traverse(&collect);
-}
-
-bool TCompiler::enforcePackingRestrictions()
-{
-    VariablePacker packer;
-    return packer.CheckVariablesWithinPackingLimits(maxUniformVectors, uniforms);
 }
 
 void TCompiler::mapLongVariableNames(TIntermNode* root)

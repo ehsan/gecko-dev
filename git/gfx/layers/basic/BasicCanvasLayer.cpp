@@ -154,6 +154,21 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
     // We need to read from the GLContext
     mGLContext->MakeCurrent();
 
+#if defined (MOZ_X11) && defined (MOZ_EGL_XRENDER_COMPOSITE)
+    if (!mForceReadback) {
+      mGLContext->GuaranteeResolve();
+      gfxASurface* offscreenSurface = mGLContext->GetOffscreenPixmapSurface();
+
+      // XRender can only blend premuliplied alpha, so only allow xrender
+      // path if we have premultiplied alpha or opaque content.
+      if (offscreenSurface && (mGLBufferIsPremultiplied || (GetContentFlags() & CONTENT_OPAQUE))) {  
+        mSurface = offscreenSurface;
+        mNeedsYFlip = false;
+        return;
+      }
+    }
+#endif
+
     gfxIntSize readSize(mBounds.width, mBounds.height);
     gfxImageFormat format = (GetContentFlags() & CONTENT_OPAQUE)
                               ? gfxASurface::ImageFormatRGB24
@@ -269,6 +284,14 @@ BasicCanvasLayer::PaintWithOpacity(gfxContext* aContext,
   aContext->SetPattern(pat);
 
   FillWithMask(aContext, aOpacity, aMaskLayer);
+
+#if defined (MOZ_X11) && defined (MOZ_EGL_XRENDER_COMPOSITE)
+  if (mGLContext && !mForceReadback) {
+    // Wait for X to complete all operations before continuing
+    // Otherwise gl context could get cleared before X is done.
+    mGLContext->WaitNative();
+  }
+#endif
 
   // Restore surface operator
   if (GetContentFlags() & CONTENT_OPAQUE) {
@@ -387,25 +410,24 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
 
   if (mGLContext &&
       !mForceReadback &&
-      BasicManager()->GetParentBackendType() == mozilla::layers::LAYERS_OPENGL)
-  {
-    GLContext::SharedTextureShareType shareType;
+      BasicManager()->GetParentBackendType() == mozilla::layers::LAYERS_OPENGL) {
+    TextureImage::TextureShareType flags;
     // if process type is default, then it is single-process (non-e10s)
     if (XRE_GetProcessType() == GeckoProcessType_Default)
-      shareType = GLContext::SameProcess;
+      flags = TextureImage::ThreadShared;
     else
-      shareType = GLContext::CrossProcess;
+      flags = TextureImage::ProcessShared;
 
     SharedTextureHandle handle = GetSharedBackBufferHandle();
     if (!handle) {
-      handle = mGLContext->CreateSharedHandle(shareType);
+      handle = mGLContext->CreateSharedHandle(flags);
       if (handle) {
-        mBackBuffer = SharedTextureDescriptor(shareType, handle, mBounds.Size(), false);
+        mBackBuffer = SharedTextureDescriptor(flags, handle, mBounds.Size(), false);
       }
     }
     if (handle) {
       mGLContext->MakeCurrent();
-      mGLContext->UpdateSharedHandle(shareType, handle);
+      mGLContext->UpdateSharedHandle(flags, handle);
       // call Painted() to reset our dirty 'bit'
       Painted();
       FireDidTransactionCallback();

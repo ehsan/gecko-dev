@@ -52,7 +52,7 @@ public:
   }
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
-    *aSnap = true;
+    *aSnap = false;
     nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
     return f->GetInnerArea() + ToReferenceFrame();
   }
@@ -336,7 +336,7 @@ nsHTMLCanvasFrame::GetContinuationOffset(nscoord* aWidth) const
 a11y::AccType
 nsHTMLCanvasFrame::AccessibleType()
 {
-  return a11y::eHTMLCanvasType;
+  return a11y::eHTMLCanvasAccessible;
 }
 #endif
 

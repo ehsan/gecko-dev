@@ -78,8 +78,6 @@
 #include "nsSVGOuterSVGFrame.h"
 #include "nsStyleStructInlines.h"
 
-#include "mozilla/dom/PBrowserChild.h"
-#include "mozilla/dom/TabChild.h"
 #include "mozilla/Preferences.h"
 
 #ifdef MOZ_XUL
@@ -89,12 +87,10 @@
 #include "sampler.h"
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
-#include "nsViewportInfo.h"
 
 using namespace mozilla;
-using namespace mozilla::css;
-using namespace mozilla::dom;
 using namespace mozilla::layers;
+using namespace mozilla::dom;
 using namespace mozilla::layout;
 
 #define FLEXBOX_ENABLED_PREF_NAME "layout.css.flexbox.enabled"
@@ -112,8 +108,6 @@ typedef FrameMetrics::ViewID ViewID;
 /* static */ uint32_t nsLayoutUtils::sFontSizeInflationLineThreshold;
 /* static */ int32_t  nsLayoutUtils::sFontSizeInflationMappingIntercept;
 /* static */ uint32_t nsLayoutUtils::sFontSizeInflationMaxRatio;
-/* static */ bool nsLayoutUtils::sFontSizeInflationForceEnabled;
-/* static */ bool nsLayoutUtils::sFontSizeInflationDisabledInMasterProcess;
 
 static ViewID sScrollIdCounter = FrameMetrics::START_SCROLL_ID;
 
@@ -179,133 +173,31 @@ FlexboxEnabledPrefChangeCallback(const char* aPrefName, void* aClosure)
 }
 #endif // MOZ_FLEXBOX
 
-template <class AnimationsOrTransitions>
-static AnimationsOrTransitions*
-HasAnimationOrTransition(nsIContent* aContent,
-                         nsIAtom* aAnimationProperty,
-                         nsCSSProperty aProperty)
-{
-  AnimationsOrTransitions* animations =
-    static_cast<AnimationsOrTransitions*>(aContent->GetProperty(aAnimationProperty));
-  if (animations) {
-    bool propertyMatches = animations->HasAnimationOfProperty(aProperty);
-    if (propertyMatches &&
-        animations->CanPerformOnCompositorThread(
-          CommonElementAnimationData::CanAnimate_AllowPartial)) {
-      return animations;
-    }
-  }
-
-  return nullptr;
-}
-
 bool
 nsLayoutUtils::HasAnimationsForCompositor(nsIContent* aContent,
                                           nsCSSProperty aProperty)
 {
   if (!aContent->MayHaveAnimations())
     return false;
-  if (HasAnimationOrTransition<ElementAnimations>
-        (aContent, nsGkAtoms::animationsProperty, aProperty)) {
-    return true;
-  }
-  return HasAnimationOrTransition<ElementTransitions>
-    (aContent, nsGkAtoms::transitionsProperty, aProperty);
-}
-
-static gfxSize
-GetScaleForValue(const nsStyleAnimation::Value& aValue,
-                 nsIFrame* aFrame)
-{
-  if (!aFrame) {
-    NS_WARNING("No frame.");
-    return gfxSize();
-  }
-  if (aValue.GetUnit() != nsStyleAnimation::eUnit_Transform) {
-    NS_WARNING("Expected a transform.");
-    return gfxSize();
-  }
-
-  nsCSSValueList* values = aValue.GetCSSValueListValue();
-  if (values->mValue.GetUnit() == eCSSUnit_None) {
-    // There is an animation, but no actual transform yet.
-    return gfxSize();
-  }
-
-  nsRect frameBounds = aFrame->GetRect();
-  bool dontCare;
-  gfx3DMatrix transform = nsStyleTransformMatrix::ReadTransforms(
-                            aValue.GetCSSValueListValue(),
-                            aFrame->GetStyleContext(),
-                            aFrame->PresContext(), dontCare, frameBounds,
-                            aFrame->PresContext()->AppUnitsPerDevPixel());
-
-  gfxMatrix transform2d;
-  bool canDraw2D = transform.CanDraw2D(&transform2d);
-  if (!canDraw2D) {
-    return gfxSize();
-  }
-
-  return transform2d.ScaleFactors(true);
-}
-
-gfxSize
-nsLayoutUtils::GetMaximumAnimatedScale(nsIContent* aContent)
-{
-  gfxSize result;
-  ElementAnimations* animations = HasAnimationOrTransition<ElementAnimations>
-    (aContent, nsGkAtoms::animationsProperty, eCSSProperty_transform);
+  ElementAnimations* animations =
+    static_cast<ElementAnimations*>(aContent->GetProperty(nsGkAtoms::animationsProperty));
   if (animations) {
-    for (uint32_t animIdx = animations->mAnimations.Length(); animIdx-- != 0; ) {
-      ElementAnimation& anim = animations->mAnimations[animIdx];
-      for (uint32_t propIdx = anim.mProperties.Length(); propIdx-- != 0; ) {
-        AnimationProperty& prop = anim.mProperties[propIdx];
-        if (prop.mProperty == eCSSProperty_transform) {
-          for (uint32_t segIdx = prop.mSegments.Length(); segIdx-- != 0; ) {
-            AnimationPropertySegment& segment = prop.mSegments[segIdx];
-            gfxSize from = GetScaleForValue(segment.mFromValue,
-                                            aContent->GetPrimaryFrame());
-            result.width = NS_MAX<float>(result.width, from.width);
-            result.height = NS_MAX<float>(result.height, from.height);
-            gfxSize to = GetScaleForValue(segment.mToValue,
-                                          aContent->GetPrimaryFrame());
-            result.width = NS_MAX<float>(result.width, to.width);
-            result.height = NS_MAX<float>(result.height, to.height);
-          }
-        }
-      }
+    bool propertyMatches = animations->HasAnimationOfProperty(aProperty);
+    if (propertyMatches && animations->CanPerformOnCompositorThread()) {
+      return true;
     }
   }
-  ElementTransitions* transitions = HasAnimationOrTransition<ElementTransitions>
-    (aContent, nsGkAtoms::transitionsProperty, eCSSProperty_transform);
+
+  ElementTransitions* transitions =
+    static_cast<ElementTransitions*>(aContent->GetProperty(nsGkAtoms::transitionsProperty));
   if (transitions) {
-    for (uint32_t i = 0, i_end = transitions->mPropertyTransitions.Length();
-         i < i_end; ++i)
-    {
-      ElementPropertyTransition &pt = transitions->mPropertyTransitions[i];
-      if (pt.IsRemovedSentinel()) {
-        continue;
-      }
-
-      if (pt.mProperty == eCSSProperty_transform) {
-        gfxSize start = GetScaleForValue(pt.mStartValue,
-                                         aContent->GetPrimaryFrame());
-        result.width = NS_MAX<float>(result.width, start.width);
-        result.height = NS_MAX<float>(result.height, start.height);
-        gfxSize end = GetScaleForValue(pt.mEndValue,
-                                       aContent->GetPrimaryFrame());
-        result.width = NS_MAX<float>(result.width, end.width);
-        result.height = NS_MAX<float>(result.height, end.height);
-      }
+    bool propertyMatches = transitions->HasTransitionOfProperty(aProperty);
+    if (propertyMatches && transitions->CanPerformOnCompositorThread()) {
+      return true;
     }
   }
 
-  // If we didn't manage to find a max scale, use no scale rather than 0,0
-  if (result == gfxSize()) {
-    return gfxSize(1, 1);
-  }
-
-  return result;
+  return false;
 }
 
 bool
@@ -473,20 +365,6 @@ bool
 nsLayoutUtils::GetDisplayPort(nsIContent* aContent, nsRect *aResult)
 {
   void* property = aContent->GetProperty(nsGkAtoms::DisplayPort);
-  if (!property) {
-    return false;
-  }
-
-  if (aResult) {
-    *aResult = *static_cast<nsRect*>(property);
-  }
-  return true;
-}
-
-bool
-nsLayoutUtils::GetCriticalDisplayPort(nsIContent* aContent, nsRect* aResult)
-{
-  void* property = aContent->GetProperty(nsGkAtoms::CriticalDisplayPort);
   if (!property) {
     return false;
   }
@@ -1296,8 +1174,7 @@ nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
   if (!pm) {
     return nullptr;
   }
-  nsTArray<nsIFrame*> popups;
-  pm->GetVisiblePopups(popups);
+  nsTArray<nsIFrame*> popups = pm->GetVisiblePopups();
   uint32_t i;
   // Search from top to bottom
   for (i = 0; i < popups.Length(); i++) {
@@ -2026,7 +1903,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 
 int32_t
 nsLayoutUtils::GetZIndex(nsIFrame* aFrame) {
-  if (!aFrame->IsPositioned() && !aFrame->IsFlexItem())
+  if (!aFrame->IsPositioned())
     return 0;
 
   const nsStylePosition* position =
@@ -2648,9 +2525,7 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
 
   // If we have a specified width (or a specified 'min-width' greater
   // than the specified 'max-width', which works out to the same thing),
-  // don't even bother getting the frame's intrinsic width, because in
-  // this case GetAbsoluteCoord(styleWidth, w) will always succeed, so
-  // we'll never need the intrinsic dimensions.
+  // don't even bother getting the frame's intrinsic width.
   if (styleWidth.GetUnit() == eStyleUnit_Enumerated &&
       (styleWidth.GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
        styleWidth.GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT)) {
@@ -2659,7 +2534,7 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
     // For -moz-max-content and -moz-min-content, we handle them like
     // specified widths, but ignore -moz-box-sizing.
     boxSizing = NS_STYLE_BOX_SIZING_CONTENT;
-  } else if (!styleWidth.ConvertsToLength() &&
+  } else if (styleWidth.GetUnit() != eStyleUnit_Coord &&
              !(haveFixedMinWidth && haveFixedMaxWidth && maxw <= minw)) {
 #ifdef DEBUG_INTRINSIC_WIDTH
     ++gNoiseIndent;
@@ -4877,10 +4752,6 @@ nsLayoutUtils::Initialize()
                                "font.size.inflation.lineThreshold");
   Preferences::AddIntVarCache(&sFontSizeInflationMappingIntercept,
                               "font.size.inflation.mappingIntercept");
-  Preferences::AddBoolVarCache(&sFontSizeInflationForceEnabled,
-                               "font.size.inflation.forceEnabled");
-  Preferences::AddBoolVarCache(&sFontSizeInflationDisabledInMasterProcess,
-                               "font.size.inflation.disabledInMasterProcess");
 
 #ifdef MOZ_FLEXBOX
   Preferences::RegisterCallback(FlexboxEnabledPrefChangeCallback,
@@ -5265,22 +5136,6 @@ nsLayoutUtils::FontSizeInflationEnabled(nsPresContext *aPresContext)
        aPresContext->IsChrome()) {
     return false;
   }
-  // Force-enabling font inflation always trumps the heuristics here.
-  if (!presShell->FontSizeInflationForceEnabled()) {
-    if (TabChild* tab = GetTabChildFrom(presShell)) {
-      // We're in a child process.  Cancel inflation if we're not
-      // async-pan zoomed.
-      if (!tab->IsAsyncPanZoomEnabled()) {
-        return false;
-      }
-    } else if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      // We're in the master process.  Cancel inflation if it's been
-      // explicitly disabled.
-      if (presShell->FontSizeInflationDisabledInMasterProcess()) {
-        return false;
-      }
-    }
-  }
 
   // XXXjwir3:
   // See bug 706918, comment 23 for more information on this particular section
@@ -5309,43 +5164,14 @@ nsLayoutUtils::FontSizeInflationEnabled(nsPresContext *aPresContext)
     int32_t screenLeft, screenTop, screenWidth, screenHeight;
     screen->GetRect(&screenLeft, &screenTop, &screenWidth, &screenHeight);
 
-    nsViewportInfo vInf =
+    ViewportInfo vInf =
       nsContentUtils::GetViewportInfo(aPresContext->PresShell()->GetDocument(),
                                       screenWidth, screenHeight);
 
-  if (vInf.GetDefaultZoom() >= 1.0 || vInf.IsAutoSizeEnabled()) {
+    if (vInf.defaultZoom >= 1.0 || vInf.autoSize) {
       return false;
     }
   }
 
   return true;
 }
-
-/* static */ nsRect
-nsLayoutUtils::GetBoxShadowRectForFrame(nsIFrame* aFrame, 
-                                        const nsSize& aFrameSize)
-{
-  nsCSSShadowArray* boxShadows = aFrame->GetStyleBorder()->mBoxShadow;
-  if (!boxShadows) {
-    return nsRect();
-  }
-  
-  nsRect shadows;
-  int32_t A2D = aFrame->PresContext()->AppUnitsPerDevPixel();
-  for (uint32_t i = 0; i < boxShadows->Length(); ++i) {
-    nsRect tmpRect(nsPoint(0, 0), aFrameSize);
-    nsCSSShadowItem* shadow = boxShadows->ShadowAt(i);
-
-    // inset shadows are never painted outside the frame
-    if (shadow->mInset)
-      continue;
-
-    tmpRect.MoveBy(nsPoint(shadow->mXOffset, shadow->mYOffset));
-    tmpRect.Inflate(shadow->mSpread);
-    tmpRect.Inflate(
-      nsContextBoxBlur::GetBlurRadiusMargin(shadow->mRadius, A2D));
-    shadows.UnionRect(shadows, tmpRect);
-  }
-  return shadows;
-}
-

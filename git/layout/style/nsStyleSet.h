@@ -29,9 +29,8 @@
 class nsIURI;
 class nsCSSFontFaceRule;
 class nsCSSKeyframesRule;
-class nsCSSPageRule;
 class nsRuleWalker;
-struct ElementDependentRuleProcessorData;
+struct RuleProcessorData;
 struct TreeMatchContext;
 
 class nsEmptyStyleRule MOZ_FINAL : public nsIStyleRule
@@ -88,21 +87,6 @@ class nsStyleSet
   already_AddRefed<nsStyleContext>
   ResolveStyleForRules(nsStyleContext* aParentContext,
                        const nsTArray< nsCOMPtr<nsIStyleRule> > &aRules);
-
-  // used in ResolveStyleForRules below
-  struct RuleAndLevel
-  {
-    nsIStyleRule* mRule;
-    uint8_t mLevel;
-  };
-
-  // Get a new style context for aElement for the rules in aRules
-  // aRules is an array of rules and their levels in reverse order,
-  // that is from the leaf-most to the root-most rule in the rule tree.
-  already_AddRefed<nsStyleContext>
-  ResolveStyleForRules(nsStyleContext* aParentContext,
-                       nsStyleContext* aOldStyle,
-                       const nsTArray<RuleAndLevel>& aRules);
 
   // Get a style context that represents aBaseContext, but as though
   // it additionally matched the rules in the aRules array (in that
@@ -167,11 +151,6 @@ class nsStyleSet
   // true for success and false for failure.
   bool AppendKeyframesRules(nsPresContext* aPresContext,
                               nsTArray<nsCSSKeyframesRule*>& aArray);
-
-  // Append all the currently-active page rules to aArray.  Return
-  // true for success and false for failure.
-  bool AppendPageRules(nsPresContext* aPresContext,
-                       nsTArray<nsCSSPageRule*>& aArray);
 
   // Begin ignoring style context destruction, to avoid lots of unnecessary
   // work on document teardown.
@@ -346,13 +325,12 @@ class nsStyleSet
   // is the closure to pass to aCollectorFunc.  If aContent is not null,
   // aData must be a RuleProcessorData*
   void FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
-                 RuleProcessorData* aData, nsIContent* aContent,
-                 nsRuleWalker* aRuleWalker);
+                 void* aData, nsIContent* aContent, nsRuleWalker* aRuleWalker);
 
   // Enumerate all the rules in a way that doesn't care about the order
   // of the rules and break out if the enumeration is halted.
   void WalkRuleProcessors(nsIStyleRuleProcessor::EnumFunc aFunc,
-                          ElementDependentRuleProcessorData* aData,
+                          RuleProcessorData* aData,
                           bool aWalkAllXBLStylesheets);
 
   already_AddRefed<nsStyleContext>

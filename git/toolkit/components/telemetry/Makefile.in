@@ -31,7 +31,6 @@ EXPORTS_mozilla = \
 
 XPIDLSRCS = \
   nsITelemetry.idl \
-  nsITelemetryPing.idl \
   $(NULL)
 
 EXTRA_PP_COMPONENTS = \

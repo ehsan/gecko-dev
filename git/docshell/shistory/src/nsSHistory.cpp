@@ -34,8 +34,7 @@
 
 // For calculating max history entries and max cachable contentviewers
 #include "nspr.h"
-#include <cstdlib> // for std::abs(int/long)
-#include <cmath> // for std::abs(float/double), and std::log(double)
+#include <math.h>  // for log()
 
 using namespace mozilla;
 
@@ -311,7 +310,7 @@ nsSHistory::CalcMaxTotalViewers()
   // except that we divide the final memory calculation by 4, since
   // we assume each ContentViewer takes on average 4MB
   uint32_t viewers = 0;
-  double x = std::log(kBytesD)/std::log(2.0) - 14;
+  double x = log(kBytesD)/log(2.0) - 14;
   if (x > 0) {
     viewers    = (uint32_t)(x * x - x + 2.001); // add .001 for rounding
     viewers   /= 4;
@@ -968,7 +967,7 @@ nsSHistory::EvictOutOfRangeWindowContentViewers(int32_t aIndex)
   nsCOMArray<nsIContentViewer> safeViewers;
   nsCOMPtr<nsISHTransaction> trans;
   GetTransactionAtIndex(startSafeIndex, getter_AddRefs(trans));
-  for (int32_t i = startSafeIndex; trans && i <= endSafeIndex; i++) {
+  for (uint32_t i = startSafeIndex; trans && i <= endSafeIndex; i++) {
     nsCOMPtr<nsIContentViewer> viewer = GetContentViewerForTransaction(trans);
     safeViewers.AppendObject(viewer);
     nsISHTransaction *temp = trans;
@@ -1089,7 +1088,7 @@ nsSHistory::GloballyEvictContentViewers()
           TransactionAndDistance &container = shTransactions[j];
           if (container.mViewer == contentViewer) {
             container.mDistance = NS_MIN(container.mDistance,
-                                         std::abs(i - shist->mIndex));
+                                         NS_ABS(i - shist->mIndex));
             found = true;
             break;
           }
@@ -1098,7 +1097,7 @@ nsSHistory::GloballyEvictContentViewers()
         // If we didn't find a TransactionAndDistance for this content viewer, make a new
         // one.
         if (!found) {
-          TransactionAndDistance container(trans, std::abs(i - shist->mIndex));
+          TransactionAndDistance container(trans, NS_ABS(i - shist->mIndex));
           shTransactions.AppendElement(container);
         }
       }

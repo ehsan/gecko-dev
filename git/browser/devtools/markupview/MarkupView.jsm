@@ -12,7 +12,6 @@ const Ci = Components.interfaces;
 const PAGE_SIZE = 10;
 
 const PREVIEW_AREA = 700;
-const DEFAULT_MAX_CHILDREN = 100;
 
 this.EXPORTED_SYMBOLS = ["MarkupView"];
 
@@ -21,7 +20,6 @@ Cu.import("resource:///modules/devtools/CssRuleView.jsm");
 Cu.import("resource:///modules/devtools/Templater.jsm");
 Cu.import("resource:///modules/devtools/Undo.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 /**
  * Vocabulary for the purposes of this file:
@@ -41,32 +39,26 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
  * @param iframe aFrame
  *        An iframe in which the caller has kindly loaded markup-view.xhtml.
  */
-this.MarkupView = function MarkupView(aInspector, aFrame, aControllerWindow)
+this.MarkupView = function MarkupView(aInspector, aFrame)
 {
   this._inspector = aInspector;
   this._frame = aFrame;
   this.doc = this._frame.contentDocument;
   this._elt = this.doc.querySelector("#root");
 
-  try {
-    this.maxChildren = Services.prefs.getIntPref("devtools.markup.pagesize");
-  } catch(ex) {
-    this.maxChildren = DEFAULT_MAX_CHILDREN;
-  }
-
   this.undo = new UndoStack();
-  this.undo.installController(aControllerWindow);
+  this.undo.installController(this._frame.ownerDocument.defaultView);
 
   this._containers = new WeakMap();
 
   this._observer = new this.doc.defaultView.MutationObserver(this._mutationObserver.bind(this));
 
-  this._boundOnNewSelection = this._onNewSelection.bind(this);
-  this._inspector.selection.on("new-node", this._boundOnNewSelection);
-  this._onNewSelection();
+  this._boundSelect = this._onSelect.bind(this);
+  this._inspector.on("select", this._boundSelect);
+  this._onSelect();
 
   this._boundKeyDown = this._onKeyDown.bind(this);
-  this._frame.contentWindow.addEventListener("keydown", this._boundKeyDown, false);
+  this._frame.addEventListener("keydown", this._boundKeyDown, false);
 
   this._boundFocus = this._onFocus.bind(this);
   this._frame.addEventListener("focus", this._boundFocus, false);
@@ -77,7 +69,14 @@ this.MarkupView = function MarkupView(aInspector, aFrame, aControllerWindow)
 MarkupView.prototype = {
   _selectedContainer: null,
 
-  template: function MT_template(aName, aDest, aOptions={stack: "markup-view.xhtml"})
+  /**
+   * Return the selected node.
+   */
+  get selected() {
+    return this._selectedContainer ? this._selectedContainer.node : null;
+  },
+
+  template: function MT_template(aName, aDest, aOptions)
   {
     let node = this.doc.getElementById("template-" + aName).cloneNode(true);
     node.removeAttribute("id");
@@ -95,16 +94,14 @@ MarkupView.prototype = {
   },
 
   /**
-   * Highlight the inspector selected node.
+   * Highlight the given element in the markup panel.
    */
-  _onNewSelection: function MT__onNewSelection()
+  _onSelect: function MT__onSelect()
   {
-    if (this._inspector.selection.isNode()) {
-      this.showNode(this._inspector.selection.node, true);
-      this.markNodeAsSelected(this._inspector.selection.node);
-    } else {
-      this.unmarkSelectedNode();
+    if (this._inspector.selection) {
+      this.showNode(this._inspector.selection, true);
     }
+    this.selectNode(this._inspector.selection);
   },
 
   /**
@@ -258,11 +255,12 @@ MarkupView.prototype = {
 
     let node = aContainer.node;
     this.showNode(node, false);
+    this.selectNode(node);
 
-    this._inspector.selection.setNode(node, "treepanel");
-    // This event won't be fired if the node is the same. But the highlighter
-    // need to lock the node if it wasn't.
-    this._inspector.selection.emit("new-node");
+    if (this._inspector._IUI.highlighter.isNodeHighlightable(node)) {
+      this._inspector._IUI.select(node, true, false, "treepanel");
+      this._inspector._IUI.highlighter.highlight(node);
+    }
 
     if (!aIgnoreFocus) {
       aContainer.focus();
@@ -296,6 +294,7 @@ MarkupView.prototype = {
     let walker = documentWalker(aNode);
     let parent = walker.parentNode();
     if (parent) {
+      // Make sure parents of this node are imported too.
       var container = new MarkupContainer(this, aNode);
     } else {
       var container = new RootContainer(this, aNode);
@@ -305,15 +304,12 @@ MarkupView.prototype = {
         // Fake a childList mutation here.
         this._mutationObserver([{target: aEvent.target, type: "childList"}]);
       }.bind(this), true);
+
     }
 
     this._containers.set(aNode, container);
-    // FIXME: set an expando to prevent the the wrapper from disappearing
-    // See bug 819131 for details.
-    aNode.__preserveHack = true;
     container.expanded = aExpand;
 
-    container.childrenDirty = true;
     this._updateChildren(container);
 
     if (parent) {
@@ -337,7 +333,6 @@ MarkupView.prototype = {
       if (mutation.type === "attributes" || mutation.type === "characterData") {
         container.update();
       } else if (mutation.type === "childList") {
-        container.childrenDirty = true;
         this._updateChildren(container);
       }
     }
@@ -350,12 +345,10 @@ MarkupView.prototype = {
    */
   showNode: function MT_showNode(aNode, centered)
   {
-    let container = this.importNode(aNode);
-    this._updateChildren(container);
+    this.importNode(aNode);
     let walker = documentWalker(aNode);
     let parent;
     while (parent = walker.parentNode()) {
-      this._updateChildren(this.getContainer(parent));
       this.expandNode(parent);
     }
     LayoutHelpers.scrollIntoViewIfNeeded(this._containers.get(aNode).editor.elt, centered);
@@ -420,7 +413,7 @@ MarkupView.prototype = {
   /**
    * Mark the given node selected.
    */
-  markNodeAsSelected: function MT_markNodeAsSelected(aNode)
+  selectNode: function MT_selectNode(aNode)
   {
     let container = this._containers.get(aNode);
     if (this._selectedContainer === container) {
@@ -434,41 +427,9 @@ MarkupView.prototype = {
       this._selectedContainer.selected = true;
     }
 
-    this._ensureSelectionVisible();
+    this._selectedContainer.focus();
 
     return true;
-  },
-
-  /**
-   * Make sure that every ancestor of the selection are updated
-   * and included in the list of visible children.
-   */
-  _ensureSelectionVisible: function MT_ensureSelectionVisible()
-  {
-    let node = this._selectedContainer.node;
-    let walker = documentWalker(node);
-    while (node) {
-      let container = this._containers.get(node);
-      let parent = walker.parentNode();
-      if (!container.elt.parentNode) {
-        let parentContainer = this._containers.get(parent);
-        parentContainer.childrenDirty = true;
-        this._updateChildren(parentContainer, node);
-      }
-
-      node = parent;
-    }
-  },
-
-  /**
-   * Unmark selected node (no node selected).
-   */
-  unmarkSelectedNode: function MT_unmarkSelectedNode()
-  {
-    if (this._selectedContainer) {
-      this._selectedContainer.selected = false;
-      this._selectedContainer = null;
-    }
   },
 
   /**
@@ -484,139 +445,29 @@ MarkupView.prototype = {
   /**
    * Make sure all children of the given container's node are
    * imported and attached to the container in the right order.
-   * @param aCentered If provided, this child will be included
-   *        in the visible subset, and will be roughly centered
-   *        in that list.
    */
-  _updateChildren: function MT__updateChildren(aContainer, aCentered)
+  _updateChildren: function MT__updateChildren(aContainer)
   {
-    if (!aContainer.childrenDirty) {
-      return false;
-    }
-
     // Get a tree walker pointing at the first child of the node.
     let treeWalker = documentWalker(aContainer.node);
     let child = treeWalker.firstChild();
     aContainer.hasChildren = !!child;
+    if (aContainer.expanded) {
+      let lastContainer = null;
+      while (child) {
+        let container = this.importNode(child, false);
 
-    if (!aContainer.expanded) {
-      return;
-    }
-
-    aContainer.childrenDirty = false;
-
-    let children = this._getVisibleChildren(aContainer, aCentered);
-    let fragment = this.doc.createDocumentFragment();
-
-    for (child of children.children) {
-      let container = this.importNode(child, false);
-      fragment.appendChild(container.elt);
-    }
-
-    while (aContainer.children.firstChild) {
-      aContainer.children.removeChild(aContainer.children.firstChild);
-    }
-
-    if (!(children.hasFirst && children.hasLast)) {
-      let data = {
-        showing: this.strings.GetStringFromName("markupView.more.showing"),
-        showAll: this.strings.formatStringFromName(
-                  "markupView.more.showAll",
-                  [aContainer.node.children.length.toString()], 1),
-        allButtonClick: function() {
-          aContainer.maxChildren = -1;
-          aContainer.childrenDirty = true;
-          this._updateChildren(aContainer);
-        }.bind(this)
-      };
-
-      if (!children.hasFirst) {
-        let span = this.template("more-nodes", data);
-        fragment.insertBefore(span, fragment.firstChild);
+        // Make sure children are in the right order.
+        let before = lastContainer ? lastContainer.nextSibling : aContainer.children.firstChild;
+        aContainer.children.insertBefore(container.elt, before);
+        lastContainer = container.elt;
+        child = treeWalker.nextSibling();
       }
-      if (!children.hasLast) {
-        let span = this.template("more-nodes", data);
-        fragment.appendChild(span);
+
+      while (aContainer.children.lastChild != lastContainer) {
+        aContainer.children.removeChild(aContainer.children.lastChild);
       }
     }
-
-    aContainer.children.appendChild(fragment);
-
-    return true;
-  },
-
-  /**
-   * Return a list of the children to display for this container.
-   */
-  _getVisibleChildren: function MV__getVisibleChildren(aContainer, aCentered)
-  {
-    let maxChildren = aContainer.maxChildren || this.maxChildren;
-    if (maxChildren == -1) {
-      maxChildren = Number.MAX_VALUE;
-    }
-    let firstChild = documentWalker(aContainer.node).firstChild();
-    let lastChild = documentWalker(aContainer.node).lastChild();
-
-    if (!firstChild) {
-      // No children, we're done.
-      return { hasFirst: true, hasLast: true, children: [] };
-    }
-
-    // By default try to put the selected child in the middle of the list.
-    let start = aCentered || firstChild;
-
-    // Start by reading backward from the starting point....
-    let nodes = [];
-    let backwardWalker = documentWalker(start);
-    if (backwardWalker.previousSibling()) {
-      let backwardCount = Math.floor(maxChildren / 2);
-      let backwardNodes = this._readBackward(backwardWalker, backwardCount);
-      nodes = backwardNodes;
-    }
-
-    // Then read forward by any slack left in the max children...
-    let forwardWalker = documentWalker(start);
-    let forwardCount = maxChildren - nodes.length;
-    nodes = nodes.concat(this._readForward(forwardWalker, forwardCount));
-
-    // If there's any room left, it means we've run all the way to the end.
-    // In that case, there might still be more items at the front.
-    let remaining = maxChildren - nodes.length;
-    if (remaining > 0 && nodes[0] != firstChild) {
-      let firstNodes = this._readBackward(backwardWalker, remaining);
-
-      // Then put it all back together.
-      nodes = firstNodes.concat(nodes);
-    }
-
-    return {
-      hasFirst: nodes[0] == firstChild,
-      hasLast: nodes[nodes.length - 1] == lastChild,
-      children: nodes
-    };
-  },
-
-  _readForward: function MV__readForward(aWalker, aCount)
-  {
-    let ret = [];
-    let node = aWalker.currentNode;
-    do {
-      ret.push(node);
-      node = aWalker.nextSibling();
-    } while (node && --aCount);
-    return ret;
-  },
-
-  _readBackward: function MV__readBackward(aWalker, aCount)
-  {
-    let ret = [];
-    let node = aWalker.currentNode;
-    do {
-      ret.push(node);
-      node = aWalker.previousSibling();
-    } while(node && --aCount);
-    ret.reverse();
-    return ret;
   },
 
   /**
@@ -636,11 +487,11 @@ MarkupView.prototype = {
     this._frame.contentWindow.removeEventListener("underflow", this._boundResizePreview, true);
     delete this._boundUpdatePreview;
 
-    this._frame.contentWindow.removeEventListener("keydown", this._boundKeyDown, true);
+    this._frame.removeEventListener("keydown", this._boundKeyDown, true);
     delete this._boundKeyDown;
 
-    this._inspector.selection.off("new-node", this._boundOnNewSelection);
-    delete this._boundOnNewSelection;
+    this._inspector.off("select", this._boundSelect);
+    delete this._boundSelect;
 
     delete this._elt;
 
@@ -764,7 +615,9 @@ function MarkupContainer(aMarkupView, aNode)
   this.expander = null;
   this.codeBox = null;
   this.children = null;
-  this.markup.template("container", this);
+  let options = { stack: "markup-view.xhtml" };
+  this.markup.template("container", this, options);
+
   this.elt.container = this;
 
   this.expander.addEventListener("click", function() {
@@ -878,7 +731,7 @@ MarkupContainer.prototype = {
     if (focusable) {
       focusable.focus();
     }
-  },
+  }
 }
 
 /**
@@ -985,12 +838,13 @@ function ElementEditor(aContainer, aNode)
   this.attrList = null;
   this.newAttr = null;
   this.closeElt = null;
+  let options = { stack: "markup-view.xhtml" };
 
   // Create the main editor
-  this.template("element", this);
+  this.template("element", this, options);
 
   // Create the closing tag
-  this.template("elementClose", this);
+  this.template("elementClose", this, options);
 
   // Make the tag name editable (unless this is a document element)
   if (aNode != aNode.ownerDocument.documentElement) {
@@ -1070,7 +924,8 @@ ElementEditor.prototype = {
       let data = {
         attrName: aAttr.name,
       };
-      this.template("attribute", data);
+      let options = { stack: "markup-view.xhtml" };
+      this.template("attribute", data, options);
       var {attr, inner, name, val} = data;
 
       // Figure out where we should place the attribute.
@@ -1092,9 +947,9 @@ ElementEditor.prototype = {
         start: function EE_editAttribute_start(aEditor, aEvent) {
           // If the editing was started inside the name or value areas,
           // select accordingly.
-          if (aEvent && aEvent.target === name) {
+          if (aEvent.target === name) {
             aEditor.input.setSelectionRange(0, name.textContent.length);
-          } else if (aEvent && aEvent.target === val) {
+          } else if (aEvent.target === val) {
             let length = val.textContent.length;
             let editorLength = aEditor.input.value.length;
             let start = editorLength - (length + 1);
@@ -1402,8 +1257,3 @@ function whitespaceTextFilter(aNode)
       return Ci.nsIDOMNodeFilter.FILTER_ACCEPT;
     }
 }
-
-XPCOMUtils.defineLazyGetter(MarkupView.prototype, "strings", function () {
-  return Services.strings.createBundle(
-          "chrome://browser/locale/devtools/inspector.properties");
-});

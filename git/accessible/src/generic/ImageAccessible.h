@@ -77,17 +77,18 @@ private:
 
 };
 
+} // namespace a11y
+} // namespace mozilla
+
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible downcasting method
 
-inline ImageAccessible*
+inline mozilla::a11y::ImageAccessible*
 Accessible::AsImage()
 {
-  return IsImage() ? static_cast<ImageAccessible*>(this) : nullptr;
+  return IsImage() ?
+    static_cast<mozilla::a11y::ImageAccessible*>(this) : nullptr;
 }
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif
 

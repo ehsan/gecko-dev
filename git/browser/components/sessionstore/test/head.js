@@ -277,11 +277,3 @@ function closeAllButPrimaryWindow() {
     }
   }
 }
-
-function whenNewWindowLoaded(aIsPrivate, aCallback) {
-  let win = OpenBrowserWindow({private: aIsPrivate});
-  win.addEventListener("load", function onLoad() {
-    win.removeEventListener("load", onLoad, false);
-    aCallback(win);
-  }, false);
-}

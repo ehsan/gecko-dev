@@ -15,7 +15,6 @@
 #include "InputData.h"
 #include "Axis.h"
 #include "nsContentUtils.h"
-#include "TaskThrottler.h"
 
 #include "base/message_loop.h"
 
@@ -25,7 +24,6 @@ namespace layers {
 class CompositorParent;
 class GestureEventListener;
 class ContainerLayer;
-class ViewTransform;
 
 /**
  * Controller for all panning and zooming logic. Any time a user input is
@@ -160,7 +158,7 @@ public:
    */
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       ContainerLayer* aLayer,
-                                      ViewTransform* aTransform);
+                                      gfx3DMatrix* aNewTransform);
 
   /**
    * A shadow layer update has arrived. |aViewportFrame| is the new FrameMetrics
@@ -213,7 +211,7 @@ public:
 
   /**
    * Return the scale factor needed to fit the viewport in |aMetrics|
-   * into its composition bounds.
+   * into its compositiong bounds.
    */
   static gfxSize CalculateIntrinsicScale(const FrameMetrics& aMetrics);
 
@@ -226,12 +224,6 @@ public:
   static gfxSize CalculateResolution(const FrameMetrics& aMetrics);
 
   static gfx::Rect CalculateCompositedRectInCssPixels(const FrameMetrics& aMetrics);
-
-  /**
-   * Send an mozbrowserasyncscroll event.
-   * *** The monitor must be held while calling this.
-   */
-  void SendAsyncScrollEvent();
 
 protected:
   /**
@@ -445,14 +437,6 @@ protected:
    */
   void SetZoomAndResolution(float aScale);
 
-  /**
-   * Timeout function for mozbrowserasyncscroll event. Because we throttle
-   * mozbrowserasyncscroll events in some conditions, this function ensures
-   * that the last mozbrowserasyncscroll event will be fired after a period of
-   * time.
-   */
-  void FireAsyncScrollOnTimeout();
-
 private:
   enum PanZoomState {
     NOTHING,        /* no touch-start events received */
@@ -474,7 +458,6 @@ private:
   void SetState(PanZoomState aState);
 
   nsRefPtr<CompositorParent> mCompositorParent;
-  TaskThrottler mPaintThrottler;
   nsRefPtr<GeckoContentController> mGeckoContentController;
   nsRefPtr<GestureEventListener> mGestureEventListener;
 
@@ -545,27 +528,6 @@ private:
   // When the last paint request started. Used to determine the duration of
   // previous paints.
   TimeStamp mPreviousPaintStartTime;
-
-  // The last time and offset we fire the mozbrowserasyncscroll event when
-  // compositor has sampled the content transform for this frame.
-  TimeStamp mLastAsyncScrollTime;
-  gfx::Point mLastAsyncScrollOffset;
-
-  // The current offset drawn on the screen, it may not be sent since we have
-  // throttling policy for mozbrowserasyncscroll event.
-  gfx::Point mCurrentAsyncScrollOffset;
-
-  // The delay task triggered by the throttling mozbrowserasyncscroll event
-  // ensures the last mozbrowserasyncscroll event is always been fired.
-  CancelableTask* mAsyncScrollTimeoutTask;
-
-  // The time period in ms that throttles mozbrowserasyncscroll event.
-  // Default is 100ms if there is no "apzc.asyncscroll.throttle" in preference.
-  uint32_t mAsyncScrollThrottleTime;
-
-  // The timeout in ms for mAsyncScrollTimeoutTask delay task.
-  // Default is 300ms if there is no "apzc.asyncscroll.timeout" in preference.
-  uint32_t mAsyncScrollTimeout;
 
   int mDPI;
 

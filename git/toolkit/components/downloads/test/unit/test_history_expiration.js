@@ -42,14 +42,13 @@ function run_test()
   db.executeSimpleSQL("DELETE FROM moz_downloads");
 
   let stmt = db.createStatement(
-    "INSERT INTO moz_downloads (id, source, target, state, guid) " +
-    "VALUES (?1, ?2, ?3, ?4, ?5)");
+    "INSERT INTO moz_downloads (id, source, target, state) " +
+    "VALUES (?1, ?2, ?3, ?4)");
 
   let iosvc = Cc["@mozilla.org/network/io-service;1"].
               getService(Ci.nsIIOService);
   let theId = 1337;
   let theURI = iosvc.newURI("http://expireme/please", null, null);
-  let theGUID = "a1bcD23eF4g5";
 
   try {
     // Add a download from the URI
@@ -65,8 +64,6 @@ function run_test()
 
     // Give it some state
     stmt.bindByIndex(3, dm.DOWNLOAD_FINISHED);
-    
-    stmt.bindByIndex(4, theGUID);
 
     // Add it!
     stmt.execute();
@@ -89,15 +86,15 @@ function run_test()
   // Look for the removed download notification
   let obs = Cc["@mozilla.org/observer-service;1"].
             getService(Ci.nsIObserverService);
-  const kRemoveTopic = "download-manager-remove-download-guid";
+  const kRemoveTopic = "download-manager-remove-download";
   let testObs = {
     observe: function(aSubject, aTopic, aData) {
       if (aTopic != kRemoveTopic)
         return;
 
       // Make sure the removed/expired download was the one we added
-      let id = aSubject.QueryInterface(Ci.nsISupportsCString);
-      do_check_eq(id.data, theGUID);
+      let id = aSubject.QueryInterface(Ci.nsISupportsPRUint32);
+      do_check_eq(id.data, theId);
 
       // We're done!
       histobs.onEndUpdateBatch();

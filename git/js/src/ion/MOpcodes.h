@@ -29,9 +29,7 @@ namespace ion {
     _(CheckOverRecursed)                                                    \
     _(RecompileCheck)                                                       \
     _(DefVar)                                                               \
-    _(DefFun)                                                               \
     _(CreateThis)                                                           \
-    _(CreateThisWithTemplate)                                               \
     _(PrepareCall)                                                          \
     _(PassArg)                                                              \
     _(Call)                                                                 \
@@ -73,13 +71,11 @@ namespace ion {
     _(NewSlots)                                                             \
     _(NewArray)                                                             \
     _(NewObject)                                                            \
-    _(NewDeclEnvObject)                                                     \
     _(NewCallObject)                                                        \
     _(NewStringObject)                                                      \
     _(InitProp)                                                             \
     _(Start)                                                                \
     _(OsrEntry)                                                             \
-    _(Nop)                                                                  \
     _(RegExp)                                                               \
     _(RegExpTest)                                                           \
     _(Lambda)                                                               \
@@ -105,7 +101,6 @@ namespace ion {
     _(Not)                                                                  \
     _(BoundsCheck)                                                          \
     _(BoundsCheckLower)                                                     \
-    _(InArray)                                                              \
     _(LoadElement)                                                          \
     _(LoadElementHole)                                                      \
     _(StoreElement)                                                         \
@@ -121,7 +116,6 @@ namespace ion {
     _(StoreFixedSlot)                                                       \
     _(CallGetProperty)                                                      \
     _(GetNameCache)                                                         \
-    _(CallGetIntrinsicValue)                                                \
     _(CallGetElement)                                                       \
     _(CallSetElement)                                                       \
     _(CallSetProperty)                                                      \
@@ -138,7 +132,6 @@ namespace ion {
     _(Round)                                                                \
     _(In)                                                                   \
     _(InstanceOf)                                                           \
-    _(CallInstanceOf)                                                       \
     _(InterruptCheck)                                                       \
     _(FunctionBoundary)                                                     \
     _(GetDOMProperty)                                                       \

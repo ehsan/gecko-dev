@@ -112,9 +112,6 @@ public:
     RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child);
 
     virtual bool
-    RecvAudioChannelNotify();
-
-    virtual bool
     RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
                                 const bool& aMinimizeMemoryUsage,
                                 const bool& aDumpChildProcesses);
@@ -125,6 +122,10 @@ public:
     virtual PTestShellChild* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellChild*);
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
+
+    virtual PAudioChild* AllocPAudio(const int32_t&,
+                                     const int32_t&);
+    virtual bool DeallocPAudio(PAudioChild*);
 
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);

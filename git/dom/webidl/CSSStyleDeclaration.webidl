@@ -8,6 +8,7 @@
  */
 
 interface CSSRule;
+interface CSSValue;
 
 interface CSSStyleDeclaration {
   [SetterThrows]
@@ -20,7 +21,7 @@ interface CSSStyleDeclaration {
   DOMString getPropertyValue(DOMString property);
   // Mozilla extension, sort of
   [Throws]
-  CSSValue? getPropertyCSSValue(DOMString property);
+  CSSValue getPropertyCSSValue(DOMString property);
   DOMString getPropertyPriority(DOMString property);
   // This would be nicer if it used a string default value of "".
   // See bug 759622.

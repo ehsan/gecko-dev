@@ -63,6 +63,14 @@ inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
 
   // Okay.  We have only white space.  Let's check the white-space
   // property now and make sure that this isn't preformatted text...
+
+  nsCOMPtr<nsIDOMWindow> win = inLayoutUtils::GetWindowFor(aDataNode);
+  if (!win) {
+    // Hmm.  Things are screwy if we have no window...
+    NS_ERROR("No window!");
+    return NS_OK;
+  }
+
   nsIFrame* frame = content->GetPrimaryFrame();
   if (frame) {
     const nsStyleText* text = frame->GetStyleText();
@@ -235,7 +243,7 @@ inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  NS_ENSURE_ARG_POINTER(content);
+  NS_ASSERTION(content, "elements must implement nsIContent");
 
   nsIDocument *ownerDoc = content->OwnerDoc();
   nsXBLBinding *binding = ownerDoc->BindingManager()->GetBinding(content);
@@ -326,9 +334,9 @@ GetStatesForPseudoClass(const nsAString& aStatePseudo)
   // An array of the states that are relevant for various pseudoclasses.
   // XXXbz this duplicates code in nsCSSRuleProcessor
   static const nsEventStates sPseudoClassStates[] = {
-#define CSS_PSEUDO_CLASS(_name, _value, _pref)	\
+#define CSS_PSEUDO_CLASS(_name, _value) \
     nsEventStates(),
-#define CSS_STATE_PSEUDO_CLASS(_name, _value, _pref, _states)	\
+#define CSS_STATE_PSEUDO_CLASS(_name, _value, _states) \
     _states,
 #include "nsCSSPseudoClassList.h"
 #undef CSS_STATE_PSEUDO_CLASS

@@ -17,8 +17,10 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
+#include "nsIObjectLoadingContent.h"
 
 class nsIChannel;
+class nsObjectLoadingContent;
 
 /**
  * When a plugin requests opens multiple requests to the same URL and
@@ -64,21 +66,26 @@ public:
   // Called by RequestRead
   void
   MakeByteRangeString(NPByteRange* aRangeList, nsACString &string, int32_t *numRequests);
-
+  
   bool UseExistingPluginCacheFile(nsPluginStreamListenerPeer* psi);
-
-  // Called by GetURL and PostURL (via NewStream) or by the host in the case of
-  // the initial plugin stream.
+  
+  // Called by GetURL and PostURL (via NewStream)
   nsresult Initialize(nsIURI *aURL,
                       nsNPAPIPluginInstance *aInstance,
                       nsNPAPIPluginStreamListener *aListener);
+  
+  nsresult InitializeEmbedded(nsIURI *aURL,
+                              nsNPAPIPluginInstance* aInstance,
+                              nsObjectLoadingContent *aContent);
+  
+  nsresult InitializeFullPage(nsIURI* aURL, nsNPAPIPluginInstance *aInstance);
 
   nsresult OnFileAvailable(nsIFile* aFile);
-
+  
   nsresult ServeStreamAsFile(nsIRequest *request, nsISupports *ctxt);
-
+  
   nsNPAPIPluginInstance *GetPluginInstance() { return mPluginInstance; }
-
+  
   nsresult RequestRead(NPByteRange* rangeList);
   nsresult GetLength(uint32_t* result);
   nsresult GetURL(const char** result);
@@ -133,6 +140,7 @@ private:
 
   nsCOMPtr<nsIURI> mURL;
   nsCString mURLSpec; // Have to keep this member because GetURL hands out char*
+  nsCOMPtr<nsIObjectLoadingContent> mContent;
   nsRefPtr<nsNPAPIPluginStreamListener> mPStreamListener;
 
   // Set to true if we request failed (like with a HTTP response of 404)

@@ -6,6 +6,7 @@
 #include "nsSVGAnimationElement.h"
 #include "nsIDOMSVGAnimateTransformElement.h"
 #include "nsSVGEnum.h"
+#include "nsIDOMSVGTransform.h"
 #include "nsIDOMSVGTransformable.h"
 #include "nsSMILAnimationFunction.h"
 
@@ -34,7 +35,7 @@ public:
   // nsIDOMNode specializations
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  // Element specializations
+  // nsGenericElement specializations
   bool ParseAttribute(int32_t aNamespaceID,
                         nsIAtom* aAttribute,
                         const nsAString& aValue,
@@ -42,8 +43,6 @@ public:
 
   // nsISMILAnimationElement
   virtual nsSMILAnimationFunction& AnimationFunction();
-  virtual bool GetTargetAttributeName(int32_t *aNamespaceID,
-                                      nsIAtom **aLocalName) const;
 
   virtual nsXPCClassInfo* GetClassInfo();
 
@@ -115,18 +114,4 @@ nsSMILAnimationFunction&
 nsSVGAnimateTransformElement::AnimationFunction()
 {
   return mAnimationFunction;
-}
-
-bool
-nsSVGAnimateTransformElement::GetTargetAttributeName(int32_t *aNamespaceID,
-                                                     nsIAtom **aLocalName) const
-{
-  if (nsSVGAnimateTransformElementBase::GetTargetAttributeName(aNamespaceID,
-                                                               aLocalName)) {
-    return *aNamespaceID == kNameSpaceID_None &&
-           (*aLocalName == nsGkAtoms::transform ||
-            *aLocalName == nsGkAtoms::patternTransform ||
-            *aLocalName == nsGkAtoms::gradientTransform);
-  }
-  return false;
 }

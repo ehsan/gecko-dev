@@ -19,13 +19,11 @@ class nsIContent;
 class nsAutoRollup;
 class gfxContext;
 
-namespace mozilla {
 #ifdef ACCESSIBILITY
-namespace a11y {
 class Accessible;
-}
 #endif
 
+namespace mozilla {
 namespace layers {
 class BasicLayerManager;
 class CompositorChild;
@@ -116,9 +114,9 @@ public:
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(bool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
-  NS_IMETHOD              MoveClient(double aX, double aY);
-  NS_IMETHOD              ResizeClient(double aWidth, double aHeight, bool aRepaint);
-  NS_IMETHOD              ResizeClient(double aX, double aY, double aWidth, double aHeight, bool aRepaint);
+  NS_IMETHOD              MoveClient(int32_t aX, int32_t aY);
+  NS_IMETHOD              ResizeClient(int32_t aWidth, int32_t aHeight, bool aRepaint);
+  NS_IMETHOD              ResizeClient(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, bool aRepaint);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
@@ -141,9 +139,9 @@ public:
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              ResetInputState() { return NS_OK; }
   NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
-  NS_IMETHOD              SetLayersAcceleration(bool aEnabled);
-  virtual bool            GetLayersAcceleration() { return mUseLayersAcceleration; }
-  virtual bool            ComputeShouldAccelerate(bool aDefault);
+  NS_IMETHOD              SetAcceleratedRendering(bool aEnabled);
+  virtual bool            GetAcceleratedRendering();
+  virtual bool            GetShouldAccelerate();
   NS_IMETHOD              GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMEFocusChange(bool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMETextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
@@ -174,7 +172,7 @@ public:
 
 #ifdef ACCESSIBILITY
   // Get the accessible for the window.
-  mozilla::a11y::Accessible* GetAccessible();
+  Accessible* GetAccessible();
 #endif
 
   nsPopupLevel PopupLevel() { return mPopupLevel; }
@@ -217,7 +215,6 @@ public:
     ~AutoLayerManagerSetup();
   private:
     nsBaseWidget* mWidget;
-    nsRefPtr<BasicLayerManager> mLayerManager;
   };
   friend class AutoLayerManagerSetup;
 
@@ -227,7 +224,6 @@ public:
     ~AutoUseBasicLayerManager();
   private:
     nsBaseWidget* mWidget;
-    bool mPreviousTemporarilyUseBasicLayerManager;
   };
   friend class AutoUseBasicLayerManager;
 
@@ -342,7 +338,7 @@ protected:
   nsCursor          mCursor;
   nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
-  bool              mUseLayersAcceleration;
+  bool              mUseAcceleratedRendering;
   bool              mForceLayersAcceleration;
   bool              mTemporarilyUseBasicLayerManager;
   bool              mUseAttachedEvents;

@@ -61,10 +61,6 @@
 #include "nsSandboxFlags.h"
 #include "mozilla/Preferences.h"
 
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
-#include "nsIPrivateBrowsingService.h"
-#endif
-
 #ifdef USEWEAKREFS
 #include "nsIWeakReference.h"
 #endif
@@ -365,8 +361,7 @@ ConvertArgsToArray(nsISupports* aArguments)
     NS_ENSURE_TRUE(mutableArray, NULL);
 
     for (uint32_t i = 0; i < argc; i++) {
-      nsCOMPtr<nsISupports> elt;
-      supArray->GetElementAt(i, getter_AddRefs(elt));
+      nsCOMPtr<nsISupports> elt = dont_AddRef(supArray->ElementAt(i));
       nsresult rv = mutableArray->AppendElement(elt, /* aWeak = */ false);
       NS_ENSURE_SUCCESS(rv, NULL);
     }
@@ -904,28 +899,14 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
   }
 
   if (windowIsNew) {
-    // If all windows should be private, make sure the new window is also
-    // private.  Otherwise, see if the caller has explicitly requested a
-    // private or non-private window.
+    // See if the caller has requested a private browsing window, or if all
+    // windows should be private.
     bool isPrivateBrowsingWindow =
       Preferences::GetBool("browser.privatebrowsing.autostart") ||
-      (!!(chromeFlags & nsIWebBrowserChrome::CHROME_PRIVATE_WINDOW) &&
-       !(chromeFlags & nsIWebBrowserChrome::CHROME_NON_PRIVATE_WINDOW));
-
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
-    nsCOMPtr<nsIPrivateBrowsingService> pbs =
-      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    if (pbs) {
-      bool inPrivateBrowsing = false;
-      pbs->GetPrivateBrowsingEnabled(&inPrivateBrowsing);
-      isPrivateBrowsingWindow |= inPrivateBrowsing;
-    }
-#endif
-
+      !!(chromeFlags & nsIWebBrowserChrome::CHROME_PRIVATE_WINDOW);
     // Otherwise, propagate the privacy status of the parent window, if
     // available, to the child.
-    if (!isPrivateBrowsingWindow &&
-        !(chromeFlags & nsIWebBrowserChrome::CHROME_NON_PRIVATE_WINDOW)) {
+    if (!isPrivateBrowsingWindow) {
       nsCOMPtr<nsIDocShellTreeItem> parentItem;
       GetWindowTreeItem(aParent, getter_AddRefs(parentItem));
       nsCOMPtr<nsILoadContext> parentContext = do_QueryInterface(parentItem);
@@ -1524,8 +1505,6 @@ uint32_t nsWindowWatcher::CalculateChromeFlags(nsIDOMWindow *aParent,
   if (isChrome) {
     chromeFlags |= WinHasOption(aFeatures, "private", 0, &presenceFlag) ?
       nsIWebBrowserChrome::CHROME_PRIVATE_WINDOW : 0;
-    chromeFlags |= WinHasOption(aFeatures, "non-private", 0, &presenceFlag) ?
-      nsIWebBrowserChrome::CHROME_NON_PRIVATE_WINDOW : 0;
   }
 
   nsCOMPtr<nsIPrefBranch> prefBranch;

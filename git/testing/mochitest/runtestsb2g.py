@@ -98,12 +98,8 @@ class B2GOptions(MochitestOptions):
                         help="the path to a gecko distribution that should "
                         "be installed on the emulator prior to test")
         defaults["geckoPath"] = None
-        self.add_option("--logcat-dir", action="store",
-                        type="string", dest="logcat_dir",
-                        help="directory to store logcat dump files")
-        defaults["logcat_dir"] = None
 
-        defaults["remoteTestRoot"] = "/data/local/tests"
+        defaults["remoteTestRoot"] = None
         defaults["logFile"] = "mochitest.log"
         defaults["autorun"] = True
         defaults["closeWhenDone"] = True
@@ -113,8 +109,7 @@ class B2GOptions(MochitestOptions):
         self.set_defaults(**defaults)
 
     def verifyRemoteOptions(self, options, automation):
-        if not options.remoteTestRoot:
-            options.remoteTestRoot = automation._devicemanager.getDeviceRoot()
+        options.remoteTestRoot = automation._devicemanager.getDeviceRoot()
         productRoot = options.remoteTestRoot + "/" + automation._product
 
         if options.utilityPath == self._automation.DIST_BIN:
@@ -125,13 +120,11 @@ class B2GOptions(MochitestOptions):
                 options.remoteWebServer = automation.getLanIp()
             else:
                 self.error("You must specify a --remote-webserver=<ip address>")
-        options.webServer = options.remoteWebServer
 
         if options.geckoPath and not options.emulator:
             self.error("You must specify --emulator if you specify --gecko-path")
 
-        if options.logcat_dir and not options.emulator:
-            self.error("You must specify --emulator if you specify --logcat-dir")
+        options.webServer = options.remoteWebServer
 
         #if not options.emulator and not options.deviceIP:
         #    print "ERROR: you must provide a device IP"
@@ -201,6 +194,7 @@ class B2GMochitest(Mochitest):
     _automation = None
     _dm = None
     localProfile = None
+    testDir = '/data/local/tests'
 
     def __init__(self, automation, devmgr, options):
         self._automation = automation
@@ -218,7 +212,7 @@ class B2GMochitest(Mochitest):
         self.originalProfilesIni = None
 
     def copyRemoteFile(self, src, dest):
-        if self._dm._useDDCopy:
+        if self._dm.useDDCopy:
             self._dm._checkCmdAs(['shell', 'dd', 'if=%s' % src,'of=%s' % dest])
         else:
             self._dm._checkCmdAs(['shell', 'cp', src, dest])
@@ -397,7 +391,6 @@ const CHILD_LOGGER_SCRIPT = "chrome://specialpowers/content/MozillaLogger.js";
 
 let homescreen = document.getElementById('homescreen');
 let container = homescreen.contentWindow.document.getElementById('test-container');
-container.setAttribute('mozapp', 'http://mochi.test:8888/manifest.webapp');
 
 let specialpowers = {};
 let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"].getService(Ci.mozIJSSubScriptLoader);
@@ -429,7 +422,7 @@ user_pref("dom.mozBrowserFramesEnabled", true);
 user_pref("dom.ipc.tabs.disabled", false);
 user_pref("dom.ipc.browser_frames.oop_by_default", false);
 user_pref("dom.mozBrowserFramesWhitelist","app://test-container.gaiamobile.org,http://mochi.test:8888");
-user_pref("marionette.loadearly", true);
+user_pref("network.dns.localDomains","app://test-container.gaiamobile.org");
 """)
         f.close()
 
@@ -480,8 +473,6 @@ def main():
             kwargs['noWindow'] = True
         if options.geckoPath:
             kwargs['gecko_path'] = options.geckoPath
-        if options.logcat_dir:
-            kwargs['logcat_dir'] = options.logcat_dir
     # needless to say sdcard is only valid if using an emulator
     if options.sdcard:
         kwargs['sdcard'] = options.sdcard
@@ -491,14 +482,13 @@ def main():
         host,port = options.marionette.split(':')
         kwargs['host'] = host
         kwargs['port'] = int(port)
-
-    marionette = Marionette.getMarionetteOrExit(**kwargs)
+    marionette = Marionette(**kwargs)
 
     auto.marionette = marionette
 
     # create the DeviceManager
     kwargs = {'adbPath': options.adbPath,
-              'deviceRoot': options.remoteTestRoot}
+              'deviceRoot': B2GMochitest.testDir}
     if options.deviceIP:
         kwargs.update({'host': options.deviceIP,
                        'port': options.devicePort})
@@ -534,7 +524,7 @@ def main():
             mochitest.cleanup(None, options)
         except:
             pass
-        retVal = 1
+            sys.exit(1)
 
     sys.exit(retVal)
 

@@ -220,7 +220,7 @@ protected:
 protected:
     nsresult RegUnregAccessKey(bool aDoReg);
 
-  NS_HIDDEN_(void) CheckBoxOrder();
+  NS_HIDDEN_(void) CheckBoxOrder(nsBoxLayoutState& aState);
 
 private: 
 

@@ -6,9 +6,10 @@
 #include "base/histogram.h"
 #include "ImageLogging.h"
 #include "nsComponentManagerUtils.h"
-#include "imgDecoderObserver.h"
+#include "imgIContainerObserver.h"
 #include "nsError.h"
 #include "Decoder.h"
+#include "imgIDecoderObserver.h"
 #include "RasterImage.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -159,10 +160,8 @@ struct ScaleRequest
 
     weakImage = aImage->asWeakPtr();
     srcRect = aSrcFrame->GetRect();
-
-    nsIntRect dstRect = srcRect;
-    dstRect.ScaleRoundOut(scale.width, scale.height);
-    dstSize = dstRect.Size();
+    dstSize.width = NSToIntRoundUp(srcRect.width * scale.width);
+    dstSize.height = NSToIntRoundUp(srcRect.height * scale.height);
   }
 
   // This can only be called on the main thread.
@@ -351,13 +350,13 @@ NS_IMPL_ISUPPORTS3(RasterImage, imgIContainer, nsIProperties,
 #endif
 
 //******************************************************************************
-RasterImage::RasterImage(imgStatusTracker* aStatusTracker,
-                         nsIURI* aURI /* = nullptr */) :
-  ImageResource(aStatusTracker, aURI), // invoke superclass's constructor
+RasterImage::RasterImage(imgStatusTracker* aStatusTracker) :
+  Image(aStatusTracker), // invoke superclass's constructor
   mSize(0,0),
   mFrameDecodeFlags(DECODE_FLAGS_DEFAULT),
   mAnim(nullptr),
   mLoopCount(-1),
+  mObserver(nullptr),
   mLockCount(0),
   mDecoder(nullptr),
   mDecodeRequest(this),
@@ -438,8 +437,9 @@ RasterImage::Initialize()
 }
 
 nsresult
-RasterImage::Init(imgDecoderObserver *aObserver,
+RasterImage::Init(imgIDecoderObserver *aObserver,
                   const char* aMimeType,
+                  const char* aURIString,
                   uint32_t aFlags)
 {
   // We don't support re-initialization
@@ -460,10 +460,9 @@ RasterImage::Init(imgDecoderObserver *aObserver,
                     "Can't be discardable or decode-on-draw for multipart");
 
   // Store initialization data
-  if (aObserver) {
-    mObserver = aObserver->asWeakPtr();
-  }
+  mObserver = do_GetWeakReference(aObserver);
   mSourceDataMimeType.Assign(aMimeType);
+  mURIString.Assign(aURIString);
   mDiscardable = !!(aFlags & INIT_FLAG_DISCARDABLE);
   mDecodeOnDraw = !!(aFlags & INIT_FLAG_DECODE_ON_DRAW);
   mMultipart = !!(aFlags & INIT_FLAG_MULTIPART);
@@ -637,7 +636,9 @@ RasterImage::RequestRefresh(const mozilla::TimeStamp& aTime)
   }
 
   if (frameAdvanced) {
-    if (!mObserver) {
+    nsCOMPtr<imgIContainerObserver> observer(do_QueryReferent(mObserver));
+
+    if (!observer) {
       NS_ERROR("Refreshing image after its imgRequest is gone");
       StopAnimation();
       return;
@@ -651,7 +652,7 @@ RasterImage::RequestRefresh(const mozilla::TimeStamp& aTime)
     #endif
 
     UpdateImageContainer();
-    mObserver->FrameChanged(&dirtyRect);
+    observer->FrameChanged(&dirtyRect);
   }
 }
 
@@ -685,7 +686,7 @@ RasterImage::ExtractFrame(uint32_t aWhichFrame,
   // We don't actually have a mimetype in this case. The empty string tells the
   // init routine not to try to instantiate a decoder. This should be fixed in
   // bug 505959.
-  img->Init(nullptr, "", INIT_FLAG_NONE);
+  img->Init(nullptr, "", "", INIT_FLAG_NONE);
   img->SetSize(aRegion.width, aRegion.height);
   img->mDecoded = true; // Also, we need to mark the image as decoded
   img->mHasBeenDecoded = true;
@@ -1077,20 +1078,9 @@ RasterImage::GetFrame(uint32_t aWhichFrame,
 already_AddRefed<layers::Image>
 RasterImage::GetCurrentImage()
 {
-  if (!mDecoded) {
-    // We can't call StartDecoding because that can synchronously notify
-    // which can cause DOM modification
-    RequestDecode();
-    return nullptr;
-  }
-
   nsRefPtr<gfxASurface> imageSurface;
-  nsresult rv = GetFrame(FRAME_CURRENT, FLAG_NONE, getter_AddRefs(imageSurface));
+  nsresult rv = GetFrame(FRAME_CURRENT, FLAG_SYNC_DECODE, getter_AddRefs(imageSurface));
   NS_ENSURE_SUCCESS(rv, nullptr);
-
-  if (!imageSurface) {
-    return nullptr;
-  }
 
   if (!mImageContainer) {
     mImageContainer = LayerManager::CreateImageContainer();
@@ -1113,23 +1103,17 @@ RasterImage::GetCurrentImage()
 
 
 NS_IMETHODIMP
-RasterImage::GetImageContainer(LayerManager* aManager, ImageContainer **_retval)
+RasterImage::GetImageContainer(ImageContainer **_retval)
 {
-  int32_t maxTextureSize = aManager->GetMaxTextureSize();
-  if (mSize.width > maxTextureSize || mSize.height > maxTextureSize) {
-    *_retval = nullptr;
-    return NS_OK;
-  }
-
   if (mImageContainer) {
     *_retval = mImageContainer;
     NS_ADDREF(*_retval);
     return NS_OK;
   }
-
+  
   nsRefPtr<layers::Image> image = GetCurrentImage();
   if (!image) {
-    return NS_ERROR_NOT_AVAILABLE;
+    return NS_ERROR_FAILURE;
   }
   mImageContainer->SetCurrentImageInTransaction(image);
 
@@ -1657,8 +1641,9 @@ RasterImage::ResetAnimation()
   // we fix bug 500402.
 
   // Update display if we were animating before
-  if (mAnimating && mObserver)
-    mObserver->FrameChanged(&(mAnim->firstFrameRefreshArea));
+  nsCOMPtr<imgIContainerObserver> observer(do_QueryReferent(mObserver));
+  if (mAnimating && observer)
+    observer->FrameChanged(&(mAnim->firstFrameRefreshArea));
 
   if (ShouldAnimate()) {
     StartAnimation();
@@ -1801,7 +1786,7 @@ get_header_str (char *buf, char *data, size_t data_len)
 }
 
 nsresult
-RasterImage::OnImageDataComplete(nsIRequest*, nsISupports*, nsresult)
+RasterImage::SourceDataComplete()
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -1863,27 +1848,7 @@ RasterImage::OnImageDataComplete(nsIRequest*, nsISupports*, nsresult)
 }
 
 nsresult
-RasterImage::OnImageDataAvailable(nsIRequest*,
-                                  nsISupports*,
-                                  nsIInputStream* aInStr,
-                                  uint64_t,
-                                  uint32_t aCount)
-{
-  nsresult rv;
- 
-  // WriteToRasterImage always consumes everything it gets
-  // if it doesn't run out of memory
-  uint32_t bytesRead;
-  rv = aInStr->ReadSegments(WriteToRasterImage, this, aCount, &bytesRead);
-
-  NS_ABORT_IF_FALSE(bytesRead == aCount || HasError(),
-    "WriteToRasterImage should consume everything or the image must be in error!");
-
-  return rv;
-}
-
-nsresult
-RasterImage::OnNewSourceData()
+RasterImage::NewSourceData()
 {
   nsresult rv;
 
@@ -2464,8 +2429,9 @@ RasterImage::Discard(bool force)
   mDecoded = false;
 
   // Notify that we discarded
-  if (mObserver)
-    mObserver->OnDiscard();
+  nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(mObserver));
+  if (observer)
+    observer->OnDiscard();
 
   if (force)
     DiscardTracker::Remove(&mDiscardTrackerNode);
@@ -2535,29 +2501,26 @@ RasterImage::InitDecoder(bool aDoSizeDecode)
   eDecoderType type = GetDecoderType(mSourceDataMimeType.get());
   CONTAINER_ENSURE_TRUE(type != eDecoderType_unknown, NS_IMAGELIB_ERROR_NO_DECODER);
 
+  nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(mObserver));
   // Instantiate the appropriate decoder
   switch (type) {
     case eDecoderType_png:
-      mDecoder = new nsPNGDecoder(*this, mObserver);
+      mDecoder = new nsPNGDecoder(*this, observer);
       break;
     case eDecoderType_gif:
-      mDecoder = new nsGIFDecoder2(*this, mObserver);
+      mDecoder = new nsGIFDecoder2(*this, observer);
       break;
     case eDecoderType_jpeg:
-      // If we have all the data we don't want to waste cpu time doing
-      // a progressive decode
-      mDecoder = new nsJPEGDecoder(*this, mObserver,
-                                   mHasBeenDecoded ? Decoder::SEQUENTIAL :
-                                                     Decoder::PROGRESSIVE);
+      mDecoder = new nsJPEGDecoder(*this, observer);
       break;
     case eDecoderType_bmp:
-      mDecoder = new nsBMPDecoder(*this, mObserver);
+      mDecoder = new nsBMPDecoder(*this, observer);
       break;
     case eDecoderType_ico:
-      mDecoder = new nsICODecoder(*this, mObserver);
+      mDecoder = new nsICODecoder(*this, observer);
       break;
     case eDecoderType_icon:
-      mDecoder = new nsIconDecoder(*this, mObserver);
+      mDecoder = new nsIconDecoder(*this, observer);
       break;
     default:
       NS_ABORT_IF_FALSE(0, "Shouldn't get here!");
@@ -2607,7 +2570,7 @@ RasterImage::ShutdownDecoder(eShutdownIntent aIntent)
 
   mFinishing = true;
   mInDecoder = true;
-  decoder->Finish(aIntent);
+  decoder->Finish();
   mInDecoder = false;
   mFinishing = false;
 
@@ -2736,9 +2699,13 @@ RasterImage::RequestDecodeCore(RequestDecodeType aDecodeType)
   if (!StoringSourceData())
     return NS_OK;
 
-  // If we've already got a full decoder running, and have already
-  // decoded some bytes, we have nothing to do
-  if (mDecoder && !mDecoder->IsSizeDecode() && mBytesDecoded) {
+  // If we've already got a full decoder running, we'll spend a bit of time
+  // decoding because the caller want's an image soon.
+  if (mDecoder && !mDecoder->IsSizeDecode()) {
+    if (!mDecoded && !mInDecoder && mHasSourceData && aDecodeType == SOMEWHAT_SYNCHRONOUS) {
+      SAMPLE_LABEL_PRINTF("RasterImage", "DecodeABitOf", "%s", GetURIString());
+      DecodeWorker::Singleton()->DecodeABitOf(this);
+    }
     return NS_OK;
   }
 
@@ -2906,7 +2873,7 @@ RasterImage::ScalingDone(ScaleRequest* request, ScaleStatus status)
   if (status == SCALE_DONE) {
     MOZ_ASSERT(request->done);
 
-    RefPtr<imgDecoderObserver> observer(mObserver);
+    nsCOMPtr<imgIContainerObserver> observer(do_QueryReferent(mObserver));
     if (observer) {
       imgFrame *scaledFrame = request->dstFrame.get();
       scaledFrame->ImageUpdated(scaledFrame->GetRect());
@@ -3268,7 +3235,7 @@ RasterImage::WriteToRasterImage(nsIInputStream* /* unused */,
 bool
 RasterImage::ShouldAnimate()
 {
-  return ImageResource::ShouldAnimate() && mFrames.Length() >= 2 &&
+  return Image::ShouldAnimate() && mFrames.Length() >= 2 &&
          !mAnimationFinished;
 }
 
@@ -3426,8 +3393,8 @@ RasterImage::DecodeWorker::Run()
     EnsurePendingInEventLoop();
   }
 
-  Telemetry::Accumulate(Telemetry::IMAGE_DECODE_LATENCY_US,
-                        uint32_t((TimeStamp::Now() - eventStart).ToMicroseconds()));
+  Telemetry::Accumulate(Telemetry::IMAGE_DECODE_LATENCY,
+                        uint32_t((TimeStamp::Now() - eventStart).ToMilliseconds()));
 
   return NS_OK;
 }

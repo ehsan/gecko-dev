@@ -34,55 +34,26 @@ JS_FRIEND_API(size_t) MemoryReportingSundriesThreshold();
 
 namespace JS {
 
-// Data for tracking memory usage of things hanging off objects.
-struct ObjectsExtraSizes {
-    size_t slots;
-    size_t elements;
-    size_t argumentsData;
-    size_t regExpStatics;
-    size_t propertyIteratorData;
-    size_t ctypesData;
-    size_t private_;    // The '_' suffix is required because |private| is a keyword.
-                        // Note that this field is measured separately from the others.
-
-    ObjectsExtraSizes() { memset(this, 0, sizeof(ObjectsExtraSizes)); }
-
-    void add(ObjectsExtraSizes &sizes) {
-        this->slots                += sizes.slots;
-        this->elements             += sizes.elements;
-        this->argumentsData        += sizes.argumentsData;
-        this->regExpStatics        += sizes.regExpStatics;
-        this->propertyIteratorData += sizes.propertyIteratorData;
-        this->ctypesData           += sizes.ctypesData;
-        this->private_             += sizes.private_;
-    }
-};
-
 // Data for tracking analysis/inference memory usage.
 struct TypeInferenceSizes
 {
-    size_t typeScripts;
-    size_t typeResults;
-    size_t analysisPool;
-    size_t typePool;
-    size_t pendingArrays;
-    size_t allocationSiteTables;
-    size_t arrayTypeTables;
-    size_t objectTypeTables;
-    size_t typeObjects;
+    TypeInferenceSizes()
+      : scripts(0)
+      , objects(0)
+      , tables(0)
+      , temporary(0)
+    {}
 
-    TypeInferenceSizes() { memset(this, 0, sizeof(TypeInferenceSizes)); }
+    size_t scripts;
+    size_t objects;
+    size_t tables;
+    size_t temporary;
 
     void add(TypeInferenceSizes &sizes) {
-        this->typeScripts          += sizes.typeScripts;
-        this->typeResults          += sizes.typeResults;
-        this->analysisPool         += sizes.analysisPool;
-        this->typePool             += sizes.typePool;
-        this->pendingArrays        += sizes.pendingArrays;
-        this->allocationSiteTables += sizes.allocationSiteTables;
-        this->arrayTypeTables      += sizes.arrayTypeTables;
-        this->objectTypeTables     += sizes.objectTypeTables;
-        this->typeObjects          += sizes.typeObjects;
+        this->scripts   += sizes.scripts;
+        this->objects   += sizes.objects;
+        this->tables    += sizes.tables;
+        this->temporary += sizes.temporary;
     }
 };
 
@@ -175,7 +146,12 @@ struct CompartmentStats
 #if JS_HAS_XML_SUPPORT
       , gcHeapXML(0)
 #endif
-      , objectsExtra()
+      , objectsExtraSlots(0)
+      , objectsExtraElements(0)
+      , objectsExtraArgumentsData(0)
+      , objectsExtraRegExpStatics(0)
+      , objectsExtraPropertyIteratorData(0)
+      , objectsExtraPrivate(0)
       , stringCharsNonHuge(0)
       , shapesExtraTreeTables(0)
       , shapesExtraDictTables(0)
@@ -188,8 +164,6 @@ struct CompartmentStats
       , crossCompartmentWrappersTable(0)
       , regexpCompartment(0)
       , debuggeesSet(0)
-      , typeInference()
-      , hugeStrings()
     {}
 
     CompartmentStats(const CompartmentStats &other)
@@ -214,7 +188,12 @@ struct CompartmentStats
 #if JS_HAS_XML_SUPPORT
       , gcHeapXML(other.gcHeapXML)
 #endif
-      , objectsExtra(other.objectsExtra)
+      , objectsExtraSlots(other.objectsExtraSlots)
+      , objectsExtraElements(other.objectsExtraElements)
+      , objectsExtraArgumentsData(other.objectsExtraArgumentsData)
+      , objectsExtraRegExpStatics(other.objectsExtraRegExpStatics)
+      , objectsExtraPropertyIteratorData(other.objectsExtraPropertyIteratorData)
+      , objectsExtraPrivate(other.objectsExtraPrivate)
       , stringCharsNonHuge(other.stringCharsNonHuge)
       , shapesExtraTreeTables(other.shapesExtraTreeTables)
       , shapesExtraDictTables(other.shapesExtraDictTables)
@@ -227,7 +206,7 @@ struct CompartmentStats
       , crossCompartmentWrappersTable(other.crossCompartmentWrappersTable)
       , regexpCompartment(other.regexpCompartment)
       , debuggeesSet(other.debuggeesSet)
-      , typeInference(other.typeInference)
+      , typeInferenceSizes(other.typeInferenceSizes)
     {
       hugeStrings.append(other.hugeStrings);
     }
@@ -258,8 +237,13 @@ struct CompartmentStats
 #if JS_HAS_XML_SUPPORT
     size_t gcHeapXML;
 #endif
-    ObjectsExtraSizes objectsExtra;
 
+    size_t objectsExtraSlots;
+    size_t objectsExtraElements;
+    size_t objectsExtraArgumentsData;
+    size_t objectsExtraRegExpStatics;
+    size_t objectsExtraPropertyIteratorData;
+    size_t objectsExtraPrivate;
     size_t stringCharsNonHuge;
     size_t shapesExtraTreeTables;
     size_t shapesExtraDictTables;
@@ -273,7 +257,7 @@ struct CompartmentStats
     size_t regexpCompartment;
     size_t debuggeesSet;
 
-    TypeInferenceSizes typeInference;
+    TypeInferenceSizes typeInferenceSizes;
     js::Vector<HugeStringInfo, 0, js::SystemAllocPolicy> hugeStrings;
 
     // Add cStats's numbers to this object's numbers.
@@ -301,8 +285,13 @@ struct CompartmentStats
     #if JS_HAS_XML_SUPPORT
         ADD(gcHeapXML);
     #endif
-        objectsExtra.add(cStats.objectsExtra);
 
+        ADD(objectsExtraSlots);
+        ADD(objectsExtraElements);
+        ADD(objectsExtraArgumentsData);
+        ADD(objectsExtraRegExpStatics);
+        ADD(objectsExtraPropertyIteratorData);
+        ADD(objectsExtraPrivate);
         ADD(stringCharsNonHuge);
         ADD(shapesExtraTreeTables);
         ADD(shapesExtraDictTables);
@@ -318,7 +307,7 @@ struct CompartmentStats
 
         #undef ADD
 
-        typeInference.add(cStats.typeInference);
+        typeInferenceSizes.add(cStats.typeInferenceSizes);
         hugeStrings.append(cStats.hugeStrings);
     }
 

@@ -15,7 +15,6 @@
 #include "nsRuleData.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 class nsHTMLTableCaptionElement :  public nsGenericHTMLElement,
                                    public nsIDOMHTMLTableCaptionElement
@@ -34,7 +33,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLTableCaptionElement
   NS_DECL_NSIDOMHTMLTABLECAPTIONELEMENT
@@ -67,8 +66,8 @@ nsHTMLTableCaptionElement::~nsHTMLTableCaptionElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLTableCaptionElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLTableCaptionElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
 
 
 DOMCI_NODE_DATA(HTMLTableCaptionElement, nsHTMLTableCaptionElement)

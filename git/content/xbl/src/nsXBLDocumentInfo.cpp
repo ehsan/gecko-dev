@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsXBLDocumentInfo.h"
 #include "nsHashtable.h"
 #include "nsIDocument.h"
@@ -31,6 +29,7 @@
 #include "mozilla/scache/StartupCacheUtils.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozilla/dom/BindingUtils.h"
+#include "mozilla/Util.h"
 
 using namespace mozilla::scache;
 using namespace mozilla;
@@ -431,8 +430,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
   if (tmp->mBindingTable) {
     tmp->mBindingTable->Enumerate(UnlinkProtoJSObjects, nullptr);
   }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobalObject)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXBLDocumentInfo)
   if (tmp->mDocument &&
@@ -440,7 +439,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXBLDocumentInfo)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
   if (tmp->mBindingTable) {
     tmp->mBindingTable->Enumerate(TraverseProtos, &cb);
   }
@@ -523,9 +522,8 @@ nsXBLDocumentInfo::~nsXBLDocumentInfo()
     mGlobalObject->ClearGlobalObjectOwner(); // just in case
   }
   if (mBindingTable) {
-    delete mBindingTable;
-    mBindingTable = nullptr;
     NS_DROP_JS_OBJECTS(this, nsXBLDocumentInfo);
+    delete mBindingTable;
   }
 }
 

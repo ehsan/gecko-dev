@@ -83,8 +83,7 @@ nr_stun_xor_mapped_address(UINT4 magicCookie, nr_transport_addr *from, nr_transp
             from->protocol, to);
         break;
     case NR_IPV6:
-        assert(0);
-        ABORT(R_INTERNAL);
+        UNIMPLEMENTED;
         break;
     default:
         assert(0);

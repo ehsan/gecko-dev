@@ -12,8 +12,14 @@
 
 namespace mozilla {
 namespace a11y {
+ 
+class ApplicationAccessibleWrap: public ApplicationAccessible
+{
+public:
+  static void PreCreate() {}
+  static void Unload() {}
+};
 
-typedef ApplicationAccessible ApplicationAccessibleWrap;
 } // namespace a11y
 } // namespace mozilla
 

@@ -5,12 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
 const LAZY_EMPTY_DELAY = 150; // ms
-const SEARCH_ACTION_MAX_DELAY = 1000; // ms
 
 Components.utils.import('resource://gre/modules/Services.jsm');
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 this.EXPORTED_SYMBOLS = ["VariablesView", "create"];
 
@@ -20,9 +17,7 @@ this.EXPORTED_SYMBOLS = ["VariablesView", "create"];
  * Requires the devtools common.css and debugger.css skin stylesheets.
  *
  * To allow replacing variable or property values in this view, provide an
- * "eval" function property. To allow replacing variable or property values,
- * provide a "switch" function. To handle deleting variables or properties,
- * provide a "delete" function.
+ * "eval" function property.
  *
  * @param nsIDOMNode aParentNode
  *        The parent node to hold this view.
@@ -65,7 +60,6 @@ VariablesView.prototype = {
    */
   addScope: function VV_addScope(aName = "") {
     this._removeEmptyNotice();
-    this._toggleSearch(true);
 
     let scope = new Scope(this, aName);
     this._store.set(scope.id, scope);
@@ -101,7 +95,6 @@ VariablesView.prototype = {
 
     this._store = new Map();
     this._appendEmptyNotice();
-    this._toggleSearch(false);
   },
 
   /**
@@ -135,49 +128,31 @@ VariablesView.prototype = {
 
       if (!this._store.size) {
         this._appendEmptyNotice();
-        this._toggleSearch(false);
       }
     }.bind(this), aTimeout);
   },
 
   /**
    * Specifies if enumerable properties and variables should be displayed.
-   * These variables and properties are visible by default.
    * @param boolean aFlag
    */
   set enumVisible(aFlag) {
     this._enumVisible = aFlag;
 
-    for (let [, scope] in this) {
-      scope._enumVisible = aFlag;
-    }
-  },
-
-  /**
-   * Specifies if non-enumerable properties and variables should be displayed.
-   * These variables and properties are visible by default.
-   * @param boolean aFlag
-   */
-  set nonEnumVisible(aFlag) {
-    this._nonEnumVisible = aFlag;
-
-    for (let [, scope] in this) {
+    for (let [_, scope] in this) {
       scope._nonEnumVisible = aFlag;
     }
   },
 
   /**
-   * Specifies if only enumerable properties and variables should be displayed.
-   * Both types of these variables and properties are visible by default.
+   * Specifies if non-enumerable properties and variables should be displayed.
    * @param boolean aFlag
    */
-  set onlyEnumVisible(aFlag) {
-    if (aFlag) {
-      this.enumVisible = true;
-      this.nonEnumVisible = false;
-    } else {
-      this.enumVisible = true;
-      this.nonEnumVisible = true;
+  set nonEnumVisible(aFlag) {
+    this._nonEnumVisible = aFlag;
+
+    for (let [_, scope] in this) {
+      scope._nonEnumVisible = aFlag;
     }
   },
 
@@ -190,14 +165,13 @@ VariablesView.prototype = {
       return;
     }
     let document = this.document;
-    let ownerView = this._parent.parentNode;
+    let parent = this._parent;
 
     let container = this._searchboxContainer = document.createElement("hbox");
     container.className = "devtools-toolbar";
-    container.hidden = !this._store.size;
 
     let searchbox = this._searchboxNode = document.createElement("textbox");
-    searchbox.className = "variables-searchinput devtools-searchinput";
+    searchbox.className = "devtools-searchinput";
     searchbox.setAttribute("placeholder", this._searchboxPlaceholder);
     searchbox.setAttribute("type", "search");
     searchbox.setAttribute("flex", "1");
@@ -205,7 +179,7 @@ VariablesView.prototype = {
     searchbox.addEventListener("keypress", this._onSearchboxKeyPress, false);
 
     container.appendChild(searchbox);
-    ownerView.insertBefore(container, this._parent);
+    parent.insertBefore(container, parent.firstChild);
   },
 
   /**
@@ -216,26 +190,12 @@ VariablesView.prototype = {
     if (!this._searchboxContainer) {
       return;
     }
-    this._searchboxContainer.parentNode.removeChild(this._searchboxContainer);
+    this._parent.removeChild(this._searchboxContainer);
     this._searchboxNode.addEventListener("input", this._onSearchboxInput, false);
     this._searchboxNode.addEventListener("keypress", this._onSearchboxKeyPress, false);
 
     this._searchboxContainer = null;
     this._searchboxNode = null;
-  },
-
-  /**
-   * Sets the variables searchbox hidden or visible. It's hidden by default.
-   *
-   * @param boolean aVisibleFlag
-   *        Specifies the intended visibility.
-   */
-  _toggleSearch: function VV__toggleSearch(aVisibleFlag) {
-    // If searching was already disabled, there's no need to hide it.
-    if (!this._searchboxContainer) {
-      return;
-    }
-    this._searchboxContainer.hidden = !aVisibleFlag;
   },
 
   /**
@@ -249,59 +209,20 @@ VariablesView.prototype = {
   get searchEnabled() !!this._searchboxContainer,
 
   /**
-   * Allows searches to be scheduled and delayed to avoid redundant calls.
-   */
-  delayedSearch: true,
-
-  /**
-   * Schedules searching for variables or properties matching the query.
-   *
-   * @param string aQuery
-   *        The variable or property to search for.
-   */
-  scheduleSearch: function VV_scheduleSearch(aQuery) {
-    if (!this.delayedSearch) {
-      this.performSearch(aQuery);
-      return;
-    }
-    let delay = Math.max(SEARCH_ACTION_MAX_DELAY / aQuery.length, 0);
-
-    this.window.clearTimeout(this._searchTimeout);
-    this._searchFunction = this._startSearch.bind(this, aQuery);
-    this._searchTimeout = this.window.setTimeout(this._searchFunction, delay);
-  },
-
-  /**
-   * Immediately searches for variables or properties matching the query.
-   *
-   * @param string aQuery
-   *        The variable or property to search for.
-   */
-  performSearch: function VV_performSearch(aQuery) {
-    this.window.clearTimeout(this._searchTimeout);
-    this._searchFunction = null;
-    this._startSearch(aQuery);
-  },
-
-  /**
    * Performs a case insensitive search for variables or properties matching
    * the query, and hides non-matched items.
    *
    * @param string aQuery
    *        The variable or property to search for.
    */
-  _startSearch: function VV__startSearch(aQuery) {
-    for (let [, scope] in this) {
-      switch (aQuery) {
-        case "":
-          scope.expand();
-          // fall through
-        case null:
-          scope._performSearch("");
-          break;
-        default:
-          scope._performSearch(aQuery.toLowerCase());
-          break;
+  performSearch: function VV_performSerch(aQuery) {
+    if (!aQuery) {
+      for (let [_, item] of this._currHierarchy) {
+        item._match = true;
+      }
+    } else {
+      for (let [_, scope] in this) {
+        scope._performSearch(aQuery.toLowerCase());
       }
     }
   },
@@ -310,8 +231,8 @@ VariablesView.prototype = {
    * Expands the first search results in this container.
    */
   expandFirstSearchResults: function VV_expandFirstSearchResults() {
-    for (let [, scope] in this) {
-      for (let [, variable] in scope) {
+    for (let [_, scope] in this) {
+      for (let [_, variable] in scope) {
         if (variable._isMatch) {
           variable.expand();
           break;
@@ -417,8 +338,6 @@ VariablesView.prototype = {
   _prevHierarchy: null,
   _currHierarchy: null,
   _emptyTimeout: null,
-  _searchTimeout: null,
-  _searchFunction: null,
   _enumVisible: true,
   _nonEnumVisible: true,
   _parent: null,
@@ -447,13 +366,9 @@ function Scope(aView, aName, aFlags = {}) {
   this.expand = this.expand.bind(this);
   this.collapse = this.collapse.bind(this);
   this.toggle = this.toggle.bind(this);
-  this._openEnum = this._openEnum.bind(this);
-  this._openNonEnum = this._openNonEnum.bind(this);
 
   this.ownerView = aView;
   this.eval = aView.eval;
-  this.switch = aView.switch;
-  this.delete = aView.delete;
 
   this._store = new Map();
   this._init(aName.trim(), aFlags);
@@ -528,16 +443,24 @@ Scope.prototype = {
 
   /**
    * Expands the scope, showing all the added details.
+   *
+   * @param boolean aSkipAnimationFlag
+   *        Pass true to not show an opening animation.
    */
-  expand: function S_expand() {
+  expand: function S_expand(aSkipAnimationFlag) {
     if (this._isExpanded || this._locked) {
       return;
     }
     if (this._variablesView._enumVisible) {
-      this._openEnum();
+      this._arrow.setAttribute("open", "");
+      this._enum.setAttribute("open", "");
     }
     if (this._variablesView._nonEnumVisible) {
-      Services.tm.currentThread.dispatch({ run: this._openNonEnum }, 0);
+      this._nonenum.setAttribute("open", "");
+    }
+    if (!aSkipAnimationFlag) {
+      this._enum.setAttribute("animated", "");
+      this._nonenum.setAttribute("animated", "");
     }
     this._isExpanded = true;
 
@@ -556,6 +479,8 @@ Scope.prototype = {
     this._arrow.removeAttribute("open");
     this._enum.removeAttribute("open");
     this._nonenum.removeAttribute("open");
+    this._enum.removeAttribute("animated");
+    this._nonenum.removeAttribute("animated");
     this._isExpanded = false;
 
     if (this.oncollapse) {
@@ -566,19 +491,10 @@ Scope.prototype = {
   /**
    * Toggles between the scope's collapsed and expanded state.
    */
-  toggle: function S_toggle(e) {
-    if (e && e.button != 0) {
-      // Only allow left-click to trigger this event.
-      return;
-    }
+  toggle: function S_toggle() {
     this._wasToggled = true;
     this.expanded ^= 1;
 
-    // Make sure the scope and its contents are visibile.
-    for (let [, variable] in this) {
-      variable.header = true;
-      variable._match = true;
-    }
     if (this.ontoggle) {
       this.ontoggle(this);
     }
@@ -588,9 +504,6 @@ Scope.prototype = {
    * Shows the scope's title header.
    */
   showHeader: function S_showHeader() {
-    if (this._isHeaderVisible) {
-      return;
-    }
     this._target.removeAttribute("non-header");
     this._isHeaderVisible = true;
   },
@@ -600,9 +513,6 @@ Scope.prototype = {
    * This action will automatically expand the scope.
    */
   hideHeader: function S_hideHeader() {
-    if (!this._isHeaderVisible) {
-      return;
-    }
     this.expand();
     this._target.setAttribute("non-header", "");
     this._isHeaderVisible = false;
@@ -612,9 +522,6 @@ Scope.prototype = {
    * Shows the scope's expand/collapse arrow.
    */
   showArrow: function S_showArrow() {
-    if (this._isArrowVisible) {
-      return;
-    }
     this._arrow.removeAttribute("invisible");
     this._isArrowVisible = true;
   },
@@ -623,9 +530,6 @@ Scope.prototype = {
    * Hides the scope's expand/collapse arrow.
    */
   hideArrow: function S_hideArrow() {
-    if (!this._isArrowVisible) {
-      return;
-    }
     this._arrow.setAttribute("invisible", "");
     this._isArrowVisible = false;
   },
@@ -679,36 +583,6 @@ Scope.prototype = {
   set twisty(aFlag) aFlag ? this.showArrow() : this.hideArrow(),
 
   /**
-   * Specifies if the configurable/enumerable/writable tooltip should be shown
-   * whenever a variable or property descriptor is available.
-   * This flag applies non-recursively to the current scope.
-   */
-  showDescriptorTooltip: true,
-
-  /**
-   * Specifies if editing variable or property names is allowed.
-   * This flag applies non-recursively to the current scope.
-   */
-  allowNameInput: false,
-
-  /**
-   * Specifies if editing variable or property values is allowed.
-   * This flag applies non-recursively to the current scope.
-   */
-  allowValueInput: true,
-
-  /**
-   * Specifies if removing variables or properties values is allowed.
-   * This flag applies non-recursively to the current scope.
-   */
-  allowDeletion: false,
-
-  /**
-   * Specifies the context menu attribute set on variables and properties.
-   */
-  contextMenu: "",
-
-  /**
    * Gets the id associated with this item.
    * @return string
    */
@@ -755,7 +629,7 @@ Scope.prototype = {
     let document = this.document;
 
     let element = this._target = document.createElement("vbox");
-    element.id = this._idString;
+    element.id = this._id;
     element.className = aClassName;
 
     let arrow = this._arrow = document.createElement("hbox");
@@ -790,34 +664,11 @@ Scope.prototype = {
   },
 
   /**
-   * Adds an event listener for the mouse over event on the title element.
-   * @param function aCallback
-   */
-  set onmouseover(aCallback) {
-    this._title.addEventListener("mouseover", aCallback, false);
-  },
-
-  /**
-   * Opens the enumerable items container.
-   */
-  _openEnum: function S__openEnum() {
-    this._arrow.setAttribute("open", "");
-    this._enum.setAttribute("open", "");
-  },
-
-  /**
-   * Opens the non-enumerable items container.
-   */
-  _openNonEnum: function S__openNonEnum() {
-    this._nonenum.setAttribute("open", "");
-  },
-
-  /**
    * Specifies if enumerable properties and variables should be displayed.
    * @param boolean aFlag
    */
   set _enumVisible(aFlag) {
-    for (let [, variable] in this) {
+    for (let [_, variable] in this) {
       variable._enumVisible = aFlag;
 
       if (!this.expanded) {
@@ -836,7 +687,7 @@ Scope.prototype = {
    * @param boolean aFlag
    */
   set _nonEnumVisible(aFlag) {
-    for (let [, variable] in this) {
+    for (let [_, variable] in this) {
       variable._nonEnumVisible = aFlag;
 
       if (!this.expanded) {
@@ -858,7 +709,7 @@ Scope.prototype = {
    *        The lowercased name of the variable or property to search for.
    */
   _performSearch: function S__performSearch(aLowerCaseQuery) {
-    for (let [, variable] in this) {
+    for (let [_, variable] in this) {
       let currentObject = variable;
       let lowerCaseName = variable._nameString.toLowerCase();
       let lowerCaseValue = variable._valueString.toLowerCase();
@@ -876,11 +727,8 @@ Scope.prototype = {
         // contain some matched properties, so make sure they're visible
         // ("expand downwards").
 
-        if (variable._wasToggled && aLowerCaseQuery) {
-          variable.expand();
-        }
-        if (variable._isExpanded && !aLowerCaseQuery) {
-          variable._wasToggled = true;
+        if (variable._wasToggled) {
+          variable.expand(true);
         }
 
         // If the variable is contained in another scope (variable or property),
@@ -894,14 +742,12 @@ Scope.prototype = {
 
           // Show and expand the parent, as it is certainly accessible.
           variable._match = true;
-          aLowerCaseQuery && variable.expand();
+          variable.expand(true);
         }
       }
 
       // Proceed with the search recursively inside this variable or property.
-      if (currentObject._wasToggled ||
-          currentObject.getter ||
-          currentObject.setter) {
+      if (variable._wasToggled || variable.expanded || variable.getter || variable.setter) {
         currentObject._performSearch(aLowerCaseQuery);
       }
     }
@@ -990,14 +836,10 @@ Scope.prototype = {
  *        The variable's descriptor.
  */
 function Variable(aScope, aName, aDescriptor) {
-  this._onClose = this._onClose.bind(this);
-  this._displayTooltip = this._displayTooltip.bind(this);
-  this._activateNameInput = this._activateNameInput.bind(this);
-  this._activateValueInput = this._activateValueInput.bind(this);
-  this._deactivateNameInput = this._deactivateNameInput.bind(this);
-  this._deactivateValueInput = this._deactivateValueInput.bind(this);
-  this._onNameInputKeyPress = this._onNameInputKeyPress.bind(this);
-  this._onValueInputKeyPress = this._onValueInputKeyPress.bind(this);
+  this._activateInput = this._activateInput.bind(this);
+  this._deactivateInput = this._deactivateInput.bind(this);
+  this._saveInput = this._saveInput.bind(this);
+  this._onInputKeyPress = this._onInputKeyPress.bind(this);
 
   Scope.call(this, aScope, aName, aDescriptor);
   this._setGrip(aDescriptor.value);
@@ -1076,7 +918,6 @@ create({ constructor: Variable, proto: Scope.prototype }, {
     if (this.fetched) {
       return;
     }
-    this.fetched = true;
 
     // Sort all of the properties before adding them.
     let sortedPropertyNames = Object.getOwnPropertyNames(aObject).sort();
@@ -1095,6 +936,8 @@ create({ constructor: Variable, proto: Scope.prototype }, {
     if (prototype) {
       this._addRawValueProperty("__proto__", {}, prototype);
     }
+
+    this.fetched = true;
   },
 
   /**
@@ -1213,7 +1056,7 @@ create({ constructor: Variable, proto: Scope.prototype }, {
     this._idString = generateId(this._nameString = aName);
     this._createScope(aName, "variable");
     this._displayVariable(aDescriptor);
-    this._prepareTooltip();
+    this._displayTooltip();
     this._setAttributes(aName, aDescriptor);
     this._addEventListeners();
 
@@ -1235,7 +1078,7 @@ create({ constructor: Variable, proto: Scope.prototype }, {
 
     let separatorLabel = this._separatorLabel = document.createElement("label");
     separatorLabel.className = "plain";
-    separatorLabel.setAttribute("value", this.ownerView.separator);
+    separatorLabel.setAttribute("value", ":");
 
     let valueLabel = this._valueLabel = document.createElement("label");
     valueLabel.className = "value plain";
@@ -1243,74 +1086,43 @@ create({ constructor: Variable, proto: Scope.prototype }, {
     this._title.appendChild(separatorLabel);
     this._title.appendChild(valueLabel);
 
-    let isPrimitive = VariablesView.isPrimitive(aDescriptor);
-    let isUndefined = VariablesView.isUndefined(aDescriptor);
-
-    if (isPrimitive || isUndefined) {
+    if (VariablesView.isPrimitive(aDescriptor)) {
       this.hideArrow();
     }
-    if (!isUndefined && (aDescriptor.get || aDescriptor.set)) {
+    if (aDescriptor.get || aDescriptor.set) {
       this.addProperty("get", { value: aDescriptor.get });
       this.addProperty("set", { value: aDescriptor.set });
-      this.expand();
+      this.expand(true);
       separatorLabel.hidden = true;
       valueLabel.hidden = true;
     }
-    if (this.ownerView.allowDeletion) {
-      let closeNode = this._closeNode = document.createElement("toolbarbutton");
-      closeNode.className = "dbg-variables-delete plain devtools-closebutton";
-      closeNode.addEventListener("click", this._onClose, false);
-      this._title.appendChild(closeNode);
-    }
-    if (this.ownerView.contextMenu) {
-      this._title.setAttribute("context", this.ownerView.contextMenu);
-    }
-  },
-
-  /**
-   * Prepares a tooltip for this variable.
-   */
-  _prepareTooltip: function V__prepareTooltip() {
-    this._target.addEventListener("mouseover", this._displayTooltip, false);
   },
 
   /**
    * Creates a tooltip for this variable.
    */
   _displayTooltip: function V__displayTooltip() {
-    this._target.removeEventListener("mouseover", this._displayTooltip, false);
     let document = this.document;
 
-    if (this.ownerView.showDescriptorTooltip) {
-      let tooltip = document.createElement("tooltip");
-      tooltip.id = "tooltip-" + this.id;
+    let tooltip = document.createElement("tooltip");
+    tooltip.id = "tooltip-" + this.id;
 
-      let configurableLabel = document.createElement("label");
-      configurableLabel.setAttribute("value", "configurable");
+    let configurableLabel = document.createElement("label");
+    configurableLabel.setAttribute("value", "configurable");
 
-      let enumerableLabel = document.createElement("label");
-      enumerableLabel.setAttribute("value", "enumerable");
+    let enumerableLabel = document.createElement("label");
+    enumerableLabel.setAttribute("value", "enumerable");
 
-      let writableLabel = document.createElement("label");
-      writableLabel.setAttribute("value", "writable");
+    let writableLabel = document.createElement("label");
+    writableLabel.setAttribute("value", "writable");
 
-      tooltip.setAttribute("orient", "horizontal")
-      tooltip.appendChild(configurableLabel);
-      tooltip.appendChild(enumerableLabel);
-      tooltip.appendChild(writableLabel);
+    tooltip.setAttribute("orient", "horizontal")
+    tooltip.appendChild(configurableLabel);
+    tooltip.appendChild(enumerableLabel);
+    tooltip.appendChild(writableLabel);
 
-      this._target.appendChild(tooltip);
-      this._target.setAttribute("tooltip", tooltip.id);
-    }
-    if (this.ownerView.allowNameInput) {
-      this._name.setAttribute("tooltiptext", L10N.getStr("variablesEditableNameTooltip"));
-    }
-    if (this.ownerView.allowValueInput) {
-      this._valueLabel.setAttribute("tooltiptext", L10N.getStr("variablesEditableValueTooltip"));
-    }
-    if (this.ownerView.allowDeletion) {
-      this._closeNode.setAttribute("tooltiptext", L10N.getStr("variablesCloseButtonTooltip"));
-    }
+    this._target.appendChild(tooltip);
+    this._target.setAttribute("tooltip", tooltip.id);
   },
 
   /**
@@ -1351,54 +1163,42 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   _addEventListeners: function V__addEventListeners() {
     this._arrow.addEventListener("mousedown", this.toggle, false);
     this._name.addEventListener("mousedown", this.toggle, false);
-    this._name.addEventListener("dblclick", this._activateNameInput, false);
-    this._valueLabel.addEventListener("click", this._activateValueInput, false);
+    this._valueLabel.addEventListener("click", this._activateInput, false);
   },
 
   /**
-   * The click listener for the close button.
+   * Makes this variable's value editable.
    */
-  _onClose: function V__onClose() {
-    this.hide();
-
-    if (this.delete) {
-      this.delete(this);
+  _activateInput: function V__activateInput(e) {
+    if (!this.eval) {
+      return;
     }
-  },
 
-  /**
-   * Creates a textbox node in place of a label.
-   *
-   * @param nsIDOMNode aLabel
-   *        The label to be replaced with a textbox.
-   * @param string aClassName
-   *        The class to be applied to the textbox.
-   * @param object aCallbacks
-   *        An object containing the onKeypress and onBlur callbacks.
-   */
-  _activateInput: function V__activateInput(aLabel, aClassName, aCallbacks) {
-    let initialString = aLabel.getAttribute("value");
+    let title = this._title;
+    let valueLabel = this._valueLabel;
+    let initialString = this._valueLabel.getAttribute("value");
 
     // Create a texbox input element which will be shown in the current
-    // element's specified label location.
+    // element's value location.
     let input = this.document.createElement("textbox");
     input.setAttribute("value", initialString);
-    input.className = "plain " + aClassName;
-    input.width = this._target.clientWidth;
+    input.className = "element-input";
+    input.width = valueLabel.clientWidth + 1;
 
-    aLabel.parentNode.replaceChild(input, aLabel);
+    title.removeChild(valueLabel);
+    title.appendChild(input);
     input.select();
 
     // When the value is a string (displayed as "value"), then we probably want
     // to change it to another string in the textbox, so to avoid typing the ""
     // again, tackle with the selection bounds just a bit.
-    if (aLabel.getAttribute("value").match(/^"[^"]*"$/)) {
+    if (valueLabel.getAttribute("value").match(/^"[^"]*"$/)) {
       input.selectionEnd--;
       input.selectionStart++;
     }
 
-    input.addEventListener("keypress", aCallbacks.onKeypress, false);
-    input.addEventListener("blur", aCallbacks.onBlur, false);
+    input.addEventListener("keypress", this._onInputKeyPress, false);
+    input.addEventListener("blur", this._deactivateInput, false);
 
     this._prevExpandable = this.twisty;
     this._prevExpanded = this.expanded;
@@ -1408,17 +1208,18 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   },
 
   /**
-   * Removes the textbox node in place of a label.
-   *
-   * @param nsIDOMNode aLabel
-   *        The label which was replaced with a textbox.
-   * @param object aCallbacks
-   *        An object containing the onKeypress and onBlur callbacks.
+   * Deactivates this variable's editable mode.
    */
-  _deactivateInput: function V__deactivateInput(aLabel, aInput, aCallbacks) {
-    aInput.parentNode.replaceChild(aLabel, aInput);
-    aInput.removeEventListener("keypress", aCallbacks.onKeypress, false);
-    aInput.removeEventListener("blur", aCallbacks.onBlur, false);
+  _deactivateInput: function V__deactivateInput(e) {
+    let input = e.target;
+    let title = this._title;
+    let valueLabel = this._valueLabel;
+
+    title.removeChild(input);
+    title.appendChild(valueLabel);
+
+    input.removeEventListener("keypress", this._onInputKeyPress, false);
+    input.removeEventListener("blur", this._deactivateInput, false);
 
     this._locked = false;
     this.twisty = this._prevExpandable;
@@ -1426,131 +1227,35 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   },
 
   /**
-   * Makes this variable's name editable.
+   * Deactivates this variable's editable mode and evaluates a new value.
    */
-  _activateNameInput: function V__activateNameInput(e) {
-    if (e && e.button != 0) {
-      // Only allow left-click to trigger this event.
-      return;
-    }
-    if (!this.ownerView.allowNameInput || !this.switch) {
-      return;
-    }
-    this._activateInput(this._name, "element-name-input", {
-      onKeypress: this._onNameInputKeyPress,
-      onBlur: this._deactivateNameInput
-    });
-    this._separatorLabel.hidden = true;
-    this._valueLabel.hidden = true;
-  },
-
-  /**
-   * Deactivates this variable's editable name mode.
-   */
-  _deactivateNameInput: function V__deactivateNameInput(e) {
-    this._deactivateInput(this._name, e.target, {
-      onKeypress: this._onNameInputKeyPress,
-      onBlur: this._deactivateNameInput
-    });
-    this._separatorLabel.hidden = false;
-    this._valueLabel.hidden = false;
-  },
-
-  /**
-   * Makes this variable's value editable.
-   */
-  _activateValueInput: function V__activateValueInput(e) {
-    if (e && e.button != 0) {
-      // Only allow left-click to trigger this event.
-      return;
-    }
-    if (!this.ownerView.allowValueInput || !this.eval) {
-      return;
-    }
-    this._activateInput(this._valueLabel, "element-value-input", {
-      onKeypress: this._onValueInputKeyPress,
-      onBlur: this._deactivateValueInput
-    });
-  },
-
-  /**
-   * Deactivates this variable's editable value mode.
-   */
-  _deactivateValueInput: function V__deactivateValueInput(e) {
-    this._deactivateInput(this._valueLabel, e.target, {
-      onKeypress: this._onValueInputKeyPress,
-      onBlur: this._deactivateValueInput
-    });
-  },
-
-  /**
-   * Disables this variable prior to a new name switch or value evaluation.
-   */
-  _disable: function V__disable() {
-    this.twisty = false;
-    this._separatorLabel.hidden = true;
-    this._valueLabel.hidden = true;
-    this._enum.hidden = true;
-    this._nonenum.hidden = true;
-  },
-
-  /**
-   * Deactivates this variable's editable mode and callbacks the new name.
-   */
-  _saveNameInput: function V__saveNameInput(e) {
+  _saveInput: function V__saveInput(e) {
     let input = e.target;
-    let initialString = this._name.getAttribute("value");
-    let currentString = input.value.trim();
-    this._deactivateNameInput(e);
-
-    if (initialString != currentString) {
-      this._disable();
-      this._name.value = currentString;
-      this.switch(this, currentString);
-    }
-  },
-
-  /**
-   * Deactivates this variable's editable mode and evaluates the new value.
-   */
-  _saveValueInput: function V__saveValueInput(e) {
-    let input = e.target;
+    let valueLabel = this._valueLabel;
     let initialString = this._valueLabel.getAttribute("value");
-    let currentString = input.value.trim();
-    this._deactivateValueInput(e);
+    let currentString = input.value;
+
+    this._deactivateInput(e);
 
     if (initialString != currentString) {
-      this._disable();
-      this.eval(this._symbolicName + "=" + currentString);
+      this._separatorLabel.hidden = true;
+      this._valueLabel.hidden = true;
+      this.collapse();
+      this.eval("(" + this._symbolicName + "=" + currentString + ")");
     }
   },
 
   /**
-   * The key press listener for this variable's editable name textbox.
+   * The key press listener for this variable's editable mode textbox.
    */
-  _onNameInputKeyPress: function V__onNameInputKeyPress(e) {
+  _onInputKeyPress: function V__onInputKeyPress(e) {
     switch(e.keyCode) {
       case e.DOM_VK_RETURN:
       case e.DOM_VK_ENTER:
-        this._saveNameInput(e);
+        this._saveInput(e);
         return;
       case e.DOM_VK_ESCAPE:
-        this._deactivateNameInput(e);
-        return;
-    }
-  },
-
-  /**
-   * The key press listener for this variable's editable value textbox.
-   */
-  _onValueInputKeyPress: function V__onValueInputKeyPress(e) {
-    switch(e.keyCode) {
-      case e.DOM_VK_RETURN:
-      case e.DOM_VK_ENTER:
-        this._saveValueInput(e);
-        return;
-      case e.DOM_VK_ESCAPE:
-        this._deactivateValueInput(e);
+        this._deactivateInput(e);
         return;
     }
   },
@@ -1560,7 +1265,6 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   _initialDescriptor: null,
   _separatorLabel: null,
   _valueLabel: null,
-  _closeNode: null,
   _tooltip: null,
   _valueGrip: null,
   _valueString: "",
@@ -1600,7 +1304,7 @@ create({ constructor: Property, proto: Variable.prototype }, {
     this._idString = generateId(this._nameString = aName);
     this._createScope(aName, "property");
     this._displayVariable(aDescriptor);
-    this._prepareTooltip();
+    this._displayTooltip();
     this._setAttributes(aName, aDescriptor);
     this._addEventListeners();
 
@@ -1646,34 +1350,29 @@ VariablesView.prototype.commitHierarchy = function VV_commitHierarchy() {
     if (currVariable._committed) {
       continue;
     }
-    // Avoid performing expensive operations.
-    if (this.commitHierarchyIgnoredItems[currVariable._nameString]) {
-      continue;
-    }
 
     // Try to get the previous instance of the inspected variable to
     // determine the difference in state.
     let prevVariable = prevHierarchy.get(absoluteName);
-    let expanded = false;
     let changed = false;
 
     // If the inspected variable existed in a previous hierarchy, check if
-    // the displayed value (a representation of the grip) has changed and if
-    // it was previously expanded.
+    // the displayed value (a representation of the grip) has changed.
     if (prevVariable) {
-      expanded = prevVariable._isExpanded;
-      changed = prevVariable._valueString != currVariable._valueString;
+      let prevString = prevVariable._valueString;
+      let currString = currVariable._valueString;
+      changed = prevString != currString;
+
+      // Re-expand the variable if not previously collapsed.
+      if (prevVariable.expanded) {
+        currVariable.expand(true);
+      }
     }
 
     // Make sure this variable is not handled in ulteror commits for the
     // same hierarchy.
     currVariable._committed = true;
 
-    // Re-expand the variable if not previously collapsed.
-    if (expanded) {
-      currVariable._wasToggled = prevVariable._wasToggled;
-      currVariable.expand();
-    }
     // This variable was either not changed or removed, no need to continue.
     if (!changed) {
       continue;
@@ -1692,13 +1391,6 @@ VariablesView.prototype.commitHierarchy = function VV_commitHierarchy() {
     }.bind(this, currVariable.target), LAZY_EMPTY_DELAY + 1);
   }
 };
-
-// Some variables are likely to contain a very large number of properties.
-// It would be a bad idea to re-expand them or perform expensive operations.
-VariablesView.prototype.commitHierarchyIgnoredItems = Object.create(null, {
-  "window": { value: true },
-  "this": { value: true }
-});
 
 /**
  * Returns true if the descriptor represents an undefined, null or
@@ -1729,61 +1421,7 @@ VariablesView.isPrimitive = function VV_isPrimitive(aDescriptor) {
 
   // For convenience, undefined and null are both considered types.
   let type = grip.type;
-  if (type == "undefined" || type == "null") {
-    return true;
-  }
-
-  return false;
-};
-
-/**
- * Returns true if the descriptor represents an undefined value.
- *
- * @param object aDescriptor
- *        The variable's descriptor.
- */
-VariablesView.isUndefined = function VV_isUndefined(aDescriptor) {
-  // For accessor property descriptors, the getter and setter need to be
-  // contained in 'get' and 'set' properties.
-  let getter = aDescriptor.get;
-  let setter = aDescriptor.set;
-  if (typeof getter == "object" && getter.type == "undefined" &&
-      typeof setter == "object" && setter.type == "undefined") {
-    return true;
-  }
-
-  // As described in the remote debugger protocol, the value grip
-  // must be contained in a 'value' property.
-  // For convenience, undefined is considered a type.
-  let grip = aDescriptor.value;
-  if (grip && grip.type == "undefined") {
-    return true;
-  }
-
-  return false;
-};
-
-/**
- * Returns true if the descriptor represents a falsy value.
- *
- * @param object aDescriptor
- *        The variable's descriptor.
- */
-VariablesView.isFalsy = function VV_isFalsy(aDescriptor) {
-  if (!aDescriptor || typeof aDescriptor != "object") {
-    return true;
-  }
-
-  // As described in the remote debugger protocol, the value grip
-  // must be contained in a 'value' property.
-  let grip = aDescriptor.value;
-  if (typeof grip != "object") {
-    return !grip;
-  }
-
-  // For convenience, undefined and null are both considered types.
-  let type = grip.type;
-  if (type == "undefined" || type == "null") {
+  if (["undefined", "null"].indexOf(type + "") != -1) {
     return true;
   }
 
@@ -1880,31 +1518,6 @@ VariablesView.getClass = function VV_getClass(aGrip) {
 };
 
 /**
- * Localization convenience methods.
- */
-let L10N = {
-  /**
-   * L10N shortcut function.
-   *
-   * @param string aName
-   * @return string
-   */
-  getStr: function L10N_getStr(aName) {
-    return this.stringBundle.GetStringFromName(aName);
-  }
-};
-
-XPCOMUtils.defineLazyGetter(L10N, "stringBundle", function() {
-  return Services.strings.createBundle(DBG_STRINGS_URI);
-});
-
-/**
- * The separator label between the variables or properties name and value.
- * This property applies non-recursively to the current scope.
- */
-Scope.prototype.separator = L10N.getStr("variablesSeparatorLabel");
-
-/**
  * A monotonically-increasing counter, that guarantees the uniqueness of scope,
  * variables and properties ids.
  *
@@ -1915,9 +1528,9 @@ Scope.prototype.separator = L10N.getStr("variablesSeparatorLabel");
  */
 let generateId = (function() {
   let count = 0;
-  return function VV_generateId(aName = "") {
+  return function(aName = "") {
     return aName.toLowerCase().trim().replace(/\s+/g, "-") + (++count);
-  };
+  }
 })();
 
 /**

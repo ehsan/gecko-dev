@@ -403,8 +403,6 @@ struct CoverageFormat1
       glyphs->add (glyphArray[i]);
   }
 
-  public:
-  /* Older compilers need this to be public. */
   struct Iter {
     inline void init (const struct CoverageFormat1 &c_) { c = &c_; i = 0; };
     inline bool more (void) { return i < c->glyphArray.len; }
@@ -416,7 +414,6 @@ struct CoverageFormat1
     const struct CoverageFormat1 *c;
     unsigned int i;
   };
-  private:
 
   protected:
   USHORT	coverageFormat;	/* Format identifier--format = 1 */
@@ -500,8 +497,6 @@ struct CoverageFormat2
       rangeRecord[i].add_coverage (glyphs);
   }
 
-  public:
-  /* Older compilers need this to be public. */
   struct Iter {
     inline void init (const CoverageFormat2 &c_) {
       c = &c_;
@@ -527,7 +522,6 @@ struct CoverageFormat2
     const struct CoverageFormat2 *c;
     unsigned int i, j, coverage;
   };
-  private:
 
   protected:
   USHORT	coverageFormat;	/* Format identifier--format = 2 */

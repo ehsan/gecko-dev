@@ -8,13 +8,13 @@
 #include "Accessible-inl.h"
 #include "HTMLFormControlAccessible.h"
 #include "nsAccUtils.h"
+#include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
 #include "DocAccessible.h"
 #include "nsIAccessibleRelation.h"
 #include "Relation.h"
 #include "Role.h"
 #include "States.h"
-#include "TreeWalker.h"
 #include "XULMenuAccessible.h"
 
 #include "nsIDOMNSEditableElement.h"
@@ -40,7 +40,7 @@ XULButtonAccessible::
   AccessibleWrap(aContent, aDoc)
 {
   if (ContainsMenu())
-    mGenericTypes |= eMenuButton;
+    mFlags |= eMenuButtonAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +188,7 @@ XULButtonAccessible::CacheChildren()
   Accessible* menupopup = nullptr;
   Accessible* button = nullptr;
 
-  TreeWalker walker(this, mContent);
+  nsAccTreeWalker walker(mDoc, mContent, true);
 
   Accessible* child = nullptr;
   while ((child = walker.NextChild())) {
@@ -827,7 +827,7 @@ XULTextFieldAccessible::CacheChildren()
   if (!inputContent)
     return;
 
-  TreeWalker walker(this, inputContent);
+  nsAccTreeWalker walker(mDoc, inputContent, false);
 
   Accessible* child = nullptr;
   while ((child = walker.NextChild()) && AppendChild(child));

@@ -6,13 +6,10 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "Accessible-inl.h"
 #include "HyperTextAccessible.h"
 #include "nsMai.h"
 #include "nsMaiHyperlink.h"
 #include "mozilla/Likely.h"
-
-using namespace mozilla::a11y;
 
 extern "C" {
 

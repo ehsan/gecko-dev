@@ -355,8 +355,6 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
                          ".file > img {\n"
                          "  -moz-margin-end: 4px;\n"
                          "  -moz-margin-start: -20px;\n"
-                         "  max-width: 16px;\n"
-                         "  max-height: 16px;\n"
                          "  vertical-align: middle;\n"
                          "}\n"
                          ".dir::before {\n"

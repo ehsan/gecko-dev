@@ -33,6 +33,7 @@
 
 
 using namespace mozilla;
+MOZ_MTLOG_MODULE("mtransport");
 
 MtransportTestUtils *test_utils;
 static bool sctp_logging = false;
@@ -80,13 +81,6 @@ class TransportTestPeer : public sigslot::has_slots<> {
     int r = usrsctp_set_non_blocking(sctp_, 1);
     EXPECT_GE(r, 0);
 
-    struct linger l;
-    l.l_onoff = 1;
-    l.l_linger = 0;
-    r = usrsctp_setsockopt(sctp_, SOL_SOCKET, SO_LINGER, &l,
-                       (socklen_t)sizeof(l));
-    EXPECT_GE(r, 0);
-
     struct sctp_event subscription;
     memset(&subscription, 0, sizeof(subscription));
     subscription.se_assoc_id = SCTP_ALL_ASSOC;
@@ -98,7 +92,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
     memset(&local_addr_, 0, sizeof(local_addr_));
     local_addr_.sconn_family = AF_CONN;
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows) && !defined(__Userspace_os_Android)
+#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
     local_addr_.sconn_len = sizeof(struct sockaddr_conn);
 #endif
     local_addr_.sconn_port = htons(local_port);
@@ -107,7 +101,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
     memset(&remote_addr_, 0, sizeof(remote_addr_));
     remote_addr_.sconn_family = AF_CONN;
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows) && !defined(__Userspace_os_Android)
+#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
     remote_addr_.sconn_len = sizeof(struct sockaddr_conn);
 #endif
     remote_addr_.sconn_port = htons(remote_port);

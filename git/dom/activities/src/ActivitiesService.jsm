@@ -11,7 +11,6 @@ const Ci = Components.interfaces;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
-Cu.import("resource://gre/modules/ActivitiesServiceFilter.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
@@ -259,8 +258,17 @@ let Activities = {
     };
 
     let matchFunc = function matchFunc(aResult) {
-      return ActivitiesServiceFilter.match(aMsg.options.data,
-                                           aResult.description.filters);
+      // Bug 773383: arrays of strings / regexp.
+      for (let prop in aResult.description.filters) {
+        if (Array.isArray(aResult.description.filters[prop])) {
+          if (aResult.description.filters[prop].indexOf(aMsg.options.data[prop]) == -1) {
+            return false;
+          }
+        } else if (aResult.description.filters[prop] !== aMsg.options.data[prop] ) {
+          return false;
+        }
+      }
+      return true;
     };
 
     this.db.find(aMsg, successCb, errorCb, matchFunc);

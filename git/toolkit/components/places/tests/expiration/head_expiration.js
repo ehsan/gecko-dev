@@ -43,16 +43,11 @@ function force_expiration_start() {
  * @param [optional] aLimit
  *        Limit for the expiration.  Pass -1 for unlimited.
  *        Any other non-positive value will just expire orphans.
- *
- * @return {Promise}
- * @resolves When expiration finishes.
- * @rejects Never.
  */
-function promiseForceExpirationStep(aLimit) {
-  let promise = promiseTopicObserved(PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+function force_expiration_step(aLimit) {
+  const TOPIC_DEBUG_START_EXPIRATION = "places-debug-start-expiration";
   let expire = Cc["@mozilla.org/places/expiration;1"].getService(Ci.nsIObserver);
-  expire.observe(null, "places-debug-start-expiration", aLimit);
-  return promise;
+  expire.observe(null, TOPIC_DEBUG_START_EXPIRATION, aLimit);
 }
 
 

@@ -4,9 +4,3 @@ jssubloader/
 #ifdef XP_MACOSX
 run-mozilla.sh
 #endif
-#ifdef XP_WIN
-  mozcrt19.dll
-  mozcpp19.dll
-#endif
-defaults/preferences/services-sync.js
-defaults/preferences/healthreport-prefs.js

@@ -42,7 +42,6 @@ namespace dom {
 class TabChild;
 }
 namespace layers {
-class Composer2D;
 class CompositorChild;
 class LayerManager;
 class PLayersChild;
@@ -92,8 +91,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0x476D5716, 0xE225, 0x4497, \
-    { 0x80, 0x41, 0x92, 0xF8, 0x67, 0x59, 0xC4, 0x38 } }
+  { 0xb7c60bda, 0xe16c, 0x4e89, \
+    { 0x86, 0x8c, 0xc3, 0x2e, 0x62, 0x40, 0x05, 0xb2 } }
 
 /*
  * Window shadow styles
@@ -187,12 +186,12 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 /**
  * Preference for receiving IME updates
  *
- * If mWantUpdates is true, nsTextStateManager will observe text change and
- * selection change and call nsIWidget::OnIMETextChange() and
- * nsIWidget::OnIMESelectionChange(). The observing cost is very expensive.
- * If the IME implementation on a particular platform doesn't care about
- * OnIMETextChange and OnIMESelectionChange, they should set mWantUpdates to
- * false to avoid the cost.
+ * If mWantUpdates is true, PuppetWidget will forward
+ * nsIWidget::OnIMETextChange and nsIWidget::OnIMESelectionChange to the chrome
+ * process. This incurs overhead from observers and IPDL. If the IME
+ * implementation on a particular platform doesn't care about OnIMETextChange
+ * and OnIMESelectionChange from content processes, they should set
+ * mWantUpdates to false to avoid these overheads.
  *
  * If mWantHints is true, PuppetWidget will forward the content of text fields
  * to the chrome process to be cached. This way we return the cached content
@@ -414,7 +413,6 @@ class nsIWidget : public nsISupports {
     typedef mozilla::dom::TabChild TabChild;
 
   public:
-    typedef mozilla::layers::Composer2D Composer2D;
     typedef mozilla::layers::CompositorChild CompositorChild;
     typedef mozilla::layers::LayerManager LayerManager;
     typedef mozilla::layers::LayersBackend LayersBackend;
@@ -689,25 +687,6 @@ class nsIWidget : public nsISupports {
                                  int32_t *aY) = 0;
 
     /**
-     * NOTE:
-     *
-     * For a top-level window widget, the "parent's coordinate system" is the
-     * "global" display pixel coordinate space, *not* device pixels (which
-     * may be inconsistent between multiple screens, at least in the Mac OS
-     * case with mixed hi-dpi and lo-dpi displays). This applies to all the
-     * following Move and Resize widget APIs.
-     *
-     * The display-/device-pixel distinction becomes important for (at least)
-     * Mac OS X with Hi-DPI (retina) displays, and Windows when the UI scale
-     * factor is set to other than 100%.
-     *
-     * The Move and Resize methods take floating-point parameters, rather than
-     * integer ones. This is important when manipulating top-level widgets,
-     * where the coordinate system may not be an integral multiple of the
-     * device-pixel space.
-     **/
-
-    /**
      * Move this widget.
      *
      * Coordinates refer to the top-left of the widget.  For toplevel windows
@@ -717,7 +696,7 @@ class nsIWidget : public nsISupports {
      * @param aY the new y position expressed in the parent's coordinate system
      *
      **/
-    NS_IMETHOD Move(double aX, double aY) = 0;
+    NS_IMETHOD Move(int32_t aX, int32_t aY) = 0;
 
     /**
      * Reposition this widget so that the client area has the given offset.
@@ -732,7 +711,7 @@ class nsIWidget : public nsISupports {
      *                 screen coordinates)
      *
      **/
-    NS_IMETHOD MoveClient(double aX, double aY) = 0;
+    NS_IMETHOD MoveClient(int32_t aX, int32_t aY) = 0;
 
     /**
      * Resize this widget. Any size constraints set for the window by a
@@ -743,9 +722,9 @@ class nsIWidget : public nsISupports {
      * @param aRepaint whether the widget should be repainted
      *
      */
-    NS_IMETHOD Resize(double aWidth,
-                      double aHeight,
-                      bool   aRepaint) = 0;
+    NS_IMETHOD Resize(int32_t aWidth,
+                      int32_t aHeight,
+                      bool     aRepaint) = 0;
 
     /**
      * Move or resize this widget. Any size constraints set for the window by
@@ -758,11 +737,11 @@ class nsIWidget : public nsISupports {
      * @param aRepaint whether the widget should be repainted if the size changes
      *
      */
-    NS_IMETHOD Resize(double aX,
-                      double aY,
-                      double aWidth,
-                      double aHeight,
-                      bool   aRepaint) = 0;
+    NS_IMETHOD Resize(int32_t aX,
+                      int32_t aY,
+                      int32_t aWidth,
+                      int32_t aHeight,
+                      bool     aRepaint) = 0;
 
     /**
      * Resize the widget so that the inner client area has the given size.
@@ -772,9 +751,9 @@ class nsIWidget : public nsISupports {
      * @param aRepaint whether the widget should be repainted
      *
      */
-    NS_IMETHOD ResizeClient(double aWidth,
-                            double aHeight,
-                            bool   aRepaint) = 0;
+    NS_IMETHOD ResizeClient(int32_t aWidth,
+                            int32_t aHeight,
+                            bool  aRepaint) = 0;
 
     /**
      * Resize and reposition the widget so tht inner client area has the given
@@ -793,11 +772,11 @@ class nsIWidget : public nsISupports {
      * @param aRepaint whether the widget should be repainted
      *
      */
-    NS_IMETHOD ResizeClient(double aX,
-                            double aY,
-                            double aWidth,
-                            double aHeight,
-                            bool   aRepaint) = 0;
+    NS_IMETHOD ResizeClient(int32_t aX,
+                            int32_t aY,
+                            int32_t aWidth,
+                            int32_t aHeight,
+                            bool    aRepaint) = 0;
 
     /**
      * Sets the widget's z-index.
@@ -1518,9 +1497,9 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD_(InputContext) GetInputContext() = 0;
 
     /**
-     * Set layers acceleration to 'True' or 'False'
+     * Set accelerated rendering to 'True' or 'False'
      */
-    NS_IMETHOD SetLayersAcceleration(bool aEnabled) = 0;
+    NS_IMETHOD SetAcceleratedRendering(bool aEnabled) = 0;
 
     /*
      * Get toggled key states.
@@ -1538,6 +1517,9 @@ class nsIWidget : public nsISupports {
      *  is receiving or giving up focus
      * aFocus is true if node is receiving focus
      * aFocus is false if node is giving up focus (blur)
+     *
+     * If this returns NS_ERROR_*, OnIMETextChange and OnIMESelectionChange
+     * will be never called.
      */
     NS_IMETHOD OnIMEFocusChange(bool aFocus) = 0;
 
@@ -1692,16 +1674,6 @@ class nsIWidget : public nsISupports {
      * return the compositor which is doing that on our behalf.
      */
     virtual CompositorChild* GetRemoteRenderer()
-    { return nullptr; }
-
-    /**
-     * If this widget has a more efficient composer available for its
-     * native framebuffer, return it.
-     *
-     * This can be called from a non-main thread, but that thread must
-     * hold a strong reference to this.
-     */
-    virtual Composer2D* GetComposer2D()
     { return nullptr; }
 
 protected:

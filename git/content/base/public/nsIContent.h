@@ -27,9 +27,10 @@ struct IMEState;
 } // namespace mozilla
 
 enum nsLinkState {
+  eLinkState_Unknown    = 0,
   eLinkState_Unvisited  = 1,
   eLinkState_Visited    = 2,
-  eLinkState_NotLink    = 3 
+  eLinkState_NotLink    = 3
 };
 
 // IID for the nsIContent interface

@@ -12,12 +12,6 @@
 
 #include "DocAccessible.h"
 
-namespace mozilla {
-namespace a11y {
-
 typedef DocAccessible DocAccessibleWrap;
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

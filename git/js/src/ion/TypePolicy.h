@@ -77,6 +77,14 @@ class BitwisePolicy : public BoxInputsPolicy
 
 class ComparePolicy : public BoxInputsPolicy
 {
+  protected:
+    MIRType specialization_;
+
+  public:
+    ComparePolicy()
+      : specialization_(MIRType_None)
+    { }
+
     bool adjustInputs(MInstruction *def);
 };
 
@@ -182,8 +190,8 @@ class CallSetElementPolicy : public SingleObjectPolicy
     bool adjustInputs(MInstruction *def);
 };
 
-// First operand will be boxed to a Value (except for an object)
-// Second operand (if specified) will forcefully be unboxed to an object
+// First operand will be boxed to an Value (except for an object)
+// Second operand will forcefully be unboxed to an object
 class InstanceOfPolicy : public TypePolicy
 {
   public:

@@ -25,23 +25,21 @@
     _(NewArray)                     \
     _(NewObject)                    \
     _(NewSlots)                     \
-    _(NewDeclEnvObject)             \
     _(NewCallObject)                \
     _(NewStringObject)              \
     _(InitProp)                     \
     _(CheckOverRecursed)            \
     _(RecompileCheck)               \
     _(DefVar)                       \
-    _(DefFun)                       \
     _(CallKnown)                    \
     _(CallGeneric)                  \
     _(CallNative)                   \
+    _(CallConstructor)              \
     _(ApplyArgsGeneric)             \
     _(StackArgT)                    \
     _(StackArgV)                    \
-    _(CreateThisV)                  \
-    _(CreateThisO)                  \
-    _(CreateThisWithTemplate)       \
+    _(CreateThis)                   \
+    _(CreateThisVM)                 \
     _(ReturnFromCtor)               \
     _(BitNotI)                      \
     _(BitNotV)                      \
@@ -55,22 +53,17 @@
     _(TestIAndBranch)               \
     _(TestDAndBranch)               \
     _(TestVAndBranch)               \
-    _(TestOAndBranch)               \
     _(PolyInlineDispatch)           \
     _(Compare)                      \
-    _(CompareAndBranch)             \
     _(CompareD)                     \
-    _(CompareDAndBranch)            \
     _(CompareS)                     \
+    _(CompareV)                     \
+    _(CompareAndBranch)             \
+    _(CompareDAndBranch)            \
     _(CompareB)                     \
     _(CompareBAndBranch)            \
-    _(CompareV)                     \
-    _(CompareVAndBranch)            \
-    _(CompareVM)                    \
-    _(IsNullOrLikeUndefined)        \
-    _(IsNullOrLikeUndefinedAndBranch)\
-    _(EmulatesUndefined)            \
-    _(EmulatesUndefinedAndBranch)   \
+    _(IsNullOrUndefined)            \
+    _(IsNullOrUndefinedAndBranch)   \
     _(MinMaxI)                      \
     _(MinMaxD)                      \
     _(NegD)                         \
@@ -83,7 +76,6 @@
     _(MathFunctionD)                \
     _(NotI)                         \
     _(NotD)                         \
-    _(NotO)                         \
     _(NotV)                         \
     _(AddI)                         \
     _(SubI)                         \
@@ -153,7 +145,6 @@
     _(BindNameCache)                \
     _(CallGetProperty)              \
     _(GetNameCache)                 \
-    _(CallGetIntrinsicValue)        \
     _(CallGetElement)               \
     _(CallSetElement)               \
     _(CallSetProperty)              \
@@ -176,10 +167,8 @@
     _(Floor)                        \
     _(Round)                        \
     _(In)                           \
-    _(InArray)                      \
     _(InstanceOfO)                  \
     _(InstanceOfV)                  \
-    _(CallInstanceOf)               \
     _(InterruptCheck)               \
     _(FunctionBoundary)             \
     _(GetDOMProperty)               \

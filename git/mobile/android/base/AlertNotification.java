@@ -55,10 +55,6 @@ public class AlertNotification
         mNotificationManager.notify(mId, this);
     }
 
-    public void cancel() {
-        mNotificationManager.cancel(mId);
-    }
-
     public void setCustomIcon(Uri aIconUri) {
         if (aIconUri == null || aIconUri.getScheme() == null)
             return;

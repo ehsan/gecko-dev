@@ -488,13 +488,13 @@ nsTableRowFrame::CalcHeight(const nsHTMLReflowState& aReflowState)
   ResetHeight(computedHeight);
 
   const nsStylePosition* position = GetStylePosition();
-  if (position->mHeight.ConvertsToLength()) {
-    SetFixedHeight(nsRuleNode::ComputeCoordPercentCalc(position->mHeight, 0));
+  if (eStyleUnit_Coord == position->mHeight.GetUnit()) {
+    SetFixedHeight(position->mHeight.GetCoordValue());
   }
   else if (eStyleUnit_Percent == position->mHeight.GetUnit()) {
     SetPctHeight(position->mHeight.GetPercentValue());
   }
-  // calc() with percentages is treated like 'auto' on table rows.
+  // calc() is treated like 'auto' on table rows.
 
   for (nsIFrame* kidFrame = mFrames.FirstChild(); kidFrame;
        kidFrame = kidFrame->GetNextSibling()) {
@@ -606,13 +606,6 @@ nsTableRowFrame::CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
   int32_t rowSpan = tableFrame->GetEffectiveRowSpan(*aCellFrame);
   
   switch (position->mHeight.GetUnit()) {
-    case eStyleUnit_Calc: {
-      if (position->mHeight.CalcHasPercent()) {
-        // Treat this like "auto"
-        break;
-      }
-      // Fall through to the coord case
-    }
     case eStyleUnit_Coord: {
       nscoord outsideBoxSizing = 0;
       // In quirks mode, table cell width should be content-box, but height
@@ -634,9 +627,7 @@ nsTableRowFrame::CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
         }
       }
 
-      specifiedHeight =
-        nsRuleNode::ComputeCoordPercentCalc(position->mHeight, 0) +
-          outsideBoxSizing;
+      specifiedHeight = position->mHeight.GetCoordValue() + outsideBoxSizing;
 
       if (1 == rowSpan) 
         SetFixedHeight(specifiedHeight);
@@ -649,7 +640,7 @@ nsTableRowFrame::CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
       break;
     }
     case eStyleUnit_Auto:
-    default:
+    default: // includes calc(), which we treat like 'auto'
       break;
   }
 
@@ -801,7 +792,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       nsHTMLReflowMetrics desiredSize;
       nsReflowStatus  status;
       ReflowChild(kidFrame, aPresContext, desiredSize, kidReflowState, 0, 0, 0, status);
-      kidFrame->DidReflow(aPresContext, nullptr, nsDidReflowStatus::FINISHED);
+      kidFrame->DidReflow(aPresContext, nullptr, NS_FRAME_REFLOW_FINISHED);
 
       continue;
     }
@@ -1095,7 +1086,7 @@ nsTableRowFrame::ReflowCellFrame(nsPresContext*          aPresContext,
                                      (aCellFrame->GetStateBits() &
                                       NS_FRAME_FIRST_REFLOW) != 0);
   
-  aCellFrame->DidReflow(aPresContext, nullptr, nsDidReflowStatus::FINISHED);
+  aCellFrame->DidReflow(aPresContext, nullptr, NS_FRAME_REFLOW_FINISHED);
 
   return desiredSize.height;
 }
@@ -1357,7 +1348,7 @@ void nsTableRowFrame::SetContinuousBCBorderWidth(uint8_t     aForSide,
 a11y::AccType
 nsTableRowFrame::AccessibleType()
 {
-  return a11y::eHTMLTableRowType;
+  return a11y::eHTMLTableRowAccessible;
 }
 #endif
 /**
@@ -1379,8 +1370,7 @@ void nsTableRowFrame::InitHasCellWithStyleHeight(nsTableFrame* aTableFrame)
     const nsStyleCoord &cellHeight = cellFrame->GetStylePosition()->mHeight;
     if (aTableFrame->GetEffectiveRowSpan(*cellFrame) == 1 &&
         cellHeight.GetUnit() != eStyleUnit_Auto &&
-         /* calc() with percentages treated like 'auto' */
-        (!cellHeight.IsCalcUnit() || !cellHeight.HasPercent())) {
+        !cellHeight.IsCalcUnit() /* calc() treated like 'auto' */) {
       AddStateBits(NS_ROW_HAS_CELL_WITH_STYLE_HEIGHT);
       return;
     }

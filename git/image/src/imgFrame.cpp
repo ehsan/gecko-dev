@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -790,9 +790,6 @@ void imgFrame::SetCompositingFailed(bool val)
   mCompositingFailed = val;
 }
 
-// If |aLocation| indicates this is heap memory, we try to measure things with
-// |aMallocSizeOf|.  If that fails (because the platform doesn't support it) or
-// it's non-heap memory, we fall back to computing the size analytically.
 size_t
 imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation, nsMallocSizeOfFun aMallocSizeOf) const
 {
@@ -806,13 +803,14 @@ imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxASurface::MemoryLocat
   size_t n = 0;
 
   if (mPalettedImageData && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
-    size_t n2 = aMallocSizeOf(mPalettedImageData);
-    if (n2 == 0) {
-      n2 = GetImageDataLength() + PaletteDataLength();
+    size_t usable = aMallocSizeOf(mPalettedImageData);
+    if (!usable) {
+      usable = GetImageDataLength() + PaletteDataLength();
     }
-    n += n2;
+    n += usable;
   }
 
+  // XXX: should pass aMallocSizeOf here.  See bug 723827.
 #ifdef USE_WIN_SURFACE
   if (mWinSurface && aLocation == mWinSurface->GetMemoryLocation()) {
     n += mWinSurface->KnownMemoryUsed();
@@ -824,27 +822,11 @@ imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxASurface::MemoryLocat
   } else
 #endif
   if (mImageSurface && aLocation == mImageSurface->GetMemoryLocation()) {
-    size_t n2 = 0;
-    if (aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) { // HEAP: measure
-      n2 = mImageSurface->SizeOfIncludingThis(aMallocSizeOf);
-    }
-    if (n2 == 0) {  // non-HEAP or computed fallback for HEAP
-      n2 = mImageSurface->KnownMemoryUsed();
-    }
-    n += n2;
+    n += mImageSurface->KnownMemoryUsed();
   }
 
   if (mOptSurface && aLocation == mOptSurface->GetMemoryLocation()) {
-    size_t n2 = 0;
-    if (aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP &&
-        mOptSurface->SizeOfIsMeasured()) {
-      // HEAP: measure (but only if the sub-class is capable of measuring)
-      n2 = mOptSurface->SizeOfIncludingThis(aMallocSizeOf);
-    }
-    if (n2 == 0) {  // non-HEAP or computed fallback for HEAP
-      n2 = mOptSurface->KnownMemoryUsed();
-    }
-    n += n2;
+    n += mOptSurface->KnownMemoryUsed();
   }
 
   return n;

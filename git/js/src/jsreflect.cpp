@@ -5,11 +5,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* JS reflection package. */
-
+/*
+ * JS reflection package.
+ */
 #include <stdlib.h>
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
 #include "jspubtd.h"
@@ -34,10 +34,12 @@
 using namespace js;
 using namespace js::frontend;
 
-using mozilla::ArrayLength;
 using mozilla::DebugOnly;
+using mozilla::ArrayLength;
 
-char const *js::aopNames[] = {
+namespace js {
+
+char const *aopNames[] = {
     "=",    /* AOP_ASSIGN */
     "+=",   /* AOP_PLUS */
     "-=",   /* AOP_MINUS */
@@ -52,7 +54,7 @@ char const *js::aopNames[] = {
     "&="    /* AOP_BITAND */
 };
 
-char const *js::binopNames[] = {
+char const *binopNames[] = {
     "==",         /* BINOP_EQ */
     "!=",         /* BINOP_NE */
     "===",        /* BINOP_STRICTEQ */
@@ -77,7 +79,7 @@ char const *js::binopNames[] = {
     "..",         /* BINOP_DBLDOT */
 };
 
-char const *js::unopNames[] = {
+char const *unopNames[] = {
     "delete",  /* UNOP_DELETE */
     "-",       /* UNOP_NEG */
     "+",       /* UNOP_POS */
@@ -87,14 +89,14 @@ char const *js::unopNames[] = {
     "void"     /* UNOP_VOID */
 };
 
-char const *js::nodeTypeNames[] = {
+char const *nodeTypeNames[] = {
 #define ASTDEF(ast, str, method) str,
 #include "jsast.tbl"
 #undef ASTDEF
     NULL
 };
 
-static char const *callbackNames[] = {
+char const *callbackNames[] = {
 #define ASTDEF(ast, str, method) method,
 #include "jsast.tbl"
 #undef ASTDEF
@@ -584,7 +586,7 @@ class NodeBuilder
 
     bool yieldExpression(HandleValue arg, TokenPos *pos, MutableHandleValue dst);
 
-    bool comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, bool isForOf, TokenPos *pos,
+    bool comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, TokenPos *pos,
                             MutableHandleValue dst);
 
     bool comprehensionExpression(HandleValue body, NodeVector &blocks, HandleValue filter,
@@ -1272,21 +1274,19 @@ NodeBuilder::yieldExpression(HandleValue arg, TokenPos *pos, MutableHandleValue 
 }
 
 bool
-NodeBuilder::comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, bool isForOf, TokenPos *pos,
+NodeBuilder::comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, TokenPos *pos,
                                 MutableHandleValue dst)
 {
     RootedValue isForEachVal(cx, BooleanValue(isForEach));
-    RootedValue isForOfVal(cx, BooleanValue(isForOf));
 
     RootedValue cb(cx, callbacks[AST_COMP_BLOCK]);
     if (!cb.isNull())
-        return callback(cb, patt, src, isForEachVal, isForOfVal, pos, dst);
+        return callback(cb, patt, src, isForEachVal, pos, dst);
 
     return newNode(AST_COMP_BLOCK, pos,
                    "left", patt,
                    "right", src,
                    "each", isForEachVal,
-                   "of", isForOfVal,
                    dst);
 }
 
@@ -1685,11 +1685,13 @@ NodeBuilder::xmlPI(HandleValue target, HandleValue contents, TokenPos *pos, Muta
                    dst);
 }
 
+
 /*
  * Serialization of parse nodes to JavaScript objects.
  *
  * All serialization methods take a non-nullable ParseNode pointer.
  */
+
 class ASTSerializer
 {
     JSContext           *cx;
@@ -2488,12 +2490,11 @@ ASTSerializer::comprehensionBlock(ParseNode *pn, MutableHandleValue dst)
     LOCAL_ASSERT(in && in->isKind(PNK_FORIN));
 
     bool isForEach = pn->pn_iflags & JSITER_FOREACH;
-    bool isForOf = pn->pn_iflags & JSITER_FOR_OF;
 
     RootedValue patt(cx), src(cx);
     return pattern(in->pn_kid2, NULL, &patt) &&
            expression(in->pn_kid3, &src) &&
-           builder.comprehensionBlock(patt, src, isForEach, isForOf, &in->pn_pos, dst);
+           builder.comprehensionBlock(patt, src, isForEach, &in->pn_pos, dst);
 }
 
 bool
@@ -3385,6 +3386,8 @@ ASTSerializer::functionBody(ParseNode *pn, TokenPos *pos, MutableHandleValue dst
     return builder.blockStatement(elts, pos, dst);
 }
 
+} /* namespace js */
+
 static JSBool
 reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 {
@@ -3398,7 +3401,8 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     if (!src)
         return JS_FALSE;
 
-    js::ScopedFreePtr<char> filename;
+    char *filename = NULL;
+    AutoReleaseNullablePtr filenamep(filename);
     uint32_t lineno = 1;
     bool loc = true;
 
@@ -3445,6 +3449,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
                 filename = DeflateString(cx, chars, length);
                 if (!filename)
                     return JS_FALSE;
+                filenamep.reset(filename);
             }
 
             /* config.line */
@@ -3509,6 +3514,7 @@ static JSFunctionSpec static_methods[] = {
     JS_FN("parse", reflect_parse, 1, 0),
     JS_FS_END
 };
+
 
 JS_PUBLIC_API(JSObject *)
 JS_InitReflect(JSContext *cx, JSObject *objArg)

@@ -260,7 +260,7 @@ public:
   virtual ~nsContentList();
 
   // nsWrapperCache
-  using nsWrapperCache::GetWrapperPreserveColor;
+  using nsWrapperCache::GetWrapper;
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap);
 
@@ -276,7 +276,7 @@ public:
   }
 
   virtual nsIContent* Item(uint32_t aIndex);
-  virtual mozilla::dom::Element* GetElementAt(uint32_t index);
+  virtual nsGenericElement* GetElementAt(uint32_t index);
   virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
                               mozilla::ErrorResult& error);
   virtual void GetSupportedNames(nsTArray<nsString>& aNames);

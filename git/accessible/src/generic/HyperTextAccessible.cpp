@@ -41,7 +41,7 @@ HyperTextAccessible::
   HyperTextAccessible(nsIContent* aNode, DocAccessible* aDoc) :
   AccessibleWrap(aNode, aDoc)
 {
-  mGenericTypes |= eHyperText;
+  mFlags |= eHyperTextAccessible;
 }
 
 NS_IMPL_ADDREF_INHERITED(HyperTextAccessible, AccessibleWrap)
@@ -1217,8 +1217,7 @@ HyperTextAccessible::GetRangeExtents(int32_t aStartOffset, int32_t aEndOffset,
   *aWidth = boundsRect.width;
   *aHeight = boundsRect.height;
 
-  nsAccUtils::ConvertScreenCoordsTo(aX, aY, aCoordType, this);
-  return NS_OK;
+  return nsAccUtils::ConvertScreenCoordsTo(aX, aY, aCoordType, this);
 }
 
 /*
@@ -1239,8 +1238,10 @@ HyperTextAccessible::GetOffsetAtPoint(int32_t aX, int32_t aY,
     return NS_ERROR_FAILURE;
   }
 
-  nsIntPoint coords = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordType,
-                                                        this);
+  nsIntPoint coords;
+  nsresult rv = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordType,
+                                                  this, &coords);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsPresContext* presContext = mDoc->PresContext();
   nsPoint coordsInAppUnits =
@@ -1899,11 +1900,13 @@ HyperTextAccessible::ScrollSubstringToPoint(int32_t aStartIndex,
   if (!frame)
     return NS_ERROR_FAILURE;
 
-  nsIntPoint coords = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordinateType,
-                                                        this);
+  nsIntPoint coords;
+  nsresult rv = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordinateType,
+                                                  this, &coords);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<nsRange> range = new nsRange();
-  nsresult rv = HypertextOffsetsToDOMRange(aStartIndex, aEndIndex, range);
+  rv = HypertextOffsetsToDOMRange(aStartIndex, aEndIndex, range);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsPresContext* presContext = frame->PresContext();

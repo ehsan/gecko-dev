@@ -11,6 +11,7 @@
 #include "nsPIPlacesHistoryListenersNotifier.h"
 #include "nsIBrowserHistory.h"
 #include "nsINavBookmarksService.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsIFaviconService.h"
 
 #include "nsIObserverService.h"
@@ -35,6 +36,10 @@
 #define QUERYUPDATE_COMPLEX 2
 #define QUERYUPDATE_COMPLEX_WITH_BOOKMARKS 3
 #define QUERYUPDATE_HOST 4
+
+// This magic number specified an uninitialized value for the
+// mInPrivateBrowsing member
+#define PRIVATEBROWSING_NOTINITED (bool(0xffffffff))
 
 // Clamp title and URL to generously large, but not too large, length.
 // See bug 319004 for details.
@@ -199,7 +204,7 @@ public:
 
   // Returns whether history is enabled or not.
   bool IsHistoryDisabled() {
-    return !mHistoryEnabled;
+    return !mHistoryEnabled || InPrivateBrowsingMode();
   }
 
   // Constants for the columns returned by the above statement.
@@ -217,7 +222,6 @@ public:
   static const int32_t kGetInfoIndex_ItemParentId;
   static const int32_t kGetInfoIndex_ItemTags;
   static const int32_t kGetInfoIndex_Frecency;
-  static const int32_t kGetInfoIndex_Hidden;
 
   int64_t GetTagsFolder();
 
@@ -289,6 +293,21 @@ public:
   nsresult QueryStringToQueryArray(const nsACString& aQueryString,
                                    nsCOMArray<nsNavHistoryQuery>* aQueries,
                                    nsNavHistoryQueryOptions** aOptions);
+
+  // Returns true if we are currently in private browsing mode
+  bool InPrivateBrowsingMode()
+  {
+    if (mInPrivateBrowsing == PRIVATEBROWSING_NOTINITED) {
+      mInPrivateBrowsing = false;
+      nsCOMPtr<nsIPrivateBrowsingService> pbs =
+        do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+      if (pbs) {
+        pbs->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
+      }
+    }
+
+    return mInPrivateBrowsing;
+  }
 
   typedef nsDataHashtable<nsCStringHashKey, nsCString> StringHash;
 
@@ -412,8 +431,7 @@ public:
                      int64_t aSessionID,
                      int64_t referringVisitID,
                      int32_t aTransitionType,
-                     const nsACString& aGUID,
-                     bool aHidden);
+                     const nsACString& aGUID);
 
   /**
    * Fires onTitleChanged event to nsINavHistoryService observers
@@ -599,6 +617,8 @@ protected:
                            nsNavHistoryQueryOptions* aOptions);
 
   int64_t mTagsFolder;
+
+  bool mInPrivateBrowsing;
 
   int8_t mHasHistoryEntries;
 

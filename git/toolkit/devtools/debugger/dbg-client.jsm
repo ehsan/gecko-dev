@@ -12,8 +12,7 @@ const Cr = Components.results;
 
 this.EXPORTED_SYMBOLS = ["DebuggerTransport",
                          "DebuggerClient",
-                         "debuggerSocketConnect",
-                         "LongStringClient"];
+                         "debuggerSocketConnect"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -480,10 +479,9 @@ DebuggerClient.prototype = {
         this._threadClients[aPacket.from]._onThreadState(aPacket);
       }
       // On navigation the server resumes, so the client must resume as well.
-      // We achieve that by generating a fake resumption packet that triggers
+      // We achive that by generating a fake resumption packet that triggers
       // the client's thread state change listeners.
-      if (this.activeThread &&
-          aPacket.type == UnsolicitedNotifications.tabNavigated &&
+      if (aPacket.type == UnsolicitedNotifications.tabNavigated &&
           aPacket.from in this._tabClients) {
         let resumption = { from: this.activeThread._actor, type: "resumed" };
         this.activeThread._onThreadState(resumption);
@@ -810,21 +808,6 @@ ThreadClient.prototype = {
   },
 
   /**
-   * Promote multiple pause-lifetime object actors to thread-lifetime ones.
-   *
-   * @param array aActors
-   *        An array with actor IDs to promote.
-   */
-  threadGrips: function TC_threadGrips(aActors, aOnResponse) {
-    let packet = {
-      to: this._actor,
-      type: "threadGrips",
-      actors: aActors
-    };
-    this._client.request(packet, aOnResponse);
-  },
-
-  /**
    * Request the loaded scripts for the current thread.
    *
    * @param aOnResponse integer
@@ -1090,19 +1073,17 @@ GripClient.prototype = {
   valid: true,
 
   /**
-   * Request the names of a function's formal parameters.
+   * Request the name of the function and its formal parameters.
    *
    * @param aOnResponse function
-   *        Called with an object of the form:
-   *        { parameterNames:[<parameterName>, ...] }
-   *        where each <parameterName> is the name of a parameter.
+   *        Called with the request's response.
    */
-  getParameterNames: function GC_getParameterNames(aOnResponse) {
+  getSignature: function GC_getSignature(aOnResponse) {
     if (this._grip["class"] !== "Function") {
-      throw "getParameterNames is only valid for function grips.";
+      throw "getSignature is only valid for function grips.";
     }
 
-    let packet = { to: this.actor, type: "parameterNames" };
+    let packet = { to: this.actor, type: "nameAndParameters" };
     this._client.request(packet, function (aResponse) {
                                    if (aOnResponse) {
                                      aOnResponse(aResponse);
@@ -1188,7 +1169,6 @@ function LongStringClient(aClient, aGrip) {
 LongStringClient.prototype = {
   get actor() { return this._grip.actor; },
   get length() { return this._grip.length; },
-  get initial() { return this._grip.initial; },
 
   valid: true,
 

@@ -27,8 +27,6 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsIReflowCallback.h"
 #include "mozilla/Likely.h"
-#include "nsIScriptError.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -1440,7 +1438,7 @@ nsMathMLContainerFrame::DidReflowChildren(nsIFrame* aFirst, nsIFrame* aStop)
         DidReflowChildren(grandchild, nullptr);
 
       frame->DidReflow(frame->PresContext(), nullptr,
-                       nsDidReflowStatus::FINISHED);
+                       NS_FRAME_REFLOW_FINISHED);
     }
   }
 }
@@ -1517,33 +1515,6 @@ nsMathMLContainerFrame::TransmitAutomaticDataForMrowLikeElement()
   }
 
   return NS_OK;
-}
-
-nsresult
-nsMathMLContainerFrame::ReportErrorToConsole(const char*       errorMsgId,
-                                             const PRUnichar** aParams,
-                                             PRUint32          aParamCount)
-{
-  return nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                         "MathML", mContent->OwnerDoc(),
-                                         nsContentUtils::eMATHML_PROPERTIES,
-                                         errorMsgId, aParams, aParamCount);
-}
-
-nsresult
-nsMathMLContainerFrame::ReportParseError(const PRUnichar* aAttribute,
-                                         const PRUnichar* aValue)
-{
-  const PRUnichar* argv[] = 
-    { aValue, aAttribute, mContent->Tag()->GetUTF16String() };
-  return ReportErrorToConsole("AttributeParsingError", argv, 3);
-}
-
-nsresult
-nsMathMLContainerFrame::ReportChildCountError()
-{
-  const PRUnichar* arg = mContent->Tag()->GetUTF16String();
-  return ReportErrorToConsole("ChildCountIncorrect", &arg, 1);
 }
 
 //==========================

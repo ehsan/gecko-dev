@@ -16,9 +16,7 @@
 #include "nsNSSComponent.h"
 #include "nsSSLStatus.h"
 #include "nsNSSCertificate.h"
-#include "ScopedNSSTypes.h"
-
-using namespace mozilla;
+#include "nsNSSCleaner.h"
 
 #ifdef DEBUG
 #ifndef PSM_ENABLE_TEST_EV_ROOTS
@@ -29,6 +27,10 @@ using namespace mozilla;
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
+
+NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
+NSSCleanupAutoPtrClass(CERTCertList, CERT_DestroyCertList)
+NSSCleanupAutoPtrClass_WithParam(SECItem, SECITEM_FreeItem, TrueParam, true)
 
 #define CONST_OID static const unsigned char
 #define OI(x) { siDEROID, (unsigned char *)x, sizeof x }
@@ -44,62 +46,6 @@ struct nsMyTrustedEVInfo
   const char *serial_base64;
   CERTCertificate *cert;
 };
-
-/* HOWTO enable additional CA root certificates for EV:
- *
- * For each combination of "root certificate" and "policy OID",
- * one entry must be added to the array named myTrustedEVInfos.
- *
- * We use the combination of "issuer name" and "serial number" to
- * uniquely identify the certificate. In order to avoid problems
- * because of encodings when comparing certificates, we don't
- * use plain text representation, we rather use the original encoding
- * as it can be found in the root certificate (in base64 format).
- *
- * We can use the NSS utility named "pp" to extract the encoding.
- *
- * Build standalone NSS including the NSS tools, then run
- *   pp -t certificate-identity -i the-cert-filename
- *
- * You will need the output from sections "Issuer", "Fingerprint (SHA1)",
- * "Issuer DER Base64" and "Serial DER Base64".
- *
- * The new section consists of 8 lines:
- *
- * - a comment that should contain the human readable issuer name
- *   of the certificate, as printed by the pp tool
- * - the EV policy OID that is associated to the EV grant
- * - a text description of the EV policy OID. The array can contain
- *   multiple entries with the same OID.
- *   Please make sure to use the identical OID text description for
- *   all entries with the same policy OID (use the text search
- *   feature of your text editor to find duplicates).
- *   When adding a new policy OID that is not yet contained in the array,
- *   please make sure that your new description is different from
- *   all the other descriptions (again use the text search feature
- *   to be sure).
- * - the constant SEC_OID_UNKNOWN
- *   (it will be replaced at runtime with another identifier)
- * - the UPPERCASE version of the SHA1 fingerprint, hexadecimal,
- *   bytes separated by colons (as printed by pp)
- * - the "Issuer DER Base64" as printed by the pp tool.
- *   Remove all whitespaces. If you use multiple lines, make sure that
- *   only the final line will be followed by a comma.
- * - the "Serial DER Base64" (as printed by pp)
- * - a NULL pointer value
- *
- * After adding an entry, test it locally against the test site that
- * has been provided by the CA. Note that you must use a version of NSS
- * where the root certificate has already been added and marked as trusted
- * for issueing SSL server certificates (at least).
- *
- * If you are able to connect to the site without certificate errors,
- * but you don't see the EV status indicator, then most likely the CA
- * has a problem in their infrastructure. The most common problems are
- * related to the CA's OCSP infrastructure, either they use an incorrect
- * OCSP signing certificate, or OCSP for the intermediate certificates
- * isn't working, or OCSP isn't working at all.
- */
 
 static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
   /*
@@ -1215,7 +1161,8 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
   if (oid_tag == SEC_OID_UNKNOWN) // not in our list of OIDs accepted for EV
     return NS_OK;
 
-  ScopedCERTCertList rootList(getRootsForOid(oid_tag));
+  CERTCertList *rootList = getRootsForOid(oid_tag);
+  CERTCertListCleaner rootListCleaner(rootList);
 
   CERTRevocationMethodIndex preferedRevMethods[1] = { 
     cert_revocation_method_ocsp
@@ -1274,13 +1221,14 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
   cvout[0].value.pointer.cert = nullptr;
   cvout[1].type = cert_po_end;
 
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("calling CERT_PKIXVerifyCert nss cert %p\n", mCert.get()));
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("calling CERT_PKIXVerifyCert nss cert %p\n", mCert));
   rv = CERT_PKIXVerifyCert(mCert, certificateUsageSSLServer,
                            cvin, cvout, nullptr);
   if (rv != SECSuccess)
     return NS_OK;
 
-  ScopedCERTCertificate issuerCert(cvout[0].value.pointer.cert);
+  CERTCertificate *issuerCert = cvout[0].value.pointer.cert;
+  CERTCertificateCleaner issuerCleaner(issuerCert);
 
 #ifdef PR_LOGGING
   if (PR_LOG_TEST(gPIPNSSLog, PR_LOG_DEBUG)) {

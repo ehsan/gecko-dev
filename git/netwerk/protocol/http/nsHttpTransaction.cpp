@@ -27,7 +27,6 @@
 #include "nsComponentManagerUtils.h" // do_CreateInstance
 #include "nsServiceManagerUtils.h"   // do_GetService
 #include "nsIHttpActivityObserver.h"
-#include "nsSocketTransportService2.h"
 
 
 using namespace mozilla;
@@ -76,8 +75,7 @@ LogHeaders(const char *lineStart)
 //-----------------------------------------------------------------------------
 
 nsHttpTransaction::nsHttpTransaction()
-    : mCallbacksLock("transaction mCallbacks lock")
-    , mRequestSize(0)
+    : mRequestSize(0)
     , mConnection(nullptr)
     , mConnInfo(nullptr)
     , mRequestHead(nullptr)
@@ -108,7 +106,6 @@ nsHttpTransaction::nsHttpTransaction()
     , mProxyConnectFailed(false)
     , mHttpResponseMatched(false)
     , mPreserveStream(false)
-    , mDispatchedAsBlocking(false)
     , mReportedStart(false)
     , mReportedResponseHeader(false)
     , mForTakeResponseHead(nullptr)
@@ -122,16 +119,12 @@ nsHttpTransaction::~nsHttpTransaction()
 {
     LOG(("Destroying nsHttpTransaction @%x\n", this));
 
-    // Force the callbacks to be released right now
-    mCallbacks = nullptr;
-
     NS_IF_RELEASE(mConnection);
     NS_IF_RELEASE(mConnInfo);
 
     delete mResponseHead;
     delete mForTakeResponseHead;
     delete mChunkedDecoder;
-    ReleaseBlockingTransaction();
 }
 
 nsHttpTransaction::Classifier
@@ -169,7 +162,7 @@ nsHttpTransaction::Classify()
 }
 
 nsresult
-nsHttpTransaction::Init(uint32_t caps,
+nsHttpTransaction::Init(uint8_t caps,
                         nsHttpConnectionInfo *cinfo,
                         nsHttpRequestHead *requestHead,
                         nsIInputStream *requestBody,
@@ -395,24 +388,12 @@ nsHttpTransaction::SetConnection(nsAHttpConnection *conn)
 }
 
 void
-nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **cb)
+nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **cb,
+                                        nsIEventTarget        **target)
 {
-    MutexAutoLock lock(mCallbacksLock);
     NS_IF_ADDREF(*cb = mCallbacks);
-}
-
-void
-nsHttpTransaction::SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks)
-{
-    {
-        MutexAutoLock lock(mCallbacksLock);
-        mCallbacks = aCallbacks;
-    }
-
-    if (gSocketTransportService) {
-        nsRefPtr<UpdateSecurityCallbacks> event = new UpdateSecurityCallbacks(this, aCallbacks);
-        gSocketTransportService->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
-    }
+    if (target)
+        NS_IF_ADDREF(*target = mConsumerTarget);
 }
 
 void
@@ -504,7 +485,7 @@ nsHttpTransaction::Status()
     return mStatus;
 }
 
-uint32_t
+uint8_t
 nsHttpTransaction::Caps()
 { 
     return mCaps;
@@ -791,7 +772,6 @@ nsHttpTransaction::Close(nsresult reason)
     mStatus = reason;
     mTransactionDone = true; // forcibly flag the transaction as complete
     mClosed = true;
-    ReleaseBlockingTransaction();
 
     // release some resources that we no longer need
     mRequestStream = nullptr;
@@ -1389,7 +1369,6 @@ nsHttpTransaction::HandleContent(char *buf,
         // the transaction is done with a complete response.
         mTransactionDone = true;
         mResponseIsComplete = true;
-        ReleaseBlockingTransaction();
 
         if (TimingEnabled())
             mTimings.responseEnd = TimeStamp::Now();
@@ -1500,57 +1479,6 @@ nsHttpTransaction::CancelPipeline(uint32_t reason)
     // This also prevents BadUnexpectedLarge from being reported more
     // than one time per transaction.
     mClassification = CLASS_SOLO;
-}
-
-// Called when the transaction marked for blocking is associated with a connection
-// (i.e. added to a spdy session, an idle http connection, or placed into
-// a http pipeline). It is safe to call this multiple times with it only
-// having an effect once.
-void
-nsHttpTransaction::DispatchedAsBlocking()
-{
-    if (mDispatchedAsBlocking)
-        return;
-
-    LOG(("nsHttpTransaction %p dispatched as blocking\n", this));
-    
-    if (!mLoadGroupCI)
-        return;
-
-    LOG(("nsHttpTransaction adding blocking channel %p from "
-         "loadgroup %p\n", this, mLoadGroupCI.get()));
-    
-    mLoadGroupCI->AddBlockingTransaction();
-    mDispatchedAsBlocking = true;
-}
-
-void
-nsHttpTransaction::RemoveDispatchedAsBlocking()
-{
-    if (!mLoadGroupCI || !mDispatchedAsBlocking)
-        return;
-    
-    uint32_t blockers = 0;
-    nsresult rv = mLoadGroupCI->RemoveBlockingTransaction(&blockers);
-
-    LOG(("nsHttpTransaction removing blocking channel %p from "
-         "loadgroup %p. %d blockers remain.\n", this,
-         mLoadGroupCI.get(), blockers));
-
-    if (NS_SUCCEEDED(rv) && !blockers) {
-        LOG(("nsHttpTransaction %p triggering release of blocked channels.\n",
-             this));
-        gHttpHandler->ConnMgr()->ProcessPendingQ();
-    }
-    
-    mDispatchedAsBlocking = false;
-}
-
-void
-nsHttpTransaction::ReleaseBlockingTransaction()
-{
-    RemoveDispatchedAsBlocking();
-    mLoadGroupCI = nullptr;
 }
 
 //-----------------------------------------------------------------------------

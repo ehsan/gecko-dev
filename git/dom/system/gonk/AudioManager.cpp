@@ -20,7 +20,6 @@
 #include "gonk/AudioSystem.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
-#include "AudioChannelService.h"
 
 using namespace mozilla::dom::gonk;
 using namespace android;
@@ -30,40 +29,41 @@ using namespace mozilla;
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AudioManager" , ## args)
 
 #define HEADPHONES_STATUS_CHANGED "headphones-status-changed"
-#define HEADPHONES_STATUS_HEADSET   NS_LITERAL_STRING("headset").get()
-#define HEADPHONES_STATUS_HEADPHONE NS_LITERAL_STRING("headphone").get()
-#define HEADPHONES_STATUS_OFF       NS_LITERAL_STRING("off").get()
-#define HEADPHONES_STATUS_UNKNOWN   NS_LITERAL_STRING("unknown").get()
+#define HEADPHONES_STATUS_ON      NS_LITERAL_STRING("on").get()
+#define HEADPHONES_STATUS_OFF     NS_LITERAL_STRING("off").get()
+#define HEADPHONES_STATUS_UNKNOWN NS_LITERAL_STRING("unknown").get()
 #define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
 
 // Refer AudioService.java from Android
 static int sMaxStreamVolumeTbl[AUDIO_STREAM_CNT] = {
-  5,   // voice call
-  15,  // system
-  15,  // ring
+  10,  // voice call
+  10,  // system
+  7,   // ring
   15,  // music
-  15,  // alarm
-  15,  // notification
+  7,   // alarm
+  7,   // notification
   15,  // BT SCO
-  15,  // enforced audible
+  7,   // enforced audible
   15,  // DTMF
   15,  // TTS
-  15,  // FM
+  10,  // FM
 };
+
 // A bitwise variable for recording what kind of headset is attached.
 static int sHeadsetState;
 static int kBtSampleRate = 8000;
 
 static bool
-IsDeviceOn(audio_devices_t device)
+IsFmRadioAudioOn()
 {
   if (static_cast<
       audio_policy_dev_state_t (*) (audio_devices_t, const char *)
-      >(AudioSystem::getDeviceConnectionState))
-    return AudioSystem::getDeviceConnectionState(device, "") ==
-           AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
-
-  return false;
+      >(AudioSystem::getDeviceConnectionState)) {
+    return AudioSystem::getDeviceConnectionState(AUDIO_DEVICE_OUT_FM, "") ==
+           AUDIO_POLICY_DEVICE_STATE_AVAILABLE ? true : false;
+  } else {
+    return false;
+  }
 }
 
 NS_IMPL_ISUPPORTS2(AudioManager, nsIAudioManager, nsIObserver)
@@ -102,7 +102,7 @@ InternalSetAudioRoutesICS(SwitchState aState)
 
   // The audio volume is not consistent when we plug and unplug the headset.
   // Set the fm volume again here.
-  if (IsDeviceOn(AUDIO_DEVICE_OUT_FM)) {
+  if (IsFmRadioAudioOn()) {
     float masterVolume;
     AudioSystem::getMasterVolume(&masterVolume);
     AudioSystem::setFmVolume(masterVolume);
@@ -171,10 +171,8 @@ NotifyHeadphonesStatus(SwitchState aState)
 {
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
-    if (aState == SWITCH_STATE_HEADSET) {
-      obs->NotifyObservers(nullptr, HEADPHONES_STATUS_CHANGED, HEADPHONES_STATUS_HEADSET);
-    } else if (aState == SWITCH_STATE_HEADPHONE) {
-      obs->NotifyObservers(nullptr, HEADPHONES_STATUS_CHANGED, HEADPHONES_STATUS_HEADPHONE);
+    if (aState == SWITCH_STATE_ON) {
+      obs->NotifyObservers(nullptr, HEADPHONES_STATUS_CHANGED, HEADPHONES_STATUS_ON);
     } else if (aState == SWITCH_STATE_OFF) {
       obs->NotifyObservers(nullptr, HEADPHONES_STATUS_CHANGED, HEADPHONES_STATUS_OFF);
     } else {
@@ -193,8 +191,7 @@ public:
 };
 
 AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
-                 mObserver(new HeadphoneSwitchObserver()),
-                 mFMChannelIsMuted(0)
+                 mObserver(new HeadphoneSwitchObserver())
 {
   RegisterSwitchObserver(SWITCH_HEADPHONES, mObserver);
 
@@ -259,8 +256,7 @@ AudioManager::SetMasterVolume(float aMasterVolume)
     return NS_ERROR_FAILURE;
   }
 
-  if (IsDeviceOn(AUDIO_DEVICE_OUT_FM) &&
-      AudioSystem::setFmVolume(aMasterVolume)) {
+  if (IsFmRadioAudioOn() && AudioSystem::setFmVolume(aMasterVolume)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -295,32 +291,11 @@ AudioManager::GetPhoneState(int32_t* aState)
 NS_IMETHODIMP
 AudioManager::SetPhoneState(int32_t aState)
 {
-  if (mPhoneState == aState) {
-    return NS_OK;
-  }
-
   if (AudioSystem::setPhoneState(aState)) {
     return NS_ERROR_FAILURE;
   }
 
   mPhoneState = aState;
-
-  if (aState == PHONE_STATE_IN_CALL) {
-    if (!mPhoneAudioAgent) {
-      mPhoneAudioAgent = do_CreateInstance("@mozilla.org/audiochannelagent;1");
-      MOZ_ASSERT(mPhoneAudioAgent);
-      // Telephony doesn't be paused by any other channels.
-      mPhoneAudioAgent->Init(AUDIO_CHANNEL_TELEPHONY, nullptr);
-
-      // Telephony can always play.
-      bool canPlay;
-      mPhoneAudioAgent->StartPlaying(&canPlay);
-    }
-  } else if (mPhoneAudioAgent) {
-    mPhoneAudioAgent->StopPlaying();
-    mPhoneAudioAgent = nullptr;
-  }
-
   return NS_OK;
 }
 
@@ -336,13 +311,6 @@ NS_IMETHODIMP
 AudioManager::SetForceForUse(int32_t aUsage, int32_t aForce)
 {
   status_t status = 0;
-
-  if (IsDeviceOn(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET) &&
-      aUsage == nsIAudioManager::USE_COMMUNICATION &&
-      aForce == nsIAudioManager::FORCE_NONE) {
-    aForce = nsIAudioManager::FORCE_BT_SCO;
-  }
-
   if (static_cast<
       status_t (*)(AudioSystem::force_use, AudioSystem::forced_config)
       >(AudioSystem::setForceUse)) {
@@ -379,7 +347,7 @@ AudioManager::GetForceForUse(int32_t aUsage, int32_t* aForce) {
 NS_IMETHODIMP
 AudioManager::GetFmRadioAudioEnabled(bool *aFmRadioAudioEnabled)
 {
-  *aFmRadioAudioEnabled = IsDeviceOn(AUDIO_DEVICE_OUT_FM);
+  *aFmRadioAudioEnabled = IsFmRadioAudioOn();
   return NS_OK;
 }
 
@@ -393,12 +361,6 @@ AudioManager::SetFmRadioAudioEnabled(bool aFmRadioAudioEnabled)
       aFmRadioAudioEnabled ? AUDIO_POLICY_DEVICE_STATE_AVAILABLE :
       AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
     InternalSetAudioRoutes(GetCurrentSwitchState(SWITCH_HEADPHONES));
-    // sync volume with music after powering on fm radio
-    if (aFmRadioAudioEnabled) {
-      int32_t volIndex = 0;
-      AudioSystem::getStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_MUSIC), &volIndex);
-      AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), volIndex);
-    }
     return NS_OK;
   } else {
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -409,16 +371,6 @@ NS_IMETHODIMP
 AudioManager::SetStreamVolumeIndex(int32_t aStream, int32_t aIndex) {
   status_t status =
     AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(aStream), aIndex);
-
-  // sync the fm stream volume with music volume, except set fm volume by audioChannelServices
-  if (aStream == AUDIO_STREAM_FM && IsDeviceOn(AUDIO_DEVICE_OUT_FM)) {
-    mFMChannelIsMuted = aIndex == 0;
-  }
-  // sync fm volume with music stream type
-  if (aStream == AUDIO_STREAM_MUSIC && IsDeviceOn(AUDIO_DEVICE_OUT_FM) && !mFMChannelIsMuted) {
-    AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), aIndex);
-  }
-
   return status ? NS_ERROR_FAILURE : NS_OK;
 }
 

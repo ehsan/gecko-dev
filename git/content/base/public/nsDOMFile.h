@@ -17,6 +17,7 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsIXMLHttpRequest.h"
+#include "prmem.h"
 #include "nsAutoPtr.h"
 
 #include "mozilla/GuardObjects.h"
@@ -200,7 +201,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMFileCC, nsIDOMFile)
 };
 
-class nsDOMFileFile : public nsDOMFile
+class nsDOMFileFile : public nsDOMFile,
+                      public nsIJSNativeInitializer
 {
 public:
   // Create as a file
@@ -244,17 +246,24 @@ public:
     NS_ASSERTION(mFile, "must have file");
   }
 
+  // Create as a blob
+  nsDOMFileFile(nsIFile *aFile, const nsAString& aContentType,
+                nsISupports *aCacheToken)
+    : nsDOMFile(aContentType, UINT64_MAX),
+      mFile(aFile), mWholeFile(true), mStoredFile(false),
+      mCacheToken(aCacheToken)
+  {
+    NS_ASSERTION(mFile, "must have file");
+  }
+
   // Create as a file with custom name
-  nsDOMFileFile(nsIFile *aFile, const nsAString& aName,
-                const nsAString& aContentType)
-    : nsDOMFile(aName, aContentType, UINT64_MAX, UINT64_MAX),
+  nsDOMFileFile(nsIFile *aFile, const nsAString& aName)
+    : nsDOMFile(aName, EmptyString(), UINT64_MAX, UINT64_MAX),
       mFile(aFile), mWholeFile(true), mStoredFile(false)
   {
     NS_ASSERTION(mFile, "must have file");
-    if (aContentType.IsEmpty()) {
-      // Lazily get the content type and size
-      mContentType.SetIsVoid(true);
-    }
+    // Lazily get the content type and size
+    mContentType.SetIsVoid(true);
   }
 
   // Create as a stored file
@@ -288,6 +297,15 @@ public:
     mName.SetIsVoid(true);
   }
 
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner,
+                        JSContext* aCx,
+                        JSObject* aObj,
+                        uint32_t aArgc,
+                        jsval* aArgv);
+
   // Overrides
   NS_IMETHOD GetSize(uint64_t* aSize);
   NS_IMETHOD GetType(nsAString& aType);
@@ -296,13 +314,17 @@ public:
   NS_IMETHOD GetMozFullPathInternal(nsAString& aFullPath);
   NS_IMETHOD GetInternalStream(nsIInputStream**);
 
+  // DOMClassInfo constructor (for File("foo"))
+  static nsresult
+  NewFile(nsISupports* *aNewObject);
+
 protected:
   // Create slice
   nsDOMFileFile(const nsDOMFileFile* aOther, uint64_t aStart, uint64_t aLength,
                 const nsAString& aContentType)
     : nsDOMFile(aContentType, aOther->mStart + aStart, aLength),
       mFile(aOther->mFile), mWholeFile(false),
-      mStoredFile(aOther->mStoredFile)
+      mStoredFile(aOther->mStoredFile), mCacheToken(aOther->mCacheToken)
   {
     NS_ASSERTION(mFile, "must have file");
     mImmutable = aOther->mImmutable;
@@ -341,6 +363,7 @@ protected:
   nsCOMPtr<nsIFile> mFile;
   bool mWholeFile;
   bool mStoredFile;
+  nsCOMPtr<nsISupports> mCacheToken;
 };
 
 class nsDOMMemoryFile : public nsDOMFile
@@ -408,7 +431,7 @@ protected:
         sDataOwners = nullptr;
       }
 
-      moz_free(mData);
+      PR_Free(mData);
     }
 
     static void EnsureMemoryReporterRegistered();

@@ -25,12 +25,14 @@
 
 class nsXMLNameSpaceMap;
 class nsCSSRuleProcessor;
+class nsMediaList;
 class nsIPrincipal;
 class nsIURI;
 class nsMediaList;
 class nsMediaQueryResultCacheKey;
 class nsCSSStyleSheet;
 class nsPresContext;
+template<class E, class A> class nsTArray;
 
 namespace mozilla {
 namespace css {
@@ -292,7 +294,7 @@ protected:
   nsCSSStyleSheet*      mParent;    // weak ref
   mozilla::css::ImportRule* mOwnerRule; // weak ref
 
-  nsRefPtr<CSSRuleListImpl> mRuleCollection;
+  CSSRuleListImpl*      mRuleCollection;
   nsIDocument*          mDocument; // weak ref; parents maintain this for their children
   nsIDOMNode*           mOwningNode; // weak ref
   bool                  mDisabled;

@@ -485,11 +485,6 @@ public:
     static XPCJSRuntime* GetRuntimeInstance();
     XPCJSRuntime* GetRuntime() {return mRuntime;}
 
-#ifdef DEBUG
-    void SetObjectToUnlink(void* aObject);
-    void AssertNoObjectsToTrace(void* aPossibleJSHolder);
-#endif
-
     // Gets addref'd pointer
     static nsresult GetInterfaceInfoManager(nsIInterfaceInfoSuperManager** iim,
                                             nsXPConnect* xpc = nullptr);
@@ -521,6 +516,9 @@ public:
     virtual ~nsXPConnect();
 
     JSBool IsShuttingDown() const {return mShuttingDown;}
+
+    void EnsureGCBeforeCC() { mNeedGCBeforeCC = true; }
+    void ClearGCBeforeCC() { mNeedGCBeforeCC = false; }
 
     nsresult GetInfoForIID(const nsIID * aIID, nsIInterfaceInfo** info);
     nsresult GetInfoForName(const char * name, nsIInterfaceInfo** info);
@@ -576,6 +574,7 @@ private:
     nsIXPCSecurityManager*   mDefaultSecurityManager;
     uint16_t                 mDefaultSecurityManagerFlags;
     JSBool                   mShuttingDown;
+    JSBool                   mNeedGCBeforeCC;
 
     // nsIThreadInternal doesn't remember which observers it called
     // OnProcessNextEvent on when it gets around to calling AfterProcessNextEvent.
@@ -731,11 +730,11 @@ public:
     // buffer with things to finalize in the return value.
     typedef void* (*DeferredFinalizeStartFunction)();
 
-    // Called to finalize a number of objects. Slice is the number of objects
-    // to finalize, or if it's UINT32_MAX, all objects should be finalized.
-    // data is the pointer returned by DeferredFinalizeStartFunction.
-    // Return value indicates whether it finalized all objects in the buffer.
-    typedef bool (*DeferredFinalizeFunction)(uint32_t slice, void* data);
+    // Called to finalize a number of objects. Slice is the number of objects to
+    // finalize, if it's -1 all objects should be finalized. data is the pointer
+    // returned by DeferredFinalizeStartFunction. Should return if it finalized
+    // all objects remaining in the buffer.
+    typedef bool (*DeferredFinalizeFunction)(int32_t slice, void* data);
 
 private:
     struct DeferredFinalizeFunctions
@@ -823,13 +822,9 @@ public:
     inline void AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS);
     inline void AddObjectHolderRoot(XPCJSObjectHolder* holder);
 
-    void AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
-    void RemoveJSHolder(void* aHolder);
-    bool TestJSHolder(void* aHolder);
-#ifdef DEBUG
-    void SetObjectToUnlink(void* aObject) { mObjectToUnlink = aObject; }
-    void AssertNoObjectsToTrace(void* aPossibleJSHolder);
-#endif
+    nsresult AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
+    nsresult RemoveJSHolder(void* aHolder);
+    nsresult TestJSHolder(void* aHolder, bool* aRetval);
 
     static void SuspectWrappedNative(XPCWrappedNative *wrapper,
                                      nsCycleCollectionTraversalCallback &cb);
@@ -995,10 +990,6 @@ private:
 
     friend class AutoLockWatchdog;
     friend class XPCIncrementalReleaseRunnable;
-
-#ifdef DEBUG
-    void* mObjectToUnlink;
-#endif
 };
 
 /***************************************************************************/
@@ -2618,15 +2609,8 @@ public:
       static NS_METHOD RootImpl(void *p) { return NS_OK; }
       static NS_METHOD UnlinkImpl(void *p);
       static NS_METHOD UnrootImpl(void *p) { return NS_OK; }
-      static nsXPCOMCycleCollectionParticipant* GetParticipant()
-      {
-        static const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)>
-          ::Type participant =
-          { NS_IMPL_CYCLE_COLLECTION_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)) };
-        return NS_PARTICIPANT_AS(nsXPCOMCycleCollectionParticipant,
-                                 &participant);
-      }
     };
+    NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
     NS_DECL_CYCLE_COLLECTION_UNMARK_PURPLE_STUB(XPCWrappedNative)
 
     nsIPrincipal* GetObjectPrincipal() const;
@@ -2796,8 +2780,10 @@ public:
                            XPCWrappedNativeScope* aOldScope,
                            XPCWrappedNativeScope* aNewScope,
                            JSObject* aNewParent,
-                           nsISupports* aCOMObj);
+                           nsISupports* aCOMObj,
+                           XPCWrappedNative** aWrapper);
 
+    bool IsOrphan();
     nsresult RescueOrphans(XPCCallContext& ccx);
 
     void FlatJSObjectFinalized();
@@ -3382,7 +3368,8 @@ public:
                                  uint32_t count, const nsXPTType& type,
                                  const nsID* iid, nsresult* pErr);
 
-    static JSBool JSTypedArray2Native(void** d,
+    static JSBool JSTypedArray2Native(JSContext* cx,
+                                      void** d,
                                       JSObject* jsarray,
                                       uint32_t count,
                                       const nsXPTType& type,

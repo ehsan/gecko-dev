@@ -12,8 +12,8 @@
 #include "TypeOracle.h"
 #include "Registers.h"
 
-class JSFunction;
-class JSScript;
+struct JSFunction;
+struct JSScript;
 
 namespace js {
 namespace ion {
@@ -111,9 +111,7 @@ class IonCache
             Register object;
             PropertyName *name;
             TypedOrValueRegisterSpace output;
-            bool allowGetters : 1;
-            bool hasDenseArrayLengthStub : 1;
-            bool hasTypedArrayLengthStub : 1;
+            bool allowGetters;
         } getprop;
         struct {
             Register object;
@@ -174,9 +172,9 @@ class IonCache
     CodeLocationLabel cacheLabel() const { return cacheLabel_; }
 
     CodeLocationLabel rejoinLabel() const {
-        uint8_t *ptr = initialJump_.raw();
+        uint8 *ptr = initialJump_.raw();
 #ifdef JS_CPU_ARM
-        uint32_t i = 0;
+        uint32 i = 0;
         while (i < REJOIN_LABEL_OFFSET)
             ptr = Assembler::nextInstruction(ptr, &i);
 #endif
@@ -230,7 +228,7 @@ class IonCache
         return *(IonCacheName *)this;
     }
 
-    void setScriptedLocation(UnrootedScript script, jsbytecode *pc) {
+    void setScriptedLocation(JSScript *script, jsbytecode *pc) {
         JS_ASSERT(!idempotent_);
         this->script = script;
         this->pc = pc;
@@ -267,24 +265,18 @@ class IonCacheGetProperty : public IonCache
         u.getprop.name = name;
         u.getprop.output.data() = output;
         u.getprop.allowGetters = allowGetters;
-        u.getprop.hasDenseArrayLengthStub = false;
-        u.getprop.hasTypedArrayLengthStub = false;
     }
 
     Register object() const { return u.getprop.object; }
     PropertyName *name() const { return u.getprop.name; }
     TypedOrValueRegister output() const { return u.getprop.output.data(); }
     bool allowGetters() const { return u.getprop.allowGetters; }
-    bool hasDenseArrayLengthStub() const { return u.getprop.hasDenseArrayLengthStub; }
-    bool hasTypedArrayLengthStub() const { return u.getprop.hasTypedArrayLengthStub; }
 
     bool attachReadSlot(JSContext *cx, IonScript *ion, JSObject *obj, JSObject *holder,
-                        HandleShape shape);
+                        const Shape *shape);
     bool attachCallGetter(JSContext *cx, IonScript *ion, JSObject *obj, JSObject *holder,
-                          HandleShape shape,
+                          const Shape *shape,
                           const SafepointIndex *safepointIndex, void *returnAddr);
-    bool attachDenseArrayLength(JSContext *cx, IonScript *ion, JSObject *obj);
-    bool attachTypedArrayLength(JSContext *cx, IonScript *ion, JSObject *obj);
 };
 
 class IonCacheSetProperty : public IonCache
@@ -313,8 +305,8 @@ class IonCacheSetProperty : public IonCache
     bool attachNativeExisting(JSContext *cx, IonScript *ion, HandleObject obj, HandleShape shape);
     bool attachSetterCall(JSContext *cx, IonScript *ion, HandleObject obj,
                           HandleObject holder, HandleShape shape, void *returnAddr);
-    bool attachNativeAdding(JSContext *cx, IonScript *ion, JSObject *obj, HandleShape oldshape,
-                            HandleShape newshape, HandleShape propshape);
+    bool attachNativeAdding(JSContext *cx, IonScript *ion, JSObject *obj, const Shape *oldshape,
+                            const Shape *newshape, const Shape *propshape);
 };
 
 class IonCacheGetElement : public IonCache
@@ -420,7 +412,7 @@ class IonCacheName : public IonCache
     }
 
     bool attach(JSContext *cx, IonScript *ion, HandleObject scopeChain, HandleObject obj,
-                HandleShape shape);
+                Shape *shape);
 };
 
 bool

@@ -20,7 +20,7 @@ function test()
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
 
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
@@ -73,13 +73,7 @@ function testSimpleCall() {
 function testLocationChange()
 {
   gDebugger.DebuggerController.activeThread.resume(function() {
-    gDebugger.DebuggerController.client.addListener("tabNavigated", function onTabNavigated(aEvent, aPacket) {
-      dump("tabNavigated state " + aPacket.state + "\n");
-      if (aPacket.state == "start") {
-        return;
-      }
-      gDebugger.DebuggerController.client.removeListener("tabNavigated", onTabNavigated);
-
+    gDebugger.DebuggerController.client.addOneTimeListener("tabNavigated", function(aEvent, aPacket) {
       ok(true, "tabNavigated event was fired.");
       info("Still attached to the tab.");
 

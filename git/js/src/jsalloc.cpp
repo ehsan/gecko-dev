@@ -8,7 +8,7 @@
 #include "jsalloc.h"
 #include "jscntxt.h"
 
-using namespace js;
+namespace js {
 
 void *
 TempAllocPolicy::onOutOfMemory(void *p, size_t nbytes)
@@ -21,3 +21,5 @@ TempAllocPolicy::reportAllocOverflow() const
 {
     js_ReportAllocationOverflow(cx);
 }
+
+} /* namespace js */

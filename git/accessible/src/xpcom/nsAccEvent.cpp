@@ -7,8 +7,6 @@
 #include "nsAccUtils.h"
 #include "DocAccessible.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccEvent
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +43,7 @@ nsAccEvent::GetDOMNode(nsIDOMNode** aDOMNode)
   NS_ENSURE_ARG_POINTER(aDOMNode);
   *aDOMNode = nullptr;
 
-  nsINode* node = mEvent->GetAccessible()->GetNode();
+  nsINode* node = mEvent->GetNode();
   if (node)
     CallQueryInterface(node, aDOMNode);
 

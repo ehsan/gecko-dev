@@ -30,7 +30,6 @@ class nsPresContext;
 class nsImageFrame;
 class nsTransform2D;
 class nsImageLoadingContent;
-class imgRequestProxy;
 
 namespace mozilla {
 namespace layers {
@@ -299,7 +298,7 @@ private:
   // loading / broken images
   nsresult LoadIcons(nsPresContext *aPresContext);
   nsresult LoadIcon(const nsAString& aSpec, nsPresContext *aPresContext,
-                    imgRequestProxy **aRequest);
+                    imgIRequest **aRequest);
 
   class IconLoad MOZ_FINAL : public nsIObserver,
                              public imgINotificationObserver {
@@ -334,8 +333,8 @@ private:
 
 
   public:
-    nsRefPtr<imgRequestProxy> mLoadingImage;
-    nsRefPtr<imgRequestProxy> mBrokenImage;
+    nsCOMPtr<imgIRequest> mLoadingImage;
+    nsCOMPtr<imgIRequest> mBrokenImage;
     bool             mPrefForceInlineAltText;
     bool             mPrefShowPlaceholders;
   };
@@ -371,19 +370,13 @@ public:
    * Returns an ImageContainer for this image if the image type
    * supports it (TYPE_RASTER only).
    */
-  virtual already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager,
-                                                        nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
+  virtual already_AddRefed<ImageContainer> GetContainer() MOZ_OVERRIDE;
 
   gfxRect GetDestRect();
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
                                    const ContainerParameters& aParameters) MOZ_OVERRIDE;
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
-  {
-    *aSnap = true;
-    return nsRect(ToReferenceFrame(), GetUnderlyingFrame()->GetSize());
-  }
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager,

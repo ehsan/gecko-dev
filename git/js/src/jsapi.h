@@ -31,7 +31,6 @@
 
 #include "jsalloc.h"
 #include "js/Vector.h"
-#include "js/HashTable.h"
 
 /************************************************************************/
 
@@ -593,7 +592,7 @@ class Value
 #if !defined(_MSC_VER) && !defined(__sparc)
   /* To make jsval binary compatible when linking across C and C++ with MSVC,
    * JS::Value needs to be POD. Otherwise, jsval will be passed in memory
-   * in C++ but by value in C (bug 689101).
+   * in C++ but by value in C (bug 645111).
    * Same issue for SPARC ABI. (bug 737344).
    */
   private:
@@ -889,8 +888,6 @@ class ValueOperations
     JSObject *toObjectOrNull() const { return value()->toObjectOrNull(); }
     void *toGCThing() const { return value()->toGCThing(); }
 
-    JSValueType extractNonDoubleType() const { return value()->extractNonDoubleType(); }
-
 #ifdef DEBUG
     JSWhyMagic whyMagic() const { return value()->whyMagic(); }
 #endif
@@ -1042,7 +1039,7 @@ class JS_PUBLIC_API(AutoGCRooter) {
         *stackTop = down;
     }
 
-    /* Implemented in gc/RootMarking.cpp. */
+    /* Implemented in jsgc.cpp. */
     inline void trace(JSTracer *trc);
     static void traceAll(JSTracer *trc);
     static void traceAllWrappers(JSTracer *trc);
@@ -1088,8 +1085,7 @@ class JS_PUBLIC_API(AutoGCRooter) {
         IONMASM =     -28, /* js::ion::MacroAssembler */
         IONALLOC =    -29, /* js::ion::AutoTempAllocatorRooter */
         WRAPVECTOR =  -30, /* js::AutoWrapperVector */
-        WRAPPER =     -31, /* js::AutoWrapperRooter */
-        OBJOBJHASHMAP=-32  /* js::AutoObjectObjectHashMap */
+        WRAPPER =     -31  /* js::AutoWrapperRooter */
     };
 
   private:
@@ -1326,129 +1322,6 @@ class AutoVectorRooter : protected AutoGCRooter
 
     /* Prevent overwriting of inline elements in vector. */
     js::SkipRoot vectorRoot;
-
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-template<class Key, class Value>
-class AutoHashMapRooter : protected AutoGCRooter
-{
-  private:
-    typedef js::HashMap<Key, Value> HashMapImpl;
-
-  public:
-    explicit AutoHashMapRooter(JSContext *cx, ptrdiff_t tag
-                               JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, tag), map(cx)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    typedef Key KeyType;
-    typedef Value ValueType;
-    typedef typename HashMapImpl::Lookup Lookup;
-    typedef typename HashMapImpl::Ptr Ptr;
-    typedef typename HashMapImpl::AddPtr AddPtr;
-
-    bool init(uint32_t len = 16) {
-        return map.init(len);
-    }
-    bool initialized() const {
-        return map.initialized();
-    }
-    Ptr lookup(const Lookup &l) const {
-        return map.lookup(l);
-    }
-    void remove(Ptr p) {
-        map.remove(p);
-    }
-    AddPtr lookupForAdd(const Lookup &l) const {
-        return map.lookupForAdd(l);
-    }
-
-    template<typename KeyInput, typename ValueInput>
-    bool add(AddPtr &p, const KeyInput &k, const ValueInput &v) {
-        return map.add(k, v);
-    }
-
-    bool add(AddPtr &p, const Key &k) {
-        return map.add(p, k);
-    }
-
-    template<typename KeyInput, typename ValueInput>
-    bool relookupOrAdd(AddPtr &p, const KeyInput &k, const ValueInput &v) {
-        return map.relookupOrAdd(p, k, v);
-    }
-
-    typedef typename HashMapImpl::Range Range;
-    Range all() const {
-        return map.all();
-    }
-
-    typedef typename HashMapImpl::Enum Enum;
-
-    void clear() {
-        map.clear();
-    }
-
-    void finish() {
-        map.finish();
-    }
-
-    bool empty() const {
-        return map.empty();
-    }
-
-    uint32_t count() const {
-        return map.count();
-    }
-
-    size_t capacity() const {
-        return map.capacity();
-    }
-
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
-        return map.sizeOfExcludingThis(mallocSizeOf);
-    }
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
-        return map.sizeOfIncludingThis(mallocSizeOf);
-    }
-
-    unsigned generation() const {
-        return map.generation();
-    }
-
-    /************************************************** Shorthand operations */
-
-    bool has(const Lookup &l) const {
-        return map.has(l);
-    }
-
-    template<typename KeyInput, typename ValueInput>
-    bool put(const KeyInput &k, const ValueInput &v) {
-        return map.put(k, v);
-    }
-
-    template<typename KeyInput, typename ValueInput>
-    bool putNew(const KeyInput &k, const ValueInput &v) {
-        return map.putNew(k, v);
-    }
-
-    Ptr lookupWithDefault(const Key &k, const Value &defaultValue) {
-        return map.lookupWithDefault(k, defaultValue);
-    }
-
-    void remove(const Lookup &l) {
-        map.remove(l);
-    }
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-
-  private:
-    AutoHashMapRooter(const AutoHashMapRooter &hmr) MOZ_DELETE;
-    AutoHashMapRooter &operator=(const AutoHashMapRooter &hmr) MOZ_DELETE;
-
-    HashMapImpl map;
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
@@ -1746,12 +1619,12 @@ typedef JS::MutableHandle<JSString*>   JSMutableHandleString;
 typedef JS::MutableHandle<JS::Value>   JSMutableHandleValue;
 typedef JS::MutableHandle<jsid>        JSMutableHandleId;
 
-typedef js::RawObject   JSRawObject;
-typedef js::RawFunction JSRawFunction;
-typedef js::RawScript   JSRawScript;
-typedef js::RawString   JSRawString;
-typedef js::RawId       JSRawId;
-typedef js::RawValue    JSRawValue;
+typedef JS::RawObject   JSRawObject;
+typedef JS::RawFunction JSRawFunction;
+typedef JS::RawScript   JSRawScript;
+typedef JS::RawString   JSRawString;
+typedef JS::RawId       JSRawId;
+typedef JS::RawValue    JSRawValue;
 
 /* JSClass operation signatures. */
 
@@ -1836,7 +1709,9 @@ typedef JSBool
 /*
  * Like JSResolveOp, but flags provide contextual information as follows:
  *
+ *  JSRESOLVE_QUALIFIED   a qualified property id: obj.id or obj[id], not id
  *  JSRESOLVE_ASSIGNING   obj[id] is on the left-hand side of an assignment
+ *  JSRESOLVE_DETECTING   'if (o.p)...' or similar detection opcode sequence
  *
  * The *objp out parameter, on success, should be null to indicate that id
  * was not resolved; and non-null, referring to obj or one of its prototypes,
@@ -1987,25 +1862,8 @@ typedef void
 (* JSGCCallback)(JSRuntime *rt, JSGCStatus status);
 
 typedef enum JSFinalizeStatus {
-    /*
-     * Called when preparing to sweep a group of compartments, before anything
-     * has been swept.  The collector will not yield to the mutator before
-     * calling the callback with JSFINALIZE_GROUP_END status.
-     */
-    JSFINALIZE_GROUP_START,
-
-    /*
-     * Called when preparing to sweep a group of compartments. Weak references
-     * to unmarked things have been removed and things that are not swept
-     * incrementally have been finalized at this point.  The collector may yield
-     * to the mutator after this point.
-     */
-    JSFINALIZE_GROUP_END,
-
-    /*
-     * Called at the end of collection when everything has been swept.
-     */
-    JSFINALIZE_COLLECTION_END
+    JSFINALIZE_START,
+    JSFINALIZE_END
 } JSFinalizeStatus;
 
 typedef void
@@ -2759,6 +2617,8 @@ ToBoolean(const Value &v)
         return v.toBoolean();
     if (v.isInt32())
         return v.toInt32() != 0;
+    if (v.isObject())
+        return true;
     if (v.isNullOrUndefined())
         return false;
     if (v.isDouble()) {
@@ -2766,7 +2626,7 @@ ToBoolean(const Value &v)
         return !MOZ_DOUBLE_IS_NaN(d) && d != 0;
     }
 
-    /* The slow path handles strings and objects. */
+    /* Slow path. Handle Strings. */
     return js::ToBooleanSlow(v);
 }
 
@@ -3240,9 +3100,6 @@ JS_WrapObject(JSContext *cx, JSObject **objp);
 extern JS_PUBLIC_API(JSBool)
 JS_WrapValue(JSContext *cx, jsval *vp);
 
-extern JS_PUBLIC_API(JSBool)
-JS_WrapId(JSContext *cx, jsid *idp);
-
 extern JS_PUBLIC_API(JSObject *)
 JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target);
 
@@ -3299,7 +3156,6 @@ class JS_PUBLIC_API(JSAutoCompartment)
     JSAutoCompartment(JSContext *cx, JSRawObject target);
     JSAutoCompartment(JSContext *cx, JSScript *target);
     JSAutoCompartment(JSContext *cx, JSStackFrame *target);
-    JSAutoCompartment(JSContext *cx, JSString *target);
     ~JSAutoCompartment();
 };
 
@@ -3500,7 +3356,7 @@ extern JS_PUBLIC_API(jsval)
 JS_ComputeThis(JSContext *cx, jsval *vp);
 
 #undef JS_THIS
-static JS_ALWAYS_INLINE jsval
+static inline jsval
 JS_THIS(JSContext *cx, jsval *vp)
 {
     return JSVAL_IS_PRIMITIVE(vp[1]) ? JS_ComputeThis(cx, vp) : vp[1];
@@ -4086,9 +3942,7 @@ struct JSClass {
 #define JSCLASS_IS_DOMJSCLASS           (1<<4)  /* objects are DOM */
 #define JSCLASS_IMPLEMENTS_BARRIERS     (1<<5)  /* Correctly implements GC read
                                                    and write barriers */
-#define JSCLASS_EMULATES_UNDEFINED      (1<<6)  /* objects of this class act
-                                                   like the value undefined,
-                                                   in some contexts */
+#define JSCLASS_DOCUMENT_OBSERVER       (1<<6)  /* DOM document observer */
 #define JSCLASS_USERBIT1                (1<<7)  /* Reserved for embeddings. */
 
 /*
@@ -4140,7 +3994,7 @@ struct JSClass {
  * with the following flags. Failure to use JSCLASS_GLOBAL_FLAGS was
  * prevously allowed, but is now an ES5 violation and thus unsupported.
  */
-#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 26)
+#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 23)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \
@@ -4229,7 +4083,9 @@ JS_IdToValue(JSContext *cx, jsid id, jsval *vp);
 /*
  * JSNewResolveOp flag bits.
  */
-#define JSRESOLVE_ASSIGNING     0x01    /* resolve on the left of assignment */
+#define JSRESOLVE_QUALIFIED     0x01    /* resolve a qualified property id */
+#define JSRESOLVE_ASSIGNING     0x02    /* resolve on the left of assignment */
+#define JSRESOLVE_DETECTING     0x04    /* 'if (o.p)...' or '(o.p) ?...:...' */
 
 /*
  * Invoke the [[DefaultValue]] hook (see ES5 8.6.2) with the provided hint on
@@ -5039,7 +4895,6 @@ struct JS_PUBLIC_API(CompileOptions) {
     bool compileAndGo;
     bool noScriptRval;
     bool selfHostingMode;
-    bool userBit;
     enum SourcePolicy {
         NO_SOURCE,
         LAZY_SOURCE,
@@ -5057,7 +4912,6 @@ struct JS_PUBLIC_API(CompileOptions) {
     CompileOptions &setCompileAndGo(bool cng) { compileAndGo = cng; return *this; }
     CompileOptions &setNoScriptRval(bool nsr) { noScriptRval = nsr; return *this; }
     CompileOptions &setSelfHostingMode(bool shm) { selfHostingMode = shm; return *this; }
-    CompileOptions &setUserBit(bool bit) { userBit = bit; return *this; }
     CompileOptions &setSourcePolicy(SourcePolicy sp) { sourcePolicy = sp; return *this; }
 };
 
@@ -5484,6 +5338,13 @@ JS_NewDependentString(JSContext *cx, JSString *str, size_t start,
  */
 extern JS_PUBLIC_API(JSString *)
 JS_ConcatStrings(JSContext *cx, JSString *left, JSString *right);
+
+/*
+ * Convert a dependent string into an independent one.  This function does not
+ * change the string's mutability, so the thread safety comments above apply.
+ */
+extern JS_PUBLIC_API(const jschar *)
+JS_UndependString(JSContext *cx, JSString *str);
 
 /*
  * For JS_DecodeBytes, set *dstlenp to the size of the destination buffer before
@@ -6100,9 +5961,6 @@ JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency);
 extern JS_PUBLIC_API(void)
 JS_ScheduleGC(JSContext *cx, uint32_t count);
 #endif
-
-extern JS_PUBLIC_API(void)
-JS_SetParallelCompilationEnabled(JSContext *cx, bool enabled);
 
 /*
  * Convert a uint32_t index into a jsid.

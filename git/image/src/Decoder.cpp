@@ -12,7 +12,7 @@
 namespace mozilla {
 namespace image {
 
-Decoder::Decoder(RasterImage &aImage, imgDecoderObserver* aObserver)
+Decoder::Decoder(RasterImage &aImage, imgIDecoderObserver* aObserver)
   : mImage(aImage)
   , mObserver(aObserver)
   , mDecodeFlags(0)
@@ -24,7 +24,6 @@ Decoder::Decoder(RasterImage &aImage, imgDecoderObserver* aObserver)
   , mSizeDecode(false)
   , mInFrame(false)
   , mIsAnimated(false)
-  , mFirstWrite(true)
 {
 }
 
@@ -43,6 +42,10 @@ Decoder::Init()
   // No re-initializing
   NS_ABORT_IF_FALSE(!mInitialized, "Can't re-initialize a decoder!");
 
+  // Fire OnStartDecode at init time to support bug 512435
+  if (!IsSizeDecode() && mObserver)
+      mObserver->OnStartDecode();
+
   // Implementation-specific initialization
   InitInternal();
   mInitialized = true;
@@ -56,9 +59,6 @@ Decoder::InitSharedDecoder()
   // No re-initializing
   NS_ABORT_IF_FALSE(!mInitialized, "Can't re-initialize a decoder!");
 
-  // Prevent duplicate notifications.
-  mFirstWrite = false;
-
   // Implementation-specific initialization
   InitInternal();
   mInitialized = true;
@@ -71,14 +71,6 @@ Decoder::Write(const char* aBuffer, uint32_t aCount)
   NS_ABORT_IF_FALSE(!HasDecoderError(),
                     "Not allowed to make more decoder calls after error!");
 
-  // If this is our first write, fire OnStartDecode to support bug 512435.
-  if (mFirstWrite) {
-    if (!IsSizeDecode() && mObserver)
-      mObserver->OnStartDecode();
-
-    mFirstWrite = false;
-  }
-
   // If a data error occured, just ignore future data
   if (HasDataError())
     return;
@@ -88,7 +80,7 @@ Decoder::Write(const char* aBuffer, uint32_t aCount)
 }
 
 void
-Decoder::Finish(RasterImage::eShutdownIntent aShutdownIntent)
+Decoder::Finish()
 {
   // Implementation-specific finalization
   if (!HasError())
@@ -122,22 +114,16 @@ Decoder::Finish(RasterImage::eShutdownIntent aShutdownIntent)
       }
     }
 
-    bool usable = true;
-    if (aShutdownIntent != RasterImage::eShutdownIntent_Interrupted && !HasDecoderError()) {
-      // If we only have a data error, we're usable if we have at least one frame.
-      if (mImage.GetNumFrames() == 0) {
-        usable = false;
-      }
-    }
+    // If we only have a data error, see if things are worth salvaging
+    bool salvage = !HasDecoderError() && mImage.GetNumFrames();
 
-    // If we're usable, do exactly what we should have when the decoder
-    // completed.
-    if (usable) {
-      PostDecodeDone();
-    } else {
-      if (mObserver) {
-        mObserver->OnStopDecode(NS_ERROR_FAILURE);
-      }
+    // If we're salvaging, say we finished decoding
+    if (salvage)
+      mImage.DecodingComplete();
+
+    // Fire teardown notifications
+    if (mObserver) {
+      mObserver->OnStopDecode(salvage ? NS_OK : NS_ERROR_FAILURE);
     }
   }
 }

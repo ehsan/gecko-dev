@@ -133,13 +133,23 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFocusManager)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFocusManager)
 
-NS_IMPL_CYCLE_COLLECTION_6(nsFocusManager,
-                           mActiveWindow,
-                           mFocusedWindow,
-                           mFocusedContent,
-                           mFirstBlurEvent,
-                           mFirstFocusEvent,
-                           mWindowBeingLowered)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsFocusManager)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsFocusManager)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mActiveWindow)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFocusedWindow)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFocusedContent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstBlurEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstFocusEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mWindowBeingLowered)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFocusManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mActiveWindow)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFocusedWindow)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFocusedContent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFirstBlurEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFirstFocusEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mWindowBeingLowered)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 nsFocusManager* nsFocusManager::sInstance = nullptr;
 bool nsFocusManager::sMouseFocusesFormControl = false;
@@ -1745,8 +1755,6 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
   // if switching to a new document, first fire the focus event on the
   // document and then the window.
   if (aIsNewDocument) {
-    nsIMEStateManager::OnChangeFocus(presShell->GetPresContext(), nullptr,
-                                     GetFocusMoveActionCause(aFlags));
     nsIDocument* doc = aWindow->GetExtantDoc();
     if (doc)
       SendFocusOrBlurEvent(NS_FOCUS_CONTENT, presShell, doc,
@@ -1862,7 +1870,7 @@ public:
   NS_IMETHOD Run()
   {
     nsFocusEvent event(true, mType);
-    event.mFlags.mBubbles = false;
+    event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
     event.fromRaise = mWindowRaised;
     event.isRefocus = mIsRefocus;
     return nsEventDispatcher::Dispatch(mTarget, mContext, &event);
@@ -3101,8 +3109,7 @@ nsFocusManager::GetNextTabbablePanel(nsIDocument* aDocument, nsIFrame* aCurrentP
     return nullptr;
 
   // Iterate through the array backwards if aForward is false.
-  nsTArray<nsIFrame *> popups;
-  pm->GetVisiblePopups(popups);
+  nsTArray<nsIFrame *> popups = pm->GetVisiblePopups();
   int32_t i = aForward ? 0 : popups.Length() - 1;
   int32_t end = aForward ? popups.Length() : -1;
 

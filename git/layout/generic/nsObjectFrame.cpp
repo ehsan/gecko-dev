@@ -275,7 +275,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsObjectFrameSuper)
 a11y::AccType
 nsObjectFrame::AccessibleType()
 {
-  return a11y::ePluginType;
+  return a11y::eHTMLObjectFrameAccessible;
 }
 
 #ifdef XP_WIN
@@ -637,7 +637,7 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
   NPWindow *window;
   mInstanceOwner->GetWindow(window);
 
-  NS_ENSURE_TRUE_VOID(window);
+  NS_ENSURE_TRUE(window, /**/);
 
 #ifdef XP_MACOSX
   nsWeakFrame weakFrame(this);
@@ -868,7 +868,7 @@ nsObjectFrame::DidReflow(nsPresContext*            aPresContext,
 {
   // Do this check before calling the superclass, as that clears
   // NS_FRAME_FIRST_REFLOW
-  if (aStatus == nsDidReflowStatus::FINISHED &&
+  if (aStatus == NS_FRAME_REFLOW_FINISHED &&
       (GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     nsCOMPtr<nsIObjectLoadingContent> objContent(do_QueryInterface(mContent));
     NS_ASSERTION(objContent, "Why not an object loading content?");
@@ -879,7 +879,7 @@ nsObjectFrame::DidReflow(nsPresContext*            aPresContext,
 
   // The view is created hidden; once we have reflowed it and it has been
   // positioned then we show it.
-  if (aStatus != nsDidReflowStatus::FINISHED) 
+  if (aStatus != NS_FRAME_REFLOW_FINISHED) 
     return rv;
 
   if (HasView()) {
@@ -1033,7 +1033,7 @@ nsDisplayPluginVideo::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 nsRect
 nsDisplayPlugin::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
 {
-  *aSnap = true;
+  *aSnap = false;
   return GetDisplayItemBounds(aBuilder, this, mFrame);
 }
 
@@ -1152,12 +1152,7 @@ nsObjectFrame::DidSetWidgetGeometry()
   if (!mWidget && mInstanceOwner) {
     // UpdateWindowVisibility will notify the plugin of position changes
     // by updating the NPWindow and calling NPP_SetWindow/AsyncSetWindow.
-    // We treat windowless plugins inside popups as always visible, since
-    // plugins inside popups don't get valid mNextConfigurationBounds
-    // set up.
-    mInstanceOwner->UpdateWindowVisibility(
-      nsLayoutUtils::IsPopup(nsLayoutUtils::GetDisplayRootFrame(this)) ||
-      !mNextConfigurationBounds.IsEmpty());
+    mInstanceOwner->UpdateWindowVisibility(!mNextConfigurationBounds.IsEmpty());
   }
 #endif
 }
@@ -1255,15 +1250,10 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
         nsDisplayGeneric(aBuilder, this, PaintPrintPlugin, "PrintPlugin",
                          nsDisplayItem::TYPE_PRINT_PLUGIN));
   } else {
-    LayerState state = GetLayerState(aBuilder, nullptr);
-    if (state == LAYER_INACTIVE &&
-        nsDisplayItem::ForceActiveLayers()) {
-      state = LAYER_ACTIVE;
-    }
     // We don't need this on Android, and it just confuses things
 #if !MOZ_WIDGET_ANDROID
     if (aBuilder->IsPaintingToWindow() &&
-        state == LAYER_ACTIVE &&
+        GetLayerState(aBuilder, nullptr) == LAYER_ACTIVE &&
         IsTransparentMode()) {
       rv = replacedContent.AppendNewToTop(new (aBuilder)
           nsDisplayPluginReadback(aBuilder, this));
@@ -1273,7 +1263,7 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 #if MOZ_WIDGET_ANDROID
     if (aBuilder->IsPaintingToWindow() &&
-        state == LAYER_ACTIVE) {
+        GetLayerState(aBuilder, nullptr) == LAYER_ACTIVE) {
 
       nsTArray<nsNPAPIPluginInstance::VideoInfo*> videos;
       mInstanceOwner->GetVideos(videos);
@@ -1525,7 +1515,7 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
 
   // XXX Nav 4.x always sent a SetWindow call after print. Should we do the same?
   // XXX Calling DidReflow here makes no sense!!!
-  nsDidReflowStatus status = nsDidReflowStatus::FINISHED; // should we use a special status?
+  nsDidReflowStatus status = NS_FRAME_REFLOW_FINISHED; // should we use a special status?
   frame->DidReflow(presContext,
                    nullptr, status);  // DidReflow will take care of it
 }

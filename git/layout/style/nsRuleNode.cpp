@@ -11,11 +11,6 @@
 
 #include <algorithm>
 
-#include "mozilla/Assertions.h"
-#include "mozilla/DebugOnly.h"
-#include "mozilla/Likely.h"
-#include "mozilla/Util.h"
-
 #include "nsRuleNode.h"
 #include "nscore.h"
 #include "nsIServiceManager.h"
@@ -45,8 +40,11 @@
 #include "CSSCalc.h"
 #include "nsPrintfCString.h"
 
+#include "mozilla/Assertions.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/Likely.h"
 #include "mozilla/LookAndFeel.h"
+#include "mozilla/Util.h"
 
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #include <malloc.h>
@@ -67,7 +65,7 @@ using namespace mozilla::dom;
   if ((context_)->PresContext()->IsDynamic()) {                               \
     method_(request_);                                                      \
   } else {                                                                  \
-    nsRefPtr<imgRequestProxy> req = nsContentUtils::GetStaticRequest(request_); \
+    nsCOMPtr<imgIRequest> req = nsContentUtils::GetStaticRequest(request_); \
     method_(req);                                                           \
   }
 
@@ -374,9 +372,8 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
   }
   switch (aValue.GetUnit()) {
     case eCSSUnit_EM: {
-      // CSS2.1 specifies that this unit scales to the computed font
-      // size, not the em-width in the font metrics, despite the name.
       return ScaleCoord(aValue, float(aFontSize));
+      // XXX scale against font metrics height instead?
     }
     case eCSSUnit_XHeight: {
       nsRefPtr<nsFontMetrics> fm =
@@ -1299,9 +1296,6 @@ nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
     mNoneBits(0),
     mRefCnt(0)
 {
-  NS_ABORT_IF_FALSE(IsRoot() == !aRule,
-                    "non-root rule nodes must have a rule");
-
   mChildren.asVoid = nullptr;
   MOZ_COUNT_CTOR(nsRuleNode);
   NS_IF_ADDREF(mRule);
@@ -2320,24 +2314,17 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
                                                                               \
   nsStyleContext* parentContext = aContext->GetParent();                      \
                                                                               \
-  nsStyle##type_* data_ = nullptr;                                            \
-  mozilla::Maybe<nsStyle##type_> maybeFakeParentData;                         \
-  const nsStyle##type_* parentdata_ = nullptr;                                \
-  bool canStoreInRuleTree = aCanStoreInRuleTree;                              \
+  nsStyle##type_* data_ = nullptr;                                             \
+  const nsStyle##type_* parentdata_ = nullptr;                                 \
+  bool canStoreInRuleTree = aCanStoreInRuleTree;                            \
                                                                               \
   /* If |canStoreInRuleTree| might be true by the time we're done, we */      \
   /* can't call parentContext->GetStyle##type_() since it could recur into */ \
   /* setting the same struct on the same rule node, causing a leak. */        \
-  if (aRuleDetail != eRuleFullReset &&                                        \
+  if (parentContext && aRuleDetail != eRuleFullReset &&                       \
       (!aStartStruct || (aRuleDetail != eRulePartialReset &&                  \
-                         aRuleDetail != eRuleNone))) {                        \
-    if (parentContext) {                                                      \
-      parentdata_ = parentContext->GetStyle##type_();                         \
-    } else {                                                                  \
-      maybeFakeParentData.construct ctorargs_;                                \
-      parentdata_ = maybeFakeParentData.addr();                               \
-    }                                                                         \
-  }                                                                           \
+                         aRuleDetail != eRuleNone)))                          \
+    parentdata_ = parentContext->GetStyle##type_();                           \
   if (aStartStruct)                                                           \
     /* We only need to compute the delta between this computed data and */    \
     /* our computed data. */                                                  \
@@ -2394,18 +2381,12 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
   /* If |canStoreInRuleTree| might be true by the time we're done, we */      \
   /* can't call parentContext->GetStyle##type_() since it could recur into */ \
   /* setting the same struct on the same rule node, causing a leak. */        \
-  mozilla::Maybe<nsStyle##type_> maybeFakeParentData;                         \
   const nsStyle##type_* parentdata_ = data_;                                  \
-  if (aRuleDetail != eRuleFullReset &&                                        \
+  if (parentContext &&                                                        \
+      aRuleDetail != eRuleFullReset &&                                        \
       aRuleDetail != eRulePartialReset &&                                     \
-      aRuleDetail != eRuleNone) {                                             \
-    if (parentContext) {                                                      \
-      parentdata_ = parentContext->GetStyle##type_();                         \
-    } else {                                                                  \
-      maybeFakeParentData.construct ctorargs_;                                \
-      parentdata_ = maybeFakeParentData.addr();                               \
-    }                                                                         \
-  }                                                                           \
+      aRuleDetail != eRuleNone)                                               \
+    parentdata_ = parentContext->GetStyle##type_();                           \
   bool canStoreInRuleTree = aCanStoreInRuleTree;
 
 /**
@@ -3585,7 +3566,7 @@ nsRuleNode::GetShadowData(const nsCSSValueList* aList,
     return nullptr;
 
   nsStyleCoord tempCoord;
-  DebugOnly<bool> unitOK;
+  bool unitOK;
   for (nsCSSShadowItem* item = shadowList->ShadowAt(0);
        aList;
        aList = aList->mNext, ++item) {
@@ -6524,14 +6505,18 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
     // and inherit that resolved value.
     uint8_t inheritedAlignSelf = parentPos->mAlignSelf;
     if (inheritedAlignSelf == NS_STYLE_ALIGN_SELF_AUTO) {
-      if (!parentContext) {
-        // We're the root node. Nothing to inherit from --> just use default
-        // value.
+      if (parentPos == pos) {
+        // We're the root node. (If we weren't, COMPUTE_START_RESET would've
+        // given us a distinct parentPos, since we've got an 'inherit' value.)
+        // Nothing to inherit from --> just use default value.
         inheritedAlignSelf = NS_STYLE_ALIGN_ITEMS_INITIAL_VALUE;
       } else {
         // Our parent's "auto" value should resolve to our grandparent's value
         // for "align-items".  So, that's what we're supposed to inherit.
-        nsStyleContext* grandparentContext = parentContext->GetParent();
+        NS_ABORT_IF_FALSE(aContext->GetParent(),
+                          "we've got a distinct parent style-struct already, "
+                          "so we should have a parent style-context");
+        nsStyleContext* grandparentContext = aContext->GetParent()->GetParent();
         if (!grandparentContext) {
           // No grandparent --> our parent is the root node, so its
           // "align-self: auto" computes to the default "align-items" value:
@@ -7619,13 +7604,6 @@ nsRuleNode::ComputeSVGResetData(void* aStartStruct,
     canStoreInRuleTree = false;
     svgReset->mMask = parentSVGReset->mMask;
   }
-
-  // mask-type: enum, inherit, initial
-  SetDiscrete(*aRuleData->ValueForMaskType(),
-              svgReset->mMaskType,
-              canStoreInRuleTree, SETDSC_ENUMERATED,
-              parentSVGReset->mMaskType,
-              NS_STYLE_MASK_TYPE_LUMINANCE, 0, 0, 0, 0);
 
   COMPUTE_END_RESET(SVGReset, svgReset)
 }

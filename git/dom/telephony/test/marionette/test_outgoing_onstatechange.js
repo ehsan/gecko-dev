@@ -19,12 +19,7 @@ function verifyInitialState() {
   runEmulatorCmd("gsm list", function(result) {
     log("Initial call list: " + result);
     is(result[0], "OK");
-    if (result[0] == "OK") {
-      dial();
-    } else {
-      log("Call exists from a previous test, failing out.");
-      cleanUp();
-    }
+    dial();
   });
 }
 

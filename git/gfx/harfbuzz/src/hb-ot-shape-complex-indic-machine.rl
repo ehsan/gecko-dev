@@ -55,9 +55,8 @@ RS   = 13;
 Coeng = 14;
 Repha = 15;
 Ra    = 16;
-CM    = 17;
 
-c = (C | Ra)CM*;		# is_consonant
+c = (C | Ra);			# is_consonant
 n = ((ZWNJ?.RS)? (N.N?)?);	# is_consonant_modifier
 z = ZWJ|ZWNJ;			# is_joiner
 h = H | Coeng;			# is_halant_or_coeng

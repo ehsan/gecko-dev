@@ -37,8 +37,6 @@ import android.util.Log;
 
 import android.widget.RemoteViews;
 
-import java.net.Proxy;
-import java.net.ProxySelector;
 import java.net.URL;
 import java.net.URLConnection;
 
@@ -55,7 +53,6 @@ import java.security.MessageDigest;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
-import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.TimeZone;
@@ -130,9 +127,6 @@ public class UpdateService extends IntentService {
             registerForUpdates(false);
         } else if (UpdateServiceHelper.ACTION_CHECK_FOR_UPDATE.equals(intent.getAction())) {
             startUpdate(intent.getIntExtra(UpdateServiceHelper.EXTRA_UPDATE_FLAGS_NAME, 0));
-        } else if (UpdateServiceHelper.ACTION_DOWNLOAD_UPDATE.equals(intent.getAction())) {
-            // We always want to do the download here
-            startUpdate(UpdateServiceHelper.FLAG_FORCE_DOWNLOAD);
         } else if (UpdateServiceHelper.ACTION_APPLY_UPDATE.equals(intent.getAction())) {
             applyUpdate(intent.getStringExtra(UpdateServiceHelper.EXTRA_PACKAGE_PATH_NAME));
         }
@@ -235,8 +229,9 @@ public class UpdateService extends IntentService {
             // We aren't autodownloading here, so prompt to start the update
             Notification notification = new Notification(R.drawable.ic_status_logo, null, System.currentTimeMillis());
 
-            Intent notificationIntent = new Intent(UpdateServiceHelper.ACTION_DOWNLOAD_UPDATE);
+            Intent notificationIntent = new Intent(UpdateServiceHelper.ACTION_CHECK_FOR_UPDATE);
             notificationIntent.setClass(this, UpdateService.class);
+            notificationIntent.putExtra(UpdateServiceHelper.EXTRA_UPDATE_FLAGS_NAME, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD);
 
             PendingIntent contentIntent = PendingIntent.getService(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
             notification.flags = Notification.FLAG_AUTO_CANCEL;
@@ -279,25 +274,12 @@ public class UpdateService extends IntentService {
         }
     }
 
-    private URLConnection openConnectionWithProxy(URL url) throws java.net.URISyntaxException, java.io.IOException {
-        ProxySelector ps = ProxySelector.getDefault();
-        Proxy proxy = Proxy.NO_PROXY;
-        if (ps != null) {
-            List<Proxy> proxies = ps.select(url.toURI());
-            if (proxies != null && !proxies.isEmpty()) {
-                proxy = proxies.get(0);
-            }
-        }
-
-        return url.openConnection(proxy);
-    }
-
     private UpdateInfo findUpdate(boolean force) {
         try {
             URL url = UpdateServiceHelper.getUpdateUrl(this, force);
 
             DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-            Document dom = builder.parse(openConnectionWithProxy(url).getInputStream());
+            Document dom = builder.parse(url.openConnection().getInputStream());
 
             NodeList nodes = dom.getElementsByTagName("update");
             if (nodes == null || nodes.getLength() == 0)
@@ -431,7 +413,7 @@ public class UpdateService extends IntentService {
         showDownloadNotification(downloadFile);
 
         try {
-            URLConnection conn = openConnectionWithProxy(info.url);
+            URLConnection conn = info.url.openConnection();
             int length = conn.getContentLength();
 
             output = new BufferedOutputStream(new FileOutputStream(downloadFile));

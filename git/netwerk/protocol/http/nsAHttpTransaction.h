@@ -37,7 +37,8 @@ public:
 
     // called by the connection to get security callbacks to set on the
     // socket transport.
-    virtual void GetSecurityCallbacks(nsIInterfaceRequestor **) = 0;
+    virtual void GetSecurityCallbacks(nsIInterfaceRequestor **,
+                                      nsIEventTarget **) = 0;
 
     // called to report socket status (see nsITransportEventSink)
     virtual void OnTransportStatus(nsITransport* transport,
@@ -46,7 +47,7 @@ public:
     // called to check the transaction status.
     virtual bool     IsDone() = 0;
     virtual nsresult Status() = 0;
-    virtual uint32_t Caps() = 0;
+    virtual uint8_t  Caps() = 0;
 
     // called to find out how much request data is available for writing.
     virtual uint64_t Available() = 0;
@@ -137,12 +138,13 @@ public:
 #define NS_DECL_NSAHTTPTRANSACTION \
     void SetConnection(nsAHttpConnection *); \
     nsAHttpConnection *Connection(); \
-    void GetSecurityCallbacks(nsIInterfaceRequestor **);       \
+    void GetSecurityCallbacks(nsIInterfaceRequestor **, \
+                              nsIEventTarget **);       \
     void OnTransportStatus(nsITransport* transport, \
                            nsresult status, uint64_t progress); \
     bool     IsDone(); \
     nsresult Status(); \
-    uint32_t Caps();   \
+    uint8_t  Caps();   \
     uint64_t Available(); \
     nsresult ReadSegments(nsAHttpSegmentReader *, uint32_t, uint32_t *); \
     nsresult WriteSegments(nsAHttpSegmentWriter *, uint32_t, uint32_t *); \
@@ -172,13 +174,12 @@ public:
     // data from subsequent OnReadSegment() calls or throw hard
     // (i.e. not wouldblock) exceptions. Implementations
     // can return NS_ERROR_FAILURE if they never make commitments of that size
-    // (the default), NS_OK if they make the commitment, or
-    // NS_BASE_STREAM_WOULD_BLOCK if they cannot make the
-    // commitment now but might in the future and forceCommitment is not true .
-    // (forceCommitment requires a hard failure or OK at this moment.)
+    // (the default), NS_BASE_STREAM_WOULD_BLOCK if they cannot make
+    // the commitment now but might in the future, or NS_OK
+    // if they make the commitment.
     //
     // Spdy uses this to make sure frames are atomic.
-    virtual nsresult CommitToSegmentSize(uint32_t size, bool forceCommitment)
+    virtual nsresult CommitToSegmentSize(uint32_t size)
     {
         return NS_ERROR_FAILURE;
     }

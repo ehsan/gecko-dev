@@ -52,7 +52,6 @@
 
 #include "nsIDOMHTMLButtonElement.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
-#include "mozilla/dom/BindingUtils.h"
 #include "nsSandboxFlags.h"
 
 using namespace mozilla::dom;
@@ -93,7 +92,7 @@ public:
   // nsIDOMHTMLCollection interface
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual Element* GetElementAt(uint32_t index);
+  virtual nsGenericElement* GetElementAt(uint32_t index);
   virtual nsINode* GetParentObject()
   {
     return mForm;
@@ -184,7 +183,6 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   case NS_FORM_INPUT_TEL :
   case NS_FORM_INPUT_URL :
   case NS_FORM_INPUT_NUMBER :
-  case NS_FORM_INPUT_DATE :
   case NS_FORM_SELECT :
   case NS_FORM_TEXTAREA :
   case NS_FORM_FIELDSET :
@@ -288,12 +286,13 @@ ElementTraverser(const nsAString& key, nsIDOMHTMLInputElement* element,
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLFormElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLFormElement,
                                                   nsGenericHTMLElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mControls)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mControls,
+                                                       nsIDOMHTMLCollection)
   tmp->mSelectedRadioButtons.EnumerateRead(ElementTraverser, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLFormElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLFormElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLFormElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLFormElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLFormElement, nsHTMLFormElement)
@@ -454,7 +453,7 @@ nsHTMLFormElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 static void
-MarkOrphans(const nsTArray<nsGenericHTMLFormElement*>& aArray)
+MarkOrphans(const nsTArray<nsGenericHTMLFormElement*> aArray)
 {
   uint32_t length = aArray.Length();
   for (uint32_t i = 0; i < length; ++i) {
@@ -463,8 +462,7 @@ MarkOrphans(const nsTArray<nsGenericHTMLFormElement*>& aArray)
 }
 
 static void
-CollectOrphans(nsINode* aRemovalRoot,
-               const nsTArray<nsGenericHTMLFormElement*>& aArray
+CollectOrphans(nsINode* aRemovalRoot, nsTArray<nsGenericHTMLFormElement*> aArray
 #ifdef DEBUG
                , nsIDOMHTMLFormElement* aThisForm
 #endif
@@ -584,9 +582,9 @@ nsHTMLFormElement::WillHandleEvent(nsEventChainPostVisitor& aVisitor)
   // for this form too.
   if ((aVisitor.mEvent->message == NS_FORM_SUBMIT ||
        aVisitor.mEvent->message == NS_FORM_RESET) &&
-      aVisitor.mEvent->mFlags.mInBubblingPhase &&
+      aVisitor.mEvent->flags & NS_EVENT_FLAG_BUBBLE &&
       aVisitor.mEvent->originalTarget != static_cast<nsIContent*>(this)) {
-    aVisitor.mEvent->mFlags.mPropagationStopped = true;
+    aVisitor.mEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
   }
   return NS_OK;
 }
@@ -885,7 +883,6 @@ nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
 
     rv = linkHandler->OnLinkClickSync(this, actionURI,
                                       target.get(),
-                                      NullString(),
                                       postDataStream, nullptr,
                                       getter_AddRefs(docShell),
                                       getter_AddRefs(mSubmittingRequest));
@@ -2519,7 +2516,7 @@ nsFormControlList::GetSortedControls(nsTArray<nsGenericHTMLFormElement*>& aContr
   return NS_OK;
 }
 
-Element*
+nsGenericElement*
 nsFormControlList::GetElementAt(uint32_t aIndex)
 {
   FlushPendingNotifications();

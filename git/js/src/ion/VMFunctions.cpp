@@ -13,7 +13,6 @@
 
 #include "vm/StringObject-inl.h"
 
-#include "jsboolinlines.h"
 #include "jsinterpinlines.h"
 
 using namespace js;
@@ -22,57 +21,31 @@ using namespace js::ion;
 namespace js {
 namespace ion {
 
-// Don't explicitly initialize, it's not guaranteed that this initializer will
-// run before the constructors for static VMFunctions.
-/* static */ VMFunction *VMFunction::functions;
-
-void
-VMFunction::addToFunctions()
-{
-    static bool initialized = false;
-    if (!initialized) {
-        initialized = true;
-        functions = NULL;
-    }
-    this->next = functions;
-    functions = this;
-}
-
 static inline bool
 ShouldMonitorReturnType(JSFunction *fun)
 {
     return fun->isInterpreted() &&
-           (!fun->nonLazyScript()->hasAnalysis() ||
-            !fun->nonLazyScript()->analysis()->ranInference());
+           (!fun->script()->hasAnalysis() ||
+            !fun->script()->analysis()->ranInference());
 }
 
 bool
-InvokeFunction(JSContext *cx, JSFunction *fun, uint32_t argc, Value *argv, Value *rval)
+InvokeFunction(JSContext *cx, JSFunction *fun, uint32 argc, Value *argv, Value *rval)
 {
     Value fval = ObjectValue(*fun);
 
     // In order to prevent massive bouncing between Ion and JM, see if we keep
     // hitting functions that are uncompilable.
-    if (fun->isInterpreted()) {
-        if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
-            return false;
-        if (!fun->nonLazyScript()->canIonCompile()) {
-            UnrootedScript script = GetTopIonJSScript(cx);
-            if (script->hasIonScript() &&
-                ++script->ion->slowCallCount >= js_IonOptions.slowCallLimit)
-            {
-                AutoFlushCache afc("InvokeFunction");
+    
+    if (fun->isInterpreted() && !fun->script()->canIonCompile()) {
+        JSScript *script = GetTopIonJSScript(cx);
+        if (script->hasIonScript() && ++script->ion->slowCallCount >= js_IonOptions.slowCallLimit) {
+            AutoFlushCache afc("InvokeFunction");
 
-                // Poison the script so we don't try to run it again. This will
-                // trigger invalidation.
-                ForbidCompilation(cx, script);
-            }
+            // Poison the script so we don't try to run it again. This will
+            // trigger invalidation.
+            ForbidCompilation(cx, script);
         }
-
-        // When caller runs in IM, but callee not, we take a slow path to the interpreter.
-        // This has a significant overhead. In order to decrease the number of times this happens,
-        // the useCount gets incremented faster to compile this function in IM and use the fastpath.
-        fun->nonLazyScript()->incUseCount(js_IonOptions.slowCallIncUseCount);
     }
 
     // TI will return false for monitorReturnTypes, meaning there is no
@@ -88,6 +61,24 @@ InvokeFunction(JSContext *cx, JSFunction *fun, uint32_t argc, Value *argv, Value
 
     // Run the function in the interpreter.
     bool ok = Invoke(cx, thisv, fval, argc, argvWithoutThis, rval);
+    if (ok && needsMonitor)
+        types::TypeScript::Monitor(cx, *rval);
+
+    return ok;
+}
+
+bool
+InvokeConstructor(JSContext *cx, JSObject *obj, uint32 argc, Value *argv, Value *rval)
+{
+    Value fval = ObjectValue(*obj);
+
+    // See the comment in InvokeFunction.
+    bool needsMonitor = !obj->isFunction() || ShouldMonitorReturnType(obj->toFunction());
+
+    // Data in the argument vector is arranged for a JIT -> JIT call.
+    Value *argvWithoutThis = argv + 1;
+
+    bool ok = js::InvokeConstructor(cx, fval, argc, argvWithoutThis, rval);
     if (ok && needsMonitor)
         types::TypeScript::Monitor(cx, *rval);
 
@@ -143,7 +134,7 @@ InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue v
 
     if (name == cx->names().proto)
         return baseops::SetPropertyHelper(cx, obj, obj, id, 0, &rval, false);
-    return DefineNativeProperty(cx, obj, id, rval, NULL, NULL, JSPROP_ENUMERATE, 0, 0, 0);
+    return !!DefineNativeProperty(cx, obj, id, rval, NULL, NULL, JSPROP_ENUMERATE, 0, 0, 0);
 }
 
 template<bool Equal>
@@ -228,11 +219,11 @@ StringsEqual(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res)
 template bool StringsEqual<true>(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res);
 template bool StringsEqual<false>(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res);
 
-JSBool
-ObjectEmulatesUndefined(RawObject obj)
+bool
+ValueToBooleanComplement(JSContext *cx, const Value &input, JSBool *output)
 {
-    AutoAssertNoGC nogc;
-    return EmulatesUndefined(obj);
+    *output = !ToBoolean(input);
+    return true;
 }
 
 bool
@@ -361,20 +352,6 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
     return &argv[0].toObject();
 }
 
-bool
-CharCodeAt(JSContext *cx, HandleString str, int32_t index, uint32_t *code)
-{
-    JS_ASSERT(index >= 0 &&
-              static_cast<uint32_t>(index) < str->length());
-
-    const jschar *chars = str->getChars(cx);
-    if (!chars)
-        return false;
-
-    *code = chars[index];
-    return true;
-}
-
 JSFlatString *
 StringFromCharCode(JSContext *cx, int32_t code)
 {
@@ -462,11 +439,6 @@ bool OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, JSBool *out)
 
     *out = !!prop;
     return true;
-}
-
-bool GetIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue rval)
-{
-    return cx->global()->getIntrinsicValue(cx, name, rval);
 }
 
 } // namespace ion

@@ -19,7 +19,6 @@
 #include "nsISocketTransportService.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/net/DashboardTypes.h"
 
 #include "nsIObserver.h"
 #include "nsITimer.h"
@@ -106,7 +105,8 @@ public:
     // connection manager, nor is the submitter obligated to actually submit a
     // real transaction for this connectionInfo.
     nsresult SpeculativeConnect(nsHttpConnectionInfo *,
-                                nsIInterfaceRequestor *);
+                                nsIInterfaceRequestor *,
+                                nsIEventTarget *);
 
     // called when a connection is done processing a transaction.  if the 
     // connection can be reused then it will be added to the idle list, else
@@ -208,9 +208,6 @@ public:
     nsresult ProcessPendingQ(nsHttpConnectionInfo *);
     bool     ProcessPendingQForEntry(nsHttpConnectionInfo *);
 
-    // Try and process all pending transactions
-    nsresult ProcessPendingQ();
-
     // This is used to force an idle connection to be closed and removed from
     // the idle connection list. It is called when the idle connection detects
     // that the network peer has closed the transport.
@@ -223,10 +220,6 @@ public:
 
     
     bool     SupportsPipelining(nsHttpConnectionInfo *);
-
-    bool GetConnectionData(nsTArray<mozilla::net::HttpRetParams> *);
-
-    void ResetIPFamillyPreference(nsHttpConnectionInfo *);
 
 private:
     virtual ~nsHttpConnectionMgr();
@@ -346,20 +339,6 @@ private:
         bool mTestedSpdy;
 
         bool mSpdyPreferred;
-
-        // Flags to remember our happy-eyeballs decision.
-        // Reset only by Ctrl-F5 reload.
-        // True when we've first connected an IPv4 server for this host,
-        // initially false.
-        bool mPreferIPv4 : 1;
-        // True when we've first connected an IPv6 server for this host,
-        // initially false.
-        bool mPreferIPv6 : 1;
-
-        // Set the IP family preference flags according the connected family
-        void RecordIPFamilyPreference(uint16_t family);
-        // Resets all flags to their default values
-        void ResetIPFamilyPreference();
     };
 
     // nsConnectionHandle
@@ -400,7 +379,7 @@ private:
 
         nsHalfOpenSocket(nsConnectionEntry *ent,
                          nsAHttpTransaction *trans,
-                         uint32_t caps);
+                         uint8_t caps);
         ~nsHalfOpenSocket();
         
         nsresult SetupStreams(nsISocketTransport **,
@@ -430,7 +409,7 @@ private:
         nsCOMPtr<nsISocketTransport>   mSocketTransport;
         nsCOMPtr<nsIAsyncOutputStream> mStreamOut;
         nsCOMPtr<nsIAsyncInputStream>  mStreamIn;
-        uint32_t                       mCaps;
+        uint8_t                        mCaps;
 
         // mSpeculative is set if the socket was created from
         // SpeculativeConnect(). It is cleared when a transaction would normally
@@ -475,16 +454,15 @@ private:
     //-------------------------------------------------------------------------
 
     static PLDHashOperator ProcessOneTransactionCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
-    static PLDHashOperator ProcessAllTransactionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
 
     static PLDHashOperator PruneDeadConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
     static PLDHashOperator ShutdownPassCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
     static PLDHashOperator PurgeExcessIdleConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
     static PLDHashOperator ClosePersistentConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
-    bool     ProcessPendingQForEntry(nsConnectionEntry *, bool considerAll);
+    bool     ProcessPendingQForEntry(nsConnectionEntry *);
     bool     IsUnderPressure(nsConnectionEntry *ent,
                              nsHttpTransaction::Classifier classification);
-    bool     AtActiveConnectionLimit(nsConnectionEntry *, uint32_t caps);
+    bool     AtActiveConnectionLimit(nsConnectionEntry *, uint8_t caps);
     nsresult TryDispatchTransaction(nsConnectionEntry *ent,
                                     bool onlyReusedConnection,
                                     nsHttpTransaction *trans);
@@ -493,7 +471,7 @@ private:
                                  nsHttpConnection *);
     nsresult DispatchAbstractTransaction(nsConnectionEntry *,
                                          nsAHttpTransaction *,
-                                         uint32_t,
+                                         uint8_t,
                                          nsHttpConnection *,
                                          int32_t);
     nsresult BuildPipeline(nsConnectionEntry *,
@@ -505,7 +483,7 @@ private:
     void     ClosePersistentConnections(nsConnectionEntry *ent);
     void     ReportProxyTelemetry(nsConnectionEntry *ent);
     nsresult CreateTransport(nsConnectionEntry *, nsAHttpTransaction *,
-                             uint32_t, bool);
+                             uint8_t, bool);
     void     AddActiveConn(nsHttpConnection *, nsConnectionEntry *);
     void     StartedConnect();
     void     RecvdConnect();
@@ -602,9 +580,6 @@ private:
     // Total number of idle connections in all of the ConnectionEntry objects
     // that are accessed from mCT connection table.
     uint16_t mNumIdleConns;
-    // Total number of connections in mHalfOpens ConnectionEntry objects
-    // that are accessed from mCT connection table
-    uint32_t mNumHalfOpenConns;
 
     // Holds time in seconds for next wake-up to prune dead connections. 
     uint64_t mTimeOfNextWakeUp;
@@ -630,11 +605,6 @@ private:
     nsTHashtable<nsCStringHashKey> mAlternateProtocolHash;
     static PLDHashOperator TrimAlternateProtocolHash(nsCStringHashKey *entry,
                                                      void *closure);
-
-    static PLDHashOperator ReadConnectionEntry(const nsACString &key,
-                                               nsAutoPtr<nsConnectionEntry> &ent,
-                                               void *aArg);
-
     // Read Timeout Tick handlers
     void ActivateTimeoutTick();
     void TimeoutTick();

@@ -10,10 +10,11 @@
 #include "nsTArray.h"
 #include "mozilla/StandardInteger.h"
 
+class Accessible;
+
 namespace mozilla {
 namespace a11y {
 
-class Accessible;
 class TableAccessible;
 
 /**

@@ -336,8 +336,7 @@ nsMemoryInfoDumper::DumpMemoryReportsToFile(
     nsCOMPtr<nsIMemoryReporterManager> mgr =
       do_GetService("@mozilla.org/memory-reporter-manager;1");
     NS_ENSURE_TRUE(mgr, NS_ERROR_FAILURE);
-    nsCOMPtr<nsICancelableRunnable> runnable;
-    mgr->MinimizeMemoryUsage(callback, getter_AddRefs(runnable));
+    mgr->MinimizeMemoryUsage(callback);
     return NS_OK;
   }
 
@@ -470,74 +469,13 @@ NS_IMPL_ISUPPORTS1(
 
 } // namespace mozilla
 
-static void
-MakeFilename(const char *aPrefix, const nsAString &aIdentifier,
-             const char *aSuffix, nsACString &aResult)
-{
-  aResult = nsPrintfCString("%s-%s-%d.%s",
-                            aPrefix,
-                            NS_ConvertUTF16toUTF8(aIdentifier).get(),
-                            getpid(), aSuffix);
-}
-
-static nsresult
-OpenTempFile(const nsACString &aFilename, nsIFile* *aFile)
-{
-  nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, aFile);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIFile> file(*aFile);
-
-  rv = file->AppendNative(aFilename);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = file->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
-  NS_ENSURE_SUCCESS(rv, rv);
-#ifdef ANDROID
-  {
-    // On android the default system umask is 0077 which makes these files
-    // unreadable to the shell user. In order to pull the dumps off a non-rooted
-    // device we need to chmod them to something world-readable.
-    // XXX why not logFile->SetPermissions(0644);
-    nsAutoCString path;
-    rv = file->GetNativePath(path);
-    if (NS_SUCCEEDED(rv)) {
-      chmod(path.get(), 0644);
-    }
-  }
-#endif
-  return NS_OK;
-}
-
-#ifdef MOZ_DMD
-struct DMDWriteState
-{
-  static const size_t kBufSize = 4096;
-  char mBuf[kBufSize];
-  nsRefPtr<nsGZFileWriter> mGZWriter;
-
-  DMDWriteState(nsGZFileWriter *aGZWriter)
-    : mGZWriter(aGZWriter)
-  {}
-};
-
-static void DMDWrite(void* aState, const char* aFmt, va_list ap)
-{
-  DMDWriteState *state = (DMDWriteState*)aState;
-  vsnprintf(state->mBuf, state->kBufSize, aFmt, ap);
-  unused << state->mGZWriter->Write(state->mBuf);
-}
-#endif
-
 /* static */ nsresult
 nsMemoryInfoDumper::DumpMemoryReportsToFileImpl(
   const nsAString& aIdentifier)
 {
-  MOZ_ASSERT(!aIdentifier.IsEmpty());
-
   // Open a new file named something like
   //
-  //   incomplete-memory-report-<identifier>-<pid>.json.gz
+  //   incomplete-memory-report-<-identifier>-<pid>-42.json.gz
   //
   // in NS_OS_TEMP_DIR for writing.  When we're finished writing the report,
   // we'll rename this file and get rid of the "incomplete-" prefix.
@@ -546,19 +484,43 @@ nsMemoryInfoDumper::DumpMemoryReportsToFileImpl(
   // looking for memory report dumps to grab a file before we're finished
   // writing to it.
 
-  // Note that |mrFilename| is missing the "incomplete-" prefix; we'll tack
-  // that on in a moment.
-  nsCString mrFilename;
-  MakeFilename("memory-report", aIdentifier, "json.gz", mrFilename);
-
-  nsCOMPtr<nsIFile> mrTmpFile;
-  nsresult rv;
-  rv = OpenTempFile(NS_LITERAL_CSTRING("incomplete-") + mrFilename,
-                    getter_AddRefs(mrTmpFile));
+  nsCOMPtr<nsIFile> tmpFile;
+  nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR,
+                                       getter_AddRefs(tmpFile));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // Note that |filename| is missing the "incomplete-" prefix; we'll tack
+  // that on in a moment.
+  nsAutoCString filename;
+  filename.AppendLiteral("memory-report");
+  if (!aIdentifier.IsEmpty()) {
+    filename.AppendLiteral("-");
+    filename.Append(NS_ConvertUTF16toUTF8(aIdentifier));
+  }
+  filename.AppendLiteral("-");
+  filename.AppendInt(getpid());
+  filename.AppendLiteral(".json.gz");
+
+  rv = tmpFile->AppendNative(NS_LITERAL_CSTRING("incomplete-") + filename);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = tmpFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
+  NS_ENSURE_SUCCESS(rv, rv);
+#ifdef ANDROID
+  {
+    // On android the default system umask is 0077 which makes these files
+    // unreadable to the shell user. In order to pull the dumps off a non-rooted
+    // device we need to chmod them to something world-readable.
+    nsAutoCString path;
+    rv = tmpFile->GetNativePath(path);
+    if (NS_SUCCEEDED(rv)) {
+      chmod(PromiseFlatCString(path).get(), 0644);
+    }
+  }
+#endif
+
   nsRefPtr<nsGZFileWriter> writer = new nsGZFileWriter();
-  rv = writer->Init(mrTmpFile);
+  rv = writer->Init(tmpFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Dump the memory reports to the file.
@@ -631,55 +593,24 @@ nsMemoryInfoDumper::DumpMemoryReportsToFileImpl(
   rv = writer->Finish();
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef MOZ_DMD
-  // Open a new file named something like
-  //
-  //   dmd-<identifier>-<pid>.txt.gz
-  //
-  // in NS_OS_TEMP_DIR for writing, and dump DMD output to it.  This must occur
-  // after the memory reporters have been run (above), but before the
-  // memory-reports file has been renamed (so scripts can detect the DMD file,
-  // if present).
-
-  nsCString dmdFilename;
-  MakeFilename("dmd", aIdentifier, "txt.gz", dmdFilename);
-
-  nsCOMPtr<nsIFile> dmdFile;
-  rv = OpenTempFile(dmdFilename, getter_AddRefs(dmdFile));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsRefPtr<nsGZFileWriter> dmdWriter = new nsGZFileWriter();
-  rv = dmdWriter->Init(dmdFile);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Dump DMD output to the file.
-
-  DMDWriteState state(dmdWriter);
-  dmd::Writer w(DMDWrite, &state);
-  mozilla::dmd::Dump(w);
-
-  rv = dmdWriter->Finish();
-  NS_ENSURE_SUCCESS(rv, rv);
-#endif  // MOZ_DMD
-
   // Rename the file, now that we're done dumping the report.  The file's
   // ultimate destination is "memory-report<-identifier>-<pid>.json.gz".
 
-  nsCOMPtr<nsIFile> mrFinalFile;
-  rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(mrFinalFile));
+  nsCOMPtr<nsIFile> dstFile;
+  rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(dstFile));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mrFinalFile->AppendNative(mrFilename);
+  rv = dstFile->AppendNative(filename);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mrFinalFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  rv = dstFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoString mrActualFinalFilename;
-  rv = mrFinalFile->GetLeafName(mrActualFinalFilename);
+  nsAutoString dstFileName;
+  rv = dstFile->GetLeafName(dstFileName);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mrTmpFile->MoveTo(/* directory */ nullptr, mrActualFinalFilename);
+  rv = tmpFile->MoveTo(/* directory */ nullptr, dstFileName);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIConsoleService> cs =
@@ -687,7 +618,7 @@ nsMemoryInfoDumper::DumpMemoryReportsToFileImpl(
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsString path;
-  mrTmpFile->GetPath(path);
+  tmpFile->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsString msg = NS_LITERAL_STRING(

@@ -66,7 +66,7 @@ class StringObject : public JSObject
      * encodes the initial length property. Return the shape after changing
      * this String object's last property to it.
      */
-    UnrootedShape assignInitialShape(JSContext *cx);
+    Shape *assignInitialShape(JSContext *cx);
 };
 
 } // namespace js

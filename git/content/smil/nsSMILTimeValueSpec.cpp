@@ -339,7 +339,9 @@ nsSMILTimeValueSpec::RegisterEventListener(Element* aTarget)
 
   elm->AddEventListenerByType(mEventListener,
                               nsDependentAtomString(mParams.mEventSymbol),
-                              AllEventsAtSystemGroupBubble());
+                              NS_EVENT_FLAG_BUBBLE |
+                              NS_PRIV_EVENT_UNTRUSTED_PERMITTED |
+                              NS_EVENT_FLAG_SYSTEM_EVENT);
 }
 
 void
@@ -354,7 +356,9 @@ nsSMILTimeValueSpec::UnregisterEventListener(Element* aTarget)
 
   elm->RemoveEventListenerByType(mEventListener,
                                  nsDependentAtomString(mParams.mEventSymbol),
-                                 AllEventsAtSystemGroupBubble());
+                                 NS_EVENT_FLAG_BUBBLE |
+                                 NS_PRIV_EVENT_UNTRUSTED_PERMITTED |
+                                 NS_EVENT_FLAG_SYSTEM_EVENT);
 }
 
 nsEventListenerManager*

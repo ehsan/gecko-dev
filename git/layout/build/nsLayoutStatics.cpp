@@ -14,13 +14,13 @@
 #include "nsContentDLF.h"
 #include "nsContentUtils.h"
 #include "nsCSSAnonBoxes.h"
-#include "mozilla/css/ErrorReporter.h"
 #include "nsCSSKeywords.h"
 #include "nsCSSParser.h"
 #include "nsCSSProps.h"
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
+#include "nsCSSScanner.h"
 #include "nsDOMAttribute.h"
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
@@ -61,8 +61,6 @@
 #include "Navigator.h"
 #include "nsDOMStorageBaseDB.h"
 
-#include "AudioChannelService.h"
-
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #include "nsXULContentUtils.h"
@@ -76,15 +74,11 @@
 #include "nsTextServicesDocument.h"
 
 #ifdef MOZ_MEDIA_PLUGINS
-#include "MediaPluginHost.h"
-#endif
-
-#ifdef MOZ_WMF
-#include "WMFDecoder.h"
+#include "nsMediaPluginHost.h"
 #endif
 
 #ifdef MOZ_SYDNEYAUDIO
-#include "AudioStream.h"
+#include "nsAudioStream.h"
 #endif
 
 #include "nsError.h"
@@ -239,7 +233,7 @@ nsLayoutStatics::Initialize()
   }
 
 #ifdef MOZ_SYDNEYAUDIO
-  AudioStream::InitLibrary();
+  nsAudioStream::InitLibrary();
 #endif
 
   nsContentSink::InitializeStatics();
@@ -318,7 +312,7 @@ nsLayoutStatics::Shutdown()
   nsFloatManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 
-  mozilla::css::ErrorReporter::ReleaseGlobals();
+  nsCSSScanner::ReleaseGlobals();
 
   nsTextFragment::Shutdown();
 
@@ -338,19 +332,15 @@ nsLayoutStatics::Shutdown()
   FrameLayerBuilder::Shutdown();
 
 #ifdef MOZ_MEDIA_PLUGINS
-  MediaPluginHost::Shutdown();
+  nsMediaPluginHost::Shutdown();  
 #endif
 
 #ifdef MOZ_SYDNEYAUDIO
-  AudioStream::ShutdownLibrary();
-#endif
-
-#ifdef MOZ_WMF
-  WMFDecoder::UnloadDLLs();
+  nsAudioStream::ShutdownLibrary();
 #endif
 
   nsCORSListenerProxy::Shutdown();
-
+  
   nsIPresShell::ReleaseStatics();
 
   nsTreeSanitizer::ReleaseStatics();
@@ -371,9 +361,5 @@ nsLayoutStatics::Shutdown()
   nsEditorSpellCheck::ShutDown();
   nsDOMMutationObserver::Shutdown();
 
-  AudioChannelService::Shutdown();
-
   ContentParent::ShutDown();
-
-  nsRefreshDriver::Shutdown();
 }

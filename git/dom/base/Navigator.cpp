@@ -39,7 +39,6 @@
 #include "Connection.h"
 #ifdef MOZ_B2G_RIL
 #include "MobileConnection.h"
-#include "mozilla/dom/CellBroadcast.h"
 #endif
 #include "nsIIdleObserver.h"
 #include "nsIPermissionManager.h"
@@ -59,10 +58,6 @@
 #endif
 #include "nsIDOMCameraManager.h"
 #include "DOMCameraManager.h"
-
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-#include "AudioChannelManager.h"
-#endif
 
 #include "nsIDOMGlobalPropertyInitializer.h"
 
@@ -128,7 +123,6 @@ NS_INTERFACE_MAP_BEGIN(Navigator)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozNavigatorNetwork)
 #ifdef MOZ_B2G_RIL
   NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorMobileConnection)
-  NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorCellBroadcast)
 #endif
 #ifdef MOZ_B2G_BT
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorBluetooth)
@@ -137,9 +131,6 @@ NS_INTERFACE_MAP_BEGIN(Navigator)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorSystemMessages)
 #ifdef MOZ_TIME_MANAGER
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozNavigatorTime)
-#endif
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorAudioChannelManager)
 #endif
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Navigator)
 NS_INTERFACE_MAP_END
@@ -203,10 +194,6 @@ Navigator::Invalidate()
     mMobileConnection->Shutdown();
     mMobileConnection = nullptr;
   }
-
-  if (mCellBroadcast) {
-    mCellBroadcast = nullptr;
-  }
 #endif
 
 #ifdef MOZ_B2G_BT
@@ -220,12 +207,6 @@ Navigator::Invalidate()
 #ifdef MOZ_SYS_MSG
   if (mMessagesManager) {
     mMessagesManager = nullptr;
-  }
-#endif
-
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  if (mAudioChannelManager) {
-    mAudioChannelManager = nullptr;
   }
 #endif
 
@@ -624,7 +605,7 @@ public:
     mDocument = do_GetWeakReference(aDocument);
 
     nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aDocument);
-    NS_NAMED_LITERAL_STRING(visibilitychange, "visibilitychange");
+    NS_NAMED_LITERAL_STRING(visibilitychange, "mozvisibilitychange");
     target->AddSystemEventListener(visibilitychange,
                                    this, /* listener */
                                    true, /* use capture */
@@ -658,7 +639,7 @@ VibrateWindowListener::HandleEvent(nsIDOMEvent* aEvent)
 
   bool hidden = true;
   if (doc) {
-    doc->GetHidden(&hidden);
+    doc->GetMozHidden(&hidden);
   }
 
   if (hidden) {
@@ -683,7 +664,7 @@ VibrateWindowListener::RemoveListener()
   if (!target) {
     return;
   }
-  NS_NAMED_LITERAL_STRING(visibilitychange, "visibilitychange");
+  NS_NAMED_LITERAL_STRING(visibilitychange, "mozvisibilitychange");
   target->RemoveSystemEventListener(visibilitychange, this,
                                     true /* use capture */);
 }
@@ -752,11 +733,11 @@ Navigator::Vibrate(const jsval& aPattern, JSContext* cx)
   nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(win, NS_OK);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = win->GetExtantDocument();
+  nsIDOMDocument* domDoc = win->GetExtantDocument();
   NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
 
   bool hidden = true;
-  domDoc->GetHidden(&hidden);
+  domDoc->GetMozHidden(&hidden);
   if (hidden) {
     // Hidden documents cannot start or stop a vibration.
     return NS_OK;
@@ -806,7 +787,7 @@ Navigator::Vibrate(const jsval& aPattern, JSContext* cx)
   }
 
   // Add a listener to cancel the vibration if the document becomes hidden,
-  // and remove the old visibility listener, if there was one.
+  // and remove the old mozvisibility listener, if there was one.
 
   if (!gVibrateWindowListener) {
     // If gVibrateWindowListener is null, this is the first time we've vibrated,
@@ -1173,31 +1154,6 @@ Navigator::GetMozSms(nsIDOMMozSmsManager** aSmsManager)
 #ifdef MOZ_B2G_RIL
 
 //*****************************************************************************
-//    Navigator::nsIMozNavigatorCellBroadcast
-//*****************************************************************************
-
-NS_IMETHODIMP
-Navigator::GetMozCellBroadcast(nsIDOMMozCellBroadcast** aCellBroadcast)
-{
-  *aCellBroadcast = nullptr;
-
-  if (!mCellBroadcast) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(window, NS_OK);
-
-    if (!CheckPermission("cellbroadcast")) {
-      return NS_OK;
-    }
-
-    nsresult rv = NS_NewCellBroadcast(window, getter_AddRefs(mCellBroadcast));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_ADDREF(*aCellBroadcast = mCellBroadcast);
-  return NS_OK;
-}
-
-//*****************************************************************************
 //    nsNavigator::nsIDOMNavigatorTelephony
 //*****************************************************************************
 
@@ -1477,27 +1433,6 @@ Navigator::CheckPermission(const char* type)
   permMgr->TestPermissionFromWindow(window, type, &permission);
   return permission == nsIPermissionManager::ALLOW_ACTION;
 }
-
-//*****************************************************************************
-//    Navigator::nsINavigatorAudioChannelManager
-//*****************************************************************************
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-NS_IMETHODIMP
-Navigator::GetMozAudioChannelManager(nsIAudioChannelManager** aAudioChannelManager)
-{
-  *aAudioChannelManager = nullptr;
-
-  if (!mAudioChannelManager) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(window, NS_OK);
-    mAudioChannelManager = new system::AudioChannelManager();
-    mAudioChannelManager->Init(window);
-  }
-
-  NS_ADDREF(*aAudioChannelManager = mAudioChannelManager);
-  return NS_OK;
-}
-#endif
 
 } // namespace dom
 } // namespace mozilla

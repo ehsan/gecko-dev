@@ -631,7 +631,7 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 a11y::AccType
 nsFileControlFrame::AccessibleType()
 {
-  return a11y::eHTMLFileInputType;
+  return a11y::eHTMLFileInputAccessible;
 }
 #endif
 

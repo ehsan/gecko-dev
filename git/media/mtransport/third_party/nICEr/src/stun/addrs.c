@@ -33,6 +33,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 static char *RCSSTRING __UNUSED__="$Id: addrs.c,v 1.2 2008/04/28 18:21:30 ekr Exp $";
 
+
 #include <csi_platform.h>
 #include <assert.h>
 #include <string.h>
@@ -42,17 +43,10 @@ static char *RCSSTRING __UNUSED__="$Id: addrs.c,v 1.2 2008/04/28 18:21:30 ekr Ex
 #include <iphlpapi.h>
 #include <tchar.h>
 #else   /* UNIX */
+#include <sys/sysctl.h>
 #include <sys/param.h>
 #include <sys/socket.h>
-#ifndef ANDROID
-#include <sys/sysctl.h>
 #include <sys/syslog.h>
-#else
-#include <syslog.h>
-/* Work around an Android NDK < r8c bug */
-#undef __unused
-#include <linux/sysctl.h>
-#endif
 #include <net/if.h>
 #ifndef LINUX
 #include <net/if_var.h>
@@ -158,7 +152,7 @@ stun_grab_addrs(char *name, int addrcount, struct ifa_msghdr *ifam, nr_transport
     struct sockaddr_in *sin;
 
     ifr.ifr_addr.sa_family = AF_INET;
-    strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+    strncpy(ifr.ifr_name, name, sizeof ifr.ifr_name);
 
     if ((s = socket(ifr.ifr_addr.sa_family, SOCK_DGRAM, 0)) < 0) {
       r_log(NR_LOG_STUN, LOG_WARNING, "unable to obtain addresses from socket");
@@ -266,11 +260,7 @@ stun_get_mib_addrs(nr_transport_addr addrs[], int maxaddrs, int *count)
             next += nextifm->ifm_msglen;
         }
 
-        if (sdl->sdl_nlen > sizeof(name) - 1) {
-            ABORT(R_INTERNAL);
-        }
-
-        memcpy(name, sdl->sdl_data, sdl->sdl_nlen);
+        strncpy(name, sdl->sdl_data, sdl->sdl_nlen);
         name[sdl->sdl_nlen] = '\0';
 
         stun_grab_addrs(name, addrcount, ifam, addrs, maxaddrs, count);
@@ -307,7 +297,7 @@ static int nr_win32_get_adapter_friendly_name(char *adapter_GUID, char **friendl
     mbstowcs_s(&converted_chars, adapter_GUID_tchar, strlen(adapter_GUID)+1,
                adapter_GUID, _TRUNCATE);
 #else
-    strlcpy(adapter_GUID_tchar, adapter_GUID, _NR_MAX_NAME_LENGTH);
+    strncpy(adapter_GUID_tchar, _NR_MAX_NAME_LENGTH, adapter_GUID);
 #endif
 
     _tcscpy_s(adapter_key, _NR_MAX_KEY_LENGTH, TEXT(_ADAPTERS_BASE_REG));
@@ -434,7 +424,7 @@ stun_get_win32_addrs(nr_transport_addr addrs[], int maxaddrs, int *count)
         addrs[n].addr=(struct sockaddr *)&(addrs[n].u.addr4);
         addrs[n].addr_len=sizeof(struct sockaddr_in);
 
-        strlcpy(addrs[n].ifname, munged_ifname, sizeof(addrs[n].ifname));
+        strncpy(addrs[n].ifname, munged_ifname, sizeof(addrs[n].ifname));
         snprintf(addrs[n].as_string,40,"IP4:%s:%d",inet_ntoa(addrs[n].u.addr4.sin_addr),
                  ntohs(addrs[n].u.addr4.sin_port));
 
@@ -534,7 +524,7 @@ stun_get_win32_addrs(nr_transport_addr addrs[], int maxaddrs, int *count)
             continue;
           }
 
-          strlcpy(addrs[n].ifname, munged_ifname, sizeof(addrs[n].ifname));
+          strncpy(addrs[n].ifname, munged_ifname, sizeof(addrs[n].ifname));
           if (++n >= maxaddrs)
             goto done;
         }

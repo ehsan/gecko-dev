@@ -1029,6 +1029,7 @@ nsCSSStyleSheet::nsCSSStyleSheet(CORSMode aCORSMode)
   : mTitle(), 
     mParent(nullptr),
     mOwnerRule(nullptr),
+    mRuleCollection(nullptr),
     mDocument(nullptr),
     mOwningNode(nullptr),
     mDisabled(false),
@@ -1047,6 +1048,7 @@ nsCSSStyleSheet::nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
   : mTitle(aCopy.mTitle),
     mParent(aParentToUse),
     mOwnerRule(aOwnerRuleToUse),
+    mRuleCollection(nullptr), // re-created lazily
     mDocument(aDocumentToUse),
     mOwningNode(aOwningNodeToUse),
     mDisabled(aCopy.mDisabled),
@@ -1099,7 +1101,7 @@ nsCSSStyleSheet::DropRuleCollection()
 {
   if (mRuleCollection) {
     mRuleCollection->DropReference();
-    mRuleCollection = nullptr;
+    NS_RELEASE(mRuleCollection);
   }
 }
 
@@ -1199,10 +1201,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCSSStyleSheet)
   tmp->UnlinkInner();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCSSStyleSheet)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMedia)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMedia)
   // We do not traverse mNext; our parent will handle that.  See
   // comments in Unlink for why.
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRuleCollection)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mRuleCollection)
   tmp->TraverseInner(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -1377,8 +1379,10 @@ nsCSSStyleSheet::FindOwningWindowInnerID() const
   }
 
   if (windowID == 0 && mOwningNode) {
-    nsCOMPtr<nsINode> node = do_QueryInterface(mOwningNode);
-    windowID = node->OwnerDoc()->InnerWindowID();
+    nsCOMPtr<nsIContent> node = do_QueryInterface(mOwningNode);
+    if (node) {
+      windowID = node->OwnerDoc()->InnerWindowID();
+    }
   }
 
   if (windowID == 0 && mOwnerRule) {
@@ -1854,9 +1858,14 @@ nsCSSStyleSheet::GetCssRules(nsIDOMCSSRuleList** aCssRules)
   // OK, security check passed, so get the rule collection
   if (nullptr == mRuleCollection) {
     mRuleCollection = new CSSRuleListImpl(this);
+    if (nullptr == mRuleCollection) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    NS_ADDREF(mRuleCollection);
   }
 
-  NS_ADDREF(*aCssRules = mRuleCollection);
+  *aCssRules = mRuleCollection;
+  NS_ADDREF(mRuleCollection);
 
   return NS_OK;
 }
@@ -2142,25 +2151,10 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
   int32_t counter;
   css::Rule* rule;
   for (counter = 0; counter < rulecount; counter++) {
+    // Only rulesets are allowed in a group as of CSS2
     rule = rules.ObjectAt(counter);
-    switch (rule->GetType()) {
-      case css::Rule::STYLE_RULE:
-      case css::Rule::MEDIA_RULE:
-      case css::Rule::FONT_FACE_RULE:
-      case css::Rule::PAGE_RULE:
-      case css::Rule::KEYFRAMES_RULE:
-      case css::Rule::DOCUMENT_RULE:
-      case css::Rule::SUPPORTS_RULE:
-        // these types are OK to insert into a group
-        break;
-      case css::Rule::CHARSET_RULE:
-      case css::Rule::IMPORT_RULE:
-      case css::Rule::NAMESPACE_RULE:
-        // these aren't
-        return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
-      default:
-        NS_NOTREACHED("unexpected rule type");
-        return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+    if (rule->GetType() != css::Rule::STYLE_RULE) {
+      return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
     }
   }
   

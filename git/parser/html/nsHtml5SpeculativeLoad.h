@@ -16,7 +16,6 @@ enum eHtml5SpeculativeLoad {
   eSpeculativeLoadBase,
   eSpeculativeLoadImage,
   eSpeculativeLoadScript,
-  eSpeculativeLoadScriptFromHead,
   eSpeculativeLoadStyle,
   eSpeculativeLoadManifest,
   eSpeculativeLoadSetDocumentCharset
@@ -46,12 +45,10 @@ class nsHtml5SpeculativeLoad {
     inline void InitScript(const nsAString& aUrl,
                            const nsAString& aCharset,
                            const nsAString& aType,
-                           const nsAString& aCrossOrigin,
-                           bool aParserInHead) {
+                           const nsAString& aCrossOrigin) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
-      mOpCode = aParserInHead ?
-          eSpeculativeLoadScriptFromHead : eSpeculativeLoadScript;
+      mOpCode = eSpeculativeLoadScript;
       mUrl.Assign(aUrl);
       mCharset.Assign(aCharset);
       mTypeOrCharsetSource.Assign(aType);
@@ -111,7 +108,7 @@ class nsHtml5SpeculativeLoad {
     eHtml5SpeculativeLoad mOpCode;
     nsString mUrl;
     /**
-     * If mOpCode is eSpeculativeLoadStyle or eSpeculativeLoadScript[FromHead]
+     * If mOpCode is eSpeculativeLoadStyle or eSpeculativeLoadScript
      * then this is the value of the "charset" attribute. For
      * eSpeculativeLoadSetDocumentCharset it is the charset that the
      * document's charset is being set to. Otherwise it's empty.
@@ -125,7 +122,7 @@ class nsHtml5SpeculativeLoad {
      */
     nsString mTypeOrCharsetSource;
     /**
-     * If mOpCode is eSpeculativeLoadImage or eSpeculativeLoadScript[FromHead],
+     * If mOpCode is eSpeculativeLoadImage or eSpeculativeLoadScript,
      * this is the value of the "crossorigin" attribute.  If the
      * attribute is not set, this will be a void string.
      */

@@ -68,7 +68,6 @@ MAKEFILES_dom="
   dom/plugins/base/Makefile
   dom/plugins/ipc/Makefile
   dom/power/Makefile
-  dom/quota/Makefile
   dom/settings/Makefile
   dom/sms/Makefile
   dom/sms/interfaces/Makefile
@@ -633,7 +632,6 @@ elif [ "$MOZ_WIDGET_TOOLKIT" = "android" ]; then
     image/decoders/icon/android/Makefile
     netwerk/system/android/Makefile
     widget/android/Makefile
-    toolkit/system/androidproxy/Makefile
   "
   if [ "$MOZ_BUILD_APP" = "mobile/xul" -o "$MOZ_BUILD_APP" = "b2g" ]; then
     add_makefiles "
@@ -763,6 +761,7 @@ if [ "$ENABLE_TESTS" ]; then
     dom/imptests/failures/webapps/DOMCore/tests/submissions/Opera/Makefile
     dom/imptests/failures/webapps/WebStorage/tests/submissions/Infraware/Makefile
     dom/imptests/failures/webapps/WebStorage/tests/submissions/Ms2ger/Makefile
+    dom/imptests/failures/webapps/XMLHttpRequest/tests/submissions/Ms2ger/Makefile
     dom/imptests/html/tests/submission/Mozilla/Makefile
     dom/imptests/html/tests/submission/Opera/microdata/Makefile
     dom/imptests/webapps/DOMCore/tests/approved/Makefile
@@ -1078,6 +1077,11 @@ if [ "$ENABLE_TESTS" ]; then
       toolkit/components/url-classifier/tests/mochitest/Makefile
     "
   fi
+  if [ "$MOZ_XTF" ]; then
+    add_makefiles "
+      content/xtf/test/Makefile
+    "
+  fi
   if [ "$MOZ_XUL" ]; then
     add_makefiles "
       content/xul/templates/tests/chrome/Makefile
@@ -1154,6 +1158,11 @@ if [ "$ACCESSIBILITY" ]; then
     accessible/src/jsat/Makefile
     accessible/src/xpcom/Makefile
   "
+  if [ ! "$DISABLE_XFORMS_HOOKS" ]; then
+    add_makefiles "
+      accessible/src/xforms/Makefile
+    "
+  fi
   if [ "$MOZ_XUL" ]; then
     add_makefiles "
       accessible/src/xul/Makefile
@@ -1577,6 +1586,12 @@ if [ ! "$MOZ_NATIVE_PNG" ]; then
   "
 fi
 
+if [ "$MOZ_DMDV" ]; then
+  add_makefiles "
+    tools/dmdv/Makefile
+  "
+fi
+
 if [ "$MOZ_JPROF" ]; then
   add_makefiles "
     tools/jprof/Makefile
@@ -1588,12 +1603,6 @@ if [ "$NS_TRACE_MALLOC" ]; then
   add_makefiles "
     tools/trace-malloc/Makefile
     tools/trace-malloc/lib/Makefile
-  "
-fi
-
-if [ "$MOZ_DMD" ]; then
-  add_makefiles "
-    memory/replace/dmd/Makefile
   "
 fi
 

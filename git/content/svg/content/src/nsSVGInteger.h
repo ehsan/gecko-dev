@@ -69,7 +69,6 @@ public:
 
     DOMAnimatedInteger(nsSVGInteger* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMAnimatedInteger();
 
     nsSVGInteger* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;

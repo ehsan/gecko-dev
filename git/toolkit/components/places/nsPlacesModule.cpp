@@ -10,6 +10,7 @@
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
 #include "nsFaviconService.h"
+#include "nsPlacesExportService.h"
 #include "History.h"
 #include "nsDocShellCID.h"
 
@@ -23,6 +24,8 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsNavBookmarks,
                                          nsNavBookmarks::GetSingleton)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsFaviconService,
                                          nsFaviconService::GetSingleton)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsPlacesExportService,
+                                         nsPlacesExportService::GetSingleton)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(History, History::GetSingleton)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAnnoProtocolHandler)
@@ -31,6 +34,7 @@ NS_DEFINE_NAMED_CID(NS_ANNOTATIONSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_ANNOPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_NAVBOOKMARKSSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_FAVICONSERVICE_CID);
+NS_DEFINE_NAMED_CID(NS_PLACESIMPORTEXPORTSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_HISTORYSERVICE_CID);
 
 const mozilla::Module::CIDEntry kPlacesCIDs[] = {
@@ -40,6 +44,7 @@ const mozilla::Module::CIDEntry kPlacesCIDs[] = {
   { &kNS_NAVBOOKMARKSSERVICE_CID, false, NULL, nsNavBookmarksConstructor },
   { &kNS_FAVICONSERVICE_CID, false, NULL, nsFaviconServiceConstructor },
   { &kNS_HISTORYSERVICE_CID, false, NULL, HistoryConstructor },
+  { &kNS_PLACESIMPORTEXPORTSERVICE_CID, false, NULL, nsPlacesExportServiceConstructor },
   { NULL }
 };
 
@@ -53,6 +58,7 @@ const mozilla::Module::ContractIDEntry kPlacesContracts[] = {
   { "@mozilla.org/embeddor.implemented/bookmark-charset-resolver;1", &kNS_NAVHISTORYSERVICE_CID },
   { NS_IHISTORY_CONTRACTID, &kNS_HISTORYSERVICE_CID },
   { NS_DOWNLOADHISTORY_CONTRACTID, &kNS_HISTORYSERVICE_CID },
+  { NS_PLACESIMPORTEXPORTSERVICE_CONTRACTID, &kNS_PLACESIMPORTEXPORTSERVICE_CID },
   { NULL }
 };
 

@@ -27,9 +27,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsAutoCompleteController)
   tmp->SetInput(nullptr);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsAutoCompleteController)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInput)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSearches)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResults)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInput)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mSearches)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mResults)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsAutoCompleteController)
@@ -535,12 +535,6 @@ nsAutoCompleteController::HandleDelete(bool *_retval)
 
   int32_t index, searchIndex, rowIndex;
   popup->GetSelectedIndex(&index);
-  if (index == -1) {
-    // No row is selected in the list
-    HandleText();
-    return NS_OK;
-  }
-
   RowIndexToSearch(index, &searchIndex, &rowIndex);
   NS_ENSURE_TRUE(searchIndex >= 0 && rowIndex >= 0, NS_ERROR_FAILURE);
 

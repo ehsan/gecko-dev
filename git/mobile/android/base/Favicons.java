@@ -6,8 +6,8 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.util.GeckoBackgroundThread;
 import org.mozilla.gecko.util.GeckoJarReader;
+import org.mozilla.gecko.util.LruCache;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpGet;
@@ -26,7 +26,6 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.http.AndroidHttpClient;
 import android.os.AsyncTask;
-import android.support.v4.util.LruCache;
 import android.util.Log;
 
 import java.io.InputStream;
@@ -46,6 +45,7 @@ public class Favicons {
     public static final long NOT_LOADING = 0;
 
     private Context mContext;
+    private DatabaseHelper mDbHelper;
 
     private Map<Long,LoadFaviconTask> mLoadTasks;
     private long mNextFaviconLoadId;
@@ -57,8 +57,89 @@ public class Favicons {
         public void onFaviconLoaded(String url, Bitmap favicon);
     }
 
-    public Favicons() {
+    private class DatabaseHelper extends SQLiteOpenHelper {
+        private static final String DATABASE_NAME = "favicon_urls.db";
+        private static final String TABLE_NAME = "favicon_urls";
+        private static final int DATABASE_VERSION = 1;
+
+        private static final String COLUMN_ID = "_id";
+        private static final String COLUMN_FAVICON_URL = "favicon_url";
+        private static final String COLUMN_PAGE_URL = "page_url";
+
+        DatabaseHelper(Context context) {
+            super(context, DATABASE_NAME, null, DATABASE_VERSION);
+            Log.d(LOGTAG, "Creating DatabaseHelper");
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase db) {
+            Log.d(LOGTAG, "Creating database for favicon URLs");
+
+            db.execSQL("CREATE TABLE " + TABLE_NAME + " (" +
+                       COLUMN_ID + " INTEGER PRIMARY KEY," +
+                       COLUMN_FAVICON_URL + " TEXT NOT NULL," +
+                       COLUMN_PAGE_URL + " TEXT UNIQUE NOT NULL" +
+                       ");");
+        }
+
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+            Log.w(LOGTAG, "Upgrading favicon URLs database from version " +
+                  oldVersion + " to " + newVersion + ", which will destroy all old data");
+
+            // Drop table completely
+            db.execSQL("DROP TABLE IF EXISTS " + TABLE_NAME);
+
+            // Recreate database
+            onCreate(db);
+        }
+
+        public String getFaviconUrlForPageUrl(String pageUrl) {
+            SQLiteDatabase db = mDbHelper.getReadableDatabase();
+
+            SQLiteQueryBuilder qb = new SQLiteQueryBuilder();
+            qb.setTables(TABLE_NAME);
+
+            Cursor c = qb.query(
+                db,
+                new String[] { COLUMN_FAVICON_URL },
+                COLUMN_PAGE_URL + " = ?",
+                new String[] { pageUrl },
+                null, null, null
+            );
+
+            if (!c.moveToFirst()) {
+                c.close();
+                return null;
+            }
+
+            String url = c.getString(c.getColumnIndexOrThrow(COLUMN_FAVICON_URL));
+            c.close();
+            return url;
+        }
+
+        public void setFaviconUrlForPageUrl(String pageUrl, String faviconUrl) {
+            SQLiteDatabase db = mDbHelper.getWritableDatabase();
+
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_FAVICON_URL, faviconUrl);
+            values.put(COLUMN_PAGE_URL, pageUrl);
+
+            db.replace(TABLE_NAME, null, values);
+        }
+
+
+        public void clearFavicons() {
+            SQLiteDatabase db = mDbHelper.getWritableDatabase();
+            db.delete(TABLE_NAME, null, null);
+        }
+    }
+
+    public Favicons(Context context) {
         Log.d(LOGTAG, "Creating Favicons instance");
+
+        mContext = context;
+        mDbHelper = new DatabaseHelper(context);
 
         mLoadTasks = Collections.synchronizedMap(new HashMap<Long,LoadFaviconTask>());
         mNextFaviconLoadId = 0;
@@ -95,7 +176,7 @@ public class Favicons {
     }
 
     public String getFaviconUrlForPageUrl(String pageUrl) {
-        return BrowserDB.getFaviconUrlForHistoryUrl(mContext.getContentResolver(), pageUrl);
+        return mDbHelper.getFaviconUrlForPageUrl(pageUrl);
     }
 
     public long loadFavicon(String pageUrl, String faviconUrl, boolean persist,
@@ -152,8 +233,13 @@ public class Favicons {
         return cancelled;
     }
 
+    public void clearFavicons() {
+        mDbHelper.clearFavicons();
+    }
+
     public void close() {
         Log.d(LOGTAG, "Closing Favicons database");
+        mDbHelper.close();
 
         // Cancel any pending tasks
         synchronized (mLoadTasks) {
@@ -166,18 +252,6 @@ public class Favicons {
         }
         if (mHttpClient != null)
             mHttpClient.close();
-    }
-
-    private static class FaviconsInstanceHolder {
-        private static final Favicons INSTANCE = new Favicons();
-    }
-
-    public static Favicons getInstance() {
-       return Favicons.FaviconsInstanceHolder.INSTANCE;
-    }
-
-    public void attachToContext(Context context) {
-        mContext = context;
     }
 
     private class LoadFaviconTask extends AsyncTask<Void, Void, Bitmap> {
@@ -206,20 +280,19 @@ public class Favicons {
         }
 
         // Runs in background thread
-        private void saveFaviconToDb(final Bitmap favicon) {
+        private void saveFaviconToDb(Bitmap favicon) {
             if (!mPersist) {
                 return;
             }
 
-            // Even though this code is in a background thread, all DB writes
-            // should happen in GeckoBackgroundThread or we could get locked
-            // databases.
-            GeckoBackgroundThread.post(new Runnable() {
-                public void run() {
-                    ContentResolver resolver = mContext.getContentResolver();
-                    BrowserDB.updateFaviconForUrl(resolver, mPageUrl, favicon, mFaviconUrl);
-                }
-            });
+            // since the Async task can run this on any number of threads in the
+            // pool, we need to protect against inserting the same url twice
+            synchronized(mDbHelper) {
+                ContentResolver resolver = mContext.getContentResolver();
+                BrowserDB.updateFaviconForUrl(resolver, mPageUrl, favicon);
+
+                mDbHelper.setFaviconUrlForPageUrl(mPageUrl, mFaviconUrl);
+            }
         }
 
         // Runs in background thread
@@ -288,7 +361,7 @@ public class Favicons {
             if (isCancelled())
                 return null;
 
-            String storedFaviconUrl = getFaviconUrlForPageUrl(mPageUrl);
+            String storedFaviconUrl = mDbHelper.getFaviconUrlForPageUrl(mPageUrl);
             if (storedFaviconUrl != null && storedFaviconUrl.equals(mFaviconUrl)) {
                 image = loadFaviconFromDb();
                 if (image != null)
@@ -300,10 +373,8 @@ public class Favicons {
 
             image = downloadFavicon(faviconUrl);
 
-            if (image != null && image.getWidth() > 0 && image.getHeight() > 0) {
+            if (image != null) {
                 saveFaviconToDb(image);
-            } else {
-                image = null;
             }
 
             return image;

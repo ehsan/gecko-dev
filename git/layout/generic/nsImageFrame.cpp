@@ -5,7 +5,7 @@
 
 /* rendering object for replaced elements with bitmap image data */
 
-#include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 
 #include "nsHTMLParts.h"
 #include "nsCOMPtr.h"
@@ -52,8 +52,7 @@
 #include "nsDisplayList.h"
 
 #include "imgIContainer.h"
-#include "imgLoader.h"
-#include "imgRequestProxy.h"
+#include "imgILoader.h"
 
 #include "nsCSSFrameConstructor.h"
 #include "nsIDOMRange.h"
@@ -70,6 +69,7 @@
 #include "ImageContainer.h"
 
 #include "mozilla/Preferences.h"
+#include "mozilla/Util.h" // for DebugOnly
 
 using namespace mozilla;
 
@@ -163,10 +163,10 @@ nsImageFrame::AccessibleType()
 {
   // Don't use GetImageMap() to avoid reentrancy into accessibility.
   if (HasImageMap()) {
-    return a11y::eHTMLImageMapType;
+    return a11y::eHTMLImageMapAccessible;
   }
 
-  return a11y::eImageType;
+  return a11y::eImageAccessible;
 }
 #endif
 
@@ -902,8 +902,8 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
 
   if (!imageOK || !haveSize) {
     nsRect altFeedbackSize(0, 0,
-                           nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+2*(ICON_PADDING+ALT_BORDER_WIDTH)),
-                           nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+2*(ICON_PADDING+ALT_BORDER_WIDTH)));
+                           2*(nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+ICON_PADDING+ALT_BORDER_WIDTH)),
+                           2*(nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+ICON_PADDING+ALT_BORDER_WIDTH)));
     aMetrics.mOverflowAreas.UnionAllWith(altFeedbackSize);
   }
   FinishAndStoreOverflow(&aMetrics);
@@ -937,7 +937,7 @@ nsImageFrame::MeasureString(const PRUnichar*     aString,
     uint32_t  len = aLength;
     bool      trailingSpace = false;
     for (int32_t i = 0; i < aLength; i++) {
-      if (dom::IsSpaceCharacter(aString[i]) && (i > 0)) {
+      if (XP_IS_SPACE(aString[i]) && (i > 0)) {
         len = i;  // don't include the space when measuring
         trailingSpace = true;
         break;
@@ -1229,11 +1229,10 @@ nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 already_AddRefed<ImageContainer>
-nsDisplayImage::GetContainer(LayerManager* aManager,
-                             nsDisplayListBuilder* aBuilder)
+nsDisplayImage::GetContainer()
 {
   nsRefPtr<ImageContainer> container;
-  nsresult rv = mImage->GetImageContainer(aManager, getter_AddRefs(container));
+  nsresult rv = mImage->GetImageContainer(getter_AddRefs(container));
   NS_ENSURE_SUCCESS(rv, nullptr);
   return container.forget();
 }
@@ -1279,18 +1278,12 @@ nsDisplayImage::GetLayerState(nsDisplayListBuilder* aBuilder,
 
   // If we are not scaling at all, no point in separating this into a layer.
   if (scale.width == 1.0f && scale.height == 1.0f) {
-    return LAYER_NONE;
+    return LAYER_INACTIVE;
   }
 
   // If the target size is pretty small, no point in using a layer.
   if (destRect.width * destRect.height < 64 * 64) {
-    return LAYER_NONE;
-  }
-
-  nsRefPtr<ImageContainer> container;
-  mImage->GetImageContainer(aManager, getter_AddRefs(container));
-  if (!container) {
-    return LAYER_NONE;
+    return LAYER_INACTIVE;
   }
 
   return LAYER_ACTIVE;
@@ -1302,7 +1295,7 @@ nsDisplayImage::BuildLayer(nsDisplayListBuilder* aBuilder,
                            const ContainerParameters& aParameters)
 {
   nsRefPtr<ImageContainer> container;
-  nsresult rv = mImage->GetImageContainer(aManager, getter_AddRefs(container));
+  nsresult rv = mImage->GetImageContainer(getter_AddRefs(container));
   NS_ENSURE_SUCCESS(rv, nullptr);
 
   nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
@@ -1811,7 +1804,7 @@ nsImageFrame::GetIntrinsicImageSize(nsSize& aSize)
 nsresult
 nsImageFrame::LoadIcon(const nsAString& aSpec,
                        nsPresContext *aPresContext,
-                       imgRequestProxy** aRequest)
+                       imgIRequest** aRequest)
 {
   nsresult rv = NS_OK;
   NS_PRECONDITION(!aSpec.IsEmpty(), "What happened??");
@@ -1824,7 +1817,7 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
   nsCOMPtr<nsIURI> realURI;
   SpecToURI(aSpec, sIOService, getter_AddRefs(realURI));
  
-  nsRefPtr<imgLoader> il =
+  nsCOMPtr<imgILoader> il =
     nsContentUtils::GetImgLoaderForDocument(aPresContext->Document());
 
   nsCOMPtr<nsILoadGroup> loadGroup;

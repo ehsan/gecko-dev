@@ -16,7 +16,6 @@
 #include "nsContentUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsSVGElement::StringInfo nsSVGAElement::sStringInfo[2] =
 {
@@ -68,7 +67,6 @@ nsSVGAElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
   return mStringAttributes[HREF].ToDOMAnimatedString(aHref, this);
 }
 
-NS_IMPL_STRING_ATTR(nsSVGAElement, Download, download)
 
 //----------------------------------------------------------------------
 // nsINode methods
@@ -76,7 +74,7 @@ NS_IMPL_STRING_ATTR(nsSVGAElement, Download, download)
 nsresult
 nsSVGAElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  nsresult rv = Element::PreHandleEvent(aVisitor);
+  nsresult rv = nsGenericElement::PreHandleEvent(aVisitor);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return PreHandleEventForLinks(aVisitor);
@@ -110,7 +108,7 @@ nsSVGAElement::BindToTree(nsIDocument *aDocument, nsIContent *aParent,
                           nsIContent *aBindingParent,
                           bool aCompileEventHandlers)
 {
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
 
   nsresult rv = nsSVGAElementBase::BindToTree(aDocument, aParent,
                                               aBindingParent,
@@ -129,7 +127,7 @@ nsSVGAElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
   // If this link is ever reinserted into a document, it might
   // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
   
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
@@ -282,7 +280,7 @@ nsSVGAElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   // that content states have changed will call IntrinsicState, which will try
   // to get updated information about the visitedness from Link.
   if (aName == nsGkAtoms::href && aNameSpaceID == kNameSpaceID_XLink) {
-    Link::ResetLinkState(!!aNotify, true);
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;
@@ -300,7 +298,7 @@ nsSVGAElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
   // that content states have changed will call IntrinsicState, which will try
   // to get updated information about the visitedness from Link.
   if (aAttr == nsGkAtoms::href && aNameSpaceID == kNameSpaceID_XLink) {
-    Link::ResetLinkState(!!aNotify, false);
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;

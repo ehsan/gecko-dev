@@ -29,28 +29,19 @@ class DummyFrameGuard;
 class JS_FRIEND_API(Wrapper) : public DirectProxyHandler
 {
     unsigned mFlags;
-    bool mSafeToUnwrap;
 
   public:
     enum Action {
         GET,
         SET,
-        CALL
+        CALL,
+        PUNCTURE
     };
 
     enum Flags {
         CROSS_COMPARTMENT = 1 << 0,
         LAST_USED_FLAG = CROSS_COMPARTMENT
     };
-
-    /*
-     * Wrappers can explicitly specify that they are unsafe to unwrap from a
-     * security perspective (as is the case for SecurityWrappers). If a wrapper
-     * is not safe to unwrap, operations requiring full access to the underlying
-     * object (via UnwrapObjectChecked) will throw. Otherwise, they will succeed.
-     */
-    void setSafeToUnwrap(bool safe) { mSafeToUnwrap = safe; }
-    bool isSafeToUnwrap() { return mSafeToUnwrap; }
 
     static JSObject *New(JSContext *cx, JSObject *obj, JSObject *proto,
                          JSObject *parent, Wrapper *handler);
@@ -71,7 +62,24 @@ class JS_FRIEND_API(Wrapper) : public DirectProxyHandler
      * on the underlying object's |id| property. In the case when |act| is CALL,
      * |id| is generally JSID_VOID.
      *
-     * The |act| parameter to enter() specifies the action being performed.
+     * The |act| parameter to enter() specifies the action being performed. GET,
+     * SET, and CALL are self-explanatory, but PUNCTURE requires more
+     * explanation:
+     *
+     * GET and SET allow for a very fine-grained security membrane, through
+     * which access can be granted or denied on a per-property, per-object, and
+     * per-action basis. Sometimes though, we just want to asks if we can access
+     * _everything_ behind the wrapper barrier. For example, when the structured
+     * clone algorithm runs up against a cross-compartment wrapper, it needs to
+     * know whether it can enter the compartment and keep cloning, or whether it
+     * should throw. This is the role of PUNCTURE.
+     *
+     * PUNCTURE allows the policy to specify whether the wrapper barrier may
+     * be lifted - that is to say, whether the caller is allowed to access
+     * anything that the wrapped object could access. This is a very powerful
+     * permission, and thus should generally be denied for security wrappers
+     * except under very special circumstances. When |act| is PUNCTURE, |id|
+     * should be JSID_VOID.
      */
     virtual bool enter(JSContext *cx, JSObject *wrapper, jsid id, Action act,
                        bool *bp);
@@ -160,6 +168,7 @@ class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
     virtual JSString *fun_toString(JSContext *cx, JSObject *wrapper, unsigned indent) MOZ_OVERRIDE;
     virtual bool regexp_toShared(JSContext *cx, JSObject *proxy, RegExpGuard *g) MOZ_OVERRIDE;
     virtual bool defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vp) MOZ_OVERRIDE;
+    virtual bool iteratorNext(JSContext *cx, JSObject *wrapper, Value *vp);
     virtual bool getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **protop);
 
     static CrossCompartmentWrapper singleton;
@@ -181,19 +190,10 @@ class JS_FRIEND_API(SecurityWrapper) : public Base
   public:
     SecurityWrapper(unsigned flags);
 
-    virtual bool enter(JSContext *cx, JSObject *wrapper, jsid id, Wrapper::Action act,
-                       bool *bp) MOZ_OVERRIDE;
     virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
                             CallArgs args) MOZ_OVERRIDE;
     virtual bool objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx) MOZ_OVERRIDE;
     virtual bool regexp_toShared(JSContext *cx, JSObject *proxy, RegExpGuard *g) MOZ_OVERRIDE;
-
-    /*
-     * Allow our subclasses to select the superclass behavior they want without
-     * needing to specify an exact superclass.
-     */
-    typedef Base Permissive;
-    typedef SecurityWrapper<Base> Restrictive;
 };
 
 typedef SecurityWrapper<Wrapper> SameCompartmentSecurityWrapper;
@@ -228,6 +228,7 @@ class JS_FRIEND_API(DeadObjectProxy) : public BaseProxyHandler
     virtual JSString *fun_toString(JSContext *cx, JSObject *proxy, unsigned indent);
     virtual bool regexp_toShared(JSContext *cx, JSObject *proxy, RegExpGuard *g);
     virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
+    virtual bool iteratorNext(JSContext *cx, JSObject *proxy, Value *vp);
     virtual bool getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *receiver,
                                      uint32_t index, Value *vp, bool *present);
     virtual bool getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **protop);
@@ -262,12 +263,12 @@ UnwrapObject(JSObject *obj, bool stopAtOuter = true, unsigned *flagsp = NULL);
 // code should never be unwrapping outer window wrappers, we always stop at
 // outer windows.
 JS_FRIEND_API(JSObject *)
-UnwrapObjectChecked(RawObject obj);
+UnwrapObjectChecked(JSContext *cx, RawObject obj);
 
 // Unwrap only the outermost security wrapper, with the same semantics as
 // above. This is the checked version of Wrapper::wrappedObject.
 JS_FRIEND_API(JSObject *)
-UnwrapOneChecked(RawObject obj);
+UnwrapOneChecked(JSContext *cx, HandleObject obj);
 
 JS_FRIEND_API(bool)
 IsCrossCompartmentWrapper(RawObject obj);
@@ -293,34 +294,6 @@ RemapAllWrappersForObject(JSContext *cx, JSObject *oldTarget,
 JS_FRIEND_API(bool)
 RecomputeWrappers(JSContext *cx, const CompartmentFilter &sourceFilter,
                   const CompartmentFilter &targetFilter);
-
-/*
- * This auto class should be used around any code, such as brain transplants,
- * that may touch dead compartments. Brain transplants can cause problems
- * because they operate on all compartments, whether live or dead. A brain
- * transplant can cause a formerly dead object to be "reanimated" by causing a
- * read or write barrier to be invoked on it during the transplant. In this way,
- * a compartment becomes a zombie, kept alive by repeatedly consuming
- * (transplanted) brains.
- *
- * To work around this issue, we observe when mark bits are set on objects in
- * dead compartments. If this happens during a brain transplant, we do a full,
- * non-incremental GC at the end of the brain transplant. This will clean up any
- * objects that were improperly marked.
- */
-struct JS_FRIEND_API(AutoMaybeTouchDeadCompartments)
-{
-    // The version that takes an object just uses it for its runtime.
-    AutoMaybeTouchDeadCompartments(JSContext *cx);
-    AutoMaybeTouchDeadCompartments(JSObject *obj);
-    ~AutoMaybeTouchDeadCompartments();
-
-  private:
-    JSRuntime *runtime;
-    unsigned markCount;
-    bool inIncremental;
-    bool manipulatingDeadCompartments;
-};
 
 } /* namespace js */
 

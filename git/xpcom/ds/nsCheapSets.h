@@ -18,7 +18,6 @@ class nsCheapSet
 {
 public:
   typedef typename EntryType::KeyType KeyType;
-  typedef PLDHashOperator (* Enumerator)(EntryType* aEntry, void* userArg);
 
   nsCheapSet() : mState(ZERO)
   {
@@ -56,25 +55,6 @@ public:
     default:
       NS_NOTREACHED("bogus state");
       return false;
-    }
-  }
-
-  uint32_t EnumerateEntries(Enumerator enumFunc, void* userArg)
-  {
-    switch (mState) {
-    case ZERO:
-      return 0;
-    case ONE:
-      if (enumFunc(GetSingleEntry(), userArg) == PL_DHASH_REMOVE) {
-        GetSingleEntry()->~EntryType();
-        mState = ZERO;
-      }
-      return 1;
-    case MANY:
-      return mUnion.table->EnumerateEntries(enumFunc, userArg);
-    default:
-      NS_NOTREACHED("bogus state");
-      return 0;
     }
   }
 

@@ -246,8 +246,11 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetBaseTransform(common.transform().value());
       layer->SetPostScale(common.postXScale(), common.postYScale());
-      layer->SetIsFixedPosition(common.isFixedPosition());
-      layer->SetFixedPositionAnchor(common.fixedPositionAnchor());
+      static bool fixedPositionLayersEnabled = getenv("MOZ_ENABLE_FIXED_POSITION_LAYERS") != 0;
+      if (fixedPositionLayersEnabled) {
+        layer->SetIsFixedPosition(common.isFixedPosition());
+        layer->SetFixedPositionAnchor(common.fixedPositionAnchor());
+      }
       if (PLayerParent* maskLayer = common.maskLayerParent()) {
         layer->SetMaskLayer(cast(maskLayer)->AsLayer());
       } else {

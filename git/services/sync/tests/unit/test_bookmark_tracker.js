@@ -11,10 +11,7 @@ Cu.import("resource://services-sync/util.js");
 Service.engineManager.register(BookmarksEngine);
 let engine = Service.engineManager.get("bookmarks");
 let store  = engine._store;
-let tracker = engine._tracker;
-
 store.wipe();
-tracker.persistChangedIDs = false;
 
 function test_tracking() {
   _("Verify we've got an empty tracker to work with.");
@@ -69,6 +66,7 @@ function test_tracking() {
     store.wipe();
     tracker.clearChangedIDs();
     tracker.resetScore();
+    tracker._lazySave.clear();
     Svc.Obs.notify("weave:engine:stop-tracking");
   }
 }
@@ -107,6 +105,7 @@ function test_onItemChanged() {
     store.wipe();
     tracker.clearChangedIDs();
     tracker.resetScore();
+    tracker._lazySave.clear();
     Svc.Obs.notify("weave:engine:stop-tracking");
   }
 }
@@ -159,6 +158,7 @@ function test_onItemMoved() {
     store.wipe();
     tracker.clearChangedIDs();
     tracker.resetScore();
+    tracker._lazySave.clear();
     Svc.Obs.notify("weave:engine:stop-tracking");
   }
 

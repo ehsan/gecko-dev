@@ -104,23 +104,9 @@ this.PhoneNumber = (function (dataBase) {
       // of type object, because they were already resolved (parsed into
       // an object), and their country code should have been in the cache.
       if (Array.isArray(entry)) {
-        for (var n = 0; n < entry.length; n++) {
-          if (typeof entry[n] == "string" && entry[n].substr(2,2) == region) {
-            if (n > 0) {
-              // Only the first entry has the formats field set.
-              // Parse the main country if we haven't already and use
-              // the formats field from the main country.
-              if (typeof entry[0] == "string" && entry[0].substr(2,2) == region)
-                entry[0] = ParseMetaData(countryCode, entry[0]);
-              let formats = entry[0].formats;
-              let current = ParseMetaData(countryCode, entry[n]);
-              current.formats = formats;
-              return entry[n] = current;
-            }
-            
-            entry[n] = ParseMetaData(countryCode, entry[n]);
-            return entry[n];
-          }
+        for (var n = 0; n < entry.length; ++n) {
+          if (typeof entry[n] == "string" && entry[n].substr(2,2) == region)
+            return entry[n] = ParseMetaData(countryCode, entry[n]);
         }
         continue;
       }
@@ -208,9 +194,8 @@ this.PhoneNumber = (function (dataBase) {
     },
     // +19497262896
     get internationalNumber() {
-      var value = this.internationalFormat ? this.internationalFormat.replace(NON_DIALABLE_CHARS, "")
-                                           : null;
-      Object.defineProperty(this, "internationalNumber", { value: value, enumerable: true });
+      var value = this.internationalFormat.replace(NON_DIALABLE_CHARS, "");
+      Object.defineProperty(this, "nationalNumber", { value: value, enumerable: true });
       return value;
     }
   };
@@ -270,8 +255,7 @@ this.PhoneNumber = (function (dataBase) {
       for (var n = 0; n < entry.length; ++n) {
         if (typeof entry[n] == "string")
           entry[n] = ParseMetaData(countryCode, entry[n]);
-        ret = ParseNationalNumber(number, entry[n])
-        if (ret)
+        if (ret = ParseNationalNumber(number, entry[n]))
           return ret;
       }
       return null;
@@ -301,10 +285,6 @@ this.PhoneNumber = (function (dataBase) {
     // Remove formating characters and whitespace.
     number = NormalizeNumber(number);
 
-    // If there is no defaultRegion, we can't parse international access codes.
-    if (!defaultRegion && number[0] !== '+')
-      return null;
-
     // Detect and strip leading '+'.
     if (number[0] === '+')
       return ParseInternationalNumber(number.replace(PLUS_CHARS, ""));
@@ -317,8 +297,7 @@ this.PhoneNumber = (function (dataBase) {
     // prefix and flag the number as international.
     if (md.internationalPrefix.test(number)) {
       var possibleNumber = number.replace(md.internationalPrefix, "");
-      ret = ParseInternationalNumber(possibleNumber)
-      if (ret)
+      if (ret = ParseInternationalNumber(possibleNumber))
         return ret;
     }
 
@@ -329,8 +308,7 @@ this.PhoneNumber = (function (dataBase) {
       // Some regions have specific national prefix parse rules. Apply those.
       var withoutPrefix = number.replace(md.nationalPrefixForParsing,
                                          md.nationalPrefixTransformRule);
-      ret = ParseNationalNumber(withoutPrefix, md)
-      if (ret)
+      if (ret = ParseNationalNumber(withoutPrefix, md))
         return ret;
     } else {
       // If there is no specific national prefix rule, just strip off the
@@ -341,8 +319,7 @@ this.PhoneNumber = (function (dataBase) {
         return ret;
       }
     }
-    ret = ParseNationalNumber(number, md)
-    if (ret)
+    if (ret = ParseNationalNumber(number, md))
       return ret;
 
     // If the number matches the possible numbers of the current region,
@@ -352,8 +329,7 @@ this.PhoneNumber = (function (dataBase) {
 
     // Now lets see if maybe its an international number after all, but
     // without '+' or the international prefix.
-    ret = ParseInternationalNumber(number)
-    if (ret)
+    if (ret = ParseInternationalNumber(number))
       return ret;
 
     // We couldn't parse the number at all.

@@ -9,8 +9,6 @@
 #include "nsMaiHyperlink.h"
 #include "mozilla/Likely.h"
 
-using namespace mozilla::a11y;
-
 extern "C" {
 static AtkHyperlink*
 getHyperlinkCB(AtkHyperlinkImpl* aImpl)

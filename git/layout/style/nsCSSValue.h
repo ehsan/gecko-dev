@@ -16,14 +16,14 @@
 #include "nsCSSProperty.h"
 #include "nsColor.h"
 #include "nsCoord.h"
-#include "nsRefPtrHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "nsString.h"
 #include "nsStringBuffer.h"
 #include "nsTArray.h"
 #include "nsStyleConsts.h"
 #include "mozilla/FloatingPoint.h"
 
-class imgRequestProxy;
+class imgIRequest;
 class nsIDocument;
 class nsIPrincipal;
 class nsPresContext;
@@ -125,7 +125,7 @@ struct ImageValue : public URLValue {
 
   // Inherit operator== from URLValue
 
-  nsRefPtrHashtable<nsISupportsHashKey, imgRequestProxy> mRequests; 
+  nsInterfaceHashtable<nsISupportsHashKey, imgIRequest> mRequests; 
 
   // Override AddRef and Release to not only log ourselves correctly, but
   // also so that we delete correctly without a virtual destructor
@@ -454,7 +454,7 @@ public:
   // Not making this inline because that would force us to include
   // imgIRequest.h, which leads to REQUIRES hell, since this header is included
   // all over.
-  imgRequestProxy* GetImageValue(nsIDocument* aDocument) const;
+  imgIRequest* GetImageValue(nsIDocument* aDocument) const;
 
   nscoord GetFixedLength(nsPresContext* aPresContext) const;
   nscoord GetPixelLength() const;

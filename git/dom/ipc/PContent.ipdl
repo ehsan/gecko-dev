@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+include protocol PAudio;
 include protocol PBlob;
 include protocol PBluetooth;
 include protocol PBrowser;
@@ -23,9 +24,8 @@ include DOMTypes;
 include URIParams;
 
 include "mozilla/chrome/RegistryMessageUtils.h";
-include "mozilla/dom/TabMessageUtils.h";
-include "mozilla/layout/RenderFrameUtils.h";
 include "mozilla/net/NeckoMessageUtils.h";
+include "mozilla/dom/TabMessageUtils.h";
 
 include "nsGeoPositionIPCSerialiser.h";
 
@@ -38,9 +38,7 @@ using OverrideMapping;
 using IPC::Permission;
 using mozilla::null_t;
 using mozilla::void_t;
-using mozilla::dom::AudioChannelType;
 using mozilla::dom::NativeThreadId;
-using mozilla::layout::ScrollingBehavior;
 using gfxIntSize;
 
 namespace mozilla {
@@ -185,17 +183,12 @@ struct VanillaFrameIPCTabContext
 // We need IPCTabContext (specifically, PopupIPCTabContext) to prevent a
 // privilege escalation attack by a compromised child process.  See the comment
 // on AllocPBrowser for details.
-union IPCTabAppBrowserContext
+union IPCTabContext
 {
   PopupIPCTabContext;
   AppFrameIPCTabContext;
   BrowserFrameIPCTabContext;
   VanillaFrameIPCTabContext;
-};
-
-struct IPCTabContext {
-  IPCTabAppBrowserContext appBrowserContext;
-  ScrollingBehavior scrollingBehavior;
 };
 
 union PrefValue {
@@ -220,6 +213,7 @@ rpc protocol PContent
     parent opens PCompositor;
     parent opens PImageBridge;
 
+    manages PAudio;
     manages PBlob;
     manages PBluetooth;
     manages PBrowser;
@@ -264,11 +258,6 @@ both:
 
 child:
     PMemoryReportRequest();
-
-    /**
-     * Notify the AudioChannelService in the child processes.
-     */
-    async AudioChannelNotify();
 
     /**
      * Dump the contents of about:memory to a file in our temp directory.
@@ -346,6 +335,8 @@ parent:
     sync GetXPCOMProcessAttributes()
         returns (bool isOffline);
 
+    PAudio(int32_t aNumChannels, int32_t aRate);
+
     PDeviceStorageRequest(DeviceStorageParams params);
 
     sync PCrashReporter(NativeThreadId tid, uint32_t processType);
@@ -397,7 +388,6 @@ parent:
 
     AddGeolocationListener();
     RemoveGeolocationListener();
-    SetGeolocationHigherAccuracy(bool enable);
 
     ConsoleMessage(nsString message);
     ScriptError(nsString message, nsString sourceName, nsString sourceLine,
@@ -430,13 +420,6 @@ parent:
 
     // Tell the parent that the child has gone idle for the first time
     async FirstIdle();
-
-    // Get Muted from the main AudioChannelService.
-    sync AudioChannelGetMuted(AudioChannelType aType, bool aMozHidden)
-        returns (bool value);
-
-    async AudioChannelRegisterType(AudioChannelType aType);
-    async AudioChannelUnregisterType(AudioChannelType aType);
 
 both:
      AsyncMessage(nsString aMessage, ClonedMessageData aData);

@@ -64,6 +64,7 @@
 #include "nsIDOMTouchEvent.h"
 #include "nsIInlineEventHandlers.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsIDOMApplicationRegistry.h"
 #include "nsIIdleObserver.h"
 #include "nsIDOMWakeLock.h"
 
@@ -102,6 +103,7 @@ class nsBarProp;
 class nsLocation;
 class nsScreen;
 class nsHistory;
+class nsPerformance;
 class nsIDocShellLoadInfo;
 class WindowStateHolder;
 class nsGlobalWindowObserver;
@@ -148,8 +150,7 @@ struct nsTimeout : mozilla::LinkedListElement<nsTimeout>
   nsrefcnt AddRef();
 
   nsresult InitTimer(nsTimerCallbackFunc aFunc, uint64_t delay) {
-    return mTimer->InitWithFuncCallback(aFunc, this,
-                                        static_cast<uint32_t>(delay),
+    return mTimer->InitWithFuncCallback(aFunc, this, delay,
                                         nsITimer::TYPE_ONE_SHOT);
   }
 
@@ -510,10 +511,6 @@ public:
     return mIsChrome;
   }
 
-  // GetScrollFrame does not flush.  Callers should do it themselves as needed,
-  // depending on which info they actually want off the scrollable frame.
-  nsIScrollableFrame *GetScrollFrame();
-
   nsresult Observe(nsISupports* aSubject, const char* aTopic,
                    const PRUnichar* aData);
 
@@ -596,6 +593,8 @@ public:
 
   static bool HasIndexedDBSupport();
 
+  static bool HasPerformanceSupport();
+
   static WindowByIdTable* GetWindowsTable() {
     return sWindowsById;
   }
@@ -617,64 +616,6 @@ public:
   {
     mAllowScriptsToClose = true;
   }
-
-#define EVENT(name_, id_, type_, struct_)                                     \
-  mozilla::dom::EventHandlerNonNull* GetOn##name_()                           \
-  {                                                                           \
-    nsEventListenerManager *elm = GetListenerManager(false);                  \
-    return elm ? elm->GetEventHandler(nsGkAtoms::on##name_) : nullptr;        \
-  }                                                                           \
-  void SetOn##name_(mozilla::dom::EventHandlerNonNull* handler,               \
-                    mozilla::ErrorResult& error)                              \
-  {                                                                           \
-    nsEventListenerManager *elm = GetListenerManager(true);                   \
-    if (elm) {                                                                \
-      error = elm->SetEventHandler(nsGkAtoms::on##name_, handler);            \
-    } else {                                                                  \
-      error.Throw(NS_ERROR_OUT_OF_MEMORY);                                    \
-    }                                                                         \
-  }
-#define ERROR_EVENT(name_, id_, type_, struct_)                               \
-  mozilla::dom::OnErrorEventHandlerNonNull* GetOn##name_()                    \
-  {                                                                           \
-    nsEventListenerManager *elm = GetListenerManager(false);                  \
-    return elm ? elm->GetOnErrorEventHandler() : nullptr;                     \
-  }                                                                           \
-  void SetOn##name_(mozilla::dom::OnErrorEventHandlerNonNull* handler,        \
-                    mozilla::ErrorResult& error)                              \
-  {                                                                           \
-    nsEventListenerManager *elm = GetListenerManager(true);                   \
-    if (elm) {                                                                \
-      error = elm->SetEventHandler(handler);                                  \
-    } else {                                                                  \
-      error.Throw(NS_ERROR_OUT_OF_MEMORY);                                    \
-    }                                                                         \
-  }
-#define BEFOREUNLOAD_EVENT(name_, id_, type_, struct_)                        \
-  mozilla::dom::BeforeUnloadEventHandlerNonNull* GetOn##name_()               \
-  {                                                                           \
-    nsEventListenerManager *elm = GetListenerManager(false);                  \
-    return elm ? elm->GetOnBeforeUnloadEventHandler() : nullptr;              \
-  }                                                                           \
-  void SetOn##name_(mozilla::dom::BeforeUnloadEventHandlerNonNull* handler,   \
-                    mozilla::ErrorResult& error)                              \
-  {                                                                           \
-    nsEventListenerManager *elm = GetListenerManager(true);                   \
-    if (elm) {                                                                \
-      error = elm->SetEventHandler(handler);                                  \
-    } else {                                                                  \
-      error.Throw(NS_ERROR_OUT_OF_MEMORY);                                    \
-    }                                                                         \
-  }
-#define WINDOW_ONLY_EVENT EVENT
-#define TOUCH_EVENT EVENT
-#include "nsEventNameList.h"
-#undef TOUCH_EVENT
-#undef WINDOW_ONLY_EVENT
-#undef BEFOREUNLOAD_EVENT
-#undef ERROR_EVENT
-#undef EVENT
-
 protected:
   // Array of idle observers that are notified of idle events.
   nsTObserverArray<IdleObserverHolder> mIdleObservers;
@@ -852,6 +793,9 @@ protected:
   nsresult GetTreeOwner(nsIDocShellTreeOwner** aTreeOwner);
   nsresult GetTreeOwner(nsIBaseWindow** aTreeOwner);
   nsresult GetWebBrowserChrome(nsIWebBrowserChrome** aBrowserChrome);
+  // GetScrollFrame does not flush.  Callers should do it themselves as needed,
+  // depending on which info they actually want off the scrollable frame.
+  nsIScrollableFrame *GetScrollFrame();
   nsresult SecurityCheckURL(const char *aURL);
   nsresult BuildURIfromBase(const char *aURL,
                             nsIURI **aBuiltURI,
@@ -978,6 +922,9 @@ protected:
   // Implements Get{Real,Scriptable}Top.
   nsresult GetTopImpl(nsIDOMWindow **aWindow, bool aScriptable);
 
+  // Helper for creating performance objects.
+  void CreatePerformanceObjectIfNeeded();
+
   // Outer windows only.
   nsDOMWindowList* GetWindowList();
 
@@ -1067,6 +1014,8 @@ protected:
   nsCOMPtr<nsIPrincipal>        mArgumentsOrigin;
   nsRefPtr<Navigator>           mNavigator;
   nsRefPtr<nsScreen>            mScreen;
+  // mPerformance is only used on inner windows.
+  nsRefPtr<nsPerformance>       mPerformance;
   nsRefPtr<nsDOMWindowList>     mFrames;
   nsRefPtr<nsBarProp>           mMenubar;
   nsRefPtr<nsBarProp>           mToolbar;
@@ -1161,7 +1110,6 @@ protected:
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
-  friend class nsDOMDesktopNotification;
 
   static WindowByIdTable* sWindowsById;
   static bool sWarnedAboutWindowInternal;

@@ -50,6 +50,7 @@
 #include "nsITokenizer.h"
 #include "nsHTMLTags.h"
 #include "nsDTDUtils.h"
+#include "nsThreadUtils.h"
 #include "nsIContentSink.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
@@ -58,6 +59,7 @@
 class nsICharsetConverterManager;
 class nsIDTD;
 class nsScanner;
+class nsIThreadPool;
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4275 )

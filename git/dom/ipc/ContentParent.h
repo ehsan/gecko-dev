@@ -29,8 +29,6 @@
 
 #define CHILD_PROCESS_SHUTDOWN_MESSAGE NS_LITERAL_STRING("child-process-shutdown")
 
-#define CONTENT_PARENT_UNKNOWN_CHILD_ID -1
-
 class mozIApplication;
 class nsConsoleService;
 class nsIDOMBlob;
@@ -73,13 +71,6 @@ public:
     static void StartUp();
     /** Shut down the content-process machinery. */
     static void ShutDown();
-    /**
-     * Ensure that all subprocesses are terminated and their OS
-     * resources have been reaped.  This is synchronous and can be
-     * very expensive in general.  It also bypasses the normal
-     * shutdown process.
-     */
-    static void JoinAllSubprocesses();
 
     static ContentParent* GetNewOrUsed(bool aForBrowserElement = false);
 
@@ -134,8 +125,6 @@ public:
      */
     void KillHard();
 
-    uint64_t ChildID() { return mChildID; }
-
 protected:
     void OnChannelConnected(int32_t pid);
     virtual void ActorDestroy(ActorDestroyReason why);
@@ -146,9 +135,6 @@ private:
     static nsDataHashtable<nsStringHashKey, ContentParent*> *gAppContentParents;
     static nsTArray<ContentParent*>* gNonAppContentParents;
     static nsTArray<ContentParent*>* gPrivateContent;
-
-    static void JoinProcessesIOThread(const nsTArray<ContentParent*>* aProcesses,
-                                      Monitor* aMonitor, bool* aDone);
 
     static void PreallocateAppProcess();
     static void DelayedPreallocateAppProcess();
@@ -231,6 +217,10 @@ private:
     virtual PTestShellParent* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellParent* shell);
 
+    virtual PAudioParent* AllocPAudio(const int32_t&,
+                                     const int32_t&);
+    virtual bool DeallocPAudio(PAudioParent*);
+
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
@@ -275,7 +265,7 @@ private:
 
     virtual bool RecvSetURITitle(const URIParams& uri,
                                  const nsString& title);
-
+    
     virtual bool RecvShowFilePicker(const int16_t& mode,
                                     const int16_t& selectedType,
                                     const bool& addToRecentDocs,
@@ -287,7 +277,7 @@ private:
                                     InfallibleTArray<nsString>* files,
                                     int16_t* retValue,
                                     nsresult* result);
-
+ 
     virtual bool RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
                                            const nsString& aText, const bool& aTextClickable,
                                            const nsString& aCookie, const nsString& aName);
@@ -302,7 +292,6 @@ private:
 
     virtual bool RecvAddGeolocationListener();
     virtual bool RecvRemoveGeolocationListener();
-    virtual bool RecvSetGeolocationHigherAccuracy(const bool& aEnable);
 
     virtual bool RecvConsoleMessage(const nsString& aMessage);
     virtual bool RecvScriptError(const nsString& aMessage,
@@ -317,19 +306,11 @@ private:
 
     virtual bool RecvFirstIdle();
 
-    virtual bool RecvAudioChannelGetMuted(const AudioChannelType& aType,
-                                          const bool& aMozHidden,
-                                          bool* aValue);
-
-    virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType);
-    virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType);
-
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
     GeckoChildProcessHost* mSubprocess;
     ChildOSPrivileges mOSPrivileges;
 
-    uint64_t mChildID;
     int32_t mGeolocationWatchID;
     int mRunToCompletionDepth;
     bool mShouldCallUnblockChild;
@@ -343,15 +324,7 @@ private:
     const nsString mAppManifestURL;
     nsRefPtr<nsFrameMessageManager> mMessageManager;
 
-    // True only while this is ready to be used to host remote tabs.
-    // This must not be used for new purposes after mIsAlive goes to
-    // false, but some previously scheduled IPC traffic may still pass
-    // through.
     bool mIsAlive;
-    // True after the OS-level shutdown sequence has been initiated.
-    // After going true, any use of this at all, including lingering
-    // IPC traffic passing through, will cause assertions to fail.
-    bool mIsDestroyed;
     bool mSendPermissionUpdates;
     bool mIsForBrowser;
 

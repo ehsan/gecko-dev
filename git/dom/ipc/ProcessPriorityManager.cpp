@@ -5,8 +5,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/ipc/ProcessPriorityManager.h"
-#include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/TabChild.h"
 #include "mozilla/Hal.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -71,33 +69,6 @@ GetPPMLog()
 #endif
 
 /**
- * Get the appropriate backround priority for this process.
- */
-ProcessPriority
-GetBackgroundPriority()
-{
-  bool isHomescreen = false;
-
-  ContentChild* contentChild = ContentChild::GetSingleton();
-  if (contentChild) {
-    const InfallibleTArray<PBrowserChild*>& browsers =
-      contentChild->ManagedPBrowserChild();
-    for (uint32_t i = 0; i < browsers.Length(); i++) {
-      nsAutoString appType;
-      static_cast<TabChild*>(browsers[i])->GetAppType(appType);
-      if (appType.EqualsLiteral("homescreen")) {
-        isHomescreen = true;
-        break;
-      }
-    }
-  }
-
-  return isHomescreen ?
-         PROCESS_PRIORITY_BACKGROUND_HOMESCREEN :
-         PROCESS_PRIORITY_BACKGROUND;
-}
-
-/**
  * This class listens to window creation and visibilitychange events and
  * informs the hal back-end when this process transitions between having no
  * visible top-level windows, and when it has at least one visible top-level
@@ -135,14 +106,13 @@ private:
   void RecomputeNumVisibleWindows();
 
   // mProcessPriority tracks the priority we've given this process in hal,
-  // except that, when the grace period timer is active, mProcessPriority ==
-  // BACKGROUND or HOMESCREEN_BACKGROUND even though hal still thinks we're a
+  // except that, when the grace period timer is active,
+  // mProcessPriority == BACKGROUND even though hal still thinks we're a
   // foreground process.
   ProcessPriority mProcessPriority;
 
   nsTArray<nsWeakPtr> mWindows;
   nsCOMPtr<nsITimer> mGracePeriodTimer;
-  nsWeakPtr mMemoryMinimizerRunnable;
   TimeStamp mStartupTime;
 };
 
@@ -224,7 +194,7 @@ ProcessPriorityManager::OnContentDocumentGlobalCreated(
     return;
   }
 
-  target->AddSystemEventListener(NS_LITERAL_STRING("visibilitychange"),
+  target->AddSystemEventListener(NS_LITERAL_STRING("mozvisibilitychange"),
                                  this,
                                  /* useCapture = */ false,
                                  /* wantsUntrusted = */ false);
@@ -265,7 +235,7 @@ ProcessPriorityManager::RecomputeNumVisibleWindows()
     }
 
     bool hidden = false;
-    doc->GetHidden(&hidden);
+    doc->GetMozHidden(&hidden);
 #ifdef DEBUG
     nsAutoString spec;
     doc->GetDocumentURI(spec);
@@ -280,7 +250,7 @@ ProcessPriorityManager::RecomputeNumVisibleWindows()
   }
 
   SetPriority(allHidden ?
-              GetBackgroundPriority() :
+              PROCESS_PRIORITY_BACKGROUND :
               PROCESS_PRIORITY_FOREGROUND);
 }
 
@@ -291,8 +261,7 @@ ProcessPriorityManager::SetPriority(ProcessPriority aPriority)
     return;
   }
 
-  if (aPriority == PROCESS_PRIORITY_BACKGROUND ||
-      aPriority == PROCESS_PRIORITY_BACKGROUND_HOMESCREEN) {
+  if (aPriority == PROCESS_PRIORITY_BACKGROUND) {
     // If this is a foreground --> background transition, give ourselves a
     // grace period before informing hal.
     uint32_t gracePeriodMS = Preferences::GetUint("dom.ipc.processPriorityManager.gracePeriodMS", 1000);
@@ -314,13 +283,6 @@ ProcessPriorityManager::SetPriority(ProcessPriority aPriority)
       mGracePeriodTimer = nullptr;
     }
 
-    // Cancel the memory minimization procedure we might have started.
-    nsCOMPtr<nsICancelableRunnable> runnable =
-      do_QueryReferent(mMemoryMinimizerRunnable);
-    if (runnable) {
-      runnable->Cancel();
-    }
-
     LOG("Setting priority to %d.", aPriority);
     mProcessPriority = aPriority;
     hal::SetProcessPriority(getpid(), aPriority);
@@ -334,32 +296,21 @@ void
 ProcessPriorityManager::OnGracePeriodTimerFired()
 {
   LOG("Grace period timer fired; setting priority to %d.",
-      mProcessPriority);
+      PROCESS_PRIORITY_BACKGROUND);
 
-  // mProcessPriority should already be one of the BACKGROUND values: We set it
-  // in SetPriority(BACKGROUND), and we canceled this timer if there was an
+  // mProcessPriority should already be BACKGROUND: We set it in
+  // SetPriority(BACKGROUND), and we canceled this timer if there was an
   // intervening SetPriority(FOREGROUND) call.
-  MOZ_ASSERT(mProcessPriority == PROCESS_PRIORITY_BACKGROUND ||
-             mProcessPriority == PROCESS_PRIORITY_BACKGROUND_HOMESCREEN);
+  MOZ_ASSERT(mProcessPriority == PROCESS_PRIORITY_BACKGROUND);
 
   mGracePeriodTimer = nullptr;
-  hal::SetProcessPriority(getpid(), mProcessPriority);
+  hal::SetProcessPriority(getpid(), PROCESS_PRIORITY_BACKGROUND);
 
   // We're in the background; dump as much memory as we can.
   nsCOMPtr<nsIMemoryReporterManager> mgr =
     do_GetService("@mozilla.org/memory-reporter-manager;1");
   if (mgr) {
-    nsCOMPtr<nsICancelableRunnable> runnable =
-      do_QueryReferent(mMemoryMinimizerRunnable);
-
-    // Cancel the previous task if it's still pending
-    if (runnable) {
-      runnable->Cancel();
-    }
-
-    mgr->MinimizeMemoryUsage(/* callback = */ nullptr,
-                             getter_AddRefs(runnable));
-    mMemoryMinimizerRunnable = do_GetWeakReference(runnable);
+    mgr->MinimizeMemoryUsage(/* callback = */ nullptr);
   }
 }
 

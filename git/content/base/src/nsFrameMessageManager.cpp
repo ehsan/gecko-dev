@@ -64,7 +64,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFrameMessageManager)
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mListeners[i] mListener");
     cb.NoteXPCOMChild(tmp->mListeners[i].mListener.get());
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildManagers)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mChildManagers)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsFrameMessageManager)
@@ -73,7 +73,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsFrameMessageManager)
     static_cast<nsFrameMessageManager*>(tmp->mChildManagers[i - 1])->
       Disconnect(false);
   }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChildManagers)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mChildManagers)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -231,7 +231,7 @@ GetParamsForMessage(JSContext* aCx,
   NS_ENSURE_TRUE(!json.IsEmpty(), false);
 
   jsval val = JSVAL_NULL;
-  NS_ENSURE_TRUE(JS_ParseJSON(aCx, static_cast<const jschar*>(json.get()),
+  NS_ENSURE_TRUE(JS_ParseJSON(aCx, static_cast<const jschar*>(PromiseFlatString(json).get()),
                               json.Length(), &val), false);
 
   return WriteStructuredClone(aCx, val, aBuffer, aClosure);
@@ -535,7 +535,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         }
         JSString* jsMessage =
           JS_NewUCStringCopyN(ctx,
-                              static_cast<const jschar*>(aMessage.BeginReading()),
+                              static_cast<const jschar*>(PromiseFlatString(aMessage).get()),
                               aMessage.Length());
         NS_ENSURE_TRUE(jsMessage, NS_ERROR_OUT_OF_MEMORY);
         JS_DefineProperty(ctx, param, "target", targetv, NULL, NULL, JSPROP_ENUMERATE);
@@ -1011,7 +1011,7 @@ void
 nsFrameScriptExecutor::Traverse(nsFrameScriptExecutor *tmp,
                                 nsCycleCollectionTraversalCallback &cb)
 {
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobal)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobal)
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   if (xpc) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCx");

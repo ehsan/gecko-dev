@@ -8,7 +8,7 @@
 #ifndef js_inline_list_h__
 #define js_inline_list_h__
 
-#include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 
 #include "jsutil.h"
 

@@ -14,7 +14,6 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/LogUtils.jsm");
-Cu.import("resource://gre/modules/identity/IdentityUtils.jsm");
 Cu.import("resource://gre/modules/identity/IdentityStore.jsm");
 
 this.EXPORTED_SYMBOLS = ["RelyingParty"];
@@ -216,7 +215,6 @@ IdentityRelyingParty.prototype = {
     // Notify UX to display identity picker.
     // Pass the doc id to UX so it can pass it back to us later.
     let options = {rpId: aRPId, origin: rp.origin};
-    objectCopy(aOptions, options);
 
     // Append URLs after resolving
     let baseURI = Services.io.newURI(rp.origin, null, null);

@@ -312,7 +312,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
 a11y::AccType
 nsComboboxControlFrame::AccessibleType()
 {
-  return a11y::eHTMLComboboxType;
+  return a11y::eHTMLComboboxAccessible;
 }
 #endif
 
@@ -1712,13 +1712,14 @@ nsComboboxControlFrame::OnContentReset()
 // nsIStatefulFrame
 //--------------------------------------------------------
 NS_IMETHODIMP
-nsComboboxControlFrame::SaveState(nsPresState** aState)
+nsComboboxControlFrame::SaveState(SpecialStateID aStateID,
+                                  nsPresState** aState)
 {
   if (!mListControlFrame)
     return NS_ERROR_FAILURE;
 
   nsIStatefulFrame* stateful = do_QueryFrame(mListControlFrame);
-  return stateful->SaveState(aState);
+  return stateful->SaveState(aStateID, aState);
 }
 
 NS_IMETHODIMP

@@ -5,10 +5,9 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.BrowserApp;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoApp;
+import org.mozilla.gecko.ScreenshotHandler;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
@@ -16,6 +15,7 @@ import org.mozilla.gecko.ui.PanZoomController;
 import org.mozilla.gecko.ui.PanZoomTarget;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
+import org.mozilla.gecko.util.GeckoEventResponder;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -30,17 +30,20 @@ import android.util.Log;
 import java.util.HashMap;
 import java.util.Map;
 
-public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
+public class GeckoLayerClient
+        implements GeckoEventResponder, LayerView.Listener, PanZoomTarget
 {
     private static final String LOGTAG = "GeckoLayerClient";
 
     private LayerRenderer mLayerRenderer;
     private boolean mLayerRendererInitialized;
 
+    private final EventDispatcher mEventDispatcher;
     private Context mContext;
     private IntSize mScreenSize;
     private IntSize mWindowSize;
     private DisplayPortMetrics mDisplayPort;
+    private DisplayPortMetrics mReturnDisplayPort;
 
     private boolean mRecordDrawTimes;
     private final DrawTimingQueue mDrawTimingQueue;
@@ -71,9 +74,6 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
 
     /* Used as the return value of progressiveUpdateCallback */
     private final ProgressiveUpdateData mProgressiveUpdateData;
-    private DisplayPortMetrics mProgressiveUpdateDisplayPort;
-    private boolean mLastProgressiveUpdateWasLowPrecision;
-    private boolean mProgressiveUpdateWasInDanger;
 
     /* This is written by the compositor thread and read by the UI thread. */
     private volatile boolean mCompositorCreated;
@@ -104,6 +104,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     public GeckoLayerClient(Context context, LayerView view, EventDispatcher eventDispatcher) {
         // we can fill these in with dummy values because they are always written
         // to before being read
+        mEventDispatcher = eventDispatcher;
         mContext = context;
         mScreenSize = new IntSize(0, 0);
         mWindowSize = new IntSize(0, 0);
@@ -112,9 +113,6 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         mDrawTimingQueue = new DrawTimingQueue();
         mCurrentViewTransform = new ViewTransform(0, 0, 1);
         mProgressiveUpdateData = new ProgressiveUpdateData();
-        mProgressiveUpdateDisplayPort = new DisplayPortMetrics();
-        mLastProgressiveUpdateWasLowPrecision = false;
-        mProgressiveUpdateWasInDanger = false;
         mCompositorCreated = false;
 
         mForceRedraw = true;
@@ -122,7 +120,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         mViewportMetrics = new ImmutableViewportMetrics(displayMetrics);
         mZoomConstraints = new ZoomConstraints(false);
 
-        mPanZoomController = new PanZoomController(this, eventDispatcher);
+        mPanZoomController = new PanZoomController(this, mEventDispatcher);
         mView = view;
     }
 
@@ -133,14 +131,26 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         mRootLayer = new VirtualLayer(new IntSize(mView.getWidth(), mView.getHeight()));
         mLayerRenderer = mView.getRenderer();
 
+        registerEventListener("Checkerboard:Toggle");
+
         mView.setListener(this);
         sendResizeEventIfNecessary(true);
 
         DisplayPortCalculator.initPrefs();
+        PluginLayer.initPrefs();
     }
 
     public void destroy() {
         mPanZoomController.destroy();
+        unregisterEventListener("Checkerboard:Toggle");
+    }
+
+    private void registerEventListener(String event) {
+        mEventDispatcher.registerEventListener(event, this);
+    }
+
+    private void unregisterEventListener(String event) {
+        mEventDispatcher.unregisterEventListener(event, this);
     }
 
     /**
@@ -302,9 +312,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
             case UPDATE:
                 // Keep the old viewport size
                 metrics = messageMetrics.setViewportSize(oldMetrics.getWidth(), oldMetrics.getHeight());
-                if (!oldMetrics.fuzzyEquals(metrics)) {
-                    abortPanZoomAnimation();
-                }
+                abortPanZoomAnimation();
                 break;
             case PAGE_SIZE:
                 // adjust the page dimensions to account for differences in zoom
@@ -349,20 +357,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     // is useful for slow-to-render pages when the display-port starts lagging
     // behind enough that continuing to draw it is wasted effort.
     public ProgressiveUpdateData progressiveUpdateCallback(boolean aHasPendingNewThebesContent,
-                                                           float x, float y, float width, float height,
-                                                           float resolution, boolean lowPrecision) {
-        // Skip all low precision draws until we're at risk of checkerboarding
-        if (lowPrecision && !mProgressiveUpdateWasInDanger) {
-            mProgressiveUpdateData.abort = true;
-            return mProgressiveUpdateData;
-        }
-
-        // Reset the checkerboard risk flag
-        if (!lowPrecision && mLastProgressiveUpdateWasLowPrecision) {
-            mProgressiveUpdateWasInDanger = false;
-        }
-        mLastProgressiveUpdateWasLowPrecision = lowPrecision;
-
+                                                           float x, float y, float width, float height, float resolution) {
         // Grab a local copy of the last display-port sent to Gecko and the
         // current viewport metrics to avoid races when accessing them.
         DisplayPortMetrics displayPort = mDisplayPort;
@@ -372,23 +367,10 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
 
         // Always abort updates if the resolution has changed. There's no use
         // in drawing at the incorrect resolution.
-        if (!FloatUtils.fuzzyEquals(resolution, viewportMetrics.zoomFactor)) {
+        if (!FloatUtils.fuzzyEquals(resolution, displayPort.resolution)) {
             Log.d(LOGTAG, "Aborting draw due to resolution change");
             mProgressiveUpdateData.abort = true;
             return mProgressiveUpdateData;
-        }
-
-        // Store the high precision displayport for comparison when doing low
-        // precision updates.
-        if (!lowPrecision) {
-            if (!FloatUtils.fuzzyEquals(resolution, mProgressiveUpdateDisplayPort.resolution) ||
-                !FloatUtils.fuzzyEquals(x, mProgressiveUpdateDisplayPort.getLeft()) ||
-                !FloatUtils.fuzzyEquals(y, mProgressiveUpdateDisplayPort.getTop()) ||
-                !FloatUtils.fuzzyEquals(x + width, mProgressiveUpdateDisplayPort.getRight()) ||
-                !FloatUtils.fuzzyEquals(y + height, mProgressiveUpdateDisplayPort.getBottom())) {
-                mProgressiveUpdateDisplayPort =
-                    new DisplayPortMetrics(x, y, x+width, y+height, resolution);
-            }
         }
 
         // XXX All sorts of rounding happens inside Gecko that becomes hard to
@@ -401,20 +383,11 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         // display-port. If we abort updating when we shouldn't, we can end up
         // with blank regions on the screen and we open up the risk of entering
         // an endless updating cycle.
-        if (Math.abs(displayPort.getLeft() - mProgressiveUpdateDisplayPort.getLeft()) <= 2 &&
-            Math.abs(displayPort.getTop() - mProgressiveUpdateDisplayPort.getTop()) <= 2 &&
-            Math.abs(displayPort.getBottom() - mProgressiveUpdateDisplayPort.getBottom()) <= 2 &&
-            Math.abs(displayPort.getRight() - mProgressiveUpdateDisplayPort.getRight()) <= 2) {
+        if (Math.abs(displayPort.getLeft() - x) <= 2 &&
+            Math.abs(displayPort.getTop() - y) <= 2 &&
+            Math.abs(displayPort.getBottom() - (y + height)) <= 2 &&
+            Math.abs(displayPort.getRight() - (x + width)) <= 2) {
             return mProgressiveUpdateData;
-        }
-
-        if (!lowPrecision && !mProgressiveUpdateWasInDanger) {
-            // If we're not doing low precision draws and we're about to
-            // checkerboard, give up and move onto low precision drawing.
-            if (DisplayPortCalculator.aboutToCheckerboard(viewportMetrics,
-                  mPanZoomController.getVelocityVector(), mProgressiveUpdateDisplayPort)) {
-                mProgressiveUpdateWasInDanger = true;
-            }
         }
 
         // Abort updates when the display-port no longer contains the visible
@@ -431,12 +404,47 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
             return mProgressiveUpdateData;
         }
 
-        // Abort drawing stale low-precision content if there's a more recent
-        // display-port in the pipeline.
-        if (lowPrecision && !aHasPendingNewThebesContent) {
-          mProgressiveUpdateData.abort = true;
+        // There's no new content (where new content is considered to be an
+        // update in a region that wasn't previously visible), and we've sent a
+        // more recent display-port.
+        // Aborting in this situation helps us recover more quickly when the
+        // user starts scrolling on a page that contains animated content that
+        // is slow to draw.
+        if (!aHasPendingNewThebesContent) {
+            Log.d(LOGTAG, "Aborting update due to more relevant display-port in event queue");
+            mProgressiveUpdateData.abort = true;
+            return mProgressiveUpdateData;
         }
+
         return mProgressiveUpdateData;
+    }
+
+    /** Implementation of GeckoEventResponder/GeckoEventListener. */
+    public void handleMessage(String event, JSONObject message) {
+        try {
+            if ("Checkerboard:Toggle".equals(event)) {
+                mView.setCheckerboardShouldShowChecks(message.getBoolean("value"));
+            }
+        } catch (JSONException e) {
+            Log.e(LOGTAG, "Error decoding JSON in " + event + " handler", e);
+        }
+    }
+
+    /** Implementation of GeckoEventResponder. */
+    public String getResponse() {
+        // We are responding to the events handled in handleMessage() above with the
+        // display port we calculated. Different messages will generate different
+        // display ports and put them in mReturnDisplayPort, so we just return that.
+        // Note that mReturnDisplayPort is always touched on the Gecko thread, so
+        // no synchronization is needed for it.
+        if (mReturnDisplayPort == null) {
+            return "";
+        }
+        try {
+            return mReturnDisplayPort.toJSON();
+        } finally {
+            mReturnDisplayPort = null;
+        }
     }
 
     void setZoomConstraints(ZoomConstraints constraints) {
@@ -471,7 +479,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
             setViewportMetrics(newMetrics);
 
             Tab tab = Tabs.getInstance().getSelectedTab();
-            mView.setBackgroundColor(tab.getBackgroundColor());
+            mView.setCheckerboardColor(tab.getCheckerboardColor());
             setZoomConstraints(tab.getZoomConstraints());
 
             // At this point, we have just switched to displaying a different document than we
@@ -491,6 +499,8 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         }
         DisplayPortCalculator.resetPageState();
         mDrawTimingQueue.reset();
+        mView.getRenderer().resetCheckerboard();
+        ScreenshotHandler.screenshotWholePage(Tabs.getInstance().getSelectedTab());
     }
 
     /** This function is invoked by Gecko via JNI; be careful when modifying signature.
@@ -645,11 +655,6 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     }
 
     /** Implementation of PanZoomTarget */
-    public boolean isFullScreen() {
-        return mView.isFullScreen();
-    }
-
-    /** Implementation of PanZoomTarget */
     public void setAnimationTarget(ImmutableViewportMetrics metrics) {
         if (mGeckoIsReady) {
             // We know what the final viewport of the animation is going to be, so
@@ -674,19 +679,6 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         if (notifyGecko && mGeckoIsReady) {
             geometryChanged();
         }
-        setShadowVisibility();
-    }
-
-    private void setShadowVisibility() {
-        GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-            public void run() {
-                if (BrowserApp.mBrowserToolbar == null) {
-                    return;
-                }
-                ImmutableViewportMetrics m = mViewportMetrics;
-                BrowserApp.mBrowserToolbar.setShadowVisibility(m.viewportRectTop >= m.pageRectTop);
-            }
-        });
     }
 
     /** Implementation of PanZoomTarget */

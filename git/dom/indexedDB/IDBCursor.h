@@ -151,8 +151,6 @@ protected:
   IDBCursor();
   ~IDBCursor();
 
-  void DropJSObjects();
-
   static
   already_AddRefed<IDBCursor>
   CreateCommon(IDBRequest* aRequest,

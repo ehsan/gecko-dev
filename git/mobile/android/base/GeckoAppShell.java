@@ -97,9 +97,6 @@ import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.SynchronousQueue;
-import java.net.ProxySelector;
-import java.net.Proxy;
-import java.net.URI;
 
 public class GeckoAppShell
 {
@@ -236,6 +233,7 @@ public class GeckoAppShell
     public static native void notifyBatteryChange(double aLevel, boolean aCharging, double aRemainingTime);
 
     public static native void notifySmsReceived(String aSender, String aBody, int aMessageClass, long aTimestamp);
+    public static native int  saveMessageInSentbox(String aReceiver, String aBody, long aTimestamp);
     public static native void notifySmsSent(int aId, String aReceiver, String aBody, long aTimestamp, int aRequestId);
     public static native void notifySmsDelivery(int aId, int aDeliveryStatus, String aReceiver, String aBody, long aTimestamp);
     public static native void notifySmsSendFailed(int aError, int aRequestId);
@@ -417,6 +415,18 @@ public class GeckoAppShell
         // profile home path
         GeckoAppShell.putenv("HOME=" + profile.getFilesDir().getPath());
 
+        Intent i = null;
+        i = ((Activity)context).getIntent();
+
+        // if we have an intent (we're being launched by an activity)
+        // read in any environmental variables from it here
+        String env = i.getStringExtra("env0");
+        Log.d(LOGTAG, "Gecko environment env0: "+ env);
+        for (int c = 1; env != null; c++) {
+            GeckoAppShell.putenv(env);
+            env = i.getStringExtra("env" + c);
+            Log.d(LOGTAG, "env" + c + ": " + env);
+        }
         // setup the tmp path
         File f = context.getDir("tmp", Context.MODE_WORLD_READABLE |
                                  Context.MODE_WORLD_WRITEABLE );
@@ -428,35 +438,12 @@ public class GeckoAppShell
         f = Environment.getDownloadCacheDirectory();
         GeckoAppShell.putenv("EXTERNAL_STORAGE=" + f.getPath());
 
+        // Enable fixed position layers
+        GeckoAppShell.putenv("MOZ_ENABLE_FIXED_POSITION_LAYERS=1");
+
         // setup the app-specific cache path
         f = context.getCacheDir();
         GeckoAppShell.putenv("CACHE_DIRECTORY=" + f.getPath());
-
-        /* We really want to use this code, but it requires bumping up the SDK to 17 so for now
-           we will use reflection. See https://bugzilla.mozilla.org/show_bug.cgi?id=811763#c11
-        
-        if (Build.VERSION.SDK_INT >= 17) {
-            android.os.UserManager um = (android.os.UserManager)context.getSystemService(Context.USER_SERVICE);
-            if (um != null) {
-                GeckoAppShell.putenv("MOZ_ANDROID_USER_SERIAL_NUMBER=" + um.getSerialNumberForUser(android.os.Process.myUserHandle()));
-            } else {
-                Log.d(LOGTAG, "Unable to obtain user manager service on a device with SDK version " + Build.VERSION.SDK_INT);
-            }
-        }
-        */
-        try {
-            Object userManager = context.getSystemService("user");
-            if (userManager != null) {
-                // if userManager is non-null that means we're running on 4.2+ and so the rest of this
-                // should just work
-                Object userHandle = android.os.Process.class.getMethod("myUserHandle", (Class[])null).invoke(null);
-                Object userSerial = userManager.getClass().getMethod("getSerialNumberForUser", userHandle.getClass()).invoke(userManager, userHandle);
-                GeckoAppShell.putenv("MOZ_ANDROID_USER_SERIAL_NUMBER=" + userSerial.toString());
-            }
-        } catch (Exception e) {
-            // Guard against any unexpected failures
-            Log.d(LOGTAG, "Unable to set the user serial number", e);
-        }
 
         putLocaleEnv();
     }
@@ -468,7 +455,7 @@ public class GeckoAppShell
         synchronized(sSQLiteLibsLoaded) {
             if (sSQLiteLibsLoaded)
                 return;
-            loadMozGlue(context);
+            loadMozGlue();
             // the extract libs parameter is being removed in bug 732069
             loadLibsSetup(context);
             loadSQLiteLibsNative(apkName, false);
@@ -482,33 +469,15 @@ public class GeckoAppShell
         synchronized(sNSSLibsLoaded) {
             if (sNSSLibsLoaded)
                 return;
-            loadMozGlue(context);
+            loadMozGlue();
             loadLibsSetup(context);
             loadNSSLibsNative(apkName, false);
             sNSSLibsLoaded = true;
         }
     }
 
-    public static void loadMozGlue(Context context) {
+    public static void loadMozGlue() {
         System.loadLibrary("mozglue");
-
-        // When running TestPasswordProvider, we're being called with
-        // a GeckoApplication, which is not an Activity
-        if (!(context instanceof Activity))
-            return;
-
-        Intent i = null;
-        i = ((Activity)context).getIntent();
-
-        // if we have an intent (we're being launched by an activity)
-        // read in any environmental variables from it here
-        String env = i.getStringExtra("env0");
-        Log.d(LOGTAG, "Gecko environment env0: "+ env);
-        for (int c = 1; env != null; c++) {
-            GeckoAppShell.putenv(env);
-            env = i.getStringExtra("env" + c);
-            Log.d(LOGTAG, "env" + c + ": " + env);
-        }
     }
 
     public static void loadGeckoLibs(String apkName) {
@@ -565,7 +534,10 @@ public class GeckoAppShell
 
     // Called on the UI thread after Gecko loads.
     private static void geckoLoaded() {
+        LayerView v = GeckoApp.mAppContext.getLayerView();
         GeckoEditable editable = new GeckoEditable();
+        InputConnectionHandler ich = GeckoInputConnection.create(v, editable);
+        v.setInputConnectionHandler(ich);
         // install the gecko => editable listener
         mEditableListener = editable;
     }
@@ -851,7 +823,9 @@ public class GeckoAppShell
 
     // internal, for webapps
     static void createShortcut(String aTitle, String aURI, String aUniqueURI, String aIconData, String aType) {
-        createShortcut(aTitle, aURI, aUniqueURI, BitmapUtils.getBitmapFromDataURI(aIconData), aType);
+        byte[] raw = Base64.decode(aIconData.substring(22), Base64.DEFAULT);
+        Bitmap bitmap = BitmapFactory.decodeByteArray(raw, 0, raw.length);
+        createShortcut(aTitle, aURI, aUniqueURI, bitmap, aType);
     }
 
     public static void createShortcut(final String aTitle, final String aURI, final String aUniqueURI,
@@ -1186,20 +1160,6 @@ public class GeckoAppShell
         toast.show();
     }
 
-    static boolean isUriSafeForScheme(Uri aUri) {
-        // Bug 794034 - We don't want to pass MWI or USSD codes to the
-        // dialer, and ensure the Uri class doesn't parse a URI
-        // containing a fragment ('#')
-        final String scheme = aUri.getScheme();
-        if ("tel".equals(scheme) || "sms".equals(scheme)) {
-            final String number = aUri.getSchemeSpecificPart();
-            if (number.contains("#") || number.contains("*") || aUri.getFragment() != null) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName,
                                    String aClassName, String aAction, String aTitle) {
         Intent intent = getIntentForActionString(aAction);
@@ -1214,13 +1174,17 @@ public class GeckoAppShell
             intent.setDataAndType(Uri.parse(aUriSpec), aMimeType);
         } else {
             Uri uri = Uri.parse(aUriSpec);
-            if (isUriSafeForScheme(uri) == false) {
-                return false;
-            }
-            
             final String scheme = uri.getScheme();
-            if ("sms".equals(scheme)) {
-                // Have a special handling for the SMS, as the message body
+            if ("tel".equals(scheme)) {
+                // Bug 794034 - We don't want to pass MWI or USSD codes to the
+                // dialer, and ensure the Uri class doesn't parse a tel: URI as
+                // containing a fragment ('#')
+                final String number = uri.getSchemeSpecificPart();
+                if (number.contains("#") || number.contains("*") || uri.getFragment() != null) {
+                    return false;
+                }
+            } else if ("sms".equals(scheme)) {
+                // Have a apecial handling for the SMS, as the message body
                 // is not extracted from the URI automatically
                 final String query = uri.getEncodedQuery();
                 if (query != null && query.length() > 0) {
@@ -1233,7 +1197,8 @@ public class GeckoAppShell
                             final String body = Uri.decode(field.substring(5));
                             intent.putExtra("sms_body", body);
                             foundBody = true;
-                        } else {
+                        }
+                        else {
                             resultQuery = resultQuery.concat(resultQuery.length() > 0 ? "&" + field : field);
                         }
                     }
@@ -1992,6 +1957,14 @@ public class GeckoAppShell
         SmsManager.getInstance().send(aNumber, aMessage, aRequestId);
     }
 
+    public static int saveSentMessage(String aRecipient, String aBody, long aDate) {
+        if (SmsManager.getInstance() == null) {
+            return -1;
+        }
+
+        return SmsManager.getInstance().saveSentMessage(aRecipient, aBody, aDate);
+    }
+
     public static void getMessage(int aMessageId, int aRequestId) {
         if (SmsManager.getInstance() == null) {
             return;
@@ -2259,45 +2232,5 @@ public class GeckoAppShell
             return true;
         }
         return false;
-    }
-
-    public static String getProxyForURI(String spec, String scheme, String host, int port) {
-        URI uri = null;
-        try {
-            uri = new URI(spec);
-        } catch(java.net.URISyntaxException uriEx) {
-            try {
-                uri = new URI(scheme, null, host, port, null, null, null);
-            } catch(java.net.URISyntaxException uriEx2) {
-                Log.d("GeckoProxy", "Failed to create uri from spec", uriEx);
-                Log.d("GeckoProxy", "Failed to create uri from parts", uriEx2);
-            }
-        }
-        if (uri != null) {
-            ProxySelector ps = ProxySelector.getDefault();
-            if (ps != null) {
-                List<Proxy> proxies = ps.select(uri);
-                if (proxies != null && !proxies.isEmpty()) {
-                    Proxy proxy = proxies.get(0);
-                    if (!Proxy.NO_PROXY.equals(proxy)) {
-                        final String proxyStr;
-                        switch (proxy.type()) {
-                        case HTTP:
-                            proxyStr = "PROXY " + proxy.address().toString();
-                            break;
-                        case SOCKS:
-                            proxyStr = "SOCKS " + proxy.address().toString();
-                            break;
-                        case DIRECT:
-                        default:
-                            proxyStr = "DIRECT";
-                            break;
-                        }
-                        return proxyStr;
-                    }
-                }
-            }
-        }
-        return "DIRECT";
     }
 }

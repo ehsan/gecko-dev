@@ -157,10 +157,12 @@ public:
 
     static void NotifyIMEChange(const PRUnichar *aText, uint32_t aTextLen, int aStart, int aEnd, int aNewEnd);
 
-    nsresult CaptureThumbnail(nsIDOMWindow *window, int32_t bufW, int32_t bufH, int32_t tabId, jobject buffer);
+    nsresult TakeScreenshot(nsIDOMWindow *window, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, int32_t dstY, int32_t dstX, int32_t dstW, int32_t dstH, int32_t bufW, int32_t bufH, int32_t tabId, int32_t token, jobject buffer);
     nsresult GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort);
 
-    bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, gfx::Rect& aViewport, float& aScaleX, float& aScaleY);
+    bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution, gfx::Rect& aViewport, float& aScaleX, float& aScaleY);
+
+    static void NotifyPaintedRect(float top, float left, float bottom, float right);
 
     void AcknowledgeEventSync();
 
@@ -320,6 +322,7 @@ public:
 
     uint16_t GetNumberOfMessagesForText(const nsAString& aText);
     void SendMessage(const nsAString& aNumber, const nsAString& aText, nsISmsRequest* aRequest);
+    int32_t SaveSentMessage(const nsAString& aRecipient, const nsAString& aBody, uint64_t aDate);
     void GetMessage(int32_t aMessageId, nsISmsRequest* aRequest);
     void DeleteMessage(int32_t aMessageId, nsISmsRequest* aRequest);
     void CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aReverse, nsISmsRequest* aRequest);
@@ -363,11 +366,7 @@ public:
     void UnregisterSurfaceTextureFrameListener(jobject surfaceTexture);
 
     void GetGfxInfoData(nsACString& aRet);
-    nsresult GetProxyForURI(const nsACString & aSpec,
-                            const nsACString & aScheme,
-                            const nsACString & aHost,
-                            const int32_t      aPort,
-                            nsACString & aResult);
+
 protected:
     static AndroidBridge *sBridge;
     static StaticAutoPtr<nsTArray<nsCOMPtr<nsISmsRequest> > > sSmsRequests;
@@ -467,10 +466,10 @@ protected:
     jmethodID jShowSurface;
     jmethodID jHideSurface;
     jmethodID jDestroySurface;
-    jmethodID jGetProxyForURI;
 
     jmethodID jNumberOfMessages;
     jmethodID jSendMessage;
+    jmethodID jSaveSentMessage;
     jmethodID jGetMessage;
     jmethodID jDeleteMessage;
     jmethodID jCreateMessageList;
@@ -491,8 +490,9 @@ protected:
     jmethodID jRegisterSurfaceTextureFrameListener;
     jmethodID jUnregisterSurfaceTextureFrameListener;
 
-    jclass jThumbnailHelperClass;
-    jmethodID jNotifyThumbnail;
+    jclass jScreenshotHandlerClass;
+    jmethodID jNotifyScreenShot;
+    jmethodID jNotifyPaintedRect;
 
     // for GfxInfo (gfx feature detection and blacklisting)
     jmethodID jGetGfxInfoData;
@@ -532,40 +532,6 @@ protected:
     int (* Surface_unlockAndPost)(void* surface);
     void (* Region_constructor)(void* region);
     void (* Region_set)(void* region, void* rect);
-};
-
-class AutoJObject {
-public:
-    AutoJObject(JNIEnv* aJNIEnv = NULL) : mObject(NULL)
-    {
-        mJNIEnv = aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv();
-    }
-
-    AutoJObject(JNIEnv* aJNIEnv, jobject aObject)
-    {
-        mJNIEnv = aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv();
-        mObject = aObject;
-    }
-
-    ~AutoJObject() {
-        if (mObject)
-            mJNIEnv->DeleteLocalRef(mObject);
-    }
-
-    jobject operator=(jobject aObject)
-    {
-        if (mObject) {
-            mJNIEnv->DeleteLocalRef(mObject);
-        }
-        return mObject = aObject;
-    }
-
-    operator jobject() {
-        return mObject;
-    }
-private:
-    JNIEnv* mJNIEnv;
-    jobject mObject;
 };
 
 class AutoLocalJNIFrame {

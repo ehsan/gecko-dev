@@ -405,17 +405,6 @@ public:
     // Break large OMTC tiled thebes layer painting into small paints.
     static bool UseProgressiveTilePainting();
 
-    // When a critical display-port is set, render the visible area outside of
-    // it into a buffer at a lower precision. Requires tiled buffers.
-    static bool UseLowPrecisionBuffer();
-
-    // Retrieve the resolution that a low precision buffer should render at.
-    static float GetLowPrecisionResolution();
-
-    // Retain some invalid tiles when the valid region of a layer changes and
-    // excludes previously valid tiles.
-    static bool UseReusableTileStore();
-
     static bool OffMainThreadCompositingEnabled();
 
     /**
@@ -469,8 +458,6 @@ public:
 
     virtual void FontsPrefsChanged(const char *aPref);
 
-    void OrientationSyncPrefsObserverChanged();
-
     int32_t GetBidiNumeralOption();
 
     /**
@@ -494,10 +481,6 @@ public:
     bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
 
     virtual int GetScreenDepth() const;
-
-    bool WidgetUpdateFlashing() const { return mWidgetUpdateFlashing; }
-
-    uint32_t GetOrientationSyncMillis() const;
 
 protected:
     gfxPlatform();
@@ -580,7 +563,6 @@ private:
     nsTArray<uint32_t> mCJKPrefLangs;
     nsCOMPtr<nsIObserver> mSRGBOverrideObserver;
     nsCOMPtr<nsIObserver> mFontPrefsObserver;
-    nsCOMPtr<nsIObserver> mOrientationSyncPrefsObserver;
 
     // The preferred draw target backend to use for canvas
     mozilla::gfx::BackendType mPreferredCanvasBackend;
@@ -593,8 +575,6 @@ private:
     bool mWorkAroundDriverBugs;
 
     mozilla::RefPtr<mozilla::gfx::DrawEventRecorder> mRecorder;
-    bool mWidgetUpdateFlashing;
-    uint32_t mOrientationSyncMillis;
 };
 
 #endif /* GFX_PLATFORM_H */

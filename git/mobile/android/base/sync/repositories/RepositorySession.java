@@ -96,13 +96,6 @@ public abstract class RepositorySession {
     return true;
   }
 
-  /**
-   * @return true if we cannot safely sync from this <code>RepositorySession</code>.
-   */
-  public boolean shouldSkip() {
-    return false;
-  }
-
   /*
    * Store operations proceed thusly:
    *

@@ -5,8 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "CodeGenerator-x86.h"
 #include "ion/shared/CodeGenerator-shared-inl.h"
 #include "ion/MIR.h"
@@ -20,37 +18,40 @@ using namespace js::ion;
 
 using mozilla::DebugOnly;
 
-CodeGeneratorX86::CodeGeneratorX86(MIRGenerator *gen, LIRGraph *graph)
+CodeGeneratorX86::CodeGeneratorX86(MIRGenerator *gen, LIRGraph &graph)
   : CodeGeneratorX86Shared(gen, graph)
 {
 }
 
-static const uint32_t FrameSizes[] = { 128, 256, 512, 1024 };
+// The first two size classes are 128 and 256 bytes respectively. After that we
+// increment by 512.
+static const uint32 LAST_FRAME_SIZE = 512;
+static const uint32 LAST_FRAME_INCREMENT = 512;
+static const uint32 FrameSizes[] = { 128, 256, LAST_FRAME_SIZE };
 
 FrameSizeClass
-FrameSizeClass::FromDepth(uint32_t frameDepth)
+FrameSizeClass::FromDepth(uint32 frameDepth)
 {
-    for (uint32_t i = 0; i < JS_ARRAY_LENGTH(FrameSizes); i++) {
+    for (uint32 i = 0; i < JS_ARRAY_LENGTH(FrameSizes); i++) {
         if (frameDepth < FrameSizes[i])
             return FrameSizeClass(i);
     }
 
-    return FrameSizeClass::None();
-}
+    uint32 newFrameSize = frameDepth - LAST_FRAME_SIZE;
+    uint32 sizeClass = (newFrameSize / LAST_FRAME_INCREMENT) + 1;
 
-FrameSizeClass
-FrameSizeClass::ClassLimit()
-{
-    return FrameSizeClass(JS_ARRAY_LENGTH(FrameSizes));
+    return FrameSizeClass(JS_ARRAY_LENGTH(FrameSizes) + sizeClass);
 }
-
-uint32_t
+uint32
 FrameSizeClass::frameSize() const
 {
     JS_ASSERT(class_ != NO_FRAME_SIZE_CLASS_ID);
-    JS_ASSERT(class_ < JS_ARRAY_LENGTH(FrameSizes));
 
-    return FrameSizes[class_];
+    if (class_ < JS_ARRAY_LENGTH(FrameSizes))
+        return FrameSizes[class_];
+
+    uint32 step = class_ - JS_ARRAY_LENGTH(FrameSizes);
+    return LAST_FRAME_SIZE + step * LAST_FRAME_INCREMENT;
 }
 
 ValueOperand
@@ -66,14 +67,6 @@ CodeGeneratorX86::ToOutValue(LInstruction *ins)
 {
     Register typeReg = ToRegister(ins->getDef(TYPE_INDEX));
     Register payloadReg = ToRegister(ins->getDef(PAYLOAD_INDEX));
-    return ValueOperand(typeReg, payloadReg);
-}
-
-ValueOperand
-CodeGeneratorX86::ToTempValue(LInstruction *ins, size_t pos)
-{
-    Register typeReg = ToRegister(ins->getTemp(pos + TYPE_INDEX));
-    Register payloadReg = ToRegister(ins->getTemp(pos + PAYLOAD_INDEX));
     return ValueOperand(typeReg, payloadReg);
 }
 
@@ -139,7 +132,7 @@ CodeGeneratorX86::visitUnbox(LUnbox *unbox)
 void
 CodeGeneratorX86::linkAbsoluteLabels()
 {
-    UnrootedScript script = gen->info().script();
+    JSScript *script = gen->info().script();
     IonCode *method = script->ion->method();
 
     for (size_t i = 0; i < deferredDoubles_.length(); i++) {
@@ -178,7 +171,7 @@ CodeGeneratorX86::visitLoadSlotV(LLoadSlotV *load)
 {
     const ValueOperand out = ToOutValue(load);
     Register base = ToRegister(load->input());
-    int32_t offset = load->mir()->slot() * sizeof(js::Value);
+    int32 offset = load->mir()->slot() * sizeof(js::Value);
 
     masm.loadValue(Operand(base, offset), out);
     return true;
@@ -188,7 +181,7 @@ bool
 CodeGeneratorX86::visitLoadSlotT(LLoadSlotT *load)
 {
     Register base = ToRegister(load->input());
-    int32_t offset = load->mir()->slot() * sizeof(js::Value);
+    int32 offset = load->mir()->slot() * sizeof(js::Value);
 
     if (load->mir()->type() == MIRType_Double)
         masm.loadInt32OrDouble(Operand(base, offset), ToFloatRegister(load->output()));
@@ -201,7 +194,7 @@ bool
 CodeGeneratorX86::visitStoreSlotT(LStoreSlotT *store)
 {
     Register base = ToRegister(store->slots());
-    int32_t offset = store->mir()->slot() * sizeof(js::Value);
+    int32 offset = store->mir()->slot() * sizeof(js::Value);
 
     const LAllocation *value = store->value();
     MIRType valueType = store->mir()->value()->type();
@@ -232,17 +225,12 @@ CodeGeneratorX86::visitLoadElementT(LLoadElementT *load)
 {
     Operand source = createArrayElementOperand(ToRegister(load->elements()), load->index());
 
-    if (load->mir()->needsHoleCheck()) {
-        Assembler::Condition cond = masm.testMagic(Assembler::Equal, source);
-        if (!bailoutIf(cond, load->snapshot()))
-            return false;
-    }
-
     if (load->mir()->type() == MIRType_Double)
         masm.loadInt32OrDouble(source, ToFloatRegister(load->output()));
     else
         masm.movl(masm.ToPayload(source), ToRegister(load->output()));
 
+    JS_ASSERT(!load->mir()->needsHoleCheck());
     return true;
 }
 
@@ -302,13 +290,13 @@ CodeGeneratorX86::visitRecompileCheck(LRecompileCheck *lir)
     return true;
 }
 
-typedef bool (*InterruptCheckFn)(JSContext *);
-static const VMFunction InterruptCheckInfo = FunctionInfo<InterruptCheckFn>(InterruptCheck);
-
 bool
 CodeGeneratorX86::visitInterruptCheck(LInterruptCheck *lir)
 {
-    OutOfLineCode *ool = oolCallVM(InterruptCheckInfo, lir, (ArgList()), StoreNothing());
+    typedef bool (*pf)(JSContext *);
+    static const VMFunction interruptCheckInfo = FunctionInfo<pf>(InterruptCheck);
+
+    OutOfLineCode *ool = oolCallVM(interruptCheckInfo, lir, (ArgList()), StoreNothing());
     if (!ool)
         return false;
 
@@ -368,59 +356,5 @@ CodeGeneratorX86::visitCompareBAndBranch(LCompareBAndBranch *lir)
     else
         masm.cmp32(lhs.payloadReg(), ToRegister(rhs));
     emitBranch(JSOpToCondition(mir->jsop()), lir->ifTrue(), lir->ifFalse());
-    return true;
-}
-
-bool
-CodeGeneratorX86::visitCompareV(LCompareV *lir)
-{
-    MCompare *mir = lir->mir();
-    Assembler::Condition cond = JSOpToCondition(mir->jsop());
-    const ValueOperand lhs = ToValue(lir, LCompareV::LhsInput);
-    const ValueOperand rhs = ToValue(lir, LCompareV::RhsInput);
-    const Register output = ToRegister(lir->output());
-
-    JS_ASSERT(mir->jsop() == JSOP_EQ || mir->jsop() == JSOP_STRICTEQ ||
-              mir->jsop() == JSOP_NE || mir->jsop() == JSOP_STRICTNE);
-
-    Label notEqual, done;
-    masm.cmp32(lhs.typeReg(), rhs.typeReg());
-    masm.j(Assembler::NotEqual, &notEqual);
-    {
-        masm.cmp32(lhs.payloadReg(), rhs.payloadReg());
-        emitSet(cond, output);
-        masm.jump(&done);
-    }
-    masm.bind(&notEqual);
-    {
-        masm.move32(Imm32(cond == Assembler::NotEqual), output);
-    }
-
-    masm.bind(&done);
-    return true;
-}
-
-bool
-CodeGeneratorX86::visitCompareVAndBranch(LCompareVAndBranch *lir)
-{
-    MCompare *mir = lir->mir();
-    Assembler::Condition cond = JSOpToCondition(mir->jsop());
-    const ValueOperand lhs = ToValue(lir, LCompareVAndBranch::LhsInput);
-    const ValueOperand rhs = ToValue(lir, LCompareVAndBranch::RhsInput);
-
-    JS_ASSERT(mir->jsop() == JSOP_EQ || mir->jsop() == JSOP_STRICTEQ ||
-              mir->jsop() == JSOP_NE || mir->jsop() == JSOP_STRICTNE);
-
-    Label *notEqual;
-    if (cond == Assembler::Equal)
-        notEqual = lir->ifFalse()->lir()->label();
-    else
-        notEqual = lir->ifTrue()->lir()->label();
-
-    masm.cmp32(lhs.typeReg(), rhs.typeReg());
-    masm.j(Assembler::NotEqual, notEqual);
-    masm.cmp32(lhs.payloadReg(), rhs.payloadReg());
-    emitBranch(cond, lir->ifTrue(), lir->ifFalse());
-
     return true;
 }

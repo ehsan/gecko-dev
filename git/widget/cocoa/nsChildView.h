@@ -379,10 +379,9 @@ public:
 
   NS_IMETHOD              ConstrainPosition(bool aAllowSlop,
                                             int32_t *aX, int32_t *aY);
-  NS_IMETHOD              Move(double aX, double aY);
-  NS_IMETHOD              Resize(double aWidth, double aHeight, bool aRepaint);
-  NS_IMETHOD              Resize(double aX, double aY,
-                                 double aWidth, double aHeight, bool aRepaint);
+  NS_IMETHOD              Move(int32_t aX, int32_t aY);
+  NS_IMETHOD              Resize(int32_t aWidth,int32_t aHeight, bool aRepaint);
+  NS_IMETHOD              Resize(int32_t aX, int32_t aY,int32_t aWidth,int32_t aHeight, bool aRepaint);
 
   NS_IMETHOD              Enable(bool aState);
   virtual bool            IsEnabled() const;
@@ -414,7 +413,7 @@ public:
                           { return aStatus == nsEventStatus_eConsumeNoDefault; }
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 
-  virtual bool            ComputeShouldAccelerate(bool aDefault);
+  virtual bool            GetShouldAccelerate();
   virtual bool            UseOffMainThreadCompositing();
 
   NS_IMETHOD        SetCursor(nsCursor aCursor);
@@ -474,7 +473,7 @@ public:
   bool PaintWindow(nsIntRegion aRegion, bool aIsAlternate);
 
 #ifdef ACCESSIBILITY
-  already_AddRefed<mozilla::a11y::Accessible> GetDocumentAccessible();
+  already_AddRefed<Accessible> GetDocumentAccessible();
 #endif
 
   virtual void CreateCompositor();

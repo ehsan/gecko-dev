@@ -27,9 +27,7 @@ const TOPIC_INTERFACE_REGISTERED     = "network-interface-registered";
 const TOPIC_INTERFACE_UNREGISTERED   = "network-interface-unregistered";
 const TOPIC_DEFAULT_ROUTE_CHANGED    = "network-default-route-changed";
 const TOPIC_MOZSETTINGS_CHANGED      = "mozsettings-changed";
-const TOPIC_PREF_CHANGED             = "nsPref:changed";
 const TOPIC_XPCOM_SHUTDOWN           = "xpcom-shutdown";
-const PREF_MANAGE_OFFLINE_STATUS     = "network.gonk.manage-offline-status";
 
 // TODO, get USB RNDIS interface name automatically.(see Bug 776212)
 const DEFAULT_USB_INTERFACE_NAME  = "rndis0";
@@ -111,7 +109,9 @@ function NetworkManager() {
 
   debug("Starting worker.");
   this.worker = new ChromeWorker("resource://gre/modules/net_worker.js");
-  this.worker.onmessage = this.handleWorkerMessage.bind(this);
+  this.worker.onmessage = function onmessage(event) {
+    this.handleWorkerMessage(event);
+  }.bind(this);
   this.worker.onerror = function onerror(event) {
     debug("Received error from worker: " + event.filename +
           ":" + event.lineno + ": " + event.message + "\n");
@@ -121,14 +121,6 @@ function NetworkManager() {
 
   // Callbacks to invoke when a reply arrives from the net_worker.
   this.controlCallbacks = Object.create(null);
-
-  try {
-    this._manageOfflineStatus =
-      Services.prefs.getBoolPref(PREF_MANAGE_OFFLINE_STATUS);
-  } catch(ex) {
-    // Ignore.
-  }
-  Services.prefs.addObserver(PREF_MANAGE_OFFLINE_STATUS, this, false);
 
   // Default values for internal and external interfaces.
   this._tetheringInterface = Object.create(null);
@@ -156,25 +148,6 @@ function NetworkManager() {
   settingsLock.get(SETTINGS_USB_DHCPSERVER_ENDIP, this);
 
   this.setAndConfigureActive();
-
-  let self = this;
-  this.waitForConnectionReadyCallback = null;
-  settingsLock.get(SETTINGS_WIFI_ENABLED, {
-    handle: function (aName, aResult) {
-      if (!aResult) {
-        return;
-      }
-      // Turn on wifi tethering when the mobile data connection is established.
-      self.waitForConnectionReadyCallback = (function callback() {
-        let settingsLock = gSettingsService.createLock();
-        settingsLock.set(SETTINGS_WIFI_ENABLED, aResult, null);
-      });
-    },
-
-    handleError: function (aErrorMessage) {
-      debug("Error reading the 'tethering.wifi.enabled' setting: " + aErrorMessage);
-    }
-  });
 }
 NetworkManager.prototype = {
   classID:   NETWORKMANAGER_CID,
@@ -211,11 +184,6 @@ NetworkManager.prototype = {
             // to set default route only on preferred network
             this.removeDefaultRoute(network.name);
             this.setAndConfigureActive();
-            // Turn on wifi tethering when the callback is set.
-            if (this.waitForConnectionReadyCallback) {
-              this.waitForConnectionReadyCallback.call(this);
-              this.waitForConnectionReadyCallback = null;
-            }
             break;
           case Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED:
             // Remove host route for data calls
@@ -231,11 +199,6 @@ NetworkManager.prototype = {
       case TOPIC_MOZSETTINGS_CHANGED:
         let setting = JSON.parse(data);
         this.handle(setting.key, setting.value);
-        break;
-      case TOPIC_PREF_CHANGED:
-        this._manageOfflineStatus =
-          Services.prefs.getBoolPref(PREF_MANAGE_OFFLINE_STATUS);
-        debug(PREF_MANAGE_OFFLINE_STATUS + " has changed to " + this._manageOfflineStatus);
         break;
       case TOPIC_XPCOM_SHUTDOWN:
         Services.obs.removeObserver(this, TOPIC_XPCOM_SHUTDOWN);
@@ -291,8 +254,6 @@ NetworkManager.prototype = {
     Services.obs.notifyObservers(network, TOPIC_INTERFACE_UNREGISTERED, null);
     debug("Network '" + network.name + "' unregistered.");
   },
-
-  _manageOfflineStatus: true,
 
   networkInterfaces: null,
 
@@ -357,13 +318,13 @@ NetworkManager.prototype = {
   },
 
   handleWorkerMessage: function handleWorkerMessage(e) {
-    debug("NetworkManager received message from worker: " + JSON.stringify(e.data));
     let response = e.data;
     let id = response.id;
     let callback = this.controlCallbacks[id];
     if (callback) {
       callback.call(this, response);
     }
+    debug("NetworkManager received message from worker: " + JSON.stringify(e));
   },
 
   /**
@@ -420,10 +381,7 @@ NetworkManager.prototype = {
       }
       this.setDefaultRouteAndDNS(oldActive);
     }
-
-    if (this._manageOfflineStatus) {
-      Services.io.offline = !this.active;
-    }
+    Services.io.offline = !this.active;
   },
 
   setDefaultRouteAndDNS: function setDefaultRouteAndDNS(oldInterface) {
@@ -458,7 +416,7 @@ NetworkManager.prototype = {
       dns2: network.dns2,
       gateway: network.gateway,
       httpproxy: network.httpProxyHost,
-      mmsproxy: Services.prefs.getCharPref("ril.mms.mmsproxy")
+      mmsproxy: Services.prefs.getCharPref("ril.data.mmsproxy")
     };
     this.worker.postMessage(options);
   },
@@ -472,7 +430,7 @@ NetworkManager.prototype = {
       dns2: network.dns2,
       gateway: network.gateway,
       httpproxy: network.httpProxyHost,
-      mmsproxy: Services.prefs.getCharPref("ril.mms.mmsproxy")
+      mmsproxy: Services.prefs.getCharPref("ril.data.mmsproxy")
     };
     this.worker.postMessage(options);
   },
@@ -485,8 +443,6 @@ NetworkManager.prototype = {
         Services.prefs.clearUserPref("network.proxy.share_proxy_settings");
         Services.prefs.clearUserPref("network.proxy.http");
         Services.prefs.clearUserPref("network.proxy.http_port");
-        Services.prefs.clearUserPref("network.proxy.ssl");
-        Services.prefs.clearUserPref("network.proxy.ssl_port");
         debug("No proxy support for " + this.active.name + " network interface.");
         return;
       }
@@ -497,10 +453,8 @@ NetworkManager.prototype = {
       // Do not use this proxy server for all protocols.
       Services.prefs.setBoolPref("network.proxy.share_proxy_settings", false);
       Services.prefs.setCharPref("network.proxy.http", this.active.httpProxyHost);
-      Services.prefs.setCharPref("network.proxy.ssl", this.active.httpProxyHost);
       let port = this.active.httpProxyPort == "" ? 8080 : this.active.httpProxyPort;
       Services.prefs.setIntPref("network.proxy.http_port", port);
-      Services.prefs.setIntPref("network.proxy.ssl_port", port);
     } catch (ex) {
        debug("Exception " + ex + ". Unable to set proxy setting for "
              + this.active.name + " network interface.");
@@ -619,7 +573,7 @@ NetworkManager.prototype = {
       debug("Invalid security type.");
       return null;
     }
-    if (securityType != WIFI_SECURITY_TYPE_NONE && !securityId) {
+    if (!securityId) {
       debug("Invalid security password.");
       return null;
     }
@@ -693,8 +647,7 @@ NetworkManager.prototype = {
     if (resetSettings) {
       let settingsLock = gSettingsService.createLock();
       this.tetheringSettings[SETTINGS_WIFI_ENABLED] = false;
-      // Disable wifi tethering with a useful error message for the user.
-      settingsLock.set("tethering.wifi.enabled", false, null, msg);
+      settingsLock.set("tethering.wifi.enabled", false, null);
     }
 
     debug("setWifiTethering: " + (msg ? msg : "success"));
@@ -722,9 +675,6 @@ NetworkManager.prototype = {
       this.notifyError(true, callback, "mobile interface is not registered");
       return;
     }
-    // Clear this flag to prevent unexpected action.
-    this.waitForConnectionReadyCallback = null;
-
     this._tetheringInterface[TETHERING_TYPE_WIFI].externalInterface = mobile.name;
 
     let params = this.getWifiTetheringParameters(enable, this._tetheringInterface[TETHERING_TYPE_WIFI]);

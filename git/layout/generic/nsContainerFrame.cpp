@@ -7,7 +7,6 @@
 
 #include "nsContainerFrame.h"
 
-#include "nsAbsoluteContainingBlock.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
@@ -1052,7 +1051,7 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
     }
   }
 
-  return aKidFrame->DidReflow(aPresContext, aReflowState, nsDidReflowStatus::FINISHED);
+  return aKidFrame->DidReflow(aPresContext, aReflowState, NS_FRAME_REFLOW_FINISHED);
 }
 
 nsresult

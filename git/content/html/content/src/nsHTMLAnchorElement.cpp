@@ -25,8 +25,8 @@ class nsHTMLAnchorElement : public nsGenericHTMLElement,
                             public Link
 {
 public:
-  using Element::GetText;
-  using Element::SetText;
+  using nsGenericElement::GetText;
+  using nsGenericElement::SetText;
 
   nsHTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLAnchorElement();
@@ -41,13 +41,12 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
   virtual bool Draggable() const MOZ_OVERRIDE;
 
   // nsIDOMHTMLAnchorElement
-  NS_DECL_NSIDOMHTMLANCHORELEMENT
+  NS_DECL_NSIDOMHTMLANCHORELEMENT  
 
   // DOM memory reporter participant
   NS_DECL_SIZEOF_EXCLUDING_THIS
@@ -92,7 +91,7 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
-
+  
   virtual void OnDNSPrefetchDeferred();
   virtual void OnDNSPrefetchRequested();
   virtual bool HasDeferredDNSPrefetchRequest();
@@ -131,8 +130,8 @@ nsHTMLAnchorElement::~nsHTMLAnchorElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLAnchorElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLAnchorElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLAnchorElement, nsHTMLAnchorElement)
@@ -160,7 +159,6 @@ NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Rel, rel)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Rev, rev)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Shape, shape)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Type, type)
-NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Download, download)
 
 int32_t
 nsHTMLAnchorElement::TabIndexDefault()
@@ -219,7 +217,7 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                 nsIContent* aBindingParent,
                                 bool aCompileEventHandlers)
 {
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
 
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
@@ -257,7 +255,7 @@ nsHTMLAnchorElement::UnbindFromTree(bool aDeep, bool aNullParent)
   
   // If this link is ever reinserted into a document, it might
   // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
   
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
@@ -466,7 +464,7 @@ nsHTMLAnchorElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   // that content states have changed will call IntrinsicState, which will try
   // to get updated information about the visitedness from Link.
   if (reset) {
-    Link::ResetLinkState(!!aNotify, true);
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;
@@ -485,7 +483,7 @@ nsHTMLAnchorElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
   // that content states have changed will call IntrinsicState, which will try
   // to get updated information about the visitedness from Link.
   if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify, false);
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;

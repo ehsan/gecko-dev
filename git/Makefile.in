@@ -46,7 +46,13 @@ tier_base_dirs += \
 endif
 
 ifdef MOZ_MEMORY
-tier_base_dirs += memory
+tier_base_dirs += memory/mozjemalloc
+ifdef MOZ_JEMALLOC
+ifndef MOZ_NATIVE_JEMALLOC
+tier_base_dirs += memory/jemalloc
+endif
+endif
+tier_base_dirs += memory/build
 endif
 ifndef MOZ_NATIVE_ZLIB
 tier_base_dirs += modules/zlib
@@ -150,6 +156,13 @@ SYMBOL_INDEX_NAME = \
 
 buildsymbols:
 ifdef MOZ_CRASHREPORTER
+ifdef USE_ELF_HACK
+    ifeq (mobile,$(MOZ_BUILD_APP))
+		$(MAKE) -C mobile/xul/installer elfhack
+    else
+		$(MAKE) -C $(MOZ_BUILD_APP)/installer elfhack
+    endif
+endif
 	echo building symbol store
 	$(RM) -r $(DIST)/crashreporter-symbols
 	$(RM) "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
@@ -198,6 +211,10 @@ maybe_clobber_profiledbuild:
 	$(RM) $(DIST)/bin/*.pgc
 	find $(DIST)/$(MOZ_APP_NAME) -name "*.pgc" -exec mv {} $(DIST)/bin \;
 endif
+
+# put in our default gdbinit so that the gdb debugging experience is happier.
+libs:: .gdbinit
+	$(INSTALL) $< $(DIST)/bin
 
 .PHONY: maybe_clobber_profiledbuild
 

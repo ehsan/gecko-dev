@@ -39,11 +39,8 @@ jfieldID AndroidGeckoEvent::jEndField = 0;
 jfieldID AndroidGeckoEvent::jPointerIndexField = 0;
 jfieldID AndroidGeckoEvent::jRangeTypeField = 0;
 jfieldID AndroidGeckoEvent::jRangeStylesField = 0;
-jfieldID AndroidGeckoEvent::jRangeLineStyleField = 0;
-jfieldID AndroidGeckoEvent::jRangeBoldLineField = 0;
 jfieldID AndroidGeckoEvent::jRangeForeColorField = 0;
 jfieldID AndroidGeckoEvent::jRangeBackColorField = 0;
-jfieldID AndroidGeckoEvent::jRangeLineColorField = 0;
 jfieldID AndroidGeckoEvent::jLocationField = 0;
 jfieldID AndroidGeckoEvent::jBandwidthField = 0;
 jfieldID AndroidGeckoEvent::jCanBeMeteredField = 0;
@@ -237,11 +234,8 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jPointerIndexField = getField("mPointerIndex", "I");
     jRangeTypeField = getField("mRangeType", "I");
     jRangeStylesField = getField("mRangeStyles", "I");
-    jRangeLineStyleField = getField("mRangeLineStyle", "I");
-    jRangeBoldLineField = getField("mRangeBoldLine", "Z");
     jRangeForeColorField = getField("mRangeForeColor", "I");
     jRangeBackColorField = getField("mRangeBackColor", "I");
-    jRangeLineColorField = getField("mRangeLineColor", "I");
     jLocationField = getField("mLocation", "Landroid/location/Location;");
     jBandwidthField = getField("mBandwidth", "D");
     jCanBeMeteredField = getField("mCanBeMetered", "Z");
@@ -370,7 +364,7 @@ AndroidGeckoLayerClient::InitGeckoLayerClientClass(JNIEnv *jEnv)
     jDisplayportPosition = GetFieldID(jEnv, jDisplayportClass, "mPosition", "Landroid/graphics/RectF;");
     jDisplayportResolution = GetFieldID(jEnv, jDisplayportClass, "resolution", "F");
     jProgressiveUpdateCallbackMethod = getMethod("progressiveUpdateCallback",
-                                                 "(ZFFFFFZ)Lorg/mozilla/gecko/gfx/ProgressiveUpdateData;");
+                                                 "(ZFFFFF)Lorg/mozilla/gecko/gfx/ProgressiveUpdateData;");
 
 #endif
 }
@@ -581,16 +575,10 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
                     mAction == IME_ADD_COMPOSITION_RANGE) {
                 mRangeType = jenv->GetIntField(jobj, jRangeTypeField);
                 mRangeStyles = jenv->GetIntField(jobj, jRangeStylesField);
-                mRangeLineStyle =
-                    jenv->GetIntField(jobj, jRangeLineStyleField);
-                mRangeBoldLine =
-                    jenv->GetBooleanField(jobj, jRangeBoldLineField);
                 mRangeForeColor =
                     jenv->GetIntField(jobj, jRangeForeColorField);
                 mRangeBackColor =
                     jenv->GetIntField(jobj, jRangeBackColorField);
-                mRangeLineColor =
-                    jenv->GetIntField(jobj, jRangeLineColorField);
             }
             break;
 
@@ -644,10 +632,16 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
         }
 
-        case THUMBNAIL: {
+        case SCREENSHOT: {
             mMetaState = jenv->GetIntField(jobj, jMetaStateField);
-            ReadPointArray(mPoints, jenv, jPoints, 1);
+            mFlags = jenv->GetIntField(jobj, jFlagsField);
+            ReadPointArray(mPoints, jenv, jPoints, 5);
             mByteBuffer = new RefCountedJavaObject(jenv, jenv->GetObjectField(jobj, jByteBufferField));
+            break;
+        }
+
+        case PAINT_LISTEN_START_EVENT: {
+            mMetaState = jenv->GetIntField(jobj, jMetaStateField);
             break;
         }
 
@@ -669,13 +663,6 @@ void
 AndroidGeckoEvent::Init(int aType)
 {
     mType = aType;
-}
-
-void
-AndroidGeckoEvent::Init(int aType, int aAction)
-{
-    mType = aType;
-    mAction = aAction;
 }
 
 void
@@ -866,7 +853,6 @@ bool
 AndroidGeckoLayerClient::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
                                                    const gfx::Rect& aDisplayPort,
                                                    float aDisplayResolution,
-                                                   bool aDrawingCritical,
                                                    gfx::Rect& aViewport,
                                                    float& aScaleX,
                                                    float& aScaleY)
@@ -875,20 +861,18 @@ AndroidGeckoLayerClient::ProgressiveUpdateCallback(bool aHasPendingNewThebesCont
     if (!env)
         return false;
 
-    AutoJObject progressiveUpdateDataJObj(env, env->CallObjectMethod(wrapped_obj,
-                                                                     jProgressiveUpdateCallbackMethod,
-                                                                     aHasPendingNewThebesContent,
-                                                                     (float)aDisplayPort.x,
-                                                                     (float)aDisplayPort.y,
-                                                                     (float)aDisplayPort.width,
-                                                                     (float)aDisplayPort.height,
-                                                                     aDisplayResolution,
-                                                                     !aDrawingCritical));
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
+    AutoLocalJNIFrame jniFrame(env);
+
+    jobject progressiveUpdateDataJObj = env->CallObjectMethod(wrapped_obj,
+                                                              jProgressiveUpdateCallbackMethod,
+                                                              aHasPendingNewThebesContent,
+                                                              (float)aDisplayPort.x,
+                                                              (float)aDisplayPort.y,
+                                                              (float)aDisplayPort.width,
+                                                              (float)aDisplayPort.height,
+                                                              aDisplayResolution);
+    if (jniFrame.CheckForException())
         return false;
-    }
 
     NS_ABORT_IF_FALSE(progressiveUpdateDataJObj, "No progressive update data!");
 
@@ -923,10 +907,9 @@ jobject ConvertToJavaViewportMetrics(JNIEnv* env, nsIAndroidViewport* metrics) {
     metrics->GetZoom(&zoom);
 
     jobject jobj = env->NewObject(AndroidGeckoLayerClient::jViewportClass, AndroidGeckoLayerClient::jViewportCtor,
+                                  x, y, width, height,
                                   pageLeft, pageTop, pageRight, pageBottom,
-                                  cssPageLeft, cssPageTop, cssPageRight, cssPageBottom,
-                                  x, y, x + width, y + height,
-                                  zoom);
+                                  cssPageLeft, cssPageTop, cssPageRight, cssPageBottom, zoom);
     return jobj;
 }
 

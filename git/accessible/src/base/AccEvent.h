@@ -10,12 +10,8 @@
 
 #include "mozilla/a11y/Accessible.h"
 
-namespace mozilla {
-namespace a11y {
-
-class DocAccessible;
-
 class nsAccEvent;
+class DocAccessible;
 
 // Constants used to point whether the event is from user input.
 enum EIsFromUserInput
@@ -38,18 +34,14 @@ public:
   // Rule for accessible events.
   // The rule will be applied when flushing pending events.
   enum EEventRule {
-    // eAllowDupes : More than one event of the same type is allowed.
-    //    This event will always be emitted. This flag is used for events that
-    //    don't support coalescence.
-    eAllowDupes,
+     // eAllowDupes : More than one event of the same type is allowed.
+     //    This event will always be emitted.
+     eAllowDupes,
 
-     // eCoalesceReorder : For reorder events from the same subtree or the same
-     //    node, only the umbrella event on the ancestor will be emitted.
-    eCoalesceReorder,
-
-     // eCoalesceMutationTextChange : coalesce text change events caused by
-     // tree mutations of the same tree level.
-    eCoalesceMutationTextChange,
+     // eCoalesceFromSameSubtree : For events of the same type from the same
+     //    subtree or the same node, only the umbrella event on the ancestor
+     //    will be emitted.
+     eCoalesceFromSameSubtree,
 
     // eCoalesceOfSameType : For events of the same type, only the newest event
     // will be processed.
@@ -60,14 +52,18 @@ public:
 
      // eRemoveDupes : For repeat events, only the newest event in queue
      //    will be emitted.
-    eRemoveDupes,
+     eRemoveDupes,
 
      // eDoNotEmit : This event is confirmed as a duplicate, do not emit it.
-    eDoNotEmit
+     eDoNotEmit
   };
 
   // Initialize with an nsIAccessible
   AccEvent(uint32_t aEventType, Accessible* aAccessible,
+           EIsFromUserInput aIsFromUserInput = eAutoDetect,
+           EEventRule aEventRule = eRemoveDupes);
+  // Initialize with an nsINode
+  AccEvent(uint32_t aEventType, nsINode* aNode,
            EIsFromUserInput aIsFromUserInput = eAutoDetect,
            EEventRule aEventRule = eRemoveDupes);
   virtual ~AccEvent() {}
@@ -77,8 +73,9 @@ public:
   EEventRule GetEventRule() const { return mEventRule; }
   bool IsFromUserInput() const { return mIsFromUserInput; }
 
-  Accessible* GetAccessible() const { return mAccessible; }
-  DocAccessible* GetDocAccessible() const { return mAccessible->Document(); }
+  Accessible* GetAccessible();
+  DocAccessible* GetDocAccessible();
+  nsINode* GetNode();
 
   /**
    * Create and return an XPCOM object for accessible event object.
@@ -93,7 +90,6 @@ public:
     eStateChangeEvent,
     eTextChangeEvent,
     eMutationEvent,
-    eReorderEvent,
     eHideEvent,
     eShowEvent,
     eCaretMoveEvent,
@@ -115,13 +111,24 @@ public:
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(AccEvent)
 
 protected:
+  /**
+   * Get an accessible from event target node.
+   */
+  Accessible* GetAccessibleForNode() const;
+
+  /**
+   * Determine whether the event is from user input by event state manager if
+   * it's not pointed explicetly.
+   */
+  void CaptureIsFromUserInput(EIsFromUserInput aIsFromUserInput);
+
   bool mIsFromUserInput;
   uint32_t mEventType;
   EEventRule mEventRule;
   nsRefPtr<Accessible> mAccessible;
+  nsCOMPtr<nsINode> mNode;
 
   friend class NotificationController;
-  friend class AccReorderEvent;
 };
 
 
@@ -133,15 +140,11 @@ class AccStateChangeEvent: public AccEvent
 public:
   AccStateChangeEvent(Accessible* aAccessible, uint64_t aState,
                       bool aIsEnabled,
-                      EIsFromUserInput aIsFromUserInput = eAutoDetect) :
-    AccEvent(nsIAccessibleEvent::EVENT_STATE_CHANGE, aAccessible,
-             aIsFromUserInput, eAllowDupes),
-             mState(aState), mIsEnabled(aIsEnabled) { }
+                      EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
-  AccStateChangeEvent(Accessible* aAccessible, uint64_t aState) :
-    AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aAccessible,
-             eAutoDetect, eAllowDupes), mState(aState)
-    { mIsEnabled = (mAccessible->State() & mState) != 0; }
+  AccStateChangeEvent(nsINode* aNode, uint64_t aState, bool aIsEnabled);
+
+  AccStateChangeEvent(nsINode* aNode, uint64_t aState);
 
   // AccEvent
   virtual already_AddRefed<nsAccEvent> CreateXPCOMObject();
@@ -194,7 +197,6 @@ private:
   nsString mModifiedText;
 
   friend class NotificationController;
-  friend class AccReorderEvent;
 };
 
 
@@ -205,14 +207,7 @@ class AccMutationEvent: public AccEvent
 {
 public:
   AccMutationEvent(uint32_t aEventType, Accessible* aTarget,
-                   nsINode* aTargetNode) :
-    AccEvent(aEventType, aTarget, eAutoDetect, eCoalesceMutationTextChange)
-  {
-    // Don't coalesce these since they are coalesced by reorder event. Coalesce
-    // contained text change events.
-    mParent = mAccessible->Parent();
-  }
-  virtual ~AccMutationEvent() { }
+                   nsINode* aTargetNode);
 
   // Event
   static const EventGroup kEventGroup = eMutationEvent;
@@ -226,8 +221,6 @@ public:
   bool IsHide() const { return mEventType == nsIAccessibleEvent::EVENT_HIDE; }
 
 protected:
-  nsCOMPtr<nsINode> mNode;
-  nsRefPtr<Accessible> mParent;
   nsRefPtr<AccTextChangeEvent> mTextChangeEvent;
 
   friend class NotificationController;
@@ -257,6 +250,7 @@ public:
   Accessible* TargetPrevSibling() const { return mPrevSibling; }
 
 protected:
+  nsRefPtr<Accessible> mParent;
   nsRefPtr<Accessible> mNextSibling;
   nsRefPtr<Accessible> mPrevSibling;
 
@@ -282,66 +276,13 @@ public:
 
 
 /**
- * Class for reorder accessible event. Takes care about
- */
-class AccReorderEvent : public AccEvent
-{
-public:
-  AccReorderEvent(Accessible* aTarget) :
-    AccEvent(::nsIAccessibleEvent::EVENT_REORDER, aTarget,
-             eAutoDetect, eCoalesceReorder) { }
-  virtual ~AccReorderEvent() { }
-
-  // Event
-  static const EventGroup kEventGroup = eReorderEvent;
-  virtual unsigned int GetEventGroups() const
-  {
-    return AccEvent::GetEventGroups() | (1U << eReorderEvent);
-  }
-
-  /**
-   * Get connected with mutation event.
-   */
-  void AddSubMutationEvent(AccMutationEvent* aEvent)
-    { mDependentEvents.AppendElement(aEvent); }
-
-  /**
-   * Do not emit the reorder event and its connected mutation events.
-   */
-  void DoNotEmitAll()
-  {
-    mEventRule = AccEvent::eDoNotEmit;
-    uint32_t eventsCount = mDependentEvents.Length();
-    for (uint32_t idx = 0; idx < eventsCount; idx++)
-      mDependentEvents[idx]->mEventRule = AccEvent::eDoNotEmit;
-  }
-
-  /**
-   * Return true if the given accessible is a target of connected mutation
-   * event.
-   */
-  uint32_t IsShowHideEventTarget(const Accessible* aTarget) const;
-
-protected:
-  /**
-   * Show and hide events causing this reorder event.
-   */
-  nsTArray<AccMutationEvent*> mDependentEvents;
-
-  friend class NotificationController;
-};
-
-
-/**
  * Accessible caret move event.
  */
 class AccCaretMoveEvent: public AccEvent
 {
 public:
-  AccCaretMoveEvent(Accessible* aAccessible) :
-    AccEvent(::nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED, aAccessible),
-    mCaretOffset(-1) { }
-  virtual ~AccCaretMoveEvent() { }
+  AccCaretMoveEvent(Accessible* aAccessible, int32_t aCaretOffset);
+  AccCaretMoveEvent(nsINode* aNode);
 
   // AccEvent
   virtual already_AddRefed<nsAccEvent> CreateXPCOMObject();
@@ -357,8 +298,6 @@ public:
 
 private:
   int32_t mCaretOffset;
-
-  friend class NotificationController;
 };
 
 
@@ -481,9 +420,6 @@ public:
 private:
   AccEvent* mRawPtr;
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif
 

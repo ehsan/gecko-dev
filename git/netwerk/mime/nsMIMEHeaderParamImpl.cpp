@@ -22,9 +22,6 @@
 #include "nsNativeCharsetUtils.h"
 #include "nsError.h"
 #include "nsIUnicodeDecoder.h"
-#include "mozilla/dom/EncodingUtils.h"
-
-using mozilla::dom::EncodingUtils;
 
 // static functions declared below are moved from mailnews/mime/src/comi18n.cpp
   
@@ -95,15 +92,12 @@ nsMIMEHeaderParamImpl::DoGetParameter(const nsACString& aHeaderVal,
 
     if (!aFallbackCharset.IsEmpty())
     {
-        nsAutoCString charset;
-        EncodingUtils::FindEncodingForLabel(aFallbackCharset, charset);
         nsAutoCString str2;
         nsCOMPtr<nsIUTF8ConverterService> 
           cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
         if (cvtUTF8 &&
             NS_SUCCEEDED(cvtUTF8->ConvertStringToUTF8(str1, 
-                PromiseFlatCString(aFallbackCharset).get(), false,
-                                   !charset.EqualsLiteral("UTF-8"),
+                PromiseFlatCString(aFallbackCharset).get(), false, true,
                                    1, str2))) {
           CopyUTF8toUTF16(str2, aResult);
           return NS_OK;
@@ -138,29 +132,6 @@ void RemoveQuotedStringEscapes(char *src)
     *dst++ = *c;
   }
   *dst = 0;
-}
-
-// true is character is a hex digit
-bool IsHexDigit(char aChar)
-{
-  char c = aChar;
-
-  return (c >= 'a' && c <= 'f') ||
-         (c >= 'A' && c <= 'F') ||
-         (c >= '0' && c <= '9');
-}
-
-// validate that a C String containing %-escapes is syntactically valid
-bool IsValidPercentEscaped(const char *aValue, int32_t len)
-{
-  for (int32_t i = 0; i < len; i++) {
-    if (aValue[i] == '%') {
-      if (!IsHexDigit(aValue[i + 1]) || !IsHexDigit(aValue[i + 2])) {
-        return false;
-      }
-    }
-  }
-  return true;
 }
 
 // Support for continuations (RFC 2231, Section 3)
@@ -606,10 +577,6 @@ nsMIMEHeaderParamImpl::DoParameterInternal(const char *aHeaderValue,
         // non-empty value part
         if (rawValLength > 0) {
           if (!caseBResult && caseB) {
-            if (!IsValidPercentEscaped(rawValStart, rawValLength)) {
-              goto increment_str;
-            }
-
             // allocate buffer for the raw value
             char *tmpResult = (char *) nsMemory::Clone(rawValStart, rawValLength + 1);
             if (!tmpResult) {
@@ -775,6 +742,16 @@ bool IsRFC5987AttrChar(char aChar)
          (c == '!' || c == '#' || c == '$' || c == '&' ||
           c == '+' || c == '-' || c == '.' || c == '^' ||
           c == '_' || c == '`' || c == '|' || c == '~');
+}
+
+// true is character is a hex digit
+bool IsHexDigit(char aChar)
+{
+  char c = aChar;
+
+  return (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F') ||
+         (c >= '0' && c <= '9');
 }
 
 // percent-decode a value
@@ -1091,43 +1068,6 @@ void CopyRawHeader(const char *aInput, uint32_t aLen,
   }
 }
 
-nsresult DecodeQOrBase64Str(const char *aEncoded, size_t aLen, char aQOrBase64,
-                            const char *aCharset, nsACString &aResult)
-{
-  char *decodedText;
-  NS_ASSERTION(aQOrBase64 == 'Q' || aQOrBase64 == 'B', "Should be 'Q' or 'B'");
-  if(aQOrBase64 == 'Q')
-    decodedText = DecodeQ(aEncoded, aLen);
-  else if (aQOrBase64 == 'B') {
-    decodedText = PL_Base64Decode(aEncoded, aLen, nullptr);
-  } else {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  if (!decodedText) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsresult rv;
-  nsCOMPtr<nsIUTF8ConverterService>
-    cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID, &rv));
-  nsAutoCString utf8Text;
-  if (NS_SUCCEEDED(rv)) {
-    // skip ASCIIness/UTF8ness test if aCharset is 7bit non-ascii charset.
-    rv = cvtUTF8->ConvertStringToUTF8(nsDependentCString(decodedText),
-                                      aCharset,
-                                      IS_7BIT_NON_ASCII_CHARSET(aCharset),
-                                      true, 1, utf8Text);
-  }
-  PR_Free(decodedText);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  aResult.Append(utf8Text);
-
-  return NS_OK;
-}
-
 static const char especials[] = "()<>@,;:\\\"/[]?.=";
 
 // |decode_mime_part2_str| taken from comi18n.c
@@ -1140,13 +1080,14 @@ nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset,
                           bool aOverrideCharset, nsACString &aResult)
 {
   const char *p, *q = nullptr, *r;
+  char *decodedText;
   const char *begin; // tracking pointer for where we are in the input buffer
   int32_t isLastEncodedWord = 0;
   const char *charsetStart, *charsetEnd;
-  nsAutoCString prevCharset, curCharset;
-  nsAutoCString encodedText;
-  char prevEncoding = '\0', curEncoding;
-  nsresult rv;
+  char charset[80];
+
+  // initialize charset name to an empty string
+  charset[0] = '\0';
 
   begin = aHeader;
 
@@ -1191,9 +1132,15 @@ nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset,
       charsetEnd = q;
     }
 
+    // Check for too-long charset name
+    if (uint32_t(charsetEnd - charsetStart) >= sizeof(charset)) 
+      goto badsyntax;
+    
+    memcpy(charset, charsetStart, charsetEnd - charsetStart);
+    charset[charsetEnd - charsetStart] = 0;
+
     q++;
-    curEncoding = nsCRT::ToUpper(*q);
-    if (curEncoding != 'Q' && curEncoding != 'B')
+    if (*q != 'Q' && *q != 'q' && *q != 'B' && *q != 'b')
       goto badsyntax;
 
     if (q[1] != '?')
@@ -1212,86 +1159,53 @@ nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset,
         continue;
     }
 
-    curCharset.Assign(charsetStart, charsetEnd - charsetStart);
-    // Override charset if requested.  Never override labeled UTF-8.
-    // Use default charset instead of UNKNOWN-8BIT
-    if ((aOverrideCharset && 0 != nsCRT::strcasecmp(curCharset.get(), "UTF-8"))
-    || (aDefaultCharset && 0 == nsCRT::strcasecmp(curCharset.get(), "UNKNOWN-8BIT"))
-    ) {
-      curCharset = aDefaultCharset;
-    }
-
-    const char *R;
-    R = r;
-    if (curEncoding == 'B') {
+    if(*q == 'Q' || *q == 'q')
+      decodedText = DecodeQ(q + 2, r - (q + 2));
+    else {
       // bug 227290. ignore an extraneous '=' at the end.
       // (# of characters in B-encoded part has to be a multiple of 4)
       int32_t n = r - (q + 2);
-      R -= (n % 4 == 1 && !PL_strncmp(r - 3, "===", 3)) ? 1 : 0;
-    }
-    // Bug 493544. Don't decode the encoded text until it ends
-    if (R[-1] != '='
-      && (prevCharset.IsEmpty()
-        || (curCharset == prevCharset && curEncoding == prevEncoding))
-    ) {
-      encodedText.Append(q + 2, R - (q + 2));
-      prevCharset = curCharset;
-      prevEncoding = curEncoding;
-
-      begin = r + 2;
-      isLastEncodedWord = 1;
-      continue;
+      n -= (n % 4 == 1 && !PL_strncmp(r - 3, "===", 3)) ? 1 : 0;
+      decodedText = PL_Base64Decode(q + 2, n, nullptr);
     }
 
-    bool bDecoded; // If the current line has been decoded.
-    bDecoded = false;
-    if (!encodedText.IsEmpty()) {
-      if (curCharset == prevCharset && curEncoding == prevEncoding) {
-        encodedText.Append(q + 2, R - (q + 2));
-        bDecoded = true;
-      }
-      rv = DecodeQOrBase64Str(encodedText.get(), encodedText.Length(),
-                              prevEncoding, prevCharset.get(), aResult);
-      if (NS_FAILED(rv)) {
-        aResult.Append(encodedText);
-      }
-      encodedText.Truncate();
-      prevCharset.Truncate();
-    }
-    if (!bDecoded) {
-      rv = DecodeQOrBase64Str(q + 2, R - (q + 2), curEncoding,
-                              curCharset.get(), aResult);
-      if (NS_FAILED(rv)) {
-        aResult.Append(encodedText);
-      }
+    if (decodedText == nullptr)
+      goto badsyntax;
+
+    // Override charset if requested.  Never override labeled UTF-8.
+    // Use default charset instead of UNKNOWN-8BIT
+    if ((aOverrideCharset && 0 != nsCRT::strcasecmp(charset, "UTF-8")) ||
+        (aDefaultCharset && 0 == nsCRT::strcasecmp(charset, "UNKNOWN-8BIT"))) {
+      PL_strncpy(charset, aDefaultCharset, sizeof(charset) - 1);
+      charset[sizeof(charset) - 1] = '\0';
     }
 
+    {
+      nsCOMPtr<nsIUTF8ConverterService> 
+        cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
+      nsAutoCString utf8Text;
+      // skip ASCIIness/UTF8ness test if aCharset is 7bit non-ascii charset.
+      if (cvtUTF8 &&
+          NS_SUCCEEDED(
+            cvtUTF8->ConvertStringToUTF8(nsDependentCString(decodedText),
+                                         charset,
+                                         IS_7BIT_NON_ASCII_CHARSET(charset),
+                                         true, 1, utf8Text))) {
+        aResult.Append(utf8Text);
+      } else {
+        aResult.Append(REPLACEMENT_CHAR);
+      }
+    }
+    PR_Free(decodedText);
     begin = r + 2;
     isLastEncodedWord = 1;
     continue;
 
   badsyntax:
-    if (!encodedText.IsEmpty()) {
-      rv = DecodeQOrBase64Str(encodedText.get(), encodedText.Length(),
-                              prevEncoding, prevCharset.get(), aResult);
-      if (NS_FAILED(rv)) {
-        aResult.Append(encodedText);
-      }
-      encodedText.Truncate();
-      prevCharset.Truncate();
-    }
     // copy the part before the encoded-word
     aResult.Append(begin, p - begin);
     begin = p;
     isLastEncodedWord = 0;
-  }
-
-  if (!encodedText.IsEmpty()) {
-    rv = DecodeQOrBase64Str(encodedText.get(), encodedText.Length(),
-                            prevEncoding, prevCharset.get(), aResult);
-    if (NS_FAILED(rv)) {
-      aResult.Append(encodedText);
-    }
   }
 
   // put the tail back

@@ -18,6 +18,13 @@
 #define PHONE_IPC_MSG 1
 
 
+/* Message buffer layout */
+struct msgbuffer {
+    int32_t mtype;    /* Message type */
+    void   *msgPtr;   /* Ptr to msg */
+    void   *usrPtr;   /* Ptr to user data */
+};
+
 /* For gathering statistics regarding message queues */
 typedef struct {
     char name[16];

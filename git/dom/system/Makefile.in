@@ -78,10 +78,7 @@ EXPORTS_mozilla = \
   $(NULL)
 
 # We fire the nsDOMDeviceAcceleration
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/content/events/src \
-  -I$(topsrcdir)/js/xpconnect/loader \
-  $(NULL)
+LOCAL_INCLUDES += -I$(topsrcdir)/content/events/src
 
 ifdef ENABLE_TESTS
 DIRS += tests

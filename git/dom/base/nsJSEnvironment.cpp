@@ -177,7 +177,8 @@ static nsJSContext *sContextList = nullptr;
 static nsScriptNameSpaceManager *gNameSpaceManager;
 static nsIMemoryReporter *gReporter;
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ScriptNameSpaceManagerMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ScriptNameSpaceManagerMallocSizeOf,
+                                     "script-namespace-manager")
 
 static int64_t
 GetScriptNameSpaceManagerSize()
@@ -967,7 +968,6 @@ static const char js_memnotify_option_str[]   = JS_OPTIONS_DOT_STR "mem.notify";
 static const char js_disable_explicit_compartment_gc[] =
   JS_OPTIONS_DOT_STR "mem.disable_explicit_compartment_gc";
 static const char js_ion_content_str[]        = JS_OPTIONS_DOT_STR "ion.content";
-static const char js_ion_parallel_compilation_str[] = JS_OPTIONS_DOT_STR "ion.parallel_compilation";
 
 int
 nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
@@ -1010,7 +1010,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
                                      "javascript.options.xml.content");
   bool useHardening = Preferences::GetBool(js_jit_hardening_str);
   bool useIon = Preferences::GetBool(js_ion_content_str);
-  bool parallelIonCompilation = Preferences::GetBool(js_ion_parallel_compilation_str);
   nsCOMPtr<nsIXULRuntime> xr = do_GetService(XULRUNTIME_SERVICE_CONTRACTID);
   if (xr) {
     bool safeMode = false;
@@ -1074,8 +1073,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 
   ::JS_SetOptions(context->mContext,
                   newDefaultJSOptions & (JSRUNOPTION_MASK | JSOPTION_ALLOW_XML));
-
-  ::JS_SetParallelCompilationEnabled(context->mContext, parallelIonCompilation);
 
   // Save the new defaults for the next page load (InitContext).
   context->mDefaultJSOptions = newDefaultJSOptions;
@@ -1207,11 +1204,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
   tmp->mIsInitialized = false;
   tmp->mGCOnDestruction = false;
   tmp->DestroyJSContext();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobalObjectRef)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalObjectRef)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSContext)
   NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsJSContext, tmp->GetCCRefcnt())
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobalObjectRef)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobalObjectRef)
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mContext");
   nsContentUtils::XPConnect()->NoteJSContext(tmp->mContext, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -1249,7 +1246,6 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
                                      const char *aURL,
                                      uint32_t aLineNo,
                                      uint32_t aVersion,
-                                     bool aIsXBL,
                                      JS::Value* aRetValue,
                                      bool* aIsUndefined)
 {
@@ -1324,8 +1320,7 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     JS::CompileOptions options(mContext);
     options.setFileAndLine(aURL, aLineNo)
            .setVersion(JSVersion(aVersion))
-           .setPrincipals(nsJSPrincipals::get(principal))
-           .setUserBit(aIsXBL);
+           .setPrincipals(nsJSPrincipals::get(principal));
     js::RootedObject rootedScope(mContext, aScopeObject);
     ok = JS::Evaluate(mContext, rootedScope, options, PromiseFlatString(aScript).get(),
                       aScript.Length(), &val);
@@ -1783,8 +1778,7 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
 
   JS::CompileOptions options(mContext);
   options.setVersion(JSVersion(aVersion))
-         .setFileAndLine(aURL, aLineNo)
-         .setUserBit(aIsXBL);
+         .setFileAndLine(aURL, aLineNo);
   js::RootedObject empty(mContext, NULL);
   JSFunction* fun = JS::CompileFunction(mContext, empty, options, nsAtomCString(aName).get(),
                                         aArgCount, aArgNames,
@@ -1793,6 +1787,11 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
   if (!fun) {
     ReportPendingException();
     return NS_ERROR_ILLEGAL_VALUE;
+  }
+
+  // If this is an XBL function, make a note to that effect on its script.
+  if (aIsXBL) {
+    JS_SetScriptUserBit(JS_GetFunctionScript(mContext, fun), true);
   }
 
   JSObject *handler = ::JS_GetFunctionObject(fun);
@@ -1846,8 +1845,7 @@ nsJSContext::CompileFunction(JSObject* aTarget,
   JS::CompileOptions options(mContext);
   options.setPrincipals(nsJSPrincipals::get(principal))
          .setVersion(JSVersion(aVersion))
-         .setFileAndLine(aURL, aLineNo)
-         .setUserBit(aIsXBL);
+         .setFileAndLine(aURL, aLineNo);
   JSFunction* fun = JS::CompileFunction(mContext, target,
                                         options, PromiseFlatCString(aName).get(),
                                         aArgCount, aArgArray,
@@ -1855,6 +1853,11 @@ nsJSContext::CompileFunction(JSObject* aTarget,
 
   if (!fun)
     return NS_ERROR_FAILURE;
+
+  // If this is an XBL function, make a note to that effect on its script.
+  if (aIsXBL) {
+    JS_SetScriptUserBit(JS_GetFunctionScript(mContext, fun), true);
+  }
 
   *aFunctionObject = JS_GetFunctionObject(fun);
   return NS_OK;
@@ -2623,70 +2626,6 @@ static JSFunctionSpec TraceMallocFunctions[] = {
 
 #endif /* NS_TRACE_MALLOC */
 
-#ifdef MOZ_DMD
-
-#include <errno.h>
-
-namespace mozilla {
-namespace dmd {
-
-// See https://wiki.mozilla.org/Performance/MemShrink/DMD for instructions on
-// how to use DMD.
-
-static JSBool
-MaybeReportAndDump(JSContext *cx, unsigned argc, jsval *vp, bool report)
-{
-  JSString *str = JS_ValueToString(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID);
-  if (!str)
-    return JS_FALSE;
-  JSAutoByteString pathname(cx, str);
-  if (!pathname)
-    return JS_FALSE;
-
-  FILE* fp = fopen(pathname.ptr(), "w");
-  if (!fp) {
-    JS_ReportError(cx, "DMD can't open %s: %s",
-                   pathname.ptr(), strerror(errno));
-    return JS_FALSE;
-  }
-
-  if (report) {
-    fprintf(stderr, "DMD: running reporters...\n");
-    dmd::RunReporters();
-  }
-  dmd::Writer writer(FpWrite, fp);
-  dmd::Dump(writer);
-
-  fclose(fp);
-
-  JS_SET_RVAL(cx, vp, JSVAL_VOID);
-  return JS_TRUE;
-}
-
-static JSBool
-ReportAndDump(JSContext *cx, unsigned argc, jsval *vp)
-{
-  return MaybeReportAndDump(cx, argc, vp, /* report = */ true);
-}
-
-static JSBool
-Dump(JSContext *cx, unsigned argc, jsval *vp)
-{
-  return MaybeReportAndDump(cx, argc, vp, /* report = */ false);
-}
-
-
-} // namespace dmd
-} // namespace mozilla
-
-static JSFunctionSpec DMDFunctions[] = {
-    JS_FS("DMDReportAndDump", dmd::ReportAndDump, 1, 0),
-    JS_FS("DMDDump",          dmd::Dump,          1, 0),
-    JS_FS_END
-};
-
-#endif  // defined(MOZ_DMD)
-
 #ifdef MOZ_JPROF
 
 #include <signal.h>
@@ -2791,6 +2730,25 @@ static JSFunctionSpec JProfFunctions[] = {
 
 #endif /* defined(MOZ_JPROF) */
 
+#ifdef MOZ_DMDV
+
+// See https://wiki.mozilla.org/Performance/MemShrink/DMD for instructions on
+// how to use DMDV.
+
+static JSBool
+DMDVCheckAndDumpJS(JSContext *cx, unsigned argc, jsval *vp)
+{
+  mozilla::DMDVCheckAndDump();
+  return JS_TRUE;
+}
+
+static JSFunctionSpec DMDVFunctions[] = {
+    JS_FS("DMDV",                       DMDVCheckAndDumpJS,         0, 0),
+    JS_FS_END
+};
+
+#endif /* defined(MOZ_DMDV) */
+
 nsresult
 nsJSContext::InitClasses(JSObject* aGlobalObj)
 {
@@ -2809,14 +2767,14 @@ nsJSContext::InitClasses(JSObject* aGlobalObj)
   ::JS_DefineFunctions(mContext, aGlobalObj, TraceMallocFunctions);
 #endif
 
-#ifdef MOZ_DMD
-  // Attempt to initialize DMD functions
-  ::JS_DefineFunctions(mContext, aGlobalObj, DMDFunctions);
-#endif
-
 #ifdef MOZ_JPROF
   // Attempt to initialize JProf functions
   ::JS_DefineFunctions(mContext, aGlobalObj, JProfFunctions);
+#endif
+
+#ifdef MOZ_DMDV
+  // Attempt to initialize DMDV functions
+  ::JS_DefineFunctions(mContext, aGlobalObj, DMDVFunctions);
 #endif
 
   return rv;
@@ -3064,20 +3022,9 @@ DoMergingCC(bool aForced)
 }
 
 static void
-FinishAnyIncrementalGC()
-{
-  if (sCCLockedOut) {
-    // We're in the middle of an incremental GC, so finish it.
-    js::PrepareForIncrementalGC(nsJSRuntime::sRuntime);
-    js::FinishIncrementalGC(nsJSRuntime::sRuntime, js::gcreason::CC_FORCED);
-  }
-}
-
-static void
 FireForgetSkippable(uint32_t aSuspected, bool aRemoveChildless)
 {
   PRTime startTime = PR_Now();
-  FinishAnyIncrementalGC();
   nsCycleCollector_forgetSkippable(aRemoveChildless);
   sPreviousSuspectedCount = nsCycleCollector_suspectedCount();
   ++sCleanupsSinceLastGC;
@@ -3093,14 +3040,6 @@ FireForgetSkippable(uint32_t aSuspected, bool aRemoveChildless)
   ++sForgetSkippableBeforeCC;
 }
 
-MOZ_ALWAYS_INLINE
-static uint32_t
-TimeBetween(PRTime start, PRTime end)
-{
-  MOZ_ASSERT(end >= start);
-  return (uint32_t)(end - start) / PR_USEC_PER_MSEC;
-}
-
 //static
 void
 nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
@@ -3111,40 +3050,33 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     return;
   }
 
-  SAMPLE_LABEL("CC", "CycleCollectNow");
+  if (sCCLockedOut) {
+    // We're in the middle of an incremental GC; finish it first
+    js::PrepareForIncrementalGC(nsJSRuntime::sRuntime);
+    js::FinishIncrementalGC(nsJSRuntime::sRuntime, js::gcreason::CC_FORCED);
+  }
 
-  PRTime start = PR_Now();
-
-  // Before we begin the cycle collection, make sure there is no active GC.
-  bool finishedIGC = sCCLockedOut;
-  FinishAnyIncrementalGC();
-  PRTime endGCTime = PR_Now();
-  uint32_t gcDuration = TimeBetween(start, endGCTime);
+  SAMPLE_LABEL("GC", "CycleCollectNow");
 
   KillCCTimer();
 
-  uint32_t suspected = nsCycleCollector_suspectedCount();
-  bool ranSyncForgetSkippable = false;
+  PRTime start = PR_Now();
 
-  // Run forgetSkippable synchronously to reduce the size of the CC graph. This
-  // is particularly useful if we recently finished a GC.
+  uint32_t suspected = nsCycleCollector_suspectedCount();
+
+  // nsCycleCollector_forgetSkippable may mark some gray js to black.
   if (sCleanupsSinceLastGC < 2 && aExtraForgetSkippableCalls >= 0) {
     while (sCleanupsSinceLastGC < 2) {
       FireForgetSkippable(nsCycleCollector_suspectedCount(), false);
-      ranSyncForgetSkippable = true;
     }
   }
 
   for (int32_t i = 0; i < aExtraForgetSkippableCalls; ++i) {
     FireForgetSkippable(nsCycleCollector_suspectedCount(), false);
-    ranSyncForgetSkippable = true;
   }
 
-  PRTime endSkippableTime = PR_Now();
-  uint32_t skippableDuration = TimeBetween(endGCTime, endSkippableTime);
-
-  // Prepare to actually run the CC.
   bool mergingCC = DoMergingCC(aForced);
+
   nsCycleCollectorResults ccResults;
   nsCycleCollector_collect(mergingCC, &ccResults, aListener);
   sCCollectedWaitingForGC += ccResults.mFreedRefCounted + ccResults.mFreedGCed;
@@ -3155,19 +3087,13 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     PokeGC(js::gcreason::CC_WAITING);
   }
 
-  PRTime endCCTime = PR_Now();
-
-  // Log information about the CC via telemetry, JSON and the console.
-  uint32_t ccNowDuration = TimeBetween(start, endCCTime);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_FINISH_IGC, finishedIGC);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_SYNC_SKIPPABLE, ranSyncForgetSkippable);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_FULL, ccNowDuration);
+  PRTime now = PR_Now();
 
   if (sLastCCEndTime) {
     uint32_t timeBetween = (uint32_t)(start - sLastCCEndTime) / PR_USEC_PER_SEC;
     Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_TIME_BETWEEN, timeBetween);
   }
-  sLastCCEndTime = endCCTime;
+  sLastCCEndTime = now;
 
   Telemetry::Accumulate(Telemetry::FORGET_SKIPPABLE_MAX,
                         sMaxForgetSkippableTime / PR_USEC_PER_MSEC);
@@ -3190,11 +3116,11 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     }
 
     NS_NAMED_MULTILINE_LITERAL_STRING(kFmt,
-      NS_LL("CC(T+%.1f) duration: %lums, suspected: %lu, visited: %lu RCed and %lu%s GCed, collected: %lu RCed and %lu GCed (%lu waiting for GC)%s\n")
-      NS_LL("ForgetSkippable %lu times before CC, min: %lu ms, max: %lu ms, avg: %lu ms, total: %lu ms, sync: %lu ms, removed: %lu"));
+      NS_LL("CC(T+%.1f) duration: %llums, suspected: %lu, visited: %lu RCed and %lu%s GCed, collected: %lu RCed and %lu GCed (%lu waiting for GC)%s\n")
+      NS_LL("ForgetSkippable %lu times before CC, min: %lu ms, max: %lu ms, avg: %lu ms, total: %lu ms, removed: %lu"));
     nsString msg;
     msg.Adopt(nsTextFormatter::smprintf(kFmt.get(), double(delta) / PR_USEC_PER_SEC,
-                                        ccNowDuration, suspected,
+                                        (now - start) / PR_USEC_PER_MSEC, suspected,
                                         ccResults.mVisitedRefCounted, ccResults.mVisitedGCed, mergeMsg.get(),
                                         ccResults.mFreedRefCounted, ccResults.mFreedGCed,
                                         sCCollectedWaitingForGC, gcMsg.get(),
@@ -3204,7 +3130,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
                                         (sTotalForgetSkippableTime / cleanups) /
                                           PR_USEC_PER_MSEC,
                                         sTotalForgetSkippableTime / PR_USEC_PER_MSEC,
-                                        skippableDuration, sRemovedPurples));
+                                        sRemovedPurples));
     nsCOMPtr<nsIConsoleService> cs =
       do_GetService(NS_CONSOLESERVICE_CONTRACTID);
     if (cs) {
@@ -3216,8 +3142,6 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     NS_NAMED_MULTILINE_LITERAL_STRING(kJSONFmt,
        NS_LL("{ \"timestamp\": %llu, ")
          NS_LL("\"duration\": %llu, ")
-         NS_LL("\"finish_gc_duration\": %llu, ")
-         NS_LL("\"sync_skippable_duration\": %llu, ")
          NS_LL("\"suspected\": %lu, ")
          NS_LL("\"visited\": { ")
              NS_LL("\"RCed\": %lu, ")
@@ -3236,9 +3160,8 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
              NS_LL("\"removed\": %lu } ")
        NS_LL("}"));
     nsString json;
-    json.Adopt(nsTextFormatter::smprintf(kJSONFmt.get(), endCCTime,
-                                         ccNowDuration, gcDuration, skippableDuration,
-                                         suspected,
+    json.Adopt(nsTextFormatter::smprintf(kJSONFmt.get(),
+                                         now, (now - start) / PR_USEC_PER_MSEC, suspected,
                                          ccResults.mVisitedRefCounted, ccResults.mVisitedGCed,
                                          ccResults.mFreedRefCounted, ccResults.mFreedGCed,
                                          sCCollectedWaitingForGC,
@@ -3255,8 +3178,6 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
       observerService->NotifyObservers(nullptr, "cycle-collection-statistics", json.get());
     }
   }
-
-  // Update global state to indicate we have just run a cycle collection.
   sMinForgetSkippableTime = UINT32_MAX;
   sMaxForgetSkippableTime = 0;
   sTotalForgetSkippableTime = 0;
@@ -3325,6 +3246,10 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
     if (now - sCCLockedOutTime < NS_MAX_CC_LOCKEDOUT_TIME) {
       return;
     }
+
+    // Finish the current incremental GC
+    js::PrepareForIncrementalGC(nsJSRuntime::sRuntime);
+    js::FinishIncrementalGC(nsJSRuntime::sRuntime, js::gcreason::CC_FORCED);
   }
 
   ++sCCTimerFireCount;
@@ -3345,13 +3270,12 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
       }
     } else {
       // We are in the final timer fire and still meet the conditions for
-      // triggering a CC. Let CycleCollectNow finish the current IGC, if any,
-      // because that will allow us to include the GC time in the CC pause.
+      // triggering a CC.
       nsJSContext::CycleCollectNow(nullptr, 0, false);
     }
   } else if ((sPreviousSuspectedCount + 100) <= suspected) {
-      // Only do a forget skippable if there are more than a few new objects.
-      FireForgetSkippable(suspected, false);
+    // Only do a forget skippable if there are more than a few new objects.
+    FireForgetSkippable(suspected, false);
   }
 
   if (isLateTimerFire) {
@@ -4205,11 +4129,7 @@ nsJSArgArray::nsJSArgArray(JSContext *aContext, uint32_t argc, jsval *argv,
       mArgv[i] = argv[i];
   }
 
-  if (argc > 0) {
-    NS_HOLD_JS_OBJECTS(this, nsJSArgArray);
-  }
-
-  *prv = NS_OK;
+  *prv = argc > 0 ? NS_HOLD_JS_OBJECTS(this, nsJSArgArray) : NS_OK;
 }
 
 nsJSArgArray::~nsJSArgArray()
@@ -4220,13 +4140,12 @@ nsJSArgArray::~nsJSArgArray()
 void
 nsJSArgArray::ReleaseJSObjects()
 {
+  if (mArgc > 0)
+    NS_DROP_JS_OBJECTS(this, nsJSArgArray);
   if (mArgv) {
     PR_DELETE(mArgv);
   }
-  if (mArgc > 0) {
-    mArgc = 0;
-    NS_DROP_JS_OBJECTS(this, nsJSArgArray);
-  }
+  mArgc = 0;
 }
 
 // QueryInterface implementation for nsJSArgArray

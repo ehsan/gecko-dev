@@ -4,9 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-#include "mozilla/StandardInteger.h" // for intptr_t
-
 #include "PluginInstanceParent.h"
 #include "BrowserStreamParent.h"
 #include "PluginBackgroundDestroyer.h"
@@ -20,6 +17,7 @@
 #include "gfxPlatform.h"
 #include "gfxSharedImageSurface.h"
 #include "nsNPAPIPluginInstance.h"
+#include "mozilla/StandardInteger.h" // for intptr_t
 #ifdef MOZ_X11
 #include "gfxXlibSurface.h"
 #endif
@@ -46,7 +44,6 @@ extern const PRUnichar* kFlashFullscreenClass;
 #endif // defined(XP_MACOSX)
 
 using namespace mozilla::plugins;
-using namespace mozilla::layers;
 
 bool
 StreamNotifyParent::RecvRedirectNotifyResponse(const bool& allow)
@@ -602,23 +599,19 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
     }
 #endif
 
-    if (mFrontSurface) {
+#ifdef MOZ_X11
+    if (mFrontSurface &&
+        mFrontSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         // This is the "old front buffer" we're about to hand back to
         // the plugin.  We might still have drawing operations
         // referencing it.
-#ifdef MOZ_X11
-        if (mFrontSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
-            // Finish with the surface and XSync here to ensure the server has
-            // finished operations on the surface before the plugin starts
-            // scribbling on it again, or worse, destroys it.
-            mFrontSurface->Finish();
-            FinishX(DefaultXDisplay());
-        } else 
-#endif
-        {
-            mFrontSurface->Flush();
-        }
+        mFrontSurface->Finish();
+        // XSync here to ensure the server has finished operations on the
+        // surface before the plugin starts scribbling on it again, or
+        // worse, destroys it.
+        FinishX(DefaultXDisplay());
     }
+#endif
 
     if (mFrontSurface && gfxSharedImageSurface::IsSharedImage(mFrontSurface))
         *prevSurface = static_cast<gfxSharedImageSurface*>(mFrontSurface.get())->GetShmem();

@@ -33,7 +33,7 @@ def abstractmethod(method):
 
 class DeviceManager:
 
-    _logcatNeedsRoot = True
+    logcatNeedsRoot = True
 
     @abstractmethod
     def shell(self, cmd, outputfile, env=None, cwd=None, timeout=None, root=False):
@@ -62,11 +62,11 @@ class DeviceManager:
         output = str(buf.getvalue()[0:-1]).rstrip()
         buf.close()
         if retval != 0:
-            raise DMError("Non-zero return code for command: %s (output: '%s', retval: '%s')" % (cmd, output, retval))
+            raise DMError("Non-zero return code for command: %s (output: '%s', retval: '%i')" % (cmd, output, retval))
         return output
 
     @abstractmethod
-    def pushFile(self, localname, destname, retryLimit=1):
+    def pushFile(self, localname, destname):
         """
         Copies localname from the host to destname on the device
         """
@@ -82,19 +82,17 @@ class DeviceManager:
         Make directory structure on the device
         WARNING: does not create last part of the path
         """
-        dirParts = filename.rsplit('/', 1)
-        if not self.dirExists(dirParts[0]):
-            parts = filename.split('/')
-            name = ""
-            for part in parts:
-                if part == parts[-1]:
-                    break
-                if part != "":
-                    name += '/' + part
-                    self.mkDir(name) # mkDir will check previous existence
+        parts = filename.split('/')
+        name = ""
+        for part in parts:
+            if (part == parts[-1]):
+                break
+            if (part != ""):
+                name += '/' + part
+                self.mkDir(name) # mkDir will check previous existence
 
     @abstractmethod
-    def pushDir(self, localDir, remoteDir, retryLimit=1):
+    def pushDir(self, localDir, remoteDir):
         """
         Push localDir from host to remoteDir on the device
         """
@@ -364,15 +362,13 @@ class DeviceManager:
 
         return 0
 
-    def getIP(self, interfaces=['eth0', 'wlan0']):
+    def getIP(self, conn_type='eth0'):
         """
         Gets the IP of the device, or None if no connection exists.
         """
-        for interface in interfaces:
-            match = re.match(r"%s: ip (\S+)" % interface,
-                             self.shellCheckOutput(['ifconfig', interface]))
-            if match:
-                return match.group(1)
+        match = re.match(r"%s: ip (\S+)" % conn_type, self.shellCheckOutput(['ifconfig', conn_type]))
+        if match:
+            return match.group(1)
 
     @abstractmethod
     def unpackFile(self, file_path, dest_dir=None):
@@ -493,7 +489,7 @@ class DeviceManager:
         #TODO: spawn this off in a separate thread/process so we can collect all the logcat information
 
         # Right now this is just clearing the logcat so we can only see what happens after this call.
-        self.shellCheckOutput(['/system/bin/logcat', '-c'], root=self._logcatNeedsRoot)
+        self.shellCheckOutput(['/system/bin/logcat', '-c'], root=self.logcatNeedsRoot)
 
     def getLogcat(self, filterSpecs=["dalvikvm:S", "ConnectivityService:S",
                                       "WifiMonitor:S", "WifiStateTracker:S",
@@ -505,7 +501,7 @@ class DeviceManager:
         """
         cmdline = ["/system/bin/logcat", "-v", format, "-d"] + filterSpecs
         lines = self.shellCheckOutput(cmdline,
-                                      root=self._logcatNeedsRoot).split('\r')
+                                      root=self.logcatNeedsRoot).split('\r')
 
         for regex in filterOutRegexps:
             lines = [line for line in lines if not re.search(regex, line)]

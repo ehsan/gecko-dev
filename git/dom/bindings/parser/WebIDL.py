@@ -473,8 +473,8 @@ class IDLInterface(IDLObjectWithScope):
         if originalObject.tag != IDLInterfaceMember.Tags.Method or \
            newObject.tag != IDLInterfaceMember.Tags.Method:
             # Call the base class method, which will throw
-            IDLScope.resolveIdentifierConflict(self, scope, identifier,
-                                               originalObject, newObject)
+            IDLScope.resolveIdentifierConflict(self, identifier, originalObject,
+                                               newObject)
             assert False # Not reached
 
         retval = originalObject.addOverload(newObject)
@@ -524,6 +524,22 @@ class IDLInterface(IDLObjectWithScope):
                                    self.parent.identifier.name),
                                   [self.location, self.parent.location])
 
+            # Now make sure our parent doesn't have any [Unforgeable]
+            # attributes.  We don't need to check its ancestors, because it has
+            # already checked those.  We don't need to check its consequential
+            # interfaces, because it has already imported those into its
+            # .members.
+            unforgeableParentMembers = [
+                attr for attr in parent.members
+                if attr.isAttr() and attr.isUnforgeable() ]
+            if len(unforgeableParentMembers) != 0:
+                locs = [self.location, parent.location]
+                locs.extend(attr.location for attr in unforgeableParentMembers)
+                raise WebIDLError("Interface %s inherits from %s, which has "
+                                  "[Unforgeable] members" %
+                                  (self.identifier.name, parent.identifier.name),
+                                  locs)
+
         for iface in self.implementedInterfaces:
             iface.finish(scope)
 
@@ -555,7 +571,7 @@ class IDLInterface(IDLObjectWithScope):
         if ctor is not None:
             ctor.finish(scope)
 
-        # Make a copy of our member list, so things that implement us
+        # Make a copy of our member list, so things tht implement us
         # can get those without all the stuff we implement ourselves
         # admixed.
         self.originalMembers = list(self.members)
@@ -582,37 +598,6 @@ class IDLInterface(IDLObjectWithScope):
             ancestor.interfacesBasedOnSelf.add(self)
             for ancestorConsequential in ancestor.getConsequentialInterfaces():
                 ancestorConsequential.interfacesBasedOnSelf.add(self)
-
-        if self.parent:
-            # Make sure we don't shadow any of the [Unforgeable] attributes on
-            # our ancestor interfaces.  We don't have to worry about
-            # consequential interfaces here, because those have already been
-            # imported into the relevant .members lists.  And we don't have to
-            # worry about anything other than our parent, because it has already
-            # imported its ancestors unforgeable attributes into its member
-            # list.
-            for unforgeableAttr in (attr for attr in self.parent.members if
-                                    attr.isAttr() and not attr.isStatic() and
-                                    attr.isUnforgeable()):
-                shadows = [ m for m in self.members if
-                            (m.isAttr() or m.isMethod()) and
-                            not m.isStatic() and
-                            m.identifier.name == unforgeableAttr.identifier.name ]
-                if len(shadows) != 0:
-                    locs = [unforgeableAttr.location] + [ s.location for s
-                                                          in shadows ]
-                    raise WebIDLError("Interface %s shadows [Unforgeable] "
-                                      "members of %s" %
-                                      (self.identifier.name,
-                                       ancestor.identifier.name),
-                                      locs)
-                # And now just stick it in our members, since we won't be
-                # inheriting this down the proto chain.  If we really cared we
-                # could try to do something where we set up the unforgeable
-                # attributes of ancestor interfaces, with their corresponding
-                # getters, on our interface, but that gets pretty complicated
-                # and seems unnecessary.
-                self.members.append(unforgeableAttr)
 
         # Ensure that there's at most one of each {named,indexed}
         # {getter,setter,creator,deleter} and at most one stringifier.
@@ -943,10 +928,7 @@ class IDLType(IDLObject):
         'uint64',
         # Additional primitive types
         'bool',
-        'unrestricted_float',
         'float',
-        'unrestricted_double',
-        # "double" last primitive type to match IDLBuiltinType
         'double',
         # Other types
         'any',
@@ -1045,16 +1027,6 @@ class IDLType(IDLObject):
     def isComplete(self):
         return True
 
-    def includesRestrictedFloat(self):
-        return False
-
-    def isFloat(self):
-        return False
-
-    def isUnrestricted(self):
-        # Should only call this on float types
-        assert self.isFloat()
-
     def tag(self):
         assert False # Override me!
 
@@ -1139,12 +1111,6 @@ class IDLNullableType(IDLType):
     def isFloat(self):
         return self.inner.isFloat()
 
-    def isUnrestricted(self):
-        return self.inner.isUnrestricted()
-
-    def includesRestrictedFloat(self):
-        return self.inner.includesRestrictedFloat()
-
     def isInteger(self):
         return self.inner.isInteger()
 
@@ -1205,6 +1171,17 @@ class IDLNullableType(IDLType):
                 raise WebIDLError("The inner type of a nullable type must not "
                                   "be a union type that itself has a nullable "
                                   "type as a member type", [self.location])
+            # Check for dictionaries in the union
+            for memberType in self.inner.flatMemberTypes:
+                if memberType.isDictionary():
+                    raise WebIDLError("The inner type of a nullable type must "
+                                      "not be a union type containing a "
+                                      "dictionary type",
+                                      [self.location, memberType.location])
+                    
+        if self.inner.isDictionary():
+            raise WebIDLError("The inner type of a nullable type must not be a "
+                              "dictionary type", [self.location])
 
         self.name = self.inner.name
         return self
@@ -1260,9 +1237,6 @@ class IDLSequenceType(IDLType):
     def isEnum(self):
         return False
 
-    def includesRestrictedFloat(self):
-        return self.inner.includesRestrictedFloat()
-
     def tag(self):
         # XXXkhuey this is probably wrong.
         return self.inner.tag()
@@ -1306,9 +1280,6 @@ class IDLUnionType(IDLType):
 
     def isUnion(self):
         return True
-
-    def includesRestrictedFloat(self):
-        return any(t.includesRestrictedFloat() for t in self.memberTypes)
 
     def tag(self):
         return IDLType.Tags.union
@@ -1661,10 +1632,7 @@ class IDLBuiltinType(IDLType):
         'unsigned_long_long',
         # Additional primitive types
         'boolean',
-        'unrestricted_float',
         'float',
-        'unrestricted_double',
-        # IMPORTANT: "double" must be the last primitive type listed
         'double',
         # Other types
         'any',
@@ -1696,9 +1664,7 @@ class IDLBuiltinType(IDLType):
             Types.long_long: IDLType.Tags.int64,
             Types.unsigned_long_long: IDLType.Tags.uint64,
             Types.boolean: IDLType.Tags.bool,
-            Types.unrestricted_float: IDLType.Tags.unrestricted_float,
             Types.float: IDLType.Tags.float,
-            Types.unrestricted_double: IDLType.Tags.unrestricted_double,
             Types.double: IDLType.Tags.double,
             Types.any: IDLType.Tags.any,
             Types.domstring: IDLType.Tags.domstring,
@@ -1756,17 +1722,7 @@ class IDLBuiltinType(IDLType):
 
     def isFloat(self):
         return self._typeTag == IDLBuiltinType.Types.float or \
-               self._typeTag == IDLBuiltinType.Types.double or \
-               self._typeTag == IDLBuiltinType.Types.unrestricted_float or \
-               self._typeTag == IDLBuiltinType.Types.unrestricted_double
-
-    def isUnrestricted(self):
-        assert self.isFloat()
-        return self._typeTag == IDLBuiltinType.Types.unrestricted_float or \
-               self._typeTag == IDLBuiltinType.Types.unrestricted_double
-
-    def includesRestrictedFloat(self):
-        return self.isFloat() and not self.isUnrestricted()
+               self._typeTag == IDLBuiltinType.Types.double
 
     def tag(self):
         return IDLBuiltinType.TagLookup[self._typeTag]
@@ -1843,15 +1799,9 @@ BuiltinTypes = {
       IDLBuiltinType.Types.float:
           IDLBuiltinType(BuiltinLocation("<builtin type>"), "Float",
                          IDLBuiltinType.Types.float),
-      IDLBuiltinType.Types.unrestricted_float:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "UnrestrictedFloat",
-                         IDLBuiltinType.Types.unrestricted_float),
       IDLBuiltinType.Types.double:
           IDLBuiltinType(BuiltinLocation("<builtin type>"), "Double",
                          IDLBuiltinType.Types.double),
-      IDLBuiltinType.Types.unrestricted_double:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "UnrestrictedDouble",
-                         IDLBuiltinType.Types.unrestricted_double),
       IDLBuiltinType.Types.any:
           IDLBuiltinType(BuiltinLocation("<builtin type>"), "Any",
                          IDLBuiltinType.Types.any),
@@ -2147,9 +2097,6 @@ class IDLAttribute(IDLInterfaceMember):
                 raise WebIDLError("[Unforgeable] is only allowed on readonly "
                                   "attributes", [attr.location, self.location])
             self._unforgeable = True
-        elif identifier == "Constant" and not self.readonly:
-            raise WebIDLError("[Constant] only allowed on readonly attributes",
-                              [attr.location, self.location])
         elif identifier == "PutForwards":
             if not self.readonly:
                 raise WebIDLError("[PutForwards] is only allowed on readonly "
@@ -2168,14 +2115,6 @@ class IDLAttribute(IDLInterfaceMember):
             if self.getExtendedAttribute("PutForwards") is not None:
                 raise WebIDLError("[PutForwards] and [Replaceable] can't both "
                                   "appear on the same attribute",
-                                  [attr.location, self.location])
-        elif identifier == "LenientFloat":
-            if self.readonly:
-                raise WebIDLError("[LenientFloat] used on a readonly attribute",
-                                  [attr.location, self.location])
-            if not self.type.includesRestrictedFloat():
-                raise WebIDLError("[LenientFloat] used on an attribute with a "
-                                  "non-restricted-float type",
                                   [attr.location, self.location])
         IDLInterfaceMember.handleExtendedAttribute(self, attr)
 
@@ -2283,7 +2222,6 @@ class IDLCallbackType(IDLType, IDLObjectWithScope):
                 argument.resolve(self)
 
         self._treatNonCallableAsNull = False
-        self._workerOnly = False
 
     def isCallback(self):
         return True
@@ -2324,16 +2262,11 @@ class IDLCallbackType(IDLType, IDLObjectWithScope):
         return (other.isPrimitive() or other.isString() or other.isEnum() or
                 other.isNonCallbackInterface() or other.isDate())
 
-    def isWorkerOnly(self):
-        return self._workerOnly
-
     def addExtendedAttributes(self, attrs):
         unhandledAttrs = []
         for attr in attrs:
             if attr.identifier() == "TreatNonCallableAsNull":
                 self._treatNonCallableAsNull = True
-            elif attr.identifier() == "WorkerOnly":
-                self._workerOnly = True
             else:
                 unhandledAttrs.append(attr)
         if len(unhandledAttrs) != 0:
@@ -2545,19 +2478,6 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
                                           "a required argument must be "
                                           "optional", [argument.location])
 
-                    # An argument cannot be a Nullable Dictionary
-                    if argument.type.nullable():
-                        raise WebIDLError("An argument cannot be a nullable dictionary",
-                                          [argument.location])
-
-                # An argument cannot be a nullable union containing a dictionary
-                if argument.type.isUnion() and argument.type.nullable():
-                    for memberType in argument.type.inner.flatMemberTypes:
-                        if memberType.isDictionary():
-                            raise WebIDLError("An argument cannot be a nullable union "
-                                              "containing a dictionary",
-                                              [argument.location, memberType.location])
-
                 # Only the last argument can be variadic
                 if variadicArgument:
                     raise WebIDLError("Variadic argument is not last argument",
@@ -2622,32 +2542,24 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
         return [overload for overload in self._overloads if
                 len(overload.arguments) == argc or
                 (len(overload.arguments) > argc and
-                 overload.arguments[argc].optional) or
-                (len(overload.arguments) < argc and
-                 len(overload.arguments) > 0 and
-                 overload.arguments[-1].variadic)]
+                 overload.arguments[argc].optional)]
 
     def signaturesForArgCount(self, argc):
         return [(overload.returnType, overload.arguments) for overload
                 in self.overloadsForArgCount(argc)]
 
     def locationsForArgCount(self, argc):
-        return [overload.location for overload in self.overloadsForArgCount(argc)]
+        return [overload.location for overload in self._overloads if
+                len(overload.arguments) == argc or
+                (len(overload.arguments) > argc and
+                 overload.arguments[argc].optional)]
 
     def distinguishingIndexForArgCount(self, argc):
         def isValidDistinguishingIndex(idx, signatures):
             for (firstSigIndex, (firstRetval, firstArgs)) in enumerate(signatures[:-1]):
                 for (secondRetval, secondArgs) in signatures[firstSigIndex+1:]:
-                    if idx < len(firstArgs):
-                        firstType = firstArgs[idx].type
-                    else:
-                        assert(firstArgs[-1].variadic)
-                        firstType = firstArgs[-1].type
-                    if idx < len(secondArgs):
-                        secondType = secondArgs[idx].type
-                    else:
-                        assert(secondArgs[-1].variadic)
-                        secondType = secondArgs[-1].type
+                    firstType = firstArgs[idx].type
+                    secondType = secondArgs[idx].type
                     if not firstType.isDistinguishableFrom(secondType):
                         return False
             return True
@@ -2675,24 +2587,9 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
             raise WebIDLError("Methods must not be flagged as "
                               "[Unforgeable]",
                               [attr.location, self.location])
-        elif identifier == "Constant":
-            raise WebIDLError("Methods must not be flagged as "
-                              "[Constant]",
-                              [attr.location, self.location]);
         elif identifier == "PutForwards":
             raise WebIDLError("Only attributes support [PutForwards]",
                               [attr.location, self.location])
-        elif identifier == "LenientFloat":
-            # This is called before we've done overload resolution
-            assert len(self.signatures()) == 1
-            sig = self.signatures()[0]
-            if not sig[0].isVoid():
-                raise WebIDLError("[LenientFloat] used on a non-void method",
-                                  [attr.location, self.location])
-            if not any(arg.type.includesRestrictedFloat() for arg in sig[1]):
-                raise WebIDLError("[LenientFloat] used on an operation with no "
-                                  "restricted float type arguments",
-                                  [attr.location, self.location])
         IDLInterfaceMember.handleExtendedAttribute(self, attr)
 
 class IDLImplementsStatement(IDLObject):
@@ -3886,23 +3783,11 @@ class Parser(Tokenizer):
         """
         p[0] = IDLBuiltinType.Types.float
 
-    def p_PrimitiveOrStringTypeUnrestictedFloat(self, p):
-        """
-            PrimitiveOrStringType : UNRESTRICTED FLOAT
-        """
-        p[0] = IDLBuiltinType.Types.unrestricted_float
-
     def p_PrimitiveOrStringTypeDouble(self, p):
         """
             PrimitiveOrStringType : DOUBLE
         """
         p[0] = IDLBuiltinType.Types.double
-
-    def p_PrimitiveOrStringTypeUnrestictedDouble(self, p):
-        """
-            PrimitiveOrStringType : UNRESTRICTED DOUBLE
-        """
-        p[0] = IDLBuiltinType.Types.unrestricted_double
 
     def p_PrimitiveOrStringTypeDOMString(self, p):
         """

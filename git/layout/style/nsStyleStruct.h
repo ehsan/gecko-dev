@@ -30,10 +30,11 @@
 #include "nsCSSValue.h"
 #include "nsStyleTransformMatrix.h"
 #include "nsAlgorithm.h"
-#include "imgRequestProxy.h"
+#include "imgIRequest.h"
 #include "gfxRect.h"
 
 class nsIFrame;
+class imgIRequest;
 class imgIContainer;
 struct nsCSSValueList;
 
@@ -329,7 +330,7 @@ struct nsStyleBackground {
 
     // True if the effective background image position described by this depends
     // on the size of the corresponding frame.
-    bool DependsOnPositioningAreaSize() const {
+    bool DependsOnFrameSize() const {
       return mXPosition.mPercent != 0.0f || mYPosition.mPercent != 0.0f;
     }
 
@@ -370,7 +371,7 @@ struct nsStyleBackground {
     // Except for eLengthPercentage, Dimension types which might change
     // how a layer is painted when the corresponding frame's dimensions
     // change *must* precede all dimension types which are agnostic to
-    // frame size; see DependsOnDependsOnPositioningAreaSizeSize.
+    // frame size; see DependsOnFrameSize.
     enum DimensionType {
       // If one of mWidth and mHeight is eContain or eCover, then both are.
       // Also, these two values must equal the corresponding values in
@@ -386,7 +387,7 @@ struct nsStyleBackground {
     // True if the effective image size described by this depends on the size of
     // the corresponding frame, when aImage (which must not have null type) is
     // the background image.
-    bool DependsOnPositioningAreaSize(const nsStyleImage& aImage) const;
+    bool DependsOnFrameSize(const nsStyleImage& aImage) const;
 
     // Initialize nothing
     Size() {}
@@ -449,11 +450,11 @@ struct nsStyleBackground {
     void SetInitialValues();
 
     // True if the rendering of this layer might change when the size
-    // of the background positioning area changes.  This is true for any
+    // of the corresponding frame changes.  This is true for any
     // non-solid-color background whose position or size depends on
-    // the size of the positioning area.  It's also true for SVG images
-    // whose root <svg> node has a viewBox.
-    bool RenderingMightDependOnPositioningAreaSizeChange() const;
+    // the frame size.  It's also true for SVG images whose root <svg>
+    // node has a viewBox.
+    bool RenderingMightDependOnFrameSize() const;
 
     // An equality operator that compares the images using URL-equality
     // rather than pointer-equality.
@@ -839,8 +840,8 @@ struct nsStyleBorder {
   }
 
   // These are defined in nsStyleStructInlines.h
-  inline void SetBorderImage(imgRequestProxy* aImage);
-  inline imgRequestProxy* GetBorderImage() const;
+  inline void SetBorderImage(imgIRequest* aImage);
+  inline imgIRequest* GetBorderImage() const;
 
   bool HasBorderImage() {return !!mBorderImageSource;}
 
@@ -893,7 +894,7 @@ public:
 #endif
 
 protected:
-  nsRefPtr<imgRequestProxy> mBorderImageSource; // [reset]
+  nsCOMPtr<imgIRequest> mBorderImageSource; // [reset]
 
 public:
   nsStyleCorners mBorderRadius;       // [reset] coord, percent
@@ -1048,8 +1049,8 @@ struct nsStyleList {
     return NS_STYLE_HINT_FRAMECHANGE;
   }
 
-  imgRequestProxy* GetListStyleImage() const { return mListStyleImage; }
-  void SetListStyleImage(imgRequestProxy* aReq)
+  imgIRequest* GetListStyleImage() const { return mListStyleImage; }
+  void SetListStyleImage(imgIRequest* aReq)
   {
     if (mListStyleImage)
       mListStyleImage->UnlockImage();
@@ -1061,7 +1062,7 @@ struct nsStyleList {
   uint8_t   mListStyleType;             // [inherited] See nsStyleConsts.h
   uint8_t   mListStylePosition;         // [inherited]
 private:
-  nsRefPtr<imgRequestProxy> mListStyleImage; // [inherited]
+  nsCOMPtr<imgIRequest> mListStyleImage; // [inherited]
   nsStyleList& operator=(const nsStyleList& aOther) MOZ_DELETE;
 public:
   nsRect        mImageRegion;           // [inherited] the rect to use within an image
@@ -1681,6 +1682,13 @@ struct nsStyleDisplay {
            NS_STYLE_POSITION_FIXED == mPosition;
   }
 
+  /* Returns true if we're positioned or there's a transform in effect. */
+  bool IsPositionedStyle() const {
+    return IsAbsolutelyPositionedStyle() ||
+           IsRelativelyPositionedStyle() ||
+           HasTransform();
+  }
+
   bool IsRelativelyPositionedStyle() const {
     return mPosition == NS_STYLE_POSITION_RELATIVE;
   }
@@ -1692,9 +1700,8 @@ struct nsStyleDisplay {
            mOverflowX != NS_STYLE_OVERFLOW_CLIP;
   }
 
-  /* Returns whether the element has the -moz-transform property
-   * or a related property. */
-  bool HasTransformStyle() const {
+  /* Returns whether the element has the -moz-transform property. */
+  bool HasTransform() const {
     return mSpecifiedTransform != nullptr || 
            mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D ||
            mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN;
@@ -1710,9 +1717,6 @@ struct nsStyleDisplay {
   inline bool IsPositioned(const nsIFrame* aFrame) const;
   inline bool IsRelativelyPositioned(const nsIFrame* aFrame) const;
   inline bool IsAbsolutelyPositioned(const nsIFrame* aFrame) const;
-  /* Returns whether the element has the -moz-transform property
-   * or a related property, and supports CSS transforms. */
-  inline bool HasTransform(const nsIFrame* aFrame) const;
 };
 
 struct nsStyleTable {
@@ -1782,7 +1786,7 @@ struct nsStyleContentData {
   nsStyleContentType  mType;
   union {
     PRUnichar *mString;
-    imgRequestProxy *mImage;
+    imgIRequest *mImage;
     nsCSSValue::Array* mCounters;
   } mContent;
 #ifdef DEBUG
@@ -1807,7 +1811,7 @@ struct nsStyleContentData {
   void TrackImage(nsPresContext* aContext);
   void UntrackImage(nsPresContext* aContext);
 
-  void SetImage(imgRequestProxy* aRequest)
+  void SetImage(imgIRequest* aRequest)
   {
     NS_ABORT_IF_FALSE(!mImageTracked,
                       "Setting a new image without untracking the old one!");
@@ -2282,7 +2286,6 @@ struct nsStyleSVGReset {
 
   uint8_t          mDominantBaseline; // [reset] see nsStyleConsts.h
   uint8_t          mVectorEffect;     // [reset] see nsStyleConsts.h
-  uint8_t          mMaskType;         // [reset] see nsStyleConsts.h
 };
 
 #endif /* nsStyleStruct_h___ */

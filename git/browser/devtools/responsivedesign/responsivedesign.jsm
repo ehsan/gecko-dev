@@ -9,10 +9,8 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource:///modules/devtools/FloatingScrollbars.jsm");
 Cu.import("resource:///modules/devtools/EventEmitter.jsm");
-Cu.import("resource:///modules/devtools/Target.jsm");
 
 this.EXPORTED_SYMBOLS = ["ResponsiveUIManager"];
 
@@ -69,10 +67,15 @@ this.ResponsiveUIManager = {
           this.toggle(aWindow, aTab);
       default:
     }
-  }
-}
+  },
 
-EventEmitter.decorate(ResponsiveUIManager);
+  get events() {
+    if (!this._eventEmitter) {
+      this._eventEmitter = new EventEmitter();
+    }
+    return this._eventEmitter;
+  },
+}
 
 let presets = [
   // Phones
@@ -158,6 +161,8 @@ function ResponsiveUI(aWindow, aTab)
   this.buildUI();
   this.checkMenus();
 
+  this.inspectorWasOpen = this.mainWindow.InspectorUI.isInspectorOpen;
+
   try {
     if (Services.prefs.getBoolPref("devtools.responsiveUI.rotate")) {
       this.rotate();
@@ -167,7 +172,7 @@ function ResponsiveUI(aWindow, aTab)
   if (this._floatingScrollbars)
     switchToFloatingScrollbars(this.tab);
 
-  ResponsiveUIManager.emit("on", this.tab, this);
+  ResponsiveUIManager.events.emit("on", this.tab, this);
 }
 
 ResponsiveUI.prototype = {
@@ -224,7 +229,7 @@ ResponsiveUI.prototype = {
     this.stack.removeAttribute("responsivemode");
 
     delete this.tab.__responsiveUI;
-    ResponsiveUIManager.emit("off", this.tab, this);
+    ResponsiveUIManager.events.emit("off", this.tab, this);
   },
 
   /**
@@ -236,9 +241,16 @@ ResponsiveUI.prototype = {
     if (aEvent.keyCode == this.mainWindow.KeyEvent.DOM_VK_ESCAPE &&
         this.mainWindow.gBrowser.selectedBrowser == this.browser) {
 
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
-      this.close();
+      // If the inspector wasn't open at first but is open now,
+      // we don't want to close the Responsive Mode on Escape.
+      // We let the inspector close first.
+
+      let isInspectorOpen = this.mainWindow.InspectorUI.isInspectorOpen;
+      if (this.inspectorWasOpen || !isInspectorOpen) {
+        aEvent.preventDefault();
+        aEvent.stopPropagation();
+        this.close();
+      }
     }
   },
 
@@ -434,15 +446,7 @@ ResponsiveUI.prototype = {
 
     let title = this.strings.GetStringFromName("responsiveUI.customNamePromptTitle");
     let message = this.strings.formatStringFromName("responsiveUI.customNamePromptMsg", [w, h], 2);
-    let promptOk = Services.prompt.prompt(null, title, message, newName, null, {});
-
-    if (!promptOk) {
-      // Prompt has been cancelled
-      let menuitem = this.customMenuitem;
-      this.menulist.selectedItem = menuitem;
-      this.currentPresetKey = this.customPreset.key;
-      return;
-    }
+    Services.prompt.prompt(null, title, message, newName, null, {});
 
     let newPreset = {
       key: w + "x" + h,
@@ -592,8 +596,8 @@ ResponsiveUI.prototype = {
     this._resizing = true;
     this.stack.setAttribute("notransition", "true");
 
-    this.lastScreenX = aEvent.screenX;
-    this.lastScreenY = aEvent.screenY;
+    this.lastClientX = aEvent.clientX;
+    this.lastClientY = aEvent.clientY;
 
     this.ignoreY = (aEvent.target === this.resizeBar);
 
@@ -606,8 +610,8 @@ ResponsiveUI.prototype = {
    * @param aEvent
    */
   onDrag: function RUI_onDrag(aEvent) {
-    let deltaX = aEvent.screenX - this.lastScreenX;
-    let deltaY = aEvent.screenY - this.lastScreenY;
+    let deltaX = aEvent.clientX - this.lastClientX;
+    let deltaY = aEvent.clientY - this.lastClientY;
 
     if (this.ignoreY)
       deltaY = 0;
@@ -618,13 +622,13 @@ ResponsiveUI.prototype = {
     if (width < MIN_WIDTH) {
         width = MIN_WIDTH;
     } else {
-        this.lastScreenX = aEvent.screenX;
+        this.lastClientX = aEvent.clientX;
     }
 
     if (height < MIN_HEIGHT) {
         height = MIN_HEIGHT;
     } else {
-        this.lastScreenY = aEvent.screenY;
+        this.lastClientY = aEvent.clientY;
     }
 
     this.setSize(width, height);

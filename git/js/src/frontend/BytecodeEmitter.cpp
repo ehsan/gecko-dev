@@ -9,7 +9,6 @@
  * JS bytecode generation.
  */
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
 
 #ifdef HAVE_MEMORY_H
@@ -1161,31 +1160,25 @@ EmitEnterBlock(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, JSOp op)
  *   }
  *   foo();
  *
- * In self-hosting mode, JSOP_*NAME is unconditionally converted to
- * JSOP_*INTRINSIC. This causes lookups to be redirected to the special
- * intrinsics holder in the global object, into which any missing values are
+ * In self-hosting mode, JSOP_NAME is unconditionally converted to
+ * JSOP_INTRINSICNAME. This causes the lookup to be redirected to the special
+ * intrinsics holder in the global object, into which any missing objects are
  * cloned lazily upon first access.
  */
 static bool
 TryConvertToGname(BytecodeEmitter *bce, ParseNode *pn, JSOp *op)
 {
     if (bce->selfHostingMode) {
-        switch (*op) {
-          case JSOP_NAME:     *op = JSOP_GETINTRINSIC; break;
-          case JSOP_SETNAME:  *op = JSOP_SETINTRINSIC; break;
-          /* Other *NAME ops aren't (yet) supported in self-hosted code. */
-          default: JS_NOT_REACHED("intrinsic");
-        }
+        JS_ASSERT(*op == JSOP_NAME);
+        *op = JSOP_INTRINSICNAME;
         return true;
     }
     if (bce->script->compileAndGo &&
         bce->hasGlobalScope &&
         !(bce->sc->isFunction && bce->sc->asFunbox()->mightAliasLocals()) &&
         !pn->isDeoptimized() &&
-        !bce->sc->strict)
+        !bce->sc->inStrictMode())
     {
-        // If you change anything here, you might also need to change
-        // js::ReportIfUndeclaredVarAssignment.
         switch (*op) {
           case JSOP_NAME:     *op = JSOP_GETGNAME; break;
           case JSOP_SETNAME:  *op = JSOP_SETGNAME; break;
@@ -1223,7 +1216,7 @@ TryConvertToGname(BytecodeEmitter *bce, ParseNode *pn, JSOp *op)
 static bool
 BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
-    JS_ASSERT(pn->isKind(PNK_NAME));
+    JS_ASSERT(pn->isKind(PNK_NAME) || pn->isKind(PNK_INTRINSICNAME));
 
     JS_ASSERT_IF(pn->isKind(PNK_FUNCTION), pn->isBound());
 
@@ -1583,7 +1576,7 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
               case PNK_DOT:
 #if JS_HAS_XML_SUPPORT
               case PNK_DBLDOT:
-                JS_ASSERT_IF(pn2->getKind() == PNK_DBLDOT, !bce->sc->strict);
+                JS_ASSERT_IF(pn2->getKind() == PNK_DBLDOT, !bce->sc->inStrictMode());
                 /* FALL THROUGH */
 
 #endif
@@ -1695,8 +1688,7 @@ BytecodeEmitter::needsImplicitThis()
 void
 BytecodeEmitter::tellDebuggerAboutCompiledScript(JSContext *cx)
 {
-    RootedFunction function(cx, script->function());
-    CallNewScriptHook(cx, script, function);
+    js_CallNewScriptHook(cx, script, script->function());
     if (!parent) {
         GlobalObject *compileAndGoGlobal = NULL;
         if (script->compileAndGo)
@@ -1720,7 +1712,8 @@ BytecodeEmitter::reportStrictWarning(ParseNode *pn, unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result = tokenStream()->reportStrictWarningErrorNumberVA(pn, errorNumber, args);
+    bool result = tokenStream()->reportCompileErrorNumberVA(pn, JSREPORT_STRICT | JSREPORT_WARNING,
+                                                            errorNumber, args);
     va_end(args);
     return result;
 }
@@ -1730,7 +1723,7 @@ BytecodeEmitter::reportStrictModeError(ParseNode *pn, unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result = tokenStream()->reportStrictModeErrorNumberVA(pn, sc->strict, errorNumber, args);
+    bool result = tokenStream()->reportStrictModeErrorNumberVA(pn, errorNumber, args);
     va_end(args);
     return result;
 }
@@ -1749,7 +1742,7 @@ EmitNameOp(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool callContext)
           case JSOP_NAME:
             op = JSOP_CALLNAME;
             break;
-          case JSOP_GETINTRINSIC:
+          case JSOP_INTRINSICNAME:
             op = JSOP_CALLINTRINSIC;
             break;
           case JSOP_GETGNAME:
@@ -1801,7 +1794,7 @@ EmitNameOp(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool callContext)
 static bool
 EmitXMLName(JSContext *cx, ParseNode *pn, JSOp op, BytecodeEmitter *bce)
 {
-    JS_ASSERT(!bce->sc->strict);
+    JS_ASSERT(!bce->sc->inStrictMode());
     JS_ASSERT(pn->isKind(PNK_XMLUNARY));
     JS_ASSERT(pn->isOp(JSOP_XMLNAME));
     JS_ASSERT(op == JSOP_XMLNAME || op == JSOP_CALLXMLNAME);
@@ -2672,7 +2665,7 @@ frontend::EmitFunctionScript(JSContext *cx, BytecodeEmitter *bce, ParseNode *bod
     /* Initialize fun->script() so that the debugger has a valid fun->script(). */
     RootedFunction fun(cx, bce->script->function());
     JS_ASSERT(fun->isInterpreted());
-    JS_ASSERT(!fun->hasScript());
+    JS_ASSERT(!fun->script().unsafeGet());
     fun->setScript(bce->script);
     if (!JSFunction::setTypeForScriptedFunction(cx, fun, singleton))
         return false;
@@ -3388,15 +3381,9 @@ EmitVariables(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmitOption 
 
         if (pn3) {
             JS_ASSERT(emitOption != DefineVars);
-            if (op == JSOP_SETNAME || op == JSOP_SETGNAME || op == JSOP_SETINTRINSIC) {
+            if (op == JSOP_SETNAME || op == JSOP_SETGNAME) {
                 JS_ASSERT(emitOption != PushInitialValues);
-                JSOp bindOp;
-                if (op == JSOP_SETNAME)
-                    bindOp = JSOP_BINDNAME;
-                else if (op == JSOP_SETGNAME)
-                    bindOp = JSOP_BINDGNAME;
-                else
-                    bindOp = JSOP_BINDINTRINSIC;
+                JSOp bindOp = (op == JSOP_SETNAME) ? JSOP_BINDNAME : JSOP_BINDGNAME;
                 if (!EmitIndex32(cx, bindOp, atomIndex, bce))
                     return false;
             }
@@ -3481,14 +3468,8 @@ EmitAssignment(JSContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp op, Par
             if (!bce->makeAtomIndex(lhs->pn_atom, &atomIndex))
                 return false;
             if (!lhs->isConst()) {
-                JSOp bindOp;
-                if (lhs->isOp(JSOP_SETNAME))
-                    bindOp = JSOP_BINDNAME;
-                else if (lhs->isOp(JSOP_SETGNAME))
-                    bindOp = JSOP_BINDGNAME;
-                else
-                    bindOp = JSOP_BINDINTRINSIC;
-                if (!EmitIndex32(cx, bindOp, atomIndex, bce))
+                JSOp op = lhs->isOp(JSOP_SETGNAME) ? JSOP_BINDGNAME : JSOP_BINDNAME;
+                if (!EmitIndex32(cx, op, atomIndex, bce))
                     return false;
                 offset++;
             }
@@ -3522,7 +3503,7 @@ EmitAssignment(JSContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp op, Par
         break;
 #if JS_HAS_XML_SUPPORT
       case PNK_XMLUNARY:
-        JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
         JS_ASSERT(lhs->isOp(JSOP_SETXMLNAME));
         if (!EmitTree(cx, bce, lhs->pn_kid))
             return false;
@@ -3559,10 +3540,6 @@ EmitAssignment(JSContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp op, Par
             } else if (lhs->isOp(JSOP_SETGNAME)) {
                 JS_ASSERT(lhs->pn_cookie.isFree());
                 if (!EmitAtomOp(cx, lhs, JSOP_GETGNAME, bce))
-                    return false;
-            } else if (lhs->isOp(JSOP_SETINTRINSIC)) {
-                JS_ASSERT(lhs->pn_cookie.isFree());
-                if (!EmitAtomOp(cx, lhs, JSOP_GETINTRINSIC, bce))
                     return false;
             } else {
                 JSOp op = lhs->isOp(JSOP_SETARG) ? JSOP_GETARG : JSOP_GETLOCAL;
@@ -3669,7 +3646,7 @@ EmitAssignment(JSContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp op, Par
 #endif
 #if JS_HAS_XML_SUPPORT
       case PNK_XMLUNARY:
-        JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
         if (Emit1(cx, bce, JSOP_SETXMLNAME) < 0)
             return false;
         break;
@@ -4369,7 +4346,7 @@ EmitLet(JSContext *cx, BytecodeEmitter *bce, ParseNode *pnLet)
 MOZ_NEVER_INLINE static bool
 EmitXMLTag(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
-    JS_ASSERT(!bce->sc->strict);
+    JS_ASSERT(!bce->sc->inStrictMode());
 
     if (Emit1(cx, bce, JSOP_STARTXML) < 0)
         return false;
@@ -4430,7 +4407,7 @@ EmitXMLTag(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 static bool
 EmitXMLProcessingInstruction(JSContext *cx, BytecodeEmitter *bce, XMLProcessingInstruction &pi)
 {
-    JS_ASSERT(!bce->sc->strict);
+    JS_ASSERT(!bce->sc->inStrictMode());
 
     jsatomid index;
     if (!bce->makeAtomIndex(pi.data(), &index))
@@ -4858,7 +4835,7 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     AssertCanGC();
     RootedFunction fun(cx, pn->pn_funbox->function());
     JS_ASSERT(fun->isInterpreted());
-    if (fun->hasScript()) {
+    if (fun->script().unsafeGet()) {
         /*
          * This second pass is needed to emit JSOP_NOP with a source note
          * for the already-emitted function definition prolog opcode. See
@@ -4873,9 +4850,15 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         SharedContext *outersc = bce->sc;
         FunctionBox *funbox = pn->pn_funbox;
 
+        // If funbox's strictModeState is still unknown (as can happen for
+        // functions defined in defaults), inherit it from the parent.
+        if (funbox->strictModeState == StrictMode::UNKNOWN) {
+            JS_ASSERT(outersc->strictModeState != StrictMode::UNKNOWN);
+            funbox->strictModeState = outersc->strictModeState;
+        }
         if (outersc->isFunction && outersc->asFunbox()->mightAliasLocals())
             funbox->setMightAliasLocals();      // inherit mightAliasLocals from parent
-        JS_ASSERT_IF(outersc->strict, funbox->strict);
+        JS_ASSERT_IF(outersc->inStrictMode(), funbox->inStrictMode());
 
         // Inherit most things (principals, version, etc) from the parent.
         Rooted<JSScript*> parent(cx, bce->script);
@@ -4885,8 +4868,7 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                .setOriginPrincipals(parent->originPrincipals)
                .setCompileAndGo(parent->compileAndGo)
                .setNoScriptRval(false)
-               .setVersion(parent->getVersion())
-               .setUserBit(parent->userBit);
+               .setVersion(parent->getVersion());
         Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false, options,
                                                       parent->staticLevel + 1,
                                                       bce->script->scriptSource(),
@@ -5301,7 +5283,7 @@ EmitDelete(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         break;
 #if JS_HAS_XML_SUPPORT
       case PNK_DBLDOT:
-        JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
         if (!EmitElemOp(cx, pn2, JSOP_DELDESC, bce))
             return false;
         break;
@@ -5371,37 +5353,39 @@ EmitCallOrNew(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     ParseNode *pn2 = pn->pn_head;
     switch (pn2->getKind()) {
       case PNK_NAME:
-        if (bce->selfHostingMode && pn2->name() == cx->names().callFunction)
+        if (!EmitNameOp(cx, bce, pn2, callop))
+            return false;
+        break;
+      case PNK_INTRINSICNAME:
+        if (pn2->name() == cx->names()._CallFunction)
         {
             /*
-             * Special-casing of callFunction to emit bytecode that directly
+             * Special-casing of %_CallFunction to emit bytecode that directly
              * invokes the callee with the correct |this| object and arguments.
-             * callFunction(fun, thisArg, ...args) thus becomes:
+             * The call %_CallFunction(receiver, ...args, fun) thus becomes:
              * - emit lookup for fun
-             * - emit lookup for thisArg
+             * - emit lookup for receiver
              * - emit lookups for ...args
              *
              * argc is set to the amount of actually emitted args and the
              * emitting of args below is disabled by setting emitArgs to false.
              */
             if (pn->pn_count < 3) {
-                bce->reportError(pn, JSMSG_MORE_ARGS_NEEDED, "callFunction", "1", "s");
+                bce->reportError(pn, JSMSG_MORE_ARGS_NEEDED, "%_CallFunction", "1", "s");
                 return false;
             }
             ParseNode *funNode = pn2->pn_next;
+            while (funNode->pn_next)
+                funNode = funNode->pn_next;
             if (!EmitTree(cx, bce, funNode))
                 return false;
-            ParseNode *thisArg = funNode->pn_next;
-            if (!EmitTree(cx, bce, thisArg))
-                return false;
-            if (Emit1(cx, bce, JSOP_NOTEARG) < 0)
+            ParseNode *receiver = pn2->pn_next;
+            if (!EmitTree(cx, bce, receiver))
                 return false;
             bool oldEmittingForInit = bce->emittingForInit;
             bce->emittingForInit = false;
-            for (ParseNode *argpn = thisArg->pn_next; argpn; argpn = argpn->pn_next) {
+            for (ParseNode *argpn = receiver->pn_next; argpn != funNode; argpn = argpn->pn_next) {
                 if (!EmitTree(cx, bce, argpn))
-                    return false;
-                if (Emit1(cx, bce, JSOP_NOTEARG) < 0)
                     return false;
             }
             bce->emittingForInit = oldEmittingForInit;
@@ -5585,7 +5569,7 @@ EmitIncOrDec(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         break;
 #if JS_HAS_XML_SUPPORT
       case PNK_XMLUNARY:
-        JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
         JS_ASSERT(pn2->isOp(JSOP_SETXMLNAME));
         if (!EmitTree(cx, bce, pn2->pn_kid))
             return false;
@@ -5805,8 +5789,11 @@ EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 return false;
         }
 
+        /* Annotate JSOP_INITELEM so we decompile 2:c and not just c. */
         if (pn3->isKind(PNK_NUMBER)) {
             obj = NULL;
+            if (NewSrcNote(cx, bce, SRC_INITPROP) < 0)
+                return false;
             if (Emit1(cx, bce, JSOP_INITELEM) < 0)
                 return false;
         } else {
@@ -5868,8 +5855,8 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      * Emit code for [a, b, c] that is equivalent to constructing a new
      * array and in source order evaluating each element value and adding
      * it to the array, without invoking latent setters.  We use the
-     * JSOP_NEWINIT and JSOP_INITELEM_ARRAY bytecodes to ignore setters and
-     * to avoid dup'ing and popping the array as each element is added, as
+     * JSOP_NEWINIT and JSOP_INITELEM bytecodes to ignore setters and to
+     * avoid dup'ing and popping the array as each element is added, as
      * JSOP_SETELEM/JSOP_SETPROP would do.
      */
 
@@ -5919,6 +5906,8 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (nspread && !EmitNumberOp(cx, 0, bce))
         return false;
     for (atomIndex = 0; pn2; atomIndex++, pn2 = pn2->pn_next) {
+        if (!nspread && !EmitNumberOp(cx, atomIndex, bce))
+            return false;
         if (pn2->isKind(PNK_COMMA) && pn2->isArity(PN_NULLARY)) {
             if (Emit1(cx, bce, JSOP_HOLE) < 0)
                 return false;
@@ -5930,14 +5919,8 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         if (pn2->isKind(PNK_SPREAD)) {
             if (Emit1(cx, bce, JSOP_SPREAD) < 0)
                 return false;
-        } else if (nspread) {
-            if (Emit1(cx, bce, JSOP_INITELEM_INC) < 0)
-                return false;
-        } else {
-            off = EmitN(cx, bce, JSOP_INITELEM_ARRAY, 3);
-            if (off < 0)
-                return false;
-            SET_UINT24(bce->code(off), atomIndex);
+        } else if (Emit1(cx, bce, nspread ? JSOP_INITELEM_INC : JSOP_INITELEM) < 0) {
+            return false;
         }
     }
     JS_ASSERT(atomIndex == pn->pn_count);
@@ -6401,7 +6384,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 #if JS_HAS_XML_SUPPORT
       case PNK_FILTER:
       {
-          JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
 
         if (!EmitTree(cx, bce, pn->pn_left))
             return false;
@@ -6433,7 +6416,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
 #if JS_HAS_XML_SUPPORT
       case PNK_DBLDOT:
-        JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
         /* FALL THROUGH */
 #endif
 
@@ -6506,7 +6489,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
       case PNK_XMLTEXT:
       case PNK_XMLCDATA:
       case PNK_XMLCOMMENT:
-        JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
         /* FALL THROUGH */
 #endif
       case PNK_STRING:
@@ -6541,7 +6524,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 #if JS_HAS_XML_SUPPORT
       case PNK_XMLELEM:
       case PNK_XMLLIST:
-        JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
         JS_ASSERT(pn->isKind(PNK_XMLLIST) || pn->pn_count != 0);
 
         switch (pn->pn_head ? pn->pn_head->getKind() : PNK_XMLLIST) {
@@ -6591,7 +6574,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         break;
 
       case PNK_XMLNAME:
-        JS_ASSERT(!bce->sc->strict);
+        JS_ASSERT(!bce->sc->inStrictMode());
 
         if (pn->isArity(PN_LIST)) {
             JS_ASSERT(pn->pn_count != 0);
@@ -6763,8 +6746,8 @@ frontend::AddToSrcNoteDelta(JSContext *cx, BytecodeEmitter *bce, jssrcnote *sn, 
     int index;
 
     /*
-     * Called only from FinishTakingSrcNotes to add to main script note
-     * deltas, and only by a small positive amount.
+     * Called only from OptimizeSpanDeps and FinishTakingSrcNotes to add to
+     * main script note deltas, and only by a small positive amount.
      */
     JS_ASSERT(bce->current == &bce->main);
     JS_ASSERT((unsigned) delta < (unsigned) SN_XDELTA_LIMIT);

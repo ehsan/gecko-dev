@@ -20,9 +20,6 @@
 #endif
 
 #if defined(OS_MACOSX) || defined(OS_BSD)
-#if defined(OS_OPENBSD)
-#include <sys/proc.h>
-#endif
 #include <sys/sysctl.h>
 #endif
 

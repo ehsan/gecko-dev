@@ -138,13 +138,7 @@ nsContextMenu.prototype = {
     }
 
     var shouldShow = this.onSaveableLink || isMailtoInternal || this.onPlainTextLink;
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-    var isWindowPrivate = PrivateBrowsingUtils.isWindowPrivate(window);
-    this.showItem("context-openlink", shouldShow && !isWindowPrivate);
-    this.showItem("context-openlinkprivate", shouldShow);
-#else
     this.showItem("context-openlink", shouldShow);
-#endif
     this.showItem("context-openlinkintab", shouldShow);
     this.showItem("context-openlinkincurrent", this.onPlainTextLink);
     this.showItem("context-sep-open", shouldShow);
@@ -418,21 +412,20 @@ nsContextMenu.prototype = {
   },
 
   inspectNode: function CM_inspectNode() {
-    let gBrowser = this.browser.ownerDocument.defaultView.gBrowser;
-    let imported = {};
-    Cu.import("resource:///modules/devtools/Target.jsm", imported);
-    let tt = imported.TargetFactory.forTab(gBrowser.selectedTab);
-    return gDevTools.showToolbox(tt, "inspector").then(function(toolbox) {
-      let inspector = toolbox.getCurrentPanel();
-      inspector.selection.setNode(this.target, "browser-context-menu");
-    }.bind(this));
+    if (InspectorUI.isTreePanelOpen) {
+      InspectorUI.inspectNode(this.target);
+      InspectorUI.stopInspecting();
+    } else {
+      InspectorUI.openInspectorUI(this.target);
+    }
   },
 
   // Set various context menu attributes based on the state of the world.
   setTarget: function (aNode, aRangeParent, aRangeOffset) {
     const xulNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     if (aNode.namespaceURI == xulNS ||
-        aNode.nodeType == Node.DOCUMENT_NODE) {
+        aNode.nodeType == Node.DOCUMENT_NODE ||
+        this.isTargetAFormControl(aNode)) {
       this.shouldDisplay = false;
       return;
     }
@@ -681,16 +674,6 @@ nsContextMenu.prototype = {
     openLinkIn(this.linkURL, "window",
                { charset: doc.characterSet,
                  referrerURI: doc.documentURIObject });
-  },
-
-  // Open linked-to URL in a new private window.
-  openLinkInPrivateWindow : function () {
-    var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, doc.nodePrincipal);
-    openLinkIn(this.linkURL, "window",
-               { charset: doc.characterSet,
-                 referrerURI: doc.documentURIObject,
-                 private: true });
   },
 
   // Open linked-to URL in a new tab.
@@ -1288,6 +1271,18 @@ nsContextMenu.prototype = {
            "contextMenu.link       = " + this.link + "\n" +
            "contextMenu.inFrame    = " + this.inFrame + "\n" +
            "contextMenu.hasBGImage = " + this.hasBGImage + "\n";
+  },
+
+  // Returns true if aNode is a from control (except text boxes and images).
+  // This is used to disable the context menu for form controls.
+  isTargetAFormControl: function(aNode) {
+    if (aNode instanceof HTMLInputElement)
+      return (!aNode.mozIsTextField(false) && aNode.type != "image");
+
+    return (aNode instanceof HTMLButtonElement) ||
+           (aNode instanceof HTMLSelectElement) ||
+           (aNode instanceof HTMLOptionElement) ||
+           (aNode instanceof HTMLOptGroupElement);
   },
 
   isTargetATextBox: function(node) {

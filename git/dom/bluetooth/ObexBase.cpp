@@ -37,16 +37,6 @@ AppendHeaderBody(uint8_t* aRetBuf, uint8_t* aData, int aLength)
 }
 
 int
-AppendHeaderEndOfBody(uint8_t* aRetBuf)
-{
-  aRetBuf[0] = ObexHeaderId::EndOfBody;
-  aRetBuf[1] = 0x00;
-  aRetBuf[2] = 0x03;
-
-  return 3;
-}
-
-int
 AppendHeaderLength(uint8_t* aRetBuf, int aObjectLength)
 {
   aRetBuf[0] = ObexHeaderId::Length;
@@ -115,7 +105,9 @@ ParseHeaders(const uint8_t* aHeaderStart,
         break;
     }
 
-    aRetHandlerSet->AddHeader(new ObexHeader(headerId, contentLength, ptr));
+    uint8_t* content = new uint8_t[contentLength];
+    memcpy(content, ptr, contentLength);
+    aRetHandlerSet->AddHeader(new ObexHeader(headerId, contentLength, content));
 
     ptr += contentLength;
   }

@@ -24,7 +24,6 @@
 
 #include "imgILoader.h"
 #include "imgIContainer.h"
-#include "imgRequestProxy.h"
 
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
@@ -95,7 +94,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsFrame::DidSetStyleContext(aOldStyleContext);
 
-  imgRequestProxy *newRequest = GetStyleList()->GetListStyleImage();
+  imgIRequest *newRequest = GetStyleList()->GetListStyleImage();
 
   if (newRequest) {
 
@@ -120,7 +119,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
         } else {
           nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
                                                 &mRequestRegistered);
-          mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+          mImageRequest->Cancel(NS_ERROR_FAILURE);
           mImageRequest = nullptr;
         }
       }
@@ -140,7 +139,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
       nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
                                             &mRequestRegistered);
 
-      mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+      mImageRequest->Cancel(NS_ERROR_FAILURE);
       mImageRequest = nullptr;
     }
   }
@@ -169,19 +168,6 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 #endif
 }
-
-class nsDisplayBulletGeometry : public nsDisplayItemGenericGeometry
-{
-public:
-  nsDisplayBulletGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
-    : nsDisplayItemGenericGeometry(aItem, aBuilder)
-  {
-    nsBulletFrame* f = static_cast<nsBulletFrame*>(aItem->GetUnderlyingFrame());
-    mOrdinal = f->GetOrdinal();
-  }
-
-  int32_t mOrdinal;
-};
 
 class nsDisplayBullet : public nsDisplayItem {
 public:
@@ -212,27 +198,6 @@ public:
   {
     bool snap;
     return GetBounds(aBuilder, &snap);
-  }
-
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder)
-  {
-    return new nsDisplayBulletGeometry(this, aBuilder);
-  }
-
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion *aInvalidRegion)
-  {
-    const nsDisplayBulletGeometry* geometry = static_cast<const nsDisplayBulletGeometry*>(aGeometry);
-    nsBulletFrame* f = static_cast<nsBulletFrame*>(mFrame);
-
-    if (f->GetOrdinal() != geometry->mOrdinal) {
-      bool snap;
-      aInvalidRegion->Or(geometry->mBounds, GetBounds(aBuilder, &snap));
-      return;
-    }
-
-    return nsDisplayItem::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
   }
 };
 

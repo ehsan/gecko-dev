@@ -12,6 +12,7 @@
 nsUnicodeToGB2312V2::nsUnicodeToGB2312V2() :
   nsEncoderSupport(2)
 {
+  mUtil.InitToGBKTable();
 }
 
 NS_IMETHODIMP nsUnicodeToGB2312V2::ConvertNoBuff(const PRUnichar * aSrc, 

@@ -8,7 +8,8 @@
 
 #include "nsIAccessibilityService.h"
 
-#include "mozilla/a11y/DocManager.h"
+#include "nsAccDocManager.h"
+
 #include "mozilla/a11y/FocusManager.h"
 
 #include "nsIObserver.h"
@@ -27,23 +28,48 @@ class ApplicationAccessible;
  */
 FocusManager* FocusMgr();
 
+enum EPlatformDisabledState {
+  ePlatformIsForceEnabled = -1,
+  ePlatformIsEnabled = 0,
+  ePlatformIsDisabled = 1
+};
+
+/**
+ * Return the platform disabled state.
+ */
+EPlatformDisabledState PlatformDisabledState();
+
 /**
  * Returns the application accessible.
  */
 ApplicationAccessible* ApplicationAcc();
 
+#ifdef MOZ_ACCESSIBILITY_ATK
+/**
+ * Perform initialization that should be done as soon as possible, in order
+ * to minimize startup time.
+ * XXX: this function and the next defined in ApplicationAccessibleWrap.cpp
+ */
+void PreInit();
+#endif
+
+#if defined(MOZ_ACCESSIBILITY_ATK) || defined(XP_MACOSX)
+/**
+ * Is platform accessibility enabled.
+ * Only used on linux with atk and MacOS for now.
+ */
+bool ShouldA11yBeEnabled();
+#endif
+
 } // namespace a11y
 } // namespace mozilla
 
-class nsAccessibilityService : public mozilla::a11y::DocManager,
+class nsAccessibilityService : public nsAccDocManager,
                                public mozilla::a11y::FocusManager,
                                public nsIAccessibilityService,
                                public nsIObserver
 {
 public:
-  typedef mozilla::a11y::Accessible Accessible;
-  typedef mozilla::a11y::DocAccessible DocAccessible;
-
   virtual ~nsAccessibilityService();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -54,8 +80,8 @@ public:
   virtual Accessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
                                                 bool aCanCreate);
   already_AddRefed<Accessible>
-    CreatePluginAccessible(nsObjectFrame* aFrame, nsIContent* aContent,
-                           Accessible* aContext);
+    CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame, nsIContent* aContent,
+                                    DocAccessible* aDoc);
 
   /**
    * Adds/remove ATK root accessible for gtk+ native window to/from children
@@ -63,13 +89,6 @@ public:
    */
   virtual Accessible* AddNativeRootAccessible(void* aAtkAccessible);
   virtual void RemoveNativeRootAccessible(Accessible* aRootAccessible);
-
-  /**
-   * Notification used to update the accessible tree when deck panel is
-   * switched.
-   */
-  void DeckPanelSwitched(nsIPresShell* aPresShell, nsIContent* aDeckNode,
-                         nsIFrame* aPrevBoxFrame, nsIFrame* aCurrentBoxFrame);
 
   /**
    * Notification used to update the accessible tree when new content is
@@ -134,11 +153,11 @@ public:
    * one.
    *
    * @param  aNode             [in] the given node
-   * @param  aContext          [in] context the accessible is created in
+   * @param  aDoc              [in] the doc accessible of the node
    * @param  aIsSubtreeHidden  [out, optional] indicates whether the node's
    *                             frame and its subtree is hidden
    */
-  Accessible* GetOrCreateAccessible(nsINode* aNode, Accessible* aContext,
+  Accessible* GetOrCreateAccessible(nsINode* aNode, DocAccessible* aDoc,
                                     bool* aIsSubtreeHidden = nullptr);
 
 private:
@@ -171,14 +190,22 @@ private:
    */
   already_AddRefed<Accessible>
     CreateHTMLAccessibleByMarkup(nsIFrame* aFrame, nsIContent* aContent,
-                                 Accessible* aContext);
+                                 DocAccessible* aDoc,
+                                 bool aIsLegalPartOfHTMLTable);
 
   /**
    * Create an accessible whose type depends on the given frame.
    */
   already_AddRefed<Accessible>
     CreateAccessibleByFrameType(nsIFrame* aFrame, nsIContent* aContent,
-                                Accessible* aContext);
+                                DocAccessible* aDoc);
+
+  /**
+   * Create accessible if parent is a deck frame.
+   */
+  already_AddRefed<Accessible>
+    CreateAccessibleForDeckChild(nsIFrame* aFrame, nsIContent* aContent,
+                                 DocAccessible* aDoc);
 
 #ifdef MOZ_XUL
   /**

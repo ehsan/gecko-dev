@@ -85,7 +85,7 @@ nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
 a11y::AccType
 nsSubDocumentFrame::AccessibleType()
 {
-  return a11y::eOuterDocType;
+  return a11y::eOuterDocAccessible;
 }
 #endif
 
@@ -143,7 +143,7 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
   }
   EnsureInnerView();
 
-  // Set the primary frame now so that nsDocumentViewer::FindContainerView
+  // Set the primary frame now so that DocumentViewerImpl::FindContainerView
   // called from within EndSwapDocShellsForViews below can find it if needed.
   aContent->SetPrimaryFrame(this);
 
@@ -414,10 +414,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     childItems.AppendToTop(zoomItem);
   }
 
-  nsIScrollableFrame *sf = presShell->GetRootScrollFrameAsScrollable();
-  if (!addedLayer &&
-      (presContext->IsRootContentDocument() ||
-       (sf && sf->IsScrollingActive()))) {
+  if (!addedLayer && presContext->IsRootContentDocument()) {
     // We always want top level content documents to be in their own layer.
     nsDisplayOwnLayer* layerItem = new (aBuilder) nsDisplayOwnLayer(
       aBuilder, subdocRootFrame ? subdocRootFrame : this, 

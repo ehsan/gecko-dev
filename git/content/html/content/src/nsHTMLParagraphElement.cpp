@@ -14,7 +14,6 @@
 #include "nsRuleData.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 // XXX missing nav attributes
 
@@ -35,7 +34,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLParagraphElement
   NS_DECL_NSIDOMHTMLPARAGRAPHELEMENT
@@ -68,8 +67,8 @@ nsHTMLParagraphElement::~nsHTMLParagraphElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLParagraphElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLParagraphElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLParagraphElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsHTMLParagraphElement, nsGenericElement)
 
 DOMCI_NODE_DATA(HTMLParagraphElement, nsHTMLParagraphElement)
 

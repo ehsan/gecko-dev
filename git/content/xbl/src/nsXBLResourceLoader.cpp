@@ -16,7 +16,7 @@
 #include "nsXBLPrototypeResources.h"
 #include "nsIDocumentObserver.h"
 #include "imgILoader.h"
-#include "imgRequestProxy.h"
+#include "imgIRequest.h"
 #include "mozilla/css/Loader.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -31,10 +31,10 @@
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLResourceLoader)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLResourceLoader)
-NS_IMPL_CYCLE_COLLECTION_UNLINK(mBoundElements)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mBoundElements)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXBLResourceLoader)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBoundElements)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mBoundElements)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXBLResourceLoader)
@@ -102,7 +102,7 @@ nsXBLResourceLoader::LoadResources(bool* aResult)
       // Now kick off the image load...
       // Passing NULL for pretty much everything -- cause we don't care!
       // XXX: initialDocumentURI is NULL! 
-      nsRefPtr<imgRequestProxy> req;
+      nsCOMPtr<imgIRequest> req;
       nsContentUtils::LoadImage(url, doc, docPrincipal, docURL, nullptr,
                                 nsIRequest::LOAD_BACKGROUND,
                                 getter_AddRefs(req));

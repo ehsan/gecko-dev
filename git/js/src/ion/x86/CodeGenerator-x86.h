@@ -19,16 +19,16 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     class DeferredDouble : public TempObject
     {
         AbsoluteLabel label_;
-        uint32_t index_;
+        uint32 index_;
 
       public:
-        DeferredDouble(uint32_t index) : index_(index)
+        DeferredDouble(uint32 index) : index_(index)
         { }
 
         AbsoluteLabel *label() {
             return &label_;
         }
-        uint32_t index() const {
+        uint32 index() const {
             return index_;
         }
     };
@@ -43,7 +43,6 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
   protected:
     ValueOperand ToValue(LInstruction *ins, size_t pos);
     ValueOperand ToOutValue(LInstruction *ins);
-    ValueOperand ToTempValue(LInstruction *ins, size_t pos);
 
     void storeElementTyped(const LAllocation *value, MIRType valueType, MIRType elementType,
                            const Register &elements, const LAllocation *index);
@@ -52,7 +51,7 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     void linkAbsoluteLabels();
 
   public:
-    CodeGeneratorX86(MIRGenerator *gen, LIRGraph *graph);
+    CodeGeneratorX86(MIRGenerator *gen, LIRGraph &graph);
 
   public:
     bool visitBox(LBox *box);
@@ -70,8 +69,6 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     bool visitInterruptCheck(LInterruptCheck *lir);
     bool visitCompareB(LCompareB *lir);
     bool visitCompareBAndBranch(LCompareBAndBranch *lir);
-    bool visitCompareV(LCompareV *lir);
-    bool visitCompareVAndBranch(LCompareVAndBranch *lir);
 };
 
 typedef CodeGeneratorX86 CodeGeneratorSpecific;

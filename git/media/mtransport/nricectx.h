@@ -84,10 +84,6 @@ class NrIceCtx {
                ICE_CTX_FAILED
   };
 
-  enum Controlling { ICE_CONTROLLING,
-                     ICE_CONTROLLED
-  };
-
   static RefPtr<NrIceCtx> Create(const std::string& name,
                                           bool offerer,
                                           bool set_interface_priorities = true);
@@ -95,9 +91,6 @@ class NrIceCtx {
 
   nr_ice_ctx *ctx() { return ctx_; }
   nr_ice_peer_ctx *peer() { return peer_; }
-
-  // Testing only.
-  void destroy_peer_ctx();
 
   // Create a media stream
   RefPtr<NrIceMediaStream> CreateStream(const std::string& name,
@@ -114,9 +107,6 @@ class NrIceCtx {
 
   // Set the other side's global attributes
   nsresult ParseGlobalAttributes(std::vector<std::string> attrs);
-
-  // Set whether we are controlling or not.
-  nsresult SetControlling(Controlling controlling);
 
   // Start ICE gathering
   nsresult StartGathering();

@@ -19,13 +19,6 @@ namespace ion {
 
 class TempAllocator;
 
-// Possible register allocators which may be used.
-enum IonRegisterAllocator {
-    RegisterAllocator_LSRA,
-    RegisterAllocator_Backtracking,
-    RegisterAllocator_Stupid
-};
-
 struct IonOptions
 {
     // Toggles whether global value numbering is used.
@@ -54,10 +47,11 @@ struct IonOptions
     // Default: true
     bool limitScriptSize;
 
-    // Describes which register allocator to use.
+    // Toggles whether Linear Scan Register Allocation is used. If LSRA is not
+    // used, then Greedy Register Allocation is used instead.
     //
-    // Default: LSRA
-    IonRegisterAllocator registerAllocator;
+    // Default: true
+    bool lsra;
 
     // Toggles whether inlining is performed.
     //
@@ -71,13 +65,8 @@ struct IonOptions
 
     // Toggles whether Range Analysis is used.
     //
-    // Default: true
+    // Default: false
     bool rangeAnalysis;
-
-    // Toggles whether Unreachable Code Elimination is performed.
-    //
-    // Default: true
-    bool uce;
 
     // Toggles whether compilation occurs off the main thread.
     //
@@ -88,29 +77,29 @@ struct IonOptions
     // are compiled.
     //
     // Default: 10,240
-    uint32_t usesBeforeCompile;
+    uint32 usesBeforeCompile;
 
     // How many invocations or loop iterations are needed before functions
     // are compiled when JM is disabled.
     //
     // Default: 40
-    uint32_t usesBeforeCompileNoJaeger;
+    uint32 usesBeforeCompileNoJaeger;
 
     // How many invocations or loop iterations are needed before calls
     // are inlined.
     //
     // Default: 10,240
-    uint32_t usesBeforeInlining;
+    uint32 usesBeforeInlining;
 
     // How many actual arguments are accepted on the C stack.
     //
     // Default: 4,096
-    uint32_t maxStackArgs;
+    uint32 maxStackArgs;
 
     // The maximum inlining depth.
     //
     // Default: 3
-    uint32_t maxInlineDepth;
+    uint32 maxInlineDepth;
 
     // The bytecode length limit for small function.
     //
@@ -119,7 +108,7 @@ struct IonOptions
     // in.
     //
     // Default: 100
-    uint32_t smallFunctionMaxBytecodeLength;
+    uint32 smallFunctionMaxBytecodeLength;
 
     // The inlining limit for small functions.
     //
@@ -128,23 +117,23 @@ struct IonOptions
     // gone in.
     //
     // Default: usesBeforeInlining / 4
-    uint32_t smallFunctionUsesBeforeInlining;
+    uint32 smallFunctionUsesBeforeInlining;
 
     // The maximum number of functions to polymorphically inline at a call site.
     //
     // Default: 4
-    uint32_t polyInlineMax;
+    uint32 polyInlineMax;
 
     // The maximum total bytecode size of an inline call site.
     //
     // Default: 800
-    uint32_t inlineMaxTotalBytecodeLength;
+    uint32 inlineMaxTotalBytecodeLength;
 
     // Minimal ratio between the use counts of the caller and the callee to
     // enable inlining of functions.
     //
     // Default: 128
-    uint32_t inlineUseCountRatio;
+    uint32 inlineUseCountRatio;
 
     // Whether functions are compiled immediately.
     //
@@ -154,14 +143,7 @@ struct IonOptions
     // If a function has attempted to make this many calls to
     // functions that are marked "uncompileable", then
     // stop running this function in IonMonkey. (default 512)
-    uint32_t slowCallLimit;
-
-    // When caller runs in IM, but callee not, we take a slow path to the interpreter.
-    // This has a significant overhead. In order to decrease the number of times this happens,
-    // the useCount gets incremented faster to compile this function in IM and use the fastpath.
-    //
-    // Default: 5
-    uint32_t slowCallIncUseCount;
+    uint32 slowCallLimit;
 
     void setEagerCompilation() {
         eagerCompilation = true;
@@ -180,11 +162,10 @@ struct IonOptions
         licm(true),
         osr(true),
         limitScriptSize(true),
-        registerAllocator(RegisterAllocator_LSRA),
+        lsra(true),
         inlining(true),
         edgeCaseAnalysis(true),
         rangeAnalysis(true),
-        uce(true),
         parallelCompilation(false),
         usesBeforeCompile(10240),
         usesBeforeCompileNoJaeger(40),
@@ -197,8 +178,7 @@ struct IonOptions
         inlineMaxTotalBytecodeLength(800),
         inlineUseCountRatio(128),
         eagerCompilation(false),
-        slowCallLimit(512),
-        slowCallIncUseCount(5)
+        slowCallLimit(512)
     {
     }
 };
@@ -246,31 +226,14 @@ bool SetIonContext(IonContext *ctx);
 MethodStatus CanEnterAtBranch(JSContext *cx, HandleScript script,
                               StackFrame *fp, jsbytecode *pc);
 MethodStatus CanEnter(JSContext *cx, HandleScript script, StackFrame *fp, bool newType);
-MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script, uint32_t numActualArgs);
+MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script);
 
 enum IonExecStatus
 {
-    // The method call had to be aborted due to a stack limit check. This
-    // error indicates that Ion never attempted to clean up frames.
-    IonExec_Aborted,
-
-    // The method call resulted in an error, and IonMonkey has cleaned up
-    // frames.
     IonExec_Error,
-
-    // The method call succeeed and returned a value.
     IonExec_Ok,
-
-    // A guard triggered in IonMonkey and we must resume execution in
-    // the interpreter.
     IonExec_Bailout
 };
-
-static inline bool
-IsErrorStatus(IonExecStatus status)
-{
-    return status == IonExec_Error || status == IonExec_Aborted;
-}
 
 IonExecStatus Cannon(JSContext *cx, StackFrame *fp);
 IonExecStatus SideCannon(JSContext *cx, StackFrame *fp, jsbytecode *pc);
@@ -282,34 +245,28 @@ IonExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgsList &args);
 void Invalidate(types::TypeCompartment &types, FreeOp *fop,
                 const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
 void Invalidate(JSContext *cx, const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
-bool Invalidate(JSContext *cx, UnrootedScript script, bool resetUses = true);
+bool Invalidate(JSContext *cx, JSScript *script, bool resetUses = true);
 
-void MarkValueFromIon(JSRuntime *rt, Value *vp);
-void MarkShapeFromIon(JSRuntime *rt, Shape **shapep);
+void MarkFromIon(JSCompartment *comp, Value *vp);
 
 void ToggleBarriers(JSCompartment *comp, bool needs);
 
 class IonBuilder;
 class MIRGenerator;
-class CodeGenerator;
+class LIRGraph;
 
-CodeGenerator *CompileBackEnd(MIRGenerator *mir);
+LIRGraph *CompileBackEnd(MIRGenerator *mir);
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(IonBuilder *builder);
-bool TestIonCompile(JSContext *cx, HandleScript script, HandleFunction fun, jsbytecode *osrPc, bool constructing);
+bool TestIonCompile(JSContext *cx, JSScript *script, JSFunction *fun, jsbytecode *osrPc, bool constructing);
 
 static inline bool IsEnabled(JSContext *cx)
 {
     return cx->hasRunOption(JSOPTION_ION) && cx->typeInferenceEnabled();
 }
 
-void ForbidCompilation(JSContext *cx, UnrootedScript script);
-uint32_t UsesBeforeIonRecompile(UnrootedScript script, jsbytecode *pc);
-
-void PurgeCaches(UnrootedScript script, JSCompartment *c);
-size_t MemoryUsed(UnrootedScript script, JSMallocSizeOfFun mallocSizeOf);
-void DestroyIonScripts(FreeOp *fop, UnrootedScript script);
-void TraceIonScripts(JSTracer* trc, UnrootedScript script);
+void ForbidCompilation(JSContext *cx, JSScript *script);
+uint32_t UsesBeforeIonRecompile(JSScript *script, jsbytecode *pc);
 
 } // namespace ion
 } // namespace js

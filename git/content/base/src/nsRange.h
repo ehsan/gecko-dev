@@ -30,12 +30,6 @@ public:
     , mIsDetached(false)
     , mMaySpanAnonymousSubtrees(false)
     , mInSelection(false)
-    , mStartOffsetWasIncremented(false)
-    , mEndOffsetWasIncremented(false)
-#ifdef DEBUG
-    , mAssertNextInsertOrAppendIndex(-1)
-    , mAssertNextInsertOrAppendNode(nullptr)
-#endif
   {}
   virtual ~nsRange();
 
@@ -235,24 +229,6 @@ protected:
   bool mIsDetached;
   bool mMaySpanAnonymousSubtrees;
   bool mInSelection;
-  bool mStartOffsetWasIncremented;
-  bool mEndOffsetWasIncremented;
-#ifdef DEBUG
-  int32_t  mAssertNextInsertOrAppendIndex;
-  nsINode* mAssertNextInsertOrAppendNode;
-#endif
 };
-
-inline nsISupports*
-ToCanonicalSupports(nsRange* aRange)
-{
-  return static_cast<nsIDOMRange*>(aRange);
-}
-
-inline nsISupports*
-ToSupports(nsRange* aRange)
-{
-  return static_cast<nsIDOMRange*>(aRange);
-}
 
 #endif /* nsRange_h___ */

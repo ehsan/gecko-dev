@@ -11,7 +11,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/quota/QuotaManager.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMLists.h"
 #include "nsJSUtils.h"
@@ -19,6 +18,7 @@
 #include "nsThreadUtils.h"
 
 #include "AsyncConnectionHelper.h"
+#include "CheckQuotaHelper.h"
 #include "DatabaseInfo.h"
 #include "IDBEvents.h"
 #include "IDBFactory.h"
@@ -37,7 +37,6 @@
 
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::ContentParent;
-using mozilla::dom::quota::QuotaManager;
 
 namespace {
 
@@ -189,7 +188,10 @@ IDBDatabase::Create(IDBWrapperCache* aOwnerCache,
   nsRefPtr<IDBDatabase> db(new IDBDatabase());
 
   db->BindToOwner(aOwnerCache);
-  db->SetScriptOwner(aOwnerCache->GetScriptOwner());
+  if (!db->SetScriptOwner(aOwnerCache->GetScriptOwner())) {
+    return nullptr;
+  }
+
   db->mFactory = aFactory;
   db->mDatabaseId = databaseInfo->id;
   db->mName = databaseInfo->name;
@@ -242,6 +244,8 @@ IDBDatabase::~IDBDatabase()
       mgr->UnregisterDatabase(this);
     }
   }
+
+  nsContentUtils::ReleaseWrapper(static_cast<nsIDOMEventTarget*>(this), this);
 }
 
 void
@@ -259,11 +263,11 @@ IDBDatabase::Invalidate()
   Close();
 
   // When the IndexedDatabaseManager needs to invalidate databases, all it has
-  // is an origin, so we call into the quota manager here to cancel any prompts
-  // for our owner.
+  // is an origin, so we call back into the manager to cancel any prompts for
+  // our owner.
   nsPIDOMWindow* owner = GetOwner();
   if (owner) {
-    QuotaManager::CancelPromptsForWindow(owner);
+    IndexedDatabaseManager::CancelPromptsForWindow(owner);
   }
 
   DatabaseInfo::Remove(mDatabaseId);
@@ -287,7 +291,7 @@ IDBDatabase::DisconnectFromActorParent()
   // Kill any outstanding prompts.
   nsPIDOMWindow* owner = GetOwner();
   if (owner) {
-    QuotaManager::CancelPromptsForWindow(owner);
+    IndexedDatabaseManager::CancelPromptsForWindow(owner);
   }
 }
 
@@ -422,7 +426,7 @@ IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBDatabase)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFactory)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFactory)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
@@ -780,12 +784,6 @@ IDBDatabase::Close()
   return NS_OK;
 }
 
-const nsACString&
-IDBDatabase::StorageOrigin()
-{
-  return Origin();
-}
-
 nsISupports*
 IDBDatabase::StorageId()
 {
@@ -808,13 +806,13 @@ void
 IDBDatabase::SetThreadLocals()
 {
   NS_ASSERTION(GetOwner(), "Should have owner!");
-  QuotaManager::SetCurrentWindow(GetOwner());
+  IndexedDatabaseManager::SetCurrentWindow(GetOwner());
 }
 
 void
 IDBDatabase::UnsetThreadLocals()
 {
-  QuotaManager::SetCurrentWindow(nullptr);
+  IndexedDatabaseManager::SetCurrentWindow(nullptr);
 }
 
 nsresult

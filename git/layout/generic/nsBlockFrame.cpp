@@ -9,12 +9,8 @@
  * boxes, also used for various anonymous boxes
  */
 
-#include "mozilla/DebugOnly.h"
-#include "mozilla/Likely.h"
-
 #include "nsCOMPtr.h"
 #include "nsBlockFrame.h"
-#include "nsAbsoluteContainingBlock.h"
 #include "nsBlockReflowContext.h"
 #include "nsBlockReflowState.h"
 #include "nsBulletFrame.h"
@@ -57,6 +53,8 @@
 #include "nsRenderingContext.h"
 #include "TextOverflow.h"
 #include "nsStyleStructInlines.h"
+#include "mozilla/Util.h" // for DebugOnly
+#include "mozilla/Likely.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -1574,16 +1572,14 @@ nsBlockFrame::PrepareResizeReflow(nsBlockReflowState& aState)
   const nsStyleTextReset* styleTextReset = GetStyleTextReset();
   // See if we can try and avoid marking all the lines as dirty
   bool tryAndSkipLines =
-    // The block must be LTR (bug 806284)
-    GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR &&
-    // The text must be left-aligned.
+      // The text must be left-aligned.
     IsAlignedLeft(styleText->mTextAlign, 
                   aState.mReflowState.mStyleVisibility->mDirection,
                   styleTextReset->mUnicodeBidi,
                   this) &&
-    // The left content-edge must be a constant distance from the left
-    // border-edge.
-    !GetStylePadding()->mPadding.GetLeft().HasPercent();
+      // The left content-edge must be a constant distance from the left
+      // border-edge.
+      !GetStylePadding()->mPadding.GetLeft().HasPercent();
 
 #ifdef DEBUG
   if (gDisableResizeOpt) {
@@ -5817,7 +5813,7 @@ nsBlockFrame::ReflowFloat(nsBlockReflowState& aState,
   }
   // Pass floatRS so the frame hierarchy can be used (redoFloatRS has the same hierarchy)  
   aFloat->DidReflow(aState.mPresContext, &floatRS,
-                    nsDidReflowStatus::FINISHED);
+                        NS_FRAME_REFLOW_FINISHED);
 
 #ifdef NOISY_FLOAT
   printf("end ReflowFloat %p, sized to %d,%d\n",
@@ -6081,26 +6077,27 @@ DisplayLine(nsDisplayListBuilder* aBuilder, const nsRect& aLineArea,
       !lineMayHaveTextOverflow)
     return NS_OK;
 
+  nsDisplayListCollection collection;
+  nsresult rv;
+
   // Block-level child backgrounds go on the blockBorderBackgrounds list ...
   // Inline-level child backgrounds go on the regular child content list.
-  nsDisplayListSet childLists(aLists,
-    lineInline ? aLists.Content() : aLists.BlockBorderBackgrounds());
-
-  uint32_t flags = lineInline ? nsIFrame::DISPLAY_CHILD_INLINE : 0;
-
+  nsDisplayListSet childLists(collection,
+    lineInline ? collection.Content() : collection.BlockBorderBackgrounds());
   nsIFrame* kid = aLine->mFirstChild;
   int32_t n = aLine->GetChildCount();
   while (--n >= 0) {
-    nsresult rv = aFrame->BuildDisplayListForChild(aBuilder, kid, aDirtyRect,
-                                                   childLists, flags);
+    rv = aFrame->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, childLists,
+                                          lineInline ? nsIFrame::DISPLAY_CHILD_INLINE : 0);
     NS_ENSURE_SUCCESS(rv, rv);
     kid = kid->GetNextSibling();
   }
   
   if (lineMayHaveTextOverflow) {
-    aTextOverflow->ProcessLine(aLists, aLine.get());
+    aTextOverflow->ProcessLine(collection, aLine.get());
   }
 
+  collection.MoveTo(aLists);
   return NS_OK;
 }
 
@@ -6252,14 +6249,14 @@ nsBlockFrame::AccessibleType()
 {
   // block frame may be for <hr>
   if (mContent->Tag() == nsGkAtoms::hr) {
-    return a11y::eHTMLHRType;
+    return a11y::eHTMLHRAccessible;
   }
 
   if (!HasBullet() || !PresContext()) {
     if (!mContent->GetParent()) {
       // Don't create accessible objects for the root content node, they are redundant with
       // the nsDocAccessible object created with the document node
-      return a11y::eNoType;
+      return a11y::eNoAccessible;
     }
     
     nsCOMPtr<nsIDOMHTMLDocument> htmlDoc =
@@ -6270,16 +6267,16 @@ nsBlockFrame::AccessibleType()
       if (SameCOMIdentity(body, mContent)) {
         // Don't create accessible objects for the body, they are redundant with
         // the nsDocAccessible object created with the document node
-        return a11y::eNoType;
+        return a11y::eNoAccessible;
       }
     }
 
     // Not a bullet, treat as normal HTML container
-    return a11y::eHyperTextType;
+    return a11y::eHyperTextAccessible;
   }
 
   // Create special list bullet accessible
-  return a11y::eHTMLLiType;
+  return a11y::eHTMLLiAccessible;
 }
 #endif
 
@@ -6789,7 +6786,7 @@ nsBlockFrame::ReflowBullet(nsIFrame* aBulletFrame,
   nscoord y = aState.mContentArea.y;
   aBulletFrame->SetRect(nsRect(x, y, aMetrics.width, aMetrics.height));
   aBulletFrame->DidReflow(aState.mPresContext, &aState.mReflowState,
-                          nsDidReflowStatus::FINISHED);
+                          NS_FRAME_REFLOW_FINISHED);
 }
 
 // This is used to scan frames for any float placeholders, add their

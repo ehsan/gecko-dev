@@ -14,24 +14,14 @@ WebGLUniformLocation::WrapObject(JSContext *cx, JSObject *scope)
     return dom::WebGLUniformLocationBinding::Wrap(cx, scope, this);
 }
 
-WebGLUniformLocation::WebGLUniformLocation(WebGLContext *context, WebGLProgram *program, GLint location, const WebGLUniformInfo& info)
-    : WebGLContextBoundObject(context)
-    , mProgram(program)
-    , mProgramGeneration(program->Generation())
-    , mLocation(location)
-    , mInfo(info)
-{
-    mElementSize = info.ElementSize();
-}
-
 NS_IMPL_CYCLE_COLLECTION_CLASS(WebGLUniformLocation)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WebGLUniformLocation)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mProgram)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mProgram)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(WebGLUniformLocation)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mProgram)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mProgram)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLUniformLocation)

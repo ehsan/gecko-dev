@@ -4,9 +4,8 @@
 
 "use strict"
 
-const DEBUG = false;
 function debug(s) {
-  if (DEBUG) dump("-*- SettingsChangeNotifier: " + s + "\n");
+//  dump("-*- SettingsChangeNotifier: " + s + "\n");
 }
 
 const Cu = Components.utils;
@@ -28,7 +27,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
 
 this.SettingsChangeNotifier = {
   init: function() {
-    if (DEBUG) debug("init");
+    debug("init");
     this.children = [];
     this._messages = ["Settings:Changed", "Settings:RegisterForMessages", "child-process-shutdown"];
     this._messages.forEach((function(msgName) {
@@ -40,7 +39,7 @@ this.SettingsChangeNotifier = {
   },
 
   observe: function(aSubject, aTopic, aData) {
-    if (DEBUG) debug("observe");
+    debug("observe");
     switch (aTopic) {
       case kXpcomShutdownObserverTopic:
         this._messages.forEach((function(msgName) {
@@ -63,20 +62,20 @@ this.SettingsChangeNotifier = {
         break;
       }
       default:
-        if (DEBUG) debug("Wrong observer topic: " + aTopic);
+        debug("Wrong observer topic: " + aTopic);
         break;
     }
   },
 
   broadcastMessage: function broadcastMessage(aMsgName, aContent) {
-    if (DEBUG) debug("Broadast");
+    debug("Broadast");
     this.children.forEach(function(msgMgr) {
       msgMgr.sendAsyncMessage(aMsgName, aContent);
     });
   },
 
   receiveMessage: function(aMessage) {
-    if (DEBUG) debug("receiveMessage");
+    debug("receiveMessage");
     let msg = aMessage.data;
     let mm = aMessage.target;
     switch (aMessage.name) {
@@ -96,26 +95,21 @@ this.SettingsChangeNotifier = {
           }));
         break;
       case "Settings:RegisterForMessages":
-        if (!aMessage.target.assertPermission("settings-read")) {
-          Cu.reportError("Settings message " + msg.name +
-                         " from a content process with no 'settings-read' privileges.");
-          return null;
-        }
-        if (DEBUG) debug("Register!");
+        debug("Register!");
         if (this.children.indexOf(mm) == -1) {
           this.children.push(mm);
         }
         break;
       case "child-process-shutdown":
-        if (DEBUG) debug("Unregister");
+        debug("Unregister");
         let index;
         if ((index = this.children.indexOf(mm)) != -1) {
-          if (DEBUG) debug("Unregister index: " + index);
+          debug("Unregister index: " + index);
           this.children.splice(index, 1);
         }
         break;
       default:
-        if (DEBUG) debug("Wrong message: " + aMessage.name);
+        debug("Wrong message: " + aMessage.name);
     }
   }
 }

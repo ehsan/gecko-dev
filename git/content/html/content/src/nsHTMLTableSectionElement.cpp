@@ -19,7 +19,6 @@
 #include "nsContentUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 // you will see the phrases "rowgroup" and "section" used interchangably
 
@@ -39,7 +38,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLTableSectionElement
   NS_DECL_NSIDOMHTMLTABLESECTIONELEMENT
@@ -75,11 +74,12 @@ nsHTMLTableSectionElement::nsHTMLTableSectionElement(already_AddRefed<nsINodeInf
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTableSectionElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTableSectionElement,
                                                   nsGenericHTMLElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRows)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRows,
+                                                       nsIDOMNodeList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLTableSectionElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLTableSectionElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLTableSectionElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLTableSectionElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLTableSectionElement, nsHTMLTableSectionElement)

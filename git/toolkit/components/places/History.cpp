@@ -4,10 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
-#include "mozilla/Util.h"
-
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
 #include "nsXULAppAPI.h"
@@ -19,7 +15,6 @@
 #include "Helpers.h"
 #include "PlaceInfo.h"
 #include "VisitInfo.h"
-#include "nsPlacesMacros.h"
 
 #include "mozilla/storage.h"
 #include "mozilla/dom/Link.h"
@@ -29,8 +24,10 @@
 #include "nsNetUtil.h"
 #include "nsIXPConnect.h"
 #include "mozilla/unused.h"
+#include "mozilla/Util.h"
 #include "nsContentUtils.h"
 #include "nsIMemoryReporter.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/ipc/URIUtils.h"
 
 // Initial size for the cache holding visited status observers.
@@ -458,13 +455,14 @@ public:
     nsCOMPtr<nsIURI> uri;
     (void)NS_NewURI(getter_AddRefs(uri), mPlace.spec);
 
-    // Notify the visit.  Note that TRANSITION_EMBED visits are never added
-    // to the database, thus cannot be queried and we don't notify them.
-    if (mPlace.transitionType != nsINavHistoryService::TRANSITION_EMBED) {
+    // Notify nsNavHistory observers of visit, but only for certain types of
+    // visits to maintain consistency with nsNavHistory::GetQueryResults.
+    if (!mPlace.hidden &&
+        mPlace.transitionType != nsINavHistoryService::TRANSITION_EMBED &&
+        mPlace.transitionType != nsINavHistoryService::TRANSITION_FRAMED_LINK) {
       navHistory->NotifyOnVisit(uri, mPlace.visitId, mPlace.visitTime,
                                 mPlace.sessionId, mReferrer.visitId,
-                                mPlace.transitionType, mPlace.guid,
-                                mPlace.hidden);
+                                mPlace.transitionType, mPlace.guid);
     }
 
     nsCOMPtr<nsIObserverService> obsService =
@@ -1402,7 +1400,8 @@ StoreAndNotifyEmbedVisit(VisitData& aPlace,
   (void)NS_DispatchToMainThread(event);
 }
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HistoryLinksHashtableMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HistoryLinksHashtableMallocSizeOf,
+                                     "history-links-hashtable")
 
 int64_t GetHistoryObserversSize()
 {
@@ -2019,7 +2018,7 @@ History::SetURITitle(nsIURI* aURI, const nsAString& aTitle)
     mozilla::dom::ContentChild * cpc = 
       mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendSetURITitle(uri, PromiseFlatString(aTitle));
+    (void)cpc->SendSetURITitle(uri, nsString(aTitle));
     return NS_OK;
   } 
 
@@ -2066,8 +2065,6 @@ History::AddDownload(nsIURI* aSource, nsIURI* aReferrer,
 {
   MOZ_ASSERT(NS_IsMainThread());
   NS_ENSURE_ARG(aSource);
-
-  ENSURE_NOT_PRIVATE_BROWSING;
 
   if (mShuttingDown) {
     return NS_OK;

@@ -40,13 +40,9 @@
 @BINPATH@/@DLL_PREFIX@xpcom@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@nspr4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@mozalloc@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@soundtouch@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@mozglue@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@omxplugin@DLL_SUFFIX@
-@BINPATH@/@DLL_PREFIX@omxplugingb@DLL_SUFFIX@
-@BINPATH@/@DLL_PREFIX@omxplugingb235@DLL_SUFFIX@
-@BINPATH@/@DLL_PREFIX@omxpluginhc@DLL_SUFFIX@
-@BINPATH@/@DLL_PREFIX@omxpluginsony@DLL_SUFFIX@
-@BINPATH@/@DLL_PREFIX@omxpluginfroyo@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@xul@DLL_SUFFIX@
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 
@@ -100,6 +96,7 @@
 @BINPATH@/components/content_htmldoc.xpt
 @BINPATH@/components/content_html.xpt
 @BINPATH@/components/content_xslt.xpt
+@BINPATH@/components/content_xtf.xpt
 @BINPATH@/components/cookie.xpt
 @BINPATH@/components/directory.xpt
 @BINPATH@/components/docshell.xpt
@@ -131,7 +128,6 @@
 @BINPATH@/components/dom_sms.xpt
 @BINPATH@/components/dom_storage.xpt
 @BINPATH@/components/dom_stylesheets.xpt
-@BINPATH@/components/dom_system.xpt
 @BINPATH@/components/dom_threads.xpt
 @BINPATH@/components/dom_traversal.xpt
 @BINPATH@/components/dom_views.xpt
@@ -192,9 +188,6 @@
 @BINPATH@/components/necko.xpt
 @BINPATH@/components/loginmgr.xpt
 @BINPATH@/components/parentalcontrols.xpt
-#ifdef MOZ_WEBRTC
-@BINPATH@/components/peerconnection.xpt
-#endif
 @BINPATH@/components/plugin.xpt
 @BINPATH@/components/pref.xpt
 @BINPATH@/components/prefetch.xpt
@@ -365,16 +358,6 @@
 @BINPATH@/components/TCPSocketParentIntermediary.js
 @BINPATH@/components/TCPSocket.manifest
 
-#ifdef MOZ_WEBRTC
-@BINPATH@/components/PeerConnection.js
-@BINPATH@/components/PeerConnection.manifest
-#endif
-
-#ifdef MOZ_SERVICES_HEALTHREPORT
-@BINPATH@/components/HealthReportComponents.manifest
-@BINPATH@/components/HealthReportService.js
-#endif
-
 ; Modules
 @BINPATH@/modules/*
 
@@ -425,11 +408,6 @@
 @BINPATH@/defaults/autoconfig/platform.js
 @BINPATH@/defaults/autoconfig/prefcalls.js
 @BINPATH@/defaults/profile/prefs.js
-
-; Services (gre) prefs
-#ifdef MOZ_SERVICES_HEALTHREPORT
-@BINPATH@/defaults/pref/healthreport-prefs.js
-#endif
 
 ; [Layout Engine Resources]
 ; Style Sheets, Graphics and other Resources used by the layout engine. 

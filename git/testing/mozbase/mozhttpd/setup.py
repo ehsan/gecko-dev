@@ -11,7 +11,7 @@ try:
 except IOError:
     description = None
 
-PACKAGE_VERSION = '0.5'
+PACKAGE_VERSION = '0.4'
 
 deps = []
 

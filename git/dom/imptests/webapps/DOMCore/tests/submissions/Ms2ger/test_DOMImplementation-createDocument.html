@@ -1,23 +1,11 @@
 <!doctype html>
-<meta charset=utf-8>
-<title>DOMImplementation.createDocument(namespace, qualifiedName, doctype)</title>
-<link rel=help href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-domimplementation-createdocument">
-<link rel=help href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-document-createelementns">
-<link rel=help href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-node-nodetype">
-<link rel=help href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-document-documentelement">
-<link rel=help href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-document-doctype">
+<title>DOMImplementation.createDocument(namespaceURI, qualifiedName, doctype)</title>
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
 <div id="log"></div>
 <script>
 test(function() {
   var tests = [
-    /* Arrays with four elements:
-     *   the namespace argument
-     *   the qualifiedName argument
-     *   the doctype argument
-     *   the expected exception, or null if none
-     */
     [null, null, null, null],
     [null, "", null, null],
     [null, "foo", null, null],
@@ -138,25 +126,30 @@ test(function() {
     assert_unreached()
   }
 
-  tests.forEach(function(t, i) {
+  for (var i in tests) {
     test(function() {
-      var namespace = t[0], qualifiedName = t[1], doctype = t[2], expected = t[3]
+      var test = tests[i],
+          namespaceURI = test[0],
+          qualifiedName = test[1],
+          doctype = test[2],
+          expected = test[3]
       if (expected != null) {
-        assert_throws(expected, function() { document.implementation.createDocument(namespace, qualifiedName, doctype) })
+        assert_throws(expected, function() { document.implementation.createDocument(namespaceURI, qualifiedName, doctype) })
       } else {
-        var doc = document.implementation.createDocument(namespace, qualifiedName, doctype)
+        var doc = document.implementation.createDocument(namespaceURI, qualifiedName, doctype)
         assert_equals(doc.nodeType, Node.DOCUMENT_NODE)
         assert_equals(doc.nodeType, doc.DOCUMENT_NODE)
-        if (qualifiedName === "" || qualifiedName === null) {
+        if(!qualifiedName) {
           assert_equals(doc.documentElement, null)
-        } else {
-          assert_not_equals(doc.documentElement, null)
-          assert_equals(doc.documentElement.nodeType, Node.ELEMENT_NODE)
         }
-        assert_equals(doc.doctype, doctype)
-        assert_equals(doc.childNodes.length, !!qualifiedName + !!doctype)
+        if(!doctype) {
+          assert_equals(doc.doctype, null)
+        }
+        if(!qualifiedName && !doctype) {
+          assert_equals(doc.childNodes.length, 0)
+        }
       }
-    }, "createDocument test " + i + ": " + t.map(function(el) { return format_value(el) }))
-  })
+    })
+  }
 })
 </script>

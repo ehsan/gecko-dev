@@ -51,7 +51,6 @@ XPIDLSRCS	= \
 		nsIThreadPool.idl \
 		nsITimer.idl \
 		nsIRunnable.idl \
-		nsICancelableRunnable.idl \
 		nsIEnvironment.idl \
 		nsIProcess.idl \
 		nsISupportsPriority.idl \

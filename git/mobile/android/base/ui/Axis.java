@@ -84,7 +84,7 @@ abstract class Axis {
         });
     }
 
-    static final float MS_PER_FRAME = 1000.0f / 60.0f;
+    static final float MS_PER_FRAME = 4.0f;
     private static final float FRAMERATE_MULTIPLIER = (1000f/60f) / MS_PER_FRAME;
 
     //  The values we use for friction are based on a 16.6ms frame, adjust them to MS_PER_FRAME:
@@ -343,9 +343,8 @@ abstract class Axis {
 
         // if overscroll is disabled and we're trying to overscroll, reset the displacement
         // to remove any excess. Using getExcess alone isn't enough here since it relies on
-        // getOverscroll which doesn't take into account any new displacment being applied.
-        // If we using a subscroller, we don't want to alter the scrolling being done
-        if (getOverScrollMode() == View.OVER_SCROLL_NEVER && !mSubscroller.scrolling()) {
+        // getOverscroll which doesn't take into account any new displacment being applied
+        if (getOverScrollMode() == View.OVER_SCROLL_NEVER) {
             if (mDisplacement + getOrigin() < getPageStart()) {
                 mDisplacement = getPageStart() - getOrigin();
                 stopFling();

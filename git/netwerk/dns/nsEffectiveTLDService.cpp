@@ -59,7 +59,8 @@ nsDomainEntry::FuncForStaticAsserts(void)
 
 static nsEffectiveTLDService *gService = nullptr;
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(EffectiveTLDServiceMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(EffectiveTLDServiceMallocSizeOf,
+                                     "effective-tld-service")
 
 static int64_t
 GetEffectiveTLDSize()

@@ -13,10 +13,10 @@
 ///
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Last changed  : $Date$
+// Last changed  : $Date: 2012-04-01 12:49:30 -0700 (Sun, 01 Apr 2012) $
 // File revision : $Revision: 1.12 $
 //
-// $Id$
+// $Id: TDStretch.cpp 137 2012-04-01 19:49:30Z oparviai $
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -590,7 +590,7 @@ void TDStretch::acceptNewOverlapLength(int newOverlapLength)
 
         pMidBufferUnaligned = new SAMPLETYPE[overlapLength * 2 + 16 / sizeof(SAMPLETYPE)];
         // ensure that 'pMidBuffer' is aligned to 16 byte boundary for efficiency
-        pMidBuffer = (SAMPLETYPE *)SOUNDTOUCH_ALIGN_POINTER_16(pMidBufferUnaligned);
+        pMidBuffer = (SAMPLETYPE *)((((ulong)pMidBufferUnaligned) + 15) & (ulong)-16);
 
         clearMidBuffer();
     }

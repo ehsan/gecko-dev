@@ -120,10 +120,12 @@ SwapBytes(uint64_t u)
 #endif
 }
 
+namespace js {
+
 bool
-js::WriteStructuredClone(JSContext *cx, const Value &v, uint64_t **bufp, size_t *nbytesp,
-                         const JSStructuredCloneCallbacks *cb, void *cbClosure,
-                         jsval transferable)
+WriteStructuredClone(JSContext *cx, const Value &v, uint64_t **bufp, size_t *nbytesp,
+                     const JSStructuredCloneCallbacks *cb, void *cbClosure,
+                     jsval transferable)
 {
     SCOutput out(cx);
     JSStructuredCloneWriter w(out, cb, cbClosure, transferable);
@@ -131,8 +133,8 @@ js::WriteStructuredClone(JSContext *cx, const Value &v, uint64_t **bufp, size_t 
 }
 
 bool
-js::ReadStructuredClone(JSContext *cx, uint64_t *data, size_t nbytes, Value *vp,
-                        const JSStructuredCloneCallbacks *cb, void *cbClosure)
+ReadStructuredClone(JSContext *cx, uint64_t *data, size_t nbytes, Value *vp,
+                    const JSStructuredCloneCallbacks *cb, void *cbClosure)
 {
     SCInput in(cx, data, nbytes);
 
@@ -144,7 +146,7 @@ js::ReadStructuredClone(JSContext *cx, uint64_t *data, size_t nbytes, Value *vp,
 }
 
 bool
-js::ClearStructuredClone(const uint64_t *data, size_t nbytes)
+ClearStructuredClone(const uint64_t *data, size_t nbytes)
 {
     const uint64_t *point = data;
     const uint64_t *end = data + nbytes / 8;
@@ -169,7 +171,8 @@ js::ClearStructuredClone(const uint64_t *data, size_t nbytes)
 }
 
 bool
-js::StructuredCloneHasTransferObjects(const uint64_t *data, size_t nbytes, bool *hasTransferable)
+StructuredCloneHasTransferObjects(const uint64_t *data, size_t nbytes,
+                                  bool *hasTransferable)
 {
     *hasTransferable = false;
 
@@ -183,6 +186,8 @@ js::StructuredCloneHasTransferObjects(const uint64_t *data, size_t nbytes, bool 
 
     return true;
 }
+
+} /* namespace js */
 
 static inline uint64_t
 PairToUInt64(uint32_t tag, uint32_t data)
@@ -207,10 +212,8 @@ SCInput::SCInput(JSContext *cx, uint64_t *data, size_t nbytes)
 bool
 SCInput::read(uint64_t *p)
 {
-    if (point == end) {
-        *p = 0;  /* initialize to shut GCC up */
+    if (point == end)
         return eof();
-    }
     *p = SwapBytes(*point++);
     return true;
 }
@@ -218,7 +221,7 @@ SCInput::read(uint64_t *p)
 bool
 SCInput::readPair(uint32_t *tagp, uint32_t *datap)
 {
-    uint64_t u;
+    uint64_t u = 0;     /* initialize to shut GCC up */
     bool ok = read(&u);
     if (ok) {
         *tagp = uint32_t(u >> 32);
@@ -488,11 +491,7 @@ JSStructuredCloneWriter::parseTransferable()
             return false;
         }
 
-        JSObject* tObj = UnwrapObjectChecked(&v.toObject());
-        if (!tObj) {
-            JS_ReportError(context(), "Permission denied to access object");
-            return false;
-        }
+        JSObject* tObj = &v.toObject();
         if (!tObj->isArrayBuffer()) {
             reportErrorTransferable();
             return false;
@@ -568,13 +567,13 @@ JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v)
     JS_ASSERT(v.isObject());
     RootedObject obj(w->context(), &v.toObject());
 
-    // If the object is a security wrapper, see if we're allowed to unwrap it.
-    // If we aren't, throw.
-    if (obj->isWrapper())
-        obj = UnwrapObjectChecked(obj);
-    if (!obj) {
-        JS_ReportError(w->context(), "Permission denied to access object");
-        return false;
+    // If the object is a security wrapper, try puncturing it. This may throw
+    // if the access is not allowed.
+    if (obj->isWrapper()) {
+        JSObject *unwrapped = UnwrapObjectChecked(w->context(), obj);
+        if (!unwrapped)
+            return false;
+        obj = unwrapped;
     }
     return w->writeTypedArray(obj);
 }
@@ -675,11 +674,9 @@ JSStructuredCloneWriter::startWrite(const Value &v)
 
         // The object might be a security wrapper. See if we can clone what's
         // behind it. If we can, unwrap the object.
-        obj = UnwrapObjectChecked(obj);
-        if (!obj) {
-            JS_ReportError(context(), "Permission denied to access object");
+        obj = UnwrapObjectChecked(context(), obj);
+        if (!obj)
             return false;
-        }
 
         AutoCompartment ac(context(), obj);
 
@@ -900,23 +897,23 @@ JSStructuredCloneReader::readTypedArray(uint32_t tag, uint32_t nelems, Value *vp
     JS_ASSERT(TypedArray::length(obj) == nelems);
     switch (tag) {
       case SCTAG_TYPED_ARRAY_INT8:
-        return in.readArray((uint8_t*) JS_GetInt8ArrayData(obj), nelems);
+        return in.readArray((uint8_t*) JS_GetInt8ArrayData(obj, context()), nelems);
       case SCTAG_TYPED_ARRAY_UINT8:
-        return in.readArray(JS_GetUint8ArrayData(obj), nelems);
+        return in.readArray(JS_GetUint8ArrayData(obj, context()), nelems);
       case SCTAG_TYPED_ARRAY_INT16:
-        return in.readArray((uint16_t*) JS_GetInt16ArrayData(obj), nelems);
+        return in.readArray((uint16_t*) JS_GetInt16ArrayData(obj, context()), nelems);
       case SCTAG_TYPED_ARRAY_UINT16:
-        return in.readArray(JS_GetUint16ArrayData(obj), nelems);
+        return in.readArray(JS_GetUint16ArrayData(obj, context()), nelems);
       case SCTAG_TYPED_ARRAY_INT32:
-        return in.readArray((uint32_t*) JS_GetInt32ArrayData(obj), nelems);
+        return in.readArray((uint32_t*) JS_GetInt32ArrayData(obj, context()), nelems);
       case SCTAG_TYPED_ARRAY_UINT32:
-        return in.readArray(JS_GetUint32ArrayData(obj), nelems);
+        return in.readArray(JS_GetUint32ArrayData(obj, context()), nelems);
       case SCTAG_TYPED_ARRAY_FLOAT32:
-        return in.readArray((uint32_t*) JS_GetFloat32ArrayData(obj), nelems);
+        return in.readArray((uint32_t*) JS_GetFloat32ArrayData(obj, context()), nelems);
       case SCTAG_TYPED_ARRAY_FLOAT64:
-        return in.readArray((uint64_t*) JS_GetFloat64ArrayData(obj), nelems);
+        return in.readArray((uint64_t*) JS_GetFloat64ArrayData(obj, context()), nelems);
       case SCTAG_TYPED_ARRAY_UINT8_CLAMPED:
-        return in.readArray(JS_GetUint8ClampedArrayData(obj), nelems);
+        return in.readArray(JS_GetUint8ClampedArrayData(obj, context()), nelems);
       default:
         JS_NOT_REACHED("unknown TypedArray type");
         return false;

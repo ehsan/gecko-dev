@@ -30,122 +30,6 @@ class nsPIDOMWindow;
 class nsCxPusher;
 class nsIEventListenerInfo;
 
-struct nsListenerStruct;
-class nsEventListenerManager;
-
-namespace mozilla {
-namespace dom {
-
-struct EventListenerFlags
-{
-  friend struct ::nsListenerStruct;
-  friend class  ::nsEventListenerManager;
-private:
-  // If mListenerIsJSListener is true, the listener is implemented by JS.
-  // Otherwise, it's implemented by native code or JS but it's wrapped.
-  bool mListenerIsJSListener : 1;
-
-public:
-  // If mCapture is true, it means the listener captures the event.  Otherwise,
-  // it's listening at bubbling phase.
-  bool mCapture : 1;
-  // If mInSystemGroup is true, the listener is listening to the events in the
-  // system group.
-  bool mInSystemGroup : 1;
-  // If mAllowUntrustedEvents is true, the listener is listening to the
-  // untrusted events too.
-  bool mAllowUntrustedEvents : 1;
-
-  EventListenerFlags() :
-    mListenerIsJSListener(false),
-    mCapture(false), mInSystemGroup(false), mAllowUntrustedEvents(false)
-  {
-  }
-
-  bool Equals(const EventListenerFlags& aOther) const
-  {
-    return (mCapture == aOther.mCapture &&
-            mInSystemGroup == aOther.mInSystemGroup &&
-            mListenerIsJSListener == aOther.mListenerIsJSListener &&
-            mAllowUntrustedEvents == aOther.mAllowUntrustedEvents);
-  }
-
-  bool EqualsIgnoringTrustness(const EventListenerFlags& aOther) const
-  {
-    return (mCapture == aOther.mCapture &&
-            mInSystemGroup == aOther.mInSystemGroup &&
-            mListenerIsJSListener == aOther.mListenerIsJSListener);
-  }
-
-  bool operator==(const EventListenerFlags& aOther) const
-  {
-    return Equals(aOther);
-  }
-};
-
-inline EventListenerFlags TrustedEventsAtBubble()
-{
-  EventListenerFlags flags;
-  return flags;
-}
-
-inline EventListenerFlags TrustedEventsAtCapture()
-{
-  EventListenerFlags flags;
-  flags.mCapture = true;
-  return flags;
-}
-
-inline EventListenerFlags AllEventsAtBubbe()
-{
-  EventListenerFlags flags;
-  flags.mAllowUntrustedEvents = true;
-  return flags;
-}
-
-inline EventListenerFlags AllEventsAtCapture()
-{
-  EventListenerFlags flags;
-  flags.mCapture = true;
-  flags.mAllowUntrustedEvents = true;
-  return flags;
-}
-
-inline EventListenerFlags TrustedEventsAtSystemGroupBubble()
-{
-  EventListenerFlags flags;
-  flags.mInSystemGroup = true;
-  return flags;
-}
-
-inline EventListenerFlags TrustedEventsAtSystemGroupCapture()
-{
-  EventListenerFlags flags;
-  flags.mCapture = true;
-  flags.mInSystemGroup = true;
-  return flags;
-}
-
-inline EventListenerFlags AllEventsAtSystemGroupBubble()
-{
-  EventListenerFlags flags;
-  flags.mInSystemGroup = true;
-  flags.mAllowUntrustedEvents = true;
-  return flags;
-}
-
-inline EventListenerFlags AllEventsAtSystemGroupCapture()
-{
-  EventListenerFlags flags;
-  flags.mCapture = true;
-  flags.mInSystemGroup = true;
-  flags.mAllowUntrustedEvents = true;
-  return flags;
-}
-
-} // namespace dom
-} // namespace mozilla
-
 typedef enum
 {
     eNativeListener = 0,
@@ -158,12 +42,11 @@ struct nsListenerStruct
   nsRefPtr<nsIDOMEventListener> mListener;
   nsCOMPtr<nsIAtom>             mTypeAtom;
   uint32_t                      mEventType;
+  uint16_t                      mFlags;
   uint8_t                       mListenerType;
   bool                          mListenerIsHandler : 1;
   bool                          mHandlerIsString : 1;
   bool                          mAllEvents : 1;
-
-  mozilla::dom::EventListenerFlags mFlags;
 
   nsIJSEventListener* GetJSListener() const {
     return (mListenerType == eJSEventListener) ?
@@ -175,18 +58,6 @@ struct nsListenerStruct
     if ((mListenerType == eJSEventListener) && mListener) {
       static_cast<nsIJSEventListener*>(mListener.get())->Disconnect();
     }
-  }
-
-  MOZ_ALWAYS_INLINE bool IsListening(const nsEvent* aEvent) const
-  {
-    if (mFlags.mInSystemGroup != aEvent->mFlags.mInSystemGroup) {
-      return false;
-    }
-    // FIXME Should check !mFlags.mCapture when the event is in target
-    //       phase because capture phase event listeners should not be fired.
-    //       But it breaks at least <xul:dialog>'s buttons. Bug 235441.
-    return ((mFlags.mCapture && aEvent->mFlags.mInCapturePhase) ||
-            (!mFlags.mCapture && aEvent->mFlags.mInBubblingPhase));
   }
 };
 
@@ -227,10 +98,10 @@ public:
   */
   void AddEventListenerByType(nsIDOMEventListener *aListener,
                               const nsAString& type,
-                              const mozilla::dom::EventListenerFlags& aFlags);
+                              int32_t aFlags);
   void RemoveEventListenerByType(nsIDOMEventListener *aListener,
                                  const nsAString& type,
-                                 const mozilla::dom::EventListenerFlags& aFlags);
+                                 int32_t aFlags);
 
   /**
    * Sets the current "inline" event listener for aName to be a
@@ -254,18 +125,21 @@ public:
                    nsEvent* aEvent, 
                    nsIDOMEvent** aDOMEvent,
                    nsIDOMEventTarget* aCurrentTarget,
+                   uint32_t aFlags,
                    nsEventStatus* aEventStatus,
                    nsCxPusher* aPusher)
   {
-    if (mListeners.IsEmpty() || aEvent->mFlags.mPropagationStopped) {
+    if (mListeners.IsEmpty() || aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
       return;
     }
 
-    if (!mMayHaveCapturingListeners && !aEvent->mFlags.mInBubblingPhase) {
+    if (!mMayHaveCapturingListeners &&
+        !(aEvent->flags & NS_EVENT_FLAG_BUBBLE)) {
       return;
     }
 
-    if (!mMayHaveSystemGroupListeners && aEvent->mFlags.mInSystemGroup) {
+    if (!mMayHaveSystemGroupListeners &&
+        aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
       return;
     }
 
@@ -276,8 +150,16 @@ public:
       return;
     }
     HandleEventInternal(aPresContext, aEvent, aDOMEvent, aCurrentTarget,
-                        aEventStatus, aPusher);
+                        aFlags, aEventStatus, aPusher);
   }
+
+  void HandleEventInternal(nsPresContext* aPresContext,
+                           nsEvent* aEvent, 
+                           nsIDOMEvent** aDOMEvent,
+                           nsIDOMEventTarget* aCurrentTarget,
+                           uint32_t aFlags,
+                           nsEventStatus* aEventStatus,
+                           nsCxPusher* aPusher);
 
   /**
    * Tells the event listener manager that its target (which owns it) is
@@ -357,17 +239,11 @@ public:
 
   nsISupports* GetTarget() { return mTarget; }
 protected:
-  void HandleEventInternal(nsPresContext* aPresContext,
-                           nsEvent* aEvent, 
-                           nsIDOMEvent** aDOMEvent,
-                           nsIDOMEventTarget* aCurrentTarget,
-                           nsEventStatus* aEventStatus,
-                           nsCxPusher* aPusher);
-
   nsresult HandleEventSubType(nsListenerStruct* aListenerStruct,
                               nsIDOMEventListener* aListener,
                               nsIDOMEvent* aDOMEvent,
                               nsIDOMEventTarget* aCurrentTarget,
+                              uint32_t aPhaseFlags,
                               nsCxPusher* aPusher);
 
   /**
@@ -446,19 +322,17 @@ protected:
    */
   const nsEventHandler* GetEventHandlerInternal(nsIAtom* aEventName);
 
-  void AddEventListenerInternal(
-         nsIDOMEventListener* aListener,
-         uint32_t aType,
-         nsIAtom* aTypeAtom,
-         const mozilla::dom::EventListenerFlags& aFlags,
-         bool aHandler = false,
-         bool aAllEvents = false);
-  void RemoveEventListenerInternal(
-         nsIDOMEventListener* aListener,
-         uint32_t aType,
-         nsIAtom* aUserType,
-         const mozilla::dom::EventListenerFlags& aFlags,
-         bool aAllEvents = false);
+  void AddEventListener(nsIDOMEventListener *aListener, 
+                        uint32_t aType,
+                        nsIAtom* aTypeAtom,
+                        int32_t aFlags,
+                        bool aHandler = false,
+                        bool aAllEvents = false);
+  void RemoveEventListener(nsIDOMEventListener *aListener,
+                           uint32_t aType,
+                           nsIAtom* aUserType,
+                           int32_t aFlags,
+                           bool aAllEvents = false);
   void RemoveAllListeners();
   const EventTypeData* GetTypeDataForIID(const nsIID& aIID);
   const EventTypeData* GetTypeDataForEventName(nsIAtom* aName);
@@ -472,8 +346,7 @@ protected:
   uint32_t mMayHaveAudioAvailableEventListener : 1;
   uint32_t mMayHaveTouchEventListener : 1;
   uint32_t mMayHaveMouseEnterLeaveEventListener : 1;
-  uint32_t mClearingListeners : 1;
-  uint32_t mNoListenerForEvent : 24;
+  uint32_t mNoListenerForEvent : 25;
 
   nsAutoTObserverArray<nsListenerStruct, 2> mListeners;
   nsISupports*                              mTarget;  //WEAK
@@ -499,10 +372,11 @@ NS_AddSystemEventListener(nsIDOMEventTarget* aTarget,
 {
   nsEventListenerManager* listenerManager = aTarget->GetListenerManager(true);
   NS_ENSURE_STATE(listenerManager);
-  mozilla::dom::EventListenerFlags flags;
-  flags.mInSystemGroup = true;
-  flags.mCapture = aUseCapture;
-  flags.mAllowUntrustedEvents = aWantsUntrusted;
+  uint32_t flags = NS_EVENT_FLAG_SYSTEM_EVENT;
+  flags |= aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+  if (aWantsUntrusted) {
+    flags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
+  }
   listenerManager->AddEventListenerByType(aListener, aType, flags);
   return NS_OK;
 }

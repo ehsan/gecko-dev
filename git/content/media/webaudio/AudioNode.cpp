@@ -12,26 +12,36 @@
 namespace mozilla {
 namespace dom {
 
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            mozilla::dom::AudioNode::Output& aField,
-                            const char* aName,
-                            unsigned aFlags)
+template <typename T>
+static void
+TraverseElements(nsCycleCollectionTraversalCallback& cb,
+                 const nsTArray<T>& array,
+                 const char* name)
 {
-  CycleCollectionNoteChild(aCallback, aField.mDestination.get(), aName, aFlags);
+  for (uint32_t i = 0, length = array.Length(); i < length; ++i) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, name);
+    AudioNode* node = array[i].get();
+    cb.NoteXPCOMChild(node);
+  }
 }
 
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            mozilla::dom::AudioNode::Input& aField,
-                            const char* aName,
-                            unsigned aFlags)
-{
-  CycleCollectionNoteChild(aCallback, aField.mSource.get(), aName, aFlags);
-}
+NS_IMPL_CYCLE_COLLECTION_CLASS(AudioNode)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_3(AudioNode,
-                                        mContext, mInputs, mOutputs)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(AudioNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContext)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mInputs)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mOutputs)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(AudioNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mContext, AudioContext)
+  TraverseElements(cb, tmp->mInputs, "mInputs[i]");
+  TraverseElements(cb, tmp->mOutputs, "mOutputs[i]");
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(AudioNode)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(AudioNode)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(AudioNode)

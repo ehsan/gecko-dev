@@ -38,7 +38,6 @@ function testConsole(browser, tab) {
     typed: "console open",
     args: {},
     blankOutput: true,
-    completed: false,
   });
 
   function onExecute() {

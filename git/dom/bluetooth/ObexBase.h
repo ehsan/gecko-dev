@@ -104,7 +104,7 @@ enum ObexResponseCode {
 
 class ObexHeader {
 public:
-  ObexHeader(ObexHeaderId aId, int aDataLength, const uint8_t* aData)
+  ObexHeader(ObexHeaderId aId, int aDataLength, uint8_t* aData)
     : mId(aId)
     , mDataLength(aDataLength)
     , mData(nullptr)
@@ -119,7 +119,7 @@ public:
 
   ObexHeaderId mId;
   int mDataLength;
-  nsAutoArrayPtr<uint8_t> mData;
+  nsAutoPtr<uint8_t> mData;
 };
 
 class ObexHeaderSet {
@@ -140,7 +140,7 @@ public:
     mHeaders.AppendElement(aHeader);
   }
 
-  void GetName(nsString& aRetName) const
+  void GetName(nsString& aRetName)
   {
     aRetName.Truncate();
 
@@ -148,14 +148,8 @@ public:
 
     for (int i = 0; i < length; ++i) {
       if (mHeaders[i]->mId == ObexHeaderId::Name) {
-        /*
-         * According to section 2.2.2 [Name] of IrOBEX spec, we know that
-         * the Name header is "a null terminated Unicode text string describing
-         * the name of the object.", and that's the reason why we need to minus
-         * 1 to get the real length of the file name.
-         */
-        int nameLength = mHeaders[i]->mDataLength / 2 - 1;
         uint8_t* ptr = mHeaders[i]->mData.get();
+        int nameLength = mHeaders[i]->mDataLength / 2;
 
         for (int j = 0; j < nameLength; ++j) {
           PRUnichar c = ((((uint32_t)ptr[j * 2]) << 8) | ptr[j * 2 + 1]);
@@ -167,7 +161,7 @@ public:
     }
   }
 
-  void GetContentType(nsString& aRetContentType) const
+  void GetContentType(nsString& aRetContentType)
   {
     aRetContentType.Truncate();
 
@@ -183,7 +177,7 @@ public:
   }
 
   // @return file length, 0 means file length is unknown.
-  void GetLength(uint32_t* aRetLength) const
+  void GetLength(uint32_t* aRetLength)
   {
     int length = mHeaders.Length();
     *aRetLength = 0;
@@ -200,7 +194,7 @@ public:
     }
   }
 
-  void GetBodyLength(int* aRetBodyLength) const
+  void GetBodyLength(int* aRetBodyLength)
   {
     int length = mHeaders.Length();
     *aRetBodyLength = 0;
@@ -214,7 +208,7 @@ public:
     }
   }
 
-  void GetBody(uint8_t** aRetBody) const
+  void GetBody(uint8_t** aRetBody)
   {
     int length = mHeaders.Length();
     *aRetBody = nullptr;
@@ -230,7 +224,7 @@ public:
     }
   }
 
-  bool Has(ObexHeaderId aId) const
+  bool Has(ObexHeaderId aId)
   {
     int length = mHeaders.Length();
     for (int i = 0; i < length; ++i) {
@@ -245,7 +239,6 @@ public:
 
 int AppendHeaderName(uint8_t* aRetBuf, const char* aName, int aLength);
 int AppendHeaderBody(uint8_t* aRetBuf, uint8_t* aData, int aLength);
-int AppendHeaderEndOfBody(uint8_t* aRetBuf);
 int AppendHeaderLength(uint8_t* aRetBuf, int aObjectLength);
 int AppendHeaderConnectionId(uint8_t* aRetBuf, int aConnectionId);
 void SetObexPacketInfo(uint8_t* aRetBuf, uint8_t aOpcode, int aPacketLength);

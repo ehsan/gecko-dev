@@ -19,7 +19,7 @@
 #include "js/TemplateLib.h"
 #include "vm/ScopeObject.h"
 
-class JSScript;
+struct JSScript;
 
 /* Forward declaration of downstream register allocations computed for join points. */
 namespace js { namespace mjit { struct RegisterAllocation; } }
@@ -173,7 +173,7 @@ class Bytecode
 };
 
 static inline unsigned
-GetDefCount(UnrootedScript script, unsigned offset)
+GetDefCount(JSScript *script, unsigned offset)
 {
     JS_ASSERT(offset < script->length);
     jsbytecode *pc = script->code + offset;
@@ -202,7 +202,7 @@ GetDefCount(UnrootedScript script, unsigned offset)
 }
 
 static inline unsigned
-GetUseCount(UnrootedScript script, unsigned offset)
+GetUseCount(JSScript *script, unsigned offset)
 {
     JS_ASSERT(offset < script->length);
     jsbytecode *pc = script->code + offset;
@@ -331,7 +331,7 @@ NegateCompareOp(JSOp op)
 }
 
 static inline unsigned
-FollowBranch(JSContext *cx, UnrootedScript script, unsigned offset)
+FollowBranch(JSContext *cx, JSScript *script, unsigned offset)
 {
     /*
      * Get the target offset of a branch. For GOTO opcodes implementing
@@ -359,18 +359,18 @@ static inline uint32_t ThisSlot() {
 static inline uint32_t ArgSlot(uint32_t arg) {
     return 2 + arg;
 }
-static inline uint32_t LocalSlot(UnrootedScript script, uint32_t local) {
+static inline uint32_t LocalSlot(JSScript *script, uint32_t local) {
     return 2 + (script->function() ? script->function()->nargs : 0) + local;
 }
-static inline uint32_t TotalSlots(UnrootedScript script) {
+static inline uint32_t TotalSlots(JSScript *script) {
     return LocalSlot(script, 0) + script->nfixed;
 }
 
-static inline uint32_t StackSlot(UnrootedScript script, uint32_t index) {
+static inline uint32_t StackSlot(JSScript *script, uint32_t index) {
     return TotalSlots(script) + index;
 }
 
-static inline uint32_t GetBytecodeSlot(UnrootedScript script, jsbytecode *pc)
+static inline uint32_t GetBytecodeSlot(JSScript *script, jsbytecode *pc)
 {
     switch (JSOp(*pc)) {
 
@@ -546,7 +546,7 @@ struct LifetimeVariable
     }
 
     /* Return true if the variable cannot decrease during the body of a loop. */
-    bool nonDecreasing(UnrootedScript script, LoopAnalysis *loop) const {
+    bool nonDecreasing(JSScript *script, LoopAnalysis *loop) const {
         Lifetime *segment = lifetime ? lifetime : saved;
         while (segment && segment->start <= loop->backedge) {
             if (segment->start >= loop->head && segment->write) {
@@ -849,8 +849,7 @@ class ScriptAnalysis
     bool hasFunctionCalls_:1;
     bool modifiesArguments_:1;
     bool localsAliasStack_:1;
-    bool isJaegerInlineable:1;
-    bool isIonInlineable:1;
+    bool isInlineable:1;
     bool isJaegerCompileable:1;
     bool canTrackVars:1;
     bool hasLoops_:1;
@@ -863,7 +862,7 @@ class ScriptAnalysis
 
   public:
 
-    ScriptAnalysis(UnrootedScript script) {
+    ScriptAnalysis(JSScript *script) {
         PodZero(this);
         this->script_ = script;
 #ifdef DEBUG
@@ -886,10 +885,8 @@ class ScriptAnalysis
 
     bool OOM() const { return outOfMemory; }
     bool failed() const { return hadFailure; }
-    bool ionInlineable() const { return isIonInlineable; }
-    bool ionInlineable(uint32_t argc) const { return isIonInlineable && argc == script_->function()->nargs; }
-    bool jaegerInlineable() const { return isJaegerInlineable; }
-    bool jaegerInlineable(uint32_t argc) const { return isJaegerInlineable && argc == script_->function()->nargs; }
+    bool inlineable() const { return isInlineable; }
+    bool inlineable(uint32_t argc) const { return isInlineable && argc == script_->function()->nargs; }
     bool jaegerCompileable() { return isJaegerCompileable; }
 
     /* Number of property read opcodes in the script. */
@@ -1267,9 +1264,8 @@ class CrossScriptSSA
         uint32_t parent;
         jsbytecode *parentpc;
 
-        Frame(uint32_t index, UnrootedScript script, uint32_t depth, uint32_t parent,
-              jsbytecode *parentpc)
-          : index(index), script(script), depth(depth), parent(parent), parentpc(parentpc)
+        Frame(uint32_t index, JSScript *script, uint32_t depth, uint32_t parent, jsbytecode *parentpc)
+            : index(index), script(script), depth(depth), parent(parent), parentpc(parentpc)
         {}
     };
 
@@ -1286,7 +1282,7 @@ class CrossScriptSSA
         return inlineFrames[i - 1];
     }
 
-    UnrootedScript outerScript() { return outerFrame.script; }
+    JSScript *outerScript() { return outerFrame.script; }
 
     /* Total length of scripts preceding a frame. */
     size_t frameLength(uint32_t index) {
@@ -1302,14 +1298,13 @@ class CrossScriptSSA
         return getFrame(cv.frame).script->analysis()->getValueTypes(cv.v);
     }
 
-    bool addInlineFrame(UnrootedScript script, uint32_t depth, uint32_t parent,
-                        jsbytecode *parentpc)
+    bool addInlineFrame(JSScript *script, uint32_t depth, uint32_t parent, jsbytecode *parentpc)
     {
         uint32_t index = inlineFrames.length();
         return inlineFrames.append(Frame(index, script, depth, parent, parentpc));
     }
 
-    CrossScriptSSA(JSContext *cx, UnrootedScript outer)
+    CrossScriptSSA(JSContext *cx, JSScript *outer)
         : outerFrame(OUTER_FRAME, outer, 0, INVALID_FRAME, NULL), inlineFrames(cx)
     {}
 
@@ -1321,7 +1316,7 @@ class CrossScriptSSA
 };
 
 #ifdef DEBUG
-void PrintBytecode(JSContext *cx, HandleScript script, jsbytecode *pc);
+void PrintBytecode(JSContext *cx, JSScript *script, jsbytecode *pc);
 #endif
 
 } /* namespace analyze */

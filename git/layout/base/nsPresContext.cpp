@@ -5,8 +5,6 @@
 
 /* a presentation of a document, part 1 */
 
-#include "mozilla/DebugOnly.h"
-
 #include "base/basictypes.h"
 
 #include "nsCOMPtr.h"
@@ -89,7 +87,6 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::layers;
 
 uint8_t gNotifySubDocInvalidationData;
 
@@ -326,9 +323,9 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPresContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPresContext)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocument);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument);
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mDeviceContext); // not xpcom
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEventManager);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mEventManager, nsIObserver);
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLanguage); // an atom
 
   // We own only the items in mDOMMediaQueryLists that have listeners;
@@ -343,15 +340,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
     }
   }
 
-  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTheme); // a service
-  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLangService); // a service
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrintSettings);
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrefChangedTimer);
+  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTheme); // a service
+  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLangService); // a service
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrintSettings);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrefChangedTimer);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument);
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDeviceContext); // worth bothering?
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDeviceContext); // worth bothering?
   if (tmp->mEventManager) {
     // unclear if these are needed, but can't hurt
     tmp->mEventManager->NotifyDestroyPresContext(tmp);
@@ -372,9 +369,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
 
   // NS_RELEASE(tmp->mLanguage); // an atom
 
-  // NS_IMPL_CYCLE_COLLECTION_UNLINK(mTheme); // a service
-  // NS_IMPL_CYCLE_COLLECTION_UNLINK(mLangService); // a service
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPrintSettings);
+  // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTheme); // a service
+  // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLangService); // a service
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrintSettings);
   if (tmp->mPrefChangedTimer)
   {
     tmp->mPrefChangedTimer->Cancel();
@@ -416,7 +413,7 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
 {
   // Get language group for aLanguage:
 
-  nsresult rv = NS_OK;
+  nsresult rv;
   nsIAtom *langGroupAtom = nullptr;
   if (!aLanguage) {
     aLanguage = mLanguage;
@@ -958,10 +955,6 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
       mRefreshDriver = new nsRefreshDriver(this);
     }
   }
-
-  // Initialise refresh tick counters for OMTA
-  mLastStyleUpdateForAllAnimations =
-    mLastUpdateThrottledStyle = mRefreshDriver->MostRecentRefresh();
 
   mLangService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
 
@@ -2624,13 +2617,7 @@ nsRootPresContext::ComputePluginGeometryUpdates(nsIFrame* aFrame,
     aList->ComputeVisibilityForRoot(aBuilder, &region);
   }
 
-#ifdef XP_MACOSX
-  // We control painting of Mac plugins, so just apply geometry updates now.
-  // This is not happening during a paint event.
-  ApplyPluginGeometryUpdates();
-#else
   InitApplyPluginGeometryTimer();
-#endif
 }
 
 static void

@@ -164,17 +164,16 @@ public class TabsButton extends ShapedButton {
     // The drawable is constructed as per @drawable/tabs_button.
     @Override
     public void onLightweightThemeChanged() {
-        LightweightThemeDrawable drawable = mActivity.getLightweightTheme().getTextureDrawable(this, R.drawable.tabs_tray_bg_repeat);
+        Drawable drawable = mActivity.getLightweightTheme().getDrawableWithAlpha(this, 34);
         if (drawable == null)
             return;
 
-        drawable.setAlpha(34, 34);
-
         Resources resources = this.getContext().getResources();
+        LayerDrawable layers = new LayerDrawable(new Drawable[] { resources.getDrawable(R.drawable.tabs_tray_bg_repeat), drawable }); 
+
         StateListDrawable stateList = new StateListDrawable();
         stateList.addState(new int[] { android.R.attr.state_pressed }, resources.getDrawable(R.drawable.highlight));
-        stateList.addState(new int[] { R.attr.state_private }, resources.getDrawable(R.drawable.tabs_tray_bg_repeat));
-        stateList.addState(new int[] {}, drawable);
+        stateList.addState(new int[] {}, layers);
 
         LevelListDrawable levelList = new LevelListDrawable();
         levelList.addLevel(0, 1, stateList);

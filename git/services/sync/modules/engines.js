@@ -77,19 +77,9 @@ Tracker.prototype = {
     this._score = 0;
   },
 
-  persistChangedIDs: true,
-
-  /**
-   * Persist changedIDs to disk at a later date.
-   * Optionally pass a callback to be invoked when the write has occurred.
-   */
-  saveChangedIDs: function (cb) {
-    if (!this.persistChangedIDs) {
-      this._log.debug("Not saving changedIDs.");
-      return;
-    }
+  saveChangedIDs: function T_saveChangedIDs() {
     Utils.namedTimer(function() {
-      Utils.jsonSave("changes/" + this.file, this, this.changedIDs, cb);
+      Utils.jsonSave("changes/" + this.file, this, this.changedIDs);
     }, 1000, this, "_lazySave");
   },
 
@@ -132,7 +122,7 @@ Tracker.prototype = {
     if ((this.changedIDs[id] || -Infinity) < when) {
       this._log.trace("Adding changed ID: " + [id, when]);
       this.changedIDs[id] = when;
-      this.saveChangedIDs(this.onSavedChangedIDs);
+      this.saveChangedIDs();
     }
     return true;
   },
@@ -752,29 +742,14 @@ SyncEngine.prototype = {
     this._delete = {};
   },
 
-  /**
-   * A tiny abstraction to make it easier to test incoming record
-   * application.
-   */
-  _itemSource: function () {
-    return new Collection(this.engineURL, this._recordObj, this.service);
-  },
-
-  /**
-   * Process incoming records.
-   * In the most awful and untestable way possible.
-   * This now accepts something that makes testing vaguely less impossible.
-   */
-  _processIncoming: function (newitems) {
+  // Process incoming records
+  _processIncoming: function SyncEngine__processIncoming() {
     this._log.trace("Downloading & applying server changes");
 
     // Figure out how many total items to fetch this sync; do less on mobile.
     let batchSize = Infinity;
+    let newitems = new Collection(this.engineURL, this._recordObj, this.service);
     let isMobile = (Svc.Prefs.get("client.type") == "mobile");
-
-    if (!newitems) {
-      newitems = this._itemSource();
-    }
 
     if (isMobile) {
       batchSize = MOBILE_BATCH_SIZE;

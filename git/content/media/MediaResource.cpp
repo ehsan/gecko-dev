@@ -4,13 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "MediaResource.h"
 
 #include "mozilla/Mutex.h"
 #include "nsDebug.h"
-#include "MediaDecoder.h"
+#include "nsMediaDecoder.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "nsIFile.h"
@@ -28,6 +26,7 @@
 #include "nsICachingChannel.h"
 #include "nsURILoader.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
+#include "mozilla/Util.h" // for DebugOnly
 #include "nsContentUtils.h"
 #include "nsHostObjectProtocolHandler.h"
 
@@ -46,11 +45,11 @@ PRLogModuleInfo* gMediaResourceLog;
 static const uint32_t HTTP_OK_CODE = 200;
 static const uint32_t HTTP_PARTIAL_RESPONSE_CODE = 206;
 
-namespace mozilla {
+using namespace mozilla;
 
-ChannelMediaResource::ChannelMediaResource(MediaDecoder* aDecoder,
+ChannelMediaResource::ChannelMediaResource(nsMediaDecoder* aDecoder,
     nsIChannel* aChannel, nsIURI* aURI)
-  : BaseMediaResource(aDecoder, aChannel, aURI),
+  : MediaResource(aDecoder, aChannel, aURI),
     mOffset(0), mSuspendCount(0),
     mReopenOnError(false), mIgnoreClose(false),
     mCacheStream(this),
@@ -215,14 +214,10 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
         rv = hc->GetResponseHeader(NS_LITERAL_CSTRING("X-Content-Duration"), durationText);
       }
 
-      // If there is no Content-Duration header, or if the value for this header
-      // is not valid, set the media as being infinite.
       if (NS_SUCCEEDED(rv)) {
         double duration = durationText.ToDouble(&ec);
         if (ec == NS_OK && duration >= 0) {
           mDecoder->SetDuration(duration);
-        } else {
-          mDecoder->SetInfinite(true);
         }
       } else {
         mDecoder->SetInfinite(true);
@@ -235,8 +230,7 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
       // accept ranges.
       if (!acceptsRanges) {
         CMLOG("Error! HTTP_PARTIAL_RESPONSE_CODE received but server says "
-              "range requests are not accepted! Channel[%p] decoder[%p]",
-              hc.get(), mDecoder);
+              "range requests are not accepted! Channel[%p]", hc.get());
         mDecoder->NetworkError();
         CloseChannel();
         return NS_OK;
@@ -250,8 +244,7 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
       if (NS_FAILED(rv)) {
         // Content-Range header text should be parse-able.
         CMLOG("Error processing \'Content-Range' for "
-              "HTTP_PARTIAL_RESPONSE_CODE: rv[%x] channel[%p] decoder[%p]",
-              rv, hc.get(), mDecoder);
+              "HTTP_PARTIAL_RESPONSE_CODE: rv[%x]channel [%p]", rv, hc.get());
         mDecoder->NetworkError();
         CloseChannel();
         return NS_OK;
@@ -312,8 +305,8 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
       mDecoder->SetInfinite(false);
     }
   }
-  mDecoder->SetTransportSeekable(seekable);
-  mCacheStream.SetTransportSeekable(seekable);
+  mDecoder->SetSeekable(seekable);
+  mCacheStream.SetSeekable(seekable);
 
   nsCOMPtr<nsICachingChannel> cc = do_QueryInterface(aRequest);
   if (cc) {
@@ -326,7 +319,7 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
 
   {
     MutexAutoLock lock(mLock);
-    mChannelStatistics->Start();
+    mChannelStatistics.Start(TimeStamp::Now());
   }
 
   mReopenOnError = false;
@@ -392,8 +385,8 @@ ChannelMediaResource::ParseContentRangeHeader(nsIHttpChannel * aHttpChan,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  CMLOG("Received bytes [%lld] to [%lld] of [%lld] for decoder[%p]",
-        aRangeStart, aRangeEnd, aRangeTotal, mDecoder);
+  CMLOG("Received bytes [%d] to [%d] of [%d]",
+        aRangeStart, aRangeEnd, aRangeTotal);
 
   return NS_OK;
 }
@@ -407,7 +400,7 @@ ChannelMediaResource::OnStopRequest(nsIRequest* aRequest, nsresult aStatus)
 
   {
     MutexAutoLock lock(mLock);
-    mChannelStatistics->Stop();
+    mChannelStatistics.Stop(TimeStamp::Now());
   }
 
   // If we were loading a byte range, notify decoder and return.
@@ -426,7 +419,7 @@ ChannelMediaResource::OnStopRequest(nsIRequest* aRequest, nsresult aStatus)
   // cause us to just re-read the stream, which would be really bad.
   if (mReopenOnError &&
       aStatus != NS_ERROR_PARSED_DATA_CACHED && aStatus != NS_BINDING_ABORTED &&
-      (mOffset == 0 || mCacheStream.IsTransportSeekable())) {
+      (mOffset == 0 || mCacheStream.IsSeekable())) {
     // If the stream did close normally, then if the server is seekable we'll
     // just seek to the end of the resource and get an HTTP 416 error because
     // there's nothing there, so this isn't bad.
@@ -481,23 +474,10 @@ ChannelMediaResource::CopySegmentToCache(nsIInputStream *aInStream,
 
   closure->mResource->mDecoder->NotifyDataArrived(aFromSegment, aCount, closure->mResource->mOffset);
 
-  // For byte range downloads controlled by |DASHDecoder|, there are cases in
-  // which the reader's offset is different enough from the channel offset that
-  // |MediaCache| requests a |CacheClientSeek| to the reader's offset. This
-  // can happen between calls to |CopySegmentToCache|. To avoid copying at
-  // incorrect offsets, ensure |MediaCache| copies to the location that
-  // |ChannelMediaResource| expects.
-  if (closure->mResource->mByteRangeDownloads) {
-    closure->mResource->mCacheStream.NotifyDataStarted(closure->mResource->mOffset);
-  }
-
-  // Keep track of where we're up to.
-  LOG("%p [ChannelMediaResource]: CopySegmentToCache at mOffset [%lld] add "
-      "[%d] bytes for decoder[%p]",
-      closure->mResource, closure->mResource->mOffset, aCount,
-      closure->mResource->mDecoder);
+  // Keep track of where we're up to
   closure->mResource->mOffset += aCount;
-
+  LOG("%p [ChannelMediaResource]: CopySegmentToCache new mOffset = %d",
+      closure->mResource, closure->mResource->mOffset);
   closure->mResource->mCacheStream.NotifyDataReceived(aCount, aFromSegment,
                                                       closure->mPrincipal);
   *aWriteCount = aCount;
@@ -513,7 +493,7 @@ ChannelMediaResource::OnDataAvailable(nsIRequest* aRequest,
 
   {
     MutexAutoLock lock(mLock);
-    mChannelStatistics->AddBytes(aCount);
+    mChannelStatistics.AddBytes(aCount);
   }
 
   CopySegmentClosure closure;
@@ -539,7 +519,7 @@ ChannelMediaResource::OnDataAvailable(nsIRequest* aRequest,
 
 /* |OpenByteRange|
  * For terminated byte range requests, use this function.
- * Callback is |MediaDecoder|::|NotifyByteRangeDownloaded|().
+ * Callback is |nsBuiltinDecoder|::|NotifyByteRangeDownloaded|().
  * See |CacheClientSeek| also.
  */
 
@@ -568,25 +548,9 @@ ChannelMediaResource::OpenByteRange(nsIStreamListener** aStreamListener,
   return OpenChannel(aStreamListener);
 }
 
-void
-ChannelMediaResource::CancelByteRangeOpen()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-
-  // Byte range download will be cancelled in |CacheClientSeek|. Here, we only
-  // need to notify the cache to in turn notify any waiting reads.
-  if (mByteRangeDownloads) {
-    mCacheStream.NotifyDownloadCancelled();
-  }
-}
-
 nsresult ChannelMediaResource::Open(nsIStreamListener **aStreamListener)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-
-  if (!mChannelStatistics) {
-    mChannelStatistics = new MediaChannelStatistics();
-  }
 
   nsresult rv = mCacheStream.Init();
   if (NS_FAILED(rv))
@@ -720,7 +684,7 @@ bool ChannelMediaResource::CanClone()
   return mCacheStream.IsAvailableForSharing();
 }
 
-MediaResource* ChannelMediaResource::CloneData(MediaDecoder* aDecoder)
+MediaResource* ChannelMediaResource::CloneData(nsMediaDecoder* aDecoder)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
   NS_ASSERTION(mCacheStream.IsAvailableForSharing(), "Stream can't be cloned");
@@ -736,7 +700,7 @@ MediaResource* ChannelMediaResource::CloneData(MediaDecoder* aDecoder)
     resource->mSuspendCount = 1;
     resource->mCacheStream.InitAsClone(&mCacheStream);
     resource->mChannelStatistics = mChannelStatistics;
-    resource->mChannelStatistics->Stop();
+    resource->mChannelStatistics.Stop(TimeStamp::Now());
   }
   return resource;
 }
@@ -747,7 +711,7 @@ void ChannelMediaResource::CloseChannel()
 
   {
     MutexAutoLock lock(mLock);
-    mChannelStatistics->Stop();
+    mChannelStatistics.Stop(TimeStamp::Now());
   }
 
   if (mListener) {
@@ -762,7 +726,7 @@ void ChannelMediaResource::CloseChannel()
     }
     // The status we use here won't be passed to the decoder, since
     // we've already revoked the listener. It can however be passed
-    // to nsDocumentViewer::LoadComplete if our channel is the one
+    // to DocumentViewerImpl::LoadComplete if our channel is the one
     // that kicked off creation of a video document. We don't want that
     // document load to think there was an error.
     // NS_ERROR_PARSED_DATA_CACHED is the best thing we have for that
@@ -792,8 +756,6 @@ nsresult ChannelMediaResource::Seek(int32_t aWhence, int64_t aOffset)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
 
-  CMLOG("Seek requested for aOffset [%lld] for decoder [%p]",
-        aOffset, mDecoder);
   // Remember |aOffset|, because Media Cache may request a diff offset later.
   if (mByteRangeDownloads) {
     ReentrantMonitorAutoEnter mon(mSeekOffsetMonitor);
@@ -841,7 +803,7 @@ void ChannelMediaResource::Suspend(bool aCloseImmediately)
   }
 
   if (mChannel) {
-    if (aCloseImmediately && mCacheStream.IsTransportSeekable()) {
+    if (aCloseImmediately && mCacheStream.IsSeekable()) {
       // Kill off our channel right now, but don't tell anyone about it.
       mIgnoreClose = true;
       CloseChannel();
@@ -849,7 +811,7 @@ void ChannelMediaResource::Suspend(bool aCloseImmediately)
     } else if (mSuspendCount == 0) {
       {
         MutexAutoLock lock(mLock);
-        mChannelStatistics->Stop();
+        mChannelStatistics.Stop(TimeStamp::Now());
       }
       PossiblySuspend();
       element->DownloadSuspended();
@@ -882,7 +844,7 @@ void ChannelMediaResource::Resume()
       // Just wake up our existing channel
       {
         MutexAutoLock lock(mLock);
-        mChannelStatistics->Start();
+        mChannelStatistics.Start(TimeStamp::Now());
       }
       // if an error occurs after Resume, assume it's because the server
       // timed out the connection and we should reopen it.
@@ -970,14 +932,14 @@ ChannelMediaResource::CacheClientNotifyDataReceived()
 
 class DataEnded : public nsRunnable {
 public:
-  DataEnded(MediaDecoder* aDecoder, nsresult aStatus) :
+  DataEnded(nsMediaDecoder* aDecoder, nsresult aStatus) :
     mDecoder(aDecoder), mStatus(aStatus) {}
   NS_IMETHOD Run() {
     mDecoder->NotifyDownloadEnded(mStatus);
     return NS_OK;
   }
 private:
-  nsRefPtr<MediaDecoder> mDecoder;
+  nsRefPtr<nsMediaDecoder> mDecoder;
   nsresult                 mStatus;
 };
 
@@ -1005,21 +967,7 @@ ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
 {
   NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
 
-  CMLOG("CacheClientSeek requested for aOffset [%lld] for decoder [%p]",
-        aOffset, mDecoder);
-
-  // |CloseChannel| immediately for non-byte-range downloads.
-  if (!mByteRangeDownloads) {
-    CloseChannel();
-  } else if (mChannel) {
-    // Only close byte range channels if they are not in pending state.
-    bool isPending = false;
-    nsresult rv = mChannel->IsPending(&isPending);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!isPending) {
-      CloseChannel();
-    }
-  }
+  CloseChannel();
 
   if (aResume) {
     NS_ASSERTION(mSuspendCount > 0, "Too many resumes!");
@@ -1049,55 +997,24 @@ ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
     nsresult rv;
     {
       ReentrantMonitorAutoEnter mon(mSeekOffsetMonitor);
-      // Only continue with seek request if a prior call to |Seek| was made.
-      // If |Seek| was not called previously, it means the media cache is
-      // seeking on its own.
-      // E.g. For those WebM files which are encoded with cues at the end of
-      // the file, when the cues are parsed, the reader and media cache
-      // automatically return to the first offset not downloaded, normally the
-      // first byte after init data. This results in |MediaCache| requesting
-      // |aOffset| = 0 (aligning to the start of the cache block. Ignore this
-      // and let |DASHDecoder| decide which bytes to download and when.
-      if (mSeekOffset >= 0) {
-        rv = mDecoder->GetByteRangeForSeek(mSeekOffset, mByteRange);
-        // Cache may try to seek from the next uncached byte: this offset may
-        // be after the byte range being seeked, i.e. the range containing
-        // |mSeekOffset|, which is the offset actually requested by the reader.
-        // This case means that the seeked range is already cached. For byte
-        // range downloads, we do not permit the cache to request bytes outside
-        // the seeked range. Instead, the decoder is responsible for
-        // controlling the sequence of byte range downloads. As such, return
-        // silently, and do NOT request a new download.
-        if (NS_SUCCEEDED(rv) && !mByteRange.IsNull() &&
-            aOffset > mByteRange.mEnd) {
-          rv = NS_ERROR_NOT_AVAILABLE;
-          mByteRange.Clear();
-        }
-        mSeekOffset = -1;
-      } else {
-        LOG("MediaCache [%p] trying to seek independently to offset [%lld].",
-            &mCacheStream, aOffset);
-        rv = NS_ERROR_NOT_AVAILABLE;
-      }
+      // Ensure that media cache can only request an equal or smaller offset;
+      // it may be trying to include the start of a cache block.
+      NS_ENSURE_TRUE(aOffset <= mSeekOffset, NS_ERROR_ILLEGAL_VALUE);
+      rv = mDecoder->GetByteRangeForSeek(mSeekOffset, mByteRange);
+      mSeekOffset = -1;
     }
     if (rv == NS_ERROR_NOT_AVAILABLE) {
-      // Decoder will not make byte ranges available for non-active streams, or
-      // if range information is not yet available, or for metadata bytes if
-      // they have already been downloaded and read. In all cases, it is ok to
-      // return silently and assume that the decoder will request the correct
-      // byte range when range information becomes available.
-      CMLOG("Byte range not available for decoder [%p]; returning "
-            "silently.", mDecoder);
+      // Assume decoder will request correct bytes when range information
+      // becomes available. Return silently.
       return NS_OK;
     } else if (NS_FAILED(rv) || mByteRange.IsNull()) {
       // Decoder reported an error we don't want to handle here; just return.
-      CMLOG("Error getting byte range: seek offset[%lld] cache offset[%lld] "
-            "decoder[%p]", mSeekOffset, aOffset, mDecoder);
       mDecoder->NetworkError();
       CloseChannel();
       return rv;
     }
-    // Adjust the byte range to start where the media cache requested.
+    // Media cache may decrease offset to start of cache data block.
+    // Adjust start of byte range accordingly.
     mByteRange.mStart = mOffset = aOffset;
     return OpenByteRange(nullptr, mByteRange);
   }
@@ -1119,26 +1036,6 @@ ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
     return rv;
 
   return OpenChannel(nullptr);
-}
-
-void
-ChannelMediaResource::FlushCache()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-
-  // Ensure that data in the cache's partial block is written to disk.
-  mCacheStream.FlushPartialBlock();
-}
-
-void
-ChannelMediaResource::NotifyLastByteRange()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-
-  // Tell media cache that the last data has been downloaded.
-  // Note: subsequent seeks will require re-opening the channel etc.
-  mCacheStream.NotifyDataEnded(NS_OK);
-
 }
 
 nsresult
@@ -1197,7 +1094,7 @@ ChannelMediaResource::IsSuspended()
 }
 
 void
-ChannelMediaResource::SetReadMode(MediaCacheStream::ReadMode aMode)
+ChannelMediaResource::SetReadMode(nsMediaCacheStream::ReadMode aMode)
 {
   mCacheStream.SetReadMode(aMode);
 }
@@ -1224,7 +1121,7 @@ double
 ChannelMediaResource::GetDownloadRate(bool* aIsReliable)
 {
   MutexAutoLock lock(mLock);
-  return mChannelStatistics->GetRate(aIsReliable);
+  return mChannelStatistics.GetRate(TimeStamp::Now(), aIsReliable);
 }
 
 int64_t
@@ -1256,11 +1153,11 @@ ChannelMediaResource::PossiblyResume()
   }
 }
 
-class FileMediaResource : public BaseMediaResource
+class FileMediaResource : public MediaResource
 {
 public:
-  FileMediaResource(MediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
-    BaseMediaResource(aDecoder, aChannel, aURI),
+  FileMediaResource(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
+    MediaResource(aDecoder, aChannel, aURI),
     mSize(-1),
     mLock("FileMediaResource.mLock"),
     mSizeInitialized(false)
@@ -1277,13 +1174,13 @@ public:
   virtual void     Resume() {}
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
   virtual bool     CanClone();
-  virtual MediaResource* CloneData(MediaDecoder* aDecoder);
+  virtual MediaResource* CloneData(nsMediaDecoder* aDecoder);
   virtual nsresult ReadFromCache(char* aBuffer, int64_t aOffset, uint32_t aCount);
 
   // These methods are called off the main thread.
 
   // Other thread
-  virtual void     SetReadMode(MediaCacheStream::ReadMode aMode) {}
+  virtual void     SetReadMode(nsMediaCacheStream::ReadMode aMode) {}
   virtual void     SetPlaybackRate(uint32_t aBytesPerSecond) {}
   virtual nsresult Read(char* aBuffer, uint32_t aCount, uint32_t* aBytes);
   virtual nsresult Seek(int32_t aWhence, int64_t aOffset);
@@ -1371,7 +1268,7 @@ private:
 class LoadedEvent : public nsRunnable
 {
 public:
-  LoadedEvent(MediaDecoder* aDecoder) :
+  LoadedEvent(nsMediaDecoder* aDecoder) :
     mDecoder(aDecoder)
   {
     MOZ_COUNT_CTOR(LoadedEvent);
@@ -1387,7 +1284,7 @@ public:
   }
 
 private:
-  nsRefPtr<MediaDecoder> mDecoder;
+  nsRefPtr<nsMediaDecoder> mDecoder;
 };
 
 void FileMediaResource::EnsureSizeInitialized()
@@ -1507,7 +1404,7 @@ bool FileMediaResource::CanClone()
   return true;
 }
 
-MediaResource* FileMediaResource::CloneData(MediaDecoder* aDecoder)
+MediaResource* FileMediaResource::CloneData(nsMediaDecoder* aDecoder)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
@@ -1598,7 +1495,7 @@ int64_t FileMediaResource::Tell()
 }
 
 MediaResource*
-MediaResource::Create(MediaDecoder* aDecoder, nsIChannel* aChannel)
+MediaResource::Create(nsMediaDecoder* aDecoder, nsIChannel* aChannel)
 {
   NS_ASSERTION(NS_IsMainThread(),
                "MediaResource::Open called on non-main thread");
@@ -1617,7 +1514,7 @@ MediaResource::Create(MediaDecoder* aDecoder, nsIChannel* aChannel)
   return new ChannelMediaResource(aDecoder, aChannel, uri);
 }
 
-void BaseMediaResource::MoveLoadsToBackground() {
+void MediaResource::MoveLoadsToBackground() {
   NS_ASSERTION(!mLoadInBackground, "Why are you calling this more than once?");
   mLoadInBackground = true;
   if (!mChannel) {
@@ -1648,7 +1545,7 @@ void BaseMediaResource::MoveLoadsToBackground() {
   }
 }
 
-void BaseMediaResource::ModifyLoadFlags(nsLoadFlags aFlags)
+void MediaResource::ModifyLoadFlags(nsLoadFlags aFlags)
 {
   nsCOMPtr<nsILoadGroup> loadGroup;
   DebugOnly<nsresult> rv = mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
@@ -1673,6 +1570,3 @@ void BaseMediaResource::ModifyLoadFlags(nsLoadFlags aFlags)
     NS_ASSERTION(NS_SUCCEEDED(rv), "AddRequest() failed!");
   }
 }
-
-} // namespace mozilla
-

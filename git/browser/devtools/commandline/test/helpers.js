@@ -335,9 +335,10 @@ DeveloperToolbarTest.exec = function DTT_exec(tests) {
   if (tests.outputMatch) {
     var doTest = function(match, against) {
       if (!match.test(against)) {
-        info("Actual textContent: '" + against + "'");
-        ok(false, "mismatched output for " + typed + " against " + match.source +
+        ok(false, "html output for " + typed + " against " + match.source +
                 " (textContent sent to info)");
+        info("Actual textContent");
+        info(against);
       }
     }
     if (Array.isArray(tests.outputMatch)) {
@@ -352,12 +353,11 @@ DeveloperToolbarTest.exec = function DTT_exec(tests) {
 
   if (tests.blankOutput != null) {
     if (!/^$/.test(displayed)) {
-      info("Actual textContent: '" + displayed + "'");
-      ok(false, "non-blank output for " + typed + " (textContent sent to info)");
+      ok(false, "html output for " + typed + " (textContent sent to info)");
+      info("Actual textContent");
+      info(displayed);
     }
   }
-
-  return output;
 };
 
 /**
@@ -446,7 +446,6 @@ DeveloperToolbarTest.test = function DTT_test(uri, target, isGcli) {
           target(browser, tab);
         }
         catch (ex) {
-console.error(ex.stack);
           ok(false, "" + ex);
           DeveloperToolbarTest._finish();
           throw ex;

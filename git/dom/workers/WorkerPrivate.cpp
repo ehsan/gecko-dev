@@ -80,7 +80,7 @@ USING_WORKERS_NAMESPACE
 using namespace mozilla::dom::workers::events;
 using namespace mozilla::dom;
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf, "js-worker")
 
 namespace {
 
@@ -937,13 +937,9 @@ public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    // Don't fire this event if the JS object has been disconnected from the
-    // private object.
-    if (!aWorkerPrivate->IsAcceptingEvents()) {
-      return true;
-    }
-
-    JSObject* target = aWorkerPrivate->GetJSObject();
+    JSObject* target = aWorkerPrivate->IsAcceptingEvents() ?
+                       aWorkerPrivate->GetJSObject() :
+                       nullptr;
 
     uint64_t innerWindowId;
 
@@ -1003,69 +999,65 @@ public:
       return false;
     }
 
-    // We should not fire error events for warnings but instead make sure that
-    // they show up in the error console.
-    if (!JSREPORT_IS_WARNING(aFlags)) {
-      // First fire an ErrorEvent at the worker.
-      if (aTarget) {
+    // First fire an ErrorEvent at the worker.
+    if (aTarget) {
+      JSObject* event = 
+        CreateErrorEvent(aCx, message, filename, aLineNumber, !aWorkerPrivate);
+      if (!event) {
+        return false;
+      }
+
+      bool preventDefaultCalled;
+      if (!DispatchEventToTarget(aCx, aTarget, event, &preventDefaultCalled)) {
+        return false;
+      }
+
+      if (preventDefaultCalled) {
+        return true;
+      }
+    }
+
+    // Now fire an event at the global object, but don't do that if the error
+    // code is too much recursion and this is the same script threw the error.
+    if (aFireAtScope && (aTarget || aErrorNumber != JSMSG_OVER_RECURSED)) {
+      aTarget = JS_GetGlobalForScopeChain(aCx);
+      NS_ASSERTION(aTarget, "This should never be null!");
+
+      bool preventDefaultCalled;
+      nsIScriptGlobalObject* sgo;
+
+      if (aWorkerPrivate ||
+          !(sgo = nsJSUtils::GetStaticScriptGlobal(aTarget))) {
+        // Fire a normal ErrorEvent if we're running on a worker thread.
         JSObject* event =
-          CreateErrorEvent(aCx, message, filename, aLineNumber, !aWorkerPrivate);
+          CreateErrorEvent(aCx, message, filename, aLineNumber, false);
         if (!event) {
           return false;
         }
 
-        bool preventDefaultCalled;
-        if (!DispatchEventToTarget(aCx, aTarget, event, &preventDefaultCalled)) {
+        if (!DispatchEventToTarget(aCx, aTarget, event,
+                                   &preventDefaultCalled)) {
           return false;
         }
+      }
+      else {
+        // Icky, we have to fire an nsScriptErrorEvent...
+        nsScriptErrorEvent event(true, NS_LOAD_ERROR);
+        event.lineNr = aLineNumber;
+        event.errorMsg = aMessage.get();
+        event.fileName = aFilename.get();
 
-        if (preventDefaultCalled) {
-          return true;
+        nsEventStatus status = nsEventStatus_eIgnore;
+        if (NS_FAILED(sgo->HandleScriptError(&event, &status))) {
+          NS_WARNING("Failed to dispatch main thread error event!");
+          status = nsEventStatus_eIgnore;
         }
+
+        preventDefaultCalled = status == nsEventStatus_eConsumeNoDefault;
       }
 
-      // Now fire an event at the global object, but don't do that if the error
-      // code is too much recursion and this is the same script threw the error.
-      if (aFireAtScope && (aTarget || aErrorNumber != JSMSG_OVER_RECURSED)) {
-        aTarget = JS_GetGlobalForScopeChain(aCx);
-        NS_ASSERTION(aTarget, "This should never be null!");
-
-        bool preventDefaultCalled;
-        nsIScriptGlobalObject* sgo;
-
-        if (aWorkerPrivate ||
-            !(sgo = nsJSUtils::GetStaticScriptGlobal(aTarget))) {
-          // Fire a normal ErrorEvent if we're running on a worker thread.
-          JSObject* event =
-            CreateErrorEvent(aCx, message, filename, aLineNumber, false);
-          if (!event) {
-            return false;
-          }
-
-          if (!DispatchEventToTarget(aCx, aTarget, event,
-                                     &preventDefaultCalled)) {
-            return false;
-          }
-        }
-        else {
-          // Icky, we have to fire an nsScriptErrorEvent...
-          nsScriptErrorEvent event(true, NS_LOAD_ERROR);
-          event.lineNr = aLineNumber;
-          event.errorMsg = aMessage.get();
-          event.fileName = aFilename.get();
-
-          nsEventStatus status = nsEventStatus_eIgnore;
-          if (NS_FAILED(sgo->HandleScriptError(&event, &status))) {
-            NS_WARNING("Failed to dispatch main thread error event!");
-            status = nsEventStatus_eIgnore;
-          }
-
-          preventDefaultCalled = status == nsEventStatus_eConsumeNoDefault;
-        }
-
-        if (preventDefaultCalled) {
-          return true;
-        }
+      if (preventDefaultCalled) {
+        return true;
       }
     }
 
@@ -1493,7 +1485,7 @@ struct WorkerJSRuntimeStats : public JS::RuntimeStats
   {
     MOZ_ASSERT(!cstats->extra1);
     MOZ_ASSERT(!cstats->extra2);
-
+    
     // ReportJSRuntimeExplicitTreeStats expects that cstats->{extra1,extra2}
     // are char pointers.
 
@@ -1513,7 +1505,7 @@ struct WorkerJSRuntimeStats : public JS::RuntimeStats
 private:
   nsCString mRtPath;
 };
-
+  
 BEGIN_WORKERS_NAMESPACE
 
 class WorkerMemoryReporter MOZ_FINAL : public nsIMemoryMultiReporter
@@ -1569,10 +1561,9 @@ public:
                                     "the process of being destroyed");
       NS_WARNING(message.get());
 #endif
-      *static_cast<int64_t*>(aData) = 0;
       return NS_OK;
     }
-
+    
     if (!mWorkerPrivate->BlockAndCollectRuntimeStats(aIsQuick, aData)) {
       return NS_ERROR_FAILURE;
     }
@@ -2248,7 +2239,7 @@ WorkerPrivateParent<Derived>::PostMessage(JSContext* aCx, jsval aMessage,
 
   {
     MutexAutoLock lock(mMutex);
-    if (mParentStatus > Running) {
+    if (mParentStatus != Running) {
       return true;
     }
   }
@@ -3394,7 +3385,7 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey)
       NS_ASSERTION(syncQueue->mQueue.IsEmpty(), "Unprocessed sync events!");
 
       bool result = syncQueue->mResult;
-      DestroySyncLoop(aSyncLoopKey);
+      mSyncQueues.RemoveElementAt(aSyncLoopKey);
 
 #ifdef DEBUG
       syncQueue = nullptr;
@@ -3426,14 +3417,6 @@ WorkerPrivate::StopSyncLoop(uint32_t aSyncLoopKey, bool aSyncResult)
 
   syncQueue->mResult = aSyncResult;
   syncQueue->mComplete = true;
-}
-
-void
-WorkerPrivate::DestroySyncLoop(uint32_t aSyncLoopKey)
-{
-  AssertIsOnWorkerThread();
-
-  mSyncQueues.RemoveElementAt(aSyncLoopKey);
 }
 
 bool

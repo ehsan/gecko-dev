@@ -77,7 +77,6 @@ IDBFactory::~IDBFactory()
     NS_ASSERTION(!mActorChild, "Should have cleared in Send__delete__!");
   }
   if (mRootedOwningObject) {
-    mOwningObject = nullptr;
     NS_DROP_JS_OBJECTS(this, IDBFactory);
   }
 }
@@ -253,26 +252,8 @@ IDBFactory::Create(ContentParent* aContentParent,
 }
 
 // static
-already_AddRefed<nsIFileURL>
-IDBFactory::GetDatabaseFileURL(nsIFile* aDatabaseFile, const nsACString& aOrigin)
-{
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = NS_NewFileURI(getter_AddRefs(uri), aDatabaseFile);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-
-  nsCOMPtr<nsIFileURL> fileUrl = do_QueryInterface(uri);
-  NS_ASSERTION(fileUrl, "This should always succeed!");
-
-  rv = fileUrl->SetQuery(NS_LITERAL_CSTRING("origin=") + aOrigin);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-
-  return fileUrl.forget();
-}
-
-// static
 already_AddRefed<mozIStorageConnection>
-IDBFactory::GetConnection(const nsAString& aDatabaseFilePath,
-                          const nsACString& aOrigin)
+IDBFactory::GetConnection(const nsAString& aDatabaseFilePath)
 {
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
   NS_ASSERTION(StringEndsWith(aDatabaseFilePath, NS_LITERAL_STRING(".sqlite")),
@@ -289,15 +270,13 @@ IDBFactory::GetConnection(const nsAString& aDatabaseFilePath,
   NS_ENSURE_SUCCESS(rv, nullptr);
   NS_ENSURE_TRUE(exists, nullptr);
 
-  nsCOMPtr<nsIFileURL> dbFileUrl = GetDatabaseFileURL(dbFile, aOrigin);
-  NS_ENSURE_TRUE(dbFileUrl, nullptr);
-
-  nsCOMPtr<mozIStorageService> ss =
+  nsCOMPtr<mozIStorageServiceQuotaManagement> ss =
     do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(ss, nullptr);
 
   nsCOMPtr<mozIStorageConnection> connection;
-  rv = ss->OpenDatabaseWithFileURL(dbFileUrl, getter_AddRefs(connection));
+  rv = ss->OpenDatabaseWithVFS(dbFile, NS_LITERAL_CSTRING("quota"),
+                               getter_AddRefs(connection));
   NS_ENSURE_SUCCESS(rv, nullptr);
 
   // Turn on foreign key constraints and recursive triggers.
@@ -497,7 +476,7 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBFactory)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mWindow)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBFactory)
@@ -508,7 +487,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBFactory)
     NS_DROP_JS_OBJECTS(tmp, IDBFactory);
     tmp->mRootedOwningObject = false;
   }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mWindow)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBFactory)

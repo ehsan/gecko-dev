@@ -133,10 +133,10 @@ nsImageControlFrame::AccessibleType()
 {
   if (mContent->Tag() == nsGkAtoms::button ||
       mContent->Tag() == nsGkAtoms::input) {
-    return a11y::eHTMLButtonType;
+    return a11y::eHTMLButtonAccessible;
   }
 
-  return a11y::eNoType;
+  return a11y::eNoAccessible;
 }
 #endif
 

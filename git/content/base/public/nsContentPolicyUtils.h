@@ -107,7 +107,6 @@ NS_CP_ContentTypeName(uint32_t contentType)
     CASE_RETURN( TYPE_FONT              );
     CASE_RETURN( TYPE_MEDIA             );
     CASE_RETURN( TYPE_WEBSOCKET         );
-    CASE_RETURN( TYPE_CSP_REPORT        );
    default:
     return "<Unknown Type>";
   }

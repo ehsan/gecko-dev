@@ -6,13 +6,10 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "Accessible-inl.h"
 #include "AccessibleWrap.h"
 #include "DocAccessible.h"
 #include "nsMai.h"
 #include "mozilla/Likely.h"
-
-using namespace mozilla::a11y;
 
 static const char* const kDocTypeName = "W3C-doctype";
 static const char* const kDocUrlName = "DocURL";

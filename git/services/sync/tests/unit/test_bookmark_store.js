@@ -9,41 +9,11 @@ Cu.import("resource://services-sync/util.js");
 const PARENT_ANNO = "sync/parent";
 
 Service.engineManager.register(BookmarksEngine);
-
 let engine = Service.engineManager.get("bookmarks");
 let store = engine._store;
-let tracker = engine._tracker;
-
-// Don't write some persistence files asynchronously.
-tracker.persistChangedIDs = false;
-
 let fxuri = Utils.makeURI("http://getfirefox.com/");
 let tburi = Utils.makeURI("http://getthunderbird.com/");
 
-add_test(function test_ignore_specials() {
-  _("Ensure that we can't delete bookmark roots.");
-
-  // Belt...
-  let record = new BookmarkFolder("bookmarks", "toolbar", "folder");
-  record.deleted = true;
-  do_check_neq(null, store.idForGUID("toolbar"));
-
-  store.applyIncoming(record);
-
-  // Ensure that the toolbar exists.
-  do_check_neq(null, store.idForGUID("toolbar"));
-
-  // This will fail painfully in getItemType if the deletion worked.
-  engine._buildGUIDMap();
-
-  // Braces...
-  store.remove(record);
-  do_check_neq(null, store.idForGUID("toolbar"));
-  engine._buildGUIDMap();
-
-  store.wipe();
-  run_next_test();
-});
 
 add_test(function test_bookmark_create() {
   try {
@@ -330,9 +300,9 @@ add_test(function test_move_order() {
     toolbar.children = [bmk2_guid, bmk1_guid];
     store.applyIncoming(toolbar);
     // Bookmarks engine does this at the end of _processIncoming
-    tracker.ignoreAll = true;
+    engine._tracker.ignoreAll = true;
     store._orderChildren();
-    tracker.ignoreAll = false;
+    engine._tracker.ignoreAll = false;
     delete store._childrenToOrder;
 
     _("Verify new order.");
@@ -405,6 +375,11 @@ add_test(function test_reparentOrphans() {
   } finally {
     _("Clean up.");
     store.wipe();
+
+    if (engine._tracker._lazySave) {
+      engine._tracker._lazySave.clear();
+    }
+
     run_next_test();
   }
 });

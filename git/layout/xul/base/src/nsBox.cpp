@@ -463,7 +463,7 @@ nsBox::GetFlex(nsBoxLayoutState& aState)
 }
 
 uint32_t
-nsIFrame::GetOrdinal()
+nsIFrame::GetOrdinal(nsBoxLayoutState& aState)
 {
   uint32_t ordinal = GetStyleXUL()->mBoxOrdinal;
 

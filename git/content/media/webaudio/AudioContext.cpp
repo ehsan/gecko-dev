@@ -22,16 +22,30 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_3(AudioContext,
-                                        mWindow, mDestination, mListener)
-
+NS_IMPL_CYCLE_COLLECTION_CLASS(AudioContext)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(AudioContext)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mWindow)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDestination)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER_NATIVE
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(AudioContext)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mWindow)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDestination)
+  // Cannot use NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR since AudioListener
+  // does not inherit from nsISupports.
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(tmp->mListener, AudioListener, "listener")
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(AudioContext)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(AudioContext, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AudioContext, Release)
 
 AudioContext::AudioContext(nsIDOMWindow* aWindow)
   : mWindow(aWindow)
   , mDestination(new AudioDestinationNode(this))
-  , mSampleRate(44100) // hard-code for now
 {
   SetIsDOMBinding();
 }
@@ -50,7 +64,7 @@ AudioContext::WrapObject(JSContext* aCx, JSObject* aScope,
 /* static */ already_AddRefed<AudioContext>
 AudioContext::Constructor(nsISupports* aGlobal, ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal);
+  nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(aGlobal);
   if (!window) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -58,7 +72,6 @@ AudioContext::Constructor(nsISupports* aGlobal, ErrorResult& aRv)
 
   AudioContext* object = new AudioContext(window);
   NS_ADDREF(object);
-  window->AddAudioContext(object);
   return object;
 }
 
@@ -91,14 +104,14 @@ AudioContext::CreateGain()
 }
 
 already_AddRefed<DelayNode>
-AudioContext::CreateDelay(double aMaxDelayTime, ErrorResult& aRv)
+AudioContext::CreateDelay(float aMaxDelayTime, ErrorResult& aRv)
 {
-  if (aMaxDelayTime > 0. && aMaxDelayTime < 3.) {
-    nsRefPtr<DelayNode> delayNode = new DelayNode(this, aMaxDelayTime);
-    return delayNode.forget();
+  if (aMaxDelayTime <= 0.f) {
+    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    return nullptr;
   }
-  aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-  return nullptr;
+  nsRefPtr<DelayNode> delayNode = new DelayNode(this, aMaxDelayTime);
+  return delayNode.forget();
 }
 
 already_AddRefed<PannerNode>

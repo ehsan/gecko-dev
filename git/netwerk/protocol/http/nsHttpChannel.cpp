@@ -77,6 +77,22 @@ AccumulateCacheHitTelemetry(Telemetry::ID deviceHistogram,
     }
 }
 
+const char *
+GetCacheSessionNameForStoragePolicy(nsCacheStoragePolicy storagePolicy,
+                                    bool isPrivate)
+{
+    MOZ_ASSERT(!isPrivate || storagePolicy == nsICache::STORE_IN_MEMORY);
+
+    switch (storagePolicy) {
+    case nsICache::STORE_IN_MEMORY:
+        return isPrivate ? "HTTP-memory-only-PB" : "HTTP-memory-only";
+    case nsICache::STORE_OFFLINE:
+        return "HTTP-offline";
+    default:
+        return "HTTP";
+    }
+}
+
 // Computes and returns a SHA1 hash of the input buffer. The input buffer
 // must be a null-terminated string.
 nsresult
@@ -315,7 +331,7 @@ nsHttpChannel::~nsHttpChannel()
 
 nsresult
 nsHttpChannel::Init(nsIURI *uri,
-                    uint32_t caps,
+                    uint8_t caps,
                     nsProxyInfo *proxyInfo,
                     uint32_t proxyResolveFlags,
                     nsIURI *proxyURI)
@@ -354,8 +370,7 @@ nsHttpChannel::Connect()
         NS_ENSURE_TRUE(stss, NS_ERROR_OUT_OF_MEMORY);
 
         bool isStsHost = false;
-        uint32_t flags = mPrivateBrowsing ? nsISocketProvider::NO_PERMANENT_STORAGE : 0;
-        rv = stss->IsStsURI(mURI, flags, &isStsHost);
+        rv = stss->IsStsURI(mURI, &isStsHost);
 
         // if STS fails, there's no reason to cancel the load, but it's
         // worrisome.
@@ -522,7 +537,7 @@ nsHttpChannel::SpeculativeConnect()
     mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
     mConnectionInfo->SetPrivate(mPrivateBrowsing);
     gHttpHandler->SpeculativeConnect(mConnectionInfo,
-                                     callbacks);
+                                     callbacks, NS_GetCurrentThread());
 }
 
 void
@@ -663,31 +678,6 @@ nsHttpChannel::ContinueHandleAsyncFallback(nsresult rv)
         mLoadGroup->RemoveRequest(this, nullptr, mStatus);
 
     return rv;
-}
-
-void
-nsHttpChannel::SetupTransactionLoadGroupInfo()
-{
-    // Find the loadgroup at the end of the chain in order
-    // to make sure all channels derived from the load group
-    // use the same connection scope.
-    nsCOMPtr<nsILoadGroup> rootLoadGroup = mLoadGroup;
-    while (rootLoadGroup) {
-        nsCOMPtr<nsILoadGroup> tmp;
-        rootLoadGroup->GetLoadGroup(getter_AddRefs(tmp));
-        if (tmp)
-            rootLoadGroup.swap(tmp);
-        else
-            break;
-    }
-
-    // Set the load group connection scope on the transaction
-    if (rootLoadGroup) {
-        nsCOMPtr<nsILoadGroupConnectionInfo> ci;
-        rootLoadGroup->GetConnectionInfo(getter_AddRefs(ci));
-        if (ci)
-            mTransaction->SetLoadGroupConnectionInfo(ci);
-    }
 }
 
 nsresult
@@ -863,8 +853,6 @@ nsHttpChannel::SetupTransaction()
         return rv;
     }
 
-    SetupTransactionLoadGroupInfo();
-    
     rv = nsInputStreamPump::Create(getter_AddRefs(mTransactionPump),
                                    responseStream);
     return rv;
@@ -877,10 +865,17 @@ CallTypeSniffers(void *aClosure, const uint8_t *aData, uint32_t aCount)
 {
   nsIChannel *chan = static_cast<nsIChannel*>(aClosure);
 
-  nsAutoCString newType;
-  NS_SniffContent(NS_CONTENT_SNIFFER_CATEGORY, chan, aData, aCount, newType);
-  if (!newType.IsEmpty()) {
-    chan->SetContentType(newType);
+  const nsCOMArray<nsIContentSniffer>& sniffers =
+    gIOService->GetContentSniffers();
+  uint32_t length = sniffers.Count();
+  for (uint32_t i = 0; i < length; ++i) {
+    nsAutoCString newType;
+    nsresult rv =
+      sniffers[i]->GetMIMETypeFromContent(chan, aData, aCount, newType);
+    if (NS_SUCCEEDED(rv) && !newType.IsEmpty()) {
+      chan->SetContentType(newType);
+      break;
+    }
   }
 }
 
@@ -888,27 +883,6 @@ nsresult
 nsHttpChannel::CallOnStartRequest()
 {
     mTracingEnabled = false;
-
-    // Allow consumers to override our content type
-    if (mLoadFlags & LOAD_CALL_CONTENT_SNIFFERS) {
-        // NOTE: We can have both a txn pump and a cache pump when the cache
-        // content is partial. In that case, we need to read from the cache,
-        // because that's the one that has the initial contents. If that fails
-        // then give the transaction pump a shot.
-
-        nsIChannel* thisChannel = static_cast<nsIChannel*>(this);
-
-        bool typeSniffersCalled = false;
-        if (mCachePump) {
-          typeSniffersCalled =
-            NS_SUCCEEDED(mCachePump->PeekStream(CallTypeSniffers, thisChannel));
-        }
-        
-        if (!typeSniffersCalled && mTransactionPump) {
-          mTransactionPump->PeekStream(CallTypeSniffers, thisChannel);
-        }
-    }
-
     bool shouldSniff = mResponseHead && (mResponseHead->ContentType().IsEmpty() ||
         ((mResponseHead->ContentType().EqualsLiteral(APPLICATION_OCTET_STREAM) &&
         (mLoadFlags & LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN))));
@@ -953,6 +927,26 @@ nsHttpChannel::CallOnStartRequest()
         nsresult rv = mCacheEntry->SetPredictedDataSize(
             mResponseHead->ContentLength());
         NS_ENSURE_SUCCESS(rv, rv);
+    }
+    // Allow consumers to override our content type
+    if ((mLoadFlags & LOAD_CALL_CONTENT_SNIFFERS) &&
+        gIOService->GetContentSniffers().Count() != 0) {
+        // NOTE: We can have both a txn pump and a cache pump when the cache
+        // content is partial. In that case, we need to read from the cache,
+        // because that's the one that has the initial contents. If that fails
+        // then give the transaction pump a shot.
+
+        nsIChannel* thisChannel = static_cast<nsIChannel*>(this);
+
+        bool typeSniffersCalled = false;
+        if (mCachePump) {
+          typeSniffersCalled =
+            NS_SUCCEEDED(mCachePump->PeekStream(CallTypeSniffers, thisChannel));
+        }
+        
+        if (!typeSniffersCalled && mTransactionPump) {
+          mTransactionPump->PeekStream(CallTypeSniffers, thisChannel);
+        }
     }
 
     LOG(("  calling mListener->OnStartRequest\n"));
@@ -1118,9 +1112,7 @@ nsHttpChannel::ProcessSTSHeader()
     // If this wasn't an STS host, errors are allowed, but no more STS processing
     // will happen during the session.
     bool wasAlreadySTSHost;
-    uint32_t flags =
-      NS_UsePrivateBrowsing(this) ? nsISocketProvider::NO_PERMANENT_STORAGE : 0;
-    rv = stss->IsStsURI(mURI, flags, &wasAlreadySTSHost);
+    rv = stss->IsStsURI(mURI, &wasAlreadySTSHost);
     // Failure here means STS is broken.  Don't prevent the load, but this
     // shouldn't fail.
     NS_ENSURE_SUCCESS(rv, NS_OK);
@@ -1148,7 +1140,7 @@ nsHttpChannel::ProcessSTSHeader()
     // All other failures are fatal.
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = stss->ProcessStsHeader(mURI, stsHeader.get(), flags, NULL, NULL);
+    rv = stss->ProcessStsHeader(mURI, stsHeader.get(), NULL, NULL);
     if (NS_FAILED(rv)) {
         LOG(("STS: Failed to parse STS header, continuing load.\n"));
         return NS_OK;
@@ -2464,18 +2456,6 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
     return OpenNormalCacheEntry(usingSSL);
 }
 
-static void
-GetAppInfo(nsIChannel* aChannel, uint32_t* aAppId, bool* aIsInBrowser)
-{
-    nsCOMPtr<nsILoadContext> loadContext;
-    NS_QueryNotificationCallbacks(aChannel, loadContext);
-    *aAppId = NECKO_NO_APP_ID;
-    *aIsInBrowser = false;
-    if (loadContext) {
-        loadContext->GetAppId(aAppId);
-        loadContext->GetIsInBrowserElement(aIsInBrowser);
-    }
-}
 
 nsresult
 nsHttpChannel::OpenNormalCacheEntry(bool usingSSL)
@@ -2484,14 +2464,9 @@ nsHttpChannel::OpenNormalCacheEntry(bool usingSSL)
 
     nsresult rv;
 
-    uint32_t appId;
-    bool isInBrowser;
-    GetAppInfo(this, &appId, &isInBrowser);
-
     nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
-    nsAutoCString clientID;
-    nsHttpHandler::GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing,
-                                                       appId, isInBrowser, clientID);
+    nsDependentCString clientID(
+        GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing));
 
     nsAutoCString cacheKey;
     GenerateCacheKey(mPostID, cacheKey);
@@ -4322,11 +4297,6 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
 
     AddCookiesToRequest();
 
-    // notify "http-on-opening-request" observers, but not if this is a redirect
-    if (!(mLoadFlags & LOAD_REPLACE)) {
-        gHttpHandler->OnOpeningRequest(this);
-    }
-
     mIsPending = true;
     mWasOpened = true;
 
@@ -4364,8 +4334,6 @@ nsHttpChannel::BeginConnect()
 
     // notify "http-on-modify-request" observers
     gHttpHandler->OnModifyRequest(this);
-
-    mRequestObserversCalled = true;
 
     // If mTimingEnabled flag is not set after OnModifyRequest() then
     // clear the already recorded AsyncOpen value for consistency.
@@ -4446,20 +4414,11 @@ nsHttpChannel::BeginConnect()
         (BYPASS_LOCAL_CACHE(mLoadFlags)))
         mCaps |= NS_HTTP_REFRESH_DNS;
 
-    if (gHttpHandler->CritialRequestPrioritization()) {
-        if (mLoadAsBlocking)
-            mCaps |= NS_HTTP_LOAD_AS_BLOCKING;
-        if (mLoadUnblocked)
-            mCaps |= NS_HTTP_LOAD_UNBLOCKED;
-    }
-
     // Force-Reload should reset the persistent connection pool for this host
     if (mLoadFlags & LOAD_FRESH_CONNECTION) {
         // just the initial document resets the whole pool
-        if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI) {
+        if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI)
             gHttpHandler->ConnMgr()->ClosePersistentConnections();
-            gHttpHandler->ConnMgr()->ResetIPFamillyPreference(mConnectionInfo);
-        }
         // each sub resource gets a fresh connection
         mCaps &= ~(NS_HTTP_ALLOW_KEEPALIVE | NS_HTTP_ALLOW_PIPELINING);
     }
@@ -4494,7 +4453,7 @@ nsHttpChannel::BeginConnect()
 NS_IMETHODIMP
 nsHttpChannel::SetupFallbackChannel(const char *aFallbackKey)
 {
-    ENSURE_CALLED_BEFORE_CONNECT();
+    ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
     LOG(("nsHttpChannel::SetupFallbackChannel [this=%x, key=%s]",
          this, aFallbackKey));
@@ -5376,7 +5335,7 @@ nsHttpChannel::SetCacheKey(nsISupports *key)
 
     LOG(("nsHttpChannel::SetCacheKey [this=%p key=%p]\n", this, key));
 
-    ENSURE_CALLED_BEFORE_CONNECT();
+    ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
     if (!key)
         mPostID = 0;
@@ -5625,7 +5584,7 @@ nsHttpChannel::GetApplicationCache(nsIApplicationCache **out)
 NS_IMETHODIMP
 nsHttpChannel::SetApplicationCache(nsIApplicationCache *appCache)
 {
-    ENSURE_CALLED_BEFORE_CONNECT();
+    ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
     mApplicationCache = appCache;
     return NS_OK;
@@ -5641,7 +5600,7 @@ nsHttpChannel::GetApplicationCacheForWrite(nsIApplicationCache **out)
 NS_IMETHODIMP
 nsHttpChannel::SetApplicationCacheForWrite(nsIApplicationCache *appCache)
 {
-    ENSURE_CALLED_BEFORE_CONNECT();
+    ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
     mApplicationCacheForWrite = appCache;
     return NS_OK;
@@ -5664,7 +5623,7 @@ nsHttpChannel::GetInheritApplicationCache(bool *aInherit)
 NS_IMETHODIMP
 nsHttpChannel::SetInheritApplicationCache(bool aInherit)
 {
-    ENSURE_CALLED_BEFORE_CONNECT();
+    ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
     mInheritApplicationCache = aInherit;
     return NS_OK;
@@ -5680,7 +5639,7 @@ nsHttpChannel::GetChooseApplicationCache(bool *aChoose)
 NS_IMETHODIMP
 nsHttpChannel::SetChooseApplicationCache(bool aChoose)
 {
-    ENSURE_CALLED_BEFORE_CONNECT();
+    ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
     mChooseApplicationCache = aChoose;
     return NS_OK;
@@ -5898,25 +5857,20 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
     // The logic below deviates from the original logic in OpenCacheEntry on
     // one point by using only READ_ONLY access-policy. I think this is safe.
 
-    uint32_t appId;
-    bool isInBrowser;
-    GetAppInfo(this, &appId, &isInBrowser);
-
     // First, find session holding the cache-entry - use current storage-policy
     nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
-    nsAutoCString clientID;
-    nsHttpHandler::GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing,
-                                                       appId, isInBrowser, clientID);
+    const char * clientID =
+        GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing);
 
     LOG(("DoInvalidateCacheEntry [channel=%p session=%s policy=%d key=%s]",
-         this, clientID.get(), int(storagePolicy), key.get()));
+         this, clientID, int(storagePolicy), key.get()));
 
     nsresult rv;
     nsCOMPtr<nsICacheService> serv =
         do_GetService(NS_CACHESERVICE_CONTRACTID, &rv);
     nsCOMPtr<nsICacheSession> session;
     if (NS_SUCCEEDED(rv)) {
-        rv = serv->CreateSession(clientID.get(), storagePolicy,
+        rv = serv->CreateSession(clientID, storagePolicy,  
                                  nsICache::STREAM_BASED,
                                  getter_AddRefs(session));
     }
@@ -5928,7 +5882,7 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
     }
 
     LOG(("DoInvalidateCacheEntry [channel=%p session=%s policy=%d key=%s rv=%d]",
-         this, clientID.get(), int(storagePolicy), key.get(), int(rv)));
+         this, clientID, int(storagePolicy), key.get(), int(rv)));
 }
 
 nsCacheStoragePolicy
@@ -5969,43 +5923,6 @@ nsHttpChannel::AsyncOnExamineCachedResponse()
 {
     gHttpHandler->OnExamineCachedResponse(this);
 
-}
-
-void
-nsHttpChannel::UpdateAggregateCallbacks()
-{
-    if (!mTransaction) {
-        return;
-    }
-    nsCOMPtr<nsIInterfaceRequestor> callbacks;
-    NS_NewNotificationCallbacksAggregation(mCallbacks, mLoadGroup,
-                                           NS_GetCurrentThread(),
-                                           getter_AddRefs(callbacks));
-    mTransaction->SetSecurityCallbacks(callbacks);
-}
-
-NS_IMETHODIMP
-nsHttpChannel::SetLoadGroup(nsILoadGroup *aLoadGroup)
-{
-    MOZ_ASSERT(NS_IsMainThread(), "Wrong thread.");
-
-    nsresult rv = HttpBaseChannel::SetLoadGroup(aLoadGroup);
-    if (NS_SUCCEEDED(rv)) {
-        UpdateAggregateCallbacks();
-    }
-    return rv;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
-{
-    MOZ_ASSERT(NS_IsMainThread(), "Wrong thread.");
-
-    nsresult rv = HttpBaseChannel::SetNotificationCallbacks(aCallbacks);
-    if (NS_SUCCEEDED(rv)) {
-        UpdateAggregateCallbacks();
-    }
-    return rv;
 }
 
 } } // namespace mozilla::net

@@ -327,9 +327,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
     if (tmp->mTemplateBuilderTable)
         tmp->mTemplateBuilderTable->EnumerateRead(TraverseTemplateBuilders, &cb);
         
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCurrentPrototype)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMasterPrototype)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCommandDispatcher)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCurrentPrototype,
+                                                     nsIScriptGlobalObjectOwner)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mMasterPrototype,
+                                                     nsIScriptGlobalObjectOwner)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCommandDispatcher,
+                                                     nsIDOMXULCommandDispatcher)
 
     uint32_t i, count = tmp->mPrototypes.Length();
     for (i = 0; i < count; ++i) {
@@ -337,7 +340,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
         cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
     }
 
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLocalStore)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLocalStore)
 
     if (tmp->mOverlayLoadObservers.IsInitialized())
         tmp->mOverlayLoadObservers.EnumerateRead(TraverseObservers, &cb);
@@ -349,7 +352,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
     delete tmp->mTemplateBuilderTable;
     tmp->mTemplateBuilderTable = nullptr;
 
-    NS_IMPL_CYCLE_COLLECTION_UNLINK(mCommandDispatcher)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCommandDispatcher)
     //XXX We should probably unlink all the objects we traverse.
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -388,6 +391,16 @@ nsXULDocument::ResetToURI(nsIURI* aURI, nsILoadGroup* aLoadGroup,
                           nsIPrincipal* aPrincipal)
 {
     NS_NOTREACHED("ResetToURI");
+}
+
+// Override the nsDocument.cpp method to keep from returning the
+// "cached XUL" type which is completely internal and may confuse
+// people
+NS_IMETHODIMP
+nsXULDocument::GetContentType(nsAString& aContentType)
+{
+    aContentType.AssignLiteral("application/vnd.mozilla.xul+xml");
+    return NS_OK;
 }
 
 void
@@ -1872,11 +1885,11 @@ nsXULDocument::RemoveElementFromRefMap(Element* aElement)
 // nsIDOMNode interface
 //
 
-nsresult
-nsXULDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
+NS_IMETHODIMP
+nsXULDocument::CloneNode(bool aDeep, uint8_t aOptionalArgc, nsIDOMNode** aReturn)
 {
-    // We don't allow cloning of a XUL document
-    *aResult = nullptr;
+    // We don't allow cloning of a document
+    *aReturn = nullptr;
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }
 
@@ -2840,6 +2853,12 @@ nsXULDocument::ResumeWalk()
                                                    &isAlternate);
                         }
                     }
+
+#ifdef MOZ_XTF
+                    if (element->GetNameSpaceID() > kNameSpaceID_LastBuiltin) {
+                        element->DoneAddingChildren(false);
+                    }
+#endif
                 }
                 // Now pop the context stack back up to the parent
                 // element and continue the prototype walk.
@@ -2910,6 +2929,12 @@ nsXULDocument::ResumeWalk()
                         // immediately.
                         AddElementToDocumentPost(child);
                     }
+#ifdef MOZ_XTF
+                    if (child &&
+                        child->GetNameSpaceID() > kNameSpaceID_LastBuiltin) {
+                        child->DoneAddingChildren(false);
+                    }
+#endif
                 }
             }
             break;
@@ -2932,7 +2957,7 @@ nsXULDocument::ResumeWalk()
                     if (NS_SUCCEEDED(rv) && blocked)
                         return NS_OK;
                 }
-                else if (scriptproto->GetScriptObject()) {
+                else if (scriptproto->mScriptObject.mObject) {
                     // An inline script
                     rv = ExecuteScript(scriptproto);
                     if (NS_FAILED(rv)) return rv;
@@ -3285,7 +3310,7 @@ nsXULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, bool* aBlock)
 
     bool isChromeDoc = IsChromeURI(mDocumentURI);
 
-    if (isChromeDoc && aScriptProto->GetScriptObject()) {
+    if (isChromeDoc && aScriptProto->mScriptObject.mObject) {
         rv = ExecuteScript(aScriptProto);
 
         // Ignore return value from execution, and don't block
@@ -3308,7 +3333,7 @@ nsXULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, bool* aBlock)
             aScriptProto->Set(newScriptObject);
         }
 
-        if (aScriptProto->GetScriptObject()) {
+        if (aScriptProto->mScriptObject.mObject) {
             rv = ExecuteScript(aScriptProto);
 
             // Ignore return value from execution, and don't block
@@ -3466,7 +3491,7 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
             if (useXULCache && IsChromeURI(mDocumentURI)) {
                 nsXULPrototypeCache::GetInstance()->PutScript(
                                    scriptProto->mSrcURI,
-                                   scriptProto->GetScriptObject());
+                                   scriptProto->mScriptObject.mObject);
             }
 
             if (mIsWritingFastLoad && mCurrentPrototype != mMasterPrototype) {
@@ -3517,7 +3542,7 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
         doc->mNextSrcLoadWaiter = nullptr;
 
         // Execute only if we loaded and compiled successfully, then resume
-        if (NS_SUCCEEDED(aStatus) && scriptProto->GetScriptObject()) {
+        if (NS_SUCCEEDED(aStatus) && scriptProto->mScriptObject.mObject) {
             doc->ExecuteScript(scriptProto);
         }
         doc->ResumeWalk();
@@ -3558,8 +3583,8 @@ nsXULDocument::ExecuteScript(nsXULPrototypeScript *aScript)
     // failure getting a script context is fatal.
     NS_ENSURE_TRUE(context != nullptr, NS_ERROR_UNEXPECTED);
 
-    if (aScript->GetScriptObject())
-        rv = ExecuteScript(context, aScript->GetScriptObject());
+    if (aScript->mScriptObject.mObject)
+        rv = ExecuteScript(context, aScript->mScriptObject.mObject);
     else
         rv = NS_ERROR_UNEXPECTED;
     return rv;
@@ -3613,6 +3638,12 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
             return rv;
 
         result = content->AsElement();
+
+#ifdef MOZ_XTF
+        if (result && xtfNi->NamespaceID() > kNameSpaceID_LastBuiltin) {
+            result->BeginAddingChildren();
+        }
+#endif
 
         rv = AddAttributes(aPrototype, result);
         if (NS_FAILED(rv)) return rv;

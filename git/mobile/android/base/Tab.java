@@ -7,6 +7,7 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.Layer;
+import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 import org.mozilla.gecko.util.GeckoAsyncTask;
 
 import org.json.JSONException;
@@ -24,6 +25,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -60,8 +62,9 @@ public class Tab {
     private HashMap<Object, Layer> mPluginLayers;
     private ContentResolver mContentResolver;
     private ContentObserver mContentObserver;
-    private int mBackgroundColor = Color.WHITE;
+    private int mCheckerboardColor = Color.WHITE;
     private int mState;
+    private ByteBuffer mThumbnailBuffer;
     private Bitmap mThumbnailBitmap;
     private boolean mDesktopMode;
     private boolean mEnteringReaderMode;
@@ -152,25 +155,33 @@ public class Tab {
         return mThumbnail;
     }
 
-    public Bitmap getThumbnailBitmap(int width, int height) {
-        if (mThumbnailBitmap != null) {
-            // Bug 787318 - Honeycomb has a bug with bitmap caching, we can't
-            // reuse the bitmap there.
-            boolean honeycomb = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                              && Build.VERSION.SDK_INT <= Build.VERSION_CODES.HONEYCOMB_MR2);
-            boolean sizeChange = mThumbnailBitmap.getWidth() != width
-                              || mThumbnailBitmap.getHeight() != height;
-            if (honeycomb || sizeChange) {
+    synchronized public ByteBuffer getThumbnailBuffer() {
+        int capacity = Tabs.getThumbnailWidth() * Tabs.getThumbnailHeight() * 2 /* 16 bpp */;
+        if (mThumbnailBuffer != null && mThumbnailBuffer.capacity() == capacity)
+            return mThumbnailBuffer;
+        freeBuffer();
+        mThumbnailBitmap = null;
+        mThumbnailBuffer = DirectBufferAllocator.allocate(capacity);
+        return mThumbnailBuffer;
+    }
+
+    synchronized public Bitmap getThumbnailBitmap() {
+        // Bug 787318 - Honeycomb has a bug with bitmap caching, we can't
+        // reuse the bitmap there.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB
+            || Build.VERSION.SDK_INT > Build.VERSION_CODES.HONEYCOMB_MR2) {
+            if (mThumbnailBitmap != null)
+                return mThumbnailBitmap;
+        } else {
+            if (mThumbnailBitmap != null)
                 mThumbnailBitmap.recycle();
-                mThumbnailBitmap = null;
-            }
         }
+        return mThumbnailBitmap = Bitmap.createBitmap(Tabs.getThumbnailWidth(), Tabs.getThumbnailHeight(), Bitmap.Config.RGB_565);
+    }
 
-        if (mThumbnailBitmap == null) {
-            mThumbnailBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
-        }
-
-        return mThumbnailBitmap;
+    synchronized void freeBuffer() {
+        DirectBufferAllocator.free(mThumbnailBuffer);
+        mThumbnailBuffer = null;
     }
 
     public void updateThumbnail(final Bitmap b) {
@@ -509,7 +520,7 @@ public class Tab {
         setReaderEnabled(false);
         setZoomConstraints(new ZoomConstraints(true));
         setHasTouchListeners(false);
-        setBackgroundColor(Color.WHITE);
+        setCheckerboardColor(Color.WHITE);
 
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
     }
@@ -562,18 +573,18 @@ public class Tab {
         }
     }
 
-    public int getBackgroundColor() {
-        return mBackgroundColor;
+    public int getCheckerboardColor() {
+        return mCheckerboardColor;
     }
 
-    /** Sets a new color for the background. */
-    public void setBackgroundColor(int color) {
-        mBackgroundColor = color;
+    /** Sets a new color for the checkerboard. */
+    public void setCheckerboardColor(int color) {
+        mCheckerboardColor = color;
     }
 
-    /** Parses and sets a new color for the background. */
-    public void setBackgroundColor(String newColor) {
-        setBackgroundColor(parseColorFromGecko(newColor));
+    /** Parses and sets a new color for the checkerboard. */
+    public void setCheckerboardColor(String newColor) {
+        setCheckerboardColor(parseColorFromGecko(newColor));
     }
 
     // Parses a color from an RGB triple of the form "rgb([0-9]+, [0-9]+, [0-9]+)". If the color

@@ -24,7 +24,7 @@ nsDOMCompositionEvent::nsDOMCompositionEvent(nsPresContext* aPresContext,
     // XXX compositionstart is cancelable in draft of DOM3 Events.
     //     However, it doesn't make sence for us, we cannot cancel composition
     //     when we sends compositionstart event.
-    mEvent->mFlags.mCancelable = false;
+    mEvent->flags |= NS_EVENT_FLAG_CANT_CANCEL;
   }
 
   mData = static_cast<nsCompositionEvent*>(mEvent)->data;

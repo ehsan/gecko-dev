@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsHtml5StreamParser.h"
 #include "nsICharsetConverterManager.h"
 #include "nsServiceManagerUtils.h"
@@ -83,19 +81,22 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHtml5StreamParser)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsHtml5StreamParser)
   tmp->DropTimer();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mObserver)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRequest)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mOwner)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mObserver)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRequest)
+  tmp->mOwner = nullptr;
   tmp->mExecutorFlusher = nullptr;
   tmp->mLoadFlusher = nullptr;
   tmp->mExecutor = nullptr;
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChardet)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChardet)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsHtml5StreamParser)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mObserver)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRequest)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOwner)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mObserver)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRequest)
+  if (tmp->mOwner) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mOwner");
+    cb.NoteXPCOMChild(static_cast<nsIParser*> (tmp->mOwner));
+  }
   // hack: count the strongly owned edge wrapped in the runnable
   if (tmp->mExecutorFlusher) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mExecutorFlusher->mExecutor");
@@ -108,7 +109,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsHtml5StreamParser)
   }
   // hack: count self if held by mChardet
   if (tmp->mChardet) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mChardet->mObserver");
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, 
+      "mChardet->mObserver");
     cb.NoteXPCOMChild(static_cast<nsIStreamListener*>(tmp));
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -304,6 +306,7 @@ nsHtml5StreamParser::SetupDecodingAndWriteSniffingBufferAndCurrentSegment(const 
     mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
   }
   NS_ENSURE_SUCCESS(rv, rv);
+  mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
   return WriteSniffingBufferAndCurrentSegment(aFromSegment, aCount, aWriteCount);
 }
 
@@ -336,6 +339,7 @@ nsHtml5StreamParser::SetupDecodingFromBom(const char* aCharsetName, const char* 
   NS_ENSURE_SUCCESS(rv, rv);
   rv = convManager->GetUnicodeDecoderRaw(aDecoderCharsetName, getter_AddRefs(mUnicodeDecoder));
   NS_ENSURE_SUCCESS(rv, rv);
+  mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
   mCharset.Assign(aCharsetName);
   mCharsetSource = kCharsetFromByteOrderMark;
   mFeedChardet = false;
@@ -718,6 +722,8 @@ nsHtml5StreamParser::SniffStreamBytes(const uint8_t* aFromSegment,
     convManager->GetUnicodeDecoder(mCharset.get(),
                                    getter_AddRefs(mUnicodeDecoder));
     if (mUnicodeDecoder) {
+      mUnicodeDecoder->SetInputErrorBehavior(
+          nsIUnicodeDecoder::kOnError_Recover);
       mFeedChardet = false;
       mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
       mMetaScanner = nullptr;
@@ -747,6 +753,8 @@ nsHtml5StreamParser::SniffStreamBytes(const uint8_t* aFromSegment,
           countToSniffingLimit);
       mMetaScanner->sniff(&readable, getter_AddRefs(mUnicodeDecoder), mCharset);
       if (mUnicodeDecoder) {
+        mUnicodeDecoder->SetInputErrorBehavior(
+            nsIUnicodeDecoder::kOnError_Recover);
         // meta scan successful
         mCharsetSource = kCharsetFromMetaPrescan;
         mFeedChardet = false;
@@ -766,6 +774,8 @@ nsHtml5StreamParser::SniffStreamBytes(const uint8_t* aFromSegment,
     mMetaScanner->sniff(&readable, getter_AddRefs(mUnicodeDecoder), mCharset);
     if (mUnicodeDecoder) {
       // meta scan successful
+      mUnicodeDecoder->SetInputErrorBehavior(
+          nsIUnicodeDecoder::kOnError_Recover);
       mCharsetSource = kCharsetFromMetaPrescan;
       mFeedChardet = false;
       mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
@@ -818,7 +828,6 @@ nsHtml5StreamParser::WriteStreamBytes(const uint8_t* aFromSegment,
     // pair.
 
     nsresult convResult = mUnicodeDecoder->Convert((const char*)aFromSegment, &byteCount, mLastBuffer->getBuffer() + end, &utf16Count);
-    MOZ_ASSERT(NS_SUCCEEDED(convResult));
 
     end += utf16Count;
     mLastBuffer->setEnd(end);
@@ -829,7 +838,57 @@ nsHtml5StreamParser::WriteStreamBytes(const uint8_t* aFromSegment,
         "The Unicode decoder wrote too much data.");
     NS_ASSERTION(byteCount >= -1, "The decoder consumed fewer than -1 bytes.");
 
-    if (convResult == NS_PARTIAL_MORE_OUTPUT) {
+    if (NS_FAILED(convResult)) {
+      // Using the more generic NS_FAILED test above in case there are still
+      // decoders around that don't use NS_ERROR_ILLEGAL_INPUT properly.
+      NS_ASSERTION(convResult == NS_ERROR_ILLEGAL_INPUT,
+          "The decoder signaled an error other than NS_ERROR_ILLEGAL_INPUT.");
+
+      // There's an illegal byte in the input. It's now the responsibility
+      // of this calling code to output a U+FFFD REPLACEMENT CHARACTER and
+      // reset the decoder.
+
+      if (totalByteCount < (int32_t)aCount) {
+        // advance over the bad byte
+        ++totalByteCount;
+        ++aFromSegment;
+      } else {
+        NS_NOTREACHED("The decoder signaled an error but consumed all input.");
+        // Recovering from this situation in case there are still broken
+        // decoders, since nsScanner had recovery code, too.
+        totalByteCount = (int32_t)aCount;
+      }
+
+      // Emit the REPLACEMENT CHARACTER
+      if (end >= NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE) {
+        nsRefPtr<nsHtml5OwningUTF16Buffer> newBuf =
+          nsHtml5OwningUTF16Buffer::FalliblyCreate(
+            NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE);
+        if (!newBuf) {
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
+        mLastBuffer = (mLastBuffer->next = newBuf.forget());
+        end = 0;
+      }
+      mLastBuffer->getBuffer()[end] = 0xFFFD;
+      ++end;
+      mLastBuffer->setEnd(end);
+      if (end >= NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE) {
+        nsRefPtr<nsHtml5OwningUTF16Buffer> newBuf =
+          nsHtml5OwningUTF16Buffer::FalliblyCreate(
+            NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE);
+        if (!newBuf) {
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
+        mLastBuffer = (mLastBuffer->next = newBuf.forget());
+      }
+
+      mUnicodeDecoder->Reset();
+      if (totalByteCount == (int32_t)aCount) {
+        *aWriteCount = (uint32_t)totalByteCount;
+        return NS_OK;
+      }
+    } else if (convResult == NS_PARTIAL_MORE_OUTPUT) {
       nsRefPtr<nsHtml5OwningUTF16Buffer> newBuf =
         nsHtml5OwningUTF16Buffer::FalliblyCreate(
           NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE);
@@ -956,7 +1015,9 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   rv = convManager->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
   // if we failed to get a decoder, there will be fallback, so don't propagate
   //  the error.
-  if (NS_FAILED(rv)) {
+  if (NS_SUCCEEDED(rv)) {
+    mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
+  } else {
     mCharsetSource = kCharsetFromWeakDocTypeDefault;
   }
   return NS_OK;

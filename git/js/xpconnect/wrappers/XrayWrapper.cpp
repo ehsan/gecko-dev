@@ -638,7 +638,7 @@ XPCWrappedNativeXrayTraits::resolveDOMCollectionProperty(JSContext *cx, JSObject
 
     bool retval = true;
     JSObject *pobj = NULL;
-    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0);
+    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
     nsresult rv = wn->GetScriptableInfo()->GetCallback()->NewResolve(wn, cx, wrapper, id,
                                                                      flags, &pobj, &retval);
     if (NS_FAILED(rv)) {
@@ -647,8 +647,11 @@ XPCWrappedNativeXrayTraits::resolveDOMCollectionProperty(JSContext *cx, JSObject
         return false;
     }
 
-    if (pobj && !JS_GetPropertyDescriptorById(cx, holder, id, 0, desc))
+    if (pobj && !JS_GetPropertyDescriptorById(cx, holder, id,
+                                              JSRESOLVE_QUALIFIED, desc))
+    {
         return false;
+    }
 
     return true;
 }
@@ -661,9 +664,6 @@ Is(JSObject *wrapper)
     nsCOMPtr<T> native = do_QueryWrappedNative(wn);
     return !!native;
 }
-
-static nsQueryInterface
-do_QueryInterfaceNative(JSContext* cx, JSObject* wrapper);
 
 // Helper function to work around some limitations of the current XPC 
 // calling mechanism. See: bug 763897.
@@ -686,7 +686,24 @@ mozMatchesSelectorStub(JSContext *cx, unsigned argc, jsval *vp)
     nsDependentJSString selectorStr;
     NS_ENSURE_TRUE(selectorStr.init(cx, selector), false);
 
-    nsCOMPtr<nsIDOMElement> element = do_QueryInterfaceNative(cx, wrapper);
+    nsCOMPtr<nsIDOMElement> element;
+    if (IsWrapper(wrapper) && WrapperFactory::IsXrayWrapper(wrapper)) {       
+        // If it's xray wrapped we can get the wn directly.
+        XPCWrappedNative *wn = XPCWrappedNativeXrayTraits::getWN(wrapper);
+        element = do_QueryWrappedNative(wn);
+    } else {
+        // Else we can use the XPC utility function for unwrapping it.
+        nsCOMPtr<nsIXPConnectWrappedNative> iwn;  
+        nsIXPConnect *xpc = nsXPConnect::GetXPConnect();
+        nsresult rv = xpc->GetWrappedNativeOfJSObject(cx, wrapper, 
+                                                      getter_AddRefs(iwn));
+        if (NS_FAILED(rv) || !iwn) {
+            JS_ReportError(cx, "Unexpected object");
+            return false;
+        }
+        element = do_QueryWrappedNative(iwn);
+    }
+
     if (!element) {
         JS_ReportError(cx, "Unexpected object");
         return false;
@@ -855,7 +872,13 @@ WrapURI(JSContext *cx, nsIURI *uri, jsval *vp)
 static JSBool
 documentURIObject_getter(JSContext *cx, JSHandleObject wrapper, JSHandleId id, JSMutableHandleValue vp)
 {
-    nsCOMPtr<nsIDocument> native = do_QueryInterfaceNative(cx, wrapper);
+    if (!IsWrapper(wrapper) || !WrapperFactory::IsXrayWrapper(wrapper)) {
+        JS_ReportError(cx, "Unexpected object");
+        return false;
+    }
+
+    XPCWrappedNative *wn = XPCWrappedNativeXrayTraits::getWN(wrapper);
+    nsCOMPtr<nsIDocument> native = do_QueryWrappedNative(wn);
     if (!native) {
         JS_ReportError(cx, "Unexpected object");
         return false;
@@ -873,12 +896,17 @@ documentURIObject_getter(JSContext *cx, JSHandleObject wrapper, JSHandleId id, J
 static JSBool
 baseURIObject_getter(JSContext *cx, JSHandleObject wrapper, JSHandleId id, JSMutableHandleValue vp)
 {
-    nsCOMPtr<nsINode> native = do_QueryInterfaceNative(cx, wrapper);
-    if (!native) {
+    if (!IsWrapper(wrapper) || !WrapperFactory::IsXrayWrapper(wrapper)) {
         JS_ReportError(cx, "Unexpected object");
         return false;
     }
 
+    XPCWrappedNative *wn = XPCWrappedNativeXrayTraits::getWN(wrapper);
+    nsCOMPtr<nsINode> native = do_QueryWrappedNative(wn);
+    if (!native) {
+        JS_ReportError(cx, "Unexpected object");
+        return false;
+    }
     nsCOMPtr<nsIURI> uri = native->GetBaseURI();
     if (!uri) {
         JS_ReportOutOfMemory(cx);
@@ -891,7 +919,13 @@ baseURIObject_getter(JSContext *cx, JSHandleObject wrapper, JSHandleId id, JSMut
 static JSBool
 nodePrincipal_getter(JSContext *cx, JSHandleObject wrapper, JSHandleId id, JSMutableHandleValue vp)
 {
-    nsCOMPtr<nsINode> node = do_QueryInterfaceNative(cx, wrapper);
+    if (!IsWrapper(wrapper) || !WrapperFactory::IsXrayWrapper(wrapper)) {
+        JS_ReportError(cx, "Unexpected object");
+        return false;
+    }
+
+    XPCWrappedNative *wn = XPCWrappedNativeXrayTraits::getWN(wrapper);
+    nsCOMPtr<nsINode> node = do_QueryWrappedNative(wn);
     if (!node) {
         JS_ReportError(cx, "Unexpected object");
         return false;
@@ -976,7 +1010,7 @@ XPCWrappedNativeXrayTraits::resolveOwnProperty(JSContext *cx, js::Wrapper &jsWra
         return true;
     }
 
-    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0);
+    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
     JSBool hasProp;
     if (!JS_HasPropertyById(cx, holder, id, &hasProp)) {
         return false;
@@ -1324,7 +1358,7 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, JSObject *wrappe
         {
             JSAutoCompartment ac(cx, obj);
             if (!JS_GetPropertyDescriptorById(cx, obj, id,
-                                              (set ? JSRESOLVE_ASSIGNING : 0),
+                                              (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED,
                                               desc)) {
                 return false;
             }
@@ -1365,7 +1399,7 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, JSObject *wrappe
     if (desc->obj)
         return true;
 
-    if (!JS_GetPropertyDescriptorById(cx, holder, id, 0, desc))
+    if (!JS_GetPropertyDescriptorById(cx, holder, id, JSRESOLVE_QUALIFIED, desc))
         return false;
     if (desc->obj) {
         desc->obj = wrapper;
@@ -1393,7 +1427,7 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, JSObject *wrappe
 
     desc->obj = wrapper;
 
-    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0);
+    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
     return JS_DefinePropertyById(cx, holder, id, desc->value, desc->getter, desc->setter,
                                  desc->attrs) &&
            JS_GetPropertyDescriptorById(cx, holder, id, flags, desc);
@@ -1426,7 +1460,7 @@ XrayWrapper<Base, Traits>::getOwnPropertyDescriptor(JSContext *cx, JSObject *wra
         {
             JSAutoCompartment ac(cx, obj);
             if (!JS_GetPropertyDescriptorById(cx, obj, id,
-                                              (set ? JSRESOLVE_ASSIGNING : 0),
+                                              (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED,
                                               desc)) {
                 return false;
             }
@@ -1442,7 +1476,7 @@ XrayWrapper<Base, Traits>::getOwnPropertyDescriptor(JSContext *cx, JSObject *wra
     if (desc->obj)
         return true;
 
-    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0);
+    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
     if (!JS_GetPropertyDescriptorById(cx, holder, id, flags, desc))
         return false;
 
@@ -1458,6 +1492,19 @@ bool
 XrayWrapper<Base, Traits>::defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
                                           js::PropertyDescriptor *desc)
 {
+    // If shadowing is forbidden, see if the id corresponds to an underlying
+    // native property.
+    if (WrapperFactory::IsShadowingForbidden(wrapper)) {
+        JSObject *holder = Traits::singleton.ensureHolder(cx, wrapper);
+        js::PropertyDescriptor nativeProp;
+        if (!Traits::resolveNativeProperty(cx, wrapper, holder, id, false, &nativeProp))
+            return false;
+        if (nativeProp.obj) {
+            JS_ReportError(cx, "Permission denied to shadow native property");
+            return false;
+        }
+    }
+
     // Redirect access straight to the wrapper if we should be transparent.
     if (XrayUtils::IsTransparent(cx, wrapper)) {
         JSObject *obj = Traits::getTargetObject(wrapper);
@@ -1655,61 +1702,37 @@ XrayWrapper<Base, Traits>::construct(JSContext *cx, JSObject *wrapper, unsigned 
     return Traits::construct(cx, wrapper, argc, argv, rval);
 }
 
-/*
- * The Permissive / Security variants should be used depending on whether the
- * compartment of the wrapper is guranteed to subsume the compartment of the
- * wrapped object (i.e. - whether it is safe from a security perspective to
- * unwrap the wrapper).
- */
 
-template<>
-PermissiveXrayXPCWN PermissiveXrayXPCWN::singleton(0);
-template class PermissiveXrayXPCWN;
+#define XRAY XrayWrapper<CrossCompartmentSecurityWrapper, XPCWrappedNativeXrayTraits >
+template <> XRAY XRAY::singleton(0);
+template class XRAY;
+#undef XRAY
 
-template<>
-SecurityXrayXPCWN SecurityXrayXPCWN::singleton(0);
-template class SecurityXrayXPCWN;
+#define XRAY XrayWrapper<SameCompartmentSecurityWrapper, XPCWrappedNativeXrayTraits >
+template <> XRAY XRAY::singleton(0);
+template class XRAY;
+#undef XRAY
 
-template<>
-PermissiveXrayDOM PermissiveXrayDOM::singleton(0);
-template class PermissiveXrayDOM;
+#define XRAY XrayWrapper<CrossCompartmentWrapper, XPCWrappedNativeXrayTraits >
+template <> XRAY XRAY::singleton(0);
+template class XRAY;
+#undef XRAY
 
-template<>
-SecurityXrayDOM SecurityXrayDOM::singleton(0);
-template class SecurityXrayDOM;
+#define XRAY XrayWrapper<CrossCompartmentWrapper, DOMXrayTraits >
+template <> XRAY XRAY::singleton(0);
+template class XRAY;
+#undef XRAY
 
-template<>
-SCPermissiveXrayXPCWN SCPermissiveXrayXPCWN::singleton(0);
-template class SCPermissiveXrayXPCWN;
+/* Same-compartment non-filtering versions. */
 
-template<>
-SCSecurityXrayXPCWN SCSecurityXrayXPCWN::singleton(0);
-template class SCSecurityXrayXPCWN;
+#define XRAY XrayWrapper<Wrapper, XPCWrappedNativeXrayTraits >
+template <> XRAY XRAY::singleton(0);
+template class XRAY;
+#undef XRAY
 
-template<>
-SCPermissiveXrayDOM SCPermissiveXrayDOM::singleton(0);
-template class SCPermissiveXrayDOM;
-
-static nsQueryInterface
-do_QueryInterfaceNative(JSContext* cx, JSObject* wrapper)
-{
-    nsISupports* nativeSupports;
-    if (IsWrapper(wrapper) && WrapperFactory::IsXrayWrapper(wrapper)) {
-        JSObject* target = XrayTraits::getTargetObject(wrapper);
-        if (GetXrayType(target) == XrayForDOMObject) {
-            if (!UnwrapDOMObjectToISupports(target, nativeSupports)) {
-                nativeSupports = nullptr;
-            }
-        } else {
-            XPCWrappedNative *wn = GetWrappedNative(target);
-            nativeSupports = wn->Native();
-        }
-    } else {
-        nsIXPConnect *xpc = nsXPConnect::GetXPConnect();
-        nativeSupports = xpc->GetNativeOfWrapper(cx, wrapper);
-    }
-
-    return nsQueryInterface(nativeSupports);
-}
+#define XRAY XrayWrapper<Wrapper, DOMXrayTraits >
+template <> XRAY XRAY::singleton(0);
+template class XRAY;
+#undef XRAY
 
 }

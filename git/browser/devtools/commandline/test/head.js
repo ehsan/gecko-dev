@@ -11,24 +11,11 @@ let console = (function() {
   return tempScope.console;
 })();
 
-let TargetFactory = (function() {
-  let tempScope = {};
-  Components.utils.import("resource:///modules/devtools/Target.jsm", tempScope);
-  return tempScope.TargetFactory;
-})();
-
-let Promise = (function() {
-  let tempScope = {};
-  Components.utils.import("resource://gre/modules/commonjs/promise/core.js", tempScope);
-  return tempScope.Promise;
-})();
-
 // Import the GCLI test helper
 let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
 
 Services.scriptloader.loadSubScript(testDir + "/helpers.js", this);
 Services.scriptloader.loadSubScript(testDir + "/mockCommands.js", this);
-Services.scriptloader.loadSubScript(testDir + "/helpers_perwindowpb.js", this);
 
 /**
  * Open a new tab at a URL and call a callback on load
@@ -38,28 +25,17 @@ function addTab(aURL, aCallback)
   waitForExplicitFinish();
 
   gBrowser.selectedTab = gBrowser.addTab();
-  if (aURL != null) {
-    content.location = aURL;
-  }
-
-  let deferred = Promise.defer();
+  content.location = aURL;
 
   let tab = gBrowser.selectedTab;
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
   let browser = gBrowser.getBrowserForTab(tab);
 
   function onTabLoad() {
     browser.removeEventListener("load", onTabLoad, true);
-
-    if (aCallback != null) {
-      aCallback(browser, tab, browser.contentDocument);
-    }
-
-    deferred.resolve({ browser: browser, tab: tab, target: target });
+    aCallback(browser, tab, browser.contentDocument);
   }
 
   browser.addEventListener("load", onTabLoad, true);
-  return deferred.promise;
 }
 
 registerCleanupFunction(function tearDown() {

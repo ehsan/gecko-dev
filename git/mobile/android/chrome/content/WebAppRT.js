@@ -26,9 +26,8 @@ var WebAppRT = {
     pref("extensions.autoDisableScopes", 1),
     // Disable add-on installation via the web-exposed APIs
     pref("xpinstall.enabled", false),
-    // Set a future policy version to avoid the telemetry prompt.
-    pref("toolkit.telemetry.prompted", 999),
-    pref("toolkit.telemetry.notifiedOptOut", 999)
+    // Disable the telemetry prompt in webapps
+    pref("toolkit.telemetry.prompted", 2)
   ],
 
   init: function(isUpdate, url) {
@@ -43,9 +42,6 @@ var WebAppRT = {
       // i.e. don't show the "Open in market?" popup when we're showing the market app
       let uri = Services.io.newURI(url, null, null);
       Services.perms.add(uri, "native-intent", Ci.nsIPermissionManager.DENY_ACTION);
-      Services.perms.add(uri, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
-      Services.perms.add(uri, "indexedDB", Ci.nsIPermissionManager.ALLOW_ACTION);
-      Services.perms.add(uri, "indexedDB-unlimited", Ci.nsIPermissionManager.ALLOW_ACTION);
 
       // update the blocklist url to use a different app id
       let blocklist = Services.prefs.getCharPref("extensions.blocklist.url");

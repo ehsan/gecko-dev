@@ -174,8 +174,7 @@ pref("content.sink.perf_parse_time", 50000000);
 
 // Maximum scripts runtime before showing an alert
 pref("dom.max_chrome_script_run_time", 0); // disable slow script dialog for chrome
-// Bug 817230 - disable the dialog until we implement its checkbox properly
-pref("dom.max_script_run_time", 0);
+pref("dom.max_script_run_time", 20);
 
 // plugins
 pref("plugin.disable", true);
@@ -235,25 +234,16 @@ pref("editor.singleLine.pasteNewlines", 2);
 pref("ui.dragThresholdX", 25);
 pref("ui.dragThresholdY", 25);
 
-// Layers Acceleration.  We can only have nice things on gonk, because
-// they're not maintained anywhere else.
-#ifndef MOZ_WIDGET_GONK
-pref("dom.ipc.tabs.disabled", true);
-pref("layers.offmainthreadcomposition.enabled", false);
-pref("layers.offmainthreadcomposition.animate-opacity", false);
-pref("layers.offmainthreadcomposition.animate-transform", false);
-pref("layers.offmainthreadcomposition.throttle-animations", false);
-pref("layers.async-video.enabled", false);
-#else
-pref("dom.ipc.tabs.disabled", false);
-pref("layers.offmainthreadcomposition.enabled", true);
+// Layers Acceleration
 pref("layers.acceleration.disabled", false);
+#ifndef XP_WIN
+//TODO: turn this on for Windows in bug 808016
+pref("layers.offmainthreadcomposition.enabled", true);
+#endif
 pref("layers.offmainthreadcomposition.animate-opacity", true);
 pref("layers.offmainthreadcomposition.animate-transform", true);
-pref("layers.offmainthreadcomposition.throttle-animations", true);
 pref("layers.async-video.enabled", true);
 pref("layers.async-pan-zoom.enabled", true);
-#endif
 
 // Web Notifications
 pref("notification.feature.enabled", true);
@@ -268,7 +258,7 @@ pref("media.preload.auto", 2);    // preload metadata if preload=auto
 pref("media.cache_size", 4096);    // 4MB media cache
 
 // The default number of decoded video frames that are enqueued in
-// MediaDecoderReader's mVideoQueue.
+// nsBuiltinDecoderReader's mVideoQueue.
 pref("media.video-queue.default-size", 3);
 
 //  0: don't show fullscreen keyboard
@@ -279,7 +269,7 @@ pref("widget.ime.android.fullscreen_threshold", 250); // in hundreths of inches
 
 // optimize images' memory usage
 pref("image.mem.decodeondraw", true);
-pref("content.image.allow_locking", true);
+pref("content.image.allow_locking", false);
 pref("image.mem.min_discard_timeout_ms", 10000);
 pref("image.mem.max_decoded_image_kb", 5120); /* 5MB */
 
@@ -333,7 +323,7 @@ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
 // the database.
-pref("urlclassifier.max-complete-age", 2700);
+pref("urlclassifier.confirm-age", 2700);
 
 // URL for checking the reason for a malware warning.
 pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
@@ -356,9 +346,16 @@ pref("content.ime.strict_policy", true);
 // $ adb shell start
 pref("browser.dom.window.dump.enabled", false);
 
+
+
+// Temporarily relax file:// origin checks so that we can use <img>s
+// from other dirs as webgl textures and more.  Remove me when we have
+// installable apps or wifi support.
+pref("security.fileuri.strict_origin_policy", false);
+
 // Default Content Security Policy to apply to privileged and certified apps
 pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'");
-pref("security.apps.certified.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self'");
+pref("security.apps.certified.CSP.default", "options inline-script eval-script; default-src *; script-src 'self'; object-src 'none'; style-src 'self'");
 
 // Temporarily force-enable GL compositing.  This is default-disabled
 // deep within the bowels of the widgetry system.  Remove me when GL
@@ -378,9 +375,7 @@ pref("browser.link.open_newwindow.restriction", 0);
 // work), but make in-process browser frames the default.
 pref("dom.mozBrowserFramesEnabled", true);
 
-// Enable a (virtually) unlimited number of mozbrowser processes.
-// We'll run out of PIDs on UNIX-y systems before we hit this limit.
-pref("dom.ipc.processCount", 100000);
+pref("dom.ipc.tabs.disabled", false);
 
 pref("dom.ipc.browser_frames.oop_by_default", false);
 
@@ -397,7 +392,6 @@ pref("dom.mozAlarms.enabled", true);
 // NetworkStats
 #ifdef MOZ_B2G_RIL
 pref("dom.mozNetworkStats.enabled", true);
-pref("ril.lastKnownMcc", 724);
 #endif
 
 // WebSettings
@@ -419,6 +413,10 @@ pref("dom.mozTCPSocket.enabled", true);
 // secondary bug isn't really worth investigating since it's obseleted
 // by bug 710563.
 pref("layout.frame_rate.precise", true);
+
+// Temporary remote js console hack
+pref("b2g.remote-js.enabled", true);
+pref("b2g.remote-js.port", 9999);
 
 // Handle hardware buttons in the b2g chrome package
 pref("b2g.keys.menu.enabled", true);
@@ -454,6 +452,9 @@ pref("shutdown.watchdog.timeoutSecs", 5);
 pref("b2g.update.apply-prompt-timeout", 60000); // milliseconds
 // Amount of time to wait after the user is idle before prompting to apply an update
 pref("b2g.update.apply-idle-timeout", 600000); // milliseconds
+// Amount of time the updater waits for the process to exit cleanly before
+// forcefully exiting the process
+pref("b2g.update.self-destruct-timeout", 5000); // milliseconds
 
 pref("app.update.enabled", true);
 pref("app.update.auto", false);
@@ -471,14 +472,6 @@ pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
 pref("app.update.interval", 86400); // 1 day
 // Don't throttle background updates.
 pref("app.update.download.backgroundInterval", 0);
-
-// Retry update socket connections every 30 seconds in the cases of certain kinds of errors
-pref("app.update.socket.retryTimeout", 30000);
-
-// Max of 20 consecutive retries (total 10 minutes) before giving up and marking
-// the update download as failed.
-// Note: Offline errors will always retry when the network comes online.
-pref("app.update.socket.maxErrors", 20);
 
 // Enable update logging for now, to diagnose growing pains in the
 // field.
@@ -544,8 +537,6 @@ pref("hal.processPriorityManager.gonk.masterOomScoreAdjust", 0);
 pref("hal.processPriorityManager.gonk.masterKillUnderMB", 1);
 pref("hal.processPriorityManager.gonk.foregroundOomScoreAdjust", 67);
 pref("hal.processPriorityManager.gonk.foregroundKillUnderMB", 4);
-pref("hal.processPriorityManager.gonk.backgroundHomescreenOomScoreAdjust", 200);
-pref("hal.processPriorityManager.gonk.backgroundHomescreenKillUnderMB", 5);
 pref("hal.processPriorityManager.gonk.backgroundOomScoreAdjust", 400);
 pref("hal.processPriorityManager.gonk.backgroundKillUnderMB", 8);
 pref("hal.processPriorityManager.gonk.notifyLowMemUnderMB", 10);
@@ -591,27 +582,8 @@ pref("browser.prompt.allowNative", false);
 // a restart is required to enable a new value.
 pref("network.activity.blipIntervalMilliseconds", 250);
 
-// By default we want the NetworkManager service to manage Gecko's offline
-// status for us according to the state of Wifi/cellular data connections.
-// In some environments, such as the emulator or hardware with other network
-// connectivity, this is not desireable, however, in which case this pref
-// can be flipped to false.
-pref("network.gonk.manage-offline-status", true);
+// Send some sites a custom user-agent.
+pref("general.useragent.override.facebook.com", "\(Mobile#(Android; Mobile");
+pref("general.useragent.override.youtube.com", "\(Mobile#(Android; Mobile");
 
 pref("jsloader.reuseGlobal", true);
-
-// Enable font inflation for browser tab content.
-pref("font.size.inflation.minTwips", 120);
-// And disable it for lingering master-process UI.
-pref("font.size.inflation.disabledInMasterProcess", true);
-
-// Enable freeing dirty pages when minimizing memory; this reduces memory
-// consumption when applications are sent to the background.
-pref("memory.free_dirty_pages", true);
-
-// UAProfile settings
-pref("wap.UAProf.url", "");
-pref("wap.UAProf.tagname", "x-wap-profile");
-
-// Wait up to this much milliseconds when orientation changed
-pref("layers.orientation.sync.timeout", 1000);

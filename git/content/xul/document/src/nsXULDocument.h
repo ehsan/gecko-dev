@@ -132,23 +132,18 @@ public:
     NS_IMETHOD OnPrototypeLoadDone(bool aResumeWalk);
     bool OnDocumentParserError();
 
-    // nsINode interface overrides
-    virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+    // nsIDOMNode interface overrides
+    NS_IMETHOD CloneNode(bool deep, uint8_t aOptionalArgc, nsIDOMNode **_retval)
+        MOZ_OVERRIDE;
 
-    // nsIDOMNode interface
-    NS_FORWARD_NSIDOMNODE_TO_NSINODE
-
-    // nsIDOMDocument interface
-    NS_FORWARD_NSIDOMDOCUMENT(nsXMLDocument::)
-    // And explicitly import the things from nsDocument that we just shadowed
-    using nsDocument::GetImplementation;
-    using nsDocument::GetTitle;
-    using nsDocument::SetTitle;
-    using nsDocument::GetLastStyleSheetSet;
-    using nsDocument::MozSetImageElement;
-    using nsDocument::GetMozFullScreenElement;
+    // nsIDOMDocument
+    NS_IMETHOD GetContentType(nsAString& aContentType);
 
     // nsDocument interface overrides
+    NS_IMETHOD GetElementById(const nsAString& aId, nsIDOMElement** aReturn)
+    {
+        return nsDocument::GetElementById(aId, aReturn);
+    }
     virtual mozilla::dom::Element* GetElementById(const nsAString & elementId);
 
     // nsIDOMXULDocument interface

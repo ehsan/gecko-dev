@@ -29,19 +29,17 @@ function boom()
   document.getElementById("div").style.MozBinding = "";
   document.documentElement.removeAttribute("class")
 }
-
-window.addEventListener("MozReftestInvalidate", boom, false);
 </script>
 
 </head>
 
-<body>
+<body onload="setTimeout(boom, 30);">
 
 <div id="div">
   <textarea rows="3" cols="5" id="textarea">x</textarea>
 </div>
 
-<select style="-moz-appearance:none">
+<select>
   <option id="opt1">opt1</option>
 </select>
 

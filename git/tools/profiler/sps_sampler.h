@@ -8,10 +8,10 @@
 #include <stdarg.h>
 #include "mozilla/ThreadLocal.h"
 #include "nscore.h"
+#include "jsapi.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Util.h"
 #include "nsAlgorithm.h"
-
 
 /* QT has a #define for the word "slots" and jsfriendapi.h has a struct with
  * this variable name, causing compilation problems. Alleviate this for now by
@@ -26,7 +26,6 @@ using mozilla::TimeDuration;
 
 struct ProfileStack;
 class TableTicker;
-class JSCustomObject;
 
 extern mozilla::ThreadLocal<ProfileStack *> tlsStack;
 extern mozilla::ThreadLocal<TableTicker *> tlsTicker;
@@ -43,7 +42,7 @@ extern bool stack_key_initialized;
 #endif
 
 #define SAMPLER_INIT() mozilla_sampler_init()
-#define SAMPLER_SHUTDOWN() mozilla_sampler_shutdown()
+#define SAMPLER_DEINIT() mozilla_sampler_deinit()
 #define SAMPLER_START(entries, interval, features, featureCount) mozilla_sampler_start(entries, interval, features, featureCount)
 #define SAMPLER_STOP() mozilla_sampler_stop()
 #define SAMPLER_IS_ACTIVE() mozilla_sampler_is_active()
@@ -64,8 +63,6 @@ extern bool stack_key_initialized;
 #define SAMPLE_LABEL(name_space, info) mozilla::SamplerStackFrameRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__)
 #define SAMPLE_LABEL_PRINTF(name_space, info, ...) mozilla::SamplerStackFramePrintfRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__, __VA_ARGS__)
 #define SAMPLE_MARKER(info) mozilla_sampler_add_marker(info)
-
-#define SAMPLER_PRINT_LOCATION() mozilla_sampler_print_location()
 
 /* we duplicate this code here to avoid header dependencies
  * which make it more difficult to include in other places */
@@ -173,9 +170,6 @@ char* mozilla_sampler_get_profile();
 JSObject *mozilla_sampler_get_profile_data(JSContext *aCx);
 const char** mozilla_sampler_get_features();
 void mozilla_sampler_init();
-void mozilla_sampler_shutdown();
-
-void mozilla_sampler_print_location();
 
 namespace mozilla {
 
@@ -274,10 +268,6 @@ public:
 
   void addMarker(const char *aMarker)
   {
-    char* markerCopy = strdup(aMarker);
-    mSignalLock = true;
-    STORE_SEQUENCER();
-
     if (mQueueClearMarker) {
       clearMarkers();
     }
@@ -287,24 +277,18 @@ public:
     if (size_t(mMarkerPointer) == mozilla::ArrayLength(mMarkers)) {
       return; //array full, silently drop
     }
-    mMarkers[mMarkerPointer] = markerCopy;
-    mMarkerPointer++;
-
-    mSignalLock = false;
+    mMarkers[mMarkerPointer] = aMarker;
     STORE_SEQUENCER();
+    mMarkerPointer++;
   }
 
   // called within signal. Function must be reentrant
   const char* getMarker(int aMarkerId)
   {
-    // if mSignalLock then the stack is inconsistent because it's being
-    // modified by the profiled thread. Post pone these markers
-    // for the next sample. The odds of a livelock are nearly impossible
-    // and would show up in a profile as many sample in 'addMarker' thus
-    // we ignore this scenario.
-    // if mQueueClearMarker then we've the sampler thread has already
-    // thread the markers then they are pending deletion.
-    if (mSignalLock || mQueueClearMarker || aMarkerId < 0 ||
+    if (mQueueClearMarker) {
+      clearMarkers();
+    }
+    if (aMarkerId < 0 ||
       static_cast<mozilla::sig_safe_t>(aMarkerId) >= mMarkerPointer) {
       return NULL;
     }
@@ -314,9 +298,6 @@ public:
   // called within signal. Function must be reentrant
   void clearMarkers()
   {
-    for (mozilla::sig_safe_t i = 0; i < mMarkerPointer; i++) {
-      free(mMarkers[i]);
-    }
     mMarkerPointer = 0;
     mQueueClearMarker = false;
   }
@@ -383,13 +364,11 @@ public:
   // Keep a list of active checkpoints
   StackEntry volatile mStack[1024];
   // Keep a list of active markers to be applied to the next sample taken
-  char* mMarkers[1024];
+  char const * volatile mMarkers[1024];
  private:
   // This may exceed the length of mStack, so instead use the stackSize() method
   // to determine the number of valid samples in mStack
-  mozilla::sig_safe_t mStackPointer;
-  // If this is set then it's not safe to read mStackPointer from the signal handler
-  volatile bool mSignalLock;
+  volatile mozilla::sig_safe_t mStackPointer;
  public:
   volatile mozilla::sig_safe_t mMarkerPointer;
   // We don't want to modify _markers from within the signal so we allow
@@ -447,12 +426,6 @@ inline void mozilla_sampler_add_marker(const char *aMarker)
 {
   if (!stack_key_initialized)
     return;
-
-  // Don't insert a marker if we're not profiling to avoid
-  // the heap copy (malloc).
-  if (!mozilla_sampler_is_active()) {
-    return;
-  }
 
   ProfileStack *stack = tlsStack.get();
   if (!stack) {

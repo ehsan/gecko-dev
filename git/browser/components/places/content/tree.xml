@@ -56,14 +56,9 @@
         ]]></setter>
       </property>
 
-      <property name="associatedElement"
-                readonly="true"
-                onget="return this"/>
-
       <method name="applyFilter">
         <parameter name="filterString"/>
         <parameter name="folderRestrict"/>
-        <parameter name="includeHidden"/>
         <body><![CDATA[
           // preserve grouping
           var queryNode = PlacesUtils.asQuery(this.result.root);
@@ -84,8 +79,6 @@
             query.setFolders(folderRestrict, folderRestrict.length);
             options.queryType = options.QUERY_TYPE_BOOKMARKS;
           }
-
-          options.includeHidden = !!includeHidden;
 
           this.load([query], options);
         ]]></body>

@@ -289,9 +289,7 @@ var DebuggerServer = {
     }
   },
 
-  onStopListening: function DS_onStopListening(aSocket, status) {
-    dumpn("onStopListening, status: " + status);
-  },
+  onStopListening: function DS_onStopListening() { },
 
   /**
    * Raises an exception if the server has not been properly initialized.
@@ -541,20 +539,11 @@ DebuggerServerConnection.prototype = {
 
   /**
    * Remove a previously-added pool of actors to the connection.
-   *
-   * @param ActorPool aActorPool
-   *        The ActorPool instance you want to remove.
-   * @param boolean aCleanup
-   *        True if you want to disconnect each actor from the pool, false
-   *        otherwise.
    */
-  removeActorPool: function DSC_removeActorPool(aActorPool, aCleanup) {
+  removeActorPool: function DSC_removeActorPool(aActorPool) {
     let index = this._extraPools.lastIndexOf(aActorPool);
     if (index > -1) {
-      let pool = this._extraPools.splice(index, 1);
-      if (aCleanup) {
-        pool.map(function(p) { p.cleanup(); });
-      }
+      this._extraPools.splice(index, 1);
     }
   },
 
@@ -690,29 +679,6 @@ DebuggerServerConnection.prototype = {
     this._extraPools = null;
 
     DebuggerServer._connectionClosed(this);
-  },
-
-  /*
-   * Debugging helper for inspecting the state of the actor pools.
-   */
-  _dumpPools: function DSC_dumpPools() {
-    dumpn("/-------------------- dumping pools:");
-    if (this._actorPool) {
-      dumpn("--------------------- actorPool actors: " +
-            uneval(Object.keys(this._actorPool._actors)));
-    }
-    for each (let pool in this._extraPools)
-      dumpn("--------------------- extraPool actors: " +
-            uneval(Object.keys(pool._actors)));
-  },
-
-  /*
-   * Debugging helper for inspecting the state of an actor pool.
-   */
-  _dumpPool: function DSC_dumpPools(aPool) {
-    dumpn("/-------------------- dumping pool:");
-    dumpn("--------------------- actorPool actors: " +
-          uneval(Object.keys(aPool._actors)));
   }
 };
 

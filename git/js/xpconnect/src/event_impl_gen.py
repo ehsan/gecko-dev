@@ -5,7 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import sys, os, xpidl
+import sys, os.path, re, xpidl, itertools
 
 # --makedepend-output support.
 make_dependencies = []
@@ -75,6 +75,20 @@ def readConfigFile(filename):
 
 def firstCap(str):
     return str[0].upper() + str[1:]
+
+def attributeVariableTypeAndName(a):
+    if a.realtype.nativeType('in').endswith('*'):
+        l = ["nsCOMPtr<%s> %s" % (a.realtype.nativeType('in').strip('* '),
+                   a.name)]
+    elif a.realtype.nativeType('in').count("nsAString"):
+        l = ["nsAutoString %s" % a.name]
+    elif a.realtype.nativeType('in').count("JS::Value"):
+        l = ["JS::Value %s" % a.name]
+    else:
+        l = ["%s%s" % (a.realtype.nativeType('in'),
+                       a.name)]
+
+    return ", ".join(l)
 
 def print_header_file(fd, conf):
     fd.write("#if defined MOZ_GENERATED_EVENT_LIST\n")
@@ -277,11 +291,11 @@ def write_cpp(eventname, iface, fd):
     fd.write("NS_IMPL_CYCLE_COLLECTION_CLASS(%s)\n\n" % classname)
     fd.write("NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(%s, %s)\n" % (classname, basename))
     for c in ccattributes:
-        fd.write("  NS_IMPL_CYCLE_COLLECTION_UNLINK(m%s)\n" % firstCap(c.name))
+        fd.write("  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(m%s)\n" % firstCap(c.name))
     fd.write("NS_IMPL_CYCLE_COLLECTION_UNLINK_END\n\n");
     fd.write("NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(%s, %s)\n" % (classname, basename))
     for c in ccattributes:
-        fd.write("  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(m%s)\n" % firstCap(c.name))
+        fd.write("  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(m%s)\n" % firstCap(c.name))
     fd.write("NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END\n\n");
 
     fd.write("NS_IMPL_ADDREF_INHERITED(%s, %s)\n" % (classname, basename))

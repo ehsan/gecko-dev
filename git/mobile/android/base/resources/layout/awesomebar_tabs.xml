@@ -9,11 +9,10 @@
                                   android:layout_height="fill_parent">
 
     <view class="org.mozilla.gecko.AwesomeBarTabs.Background"
-          android:id="@+id/awesomebar_background"
           android:orientation="vertical"
           android:layout_width="fill_parent"
           android:layout_height="fill_parent"
-          android:background="@drawable/awesomebar_tabs_bg">
+          android:background="@drawable/abouthome_bg_repeat">
 
         <LinearLayout android:id="@+id/tab_widget_container"
                       android:layout_width="fill_parent"
@@ -31,14 +30,8 @@
         </LinearLayout>
 
         <FrameLayout android:id="@android:id/tabcontent"
-                     android:visibility="gone"
-                     android:layout_width="wrap_content"
-                     android:layout_height="wrap_content"/>
-
-        <android.support.v4.view.ViewPager
-                        android:id="@+id/tabviewpager"
-                        android:layout_width="fill_parent"
-                        android:layout_height="fill_parent"/>
+                     android:layout_width="fill_parent"
+                     android:layout_height="fill_parent"/>
 
     </view>
 

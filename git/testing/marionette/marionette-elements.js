@@ -256,7 +256,7 @@ ElementManager.prototype = {
    * @return nsIDOMElement or list of nsIDOMElements
    *        Returns the element(s) by calling the on_success function.
    */
-  find: function EM_find(win, values, on_success, on_error, all, command_id) {
+  find: function EM_find(win, values, on_success, on_error, all) {
     let startTime = values.time ? values.time : new Date().getTime();
     let startNode = (values.element != undefined) ? this.getKnownElement(values.element, win) : win.document;
     if (this.elementStrategies.indexOf(values.using) < 0) {
@@ -270,23 +270,19 @@ ElementManager.prototype = {
         for (let i = 0 ; i < found.length ; i++) {
           ids.push(this.addToKnownElements(found[i]));
         }
-        on_success(ids, command_id);
+        on_success(ids);
       }
       else {
         let id = this.addToKnownElements(found);
-        on_success(id, command_id);
+        on_success(id);
       }
       return;
     } else {
       if (this.searchTimeout == 0 || new Date().getTime() - startTime > this.searchTimeout) {
-        on_error("Unable to locate element: " + values.value, 7, null, command_id);
+        on_error("Unable to locate element: " + values.value, 7, null);
       } else {
         values.time = startTime;
-        this.timer.initWithCallback(this.find.bind(this, win, values,
-                                                   on_success, on_error, all,
-                                                   command_id),
-                                    100,
-                                    Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+        this.timer.initWithCallback(this.find.bind(this, win, values, on_success, on_error, all), 100, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
       }
     }
   },

@@ -58,10 +58,6 @@
  * been performed by the dialog.
  */
 
-Components.utils.import('resource://gre/modules/XPCOMUtils.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
-
 const BOOKMARK_ITEM = 0;
 const BOOKMARK_FOLDER = 1;
 const LIVEMARK_CONTAINER = 2;
@@ -571,7 +567,7 @@ var BookmarkPropertiesPanel = {
     }
 
     //XXX TODO: this should be in a transaction!
-    if (this._charSet && !PrivateBrowsingUtils.isWindowPrivate(window))
+    if (this._charSet)
       PlacesUtils.history.setCharsetForURI(this._uri, this._charSet);
 
     let createTxn = new PlacesCreateBookmarkTransaction(this._uri,

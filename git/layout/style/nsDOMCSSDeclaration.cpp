@@ -20,7 +20,7 @@
 #include "nsIPrincipal.h"
 #include "mozAutoDocUpdate.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 nsDOMCSSDeclaration::~nsDOMCSSDeclaration()
 {
@@ -127,12 +127,16 @@ nsDOMCSSDeclaration::GetLength(uint32_t* aLength)
   return NS_OK;
 }
 
-already_AddRefed<dom::CSSValue>
-nsDOMCSSDeclaration::GetPropertyCSSValue(const nsAString& aPropertyName, ErrorResult& aRv)
+NS_IMETHODIMP
+nsDOMCSSDeclaration::GetPropertyCSSValue(const nsAString& aPropertyName,
+                                         nsIDOMCSSValue** aReturn)
 {
-  // We don't support CSSValue yet so we'll just return null...
+  NS_ENSURE_ARG_POINTER(aReturn);
 
-  return nullptr;
+  // We don't support CSSValue yet so we'll just return null...
+  *aReturn = nullptr;
+
+  return NS_OK;
 }
 
 void

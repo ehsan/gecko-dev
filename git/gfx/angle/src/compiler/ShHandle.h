@@ -88,9 +88,6 @@ protected:
     void mapLongVariableNames(TIntermNode* root);
     // Translate to object code.
     virtual void translate(TIntermNode* root) = 0;
-    // Returns true if, after applying the packing rules in the GLSL 1.017 spec
-    // Appendix A, section 7, the shader does not use too many uniforms.
-    bool enforcePackingRestrictions();
     // Returns true if the shader passes the restrictions that aim to prevent timing attacks.
     bool enforceTimingRestrictions(TIntermNode* root, bool outputGraph);
     // Returns true if the shader does not use samplers.
@@ -106,8 +103,6 @@ protected:
 private:
     ShShaderType shaderType;
     ShShaderSpec shaderSpec;
-
-    int maxUniformVectors;
 
     // Built-in symbol table for the given language, spec, and resources.
     // It is preserved from compile-to-compile.

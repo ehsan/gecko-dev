@@ -174,29 +174,7 @@ FontPrefsObserver::Observe(nsISupports *aSubject,
     return NS_OK;
 }
 
-class OrientationSyncPrefsObserver : public nsIObserver
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
-};
 
-NS_IMPL_ISUPPORTS1(OrientationSyncPrefsObserver, nsIObserver)
-
-NS_IMETHODIMP
-OrientationSyncPrefsObserver::Observe(nsISupports *aSubject,
-                                      const char *aTopic,
-                                      const PRUnichar *someData)
-{
-    if (!someData) {
-        NS_ERROR("orientation sync pref observer broken");
-        return NS_ERROR_UNEXPECTED;
-    }
-    NS_ASSERTION(gfxPlatform::GetPlatform(), "the singleton instance has gone");
-    gfxPlatform::GetPlatform()->OrientationSyncPrefsObserverChanged();
-
-    return NS_OK;
-}
 
 // this needs to match the list of pref font.default.xx entries listed in all.js!
 // the order *must* match the order in eFontPrefLang
@@ -360,13 +338,7 @@ gfxPlatform::Init()
     gPlatform->mFontPrefsObserver = new FontPrefsObserver();
     Preferences::AddStrongObservers(gPlatform->mFontPrefsObserver, kObservedPrefs);
 
-    gPlatform->mOrientationSyncPrefsObserver = new OrientationSyncPrefsObserver();
-    Preferences::AddStrongObserver(gPlatform->mOrientationSyncPrefsObserver, "layers.orientation.sync.timeout");
-
     gPlatform->mWorkAroundDriverBugs = Preferences::GetBool("gfx.work-around-driver-bugs", true);
-
-    mozilla::Preferences::AddBoolVarCache(&gPlatform->mWidgetUpdateFlashing,
-                                          "nglayout.debug.widget_update_flashing");
 
     mozilla::gl::GLContext::PlatformStartup();
 
@@ -384,8 +356,6 @@ gfxPlatform::Init()
       gPlatform->mRecorder = Factory::CreateEventRecorderForFile("browserrecording.aer");
       Factory::SetGlobalEventRecorder(gPlatform->mRecorder);
     }
-
-    gPlatform->mOrientationSyncMillis = Preferences::GetUint("layers.orientation.sync.timeout", (uint32_t)0);
 }
 
 void
@@ -1277,56 +1247,6 @@ gfxPlatform::UseProgressiveTilePainting()
 }
 
 bool
-gfxPlatform::UseLowPrecisionBuffer()
-{
-    static bool sUseLowPrecisionBuffer;
-    static bool sUseLowPrecisionBufferPrefCached = false;
-
-    if (!sUseLowPrecisionBufferPrefCached) {
-        sUseLowPrecisionBufferPrefCached = true;
-        mozilla::Preferences::AddBoolVarCache(&sUseLowPrecisionBuffer,
-                                              "layers.low-precision-buffer",
-                                              false);
-    }
-
-    return sUseLowPrecisionBuffer;
-}
-
-float
-gfxPlatform::GetLowPrecisionResolution()
-{
-    static float sLowPrecisionResolution;
-    static bool sLowPrecisionResolutionPrefCached = false;
-
-    if (!sLowPrecisionResolutionPrefCached) {
-        int32_t lowPrecisionResolution = 250;
-        sLowPrecisionResolutionPrefCached = true;
-        mozilla::Preferences::AddIntVarCache(&lowPrecisionResolution,
-                                             "layers.low-precision-resolution",
-                                             250);
-        sLowPrecisionResolution = lowPrecisionResolution / 1000.f;
-    }
-
-    return sLowPrecisionResolution;
-}
-
-bool
-gfxPlatform::UseReusableTileStore()
-{
-    static bool sUseReusableTileStore;
-    static bool sUseReusableTileStorePrefCached = false;
-
-    if (!sUseReusableTileStorePrefCached) {
-        sUseReusableTileStorePrefCached = true;
-        mozilla::Preferences::AddBoolVarCache(&sUseReusableTileStore,
-                                              "layers.reuse-invalid-tiles",
-                                              false);
-    }
-
-    return sUseReusableTileStore;
-}
-
-bool
 gfxPlatform::OffMainThreadCompositingEnabled()
 {
   return XRE_GetProcessType() == GeckoProcessType_Default ?
@@ -1725,16 +1645,4 @@ gfxPlatform::OptimalFormatForContent(gfxASurface::gfxContentType aContent)
     NS_NOTREACHED("unknown gfxContentType");
     return gfxASurface::ImageFormatARGB32;
   }
-}
-
-void
-gfxPlatform::OrientationSyncPrefsObserverChanged()
-{
-  mOrientationSyncMillis = Preferences::GetUint("layers.orientation.sync.timeout", (uint32_t)0);
-}
-
-uint32_t
-gfxPlatform::GetOrientationSyncMillis() const
-{
-  return mOrientationSyncMillis;
 }

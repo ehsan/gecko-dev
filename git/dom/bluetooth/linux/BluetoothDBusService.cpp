@@ -22,13 +22,16 @@
 #include "BluetoothOppManager.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothScoManager.h"
+#include "BluetoothServiceUuid.h"
 #include "BluetoothUnixSocketConnector.h"
 #include "BluetoothUtils.h"
-#include "BluetoothUuid.h"
 
 #include <cstdio>
 #include <dbus/dbus.h>
 
+#include "nsIDOMDOMRequest.h"
+#include "nsIObserverService.h"
+#include "AudioManager.h"
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "nsDebug.h"
@@ -151,92 +154,7 @@ static const char* sBluetoothDBusSignals[] =
 static nsAutoPtr<RawDBusConnection> gThreadConnection;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sPairingReqTable;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sAuthorizeReqTable;
-static bool sIsPairing = false;
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
-
-class RemoveDeviceTask : public nsRunnable {
-public:
-  RemoveDeviceTask(const nsAString& aAdapterPath,
-                   const char* aDeviceObjectPath,
-                   BluetoothReplyRunnable* aRunnable)
-    : mAdapterPath(aAdapterPath)
-    , mDeviceObjectPath(aDeviceObjectPath)
-    , mRunnable(aRunnable)
-  {
-    MOZ_ASSERT(aDeviceObjectPath);
-    MOZ_ASSERT(aRunnable);
-  }
-
-  nsresult Run()
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-
-    BluetoothValue v = true;
-    nsString errorStr;
-
-    DBusMessage *reply =
-      dbus_func_args(gThreadConnection->GetConnection(),
-                     NS_ConvertUTF16toUTF8(mAdapterPath).get(),
-                     DBUS_ADAPTER_IFACE, "RemoveDevice",
-                     DBUS_TYPE_OBJECT_PATH, &mDeviceObjectPath,
-                     DBUS_TYPE_INVALID);
-
-    if (reply) {
-      dbus_message_unref(reply);
-    } else {
-      errorStr.AssignLiteral("RemoveDevice failed");
-    }
-
-    DispatchBluetoothReply(mRunnable, v, errorStr);
-
-    return NS_OK;
-  }
-
-private:
-  nsString mAdapterPath;
-  const char* mDeviceObjectPath;
-  nsRefPtr<BluetoothReplyRunnable> mRunnable;
-};
-
-class SendDiscoveryTask : public nsRunnable {
-public:
-  SendDiscoveryTask(const nsAString& aAdapterPath,
-                    const char* aMessageName,
-                    BluetoothReplyRunnable* aRunnable)
-    : mAdapterPath(aAdapterPath)
-    , mMessageName(aMessageName)
-    , mRunnable(aRunnable)
-  {
-    MOZ_ASSERT(aMessageName);
-    MOZ_ASSERT(aRunnable);
-  }
-
-  nsresult Run()
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-
-    DBusMessage *reply =
-      dbus_func_args(gThreadConnection->GetConnection(),
-                     NS_ConvertUTF16toUTF8(mAdapterPath).get(),
-                     DBUS_ADAPTER_IFACE, mMessageName,
-                     DBUS_TYPE_INVALID);
-
-    if (reply) {
-      dbus_message_unref(reply);
-    }
-
-    BluetoothValue v = true;
-    nsString errorStr;
-    DispatchBluetoothReply(mRunnable, v, errorStr);
-
-    return NS_OK;
-  }
-
-private:
-  nsString mAdapterPath;
-  const char* mMessageName;
-  nsRefPtr<BluetoothReplyRunnable> mRunnable;
-};
 
 class DistributeBluetoothSignalTask : public nsRunnable {
   BluetoothSignal mSignal;
@@ -283,7 +201,7 @@ public:
     // thread and then back out to the command thread. There has to be a better
     // way to do this.
     if (NS_FAILED(bs->PrepareAdapterInternal(mPath))) {
-      NS_WARNING("Prepare adapter failed");
+      NS_WARNING("prepare adapter failed");
       return NS_ERROR_FAILURE;
     }
     return NS_OK;
@@ -318,12 +236,11 @@ public:
     // thread and then back out to the command thread. There has to be a better
     // way to do this.
     if (NS_FAILED(bs->GetDevicePropertiesInternal(mSignal))) {
-      NS_WARNING("Get device properties failed");
+      NS_WARNING("get properties failed");
       return NS_ERROR_FAILURE;
     }
     return NS_OK;
   }
-
 private:
   BluetoothSignal mSignal;
 };
@@ -358,6 +275,26 @@ IsDBusMessageError(DBusMessage* aMsg, DBusError* aErr, nsAString& aErrorStr)
     }
   }
   return false;
+}
+
+static void
+DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
+                       const BluetoothValue& aValue, const nsAString& aErrorStr)
+{
+  // Reply will be deleted by the runnable after running on main thread
+  BluetoothReply* reply;
+  if (!aErrorStr.IsEmpty()) {
+    nsString err(aErrorStr);
+    reply = new BluetoothReply(BluetoothReplyError(err));
+  } else {
+    MOZ_ASSERT(aValue.type() != BluetoothValue::T__None);
+    reply = new BluetoothReply(BluetoothReplySuccess(aValue));
+  }
+
+  aRunnable->SetReply(reply);
+  if (NS_FAILED(NS_DispatchToMainThread(aRunnable))) {
+    NS_WARNING("Failed to dispatch to main thread!");
+  }
 }
 
 static void
@@ -600,8 +537,9 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
   }
 
   BluetoothSignal signal(signalName, signalPath, v);
-  nsRefPtr<DistributeBluetoothSignalTask> t =
-    new DistributeBluetoothSignalTask(signal);
+
+  nsRefPtr<DistributeBluetoothSignalTask> t = new DistributeBluetoothSignalTask(signal);
+
   if (NS_FAILED(NS_DispatchToMainThread(t))) {
      NS_WARNING("Failed to dispatch to main thread!");
   }
@@ -816,19 +754,14 @@ public:
   NS_IMETHOD
   Run()
   {
-    BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    if (hfp) {
-      hfp->CloseSocket();
+    BluetoothHfpManager* h = BluetoothHfpManager::Get();
+    if (h) {
+      h->CloseSocket();
     }
 
     BluetoothOppManager* opp = BluetoothOppManager::Get();
     if (opp) {
       opp->CloseSocket();
-    }
-
-    BluetoothScoManager* sco = BluetoothScoManager::Get();
-    if (sco) {
-      sco->CloseSocket();
     }
 
     return NS_OK;
@@ -851,9 +784,9 @@ public:
 
     nsTArray<uint32_t> uuids;
 
-    uuids.AppendElement(BluetoothServiceClass::HANDSFREE_AG);
-    uuids.AppendElement(BluetoothServiceClass::HEADSET_AG);
-    uuids.AppendElement(BluetoothServiceClass::OBJECT_PUSH);
+    uuids.AppendElement((uint32_t)(BluetoothServiceUuid::HandsfreeAG >> 32));
+    uuids.AppendElement((uint32_t)(BluetoothServiceUuid::HeadsetAG >> 32));
+    uuids.AppendElement((uint32_t)(BluetoothServiceUuid::ObjectPush >> 32));
 
     // TODO/qdot: This needs to be held for the life of the bluetooth connection
     // so we could clean it up. For right now though, we can throw it away.
@@ -904,12 +837,8 @@ RunDBusCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable,
 void
 GetObjectPathCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
 {
-  if (sIsPairing) {
-    RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                    UnpackObjectPathMessage);
-
-    sIsPairing = false;
-  }
+  RunDBusCallback(aMsg, aBluetoothReplyRunnable,
+                  UnpackObjectPathMessage);
 }
 
 void
@@ -1372,6 +1301,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
         v.get_ArrayOfBluetoothNamedValue()
           .AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Path"),
                                              path));
+
       }
     } else {
       errorStr.AssignLiteral("DBus device found message structure not as expected!");
@@ -1481,6 +1411,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   }
 
   BluetoothSignal signal(signalName, signalPath, v);
+
   nsRefPtr<DistributeBluetoothSignalTask>
     t = new DistributeBluetoothSignalTask(signal);
   if (NS_FAILED(NS_DispatchToMainThread(t))) {
@@ -1515,16 +1446,6 @@ GetDefaultAdapterPath(BluetoothValue& aValue, nsString& aError)
   }
 
   return NS_OK;
-}
-
-bool
-BluetoothDBusService::IsReady()
-{
-  if (!IsEnabled() || !mConnection || !gThreadConnection || IsToggling()) {
-    NS_WARNING("Bluetooth service is not ready yet!");
-    return false;
-  }
-  return true;
 }
 
 nsresult
@@ -1655,8 +1576,6 @@ BluetoothDBusService::StopInternal()
   sAuthorizeReqTable.EnumerateRead(UnrefDBusMessages, nullptr);
   sAuthorizeReqTable.Clear();
 
-  sIsPairing = false;
-
   StopDBus();
   return NS_OK;
 }
@@ -1708,17 +1627,14 @@ private:
 nsresult
 BluetoothDBusService::GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
-
-  if (!IsReady()) {
-    BluetoothValue v;
-    nsString errorStr;
-    errorStr.AssignLiteral("Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
-    return NS_OK;
+  if (!mConnection || !gThreadConnection) {
+    NS_ERROR("Bluetooth service not started yet!");
+    return NS_ERROR_FAILURE;
   }
 
+  NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
+
   nsRefPtr<nsRunnable> func(new DefaultAdapterPropertiesRunnable(runnable));
   if (NS_FAILED(mBluetoothCommandThread->Dispatch(func, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Cannot dispatch firmware loading task!");
@@ -1737,22 +1653,21 @@ BluetoothDBusService::SendDiscoveryMessage(const nsAString& aAdapterPath,
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
   NS_ASSERTION(mConnection, "Must have a connection here!");
 
-  if (!IsReady()) {
-    BluetoothValue v;
-    nsString errorStr;
-    errorStr.AssignLiteral("Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
-    return NS_OK;
-  }
+  nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
 
-  nsRefPtr<nsRunnable> task(new SendDiscoveryTask(aAdapterPath,
-                                                  aMessageName,
-                                                  aRunnable));
-  if (NS_FAILED(mBluetoothCommandThread->Dispatch(task, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Cannot dispatch firmware loading task!");
+  NS_ConvertUTF16toUTF8 s(aAdapterPath);
+  if (!dbus_func_args_async(mConnection,
+                            1000,
+                            GetVoidCallback,
+                            (void*)aRunnable,
+                            s.get(),
+                            DBUS_ADAPTER_IFACE,
+                            aMessageName,
+                            DBUS_TYPE_INVALID)) {
+    NS_WARNING("Could not start async function!");
     return NS_ERROR_FAILURE;
   }
-
+  runnable.forget();
   return NS_OK;
 }
 
@@ -1760,6 +1675,10 @@ nsresult
 BluetoothDBusService::StopDiscoveryInternal(const nsAString& aAdapterPath,
                                             BluetoothReplyRunnable* aRunnable)
 {
+  if (!mConnection) {
+    NS_WARNING("Bluetooth service not started yet, no need to stop discovery.");
+    return NS_OK;
+  }
   return SendDiscoveryMessage(aAdapterPath, "StopDiscovery", aRunnable);
 }
 
@@ -1767,6 +1686,10 @@ nsresult
 BluetoothDBusService::StartDiscoveryInternal(const nsAString& aAdapterPath,
                                              BluetoothReplyRunnable* aRunnable)
 {
+  if (!mConnection) {
+    NS_WARNING("Bluetooth service not started yet, cannot start discovery!");
+    return NS_ERROR_FAILURE;
+  }
   return SendDiscoveryMessage(aAdapterPath, "StartDiscovery", aRunnable);
 }
 
@@ -1791,7 +1714,7 @@ public:
     BluetoothValue v = mSignal.value();
     if (v.type() == BluetoothValue::TArrayOfBluetoothNamedValue &&
         v.get_ArrayOfBluetoothNamedValue().Length() ) {
-      const InfallibleTArray<BluetoothNamedValue>& arr = v.get_ArrayOfBluetoothNamedValue();
+      InfallibleTArray<BluetoothNamedValue> arr = v.get_ArrayOfBluetoothNamedValue();
       NS_ASSERTION(arr[0].value().type() == BluetoothValue::TnsString, "failed to get_nsString");
       devicePath = arr[0].value().get_nsString();
     }
@@ -1808,11 +1731,12 @@ public:
       NS_WARNING("Getting properties failed!");
       return NS_ERROR_FAILURE;
     }
-    InfallibleTArray<BluetoothNamedValue> properties(prop.get_ArrayOfBluetoothNamedValue());
+
+    InfallibleTArray<BluetoothNamedValue> properties = prop.get_ArrayOfBluetoothNamedValue();
     if (v.type() == BluetoothValue::TArrayOfBluetoothNamedValue) {
       // Return original dbus message parameters and also device name
       // for agent events "RequestConfirmation", "RequestPinCode", and "RequestPasskey"
-      InfallibleTArray<BluetoothNamedValue> parameters(v.get_ArrayOfBluetoothNamedValue());
+      InfallibleTArray<BluetoothNamedValue> parameters = v.get_ArrayOfBluetoothNamedValue();
 
       // For consistency, append path
       nsString path = parameters[0].value();
@@ -1844,6 +1768,7 @@ public:
 
     nsRefPtr<DistributeBluetoothSignalTask> t =
       new DistributeBluetoothSignalTask(mSignal);
+
     if (NS_FAILED(NS_DispatchToMainThread(t))) {
        NS_WARNING("Failed to dispatch to main thread!");
        return NS_ERROR_FAILURE;
@@ -1875,7 +1800,7 @@ public:
 
     BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
 
-    for (uint32_t i = 0; i < mDeviceAddresses.Length(); i++) {
+    for (int i = 0; i < mDeviceAddresses.Length(); i++) {
       BluetoothValue v;
       if (!GetPropertiesInternal(mDeviceAddresses[i], DBUS_DEVICE_IFACE, v)) {
         nsAutoString errorStr;
@@ -1974,15 +1899,12 @@ nsresult
 BluetoothDBusService::GetPairedDevicePropertiesInternal(const nsTArray<nsString>& aDeviceAddresses,
                                                         BluetoothReplyRunnable* aRunnable)
 {
-  if (!IsReady()) {
-    BluetoothValue v;
-    nsString errorStr;
-    errorStr.AssignLiteral("Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
-    return NS_OK;
+  if (!mConnection || !gThreadConnection) {
+    NS_ERROR("Bluetooth service not started yet!");
+    return NS_ERROR_FAILURE;
   }
-
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
+
   nsRefPtr<nsRunnable> func(new BluetoothPairedDevicePropertiesRunnable(runnable, aDeviceAddresses));
   if (NS_FAILED(mBluetoothCommandThread->Dispatch(func, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Cannot dispatch task!");
@@ -2000,14 +1922,6 @@ BluetoothDBusService::SetProperty(BluetoothObjectType aType,
                                   BluetoothReplyRunnable* aRunnable)
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
-
-  if (!IsReady()) {
-    BluetoothValue v;
-    nsString errorStr;
-    errorStr.AssignLiteral("Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
-    return NS_OK;
-  }
 
   MOZ_ASSERT(aType < ArrayLength(sBluetoothDBusIfaces));
   const char* interface = sBluetoothDBusIfaces[aType];
@@ -2062,7 +1976,6 @@ BluetoothDBusService::SetProperty(BluetoothObjectType aType,
     dbus_message_unref(msg);
     return NS_ERROR_FAILURE;
   }
-
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
 
   // msg is unref'd as part of dbus_func_send_async
@@ -2174,21 +2087,6 @@ BluetoothDBusService::CreatePairedDeviceInternal(const nsAString& aAdapterPath,
     return NS_ERROR_FAILURE;
   }
 
-
-  /**
-   * FIXME: Bug 820274
-   *
-   * If the user turns off Bluetooth in the middle of pairing process, the
-   * callback function GetObjectPathCallback (see the third argument of the
-   * function call above) may still be called while enabling next time by
-   * dbus daemon. To prevent this from happening, added a flag to distinguish
-   * if Bluetooth has been turned off. Nevertheless, we need a check if there
-   * is a better solution.
-   *
-   * Please see Bug 818696 for more information.
-   */
-  sIsPairing = true;
-
   runnable.forget();
   return NS_OK;
 }
@@ -2198,27 +2096,30 @@ BluetoothDBusService::RemoveDeviceInternal(const nsAString& aAdapterPath,
                                            const nsAString& aDeviceAddress,
                                            BluetoothReplyRunnable* aRunnable)
 {
-  if (!IsReady()) {
-    BluetoothValue v;
-    nsString errorStr;
-    errorStr.AssignLiteral("Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
-    return NS_OK;
-  }
-
   nsCString tempDeviceObjectPath =
-    NS_ConvertUTF16toUTF8(GetObjectPathFromAddress(aAdapterPath,
-                                                   aDeviceAddress));
+    NS_ConvertUTF16toUTF8(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress));
+  const char* deviceObjectPath = tempDeviceObjectPath.get();
 
-  nsRefPtr<nsRunnable> task(new RemoveDeviceTask(aAdapterPath,
-                                                 tempDeviceObjectPath.get(),
-                                                 aRunnable));
+  nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
 
-  if (NS_FAILED(mBluetoothCommandThread->Dispatch(task, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Cannot dispatch firmware loading task!");
+  // We don't really care about how long it would take on removing a device,
+  // just to make sure that the value of timeout is reasonable. So, we use
+  // -1 for the timeout, which means a reasonable default timeout will be used.
+  bool ret = dbus_func_args_async(mConnection,
+                                  -1,
+                                  GetVoidCallback,
+                                  (void*)runnable,
+                                  NS_ConvertUTF16toUTF8(aAdapterPath).get(),
+                                  DBUS_ADAPTER_IFACE,
+                                  "RemoveDevice",
+                                  DBUS_TYPE_OBJECT_PATH, &deviceObjectPath,
+                                  DBUS_TYPE_INVALID);
+   if (!ret) {
+    NS_WARNING("Could not start async function!");
     return NS_ERROR_FAILURE;
   }
 
+  runnable.forget();
   return NS_OK;
 }
 
@@ -2424,7 +2325,7 @@ BluetoothDBusService::PrepareAdapterInternal(const nsAString& aPath)
   return NS_OK;
 }
 
-void
+bool
 BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
                               const nsAString& aAdapterPath,
                               const uint16_t aProfileId,
@@ -2432,45 +2333,45 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
 
-  BluetoothValue v;
   nsString errorStr;
-  if (aProfileId == BluetoothServiceClass::HANDSFREE) {
+  BluetoothValue v = true;
+  if (aProfileId == (uint16_t)(BluetoothServiceUuid::Handsfree >> 32)) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
     if (!hfp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress),
                       true, aRunnable)) {
-      errorStr.AssignLiteral("BluetoothHfpManager has connected/is connecting to a headset!");
+      errorStr.AssignLiteral("Failed to connect with device.");
       DispatchBluetoothReply(aRunnable, v, errorStr);
+      return false;
     }
-  } else if (aProfileId == BluetoothServiceClass::HEADSET) {
+    return true;
+  } else if (aProfileId == (uint16_t)(BluetoothServiceUuid::Headset >> 32)) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
     if (!hfp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress),
                       false, aRunnable)) {
-      errorStr.AssignLiteral("BluetoothHfpManager has connected/is connecting to a headset!");
+      errorStr.AssignLiteral("Failed to connect with device.");
       DispatchBluetoothReply(aRunnable, v, errorStr);
+      return false;
     }
-  } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
+    return true;
+  } else if (aProfileId == (uint16_t)(BluetoothServiceUuid::ObjectPush >> 32)) {
     BluetoothOppManager* opp = BluetoothOppManager::Get();
-    if (!opp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress),
-                      aRunnable)) {
-      errorStr.AssignLiteral("BluetoothOppManager has connected/is connecting!");
-      DispatchBluetoothReply(aRunnable, v, errorStr);
-    }
+    return opp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress),
+                        aRunnable);
   }
 
-#ifdef DEBUG
-  NS_WARNING("Unknown Profile");
-#endif
+  NS_WARNING("Unknow Profile");
+  return false;
 }
 
 void
 BluetoothDBusService::Disconnect(const uint16_t aProfileId,
                                  BluetoothReplyRunnable* aRunnable)
 {
-  if (aProfileId == BluetoothServiceClass::HANDSFREE ||
-      aProfileId == BluetoothServiceClass::HEADSET) {
+  if (aProfileId == (uint16_t)(BluetoothServiceUuid::Handsfree >> 32) ||
+      aProfileId == (uint16_t)(BluetoothServiceUuid::Headset >> 32)) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
     hfp->Disconnect();
-  } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
+  } else if (aProfileId == (uint16_t)(BluetoothServiceUuid::ObjectPush >> 32)) {
     BluetoothOppManager* opp = BluetoothOppManager::Get();
     opp->Disconnect();
   } else {
@@ -2491,11 +2392,11 @@ BluetoothDBusService::IsConnected(const uint16_t aProfileId)
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
 
-  if (aProfileId == BluetoothServiceClass::HANDSFREE ||
-      aProfileId == BluetoothServiceClass::HEADSET) {
+  if (aProfileId == (uint16_t)(BluetoothServiceUuid::Handsfree >> 32)
+      || aProfileId == (uint16_t)(BluetoothServiceUuid::Headset >> 32)) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
     return hfp->GetConnectionStatus() == SocketConnectionStatus::SOCKET_CONNECTED;
-  } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
+  } else if (aProfileId == (uint16_t)(BluetoothServiceUuid::ObjectPush >> 32)) {
     BluetoothOppManager* opp = BluetoothOppManager::Get();
     return opp->GetConnectionStatus() == SocketConnectionStatus::SOCKET_CONNECTED;
   }
@@ -2582,7 +2483,7 @@ public:
     int channel = GetDeviceServiceChannel(mObjectPath, mServiceUUID, 0x0004);
     BluetoothValue v;
     nsString replyError;
-    if (channel < 0) {
+    if(channel < 0) {
       replyError.AssignLiteral("DeviceChannelRetrievalError");
       DispatchBluetoothReply(mRunnable, v, replyError);
       return NS_OK;
@@ -2622,12 +2523,9 @@ BluetoothDBusService::GetSocketViaService(const nsAString& aObjectPath,
                                           BluetoothReplyRunnable* aRunnable)
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
-  if (!IsReady()) {
-    BluetoothValue v;
-    nsString errorStr;
-    errorStr.AssignLiteral("Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
-    return NS_OK;
+  if (!mConnection || !gThreadConnection) {
+    NS_ERROR("Bluetooth service not started yet!");
+    return NS_ERROR_FAILURE;
   }
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
@@ -2654,7 +2552,6 @@ BluetoothDBusService::GetScoSocket(const nsAString& aAddress,
                                    mozilla::ipc::UnixSocketConsumer* aConsumer)
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
-
   if (!mConnection || !gThreadConnection) {
     NS_ERROR("Bluetooth service not started yet!");
     return NS_ERROR_FAILURE;

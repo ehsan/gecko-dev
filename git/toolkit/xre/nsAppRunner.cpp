@@ -1117,7 +1117,6 @@ ScopedXPCOMStartup::~ScopedXPCOMStartup()
       appStartup->DestroyHiddenWindow();
 
     gDirServiceProvider->DoShutdown();
-    SAMPLE_MARKER("Shutdown early");
 
     WriteConsoleLog();
 
@@ -1748,11 +1747,6 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
     NS_ENSURE_TRUE(ps, NS_ERROR_FAILURE);
 
     if (aUnlocker) {
-      int32_t button;
-#ifdef MOZ_WIDGET_ANDROID
-      mozilla::AndroidBridge::Bridge()->KillAnyZombies();
-      button = 1;
-#else
       const uint32_t flags =
         (nsIPromptService::BUTTON_TITLE_CANCEL * 
          nsIPromptService::BUTTON_POS_0) +
@@ -1760,10 +1754,14 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
          nsIPromptService::BUTTON_POS_1) +
         nsIPromptService::BUTTON_POS_1_DEFAULT;
 
+      int32_t button;
       // The actual value is irrelevant but we shouldn't be handing out
       // malformed JSBools to XPConnect.
       bool checkState = false;
-
+#ifdef MOZ_WIDGET_ANDROID
+      mozilla::AndroidBridge::Bridge()->KillAnyZombies();
+      button = 1;
+#else
       rv = ps->ConfirmEx(nullptr, killTitle, killMessage, flags,
                          killTitle, nullptr, nullptr, nullptr, 
                          &checkState, &button);
@@ -3807,7 +3805,8 @@ XREMain::XRE_mainRun()
     if (!mDisableRemote)
       mRemoteService = do_GetService("@mozilla.org/toolkit/remote-service;1");
     if (mRemoteService)
-      mRemoteService->Startup(mAppData->name, mProfileName.get());
+      mRemoteService->Startup(mAppData->name,
+                              PromiseFlatCString(mProfileName).get());
 #endif /* MOZ_ENABLE_XREMOTE */
 
     mNativeApp->Enable();
@@ -3937,7 +3936,6 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     MOZ_gdk_display_close(mGdkDisplay);
 #endif
 
-    SAMPLER_SHUTDOWN();
     rv = LaunchChild(mNativeApp, true);
 
 #ifdef MOZ_CRASHREPORTER
@@ -3959,8 +3957,6 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
   XRE_DeinitCommandLine();
-
-  SAMPLER_SHUTDOWN();
 
   return NS_FAILED(rv) ? 1 : 0;
 }
@@ -4073,7 +4069,6 @@ XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
   // thread that called XRE_metroStartup.
   NS_ASSERTION(!xreMainPtr->mScopedXPCom,
                "XPCOM Shutdown hasn't occured, and we are exiting.");
-  SAMPLER_SHUTDOWN();
   return 0;
 }
 

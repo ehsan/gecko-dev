@@ -235,10 +235,13 @@ public:
     }
     void Set(JSScript* aObject);
 
-    JSScript *GetScriptObject()
+    struct ScriptObjectHolder
     {
-        return mScriptObject;
-    }
+        ScriptObjectHolder() : mObject(nullptr)
+        {
+        }
+        JSScript* mObject;
+    };
 
     nsCOMPtr<nsIURI>         mSrcURI;
     uint32_t                 mLineNo;
@@ -246,8 +249,7 @@ public:
     bool                     mOutOfLine;
     nsXULDocument*           mSrcLoadWaiters;   // [OWNER] but not COMPtr
     uint32_t                 mLangVersion;
-private:
-    JSScript*                mScriptObject;
+    ScriptObjectHolder       mScriptObject;
 };
 
 class nsXULPrototypeText : public nsXULPrototypeNode
@@ -346,7 +348,7 @@ public:
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsXULElement,
-                                                       mozilla::dom::Element)
+                                                       nsGenericElement)
 
     // nsINode
     virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
@@ -408,7 +410,7 @@ public:
 
     // This function should ONLY be used by BindToTree implementations.
     // The function exists solely because XUL elements store the binding
-    // parent as a member instead of in the slots, as Element does.
+    // parent as a member instead of in the slots, as nsGenericElement does.
     void SetXULBindingParent(nsIContent* aBindingParent)
     {
       mBindingParent = aBindingParent;
@@ -435,7 +437,7 @@ protected:
 
     nsresult AddPopupListener(nsIAtom* aName);
 
-    class nsXULSlots : public mozilla::dom::Element::nsDOMSlots
+    class nsXULSlots : public nsGenericElement::nsDOMSlots
     {
     public:
         nsXULSlots();

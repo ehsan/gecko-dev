@@ -98,14 +98,14 @@ NS_IMPL_CYCLE_COLLECTION_3(mozHunspell,
 // Memory reporting stuff.
 static int64_t gHunspellAllocatedSize = 0;
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(HunspellMallocSizeOfOnAlloc)
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(HunspellMallocSizeOfOnFree)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HunspellMallocSizeOfForCounterInc, "hunspell")
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN_UN(HunspellMallocSizeOfForCounterDec)
 
 void HunspellReportMemoryAllocation(void* ptr) {
-  gHunspellAllocatedSize += HunspellMallocSizeOfOnAlloc(ptr);
+  gHunspellAllocatedSize += HunspellMallocSizeOfForCounterInc(ptr);
 }
 void HunspellReportMemoryDeallocation(void* ptr) {
-  gHunspellAllocatedSize -= HunspellMallocSizeOfOnFree(ptr);
+  gHunspellAllocatedSize -= HunspellMallocSizeOfForCounterDec(ptr);
 }
 static int64_t HunspellGetCurrentAllocatedSize() {
   return gHunspellAllocatedSize;

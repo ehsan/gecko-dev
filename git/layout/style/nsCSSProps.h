@@ -104,9 +104,6 @@ MOZ_STATIC_ASSERT((CSS_PROPERTY_PARSE_PROPERTY_MASK &
 // Does the property apply to ::-moz-placeholder?
 #define CSS_PROPERTY_APPLIES_TO_PLACEHOLDER       (1<<18)
 
-// This property is allowed in an @page rule.
-#define CSS_PROPERTY_APPLIES_TO_PAGE_RULE         (1<<19)
-
 /**
  * Types of animatable values.
  */
@@ -406,7 +403,6 @@ public:
   static const int32_t kLineHeightKTable[];
   static const int32_t kListStylePositionKTable[];
   static const int32_t kListStyleKTable[];
-  static const int32_t kMaskTypeKTable[];
   static const int32_t kObjectOpacityKTable[];
   static const int32_t kObjectPatternKTable[];
   static const int32_t kOrientKTable[];

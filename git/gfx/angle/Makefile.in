@@ -76,7 +76,6 @@ CPPSRCS = \
         Lexer.cpp \
         Preprocessor.cpp \
         Token.cpp \
-        VariablePacker.cpp \
         $(NULL)
 
 # flex/yacc generated files

@@ -11,13 +11,11 @@
 #ifndef mozilla_dom_Link_h__
 #define mozilla_dom_Link_h__
 
+#include "mozilla/dom/Element.h"
 #include "mozilla/IHistory.h"
-#include "nsIContent.h"
 
 namespace mozilla {
 namespace dom {
-
-class Element;
 
 #define MOZILLA_DOM_LINK_IMPLEMENTATION_IID \
   { 0x7EA57721, 0xE373, 0x458E, \
@@ -27,6 +25,8 @@ class Link : public nsISupports
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOM_LINK_IMPLEMENTATION_IID)
+
+  static const nsLinkState defaultState = eLinkState_Unknown;
 
   /**
    * aElement is the element pointer corresponding to this link.
@@ -75,7 +75,7 @@ public:
    *        true if ResetLinkState should notify the owning document about style
    *        changes or false if it should not.
    */
-  void ResetLinkState(bool aNotify, bool aHasHref);
+  void ResetLinkState(bool aNotify);
   
   // This method nevers returns a null element.
   Element* GetElement() const { return mElement; }
@@ -100,8 +100,6 @@ public:
 
   virtual size_t
     SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
-  bool ElementHasHref() const;
 
 protected:
   virtual ~Link();
@@ -140,8 +138,6 @@ private:
   nsCOMPtr<IHistory> mHistory;
 
   uint16_t mLinkState;
-
-  bool mNeedsRegistration;
 
   bool mRegistered;
 };

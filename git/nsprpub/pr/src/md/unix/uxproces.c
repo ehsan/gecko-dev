@@ -711,6 +711,11 @@ static PRStatus _MD_InitProcesses(void)
     int rv;
     int flags;
 #endif
+#ifdef SUNOS4
+#define _PR_NBIO_FLAG FNDELAY
+#else
+#define _PR_NBIO_FLAG O_NONBLOCK
+#endif
 
 #ifdef AIX
     {
@@ -734,9 +739,9 @@ static PRStatus _MD_InitProcesses(void)
     rv = pipe(pr_wp.pipefd);
     PR_ASSERT(0 == rv);
     flags = fcntl(pr_wp.pipefd[0], F_GETFL, 0);
-    fcntl(pr_wp.pipefd[0], F_SETFL, flags | O_NONBLOCK);
+    fcntl(pr_wp.pipefd[0], F_SETFL, flags | _PR_NBIO_FLAG);
     flags = fcntl(pr_wp.pipefd[1], F_GETFL, 0);
-    fcntl(pr_wp.pipefd[1], F_SETFL, flags | O_NONBLOCK);
+    fcntl(pr_wp.pipefd[1], F_SETFL, flags | _PR_NBIO_FLAG);
 
 #ifndef _PR_SHARE_CLONES
     pr_InstallSigchldHandler();

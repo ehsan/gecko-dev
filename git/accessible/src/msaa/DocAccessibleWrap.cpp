@@ -78,8 +78,7 @@ DocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 DocAccessibleWrap::get_URL(/* [out] */ BSTR __RPC_FAR *aURL)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aURL = NULL;
 
   nsAutoString URL;
@@ -93,14 +92,14 @@ DocAccessibleWrap::get_URL(/* [out] */ BSTR __RPC_FAR *aURL)
   *aURL = ::SysAllocStringLen(URL.get(), URL.Length());
   return *aURL ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 DocAccessibleWrap::get_title( /* [out] */ BSTR __RPC_FAR *aTitle)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aTitle = NULL;
 
   nsAutoString title;
@@ -111,14 +110,14 @@ DocAccessibleWrap::get_title( /* [out] */ BSTR __RPC_FAR *aTitle)
   *aTitle = ::SysAllocStringLen(title.get(), title.Length());
   return *aTitle ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 DocAccessibleWrap::get_mimeType(/* [out] */ BSTR __RPC_FAR *aMimeType)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aMimeType = NULL;
 
   nsAutoString mimeType;
@@ -132,14 +131,14 @@ DocAccessibleWrap::get_mimeType(/* [out] */ BSTR __RPC_FAR *aMimeType)
   *aMimeType = ::SysAllocStringLen(mimeType.get(), mimeType.Length());
   return *aMimeType ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 DocAccessibleWrap::get_docType(/* [out] */ BSTR __RPC_FAR *aDocType)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aDocType = NULL;
 
   nsAutoString docType;
@@ -153,15 +152,15 @@ DocAccessibleWrap::get_docType(/* [out] */ BSTR __RPC_FAR *aDocType)
   *aDocType = ::SysAllocStringLen(docType.get(), docType.Length());
   return *aDocType ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 DocAccessibleWrap::get_nameSpaceURIForID(/* [in] */  short aNameSpaceID,
   /* [out] */ BSTR __RPC_FAR *aNameSpaceURI)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aNameSpaceURI = NULL;
 
   if (aNameSpaceID < 0)
@@ -180,18 +179,18 @@ DocAccessibleWrap::get_nameSpaceURIForID(/* [in] */  short aNameSpaceID,
 
   return *aNameSpaceURI ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 DocAccessibleWrap::put_alternateViewMediaTypes( /* [in] */ BSTR __RPC_FAR *aCommaSeparatedMediaTypes)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aCommaSeparatedMediaTypes = NULL;
-  return E_NOTIMPL;
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
-  A11Y_TRYBLOCK_END
+  return E_NOTIMPL;
 }
 
 STDMETHODIMP
@@ -223,7 +222,7 @@ DocAccessibleWrap::Shutdown()
   // Do window emulation specific shutdown if emulation was started.
   if (nsWinUtils::IsWindowEmulationStarted()) {
     // Destroy window created for root document.
-    if (mDocFlags & eTabDocument) {
+    if (nsCoreUtils::IsTabDocument(mDocument)) {
       sHWNDCache.Remove(mHWND);
       ::DestroyWindow(static_cast<HWND>(mHWND));
     }
@@ -253,13 +252,13 @@ DocAccessibleWrap::DoInitialUpdate()
 
   if (nsWinUtils::IsWindowEmulationStarted()) {
     // Create window for tab document.
-    if (mDocFlags & eTabDocument) {
+    if (nsCoreUtils::IsTabDocument(mDocument)) {
       mozilla::dom::TabChild* tabChild =
-        mozilla::dom::GetTabChildFrom(mDocumentNode->GetShell());
+        mozilla::dom::GetTabChildFrom(mDocument->GetShell());
 
       a11y::RootAccessible* rootDocument = RootAccessible();
 
-      mozilla::WindowsHandle nativeData = 0;
+      mozilla::WindowsHandle nativeData = NULL;
       if (tabChild)
         tabChild->SendGetWidgetNativeData(&nativeData);
       else
@@ -275,7 +274,7 @@ DocAccessibleWrap::DoInitialUpdate()
         x = rootX - x;
         y -= rootY;
 
-        nsCOMPtr<nsISupports> container = mDocumentNode->GetContainer();
+        nsCOMPtr<nsISupports> container = mDocument->GetContainer();
         nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
         docShell->GetIsActive(&isActive);
       }

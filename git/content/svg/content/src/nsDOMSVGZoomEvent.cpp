@@ -32,7 +32,7 @@ nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
     mEvent->time = PR_Now();
   }
 
-  mEvent->mFlags.mCancelable = false;
+  mEvent->flags |= NS_EVENT_FLAG_CANT_CANCEL;
 
   // We must store the "Previous" and "New" values before this event is
   // dispatched. Reading the values from the root 'svg' element after we've
@@ -122,7 +122,7 @@ nsDOMSVGZoomEvent::GetPreviousScale(float *aPreviousScale)
 
 /* readonly attribute SVGPoint previousTranslate; */
 NS_IMETHODIMP
-nsDOMSVGZoomEvent::GetPreviousTranslate(nsISupports **aPreviousTranslate)
+nsDOMSVGZoomEvent::GetPreviousTranslate(nsIDOMSVGPoint **aPreviousTranslate)
 {
   *aPreviousTranslate = mPreviousTranslate;
   NS_IF_ADDREF(*aPreviousTranslate);
@@ -138,7 +138,7 @@ NS_IMETHODIMP nsDOMSVGZoomEvent::GetNewScale(float *aNewScale)
 
 /* readonly attribute SVGPoint newTranslate; */
 NS_IMETHODIMP
-nsDOMSVGZoomEvent::GetNewTranslate(nsISupports **aNewTranslate)
+nsDOMSVGZoomEvent::GetNewTranslate(nsIDOMSVGPoint **aNewTranslate)
 {
   *aNewTranslate = mNewTranslate;
   NS_IF_ADDREF(*aNewTranslate);

@@ -2224,22 +2224,18 @@
                     ],
                   }],
                 ],
-               'target_conditions': [
-                 ['_toolset=="target" and OS!="android"', {
-                    # -mmmx allows mmintrin.h to be used for mmx intrinsics.
-                    # video playback is mmx and sse2 optimized.
-                    'cflags': [
-                      '-m32',
-                      '-mmmx',
-                    ],
-                    'ldflags': [
-                      '-m32',
-                    ],
-                    'cflags_mozilla': [
-                      '-m32',
-                      '-mmmx',
-                    ],
-                  }],
+                # -mmmx allows mmintrin.h to be used for mmx intrinsics.
+                # video playback is mmx and sse2 optimized.
+                'cflags': [
+                  '-m32',
+                  '-mmmx',
+                ],
+                'ldflags': [
+                  '-m32',
+                ],
+                'cflags_mozilla': [
+                  '-m32',
+                  '-mmmx',
                 ],
               }],
             ],
@@ -2596,8 +2592,6 @@
           # TODO: The proper thing to do longer-tem would be proper gyp
           # support for a custom link command line.
           ['_toolset=="target"', {
-           'conditions': [
-           ['build_with_mozilla==0', {
             'cflags!': [
               '-pthread',  # Not supported by Android toolchain.
             ],
@@ -2610,6 +2604,12 @@
               '-finline-limit=64',
               '-Wa,--noexecstack',
               '<@(release_extra_cflags)',
+            ],
+            'defines': [
+              'ANDROID',
+              '__GNU_SOURCE=1',  # Necessary for clone()
+              'USE_STLPORT=1',
+              '_STLP_USE_PTR_SPECIALIZATIONS=1',
             ],
             'ldflags!': [
               '-pthread',  # Not supported by Android toolchain.
@@ -2752,17 +2752,7 @@
                 ],
               }],
             ],
-
-           }], # build_with_mozilla== 0
-
-            ],
-            'defines': [
-              'ANDROID',
-              '__GNU_SOURCE=1',  # Necessary for clone()
-              'USE_STLPORT=1',
-              '_STLP_USE_PTR_SPECIALIZATIONS=1',
-            ],
-           }],
+          }],
           # Settings for building host targets using the system toolchain.
           ['_toolset=="host"', {
             'cflags!': [

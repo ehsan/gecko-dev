@@ -197,6 +197,7 @@ public:
 protected:
   IconData mIcon;
   PageData mPage;
+  nsCOMPtr<nsIChannel> mChannel;
   const bool mFaviconLoadPrivate;
 };
 

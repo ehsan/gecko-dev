@@ -12,6 +12,8 @@
 #include "jspubtd.h"
 #include "jsprvtd.h"
 
+#include "js/HeapAPI.h"
+
 #include "mozilla/GuardObjects.h"
 
 /*
@@ -198,12 +200,6 @@ GetRuntime(const JSContext *cx)
     return ContextFriendFields::get(cx)->runtime;
 }
 
-inline JSCompartment *
-GetContextCompartment(const JSContext *cx)
-{
-    return ContextFriendFields::get(cx)->compartment;
-}
-
 typedef bool
 (* PreserveWrapperCallback)(JSContext *cx, JSObject *obj);
 
@@ -238,14 +234,13 @@ extern JS_FRIEND_API(bool)
 IsAtomsCompartment(const JSCompartment *c);
 
 /*
- * Check whether it is OK to assign an undeclared variable with the name
- * |propname| at the current location in script.  It is not an error if there is
- * no current script location, or if that location is not an assignment to an
- * undeclared variable.  Reports an error if one needs to be reported (and,
- * particularly, always reports when it returns false).
+ * Check whether it is OK to assign an undeclared property with name
+ * propname of the global object in the current script on cx.  Reports
+ * an error if one needs to be reported (in particular in all cases
+ * when it returns false).
  */
 extern JS_FRIEND_API(bool)
-ReportIfUndeclaredVarAssignment(JSContext *cx, HandleString propname);
+CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname);
 
 struct WeakMapTracer;
 
@@ -272,20 +267,16 @@ extern JS_FRIEND_API(void)
 TraceWeakMaps(WeakMapTracer *trc);
 
 extern JS_FRIEND_API(bool)
-AreGCGrayBitsValid(JSRuntime *rt);
+GCThingIsMarkedGray(void *thing);
 
-/*
- * Unsets the gray bit for anything reachable from |thing|. |kind| should not be
- * JSTRACE_SHAPE. |thing| should be non-null.
- */
-extern JS_FRIEND_API(void)
-UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind);
+JS_FRIEND_API(void)
+UnmarkGrayGCThing(void *thing);
 
 typedef void
-(*GCThingCallback)(void *closure, void *gcthing);
+(GCThingCallback)(void *closure, void *gcthing);
 
 extern JS_FRIEND_API(void)
-VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback callback, void *closure);
+VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback *callback, void *closure);
 
 extern JS_FRIEND_API(JSObject *)
 GetWeakmapKeyDelegate(JSObject *key);
@@ -297,12 +288,7 @@ GCThingTraceKind(void *thing);
  * Invoke cellCallback on every gray JS_OBJECT in the given compartment.
  */
 extern JS_FRIEND_API(void)
-IterateGrayObjects(JSCompartment *compartment, GCThingCallback cellCallback, void *data);
-
-#ifdef JS_HAS_CTYPES
-extern JS_FRIEND_API(size_t)
-SizeOfDataIfCDataObject(JSMallocSizeOfFun mallocSizeOf, JSObject *obj);
-#endif
+IterateGrayObjects(JSCompartment *compartment, GCThingCallback *cellCallback, void *data);
 
 /*
  * Shadow declarations of JS internal structures, for access by inline access
@@ -321,20 +307,19 @@ struct BaseShape {
     JSObject    *parent;
 };
 
-class Shape {
-public:
-    shadow::BaseShape *base;
-    jsid              _1;
-    uint32_t          slotInfo;
+struct Shape {
+    BaseShape   *base;
+    jsid        _1;
+    uint32_t    slotInfo;
 
     static const uint32_t FIXED_SLOTS_SHIFT = 27;
 };
 
 struct Object {
-    shadow::Shape      *shape;
-    shadow::TypeObject *type;
-    js::Value          *slots;
-    js::Value          *_1;
+    Shape       *shape;
+    TypeObject  *type;
+    js::Value   *slots;
+    js::Value   *_1;
 
     size_t numFixedSlots() const { return shape->slotInfo >> Shape::FIXED_SLOTS_SHIFT; }
     Value *fixedSlots() const {
@@ -684,10 +669,8 @@ SetRuntimeProfilingStack(JSRuntime *rt, ProfileEntry *stack, uint32_t *size,
 JS_FRIEND_API(void)
 EnableRuntimeProfilingStack(JSRuntime *rt, bool enabled);
 
-// Use RawScript rather than UnrootedScript because it may be called from a
-// signal handler
 JS_FRIEND_API(jsbytecode*)
-ProfilingGetPC(JSRuntime *rt, RawScript script, void *ip);
+ProfilingGetPC(JSRuntime *rt, JSScript *script, void *ip);
 
 #ifdef JS_THREADSAFE
 JS_FRIEND_API(void *)
@@ -696,6 +679,9 @@ GetOwnerThread(const JSContext *cx);
 JS_FRIEND_API(bool)
 ContextHasOutstandingRequests(const JSContext *cx);
 #endif
+
+JS_FRIEND_API(JSCompartment *)
+GetContextCompartment(const JSContext *cx);
 
 JS_FRIEND_API(bool)
 HasUnrootedGlobal(const JSContext *cx);
@@ -898,6 +884,12 @@ IsIncrementalBarrierNeeded(JSRuntime *rt);
 
 extern JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSContext *cx);
+
+extern JS_FRIEND_API(bool)
+IsIncrementalBarrierNeededOnObject(RawObject obj);
+
+extern JS_FRIEND_API(bool)
+IsIncrementalBarrierNeededOnScript(JSScript *obj);
 
 extern JS_FRIEND_API(void)
 IncrementalReferenceBarrier(void *ptr);
@@ -1191,40 +1183,41 @@ JS_NewArrayBuffer(JSContext *cx, uint32_t nbytes);
  * the various accessor JSAPI calls defined below.
  */
 extern JS_FRIEND_API(JSBool)
-JS_IsTypedArrayObject(JSObject *obj);
+JS_IsTypedArrayObject(JSObject *obj, JSContext *cx);
 
 /*
  * Check whether obj supports JS_GetArrayBufferView* APIs. Note that this may
  * return false if a security wrapper is encountered that denies the
  * unwrapping. If this test or one of the more specific tests succeeds, then it
  * is safe to call the various ArrayBufferView accessor JSAPI calls defined
- * below.
+ * below. cx MUST be non-NULL and valid.
  */
 extern JS_FRIEND_API(JSBool)
-JS_IsArrayBufferViewObject(JSObject *obj);
+JS_IsArrayBufferViewObject(JSObject *obj, JSContext *cx);
 
 /*
  * Test for specific typed array types (ArrayBufferView subtypes)
  */
 
 extern JS_FRIEND_API(JSBool)
-JS_IsInt8Array(JSObject *obj);
+JS_IsInt8Array(JSObject *obj, JSContext *cx);
 extern JS_FRIEND_API(JSBool)
-JS_IsUint8Array(JSObject *obj);
+JS_IsUint8Array(JSObject *obj, JSContext *cx);
 extern JS_FRIEND_API(JSBool)
-JS_IsUint8ClampedArray(JSObject *obj);
+JS_IsUint8ClampedArray(JSObject *obj, JSContext *cx);
 extern JS_FRIEND_API(JSBool)
-JS_IsInt16Array(JSObject *obj);
+JS_IsInt16Array(JSObject *obj, JSContext *cx);
 extern JS_FRIEND_API(JSBool)
-JS_IsUint16Array(JSObject *obj);
+JS_IsUint16Array(JSObject *obj, JSContext *cx);
 extern JS_FRIEND_API(JSBool)
-JS_IsInt32Array(JSObject *obj);
+JS_IsInt32Array(JSObject *obj, JSContext *cx);
 extern JS_FRIEND_API(JSBool)
-JS_IsUint32Array(JSObject *obj);
+JS_IsUint32Array(JSObject *obj, JSContext *cx);
 extern JS_FRIEND_API(JSBool)
-JS_IsFloat32Array(JSObject *obj);
+JS_IsFloat32Array(JSObject *obj, JSContext *cx);
 extern JS_FRIEND_API(JSBool)
-JS_IsFloat64Array(JSObject *obj);
+JS_IsFloat64Array(JSObject *obj, JSContext *cx);
+
 
 /*
  * Unwrap Typed arrays all at once. Return NULL without throwing if the object
@@ -1232,37 +1225,38 @@ JS_IsFloat64Array(JSObject *obj);
  * success, filling both outparameters.
  */
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsInt8Array(JSObject *obj, uint32_t *length, int8_t **data);
+JS_GetObjectAsInt8Array(JSContext *cx, JSObject *obj, uint32_t *length, int8_t **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsUint8Array(JSObject *obj, uint32_t *length, uint8_t **data);
+JS_GetObjectAsUint8Array(JSContext *cx, JSObject *obj, uint32_t *length, uint8_t **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsUint8ClampedArray(JSObject *obj, uint32_t *length, uint8_t **data);
+JS_GetObjectAsUint8ClampedArray(JSContext *cx, JSObject *obj, uint32_t *length, uint8_t **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsInt16Array(JSObject *obj, uint32_t *length, int16_t **data);
+JS_GetObjectAsInt16Array(JSContext *cx, JSObject *obj, uint32_t *length, int16_t **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsUint16Array(JSObject *obj, uint32_t *length, uint16_t **data);
+JS_GetObjectAsUint16Array(JSContext *cx, JSObject *obj, uint32_t *length, uint16_t **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsInt32Array(JSObject *obj, uint32_t *length, int32_t **data);
+JS_GetObjectAsInt32Array(JSContext *cx, JSObject *obj, uint32_t *length, int32_t **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsUint32Array(JSObject *obj, uint32_t *length, uint32_t **data);
+JS_GetObjectAsUint32Array(JSContext *cx, JSObject *obj, uint32_t *length, uint32_t **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsFloat32Array(JSObject *obj, uint32_t *length, float **data);
+JS_GetObjectAsFloat32Array(JSContext *cx, JSObject *obj, uint32_t *length, float **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsFloat64Array(JSObject *obj, uint32_t *length, double **data);
+JS_GetObjectAsFloat64Array(JSContext *cx, JSObject *obj, uint32_t *length, double **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsArrayBufferView(JSObject *obj, uint32_t *length, uint8_t **data);
+JS_GetObjectAsArrayBufferView(JSContext *cx, JSObject *obj, uint32_t *length, uint8_t **data);
 extern JS_FRIEND_API(JSObject *)
-JS_GetObjectAsArrayBuffer(JSObject *obj, uint32_t *length, uint8_t **data);
+JS_GetObjectAsArrayBuffer(JSContext *cx, JSObject *obj, uint32_t *length, uint8_t **data);
 
 /*
  * Get the type of elements in a typed array.
  *
  * |obj| must have passed a JS_IsTypedArrayObject/JS_Is*Array test, or somehow
  * be known that it would pass such a test: it is a typed array or a wrapper of
- * a typed array, and the unwrapping will succeed.
+ * a typed array, and the unwrapping will succeed. If cx is NULL, then DEBUG
+ * builds may be unable to assert when unwrapping should be disallowed.
  */
 extern JS_FRIEND_API(JSArrayBufferViewType)
-JS_GetTypedArrayType(JSObject *obj);
+JS_GetTypedArrayType(JSObject *obj, JSContext *maybecx);
 
 /*
  * Check whether obj supports the JS_GetArrayBuffer* APIs. Note that this may
@@ -1271,17 +1265,18 @@ JS_GetTypedArrayType(JSObject *obj);
  * accessor JSAPI calls defined below.
  */
 extern JS_FRIEND_API(JSBool)
-JS_IsArrayBufferObject(JSObject *obj);
+JS_IsArrayBufferObject(JSObject *obj, JSContext *maybecx);
 
 /*
  * Return the available byte length of an array buffer.
  *
  * |obj| must have passed a JS_IsArrayBufferObject test, or somehow be known
  * that it would pass such a test: it is an ArrayBuffer or a wrapper of an
- * ArrayBuffer, and the unwrapping will succeed.
+ * ArrayBuffer, and the unwrapping will succeed. If cx is NULL, then DEBUG
+ * builds may be unable to assert when unwrapping should be disallowed.
  */
 extern JS_FRIEND_API(uint32_t)
-JS_GetArrayBufferByteLength(JSObject *obj);
+JS_GetArrayBufferByteLength(JSObject *obj, JSContext *maybecx);
 
 /*
  * Return a pointer to an array buffer's data. The buffer is still owned by the
@@ -1290,20 +1285,22 @@ JS_GetArrayBufferByteLength(JSObject *obj);
  *
  * |obj| must have passed a JS_IsArrayBufferObject test, or somehow be known
  * that it would pass such a test: it is an ArrayBuffer or a wrapper of an
- * ArrayBuffer, and the unwrapping will succeed.
+ * ArrayBuffer, and the unwrapping will succeed. If cx is NULL, then DEBUG
+ * builds may be unable to assert when unwrapping should be disallowed.
  */
 extern JS_FRIEND_API(uint8_t *)
-JS_GetArrayBufferData(JSObject *obj);
+JS_GetArrayBufferData(JSObject *obj, JSContext *maybecx);
 
 /*
  * Return the number of elements in a typed array.
  *
  * |obj| must have passed a JS_IsTypedArrayObject/JS_Is*Array test, or somehow
  * be known that it would pass such a test: it is a typed array or a wrapper of
- * a typed array, and the unwrapping will succeed.
+ * a typed array, and the unwrapping will succeed. If cx is NULL, then DEBUG
+ * builds may be unable to assert when unwrapping should be disallowed.
  */
 extern JS_FRIEND_API(uint32_t)
-JS_GetTypedArrayLength(JSObject *obj);
+JS_GetTypedArrayLength(JSObject *obj, JSContext *cx);
 
 /*
  * Return the byte offset from the start of an array buffer to the start of a
@@ -1311,20 +1308,22 @@ JS_GetTypedArrayLength(JSObject *obj);
  *
  * |obj| must have passed a JS_IsTypedArrayObject/JS_Is*Array test, or somehow
  * be known that it would pass such a test: it is a typed array or a wrapper of
- * a typed array, and the unwrapping will succeed.
+ * a typed array, and the unwrapping will succeed. If cx is NULL, then DEBUG
+ * builds may be unable to assert when unwrapping should be disallowed.
  */
 extern JS_FRIEND_API(uint32_t)
-JS_GetTypedArrayByteOffset(JSObject *obj);
+JS_GetTypedArrayByteOffset(JSObject *obj, JSContext *cx);
 
 /*
  * Return the byte length of a typed array.
  *
  * |obj| must have passed a JS_IsTypedArrayObject/JS_Is*Array test, or somehow
  * be known that it would pass such a test: it is a typed array or a wrapper of
- * a typed array, and the unwrapping will succeed.
+ * a typed array, and the unwrapping will succeed. If cx is NULL, then DEBUG
+ * builds may be unable to assert when unwrapping should be disallowed.
  */
 extern JS_FRIEND_API(uint32_t)
-JS_GetTypedArrayByteLength(JSObject *obj);
+JS_GetTypedArrayByteLength(JSObject *obj, JSContext *cx);
 
 /*
  * Check whether obj supports JS_ArrayBufferView* APIs. Note that this may
@@ -1332,13 +1331,13 @@ JS_GetTypedArrayByteLength(JSObject *obj);
  * unwrapping.
  */
 extern JS_FRIEND_API(JSBool)
-JS_IsArrayBufferViewObject(JSObject *obj);
+JS_IsArrayBufferViewObject(JSObject *obj, JSContext *cx);
 
 /*
  * More generic name for JS_GetTypedArrayByteLength to cover DataViews as well
  */
 extern JS_FRIEND_API(uint32_t)
-JS_GetArrayBufferViewByteLength(JSObject *obj);
+JS_GetArrayBufferViewByteLength(JSObject *obj, JSContext *cx);
 
 /*
  * Return a pointer to the start of the data referenced by a typed array. The
@@ -1347,34 +1346,35 @@ JS_GetArrayBufferViewByteLength(JSObject *obj);
  *
  * |obj| must have passed a JS_Is*Array test, or somehow be known that it would
  * pass such a test: it is a typed array or a wrapper of a typed array, and the
- * unwrapping will succeed.
+ * unwrapping will succeed. If cx is NULL, then DEBUG builds may be unable to
+ * assert when unwrapping should be disallowed.
  */
 
 extern JS_FRIEND_API(int8_t *)
-JS_GetInt8ArrayData(JSObject *obj);
+JS_GetInt8ArrayData(JSObject *obj, JSContext *maybecx);
 extern JS_FRIEND_API(uint8_t *)
-JS_GetUint8ArrayData(JSObject *obj);
+JS_GetUint8ArrayData(JSObject *obj, JSContext *maybecx);
 extern JS_FRIEND_API(uint8_t *)
-JS_GetUint8ClampedArrayData(JSObject *obj);
+JS_GetUint8ClampedArrayData(JSObject *obj, JSContext *maybecx);
 extern JS_FRIEND_API(int16_t *)
-JS_GetInt16ArrayData(JSObject *obj);
+JS_GetInt16ArrayData(JSObject *obj, JSContext *maybecx);
 extern JS_FRIEND_API(uint16_t *)
-JS_GetUint16ArrayData(JSObject *obj);
+JS_GetUint16ArrayData(JSObject *obj, JSContext *maybecx);
 extern JS_FRIEND_API(int32_t *)
-JS_GetInt32ArrayData(JSObject *obj);
+JS_GetInt32ArrayData(JSObject *obj, JSContext *maybecx);
 extern JS_FRIEND_API(uint32_t *)
-JS_GetUint32ArrayData(JSObject *obj);
+JS_GetUint32ArrayData(JSObject *obj, JSContext *maybecx);
 extern JS_FRIEND_API(float *)
-JS_GetFloat32ArrayData(JSObject *obj);
+JS_GetFloat32ArrayData(JSObject *obj, JSContext *maybecx);
 extern JS_FRIEND_API(double *)
-JS_GetFloat64ArrayData(JSObject *obj);
+JS_GetFloat64ArrayData(JSObject *obj, JSContext *maybecx);
 
 /*
  * Same as above, but for any kind of ArrayBufferView. Prefer the type-specific
  * versions when possible.
  */
 extern JS_FRIEND_API(void *)
-JS_GetArrayBufferViewData(JSObject *obj);
+JS_GetArrayBufferViewData(JSObject *obj, JSContext *maybecx);
 
 /*
  * Return the ArrayBuffer underlying an ArrayBufferView. If the buffer has been
@@ -1382,13 +1382,15 @@ JS_GetArrayBufferViewData(JSObject *obj);
  * object that would return true for JS_IsArrayBufferViewObject().
  */
 extern JS_FRIEND_API(JSObject *)
-JS_GetArrayBufferViewBuffer(JSObject *obj);
+JS_GetArrayBufferViewBuffer(JSObject *obj, JSContext *maybecx);
 
 /*
- * Check whether obj supports JS_GetDataView* APIs.
+ * Check whether obj supports JS_GetDataView* APIs. Note that this may fail and
+ * throw an exception if a security wrapper is encountered that denies the
+ * operation.
  */
 JS_FRIEND_API(JSBool)
-JS_IsDataViewObject(JSObject *obj);
+JS_IsDataViewObject(JSContext *cx, JSObject *obj, JSBool *isDataView);
 
 /*
  * Return the byte offset of a data view into its array buffer. |obj| must be a
@@ -1396,10 +1398,11 @@ JS_IsDataViewObject(JSObject *obj);
  *
  * |obj| must have passed a JS_IsDataViewObject test, or somehow be known that
  * it would pass such a test: it is a data view or a wrapper of a data view,
- * and the unwrapping will succeed.
+ * and the unwrapping will succeed. If cx is NULL, then DEBUG builds may be
+ * unable to assert when unwrapping should be disallowed.
  */
 JS_FRIEND_API(uint32_t)
-JS_GetDataViewByteOffset(JSObject *obj);
+JS_GetDataViewByteOffset(JSObject *obj, JSContext *maybecx);
 
 /*
  * Return the byte length of a data view.
@@ -1410,7 +1413,7 @@ JS_GetDataViewByteOffset(JSObject *obj);
  * unable to assert when unwrapping should be disallowed.
  */
 JS_FRIEND_API(uint32_t)
-JS_GetDataViewByteLength(JSObject *obj);
+JS_GetDataViewByteLength(JSObject *obj, JSContext *maybecx);
 
 /*
  * Return a pointer to the beginning of the data referenced by a DataView.
@@ -1421,7 +1424,7 @@ JS_GetDataViewByteLength(JSObject *obj);
  * unable to assert when unwrapping should be disallowed.
  */
 JS_FRIEND_API(void *)
-JS_GetDataViewData(JSObject *obj);
+JS_GetDataViewData(JSObject *obj, JSContext *maybecx);
 
 /*
  * This struct contains metadata passed from the DOM to the JS Engine for JIT
@@ -1436,16 +1439,9 @@ typedef bool
                   void *specializedThis, unsigned argc, JS::Value *vp);
 
 struct JSJitInfo {
-    enum OpType {
-        Getter,
-        Setter,
-        Method
-    };
-
     JSJitPropertyOp op;
     uint32_t protoID;
     uint32_t depth;
-    OpType type;
     bool isInfallible;    /* Is op fallible? False in setters. */
     bool isConstant;      /* Getting a construction-time constant? */
 };
@@ -1552,12 +1548,6 @@ IdToJsval(jsid id)
 {
     return IdToValue(id);
 }
-
-extern JS_FRIEND_API(bool)
-IsReadOnlyDateMethod(JS::IsAcceptableThis test, JS::NativeImpl method);
-
-extern JS_FRIEND_API(bool)
-IsTypedArrayThisCheck(JS::IsAcceptableThis test);
 
 } /* namespace js */
 

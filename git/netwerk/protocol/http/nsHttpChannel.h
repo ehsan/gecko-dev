@@ -95,7 +95,7 @@ public:
     nsHttpChannel();
     virtual ~nsHttpChannel();
 
-    virtual nsresult Init(nsIURI *aURI, uint32_t aCaps, nsProxyInfo *aProxyInfo,
+    virtual nsresult Init(nsIURI *aURI, uint8_t aCaps, nsProxyInfo *aProxyInfo,
                           uint32_t aProxyResolveFlags,
                           nsIURI *aProxyURI);
 
@@ -114,9 +114,6 @@ public:
     NS_IMETHOD SetPriority(int32_t value);
     // nsIResumableChannel
     NS_IMETHOD ResumeAt(uint64_t startPos, const nsACString& entityID);
-
-    NS_IMETHOD SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks);
-    NS_IMETHOD SetLoadGroup(nsILoadGroup *aLoadGroup);
 
 public: /* internal necko use only */ 
 
@@ -160,7 +157,6 @@ private:
     nsresult ContinueConnect();
     void     SpeculativeConnect();
     nsresult SetupTransaction();
-    void     SetupTransactionLoadGroupInfo();
     nsresult CallOnStartRequest();
     nsresult ProcessResponse();
     nsresult ContinueProcessResponse(nsresult);
@@ -274,10 +270,6 @@ private:
                rv == NS_ERROR_UNKNOWN_PROTOCOL      ||
                rv == NS_ERROR_MALFORMED_URI;
     }
-
-    // Create a aggregate set of the current notification callbacks
-    // and ensure the transaction is updated to use it.
-    void UpdateAggregateCallbacks();
 
 private:
     nsCOMPtr<nsISupports>             mSecurityInfo;

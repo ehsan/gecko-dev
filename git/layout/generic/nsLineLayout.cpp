@@ -117,6 +117,16 @@ nsLineLayout::~nsLineLayout()
 
   NS_ASSERTION(nullptr == mRootSpan, "bad line-layout user");
 
+  // PL_FreeArenaPool takes our memory and puts in on a global free list so
+  // that the next time an arena makes an allocation it will not have to go
+  // all the way down to malloc.  This is desirable as this class is created
+  // and destroyed in a tight loop.
+  //
+  // I looked at the code.  It is not technically necessary to call
+  // PL_FinishArenaPool() after PL_FreeArenaPool(), but from an API
+  // standpoint, I think we are susposed to.  It will be very fast anyway,
+  // since PL_FreeArenaPool() has done all the work.
+  PL_FreeArenaPool(&mArena);
   PL_FinishArenaPool(&mArena);
 }
 
@@ -185,23 +195,6 @@ nsLineLayout::BeginLineReflow(nscoord aX, nscoord aY,
   psd->mLeftEdge = aX;
   psd->mX = aX;
   psd->mRightEdge = aX + aWidth;
-
-  // If we're in a constrained height frame, then we don't allow a
-  // max line box width to take effect.
-  if (!(GetLineContainerFrame()->GetStateBits() &
-      NS_FRAME_IN_CONSTRAINED_HEIGHT)) {
-
-    // If the available size is greater than the maximum line box width (if
-    // specified), then we need to adjust the line box width to be at the max
-    // possible width.
-    nscoord maxLineBoxWidth =
-      GetLineContainerFrame()->PresContext()->PresShell()->MaxLineBoxWidth();
-
-    if (maxLineBoxWidth > 0 &&
-        psd->mRightEdge - psd->mLeftEdge > maxLineBoxWidth) {
-      psd->mRightEdge = psd->mLeftEdge + maxLineBoxWidth;
-    }
-  }
 
   mTopEdge = aY;
 
@@ -766,6 +759,15 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   // For now, set the available height to unconstrained always.
   nsSize availSize(mBlockReflowState->ComputedWidth(), NS_UNCONSTRAINEDSIZE);
 
+  // If the available size is greater than the maximum line box width (if
+  // specified), then we need to adjust the line box width to be at the max
+  // possible width.
+  nscoord maxLineBoxWidth = aFrame->PresContext()->PresShell()->MaxLineBoxWidth();
+
+  if (maxLineBoxWidth > 0 && psd->mRightEdge - psd->mLeftEdge > maxLineBoxWidth) {
+    psd->mRightEdge = psd->mLeftEdge + maxLineBoxWidth;
+  }
+
   // Inline-ish and text-ish things don't compute their width;
   // everything else does.  We need to give them an available width that
   // reflects the space left on the line.
@@ -959,7 +961,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   // Tell the frame that we're done reflowing it
   aFrame->DidReflow(mPresContext,
                     isText ? nullptr : reflowStateHolder.addr(),
-                    nsDidReflowStatus::FINISHED);
+                    NS_FRAME_REFLOW_FINISHED);
 
   if (aMetrics) {
     *aMetrics = metrics;

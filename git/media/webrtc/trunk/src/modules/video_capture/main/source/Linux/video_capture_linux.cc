@@ -18,6 +18,7 @@
 #include <sys/mman.h>
 #include <string.h>
 
+#include <iostream>
 #include <new>
 
 #include "ref_count.h"

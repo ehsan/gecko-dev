@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-#include "WebGLObjectModel.h"
 #include "WebGLExtensions.h"
 #include "WebGLContextUtils.h"
 
@@ -58,18 +57,9 @@ WebGLMemoryPressureObserver::Observe(nsISupports* aSubject,
                                      const char* aTopic,
                                      const PRUnichar* aSomeData)
 {
-    if (strcmp(aTopic, "memory-pressure"))
-        return NS_OK;
-
-    bool wantToLoseContext = true;
-
-    if (!nsCRT::strcmp(aSomeData, NS_LITERAL_STRING("heap-minimize").get()))
-        wantToLoseContext = mContext->mLoseContextOnHeapMinimize;
-
-    if (wantToLoseContext)
-        mContext->ForceLoseContext();
-
-    return NS_OK;
+  if (strcmp(aTopic, "memory-pressure") == 0)
+    mContext->ForceLoseContext();
+  return NS_OK;
 }
 
 
@@ -159,7 +149,6 @@ WebGLContext::WebGLContext()
     mGLMaxTextureUnits = 0;
     mGLMaxTextureSize = 0;
     mGLMaxCubeMapTextureSize = 0;
-    mGLMaxRenderbufferSize = 0;
     mGLMaxTextureImageUnits = 0;
     mGLMaxVertexTextureImageUnits = 0;
     mGLMaxVaryingVectors = 0;
@@ -178,15 +167,11 @@ WebGLContext::WebGLContext()
     mContextRestorer = do_CreateInstance("@mozilla.org/timer;1");
     mContextStatus = ContextStable;
     mContextLostErrorSet = false;
-    mLoseContextOnHeapMinimize = false;
 
     mAlreadyGeneratedWarnings = 0;
     mAlreadyWarnedAboutFakeVertexAttrib0 = false;
 
     mLastUseIndex = 0;
-
-    mMinInUseAttribArrayLengthCached = false;
-    mMinInUseAttribArrayLength = 0;
 }
 
 WebGLContext::~WebGLContext()
@@ -887,21 +872,22 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
 }
 
 void
-WebGLContext::GetContextAttributes(Nullable<dom::WebGLContextAttributesInitializer> &retval)
+WebGLContext::GetContextAttributes(dom::WebGLContextAttributes &result)
 {
-    retval.SetNull();
     if (!IsContextStable())
+    {
+        // XXXbz spec says we should still return our attributes in
+        // this case!  Should we store them all in mOptions?
         return;
-
-    dom::WebGLContextAttributes& result = retval.SetValue();
+    }
 
     gl::ContextFormat cf = gl->ActualFormat();
-    result.mAlpha = cf.alpha > 0;
-    result.mDepth = cf.depth > 0;
-    result.mStencil = cf.stencil > 0;
-    result.mAntialias = cf.samples > 1;
-    result.mPremultipliedAlpha = mOptions.premultipliedAlpha;
-    result.mPreserveDrawingBuffer = mOptions.preserveDrawingBuffer;
+    result.alpha = cf.alpha > 0;
+    result.depth = cf.depth > 0;
+    result.stencil = cf.stencil > 0;
+    result.antialias = cf.samples > 1;
+    result.premultipliedAlpha = mOptions.premultipliedAlpha;
+    result.preserveDrawingBuffer = mOptions.preserveDrawingBuffer;
 }
 
 bool
@@ -1386,17 +1372,36 @@ WebGLContext::GetSupportedExtensions(JSContext *cx, Nullable< nsTArray<nsString>
 NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_10(WebGLContext,
-  mCanvasElement,
-  mExtensions,
-  mBound2DTextures,
-  mBoundCubeMapTextures,
-  mBoundArrayBuffer,
-  mBoundElementArrayBuffer,
-  mCurrentProgram,
-  mBoundFramebuffer,
-  mBoundRenderbuffer,
-  mAttribBuffers)
+NS_IMPL_CYCLE_COLLECTION_CLASS(WebGLContext)
+NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(WebGLContext)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WebGLContext)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCanvasElement)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mExtensions)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mBound2DTextures)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mBoundCubeMapTextures)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoundArrayBuffer)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoundElementArrayBuffer)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCurrentProgram)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoundFramebuffer)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoundRenderbuffer)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mAttribBuffers)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(WebGLContext)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCanvasElement, nsINode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mExtensions)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mBound2DTextures)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mBoundCubeMapTextures)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoundArrayBuffer)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoundElementArrayBuffer)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCurrentProgram)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoundFramebuffer)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoundRenderbuffer)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mAttribBuffers)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY

@@ -38,8 +38,8 @@ NS_IMPL_RELEASE_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
   if (tmp->mCachedArray) {
-    tmp->mCachedArray = nullptr;
     NS_DROP_JS_OBJECTS(tmp, nsDOMNotifyAudioAvailableEvent);
+    tmp->mCachedArray = nullptr;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -60,8 +60,8 @@ nsDOMNotifyAudioAvailableEvent::~nsDOMNotifyAudioAvailableEvent()
 {
   MOZ_COUNT_DTOR(nsDOMNotifyAudioAvailableEvent);
   if (mCachedArray) {
-    mCachedArray = nullptr;
     NS_DROP_JS_OBJECTS(this, nsDOMNotifyAudioAvailableEvent);
+    mCachedArray = nullptr;
   }
 }
 
@@ -86,7 +86,7 @@ nsDOMNotifyAudioAvailableEvent::GetFrameBuffer(JSContext* aCx, jsval* aResult)
     NS_DROP_JS_OBJECTS(this, nsDOMNotifyAudioAvailableEvent);
     return NS_ERROR_FAILURE;
   }
-  memcpy(JS_GetFloat32ArrayData(mCachedArray), mFrameBuffer.get(), mFrameBufferLength * sizeof(float));
+  memcpy(JS_GetFloat32ArrayData(mCachedArray, aCx), mFrameBuffer.get(), mFrameBufferLength * sizeof(float));
 
   *aResult = OBJECT_TO_JSVAL(mCachedArray);
   return NS_OK;

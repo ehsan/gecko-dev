@@ -6,6 +6,8 @@
 # histograms.  The histograms are defined in a file provided as a
 # command-line argument.
 
+from __future__ import with_statement
+
 import sys
 import histogram_tools
 

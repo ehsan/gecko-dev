@@ -43,7 +43,6 @@ using mozilla::gfx::SharedDIBSurface;
 using namespace mozilla;
 using mozilla::ipc::ProcessChild;
 using namespace mozilla::plugins;
-using namespace mozilla::layers;
 using namespace std;
 
 #ifdef MOZ_WIDGET_GTK
@@ -259,7 +258,7 @@ PluginInstanceChild::InternalGetNPObjectForValue(NPNVariable aValue,
                                                            &currentResult);
                 break;
             default:
-                MOZ_ASSERT(false);
+                NS_NOTREACHED("Don't know what to do with this value type!");
         }
 
         // Make sure that the current actor returned by the parent matches our
@@ -3047,10 +3046,7 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
         void *caLayer = nullptr;
         if (mDrawingModel == NPDrawingModelCoreGraphics) {
             if (!mCGLayer) {
-                bool avoidCGCrashes = !nsCocoaFeatures::OnMountainLionOrLater() &&
-                  (GetQuirks() & PluginModuleChild::QUIRK_FLASH_AVOID_CGMODE_CRASHES);
-                caLayer = mozilla::plugins::PluginUtilsOSX::GetCGLayer(CallCGDraw, this,
-                                                                       avoidCGCrashes);
+                caLayer = mozilla::plugins::PluginUtilsOSX::GetCGLayer(CallCGDraw, this);
 
                 if (!caLayer) {
                     PLUGIN_LOG_DEBUG(("GetCGLayer failed."));

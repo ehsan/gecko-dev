@@ -153,9 +153,8 @@ class TabChild : public PBrowserChild,
                  public ipc::MessageManagerCallback,
                  public TabContext
 {
-    typedef mozilla::dom::ClonedMessageData ClonedMessageData;
     typedef mozilla::layout::RenderFrameChild RenderFrameChild;
-    typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
+    typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
     /** 
@@ -197,7 +196,7 @@ public:
 
     virtual bool RecvLoadURL(const nsCString& uri);
     virtual bool RecvShow(const nsIntSize& size);
-    virtual bool RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size, const ScreenOrientation& orientation);
+    virtual bool RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size);
     virtual bool RecvUpdateFrame(const mozilla::layers::FrameMetrics& aFrameMetrics);
     virtual bool RecvHandleDoubleTap(const nsIntPoint& aPoint);
     virtual bool RecvHandleSingleTap(const nsIntPoint& aPoint);
@@ -259,24 +258,23 @@ public:
 #ifdef DEBUG
     virtual PContentPermissionRequestChild* SendPContentPermissionRequestConstructor(PContentPermissionRequestChild* aActor,
                                                                                      const nsCString& aType,
-                                                                                     const nsCString& aAccess,
                                                                                      const IPC::Principal& aPrincipal)
     {
       PCOMContentPermissionRequestChild* child = static_cast<PCOMContentPermissionRequestChild*>(aActor);
-      PContentPermissionRequestChild* request = PBrowserChild::SendPContentPermissionRequestConstructor(aActor, aType, aAccess, aPrincipal);
+      PContentPermissionRequestChild* request = PBrowserChild::SendPContentPermissionRequestConstructor(aActor, aType, aPrincipal);
       child->mIPCOpen = true;
       return request;
     }
 #endif /* DEBUG */
 
-    virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType,
-                                                                           const nsCString& aAccess,
-                                                                           const IPC::Principal& aPrincipal);
+    virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType, const IPC::Principal& aPrincipal);
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor);
 
     virtual POfflineCacheUpdateChild* AllocPOfflineCacheUpdate(
             const URIParams& manifestURI,
             const URIParams& documentURI,
+            const bool& isInBrowserElement,
+            const uint32_t& appId,
             const bool& stickDocument);
     virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateChild* offlineCacheUpdate);
 
@@ -288,10 +286,6 @@ public:
 
     /** Return the DPI of the widget this TabChild draws to. */
     void GetDPI(float* aDPI);
-
-    gfxSize GetZoom() { return mLastMetrics.mZoom; }
-
-    ScreenOrientation GetOrientation() { return mOrientation; }
 
     void SetBackgroundColor(const nscolor& aColor);
 
@@ -306,16 +300,6 @@ public:
      */
     void MakeVisible();
     void MakeHidden();
-
-    virtual bool RecvSetAppType(const nsString& aAppType);
-
-    /**
-     * Get this object's app type.
-     *
-     * A TabChild's app type corresponds to the value of its frame element's
-     * "mozapptype" attribute.
-     */
-    void GetAppType(nsAString& aAppType) const { aAppType = mAppType; }
 
 protected:
     virtual PRenderFrameChild* AllocPRenderFrame(ScrollingBehavior* aScrolling,
@@ -418,8 +402,6 @@ private:
     bool mNotified;
     bool mContentDocumentIsDisplayed;
     bool mTriedBrowserInit;
-    nsString mAppType;
-    ScreenOrientation mOrientation;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

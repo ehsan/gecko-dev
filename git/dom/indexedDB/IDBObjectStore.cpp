@@ -17,7 +17,6 @@
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/StructuredCloneTags.h"
 #include "mozilla/dom/ipc/Blob.h"
-#include "mozilla/dom/quota/FileStreams.h"
 #include "mozilla/storage.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
@@ -28,8 +27,10 @@
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "snappy/snappy.h"
+#include "test_quota.h"
 
 #include "AsyncConnectionHelper.h"
+#include "FileStream.h"
 #include "IDBCursor.h"
 #include "IDBEvents.h"
 #include "IDBFileHandle.h"
@@ -50,7 +51,6 @@
 USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::dom;
 using namespace mozilla::dom::indexedDB::ipc;
-using mozilla::dom::quota::FileOutputStream;
 
 namespace {
 
@@ -1280,46 +1280,15 @@ IDBObjectStore::StructuredCloneWriteCallback(JSContext* aCx,
     return JS_WriteBytes(aWriter, &value, sizeof(value));
   }
 
-  IDBTransaction* transaction = cloneWriteInfo->mTransaction;
-  FileManager* fileManager = transaction->Database()->Manager();
-
-  file::FileHandle* fileHandle = nullptr;
-  if (NS_SUCCEEDED(UnwrapObject<file::FileHandle>(aCx, aObj, fileHandle))) {
-    nsRefPtr<FileInfo> fileInfo = fileHandle->GetFileInfo();
-
-    // Throw when trying to store non IDB file handles or IDB file handles
-    // across databases.
-    if (!fileInfo || fileInfo->Manager() != fileManager) {
-      return false;
-    }
-
-    NS_ConvertUTF16toUTF8 convType(fileHandle->Type());
-    uint32_t convTypeLength = SwapBytes(convType.Length());
-
-    NS_ConvertUTF16toUTF8 convName(fileHandle->Name());
-    uint32_t convNameLength = SwapBytes(convName.Length());
-
-    if (!JS_WriteUint32Pair(aWriter, SCTAG_DOM_FILEHANDLE,
-                            cloneWriteInfo->mFiles.Length()) ||
-        !JS_WriteBytes(aWriter, &convTypeLength, sizeof(uint32_t)) ||
-        !JS_WriteBytes(aWriter, convType.get(), convType.Length()) ||
-        !JS_WriteBytes(aWriter, &convNameLength, sizeof(uint32_t)) ||
-        !JS_WriteBytes(aWriter, convName.get(), convName.Length())) {
-      return false;
-    }
-
-    StructuredCloneFile* file = cloneWriteInfo->mFiles.AppendElement();
-    file->mFileInfo = fileInfo.forget();
-
-    return true;
-  }
-
   nsCOMPtr<nsIXPConnectWrappedNative> wrappedNative;
   nsContentUtils::XPConnect()->
     GetWrappedNativeOfJSObject(aCx, aObj, getter_AddRefs(wrappedNative));
 
   if (wrappedNative) {
     nsISupports* supports = wrappedNative->Native();
+
+    IDBTransaction* transaction = cloneWriteInfo->mTransaction;
+    FileManager* fileManager = transaction->Database()->Manager();
 
     nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(supports);
     if (blob) {
@@ -1400,6 +1369,47 @@ IDBObjectStore::StructuredCloneWriteCallback(JSContext* aCx,
       cloneFile->mFile = blob.forget();
       cloneFile->mFileInfo = fileInfo.forget();
       cloneFile->mInputStream = inputStream.forget();
+
+      return true;
+    }
+
+    nsCOMPtr<nsIDOMFileHandle> fileHandle = do_QueryInterface(supports);
+    if (fileHandle) {
+      nsRefPtr<FileInfo> fileInfo = fileHandle->GetFileInfo();
+
+      // Throw when trying to store non IDB file handles or IDB file handles
+      // across databases.
+      if (!fileInfo || fileInfo->Manager() != fileManager) {
+        return false;
+      }
+
+      nsString type;
+      if (NS_FAILED(fileHandle->GetType(type))) {
+        NS_WARNING("Failed to get type!");
+        return false;
+      }
+      NS_ConvertUTF16toUTF8 convType(type);
+      uint32_t convTypeLength = SwapBytes(convType.Length());
+
+      nsString name;
+      if (NS_FAILED(fileHandle->GetName(name))) {
+        NS_WARNING("Failed to get name!");
+        return false;
+      }
+      NS_ConvertUTF16toUTF8 convName(name);
+      uint32_t convNameLength = SwapBytes(convName.Length());
+
+      if (!JS_WriteUint32Pair(aWriter, SCTAG_DOM_FILEHANDLE,
+                              cloneWriteInfo->mFiles.Length()) ||
+          !JS_WriteBytes(aWriter, &convTypeLength, sizeof(uint32_t)) ||
+          !JS_WriteBytes(aWriter, convType.get(), convType.Length()) ||
+          !JS_WriteBytes(aWriter, &convNameLength, sizeof(uint32_t)) ||
+          !JS_WriteBytes(aWriter, convName.get(), convName.Length())) {
+        return false;
+      }
+
+      StructuredCloneFile* file = cloneWriteInfo->mFiles.AppendElement();
+      file->mFileInfo = fileInfo.forget();
 
       return true;
     }
@@ -1533,7 +1543,6 @@ IDBObjectStore::~IDBObjectStore()
   }
 
   if (mRooted) {
-    mCachedKeyPath = JSVAL_VOID;
     NS_DROP_JS_OBJECTS(this, IDBObjectStore);
   }
 }
@@ -2024,7 +2033,8 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBObjectStore)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTransaction)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTransaction,
+                                                       nsIDOMEventTarget)
 
   for (uint32_t i = 0; i < tmp->mCreatedIndexes.Length(); i++) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCreatedIndexes[i]");
@@ -2734,9 +2744,9 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         nativeFile = fileManager->GetFileForId(directory, id);
         NS_ENSURE_TRUE(nativeFile, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-        nsRefPtr<FileOutputStream> outputStream = FileOutputStream::Create(
-          mObjectStore->Transaction()->Database()->Origin(), nativeFile);
-        NS_ENSURE_TRUE(outputStream, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+        nsRefPtr<FileStream> outputStream = new FileStream();
+        rv = outputStream->Init(nativeFile, NS_LITERAL_STRING("wb"), 0);
+        NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
         rv = CopyData(inputStream, outputStream);
         NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -3907,7 +3917,7 @@ GetAllHelper::UnpackResponseFromParentProcess(
 
   for (uint32_t index = 0; index < cloneInfos.Length(); index++) {
     const SerializedStructuredCloneReadInfo srcInfo = cloneInfos[index];
-    const InfallibleTArray<PBlobChild*>& blobs = blobArrays[index].blobsChild();
+    const InfallibleTArray<PBlobChild*> blobs = blobArrays[index].blobsChild();
 
     StructuredCloneReadInfo* destInfo = mCloneReadInfos.AppendElement();
     if (!destInfo->SetFromSerialized(srcInfo)) {

@@ -69,8 +69,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
   // nsIDOMHTMLButtonElement
@@ -151,8 +150,8 @@ nsHTMLButtonElement::~nsHTMLButtonElement()
 
 // nsISupports
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLButtonElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLButtonElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLButtonElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsHTMLButtonElement, nsGenericElement)
 
 
 DOMCI_NODE_DATA(HTMLButtonElement, nsHTMLButtonElement)
@@ -298,7 +297,7 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 
   if (aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault &&
       NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent)) {
-    nsUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted, NS_UI_ACTIVATE, 1);
+    nsUIEvent actEvent(NS_IS_TRUSTED_EVENT(aVisitor.mEvent), NS_UI_ACTIVATE, 1);
 
     nsCOMPtr<nsIPresShell> shell = aVisitor.mPresContext->GetPresShell();
     if (shell) {
@@ -337,7 +336,7 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                NS_KEY_UP == aVisitor.mEvent->message)) {
             nsEventStatus status = nsEventStatus_eIgnore;
 
-            nsMouseEvent event(aVisitor.mEvent->mFlags.mIsTrusted,
+            nsMouseEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
                                NS_MOUSE_CLICK, nullptr,
                                nsMouseEvent::eReal);
             event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
@@ -354,7 +353,7 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT) {
             if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
                   nsMouseEvent::eLeftButton) {
-              if (aVisitor.mEvent->mFlags.mIsTrusted) {
+              if (NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
                 nsEventStateManager* esm =
                   aVisitor.mPresContext->EventStateManager();
                 nsEventStateManager::SetActiveManager(
@@ -364,7 +363,7 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
               if (fm)
                 fm->SetFocus(this, nsIFocusManager::FLAG_BYMOUSE |
                                    nsIFocusManager::FLAG_NOSCROLL);
-              aVisitor.mEvent->mFlags.mMultipleActionsPrevented = true;
+              aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS;
             } else if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
                          nsMouseEvent::eMiddleButton ||
                        static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==

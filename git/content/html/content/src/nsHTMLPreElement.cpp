@@ -15,7 +15,6 @@
 #include "nsRuleData.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 class nsHTMLPreElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLPreElement
@@ -34,7 +33,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLPreElement
   NS_IMETHOD GetWidth(int32_t* aWidth);
@@ -68,8 +67,8 @@ nsHTMLPreElement::~nsHTMLPreElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLPreElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLPreElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLPreElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsHTMLPreElement, nsGenericElement)
 
 
 DOMCI_NODE_DATA(HTMLPreElement, nsHTMLPreElement)

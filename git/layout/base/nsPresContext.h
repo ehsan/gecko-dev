@@ -33,7 +33,6 @@
 #include "mozilla/TimeStamp.h"
 #include "prclist.h"
 #include "Layers.h"
-#include "nsRefreshDriver.h"
 
 #ifdef IBMBIDI
 class nsBidiPresUtils;
@@ -67,6 +66,7 @@ struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
 class nsAnimationManager;
+class nsRefreshDriver;
 class imgIContainer;
 class nsIDOMMediaQueryList;
 
@@ -654,22 +654,6 @@ public:
   {
     mDrawColorBackground = aCanDraw;
   }
-  
-  /**
-   * Getter and setter for OMTA time counters
-   */
-  bool ThrottledStyleIsUpToDate() const {
-    return mLastUpdateThrottledStyle == mRefreshDriver->MostRecentRefresh();
-  }
-  void TickLastUpdateThrottledStyle() {
-    mLastUpdateThrottledStyle = mRefreshDriver->MostRecentRefresh();
-  }
-  bool StyleUpdateForAllAnimationsIsUpToDate() const {
-    return mLastStyleUpdateForAllAnimations == mRefreshDriver->MostRecentRefresh();
-  }
-  void TickLastStyleUpdateForAllAnimations() {
-    mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
-  }
 
 #ifdef IBMBIDI
   /**
@@ -955,6 +939,9 @@ public:
     PropertyTable()->DeleteAllFor(aFrame);
   }
 
+  bool MayHaveFixedBackgroundFrames() { return mMayHaveFixedBackgroundFrames; }
+  void SetHasFixedBackgroundFrame() { mMayHaveFixedBackgroundFrames = true; }
+
   virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
   virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
@@ -985,17 +972,6 @@ public:
 
   void SetUsesViewportUnits(bool aValue) {
     mUsesViewportUnits = aValue;
-  }
-
-  // true if there are OMTA transition updates for the current document which
-  // have been throttled, and therefore some style information may not be up
-  // to date
-  bool ExistThrottledUpdates() const {
-    return mExistThrottledUpdates;
-  }
-
-  void SetExistThrottledUpdates(bool aExistThrottledUpdates) {
-    mExistThrottledUpdates = aExistThrottledUpdates;
   }
 
 protected:
@@ -1209,8 +1185,6 @@ protected:
   ScrollbarStyles       mViewportStyleOverflow;
   uint8_t               mFocusRingWidth;
 
-  bool mExistThrottledUpdates;
-
   uint16_t              mImageAnimationMode;
   uint16_t              mImageAnimationModePref;
 
@@ -1221,11 +1195,6 @@ protected:
   uint32_t              mInterruptChecksToSkip;
 
   mozilla::TimeStamp    mReflowStartTime;
-
-  // last time animations/transition styles were flushed to their primary frames
-  mozilla::TimeStamp    mLastUpdateThrottledStyle;
-  // last time we did a full style flush
-  mozilla::TimeStamp    mLastStyleUpdateForAllAnimations;
 
   unsigned              mHasPendingInterrupt : 1;
   unsigned              mInterruptsEnabled : 1;
@@ -1252,6 +1221,7 @@ protected:
   unsigned              mPendingUIResolutionChanged : 1;
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
+  unsigned              mMayHaveFixedBackgroundFrames : 1;
   // True if the requests in mInvalidateRequestsSinceLastPaint cover the
   // entire viewport
   unsigned              mAllInvalidated : 1;

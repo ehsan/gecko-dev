@@ -187,9 +187,6 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                       presContext->AppUnitsToGfxUnits(area.height));
   r = CorrectForAspectRatio(r, videoSize);
   r.Round();
-  if (r.IsEmpty()) {
-    return nullptr;
-  }
   gfxIntSize scaleHint(static_cast<int32_t>(r.Width()),
                        static_cast<int32_t>(r.Height()));
   container->SetScaleHint(scaleHint);
@@ -333,7 +330,7 @@ public:
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   {
-    *aSnap = true;
+    *aSnap = false;
     nsIFrame* f = GetUnderlyingFrame();
     return f->GetContentRect() - f->GetPosition() + ToReferenceFrame();
   }
@@ -360,7 +357,7 @@ public:
     }
     nsHTMLMediaElement* elem =
       static_cast<nsHTMLMediaElement*>(mFrame->GetContent());
-    return elem->IsPotentiallyPlaying() ? LAYER_ACTIVE_FORCE : LAYER_INACTIVE;
+    return elem->IsPotentiallyPlaying() ? LAYER_ACTIVE : LAYER_INACTIVE;
   }
 };
 
@@ -418,7 +415,7 @@ nsVideoFrame::GetType() const
 a11y::AccType
 nsVideoFrame::AccessibleType()
 {
-  return a11y::eHTMLMediaType;
+  return a11y::eHTMLMediaAccessible;
 }
 #endif
 

@@ -286,10 +286,8 @@ SimpleTest._logResult = function(test, passString, failString) {
         } else {
             parentRunner.log(msg);
         }
-    } else if (typeof dump === "function") {
-        dump(msg + "\n");
     } else {
-        // Non-Mozilla browser?  Just do nothing.
+        dump(msg + "\n");
     }
 };
 
@@ -602,7 +600,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
 
     // Build a default validator function for common string input.
     var inputValidatorFn = typeof(aExpectedStringOrValidatorFn) == "string"
-        ? function(aData) { return aData == aExpectedStringOrValidatorFn; }
+        ? function(aData) aData == aExpectedStringOrValidatorFn
         : aExpectedStringOrValidatorFn;
 
     // reset for the next use
@@ -630,7 +628,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
             reset();
             successFn();
         } else {
-            setTimeout(function() { return wait(validatorFn, successFn, failureFn, flavor); }, 100);
+            setTimeout(function() wait(validatorFn, successFn, failureFn, flavor), 100);
         }
     }
 
@@ -638,7 +636,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
     var preExpectedVal = SimpleTest._waitForClipboardMonotonicCounter +
                          "-waitForClipboard-known-value";
     SpecialPowers.clipboardCopyString(preExpectedVal);
-    wait(function(aData) { return aData  == preExpectedVal; },
+    wait(function(aData) aData  == preExpectedVal,
          function() {
            // Call the original setup fn
            aSetupFn();
@@ -693,89 +691,6 @@ SimpleTest.finish = function () {
     } else {
         SimpleTest.showReport();
     }
-};
-
-/**
- * Monitor console output from now until endMonitorConsole is called.
- *
- * Expect to receive as many console messages as there are elements of
- * |msgs|, an array; each element is an object which may have any
- * number of the following properties:
- *   message, errorMessage, sourceName, sourceLine, category:
- *     string or regexp
- *   lineNumber, columnNumber: number
- *   isScriptError, isWarning, isException, isStrict: boolean
- * Strings, numbers, and booleans must compare equal to the named
- * property of the Nth console message.  Regexps must match.  Any
- * fields present in the message but not in the pattern object are ignored.
- *
- * After endMonitorConsole is called, |continuation| will be called
- * asynchronously.  (Normally, you will want to pass |SimpleTest.finish| here.)
- *
- * It is incorrect to use this function in a test which has not called
- * SimpleTest.waitForExplicitFinish.
- */
-SimpleTest.monitorConsole = function (continuation, msgs) {
-  if (SimpleTest._stopOnLoad) {
-    ok(false, "Console monitoring requires use of waitForExplicitFinish.");
-  }
-
-  var counter = 0;
-  function listener(msg) {
-    if (msg.message === "SENTINEL" && !msg.isScriptError) {
-      is(counter, msgs.length, "monitorConsole | number of messages");
-      SimpleTest.executeSoon(continuation);
-    } else if (counter >= msgs.length) {
-      ok(false, "monitorConsole | extra message | " + JSON.stringify(msg));
-    } else {
-      var pat = msgs[counter];
-      for (k in pat) {
-        ok(k in msg, "monitorConsole | [" + counter + "]." + k + " present");
-        if (k in msg) {
-          if (pat[k] instanceof RegExp && typeof(msg[k]) === 'string') {
-            ok(pat[k].test(msg[k]),
-               "monitorConsole | [" + counter + "]." + k + " value - " +
-               msg[k].quote() + " contains /" + pat[k].source + "/");
-          } else {
-            ise(msg[k], pat[k],
-                "monitorConsole | [" + counter + "]." + k + " value");
-          }
-        }
-      }
-      counter++;
-    }
-  }
-  SpecialPowers.registerConsoleListener(listener);
-};
-
-/**
- * Stop monitoring console output.
- */
-SimpleTest.endMonitorConsole = function () {
-  SpecialPowers.postConsoleSentinel();
-};
-
-/**
- * Run |testfn| synchronously, and monitor its console output.
- *
- * |msgs| is handled as described above for monitorConsole.
- *
- * After |testfn| returns, console monitoring will stop, and
- * |continuation| will be called asynchronously.
- */
-SimpleTest.expectConsoleMessages = function (testfn, msgs, continuation) {
-  SimpleTest.monitorConsole(continuation, msgs);
-  testfn();
-  SimpleTest.executeSoon(SimpleTest.endMonitorConsole);
-};
-
-/**
- * Wrapper around |expectConsoleMessages| for the case where the test has
- * only one |testfn| to run.
- */
-SimpleTest.runTestExpectingConsoleMessages = function(testfn, msgs) {
-  SimpleTest.waitForExplicitFinish();
-  SimpleTest.expectConsoleMessages(testfn, msgs, SimpleTest.finish);
 };
 
 /**
@@ -1060,8 +975,9 @@ window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
     // For now, for tests that self identify as having unintentional uncaught
     // exceptions, just dump it so that the error is visible but doesn't cause
     // a test failure.  See bug 652494.
+    var href = SpecialPowers.getPrivilegedProps(window, 'location.href');
     var isExpected = !!SimpleTest._expectingUncaughtException;
-    var message = (isExpected ? "expected " : "") + "uncaught exception";
+    var message = "an " + (isExpected ? "" : "un") + "expected uncaught JS exception reported through window.onerror";
     var error = errorMsg + " at " + url + ":" + lineNumber;
     if (!SimpleTest._ignoringAllUncaughtExceptions) {
         SimpleTest.ok(isExpected, message, error);

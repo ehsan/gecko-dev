@@ -43,7 +43,7 @@ virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID, void**);              \
 STDMETHODIMP                                                                   \
 Class::QueryInterface(REFIID aIID, void** aInstancePtr)                        \
 {                                                                              \
-  A11Y_TRYBLOCK_BEGIN                                                          \
+__try {                                                                        \
   if (!aInstancePtr)                                                           \
     return E_INVALIDARG;                                                       \
   *aInstancePtr = NULL;                                                        \
@@ -52,7 +52,9 @@ Class::QueryInterface(REFIID aIID, void** aInstancePtr)                        \
 
 #define IMPL_IUNKNOWN_QUERY_TAIL                                               \
   return hr;                                                                   \
-  A11Y_TRYBLOCK_END                                                            \
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),        \
+                                                  GetExceptionInformation())) { } \
+  return E_NOINTERFACE;                                                        \
 }
 
 #define IMPL_IUNKNOWN_QUERY_IFACE(Iface)                                       \
@@ -113,10 +115,6 @@ Class::QueryInterface(REFIID aIID, void** aInstancePtr)                        \
   IMPL_IUNKNOWN_QUERY_CLASS(Super2);                                           \
   IMPL_IUNKNOWN_QUERY_CLASS(Super0)                                            \
   IMPL_IUNKNOWN_QUERY_TAIL
-
-
-namespace mozilla {
-namespace a11y {
 
 class AccessibleWrap : public Accessible,
                        public ia2AccessibleComponent,
@@ -371,8 +369,5 @@ protected:
     NAVRELATION_DESCRIPTION_FOR = 0x100f
   };
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

@@ -60,11 +60,6 @@ const TLV_EVENT_LIST_SIZE = 3;
 const TLV_LOCATION_STATUS_SIZE = 3;
 const TLV_LOCATION_INFO_GSM_SIZE = 9;
 const TLV_LOCATION_INFO_UMTS_SIZE = 11;
-const TLV_IMEI_SIZE = 10;
-const TLV_DATE_TIME_ZONE_SIZE = 9;
-const TLV_LANGUAGE_SIZE = 4;
-const TLV_TIMER_IDENTIFIER = 3;
-const TLV_TIMER_VALUE = 5;
 
 const DEFAULT_EMERGENCY_NUMBERS = ["112", "911"];
 
@@ -275,21 +270,6 @@ let Buf = {
     return this.readUint8Unchecked();
   },
 
-  readUint8Array: function readUint8Array(length) {
-    // Translate to 0..currentParcelSize
-    let last = this.currentParcelSize - this.readAvailable;
-    last += (length - 1);
-    this.ensureIncomingAvailable(last);
-
-    let array = new Uint8Array(length);
-    for (let i = 0; i < length; i++) {
-      array[i] = this.readUint8Unchecked();
-    }
-
-    this.readAvailable -= length;
-    return array;
-  },
-
   readUint16: function readUint16() {
     return this.readUint8() | this.readUint8() << 8;
   },
@@ -480,9 +460,8 @@ let Buf = {
     // we process any backlog in parcels immediately, before writing
     // new data to the buffer. So the only edge case we need to handle
     // is when the incoming data is larger than the buffer size.
-    let minMustAvailableSize = incoming.length + this.readIncoming;
-    if (minMustAvailableSize > this.INCOMING_BUFFER_LENGTH) {
-      this.growIncomingBuffer(minMustAvailableSize);
+    if (incoming.length > this.INCOMING_BUFFER_LENGTH) {
+      this.growIncomingBuffer(incoming.length);
     }
 
     // We can let the typed arrays do the copying if the incoming data won't
@@ -591,13 +570,6 @@ let Buf = {
       let error = this.readUint32();
 
       options = this.tokenRequestMap[token];
-      if (!options) {
-        if (DEBUG) {
-          debug("Suspicious uninvited request found: " + token + ". Ignored!");
-        }
-        return;
-      }
-
       delete this.tokenRequestMap[token];
       request_type = options.rilRequestType;
 
@@ -706,15 +678,6 @@ let RIL = {
    */
   preferredNetworkType: null,
 
-  /**
-   * Parsed Cell Broadcast search lists.
-   * cellBroadcastConfigs.MMI should be preserved over rild reset.
-   */
-  cellBroadcastConfigs: null,
-  mergedCellBroadcastConfig: null,
-
-  _receivedSmsCbPagesMap: {},
-
   initRILState: function initRILState() {
     /**
      * One of the RADIO_STATE_* constants.
@@ -739,11 +702,6 @@ let RIL = {
     this.IMEI = null;
     this.IMEISV = null;
     this.SMSC = null;
-
-    /**
-     * ICC information that is not exposed to Gaia.
-     */
-    this.iccInfoPrivate = {};
 
     /**
      * ICC information, such as MSISDN, IMSI, ...etc.
@@ -819,14 +777,6 @@ let RIL = {
     * Regular expresion to parse MMI codes.
     */
     this._mmiRegExp = null;
-
-    /**
-     * Cell Broadcast Search Lists.
-     */
-    let cbmmi = this.cellBroadcastConfigs && this.cellBroadcastConfigs.MMI;
-    this.cellBroadcastConfigs = {
-      MMI: cbmmi || null
-    };
   },
   
   get muted() {
@@ -925,7 +875,7 @@ let RIL = {
     Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 1 : 2);
     Buf.writeString(options.pin);
     if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid || this.aid);
+      Buf.writeString(options.aid ? options.aid : this.aid);
     }
     Buf.sendParcel();
   },
@@ -943,7 +893,7 @@ let RIL = {
     Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 1 : 2);
     Buf.writeString(options.pin);
     if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid || this.aid);
+      Buf.writeString(options.aid ? options.aid : this.aid);
     }
     Buf.sendParcel();
   },
@@ -1007,7 +957,7 @@ let RIL = {
     Buf.writeString(options.pin);
     Buf.writeString(options.newPin);
     if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid || this.aid);
+      Buf.writeString(options.aid ? options.aid : this.aid);
     }
     Buf.sendParcel();
   },
@@ -1028,7 +978,7 @@ let RIL = {
     Buf.writeString(options.pin);
     Buf.writeString(options.newPin);
     if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid || this.aid);
+      Buf.writeString(options.aid ? options.aid : this.aid);
     }
     Buf.sendParcel();
   },
@@ -1048,7 +998,7 @@ let RIL = {
      Buf.writeString(options.puk);
      Buf.writeString(options.newPin);
      if (!RILQUIRKS_V5_LEGACY) {
-       Buf.writeString(options.aid || this.aid);
+       Buf.writeString(options.aid ? options.aid : this.aid);
      }
      Buf.sendParcel();
    },
@@ -1069,7 +1019,7 @@ let RIL = {
      Buf.writeString(options.puk);
      Buf.writeString(options.newPin);
      if (!RILQUIRKS_V5_LEGACY) {
-       Buf.writeString(options.aid || this.aid);
+       Buf.writeString(options.aid ? options.aid : this.aid);
      }
      Buf.sendParcel();
    },
@@ -1123,7 +1073,7 @@ let RIL = {
     Buf.writeString(options.password);
     Buf.writeString(options.serviceClass.toString());
     if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid || this.aid);
+      Buf.writeString(options.aid ? options.aid : this.aid);
     }
     Buf.sendParcel();
   },
@@ -1170,7 +1120,7 @@ let RIL = {
     Buf.writeString(options.password);
     Buf.writeString(options.serviceClass.toString());
     if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid || this.aid);
+      Buf.writeString(options.aid ? options.aid : this.aid);
     }
     Buf.sendParcel();
   },
@@ -1205,12 +1155,33 @@ let RIL = {
     Buf.writeUint32(options.p1);
     Buf.writeUint32(options.p2);
     Buf.writeUint32(options.p3);
-    Buf.writeString(options.data || null);
-    Buf.writeString(options.pin2 || null);
+    Buf.writeString(options.data);
+    Buf.writeString(options.pin2 ? options.pin2 : null);
     if (!RILQUIRKS_V5_LEGACY) {
-      Buf.writeString(options.aid || this.aid);
+      Buf.writeString(options.aid ? options.aid : this.aid);
     }
     Buf.sendParcel();
+  },
+
+  /**
+   * Fetch ICC records.
+   */
+  fetchICCRecords: function fetchICCRecords() {
+    this.getICCID();
+    this.getIMSI();
+    this.getMSISDN();
+    this.getAD();
+    this.getSPN();
+    this.getSST();
+    this.getMBDN();
+  },
+
+  /**
+   * Update the ICC information to RadioInterfaceLayer.
+   */
+  _handleICCInfoChange: function _handleICCInfoChange() {
+    this.iccInfo.rilMessageType = "iccinfochange";
+    this.sendDOMMessage(this.iccInfo);
   },
 
   /**
@@ -1226,80 +1197,458 @@ let RIL = {
     }
     let token = Buf.newParcel(REQUEST_GET_IMSI);
     Buf.writeUint32(1);
-    Buf.writeString(aid || this.aid);
+    Buf.writeString(aid ? aid : this.aid);
     Buf.sendParcel();
   },
 
   /**
-   * Choose network names using EF_OPL and EF_PNN
-   * See 3GPP TS 31.102 sec. 4.2.58 and sec. 4.2.59 for USIM,
-   *     3GPP TS 51.011 sec. 10.3.41 and sec. 10.3.42 for SIM.
+   * Read the ICCD from the ICC card.
    */
-  updateNetworkName: function updateNetworkName() {
-    let iccInfoPriv = this.iccInfoPrivate;
-    let iccInfo = this.iccInfo;
+  getICCID: function getICCID() {
+    function callback() {
+      let length = Buf.readUint32();
+      this.iccInfo.iccid = GsmPDUHelper.readSwappedNibbleBcdString(length / 2);
+      Buf.readStringDelimiter(length);
 
-    // We won't update network name if voice registration isn't ready
-    // or PNN file haven't been retrieved.
-    if (!iccInfoPriv.PNN ||
-        !this.voiceRegistrationState.cell ||
-        this.voiceRegistrationState.cell.gsmLocationAreaCode == -1) {
-      return null;
+      if (DEBUG) debug("ICCID: " + this.iccInfo.iccid);
+      if (this.iccInfo.iccid) {
+        this._handleICCInfoChange();
+      }
     }
 
-    let pnnEntry;
-    let lac = this.voiceRegistrationState.cell.gsmLocationAreaCode;
-    let mcc = this.operator.mcc;
-    let mnc = this.operator.mnc;
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_ICCID,
+      pathId:    this._getPathIdForICCRecord(ICC_EF_ICCID),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_TRANSPARENT,
+      callback:  callback,
+    });
+  },
 
-    // According to 3GPP TS 31.102 Sec. 4.2.59 and 3GPP TS 51.011 Sec. 10.3.42,
-    // the ME shall use this EF_OPL in association with the EF_PNN in place
-    // of any network name stored within the ME's internal list and any network
-    // name received when registered to the PLMN.
-    if (iccInfoPriv.OPL) {
-      for (let i in iccInfoPriv.OPL) {
-        let opl = iccInfoPriv.OPL[i];
-        // Try to match the MCC/MNC.
-        if (mcc != opl.mcc || mnc != opl.mnc) {
-          continue;
+  /**
+   * Read the MSISDN from the ICC.
+   */
+  getMSISDN: function getMSISDN() {
+    function callback(options) {
+      let parseCallback = function parseCallback(msisdn) {
+        if (this.iccInfo.msisdn === msisdn.number) {
+          return;
         }
-        // Try to match the location area code. If current local area code is
-        // covered by lac range that specified in the OPL entry, use the PNN
-        // that specified in the OPL entry.
-        if ((opl.lacTacStart == 0x0 && opl.lacTacEnd == 0xFFFE) ||
-            (opl.lacTacStart <= lac && opl.lacTacEnd >= lac)) {
-          if (opl.pnnRecordId == 0) {
-            // See 3GPP TS 31.102 Sec. 4.2.59 and 3GPP TS 51.011 Sec. 10.3.42,
-            // A value of '00' indicates that the name is to be taken from other
-            // sources.
-            return null;
+        this.iccInfo.msisdn = msisdn.number;
+        if (DEBUG) debug("MSISDN: " + this.iccInfo.msisdn);
+        this._handleICCInfoChange();
+      }
+      this.parseDiallingNumber(options, parseCallback);
+    }
+
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_MSISDN,
+      pathId:    this._getPathIdForICCRecord(ICC_EF_MSISDN),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_LINEAR_FIXED,
+      callback:  callback,
+    });
+  },
+
+  /**
+   * Read the AD (Administrative Data) from the ICC.
+   */
+  getAD: function getAD() {
+    function callback() {
+      let length = Buf.readUint32();
+      // Each octet is encoded into two chars.
+      let len = length / 2;
+      this.iccInfo.ad = GsmPDUHelper.readHexOctetArray(len);
+      Buf.readStringDelimiter(length);
+
+      if (DEBUG) {
+        let str = "";
+        for (let i = 0; i < this.iccInfo.ad.length; i++) {
+          str += this.iccInfo.ad[i] + ", ";
+        }
+        debug("AD: " + str);
+      }
+
+      if (this.iccInfo.imsi) {
+        // MCC is the first 3 digits of IMSI
+        this.iccInfo.mcc = parseInt(this.iccInfo.imsi.substr(0,3));
+        // The 4th byte of the response is the length of MNC
+        this.iccInfo.mnc = parseInt(this.iccInfo.imsi.substr(3, this.iccInfo.ad[3]));
+        if (DEBUG) debug("MCC: " + this.iccInfo.mcc + " MNC: " + this.iccInfo.mnc);
+        this._handleICCInfoChange();
+      }
+    }
+
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_AD,
+      pathId:    this._getPathIdForICCRecord(ICC_EF_AD),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_TRANSPARENT,
+      callback:  callback,
+    });
+  },
+
+  /**
+   * Read the SPN (Service Provider Name) from the ICC.
+   */
+  getSPN: function getSPN() {
+    function callback() {
+      let length = Buf.readUint32();
+      // Each octet is encoded into two chars.
+      // Minus 1 because first is used to store display condition
+      let len = (length / 2) - 1;
+      let spnDisplayCondition = GsmPDUHelper.readHexOctet();
+      this.iccInfo.spn = GsmPDUHelper.readAlphaIdentifier(len);
+      Buf.readStringDelimiter(length);
+
+      if (DEBUG) {
+        debug("SPN: spn=" + this.iccInfo.spn + ", spnDisplayCondition=" + spnDisplayCondition);
+      }
+      this._handleICCInfoChange();
+    }
+
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_SPN,
+      pathId:    this._getPathIdForICCRecord(ICC_EF_SPN),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_TRANSPARENT,
+      callback:  callback,
+    });
+  },
+
+  /**
+   * Get whether specificed (U)SIM service is available.
+   *
+   * @param geckoService
+   *        Service name like "ADN", "BDN", etc.
+   *
+   * @return true if the service is enabled, false otherwise.
+   */
+  isICCServiceAvailable: function isICCServiceAvailable(geckoService) {
+    let serviceTable = this.iccInfo.sst;
+    let index, bitmask;
+    if (this.appType == CARD_APPTYPE_SIM) {
+      /**
+       * Service id is valid in 1..N, and 2 bits are used to code each service.
+       *
+       * +----+--  --+----+----+
+       * | b8 | ...  | b2 | b1 |
+       * +----+--  --+----+----+
+       *
+       * b1 = 0, service not allocated.
+       *      1, service allocated.
+       * b2 = 0, service not activatd.
+       *      1, service allocated.
+       *
+       * @see 3GPP TS 51.011 10.3.7.
+       */
+      let simService = GECKO_ICC_SERVICES.sim[geckoService];
+      if (!simService) {
+        return false;
+      }
+      simService -= 1;
+      index = Math.floor(simService / 4);
+      bitmask = 2 << ((simService % 4) << 1);
+    } else {
+      /**
+       * Service id is valid in 1..N, and 1 bit is used to code each service.
+       *
+       * +----+--  --+----+----+
+       * | b8 | ...  | b2 | b1 |
+       * +----+--  --+----+----+
+       *
+       * b1 = 0, service not avaiable.
+       *      1, service available.
+       * b2 = 0, service not avaiable.
+       *      1, service available.
+       *
+       * @see 3GPP TS 31.102 4.2.8.
+       */
+      let usimService = GECKO_ICC_SERVICES.usim[geckoService];
+      if (!usimService) {
+        return false;
+      }
+      usimService -= 1;
+      index = Math.floor(usimService / 8);
+      bitmask = 1 << ((usimService % 8) << 0);
+    }
+
+    return (serviceTable &&
+           (index < serviceTable.length) &&
+           (serviceTable[index] & bitmask)) != 0;
+  },
+
+  /**
+   * Read the (U)SIM Service Table from the ICC.
+   */
+  getSST: function getSST() {
+    function callback() {
+      let length = Buf.readUint32();
+      // Each octet is encoded into two chars.
+      let len = length / 2;
+      this.iccInfo.sst = GsmPDUHelper.readHexOctetArray(len);
+      Buf.readStringDelimiter(length);
+
+      if (DEBUG) {
+        let str = "";
+        for (let i = 0; i < this.iccInfo.sst.length; i++) {
+          str += this.iccInfo.sst[i] + ", ";
+        }
+        debug("SST: " + str);
+      }
+    }
+
+    // ICC_EF_UST has the same value with ICC_EF_SST.
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_SST,
+      pathId:    this._getPathIdForICCRecord(ICC_EF_SST),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_TRANSPARENT,
+      callback:  callback,
+    });
+  },
+
+  /**
+   *  Helper to parse Dialling number from TS 131.102
+   *
+   *  @param options
+   *         The 'options' object passed from RIL.iccIO
+   *  @param addCallback
+   *         The function should be invoked when the ICC record is processed 
+   *         succesfully.
+   *  @param finishCallback
+   *         The function should be invoked when the final ICC record is 
+   *         processed.
+   *
+   */
+  parseDiallingNumber: function parseDiallingNumber(options,
+                                                    addCallback,
+                                                    finishCallback) {
+    let ffLen; // The length of trailing 0xff to be read.
+    let length = Buf.readUint32();
+
+    let alphaLen = options.recordSize - MSISDN_FOOTER_SIZE_BYTES;
+    let alphaId = GsmPDUHelper.readAlphaIdentifier(alphaLen);
+
+    let numLen = GsmPDUHelper.readHexOctet();
+    if (numLen != 0xff) {
+      if (numLen > MSISDN_MAX_NUMBER_SIZE_BYTES) {
+        debug("invalid length of BCD number/SSC contents - " + numLen);
+        return;
+      }
+
+      if (addCallback) {
+        addCallback.call(this, {alphaId: alphaId,
+                                number: GsmPDUHelper.readDiallingNumber(numLen)});
+      }
+
+      ffLen = length / 2 - alphaLen - numLen - 1; // Minus 1 for the numLen field.
+    } else {
+      ffLen = MSISDN_FOOTER_SIZE_BYTES - 1; // Minus 1 for the numLen field.
+    }
+
+    // Consumes the remaining 0xff
+    for (let i = 0; i < ffLen; i++) {
+      GsmPDUHelper.readHexOctet();
+    }
+    
+    Buf.readStringDelimiter(length);
+    
+    if (options.loadAll &&
+        options.p1 < options.totalRecords) {
+      options.p1++;
+      this.iccIO(options);
+    } else {
+      if (finishCallback) {
+        finishCallback.call(this);
+      }
+    }
+  },
+  
+  /**
+   *  Get ICC FDN.
+   *
+   *  @paran requestId
+   *         Request id from RadioInterfaceLayer.
+   */
+  getFDN: function getFDN(options) {
+    function callback(options) {
+      function add(contact) {
+        this.iccInfo.fdn.push(contact);
+      };
+      function finish() {
+        if (DEBUG) {
+          for (let i = 0; i < this.iccInfo.fdn.length; i++) {
+            debug("FDN[" + i + "] alphaId = " + this.iccInfo.fdn[i].alphaId +
+                                " number = " + this.iccInfo.fdn[i].number);
           }
-          pnnEntry = iccInfoPriv.PNN[opl.pnnRecordId - 1]
-          break;
         }
+        delete options.callback;
+        delete options.onerror;
+        options.rilMessageType = "icccontacts";
+        options.contacts = this.iccInfo.fdn;
+        this.sendDOMMessage(options);
+      };
+      this.parseDiallingNumber(options, add, finish);
+    }
+
+    this.iccInfo.fdn = [];
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_FDN,
+      pathId:    this._getPathIdForICCRecord(ICC_EF_FDN),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_LINEAR_FIXED,
+      callback:  callback,
+      loadAll:   true,
+      requestId: options.requestId
+    });
+  },
+
+  /**
+   *  Get ICC ADN.
+   *
+   *  @param fileId
+   *         EF id of the ADN.
+   *  @paran requestId
+   *         Request id from RadioInterfaceLayer.
+   */
+  getADN: function getADN(options) {
+    function callback(options) {
+      function add(contact) {
+        this.iccInfo.adn.push(contact);
+      };
+
+      function finish() {
+        if (DEBUG) {
+          for (let i = 0; i < this.iccInfo.adn.length; i++) {
+            debug("ADN[" + i + "] alphaId = " + this.iccInfo.adn[i].alphaId +
+                                " number  = " + this.iccInfo.adn[i].number);
+          }
+        }
+        // To prevent DataCloneError when sending parcels,
+        // We need to delete those properties which are not
+        // 'Structured Clone Data',
+        // in this case, those callback functions.
+        delete options.callback;
+        delete options.onerror;
+        options.rilMessageType = "icccontacts";
+        options.contacts = this.iccInfo.adn;
+        this.sendDOMMessage(options);
+      };
+      this.parseDiallingNumber(options, add, finish);
+    }
+
+    function error(options) {
+      delete options.callback;
+      delete options.onerror;
+      options.rilMessageType = "icccontacts";
+      options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+      this.sendDOMMessage(options);
+    }
+
+    this.iccInfo.adn = [];
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    options.fileId,
+      pathId:    this._getPathIdForICCRecord(options.fileId),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_LINEAR_FIXED,
+      callback:  callback,
+      onerror:   error,
+      loadAll:   true,
+      requestId: options.requestId,
+    });
+  },
+
+   /**
+   * Get ICC MBDN. (Mailbox Dialling Number)
+   *
+   * @see TS 131.102, clause 4.2.60
+   */
+  getMBDN: function getMBDN() {
+    function callback(options) {
+      let parseCallback = function parseCallback(contact) {
+        if (DEBUG) {
+          debug("MBDN, alphaId="+contact.alphaId+" number="+contact.number);
+        }
+        if (this.iccInfo.mbdn != contact.number) {
+          this.iccInfo.mbdn = contact.number;
+          contact.rilMessageType = "iccmbdn";
+          this.sendDOMMessage(contact);
+        }
+      };
+
+      this.parseDiallingNumber(options, parseCallback);
+    }
+
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_MBDN,
+      pathId:    this._getPathIdForICCRecord(ICC_EF_MBDN),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_LINEAR_FIXED,
+      callback:  callback,
+    });
+  },
+
+  decodeSimTlvs: function decodeSimTlvs(tlvsLen) {
+    let index = 0;
+    let tlvs = [];
+    while (index < tlvsLen) {
+      let simTlv = {
+        tag : GsmPDUHelper.readHexOctet(),
+        length : GsmPDUHelper.readHexOctet(),
+      };
+      simTlv.value = GsmPDUHelper.readHexOctetArray(simTlv.length)
+      tlvs.push(simTlv);
+      index += simTlv.length + 2 /* The length of 'tag' and 'length' field */;
+    }
+    return tlvs;
+  },
+
+  _searchForIccUsimTag: function _searchForIccUsimTag(tlvs, tag) {
+    for (let i = 0; i < tlvs.length; i++) {
+      if (tlvs[i].tag == tag) {
+        return tlvs[i];
       }
-    }
-
-    // According to 3GPP TS 31.102 Sec. 4.2.58 and 3GPP TS 51.011 Sec. 10.3.41,
-    // the first record in this EF is used for the default network name when
-    // registered to the HPLMN.
-    // If we haven't get pnnEntry assigned, we should try to assign default
-    // value to it.
-    if (!pnnEntry && mcc == iccInfo.mcc && mnc == iccInfo.mnc) {
-      pnnEntry = iccInfoPriv.PNN[0]
-    }
-
-    if (DEBUG) {
-      if (pnnEntry) {
-        debug("updateNetworkName: Network names will be overriden: longName = " +
-              pnnEntry.fullName + ", shortName = " + pnnEntry.shortName);
-      } else {
-        debug("updateNetworkName: Network names will not be overriden");
-      }
-    }
-
-    if (pnnEntry) {
-      return [pnnEntry.fullName, pnnEntry.shortName];
     }
     return null;
   },
@@ -1323,17 +1672,63 @@ let RIL = {
         switch (this.appType) {
           case CARD_APPTYPE_SIM:
             options.fileId = ICC_EF_ADN;
-            ICCRecordHelper.getADN(options);
+            this.getADN(options);
             break;
           case CARD_APPTYPE_USIM:
-            ICCRecordHelper.getPBR(options);
+            this.getPBR(options);
             break;
         }
         break;
       case "FDN":
-        ICCRecordHelper.getFDN(options);
+        this.getFDN(options);
         break;
     }
+  },
+
+  /**
+   * Get USIM Phonebook.
+   *
+   * @params requestId
+   *         Request id from RadioInterfaceLayer.
+   */
+  getPBR: function getPBR(options) {
+    function callback(options) {
+      let bufLen = Buf.readUint32();
+
+      let tag = GsmPDUHelper.readHexOctet();
+      let length = GsmPDUHelper.readHexOctet();
+      let value = this.decodeSimTlvs(length);
+
+      let adn = this._searchForIccUsimTag(value, ICC_USIM_EFADN_TAG);
+      let adnEfid = (adn.value[0] << 8) | adn.value[1];
+      this.getADN({fileId: adnEfid,
+                   requestId: options.requestId});
+
+      Buf.readStringDelimiter(bufLen);
+    }
+
+    function error(options) {
+      delete options.callback;
+      delete options.onerror;
+      options.rilMessageType = "icccontacts";
+      options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+      this.sendDOMMessage(options);
+    }
+
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_PBR,
+      pathId:    this._getPathIdForICCRecord(ICC_EF_PBR),
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_LINEAR_FIXED,
+      callback:  callback,
+      onerror:   error,
+      requestId: options.requestId,
+    });
   },
 
   /**
@@ -1671,18 +2066,22 @@ let RIL = {
    *        String containing the processId for the SmsRequestManager.
    */
   sendSMS: function sendSMS(options) {
-    options.langIndex = options.langIndex || PDU_NL_IDENTIFIER_DEFAULT;
-    options.langShiftIndex = options.langShiftIndex || PDU_NL_IDENTIFIER_DEFAULT;
+    //TODO: verify values on 'options'
 
     if (!options.retryCount) {
       options.retryCount = 0;
     }
 
-    if (!options.segmentSeq) {
-      // Fist segment to send
-      options.segmentSeq = 1;
-      options.body = options.segments[0].body;
-      options.encodedBodyLength = options.segments[0].encodedBodyLength;
+    if (options.segmentMaxSeq > 1) {
+      if (!options.segmentSeq) {
+        // Fist segment to send
+        options.segmentSeq = 1;
+        options.body = options.segments[0].body;
+        options.encodedBodyLength = options.segments[0].encodedBodyLength;
+      }
+    } else {
+      options.body = options.fullBody;
+      options.encodedBodyLength = options.encodedFullBodyLength;
     }
 
     Buf.newParcel(REQUEST_SEND_SMS, options);
@@ -1705,56 +2104,6 @@ let RIL = {
     Buf.writeUint32(2);
     Buf.writeUint32(success ? 1 : 0);
     Buf.writeUint32(cause);
-    Buf.sendParcel();
-  },
-
-  setCellBroadcastSearchList: function setCellBroadcastSearchList(options) {
-    try {
-      let str = options.searchListStr;
-      this.cellBroadcastConfigs.MMI = this._convertCellBroadcastSearchList(str);
-    } catch (e) {
-      if (DEBUG) {
-        debug("Invalid Cell Broadcast search list: " + e);
-      }
-      options.rilRequestError = ERROR_GENERIC_FAILURE;
-      this.sendDOMMessage(options);
-      return;
-    }
-
-    this._mergeAllCellBroadcastConfigs();
-  },
-
-  updateCellBroadcastConfig: function updateCellBroadcastConfig() {
-    let activate = (this.mergedCellBroadcastConfig != null)
-                   && (this.mergedCellBroadcastConfig.length > 0);
-    if (activate) {
-      this.setGsmSmsBroadcastConfig(this.mergedCellBroadcastConfig);
-    } else {
-      // It's unnecessary to set config first if we're deactivating.
-      this.setGsmSmsBroadcastActivation(false);
-    }
-  },
-
-  setGsmSmsBroadcastConfig: function setGsmSmsBroadcastConfig(config) {
-    Buf.newParcel(REQUEST_GSM_SET_BROADCAST_SMS_CONFIG);
-
-    let numConfigs = config ? config.length / 2 : 0;
-    Buf.writeUint32(numConfigs);
-    for (let i = 0; i < config.length;) {
-      Buf.writeUint32(config[i++]);
-      Buf.writeUint32(config[i++]);
-      Buf.writeUint32(0x00);
-      Buf.writeUint32(0xFF);
-      Buf.writeUint32(1);
-    }
-
-    Buf.sendParcel();
-  },
-
-  setGsmSmsBroadcastActivation: function setGsmSmsBroadcastActivation(activate) {
-    Buf.newParcel(REQUEST_GSM_SMS_BROADCAST_ACTIVATION);
-    Buf.writeUint32(1);
-    Buf.writeUint32(activate ? 1 : 0);
     Buf.sendParcel();
   },
 
@@ -2035,7 +2384,7 @@ let RIL = {
         options.rilMessageType = "sendMMI";
         options.reason = MMI_SC_TO_CF_REASON[sc];
         options.number = mmi.sia;
-        options.serviceClass = this._siToServiceClass(mmi.sib);
+        options.serviceClass = mmi.sib;
         if (options.action == CALL_FORWARD_ACTION_QUERY_STATUS) {
           this.queryCallForwardStatus(options);
           return;
@@ -2235,32 +2584,14 @@ let RIL = {
   },
 
   /**
-   * Send STK Profile Download.
-   *
-   * @param profile Profile supported by ME.
-   */
-  sendStkTerminalProfile: function sendStkTerminalProfile(profile) {
-    Buf.newParcel(REQUEST_STK_SET_PROFILE);
-    Buf.writeUint32(profile.length * 2);
-    for (let i = 0; i < profile.length; i++) {
-      GsmPDUHelper.writeHexOctet(profile[i]);
-    }
-    Buf.writeUint32(0);
-    Buf.sendParcel();
-  },
-
-  /**
    * Send STK terminal response.
    *
    * @param command
-   * @param deviceIdentities
    * @param resultCode
    * @param [optional] itemIdentifier
    * @param [optional] input
    * @param [optional] isYesNo
    * @param [optional] hasConfirmed
-   * @param [optional] localInfo
-   * @param [optional] timer
    */
   sendStkTerminalResponse: function sendStkTerminalResponse(response) {
     if (response.hasConfirmed !== undefined) {
@@ -2286,32 +2617,12 @@ let RIL = {
       }
     }
 
-    let berLen = TLV_COMMAND_DETAILS_SIZE +
-                 TLV_DEVICE_ID_SIZE +
-                 TLV_RESULT_SIZE +
-                 (response.itemIdentifier ? TLV_ITEM_ID_SIZE : 0) +
-                 (textLen ? textLen + 3 : 0);
-
-    if (response.localInfo) {
-      let localInfo = response.localInfo;
-      berLen += ((localInfo.locationInfo ?
-                 (localInfo.locationInfo.gsmCellId > 0xffff ?
-                   TLV_LOCATION_INFO_UMTS_SIZE :
-                   TLV_LOCATION_INFO_GSM_SIZE) :
-                  0) +
-                 (localInfo.imei ? TLV_IMEI_SIZE : 0) +
-                 (localInfo.date ? TLV_DATE_TIME_ZONE_SIZE : 0) +
-                 (localInfo.language ? TLV_LANGUAGE_SIZE : 0));
-    }
-
-    if (response.timer) {
-      let timer = response.timer;
-      berLen += TLV_TIMER_IDENTIFIER +
-                (timer.timerValue ? TLV_TIMER_VALUE : 0);
-    }
-
     // 1 octets = 2 chars.
-    let size = berLen * 2;
+    let size = (TLV_COMMAND_DETAILS_SIZE +
+                TLV_DEVICE_ID_SIZE +
+                TLV_RESULT_SIZE +
+                (response.itemIdentifier ? TLV_ITEM_ID_SIZE : 0) +
+                (textLen ? textLen + 3 : 0)) * 2;
     Buf.writeUint32(size);
 
     // Command Details
@@ -2396,55 +2707,6 @@ let RIL = {
       }
     }
 
-    // Local Information
-    if (response.localInfo) {
-      let localInfo = response.localInfo;
-
-      // Location Infomation
-      if (localInfo.locationInfo) {
-        ComprehensionTlvHelper.writeLocationInfoTlv(localInfo.locationInfo);
-      }
-
-      // IMEI
-      if (localInfo.imei) {
-        let imei = localInfo.imei;
-        if(imei.length == 15) {
-          imei = imei + "0";
-        }
-
-        GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_IMEI);
-        GsmPDUHelper.writeHexOctet(8);
-        for (let i = 0; i < imei.length / 2; i++) {
-          GsmPDUHelper.writeHexOctet(parseInt(imei.substr(i * 2, 2), 16));
-        }
-      }
-
-      // Date and Time Zone
-      if (localInfo.date) {
-        ComprehensionTlvHelper.writeDateTimeZoneTlv(localInfo.date);
-      }
-
-      // Language
-      if (localInfo.language) {
-        ComprehensionTlvHelper.writeLanguageTlv(localInfo.language);
-      }
-    }
-
-    // Timer
-    if (response.timer) {
-      let timer = response.timer;
-
-      if (timer.timerId) {
-        GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER);
-        GsmPDUHelper.writeHexOctet(1);
-        GsmPDUHelper.writeHexOctet(timer.timerId);
-      }
-
-      if (timer.timerValue) {
-        ComprehensionTlvHelper.writeTimerValueTlv(timer.timerValue, false);
-      }
-    }
-
     Buf.writeUint32(0);
     Buf.sendParcel();
   },
@@ -2461,22 +2723,6 @@ let RIL = {
       sourceId :STK_DEVICE_ID_KEYPAD,
       destinationId: STK_DEVICE_ID_SIM
     };
-    this.sendICCEnvelopeCommand(command);
-  },
-
-  /**
-   * Send STK Envelope(Timer Expiration) command.
-   *
-   * @param timer
-   */
-  sendStkTimerExpiration: function sendStkTimerExpiration(command) {
-    command.tag = BER_TIMER_EXPIRATION_TAG;
-    command.deviceId = {
-      sourceId: STK_DEVICE_ID_ME,
-      destinationId: STK_DEVICE_ID_SIM
-    };
-    command.timerId = command.timer.timerId;
-    command.timerValue = command.timer.timerValue;
     this.sendICCEnvelopeCommand(command);
   },
 
@@ -2534,8 +2780,6 @@ let RIL = {
    * @param [optional] address
    * @param [optional] transactionId
    * @param [optional] cause
-   * @param [optional] timerId
-   * @param [optional] timerValue
    */
   sendICCEnvelopeCommand: function sendICCEnvelopeCommand(options) {
     if (DEBUG) {
@@ -2559,9 +2803,7 @@ let RIL = {
                     Math.ceil(options.address.length/2) + 1) + // Length of length field.
                   Math.ceil(options.address.length/2) + 1 // address BCD + TON.
                   : 0) +
-                 (options.cause ? 4 : 0) +
-                 (options.timerId ? TLV_TIMER_IDENTIFIER : 0) +
-                 (options.timerValue ? TLV_TIMER_VALUE : 0);
+                 (options.cause ? 4 : 0);
     let size = (2 + berLen) * 2;
 
     Buf.writeUint32(size);
@@ -2636,19 +2878,6 @@ let RIL = {
     // Cause of disconnection.
     if (options.cause) {
       ComprehensionTlvHelper.writeCauseTlv(options.cause);
-    }
-
-    // Timer Identifier
-    if (options.timerId) {
-        GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER |
-                                   COMPREHENSIONTLV_FLAG_CR);
-        GsmPDUHelper.writeHexOctet(1);
-        GsmPDUHelper.writeHexOctet(options.timerId);
-    }
-
-    // Timer Value
-    if (options.timerValue) {
-        ComprehensionTlvHelper.writeTimerValueTlv(options.timerValue, true);
     }
 
     Buf.writeUint32(0);
@@ -2752,20 +2981,75 @@ let RIL = {
     this.requestNetworkInfo();
     this.getSignalStrength();
     if (newCardState == GECKO_CARDSTATE_READY) {
-      // For type SIM, we need to check EF_phase first.
-      // Other types of ICC we can send Terminal_Profile immediately.
-      if (this.appType == CARD_APPTYPE_SIM) {
-        ICCRecordHelper.getICCPhase();
-      } else {
-        this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
-      }
-      ICCRecordHelper.fetchICCRecords();
+      this.fetchICCRecords();
       this.reportStkServiceIsRunning();
     }
 
     this.cardState = newCardState;
     this.sendDOMMessage({rilMessageType: "cardstatechange",
                          cardState: this.cardState});
+  },
+
+  /** 
+   * Helper function for getting the pathId for the specific ICC record
+   * depeding on which type of ICC card we are using.
+   * 
+   * @param fileId
+   *        File id.
+   * @return The pathId or null in case of an error or invalid input.
+   */
+  _getPathIdForICCRecord: function _getPathIdForICCRecord(fileId) {
+    let index = this.iccStatus.gsmUmtsSubscriptionAppIndex;
+    if (index == -1) {
+      return null;
+    }
+    let app = this.iccStatus.apps[index];
+    if (!app) {
+      return null;
+    }
+
+    // Here we handle only file ids that are common to RUIM, SIM, USIM
+    // and other types of ICC cards.
+    switch (fileId) {
+      case ICC_EF_ICCID:
+        return EF_PATH_MF_SIM;
+      case ICC_EF_ADN:
+        return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM;
+      case ICC_EF_PBR:
+        return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM + EF_PATH_DF_PHONEBOOK;
+    }
+
+    switch (app.app_type) {
+      case CARD_APPTYPE_SIM:
+        switch (fileId) {
+          case ICC_EF_FDN:
+          case ICC_EF_MSISDN:
+            return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM;
+
+          case ICC_EF_AD:
+          case ICC_EF_MBDN:
+          case ICC_EF_SPN:
+          case ICC_EF_SST:
+            return EF_PATH_MF_SIM + EF_PATH_DF_GSM;
+        }
+      case CARD_APPTYPE_USIM:
+        switch (fileId) {
+          case ICC_EF_AD:
+          case ICC_EF_FDN:
+          case ICC_EF_MBDN:
+          case ICC_EF_UST:
+          case ICC_EF_MSISDN:
+          case ICC_EF_SPN:
+            return EF_PATH_MF_SIM + EF_PATH_ADF_USIM;
+
+          default:
+            // The file ids in USIM phone book entries are decided by the
+	    // card manufacturer. So if we don't match any of the cases
+	    // above and if its a USIM return the phone book path.
+            return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM + EF_PATH_DF_PHONEBOOK;
+        }
+    }
+    return null;
   },
 
    /**
@@ -2778,6 +3062,117 @@ let RIL = {
     }
     options.retryCount = length ? Buf.readUint32List()[0] : -1;
     this.sendDOMMessage(options);
+  },
+
+  /**
+   * Process a ICC_COMMAND_GET_RESPONSE type command for REQUEST_SIM_IO.
+   */
+  _processICCIOGetResponse: function _processICCIOGetResponse(options) {
+    let length = Buf.readUint32();
+
+    // The format is from TS 51.011, clause 9.2.1
+
+    // Skip RFU, data[0] data[1]
+    Buf.seekIncoming(2 * PDU_HEX_OCTET_SIZE);
+
+    // File size, data[2], data[3]
+    let fileSize = (GsmPDUHelper.readHexOctet() << 8) |
+                    GsmPDUHelper.readHexOctet();
+
+    // 2 bytes File id. data[4], data[5]
+    let fileId = (GsmPDUHelper.readHexOctet() << 8) |
+                  GsmPDUHelper.readHexOctet();
+    if (fileId != options.fileId) {
+      if (DEBUG) {
+        debug("Expected file ID " + options.fileId + " but read " + fileId);
+      }
+      return;
+    }
+
+    // Type of file, data[6]
+    let fileType = GsmPDUHelper.readHexOctet();
+    if (fileType != TYPE_EF) {
+      if (DEBUG) {
+        debug("Unexpected file type " + fileType);
+      }
+      return;
+    }
+
+    // Skip 1 byte RFU, data[7],
+    //      3 bytes Access conditions, data[8] data[9] data[10],
+    //      1 byte File status, data[11],
+    //      1 byte Length of the following data, data[12].
+    Buf.seekIncoming(((RESPONSE_DATA_STRUCTURE - RESPONSE_DATA_FILE_TYPE - 1) *
+        PDU_HEX_OCTET_SIZE));
+
+    // Read Structure of EF, data[13]
+    let efType = GsmPDUHelper.readHexOctet();
+    if (efType != options.type) {
+      if (DEBUG) {
+        debug("Expected EF type " + options.type + " but read " + efType);
+      }
+      return;
+    }
+
+    // Length of a record, data[14]
+    options.recordSize = GsmPDUHelper.readHexOctet();
+    options.totalRecords = fileSize / options.recordSize;
+
+    Buf.readStringDelimiter(length);
+
+    switch (options.type) {
+      case EF_TYPE_LINEAR_FIXED:
+        // Reuse the options object and update some properties.
+        options.command = ICC_COMMAND_READ_RECORD;
+        options.p1 = 1; // Record number, always use the 1st record
+        options.p2 = READ_RECORD_ABSOLUTE_MODE;
+        options.p3 = options.recordSize;
+        this.iccIO(options);
+        break;
+      case EF_TYPE_TRANSPARENT:
+        // Reuse the options object and update some properties.
+        options.command = ICC_COMMAND_READ_BINARY;
+        options.p3 = fileSize;
+        this.iccIO(options);
+        break;
+    }
+  },
+
+  /**
+   * Process a ICC_COMMAND_READ_RECORD type command for REQUEST_SIM_IO.
+   */
+  _processICCIOReadRecord: function _processICCIOReadRecord(options) {
+    if (options.callback) {
+      options.callback.call(this, options);
+    }
+  },
+
+  /**
+   * Process a ICC_COMMAND_READ_BINARY type command for REQUEST_SIM_IO.
+   */
+  _processICCIOReadBinary: function _processICCIOReadBinary(options) {
+    if (options.callback) {
+      options.callback.call(this);
+    }
+  },
+
+  /**
+   * Process ICC I/O response.
+   */
+  _processICCIO: function _processICCIO(options) {
+    switch (options.command) {
+      case ICC_COMMAND_GET_RESPONSE:
+        this._processICCIOGetResponse(options);
+        break;
+
+      case ICC_COMMAND_READ_RECORD:
+        this._processICCIOReadRecord(options);
+        break;
+
+      case ICC_COMMAND_READ_BINARY:
+        this._processICCIOReadBinary(options);
+        break;
+    } 
   },
 
   // We combine all of the NETWORK_INFO_MESSAGE_TYPES into one "networkinfochange"
@@ -2970,15 +3365,8 @@ let RIL = {
         this.operator.shortName !== shortName ||
         thisTuple !== networkTuple) {
 
-      let networkName = this.updateNetworkName();
-      if (networkName) {
-        this.operator.longName = networkName[0];
-        this.operator.shortName = networkName[1];
-      } else {
-        this.operator.longName = longName;
-        this.operator.shortName = shortName;
-      }
-
+      this.operator.longName = longName;
+      this.operator.shortName = shortName;
       this.operator.mcc = 0;
       this.operator.mnc = 0;
 
@@ -2996,9 +3384,7 @@ let RIL = {
           debug("Error processing operator tuple: " + e);
         }
       }
-      if (ICCUtilsHelper.updateDisplayCondition()) {
-        ICCUtilsHelper.handleICCInfoChange();
-      }
+
       this._sendNetworkInfoMessage(NETWORK_INFO_OPERATOR, this.operator);
     }
   },
@@ -3021,10 +3407,8 @@ let RIL = {
         // Call is still valid.
         if (newCall.state != currentCall.state) {
           // State has changed.
-          if (!currentCall.started && newCall.state == CALL_STATE_ACTIVE) {
-            currentCall.started = new Date().getTime();
-          }
           currentCall.state = newCall.state;
+          currentCall.isActive = this._isActiveCall(currentCall.state);
           this._handleChangedCallState(currentCall);
         }
       } else {
@@ -3044,13 +3428,9 @@ let RIL = {
             newCall.number[0] != "+") {
           newCall.number = "+" + newCall.number;
         }
-        if (newCall.state == CALL_STATE_INCOMING) {
-          newCall.direction = 'incoming';
-        } else if (newCall.state == CALL_STATE_DIALING) {
-          newCall.direction = 'outgoing';
-        }
         // Add to our map.
         this.currentCalls[newCall.callIndex] = newCall;
+        newCall.isActive = this._isActiveCall(newCall.state);
         this._handleChangedCallState(newCall);
       }
     }
@@ -3070,6 +3450,19 @@ let RIL = {
     let message = {rilMessageType: "callDisconnected",
                    call: disconnectedCall};
     this.sendDOMMessage(message);
+  },
+
+  _isActiveCall: function _isActiveCall(callState) {
+    switch (callState) {
+      case CALL_STATE_ACTIVE:
+      case CALL_STATE_DIALING:
+      case CALL_STATE_ALERTING:
+        return true;
+      case CALL_STATE_HOLDING:
+      case CALL_STATE_INCOMING:
+      case CALL_STATE_WAITING:
+        return false;
+    }
   },
 
   _sendDataCallError: function _sendDataCallError(message, errorCode) {
@@ -3233,44 +3626,6 @@ let RIL = {
       toa = TOA_INTERNATIONAL;
     }
     return toa;
-  },
-
-  /**
-   * Helper for translating basic service group to call forwarding service class
-   * parameter.
-   */
-  _siToServiceClass: function _siToServiceClass(si) {
-    if (!si) {
-      return ICC_SERVICE_CLASS_NONE;
-    }
-
-    let serviceCode = parseInt(si, 10);
-    switch (serviceCode) {
-      case 10:
-        return ICC_SERVICE_CLASS_SMS + ICC_SERVICE_CLASS_FAX  + ICC_SERVICE_CLASS_VOICE;
-      case 11:
-        return ICC_SERVICE_CLASS_VOICE;
-      case 12:
-        return ICC_SERVICE_CLASS_SMS + ICC_SERVICE_CLASS_FAX;
-      case 13:
-        return ICC_SERVICE_CLASS_FAX;
-      case 16:
-        return ICC_SERVICE_CLASS_SMS;
-      case 19:
-        return ICC_SERVICE_CLASS_FAX + ICC_SERVICE_CLASS_VOICE;
-      case 21:
-        return ICC_SERVICE_CLASS_PAD + ICC_SERVICE_CLASS_DATA_ASYNC;
-      case 22:
-        return ICC_SERVICE_CLASS_PACKET + ICC_SERVICE_CLASS_DATA_SYNC;
-      case 25:
-        return ICC_SERVICE_CLASS_DATA_ASYNC;
-      case 26:
-        return ICC_SERVICE_CLASS_DATA_SYNC + SERVICE_CLASS_VOICE;
-      case 99:
-        return ICC_SERVICE_CLASS_PACKET;
-      default:
-        return ICC_SERVICE_CLASS_NONE;
-    }
   },
 
   /**
@@ -3483,7 +3838,7 @@ let RIL = {
       switch (message.epid) {
         case PDU_PID_ANSI_136_R_DATA:
         case PDU_PID_USIM_DATA_DOWNLOAD:
-          if (ICCUtilsHelper.isICCServiceAvailable("DATA_DOWNLOAD_SMS_PP")) {
+          if (this.isICCServiceAvailable("DATA_DOWNLOAD_SMS_PP")) {
             // `If the service "data download via SMS Point-to-Point" is
             // allocated and activated in the (U)SIM Service Table, ... then the
             // ME shall pass the message transparently to the UICC using the
@@ -3696,282 +4051,6 @@ let RIL = {
     this.sendSMS(options);
   },
 
-  _processReceivedSmsCbPage: function _processReceivedSmsCbPage(original) {
-    if (original.numPages <= 1) {
-      if (original.body) {
-        original.fullBody = original.body;
-        delete original.body;
-      } else if (original.data) {
-        original.fullData = original.data;
-        delete original.data;
-      }
-      return original;
-    }
-
-    // Hash = <serial>:<mcc>:<mnc>:<lac>:<cid>
-    let hash = original.serial + ":" + this.iccInfo.mcc + ":"
-               + this.iccInfo.mnc + ":";
-    switch (original.geographicalScope) {
-      case CB_GSM_GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE:
-      case CB_GSM_GEOGRAPHICAL_SCOPE_CELL_WIDE:
-        hash += this.voiceRegistrationState.cell.gsmLocationAreaCode + ":"
-             + this.voiceRegistrationState.cell.gsmCellId;
-        break;
-      case CB_GSM_GEOGRAPHICAL_SCOPE_LOCATION_AREA_WIDE:
-        hash += this.voiceRegistrationState.cell.gsmLocationAreaCode + ":";
-        break;
-      default:
-        hash += ":";
-        break;
-    }
-
-    let index = original.pageIndex;
-
-    let options = this._receivedSmsCbPagesMap[hash];
-    if (!options) {
-      options = original;
-      this._receivedSmsCbPagesMap[hash] = options;
-
-      options.receivedPages = 0;
-      options.pages = [];
-    } else if (options.pages[index]) {
-      // Duplicated page?
-      if (DEBUG) {
-        debug("Got duplicated page no." + index + " of a multipage SMSCB: "
-              + JSON.stringify(original));
-      }
-      return null;
-    }
-
-    if (options.encoding == PDU_DCS_MSG_CODING_8BITS_ALPHABET) {
-      options.pages[index] = original.data;
-      delete original.data;
-    } else {
-      options.pages[index] = original.body;
-      delete original.body;
-    }
-    options.receivedPages++;
-    if (options.receivedPages < options.numPages) {
-      if (DEBUG) {
-        debug("Got page no." + index + " of a multipage SMSCB: "
-              + JSON.stringify(options));
-      }
-      return null;
-    }
-
-    // Remove from map
-    delete this._receivedSmsCbPagesMap[hash];
-
-    // Rebuild full body
-    if (options.encoding == PDU_DCS_MSG_CODING_8BITS_ALPHABET) {
-      // Uint8Array doesn't have `concat`, so we have to merge all pages by hand.
-      let fullDataLen = 0;
-      for (let i = 1; i <= options.numPages; i++) {
-        fullDataLen += options.pages[i].length;
-      }
-
-      options.fullData = new Uint8Array(fullDataLen);
-      for (let d= 0, i = 1; i <= options.numPages; i++) {
-        let data = options.pages[i];
-        for (let j = 0; j < data.length; j++) {
-          options.fullData[d++] = data[j];
-        }
-      }
-    } else {
-      options.fullBody = options.pages.join("");
-    }
-
-    if (DEBUG) {
-      debug("Got full multipage SMSCB: " + JSON.stringify(options));
-    }
-
-    return options;
-  },
-
-  _mergeCellBroadcastConfigs: function _mergeCellBroadcastConfigs(list, from, to) {
-    if (!list) {
-      return [from, to];
-    }
-
-    for (let i = 0, f1, t1; i < list.length;) {
-      f1 = list[i++];
-      t1 = list[i++];
-      if (to == f1) {
-        // ...[from]...[to|f1]...(t1)
-        list[i - 2] = from;
-        return list;
-      }
-
-      if (to < f1) {
-        // ...[from]...(to)...[f1] or ...[from]...(to)[f1]
-        if (i > 2) {
-          // Not the first range pair, merge three arrays.
-          return list.slice(0, i - 2).concat([from, to]).concat(list.slice(i - 2));
-        } else {
-          return [from, to].concat(list);
-        }
-      }
-
-      if (from > t1) {
-        // ...[f1]...(t1)[from] or ...[f1]...(t1)...[from]
-        continue;
-      }
-
-      // Have overlap or merge-able adjacency with [f1]...(t1). Replace it
-      // with [min(from, f1)]...(max(to, t1)).
-
-      let changed = false;
-      if (from < f1) {
-        // [from]...[f1]...(t1) or [from][f1]...(t1)
-        // Save minimum from value.
-        list[i - 2] = from;
-        changed = true;
-      }
-
-      if (to <= t1) {
-        // [from]...[to](t1) or [from]...(to|t1)
-        // Can't have further merge-able adjacency. Return.
-        return list;
-      }
-
-      // Try merging possible next adjacent range.
-      let j = i;
-      for (let f2, t2; j < list.length;) {
-        f2 = list[j++];
-        t2 = list[j++];
-        if (to > t2) {
-          // [from]...[f2]...[t2]...(to) or [from]...[f2]...[t2](to)
-          // Merge next adjacent range again.
-          continue;
-        }
-
-        if (to < t2) {
-          if (to < f2) {
-            // [from]...(to)[f2] or [from]...(to)...[f2]
-            // Roll back and give up.
-            j -= 2;
-          } else if (to < t2) {
-            // [from]...[to|f2]...(t2), or [from]...[f2]...[to](t2)
-            // Merge to [from]...(t2) and give up.
-            to = t2;
-          }
-        }
-
-        break;
-      }
-
-      // Save maximum to value.
-      list[i - 1] = to;
-
-      if (j != i) {
-        // Remove merged adjacent ranges.
-        let ret = list.slice(0, i);
-        if (j < list.length) {
-          ret = ret.concat(list.slice(j));
-        }
-        return ret;
-      }
-
-      return list;
-    }
-
-    // Append to the end.
-    list.push(from);
-    list.push(to);
-
-    return list;
-  },
-
-  /**
-   * Merge all members of cellBroadcastConfigs into mergedCellBroadcastConfig.
-   */
-  _mergeAllCellBroadcastConfigs: function _mergeAllCellBroadcastConfigs() {
-    if (!("CBMI" in this.cellBroadcastConfigs)
-        || !("CBMIR" in this.cellBroadcastConfigs)
-        || !("MMI" in this.cellBroadcastConfigs)) {
-      if (DEBUG) {
-        debug("cell broadcast configs not ready, waiting ...");
-      }
-      return;
-    }
-    if (DEBUG) {
-      debug("Cell Broadcast search lists: " + JSON.stringify(this.cellBroadcastConfigs));
-    }
-
-    let list = null;
-    for each (let ll in this.cellBroadcastConfigs) {
-      if (ll == null) {
-        continue;
-      }
-
-      for (let i = 0; i < ll.length; i += 2) {
-        list = this._mergeCellBroadcastConfigs(list, ll[i], ll[i + 1]);
-      }
-    }
-
-    if (DEBUG) {
-      debug("Cell Broadcast search lists(merged): " + JSON.stringify(list));
-    }
-    this.mergedCellBroadcastConfig = list;
-    this.updateCellBroadcastConfig();
-  },
-
-  /**
-   * Check whether search list from settings is settable by MMI, that is,
-   * whether the range is bounded in any entries of CB_NON_MMI_SETTABLE_RANGES.
-   */
-  _checkCellBroadcastMMISettable: function _checkCellBroadcastMMISettable(from, to) {
-    if ((to <= from) || (from >= 65536) || (from < 0)) {
-      return false;
-    }
-
-    for (let i = 0, f, t; i < CB_NON_MMI_SETTABLE_RANGES.length;) {
-      f = CB_NON_MMI_SETTABLE_RANGES[i++];
-      t = CB_NON_MMI_SETTABLE_RANGES[i++];
-      if ((from < t) && (to > f)) {
-        // Have overlap.
-        return false;
-      }
-    }
-
-    return true;
-  },
-
-  /**
-   * Convert Cell Broadcast settings string into search list.
-   */
-  _convertCellBroadcastSearchList: function _convertCellBroadcastSearchList(searchListStr) {
-    let parts = searchListStr && searchListStr.split(",");
-    if (!parts) {
-      return null;
-    }
-
-    let list = null;
-    let result, from, to;
-    for (let range of parts) {
-      // Match "12" or "12-34". The result will be ["12", "12", null] or
-      // ["12-34", "12", "34"].
-      result = range.match(/^(\d+)(?:-(\d+))?$/);
-      if (!result) {
-        throw "Invalid format";
-      }
-
-      from = parseInt(result[1]);
-      to = (result[2] != null) ? parseInt(result[2]) + 1 : from + 1;
-      if (!this._checkCellBroadcastMMISettable(from, to)) {
-        throw "Invalid range";
-      }
-
-      if (list == null) {
-        list = [];
-      }
-      list.push(from);
-      list.push(to);
-    }
-
-    return list;
-  },
-
   /**
    * Handle incoming messages from the main UI thread.
    *
@@ -4039,17 +4118,12 @@ let RIL = {
            " commandQualifier = " + cmdDetails.commandQualifier);
     }
 
-    // STK_CMD_MORE_TIME need not to propagate event to DOM.
-    if (cmdDetails.typeOfCommand == STK_CMD_MORE_TIME) {
-      RIL.sendStkTerminalResponse({
-        command: cmdDetails,
-        resultCode: STK_RESULT_OK});
-      return;
+    let param = StkCommandParamsFactory.createParam(cmdDetails, ctlvs);
+    if (param) {
+      cmdDetails.rilMessageType = "stkcommand";
+      cmdDetails.options = param;
+      RIL.sendDOMMessage(cmdDetails);
     }
-
-    cmdDetails.rilMessageType = "stkcommand";
-    cmdDetails.options = StkCommandParamsFactory.createParam(cmdDetails, ctlvs);
-    RIL.sendDOMMessage(cmdDetails);
   },
 
   /**
@@ -4071,10 +4145,6 @@ let RIL = {
       if (DEBUG) debug("Handling parcel as " + method.name);
       method.call(this, length, options);
     }
-  },
-
-  setDebugEnabled: function setDebugEnabled(options) {
-    DEBUG = DEBUG_WORKER || options.enabled;
   }
 };
 
@@ -4188,6 +4258,8 @@ RIL[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CALLS(length, opti
         userData: null //XXX TODO byte array?!?
       };
     }
+
+    call.isActive = false;
 
     calls[call.callIndex] = call;
   }
@@ -4463,32 +4535,29 @@ RIL[REQUEST_SETUP_DATA_CALL] = function REQUEST_SETUP_DATA_CALL(length, options)
 RIL[REQUEST_SIM_IO] = function REQUEST_SIM_IO(length, options) {
   if (!length) {
     if (options.onerror) {
-      options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-      options.onerror(options);
+      options.onerror.call(this, options);
     }
     return;
   }
 
   // Don't need to read rilRequestError since we can know error status from
   // sw1 and sw2.
-  options.sw1 = Buf.readUint32();
-  options.sw2 = Buf.readUint32();
-  if (options.sw1 != ICC_STATUS_NORMAL_ENDING) {
+  let sw1 = Buf.readUint32();
+  let sw2 = Buf.readUint32();
+  if (sw1 != ICC_STATUS_NORMAL_ENDING) {
     // See GSM11.11, TS 51.011 clause 9.4, and ISO 7816-4 for the error
     // description.
-    let msg = "ICC I/O Error EF id = " + options.fileId.toString(16) +
-              " command = " + options.command.toString(16) +
-              "(" + options.sw1.toString(16) + "/" + options.sw2.toString(16) + ")"
     if (DEBUG) {
-      debug(msg);
+      debug("ICC I/O Error EF id = " + options.fileId.toString(16) +
+            " command = " + options.command.toString(16) +
+            "(" + sw1.toString(16) + "/" + sw2.toString(16) + ")");
     }
     if (options.onerror) {
-      options.errorMsg = msg;
-      options.onerror(options);
+      options.onerror.call(this, options);
     }
     return;
   }
-  ICCIOHelper.processICCIO(options);
+  this._processICCIO(options);
 };
 RIL[REQUEST_SEND_USSD] = function REQUEST_SEND_USSD(length, options) {
   if (DEBUG) {
@@ -4835,11 +4904,7 @@ RIL[REQUEST_CDMA_VALIDATE_AND_WRITE_AKEY] = null;
 RIL[REQUEST_CDMA_SEND_SMS] = null;
 RIL[REQUEST_CDMA_SMS_ACKNOWLEDGE] = null;
 RIL[REQUEST_GSM_GET_BROADCAST_SMS_CONFIG] = null;
-RIL[REQUEST_GSM_SET_BROADCAST_SMS_CONFIG] = function REQUEST_GSM_SET_BROADCAST_SMS_CONFIG(length, options) {
-  if (options.rilRequestError == ERROR_SUCCESS) {
-    this.setGsmSmsBroadcastActivation(true);
-  }
-};
+RIL[REQUEST_GSM_SET_BROADCAST_SMS_CONFIG] = null;
 RIL[REQUEST_GSM_SMS_BROADCAST_ACTIVATION] = null;
 RIL[REQUEST_CDMA_GET_BROADCAST_SMS_CONFIG] = null;
 RIL[REQUEST_CDMA_SET_BROADCAST_SMS_CONFIG] = null;
@@ -4929,7 +4994,6 @@ RIL[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLICITED_RESPONSE_RA
       this.getIMEISV();
     }
     this.getBasebandVersion();
-    this.updateCellBroadcastConfig();
   }
 
   this.radioState = newState;
@@ -4995,7 +5059,7 @@ RIL[UNSOLICITED_NITZ_TIME_RECEIVED] = function UNSOLICITED_NITZ_TIME_RECEIVED() 
   debug("DateTimeZone string " + dateString);
 
   let now = Date.now();
-
+	
   let year = parseInt(dateString.substr(0, 2), 10);
   let month = parseInt(dateString.substr(3, 2), 10);
   let day = parseInt(dateString.substr(6, 2), 10);
@@ -5047,43 +5111,24 @@ RIL[UNSOLICITED_STK_CALL_SETUP] = null;
 RIL[UNSOLICITED_SIM_SMS_STORAGE_FULL] = null;
 RIL[UNSOLICITED_SIM_REFRESH] = null;
 RIL[UNSOLICITED_CALL_RING] = function UNSOLICITED_CALL_RING() {
-  let info = {rilMessageType: "callRing"};
+  let info;
   let isCDMA = false; //XXX TODO hard-code this for now
   if (isCDMA) {
-    info.isPresent = Buf.readUint32();
-    info.signalType = Buf.readUint32();
-    info.alertPitch = Buf.readUint32();
-    info.signal = Buf.readUint32();
+    info = {
+      isPresent:  Buf.readUint32(),
+      signalType: Buf.readUint32(),
+      alertPitch: Buf.readUint32(),
+      signal:     Buf.readUint32()
+    };
   }
-  // At this point we don't know much other than the fact there's an incoming
-  // call, but that's enough to bring up the Phone app already. We'll know
-  // details once we get a call state changed notification and can then
-  // dispatch DOM events etc.
-  this.sendDOMMessage(info);
+  // For now we don't need to do anything here because we'll also get a
+  // call state changed notification.
 };
 RIL[UNSOLICITED_RESPONSE_SIM_STATUS_CHANGED] = function UNSOLICITED_RESPONSE_SIM_STATUS_CHANGED() {
   this.getICCStatus();
 };
 RIL[UNSOLICITED_RESPONSE_CDMA_NEW_SMS] = null;
-RIL[UNSOLICITED_RESPONSE_NEW_BROADCAST_SMS] = function UNSOLICITED_RESPONSE_NEW_BROADCAST_SMS(length) {
-  let message;
-  try {
-    message = GsmPDUHelper.readCbMessage(Buf.readUint32());
-  } catch (e) {
-    if (DEBUG) {
-      debug("Failed to parse Cell Broadcast message: " + JSON.stringify(e));
-    }
-    return;
-  }
-
-  message = this._processReceivedSmsCbPage(message);
-  if (!message) {
-    return;
-  }
-
-  message.rilMessageType = "cellbroadcast-received";
-  this.sendDOMMessage(message);
-};
+RIL[UNSOLICITED_RESPONSE_NEW_BROADCAST_SMS] = null;
 RIL[UNSOLICITED_CDMA_RUIM_SMS_STORAGE_FULL] = null;
 RIL[UNSOLICITED_RESTRICTED_STATE_CHANGED] = null;
 RIL[UNSOLICITED_ENTER_EMERGENCY_CALLBACK_MODE] = null;
@@ -5205,20 +5250,6 @@ let GsmPDUHelper = {
   },
 
   /**
-   * Convert a BCD number to an octet (number)
-   *
-   * Only take two digits with absolute value.
-   *
-   * @param bcd
-   *
-   * @return the corresponding octet.
-   */
-  BCDToOctet: function BCDToOctet(bcd) {
-    bcd = Math.abs(bcd);
-    return ((bcd % 10) << 4) + (Math.floor(bcd / 10) % 10);
-  },
-
-  /**
    * Convert a semi-octet (number) to a GSM BCD char.
    */
   bcdChars: "0123456789*#,;",
@@ -5295,24 +5326,6 @@ let GsmPDUHelper = {
     data = data.toString();
     if (data.length % 2) {
       data += "F";
-    }
-    for (let i = 0; i < data.length; i += 2) {
-      Buf.writeUint16(data.charCodeAt(i + 1));
-      Buf.writeUint16(data.charCodeAt(i));
-    }
-  },
-
-  /**
-   * Write numerical data as swapped nibble BCD.
-   * If the number of digit of data is even, add '0' at the beginning.
-   *
-   * @param data
-   *        Data to write (as a string or a number)
-   */
-  writeSwappedNibbleBCDNum: function writeSwappedNibbleBCDNum(data) {
-    data = data.toString();
-    if (data.length % 2) {
-      data = "0" + data;
     }
     for (let i = 0; i < data.length; i += 2) {
       Buf.writeUint16(data.charCodeAt(i + 1));
@@ -5425,7 +5438,7 @@ let GsmPDUHelper = {
     return ret;
   },
 
-  writeStringAsSeptets: function writeStringAsSeptets(message, paddingBits, langIndex, langShiftIndex) {
+  writeStringAsSeptets: function writeStringAsSeptets(message, paddingBits, langIndex, langShiftIndex, strict7BitEncoding) {
     const langTable = PDU_NL_LOCKING_SHIFT_TABLES[langIndex];
     const langShiftTable = PDU_NL_SINGLE_SHIFT_TABLES[langShiftIndex];
 
@@ -5433,6 +5446,10 @@ let GsmPDUHelper = {
     let data = 0;
     for (let i = 0; i < message.length; i++) {
       let c = message.charAt(i);
+      if (strict7BitEncoding) {
+        c = GSM_SMS_STRICT_7BIT_CHARMAP[c] || c;
+      }
+
       let septet = langTable.indexOf(c);
       if (septet == PDU_NL_EXTENDED_ESCAPE) {
         continue;
@@ -5842,18 +5859,16 @@ let GsmPDUHelper = {
       this.writeHexOctet(options.segmentSeq & 0xFF);
     }
 
-    if (options.dcs == PDU_DCS_MSG_CODING_7BITS_ALPHABET) {
-      if (options.langIndex != PDU_NL_IDENTIFIER_DEFAULT) {
-        this.writeHexOctet(PDU_IEI_NATIONAL_LANGUAGE_LOCKING_SHIFT);
-        this.writeHexOctet(1);
-        this.writeHexOctet(options.langIndex);
-      }
+    if (options.langIndex != PDU_NL_IDENTIFIER_DEFAULT) {
+      this.writeHexOctet(PDU_IEI_NATIONAL_LANGUAGE_LOCKING_SHIFT);
+      this.writeHexOctet(1);
+      this.writeHexOctet(options.langIndex);
+    }
 
-      if (options.langShiftIndex != PDU_NL_IDENTIFIER_DEFAULT) {
-        this.writeHexOctet(PDU_IEI_NATIONAL_LANGUAGE_SINGLE_SHIFT);
-        this.writeHexOctet(1);
-        this.writeHexOctet(options.langShiftIndex);
-      }
+    if (options.langShiftIndex != PDU_NL_IDENTIFIER_DEFAULT) {
+      this.writeHexOctet(PDU_IEI_NATIONAL_LANGUAGE_SINGLE_SHIFT);
+      this.writeHexOctet(1);
+      this.writeHexOctet(options.langShiftIndex);
     }
   },
 
@@ -5879,61 +5894,20 @@ let GsmPDUHelper = {
 
     // Type-of-Address
     let toa = this.readHexOctet();
-    let addr = "";
 
-    if ((toa & 0xF0) == PDU_TOA_ALPHANUMERIC) {
-      addr = this.readSeptetsToString(Math.floor(len * 4 / 7), 0,
-          PDU_NL_IDENTIFIER_DEFAULT , PDU_NL_IDENTIFIER_DEFAULT );
-      return addr;
-    }
-    addr = this.readSwappedNibbleBcdString(len / 2);
+    // Address-Value
+    let addr = this.readSwappedNibbleBcdString(len / 2);
     if (addr.length <= 0) {
       if (DEBUG) debug("PDU error: no number provided");
       return null;
     }
-    if ((toa & 0xF0) == (PDU_TOA_INTERNATIONAL)) {
+    if ((toa >> 4) == (PDU_TOA_INTERNATIONAL >> 4)) {
       addr = '+' + addr;
     }
 
     return addr;
   },
-
-  /**
-   *  Read Alpha Id and Dialling number from TS 131.102
-   *
-   *  @param options
-   *         The 'options' object passed from RIL.iccIO
-   */
-  readAlphaIdDiallingNumber: function readAlphaIdDiallingNumber(options) {
-    let contact = null;
-    let ffLen; // The length of trailing 0xff to be read.
-    let length = Buf.readUint32();
-
-    let alphaLen = options.recordSize - MSISDN_FOOTER_SIZE_BYTES;
-    let alphaId = this.readAlphaIdentifier(alphaLen);
-
-    let numLen = this.readHexOctet();
-    if (numLen != 0xff) {
-      // +1 for TON/NPI
-      if (numLen > MSISDN_MAX_NUMBER_SIZE_BYTES + 1) {
-        throw new Error("invalid length of BCD number/SSC contents - " + numLen);
-      }
-
-      contact = {alphaId: alphaId,
-                 number: this.readDiallingNumber(numLen)};
-
-      ffLen = length / 2 - alphaLen - numLen - 1; // Minus 1 for the numLen field.
-    } else {
-      ffLen = MSISDN_FOOTER_SIZE_BYTES - 1; // Minus 1 for the numLen field.
-    }
-
-    // Consumes the remaining 0xff
-    Buf.seekIncoming(ffLen * PDU_HEX_OCTET_SIZE);
-    Buf.readStringDelimiter(length);
-
-    return contact;
-  },
-
+  
   /**
    * Read Alpha Identifier.
    *
@@ -6066,7 +6040,7 @@ let GsmPDUHelper = {
    */
   readDataCodingScheme: function readDataCodingScheme(msg) {
     let dcs = this.readHexOctet();
-    if (DEBUG) debug("PDU: read SMS dcs: " + dcs);
+    if (DEBUG) debug("PDU: read dcs: " + dcs);
 
     // No message class by default.
     let messageClass = PDU_DCS_MSG_CLASS_NORMAL;
@@ -6176,43 +6150,6 @@ let GsmPDUHelper = {
     timestamp -= tzOffset;
 
     return timestamp;
-  },
-
-  /**
-   * Write GSM TP-Service-Centre-Time-Stamp(TP-SCTS).
-   *
-   * @see 3GPP TS 23.040 9.2.3.11
-   */
-  writeTimestamp: function writeTimestamp(date) {
-    this.writeSwappedNibbleBCDNum(date.getFullYear() - PDU_TIMESTAMP_YEAR_OFFSET);
-
-    // The value returned by getMonth() is an integer between 0 and 11.
-    // 0 is corresponds to January, 1 to February, and so on.
-    this.writeSwappedNibbleBCDNum(date.getMonth() + 1);
-    this.writeSwappedNibbleBCDNum(date.getDate());
-    this.writeSwappedNibbleBCDNum(date.getHours());
-    this.writeSwappedNibbleBCDNum(date.getMinutes());
-    this.writeSwappedNibbleBCDNum(date.getSeconds());
-
-    // the value returned by getTimezoneOffset() is the difference,
-    // in minutes, between UTC and local time.
-    // For example, if your time zone is UTC+10 (Australian Eastern Standard Time),
-    // -600 will be returned.
-    // In TS 23.040 9.2.3.11, the Time Zone field of TP-SCTS indicates
-    // the different between the local time and GMT.
-    // And expressed in quarters of an hours. (so need to divid by 15)
-    let zone = date.getTimezoneOffset() / 15;
-    let octet = this.BCDToOctet(zone);
-
-    // the bit3 of the Time Zone field represents the algebraic sign.
-    // (0: positive, 1: negative).
-    // For example, if the time zone is -0800 GMT,
-    // 480 will be returned by getTimezoneOffset().
-    // In this case, need to mark sign bit as 1. => 0x08
-    if (zone > 0) {
-      octet = octet | 0x08;
-    }
-    this.writeHexOctet(octet);
   },
 
   /**
@@ -6469,6 +6406,7 @@ let GsmPDUHelper = {
     let encodedBodyLength = options.encodedBodyLength;
     let langIndex = options.langIndex;
     let langShiftIndex = options.langShiftIndex;
+    let strict7BitEncoding = options.strict7BitEncoding;
 
     // SMS-SUBMIT Format:
     //
@@ -6591,7 +6529,8 @@ let GsmPDUHelper = {
 
     switch (dcs) {
       case PDU_DCS_MSG_CODING_7BITS_ALPHABET:
-        this.writeStringAsSeptets(body, paddingBits, langIndex, langShiftIndex);
+        this.writeStringAsSeptets(body, paddingBits, langIndex, langShiftIndex,
+                                  strict7BitEncoding);
         break;
       case PDU_DCS_MSG_CODING_8BITS_ALPHABET:
         // Unsupported.
@@ -6606,359 +6545,6 @@ let GsmPDUHelper = {
     Buf.writeUint16(0);
     Buf.writeUint16(0);
   },
-
-  /**
-   * Read GSM CBS message serial number.
-   *
-   * @param msg
-   *        message object for output.
-   *
-   * @see 3GPP TS 23.041 section 9.4.1.2.1
-   */
-  readCbSerialNumber: function readCbSerialNumber(msg) {
-    msg.serial = Buf.readUint8() << 8 | Buf.readUint8();
-    msg.geographicalScope = (msg.serial >>> 14) & 0x03;
-    msg.messageCode = (msg.serial >>> 4) & 0x03FF;
-    msg.updateNumber = msg.serial & 0x0F;
-  },
-
-  /**
-   * Read GSM CBS message message identifier.
-   *
-   * @param msg
-   *        message object for output.
-   *
-   * @see 3GPP TS 23.041 section 9.4.1.2.2
-   */
-  readCbMessageIdentifier: function readCbMessageIdentifier(msg) {
-    msg.messageId = Buf.readUint8() << 8 | Buf.readUint8();
-
-    if ((msg.format != CB_FORMAT_ETWS)
-        && (msg.messageId >= CB_GSM_MESSAGEID_ETWS_BEGIN)
-        && (msg.messageId <= CB_GSM_MESSAGEID_ETWS_END)) {
-      // `In the case of transmitting CBS message for ETWS, a part of
-      // Message Code can be used to command mobile terminals to activate
-      // emergency user alert and message popup in order to alert the users.`
-      msg.etws = {
-        emergencyUserAlert: msg.messageCode & 0x0200 ? true : false,
-        popup:              msg.messageCode & 0x0100 ? true : false
-      };
-
-      let warningType = msg.messageId - CB_GSM_MESSAGEID_ETWS_BEGIN;
-      if (warningType < CB_ETWS_WARNING_TYPE_NAMES.length) {
-        msg.etws.warningType = warningType;
-      }
-    }
-  },
-
-  /**
-   * Read CBS Data Coding Scheme.
-   *
-   * @param msg
-   *        message object for output.
-   *
-   * @see 3GPP TS 23.038 section 5.
-   */
-  readCbDataCodingScheme: function readCbDataCodingScheme(msg) {
-    let dcs = Buf.readUint8();
-    if (DEBUG) debug("PDU: read CBS dcs: " + dcs);
-
-    let language = null, hasLanguageIndicator = false;
-    // `Any reserved codings shall be assumed to be the GSM 7bit default
-    // alphabet.`
-    let encoding = PDU_DCS_MSG_CODING_7BITS_ALPHABET;
-    let messageClass = PDU_DCS_MSG_CLASS_NORMAL;
-
-    switch (dcs & PDU_DCS_CODING_GROUP_BITS) {
-      case 0x00: // 0000
-        language = CB_DCS_LANG_GROUP_1[dcs & 0x0F];
-        break;
-
-      case 0x10: // 0001
-        switch (dcs & 0x0F) {
-          case 0x00:
-            hasLanguageIndicator = true;
-            break;
-          case 0x01:
-            encoding = PDU_DCS_MSG_CODING_16BITS_ALPHABET;
-            hasLanguageIndicator = true;
-            break;
-        }
-        break;
-
-      case 0x20: // 0010
-        language = CB_DCS_LANG_GROUP_2[dcs & 0x0F];
-        break;
-
-      case 0x40: // 01xx
-      case 0x50:
-      //case 0x60: Text Compression, not supported
-      //case 0x70: Text Compression, not supported
-      case 0x90: // 1001
-        encoding = (dcs & 0x0C);
-        if (encoding == 0x0C) {
-          encoding = PDU_DCS_MSG_CODING_7BITS_ALPHABET;
-        }
-        messageClass = (dcs & PDU_DCS_MSG_CLASS_BITS);
-        break;
-
-      case 0xF0:
-        encoding = (dcs & 0x04) ? PDU_DCS_MSG_CODING_8BITS_ALPHABET
-                                : PDU_DCS_MSG_CODING_7BITS_ALPHABET;
-        switch(dcs & PDU_DCS_MSG_CLASS_BITS) {
-          case 0x01: messageClass = PDU_DCS_MSG_CLASS_USER_1; break;
-          case 0x02: messageClass = PDU_DCS_MSG_CLASS_USER_2; break;
-          case 0x03: messageClass = PDU_DCS_MSG_CLASS_3; break;
-        }
-        break;
-
-      case 0x30: // 0011 (Reserved)
-      case 0x80: // 1000 (Reserved)
-      case 0xA0: // 1010..1100 (Reserved)
-      case 0xB0:
-      case 0xC0:
-        break;
-
-      default:
-        throw new Error("Unsupported CBS data coding scheme: " + dcs);
-    }
-
-    msg.dcs = dcs;
-    msg.encoding = encoding;
-    msg.language = language;
-    msg.messageClass = GECKO_SMS_MESSAGE_CLASSES[messageClass];
-    msg.hasLanguageIndicator = hasLanguageIndicator;
-  },
-
-  /**
-   * Read GSM CBS message page parameter.
-   *
-   * @param msg
-   *        message object for output.
-   *
-   * @see 3GPP TS 23.041 section 9.4.1.2.4
-   */
-  readCbPageParameter: function readCbPageParameter(msg) {
-    let octet = Buf.readUint8();
-    msg.pageIndex = (octet >>> 4) & 0x0F;
-    msg.numPages = octet & 0x0F;
-    if (!msg.pageIndex || !msg.numPages) {
-      // `If a mobile receives the code 0000 in either the first field or the
-      // second field then it shall treat the CBS message exactly the same as a
-      // CBS message with page parameter 0001 0001 (i.e. a single page message).`
-      msg.pageIndex = msg.numPages = 1;
-    }
-  },
-
-  /**
-   * Read ETWS Primary Notification message warning type.
-   *
-   * @param msg
-   *        message object for output.
-   *
-   * @see 3GPP TS 23.041 section 9.3.24
-   */
-  readCbWarningType: function readCbWarningType(msg) {
-    let word = Buf.readUint8() << 8 | Buf.readUint8();
-    msg.etws = {
-      warningType:        (word >>> 9) & 0x7F,
-      popup:              word & 0x80 ? true : false,
-      emergencyUserAlert: word & 0x100 ? true : false
-    };
-  },
-
-  /**
-   * Read CBS-Message-Information-Page
-   *
-   * @param msg
-   *        message object for output.
-   * @param length
-   *        length of cell broadcast data to read in octets.
-   *
-   * @see 3GPP TS 23.041 section 9.3.19
-   */
-  readGsmCbData: function readGsmCbData(msg, length) {
-    let bufAdapter = {
-      readHexOctet: function readHexOctet() {
-        return Buf.readUint8();
-      }
-    };
-
-    msg.body = null;
-    msg.data = null;
-    switch (msg.encoding) {
-      case PDU_DCS_MSG_CODING_7BITS_ALPHABET:
-        msg.body = this.readSeptetsToString.call(bufAdapter,
-                                                 (length * 8 / 7), 0,
-                                                 PDU_NL_IDENTIFIER_DEFAULT,
-                                                 PDU_NL_IDENTIFIER_DEFAULT);
-        if (msg.hasLanguageIndicator) {
-          msg.language = msg.body.substring(0, 2);
-          msg.body = msg.body.substring(3);
-        }
-        break;
-
-      case PDU_DCS_MSG_CODING_8BITS_ALPHABET:
-        msg.data = Buf.readUint8Array(length);
-        break;
-
-      case PDU_DCS_MSG_CODING_16BITS_ALPHABET:
-        if (msg.hasLanguageIndicator) {
-          msg.language = this.readSeptetsToString.call(bufAdapter, 2, 0,
-                                                       PDU_NL_IDENTIFIER_DEFAULT,
-                                                       PDU_NL_IDENTIFIER_DEFAULT);
-          length -= 2;
-        }
-        msg.body = this.readUCS2String.call(bufAdapter, length);
-        break;
-    }
-  },
-
-  /**
-   * Read Cell GSM/ETWS/UMTS Broadcast Message.
-   *
-   * @param pduLength
-   *        total length of the incoming PDU in octets.
-   */
-  readCbMessage: function readCbMessage(pduLength) {
-    // Validity                                                   GSM ETWS UMTS
-    let msg = {
-      // Internally used in ril_worker:
-      serial:               null,                              //  O   O    O
-      updateNumber:         null,                              //  O   O    O
-      format:               null,                              //  O   O    O
-      dcs:                  0x0F,                              //  O   X    O
-      encoding:             PDU_DCS_MSG_CODING_7BITS_ALPHABET, //  O   X    O
-      hasLanguageIndicator: false,                             //  O   X    O
-      data:                 null,                              //  O   X    O
-      body:                 null,                              //  O   X    O
-      pageIndex:            1,                                 //  O   X    X
-      numPages:             1,                                 //  O   X    X
-
-      // DOM attributes:
-      geographicalScope:    null,                              //  O   O    O
-      messageCode:          null,                              //  O   O    O
-      messageId:            null,                              //  O   O    O
-      language:             null,                              //  O   X    O
-      fullBody:             null,                              //  O   X    O
-      fullData:             null,                              //  O   X    O
-      messageClass:         GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL], //  O   x    O
-      etws:                 null                               //  ?   O    ?
-      /*{
-        warningType:        null,                              //  X   O    X
-        popup:              false,                             //  X   O    X
-        emergencyUserAlert: false,                             //  X   O    X
-      }*/
-    };
-
-    if (pduLength <= CB_MESSAGE_SIZE_ETWS) {
-      msg.format = CB_FORMAT_ETWS;
-      return this.readEtwsCbMessage(msg);
-    }
-
-    if (pduLength <= CB_MESSAGE_SIZE_GSM) {
-      msg.format = CB_FORMAT_GSM;
-      return this.readGsmCbMessage(msg, pduLength);
-    }
-
-    return null;
-  },
-
-  /**
-   * Read GSM Cell Broadcast Message.
-   *
-   * @param msg
-   *        message object for output.
-   * @param pduLength
-   *        total length of the incomint PDU in octets.
-   *
-   * @see 3GPP TS 23.041 clause 9.4.1.2
-   */
-  readGsmCbMessage: function readGsmCbMessage(msg, pduLength) {
-    this.readCbSerialNumber(msg);
-    this.readCbMessageIdentifier(msg);
-    this.readCbDataCodingScheme(msg);
-    this.readCbPageParameter(msg);
-
-    // GSM CB message header takes 6 octets.
-    this.readGsmCbData(msg, pduLength - 6);
-
-    return msg;
-  },
-
-  /**
-   * Read ETWS Primary Notification Message.
-   *
-   * @param msg
-   *        message object for output.
-   *
-   * @see 3GPP TS 23.041 clause 9.4.1.3
-   */
-  readEtwsCbMessage: function readEtwsCbMessage(msg) {
-    this.readCbSerialNumber(msg);
-    this.readCbMessageIdentifier(msg);
-    this.readCbWarningType(msg);
-
-    // Octet 7..56 is Warning Security Information. However, according to
-    // section 9.4.1.3.6, `The UE shall ignore this parameter.` So we just skip
-    // processing it here.
-
-    return msg;
-  },
-
-  /**
-   * Read network name.
-   *
-   * @param len Length of the information element.
-   * @return
-   *   {
-   *     networkName: network name.
-   *     shouldIncludeCi: Should Country's initials included in text string.
-   *   }
-   * @see TS 24.008 clause 10.5.3.5a.
-   */
-  readNetworkName: function readNetworkName(len) {
-    // According to TS 24.008 Sec. 10.5.3.5a, the first octet is:
-    // bit 8: must be 1.
-    // bit 5-7: Text encoding.
-    //          000 - GSM default alphabet.
-    //          001 - UCS2 (16 bit).
-    //          else - reserved.
-    // bit 4: MS should add the letters for Country's Initials and a space
-    //        to the text string if this bit is true.
-    // bit 1-3: number of spare bits in last octet.
-
-    let codingInfo = GsmPDUHelper.readHexOctet();
-    if (!(codingInfo & 0x80)) {
-      return null;
-    }
-
-    let textEncoding = (codingInfo & 0x70) >> 4,
-        shouldIncludeCountryInitials = !!(codingInfo & 0x08),
-        spareBits = codingInfo & 0x07;
-    let resultString;
-
-    switch (textEncoding) {
-    case 0:
-      // GSM Default alphabet.
-      resultString = GsmPDUHelper.readSeptetsToString(
-        ((len - 1) * 8 - spareBits) / 7, 0,
-        PDU_NL_IDENTIFIER_DEFAULT,
-        PDU_NL_IDENTIFIER_DEFAULT);
-      break;
-    case 1:
-      // UCS2 encoded.
-      resultString = this.readUCS2String(len - 1);
-      break;
-    default:
-      // Not an available text coding.
-      return null;
-    }
-
-    // TODO - Bug 820286: According to shouldIncludeCountryInitials, add
-    // country initials to the resulting string.
-    return resultString;
-  }
 };
 
 let StkCommandParamsFactory = {
@@ -6973,9 +6559,6 @@ let StkCommandParamsFactory = {
         break;
       case STK_CMD_POLL_OFF:
         param = this.processPollOff(cmdDetails, ctlvs);
-        break;
-      case STK_CMD_PROVIDE_LOCAL_INFO:
-        param = this.processProvideLocalInfo(cmdDetails, ctlvs);
         break;
       case STK_CMD_SET_UP_EVENT_LIST:
         param = this.processSetUpEventList(cmdDetails, ctlvs);
@@ -7011,9 +6594,6 @@ let StkCommandParamsFactory = {
       case STK_CMD_PLAY_TONE:
         param = this.processPlayTone(cmdDetails, ctlvs);
         break;
-      case STK_CMD_TIMER_MANAGEMENT:
-        param = this.processTimerManagement(cmdDetails, ctlvs);
-        break;
       default:
         debug("unknown proactive command");
         break;
@@ -7035,17 +6615,17 @@ let StkCommandParamsFactory = {
       case STK_REFRESH_FILE_CHANGE:
       case STK_REFRESH_NAA_INIT_AND_FILE_CHANGE:
         let ctlv = StkProactiveCmdHelper.searchForTag(
-          COMPREHENSIONTLV_TAG_FILE_LIST, ctlvs);
+          COMPREHENSIONTLV_FILE_LIST, ctlvs);
         if (ctlv) {
           let list = ctlv.value.fileList;
           if (DEBUG) {
             debug("Refresh, list = " + list);
           }
-          ICCRecordHelper.fetchICCRecords();
+          RIL.fetchICCRecords();
         }
         break;
     }
-    return null;
+    return {};
   },
 
   /**
@@ -7078,7 +6658,7 @@ let StkCommandParamsFactory = {
    *        The all TLVs in this proactive command.
    */
   processPollOff: function processPollOff(cmdDetails, ctlvs) {
-    return null;
+    return {};
   },
 
   /**
@@ -7372,41 +6952,6 @@ let StkCommandParamsFactory = {
     playTone.isVibrate = (cmdDetails.commandQualifier & 0x01) != 0x00;
 
     return playTone;
-  },
-
-  /**
-   * Construct a param for Provide Local Information
-   *
-   * @param cmdDetails
-   *        The value object of CommandDetails TLV.
-   * @param ctlvs
-   *        The all TLVs in this proactive command.
-   */
-  processProvideLocalInfo: function processProvideLocalInfo(cmdDetails, ctlvs) {
-    let provideLocalInfo = {
-      localInfoType: cmdDetails.commandQualifier
-    };
-    return provideLocalInfo;
-  },
-
-  processTimerManagement: function processTimerManagement(cmdDetails, ctlvs) {
-    let timer = {
-      timerAction: cmdDetails.commandQualifier
-    };
-
-    let ctlv = StkProactiveCmdHelper.searchForTag(
-        COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER, ctlvs);
-    if (ctlv) {
-      timer.timerId = ctlv.value.timerId;
-    }
-
-    ctlv = StkProactiveCmdHelper.searchForTag(
-        COMPREHENSIONTLV_TAG_TIMER_VALUE, ctlvs);
-    if (ctlv) {
-      timer.timerValue = ctlv.value.timerValue;
-    }
-
-    return timer;
   }
 };
 
@@ -7439,10 +6984,6 @@ let StkProactiveCmdHelper = {
         return this.retrieveDefaultText(length);
       case COMPREHENSIONTLV_TAG_EVENT_LIST:
         return this.retrieveEventList(length);
-      case COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER:
-        return this.retrieveTimerId(length);
-      case COMPREHENSIONTLV_TAG_TIMER_VALUE:
-        return this.retrieveTimerValue(length);
       case COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE:
         return this.retrieveImmediaResponse(length);
       case COMPREHENSIONTLV_TAG_URL:
@@ -7563,7 +7104,7 @@ let StkProactiveCmdHelper = {
     length--; // -1 for the codingScheme.
     switch (text.codingScheme & 0x0f) {
       case STK_TEXT_CODING_GSM_7BIT_PACKED:
-        text.textString = GsmPDUHelper.readSeptetsToString(length * 8 / 7, 0, 0, 0);
+        text.textString = GsmPDUHelper.readSeptetsToString(length / 7, 0, 0, 0);
         break;
       case STK_TEXT_CODING_GSM_8BIT:
         text.textString = GsmPDUHelper.read8BitUnpackedToString(length);
@@ -7601,13 +7142,6 @@ let StkProactiveCmdHelper = {
    * | (Y-1)+X+2    |                        |        |
    */
   retrieveItem: function retrieveItem(length) {
-    // TS 102.223 ,clause 6.6.7 SET-UP MENU
-    // If the "Item data object for item 1" is a null data object
-    // (i.e. length = '00' and no value part), this is an indication to the ME
-    // to remove the existing menu from the menu system in the ME.
-    if (!length) {
-      return null;
-    }
     let item = {
       identifier: GsmPDUHelper.readHexOctet(),
       text: GsmPDUHelper.readAlphaIdentifier(length - 1)
@@ -7697,40 +7231,6 @@ let StkProactiveCmdHelper = {
     return {
       eventList: eventList
     };
-  },
-
-  /**
-   * Timer Identifier.
-   *
-   * | Byte  | Description          | Length |
-   * |  1    | Timer Identifier Tag |   1    |
-   * |  2    | Length = 01          |   1    |
-   * |  3    | Timer Identifier     |   1    |
-   */
-  retrieveTimerId: function retrieveTimerId(length) {
-    let id = {
-      timerId: GsmPDUHelper.readHexOctet()
-    };
-    return id;
-  },
-
-  /**
-   * Timer Value.
-   *
-   * | Byte  | Description          | Length |
-   * |  1    | Timer Value Tag      |   1    |
-   * |  2    | Length = 03          |   1    |
-   * |  3    | Hour                 |   1    |
-   * |  4    | Minute               |   1    |
-   * |  5    | Second               |   1    |
-   */
-  retrieveTimerValue: function retrieveTimerValue(length) {
-    let value = {
-      timerValue: (GsmPDUHelper.readSwappedNibbleBcdNum(1) * 60 * 60) +
-                  (GsmPDUHelper.readSwappedNibbleBcdNum(1) * 60) +
-                  (GsmPDUHelper.readSwappedNibbleBcdNum(1))
-    };
-    return value;
   },
 
   /**
@@ -7971,44 +7471,6 @@ let ComprehensionTlvHelper = {
     GsmPDUHelper.writeHexOctet(0x80 | cause);
   },
 
-  writeDateTimeZoneTlv: function writeDataTimeZoneTlv(date) {
-    GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_DATE_TIME_ZONE);
-    GsmPDUHelper.writeHexOctet(7);
-    GsmPDUHelper.writeTimestamp(date);
-  },
-
-  writeLanguageTlv: function writeLanguageTlv(language) {
-    GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_LANGUAGE);
-    GsmPDUHelper.writeHexOctet(2);
-
-    // ISO 639-1, Alpha-2 code
-    // TS 123.038, clause 6.2.1, GSM 7 bit Default Alphabet
-    GsmPDUHelper.writeHexOctet(
-      PDU_NL_LOCKING_SHIFT_TABLES[PDU_NL_IDENTIFIER_DEFAULT].indexOf(language[0]));
-    GsmPDUHelper.writeHexOctet(
-      PDU_NL_LOCKING_SHIFT_TABLES[PDU_NL_IDENTIFIER_DEFAULT].indexOf(language[1]));
-  },
-
-  /**
-   * Write Timer Value Comprehension TLV.
-   *
-   * @param seconds length of time during of the timer.
-   * @param cr Comprehension Required or not
-   */
-  writeTimerValueTlv: function writeTimerValueTlv(seconds, cr) {
-    GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_TIMER_VALUE |
-                               (cr ? COMPREHENSIONTLV_FLAG_CR : 0));
-    GsmPDUHelper.writeHexOctet(3);
-
-    // TS 102.223, clause 8.38
-    // +----------------+------------------+-------------------+
-    // | hours (1 byte) | minutes (1 btye) | secounds (1 byte) |
-    // +----------------+------------------+-------------------+
-    GsmPDUHelper.writeSwappedNibbleBCDNum(Math.floor(seconds / 60 / 60));
-    GsmPDUHelper.writeSwappedNibbleBCDNum(Math.floor(seconds / 60) % 60);
-    GsmPDUHelper.writeSwappedNibbleBCDNum(seconds % 60);
-  },
-
   getSizeOfLengthOctets: function getSizeOfLengthOctets(length) {
     if (length >= 0x10000) {
       return 4; // 0x83, len_1, len_2, len_3
@@ -8105,1166 +7567,6 @@ let BerTlvHelper = {
     };
     return berTlv;
   }
-};
-
-/**
- * ICC Helper for getting EF path.
- */
-let ICCFileHelper = {
-  /**
-   * This function handles only EFs that are common to RUIM, SIM, USIM
-   * and other types of ICC cards.
-   */
-  getCommonEFPath: function getCommonEFPath(fileId) {
-    switch (fileId) {
-      case ICC_EF_ICCID:
-        return EF_PATH_MF_SIM;
-      case ICC_EF_ADN:
-        return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM;
-      case ICC_EF_PBR:
-        return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM + EF_PATH_DF_PHONEBOOK;
-    }
-    return null;
-  },
-
-  /**
-   * This function handles EFs for SIM.
-   */
-  getSimEFPath: function getSimEFPath(fileId) {
-    switch (fileId) {
-      case ICC_EF_FDN:
-      case ICC_EF_MSISDN:
-        return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM;
-      case ICC_EF_AD:
-      case ICC_EF_MBDN:
-      case ICC_EF_PLMNsel:
-      case ICC_EF_SPN:
-      case ICC_EF_SPDI:
-      case ICC_EF_SST:
-      case ICC_EF_PHASE:
-      case ICC_EF_CBMI:
-      case ICC_EF_CBMIR:
-      case ICC_EF_OPL:
-      case ICC_EF_PNN:
-        return EF_PATH_MF_SIM + EF_PATH_DF_GSM;
-      default:
-        return null
-    }
-  },
-
-  /**
-   * This function handles EFs for USIM.
-   */
-  getUSimEFPath: function getUSimEFPath(fileId) {
-    switch (fileId) {
-      case ICC_EF_AD:
-      case ICC_EF_FDN:
-      case ICC_EF_MBDN:
-      case ICC_EF_UST:
-      case ICC_EF_MSISDN:
-      case ICC_EF_SPN:
-      case ICC_EF_SPDI:
-      case ICC_EF_CBMI:
-      case ICC_EF_CBMIR:
-      case ICC_EF_OPL:
-      case ICC_EF_PNN:
-        return EF_PATH_MF_SIM + EF_PATH_ADF_USIM;
-      default:
-        // The file ids in USIM phone book entries are decided by the
-        // card manufacturer. So if we don't match any of the cases
-        // above and if its a USIM return the phone book path.
-        return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM + EF_PATH_DF_PHONEBOOK;
-    }
-  },
-
-  /**
-   * Helper function for getting the pathId for the specific ICC record
-   * depeding on which type of ICC card we are using.
-   *
-   * @param fileId
-   *        File id.
-   * @return The pathId or null in case of an error or invalid input.
-   */
-  getEFPath: function getEFPath(fileId) {
-    // TODO: Bug 726098, change to use cdmaSubscriptionAppIndex when in CDMA.
-    let index = RIL.iccStatus.gsmUmtsSubscriptionAppIndex;
-    if (index == -1) {
-      return null;
-    }
-    let app = RIL.iccStatus.apps[index];
-    if (!app) {
-      return null;
-    }
-
-    let path = this.getCommonEFPath(fileId);
-    if (path) {
-      return path;
-    }
-
-    switch (app.app_type) {
-      case CARD_APPTYPE_SIM:
-        return this.getSimEFPath(fileId);
-      case CARD_APPTYPE_USIM:
-        return this.getUSimEFPath(fileId);
-      default:
-        return null;
-    }
-  },
-};
-
-/**
- * Helper for ICC IO functionalities.
- */
-let ICCIOHelper = {
-  /**
-   * Load EF with type 'Linear Fixed'.
-   *
-   * @param fileId
-   *        The file to operate on, one of the ICC_EF_* constants.
-   * @param recordNumber [optional]
-   *        The number of the record shall be loaded.
-   * @param callback [optional]
-   *        The callback function shall be called when the record(s) is read.
-   * @param this [optional]
-   *        The 'this' object when the callback is called.
-   * @param onerror [optional]
-   *        The callback function shall be called when failure.
-   */
-  loadLinearFixedEF: function loadLinearFixedEF(options) {
-    options.type = EF_TYPE_LINEAR_FIXED;
-    let cb = options.callback;
-    options.callback = function callback(options) {
-      options.callback = cb;
-      options.command = ICC_COMMAND_READ_RECORD;
-      options.p1 = options.recordNumber || 1; // Record number
-      options.p2 = READ_RECORD_ABSOLUTE_MODE;
-      options.p3 = options.recordSize;
-      RIL.iccIO(options);
-    }.bind(this);
-    this.getResponse(options);
-  },
-
-  /**
-   * Load next record from current record Id.
-   */
-  loadNextRecord: function loadNextRecord(options) {
-    options.p1++;
-    RIL.iccIO(options);
-  },
-
-  /**
-   * Load EF with type 'Transparent'.
-   *
-   * @param fileId
-   *        The file to operate on, one of the ICC_EF_* constants.
-   * @param callback [optional]
-   *        The callback function shall be called when the record(s) is read.
-   * @param onerror [optional]
-   *        The callback function shall be called when failure.
-   */
-  loadTransparentEF: function loadTransparentEF(options) {
-    options.type = EF_TYPE_TRANSPARENT;
-    let cb = options.callback;
-    options.callback = function callback(options) {
-      options.callback = cb;
-      options.command = ICC_COMMAND_READ_BINARY;
-      options.p3 = options.fileSize;
-      RIL.iccIO(options);
-    }.bind(this);
-    this.getResponse(options);
-  },
-
-  /**
-   * Use ICC_COMMAND_GET_RESPONSE to query the EF.
-   *
-   * @param fileId
-   *        The file to operate on, one of the ICC_EF_* constants.
-   */
-  getResponse: function getResponse(options) {
-    options.command = ICC_COMMAND_GET_RESPONSE;
-    options.pathId = ICCFileHelper.getEFPath(options.fileId);
-    if (!options.pathId) {
-      throw new Error("Unknown pathId for " + options.fileId.toString(16));
-    }
-    options.p1 = 0; // For GET_RESPONSE, p1 = 0
-    options.p2 = 0; // For GET_RESPONSE, p2 = 0
-    options.p3 = GET_RESPONSE_EF_SIZE_BYTES;
-    RIL.iccIO(options);
-  },
-
-  /**
-   * Process ICC I/O response.
-   */
-  processICCIO: function processICCIO(options) {
-    let func = this[options.command];
-    func.call(this, options);
-  },
-
-  /**
-   * Process a ICC_COMMAND_GET_RESPONSE type command for REQUEST_SIM_IO.
-   */
-  processICCIOGetResponse: function processICCIOGetResponse(options) {
-    let length = Buf.readUint32();
-
-    // The format is from TS 51.011, clause 9.2.1
-
-    // Skip RFU, data[0] data[1]
-    Buf.seekIncoming(2 * PDU_HEX_OCTET_SIZE);
-
-    // File size, data[2], data[3]
-    options.fileSize = (GsmPDUHelper.readHexOctet() << 8) |
-                        GsmPDUHelper.readHexOctet();
-
-    // 2 bytes File id. data[4], data[5]
-    let fileId = (GsmPDUHelper.readHexOctet() << 8) |
-                  GsmPDUHelper.readHexOctet();
-    if (fileId != options.fileId) {
-      throw new Error("Expected file ID " + options.fileId.toString(16) +
-                      " but read " + fileId.toString(16));
-    }
-
-    // Type of file, data[6]
-    let fileType = GsmPDUHelper.readHexOctet();
-    if (fileType != TYPE_EF) {
-      throw new Error("Unexpected file type " + fileType);
-    }
-
-    // Skip 1 byte RFU, data[7],
-    //      3 bytes Access conditions, data[8] data[9] data[10],
-    //      1 byte File status, data[11],
-    //      1 byte Length of the following data, data[12].
-    Buf.seekIncoming(((RESPONSE_DATA_STRUCTURE - RESPONSE_DATA_FILE_TYPE - 1) *
-        PDU_HEX_OCTET_SIZE));
-
-    // Read Structure of EF, data[13]
-    let efType = GsmPDUHelper.readHexOctet();
-    if (efType != options.type) {
-      throw new Error("Expected EF type " + options.type + " but read " + efType);
-    }
-
-    // Length of a record, data[14]
-    options.recordSize = GsmPDUHelper.readHexOctet();
-    options.totalRecords = options.fileSize / options.recordSize;
-
-    Buf.readStringDelimiter(length);
-
-    if (options.callback) {
-      options.callback(options);
-    }
-  },
-
-  /**
-   * Process a ICC_COMMAND_READ_RECORD type command for REQUEST_SIM_IO.
-   */
-  processICCIOReadRecord: function processICCIOReadRecord(options) {
-    if (options.callback) {
-      options.callback(options);
-    }
-  },
-
-  /**
-   * Process a ICC_COMMAND_READ_BINARY type command for REQUEST_SIM_IO.
-   */
-  processICCIOReadBinary: function processICCIOReadBinary(options) {
-    if (options.callback) {
-      options.callback(options);
-    }
-  },
-};
-ICCIOHelper[ICC_COMMAND_SEEK] = null;
-ICCIOHelper[ICC_COMMAND_READ_BINARY] = function ICC_COMMAND_READ_BINARY(options) {
-  this.processICCIOReadBinary(options);
-};
-ICCIOHelper[ICC_COMMAND_READ_RECORD] = function ICC_COMMAND_READ_RECORD(options) {
-  this.processICCIOReadRecord(options);
-};
-ICCIOHelper[ICC_COMMAND_GET_RESPONSE] = function ICC_COMMAND_GET_RESPONSE(options) {
-  this.processICCIOGetResponse(options);
-};
-ICCIOHelper[ICC_COMMAND_UPDATE_BINARY] = null;
-ICCIOHelper[ICC_COMMAND_UPDATE_RECORD] = null;
-
-/**
- * Helper for ICC records.
- */
-let ICCRecordHelper = {
-  /**
-   * Fetch ICC records.
-   */
-  fetchICCRecords: function fetchICCRecords() {
-    this.getICCID();
-    RIL.getIMSI();
-    this.getMSISDN();
-    this.getAD();
-    this.getSST();
-    this.getMBDN();
-  },
-
-  /**
-   * Get EF_phase.
-   * This EF is only available in SIM.
-   */
-  getICCPhase: function getICCPhase() {
-    function callback() {
-      let length = Buf.readUint32();
-
-      let phase = GsmPDUHelper.readHexOctet();
-      // If EF_phase is coded '03' or greater, an ME supporting STK shall
-      // perform the PROFILE DOWNLOAD procedure.
-      if (phase >= ICC_PHASE_2_PROFILE_DOWNLOAD_REQUIRED) {
-        RIL.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
-      }
-
-      Buf.readStringDelimiter(length);
-    }
-
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_PHASE,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Read the ICCID.
-   */
-  getICCID: function getICCID() {
-    function callback() {
-      let length = Buf.readUint32();
-      RIL.iccInfo.iccid = GsmPDUHelper.readSwappedNibbleBcdString(length / 2);
-      Buf.readStringDelimiter(length);
-
-      if (DEBUG) debug("ICCID: " + RIL.iccInfo.iccid);
-      if (RIL.iccInfo.iccid) {
-        ICCUtilsHelper.handleICCInfoChange();
-      }
-    }
-
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_ICCID,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Read the MSISDN from the ICC.
-   */
-  getMSISDN: function getMSISDN() {
-    function callback(options) {
-      let contact = GsmPDUHelper.readAlphaIdDiallingNumber(options);
-      if (!contact || RIL.iccInfo.msisdn === contact.number) {
-        return;
-      }
-      RIL.iccInfo.msisdn = contact.number;
-      if (DEBUG) debug("MSISDN: " + RIL.iccInfo.msisdn);
-      ICCUtilsHelper.handleICCInfoChange();
-    }
-
-    ICCIOHelper.loadLinearFixedEF({fileId: ICC_EF_MSISDN,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Read the AD (Administrative Data) from the ICC.
-   */
-  getAD: function getAD() {
-    function callback() {
-      let length = Buf.readUint32();
-      // Each octet is encoded into two chars.
-      let len = length / 2;
-      RIL.iccInfo.ad = GsmPDUHelper.readHexOctetArray(len);
-      Buf.readStringDelimiter(length);
-
-      if (DEBUG) {
-        let str = "";
-        for (let i = 0; i < RIL.iccInfo.ad.length; i++) {
-          str += RIL.iccInfo.ad[i] + ", ";
-        }
-        debug("AD: " + str);
-      }
-
-      if (RIL.iccInfo.imsi) {
-        // MCC is the first 3 digits of IMSI.
-        RIL.iccInfo.mcc = parseInt(RIL.iccInfo.imsi.substr(0,3));
-        // The 4th byte of the response is the length of MNC.
-        RIL.iccInfo.mnc = parseInt(RIL.iccInfo.imsi.substr(3, RIL.iccInfo.ad[3]));
-        if (DEBUG) debug("MCC: " + RIL.iccInfo.mcc + " MNC: " + RIL.iccInfo.mnc);
-        ICCUtilsHelper.handleICCInfoChange();
-      }
-    }
-
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_AD,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Read the SPN (Service Provider Name) from the ICC.
-   */
-  getSPN: function getSPN() {
-    function callback() {
-      let length = Buf.readUint32();
-      // Each octet is encoded into two chars.
-      // Minus 1 because the first octet is used to store display condition.
-      let len = (length / 2) - 1;
-      let spnDisplayCondition = GsmPDUHelper.readHexOctet();
-      let spn = GsmPDUHelper.readAlphaIdentifier(len);
-      Buf.readStringDelimiter(length);
-
-      if (DEBUG) {
-        debug("SPN: spn = " + spn +
-              ", spnDisplayCondition = " + spnDisplayCondition);
-      }
-
-      RIL.iccInfoPrivate.SPN = {
-        spn : spn,
-        spnDisplayCondition : spnDisplayCondition,
-      };
-      RIL.iccInfo.spn = spn;
-      ICCUtilsHelper.updateDisplayCondition();
-      ICCUtilsHelper.handleICCInfoChange();
-    }
-
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_SPN,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Read the (U)SIM Service Table from the ICC.
-   */
-  getSST: function getSST() {
-    function callback() {
-      let length = Buf.readUint32();
-      // Each octet is encoded into two chars.
-      let len = length / 2;
-      RIL.iccInfo.sst = GsmPDUHelper.readHexOctetArray(len);
-      Buf.readStringDelimiter(length);
-
-      if (DEBUG) {
-        let str = "";
-        for (let i = 0; i < RIL.iccInfo.sst.length; i++) {
-          str += RIL.iccInfo.sst[i] + ", ";
-        }
-        debug("SST: " + str);
-      }
-
-      // Fetch SPN and PLMN list, if some of them are available.
-      if (ICCUtilsHelper.isICCServiceAvailable("SPN")) {
-        if (DEBUG) debug("SPN: SPN is available");
-        this.getSPN();
-      } else {
-        if (DEBUG) debug("SPN: SPN service is not available");
-      }
-
-      if (ICCUtilsHelper.isICCServiceAvailable("SPDI")) {
-        if (DEBUG) debug("SPDI: SPDI available.");
-        this.getSPDI();
-      } else {
-        if (DEBUG) debug("SPDI: SPDI service is not available");
-      }
-
-      if (ICCUtilsHelper.isICCServiceAvailable("PNN")) {
-        if (DEBUG) debug("PNN: PNN is available");
-        this.getPNN();
-      } else {
-        if (DEBUG) debug("PNN: PNN is not available");
-      }
-
-      if (ICCUtilsHelper.isICCServiceAvailable("OPL")) {
-        if (DEBUG) debug("OPL: OPL is available");
-        this.getOPL();
-      } else {
-        if (DEBUG) debug("OPL: OPL is not available");
-      }
-
-      if (ICCUtilsHelper.isICCServiceAvailable("CBMI")) {
-        this.getCBMI();
-      } else {
-        RIL.cellBroadcastConfigs.CBMI = null;
-      }
-      if (ICCUtilsHelper.isICCServiceAvailable("CBMIR")) {
-        this.getCBMIR();
-      } else {
-        RIL.cellBroadcastConfigs.CBMIR = null;
-      }
-      RIL._mergeAllCellBroadcastConfigs();
-    }
-
-    // ICC_EF_UST has the same value with ICC_EF_SST.
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_SST,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   *  Get ICC FDN.
-   *
-   *  @param requestId
-   *         Request id from RadioInterfaceLayer.
-   */
-  getFDN: function getFDN(options) {
-    function callback(options) {
-      let contact = GsmPDUHelper.readAlphaIdDiallingNumber(options);
-      if (contact) {
-        RIL.iccInfo.fdn.push(contact);
-      }
-
-      if (options.p1 < options.totalRecords) {
-        ICCIOHelper.loadNextRecord(options);
-      } else {
-        if (DEBUG) {
-          for (let i = 0; i < RIL.iccInfo.fdn.length; i++) {
-            debug("FDN[" + i + "] alphaId = " + RIL.iccInfo.fdn[i].alphaId +
-                                " number  = " + RIL.iccInfo.fdn[i].number);
-          }
-        }
-        // To prevent DataCloneError when sending parcels, we need to delete
-        // those properties which are not 'Structured Clone Data', in this case,
-        // those callback functions.
-        delete options.callback;
-        delete options.onerror;
-        options.rilMessageType = "icccontacts";
-        options.contacts = RIL.iccInfo.fdn;
-        RIL.sendDOMMessage(options);
-      }
-    }
-
-    RIL.iccInfo.fdn = [];
-    options.fileId = ICC_EF_FDN;
-    options.callback = callback.bind(this);
-    ICCIOHelper.loadLinearFixedEF(options);
-  },
-
-  /**
-   *  Get ICC ADN.
-   *
-   *  @param fileId
-   *         EF id of the ADN.
-   *  @param requestId
-   *         Request id from RadioInterfaceLayer.
-   */
-  getADN: function getADN(options) {
-    function callback(options) {
-      let contact = GsmPDUHelper.readAlphaIdDiallingNumber(options);
-      if (contact) {
-        RIL.iccInfo.adn.push(contact);
-      }
-
-      if (options.p1 < options.totalRecords) {
-        ICCIOHelper.loadNextRecord(options);
-      } else {
-        if (DEBUG) {
-          for (let i = 0; i < RIL.iccInfo.adn.length; i++) {
-            debug("ADN[" + i + "] " + JSON.stringify(RIL.iccInfo.adn[i]));
-          }
-        }
-        // To prevent DataCloneError when sending parcels, we need to delete
-        // those properties which are not 'Structured Clone Data', in this case,
-        // those callback functions.
-        delete options.callback;
-        delete options.onerror;
-        options.rilMessageType = "icccontacts";
-        options.contacts = RIL.iccInfo.adn;
-        RIL.sendDOMMessage(options);
-      }
-    }
-
-    function error(options) {
-      delete options.callback;
-      delete options.onerror;
-      options.rilMessageType = "icccontacts";
-      RIL.sendDOMMessage(options);
-    }
-
-    RIL.iccInfo.adn = [];
-    options.callback = callback.bind(this);
-    options.onerror = error.bind(this);
-    ICCIOHelper.loadLinearFixedEF(options);
-  },
-
-  /**
-   * Get ICC MBDN. (Mailbox Dialling Number)
-   *
-   * @see TS 131.102, clause 4.2.60
-   */
-  getMBDN: function getMBDN() {
-    function callback(options) {
-      let contact = GsmPDUHelper.readAlphaIdDiallingNumber(options);
-      if (!contact || RIL.iccInfo.mbdn === contact.number){
-        return;
-      }
-      RIL.iccInfo.mbdn = contact.number;
-      if (DEBUG) {
-        debug("MBDN, alphaId="+contact.alphaId+" number="+contact.number);
-      }
-      contact.rilMessageType = "iccmbdn";
-      RIL.sendDOMMessage(contact);
-    }
-
-    ICCIOHelper.loadLinearFixedEF({fileId: ICC_EF_MBDN,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Get USIM Phonebook.
-   *
-   * @param requestId
-   *         Request id from RadioInterfaceLayer.
-   */
-  getPBR: function getPBR(options) {
-    function callback(options) {
-      let bufLen = Buf.readUint32();
-
-      let tag = GsmPDUHelper.readHexOctet();
-      let length = GsmPDUHelper.readHexOctet();
-      let value = ICCUtilsHelper.decodeSimTlvs(length);
-
-      let adn = ICCUtilsHelper.searchForIccUsimTag(value, ICC_USIM_EFADN_TAG);
-      options.fileId = (adn.value[0] << 8) | adn.value[1];
-      Buf.readStringDelimiter(bufLen);
-
-      this.getADN(options);
-    }
-
-    function error(options) {
-      delete options.callback;
-      delete options.onerror;
-      options.rilMessageType = "icccontacts";
-      RIL.sendDOMMessage(options);
-    }
-
-    options.fileId = ICC_EF_PBR;
-    options.callback = callback.bind(this);
-    options.onerror = error.bind(this);
-    ICCIOHelper.loadLinearFixedEF(options);
-  },
-
-  /**
-   * Read the PLMNsel (Public Land Mobile Network) from the ICC.
-   *
-   * See ETSI TS 100.977 section 10.3.4 EF_PLMNsel
-   */
-  getPLMNSelector: function getPLMNSelector() {
-    function callback() {
-      if (DEBUG) debug("PLMN Selector: Process PLMN Selector");
-
-      let length = Buf.readUint32();
-      RIL.iccInfoPrivate.PLMN = this.readPLMNEntries(length/3);
-      Buf.readStringDelimiter(length);
-
-      if (DEBUG) debug("PLMN Selector: " + JSON.stringify(RIL.iccInfoPrivate.PLMN));
-
-      if (RIL.updateDisplayCondition()) {
-        this.handleICCInfoChange();
-      }
-    }
-
-    // PLMN List is Service 7 in SIM, EF_PLMNsel
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_PLMNsel,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Read the SPDI (Service Provider Display Information) from the ICC.
-   *
-   * See TS 131.102 section 4.2.66 for USIM and TS 51.011 section 10.3.50
-   * for SIM.
-   */
-  getSPDI: function getSPDI() {
-    function callback() {
-      let length = Buf.readUint32();
-      let readLen = 0;
-      let endLoop = false;
-      RIL.iccInfoPrivate.SPDI = null;
-      while ((readLen < length / 2) && !endLoop) {
-        let tlvTag = GsmPDUHelper.readHexOctet();
-        let tlvLen = GsmPDUHelper.readHexOctet();
-        readLen += 2; // For tag and length fields.
-        switch (tlvTag) {
-        case SPDI_TAG_SPDI:
-          // The value part itself is a TLV.
-          continue;
-        case SPDI_TAG_PLMN_LIST:
-          // This PLMN list is what we want.
-          RIL.iccInfoPrivate.SPDI = this.readPLMNEntries(tlvLen / 3);
-          readLen += tlvLen;
-          endLoop = true;
-          break;
-        default:
-          // We don't care about its content if its tag is not SPDI nor
-          // PLMN_LIST.
-          endLoop = true;
-          break;
-        }
-      }
-
-      // Consume unread octets.
-      Buf.seekIncoming((length / 2 - readLen) * PDU_HEX_OCTET_SIZE);
-      Buf.readStringDelimiter(length);
-
-      if (DEBUG) debug("SPDI: " + JSON.stringify(RIL.iccInfoPrivate.SPDI));
-      if (ICCUtilsHelper.updateDisplayCondition()) {
-        ICCUtilsHelper.handleICCInfoChange();
-      }
-    }
-
-    // PLMN List is Servive 51 in USIM, EF_SPDI
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_SPDI,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Read EFcbmi (Cell Broadcast Message Identifier selection)
-   *
-   * @see 3GPP TS 31.102 v110.02.0 section 4.2.14 EFcbmi
-   */
-  getCBMI: function getCBMI() {
-    function callback() {
-      let strLength = Buf.readUint32();
-
-      // Each Message Identifier takes two octets and each octet is encoded
-      // into two chars.
-      let numIds = strLength / 4, list = null;
-      if (numIds) {
-        list = [];
-        for (let i = 0, id; i < numIds; i++) {
-          id = GsmPDUHelper.readHexOctet() << 8 | GsmPDUHelper.readHexOctet();
-          // `Unused entries shall be set to 'FF FF'.`
-          if (id != 0xFFFF) {
-            list.push(id);
-            list.push(id + 1);
-          }
-        }
-      }
-      if (DEBUG) {
-        debug("CBMI: " + JSON.stringify(list));
-      }
-
-      Buf.readStringDelimiter(strLength);
-
-      RIL.cellBroadcastConfigs.CBMI = list;
-      RIL._mergeAllCellBroadcastConfigs();
-    }
-
-    function onerror() {
-      RIL.cellBroadcastConfigs.CBMI = null;
-      RIL._mergeAllCellBroadcastConfigs();
-    }
-
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_CBMI,
-                                   callback: callback.bind(this),
-                                   onerror: onerror.bind(this)});
-  },
-
-  /**
-   * Read EFcbmir (Cell Broadcast Message Identifier Range selection)
-   *
-   * @see 3GPP TS 31.102 v110.02.0 section 4.2.22 EFcbmir
-   */
-  getCBMIR: function getCBMIR() {
-    function callback() {
-      let strLength = Buf.readUint32();
-
-      // Each Message Identifier range takes four octets and each octet is
-      // encoded into two chars.
-      let numIds = strLength / 8, list = null;
-      if (numIds) {
-        list = [];
-        for (let i = 0, from, to; i < numIds; i++) {
-          // `Bytes one and two of each range identifier equal the lower value
-          // of a cell broadcast range, bytes three and four equal the upper
-          // value of a cell broadcast range.`
-          from = GsmPDUHelper.readHexOctet() << 8 | GsmPDUHelper.readHexOctet();
-          to = GsmPDUHelper.readHexOctet() << 8 | GsmPDUHelper.readHexOctet();
-          // `Unused entries shall be set to 'FF FF'.`
-          if ((from != 0xFFFF) && (to != 0xFFFF)) {
-            list.push(from);
-            list.push(to + 1);
-          }
-        }
-      }
-      if (DEBUG) {
-        debug("CBMIR: " + JSON.stringify(list));
-      }
-
-      Buf.readStringDelimiter(strLength);
-
-      RIL.cellBroadcastConfigs.CBMIR = list;
-      RIL._mergeAllCellBroadcastConfigs();
-    }
-
-    function onerror() {
-      RIL.cellBroadcastConfigs.CBMIR = null;
-      RIL._mergeAllCellBroadcastConfigs();
-    }
-
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_CBMIR,
-                                   callback: callback.bind(this),
-                                   onerror: onerror.bind(this)});
-  },
-
-  /**
-   * Read OPL (Operator PLMN List) from USIM.
-   *
-   * See 3GPP TS 31.102 Sec. 4.2.59 for USIM
-   *     3GPP TS 51.011 Sec. 10.3.42 for SIM.
-   */
-  getOPL: function getOPL() {
-    let opl = [];
-    function callback(options) {
-      let len = Buf.readUint32();
-      // The first 7 bytes are LAI (for UMTS) and the format of LAI is defined
-      // in 3GPP TS 23.003, Sec 4.1
-      //    +-------------+---------+
-      //    | Octet 1 - 3 | MCC/MNC |
-      //    +-------------+---------+
-      //    | Octet 4 - 7 |   LAC   |
-      //    +-------------+---------+
-      let mccMnc = [GsmPDUHelper.readHexOctet(),
-                    GsmPDUHelper.readHexOctet(),
-                    GsmPDUHelper.readHexOctet()];
-      if (mccMnc[0] != 0xFF || mccMnc[1] != 0xFF || mccMnc[2] != 0xFF) {
-        let oplElement = {};
-        let semiOctets = [];
-        for (let i = 0; i < mccMnc.length; i++) {
-          semiOctets.push((mccMnc[i] & 0xf0) >> 4);
-          semiOctets.push(mccMnc[i] & 0x0f);
-        }
-        let reformat = [semiOctets[1], semiOctets[0], semiOctets[3],
-                        semiOctets[5], semiOctets[4], semiOctets[2]];
-        let buf = "";
-        for (let i = 0; i < reformat.length; i++) {
-          if (reformat[i] != 0xF) {
-            buf += GsmPDUHelper.semiOctetToBcdChar(reformat[i]);
-          }
-          if (i === 2) {
-            // 0-2: MCC
-            oplElement.mcc = parseInt(buf);
-            buf = "";
-          } else if (i === 5) {
-            // 3-5: MNC
-            oplElement.mnc = parseInt(buf);
-          }
-        }
-        // LAC/TAC
-        oplElement.lacTacStart =
-          (GsmPDUHelper.readHexOctet() << 8) | GsmPDUHelper.readHexOctet();
-        oplElement.lacTacEnd =
-          (GsmPDUHelper.readHexOctet() << 8) | GsmPDUHelper.readHexOctet();
-        // PLMN Network Name Record Identifier
-        oplElement.pnnRecordId = GsmPDUHelper.readHexOctet();
-        if (DEBUG) {
-          debug("OPL: [" + (opl.length + 1) + "]: " + JSON.stringify(oplElement));
-        }
-        opl.push(oplElement);
-      }
-      Buf.readStringDelimiter(len);
-      if (options.p1 < options.totalRecords) {
-        ICCIOHelper.loadNextRecord(options);
-      } else {
-        RIL.iccInfoPrivate.OPL = opl;
-      }
-    }
-
-    ICCIOHelper.loadLinearFixedEF({fileId: ICC_EF_OPL,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Read PNN (PLMN Network Name) from USIM.
-   *
-   * See 3GPP TS 31.102 Sec. 4.2.58 for USIM
-   *     3GPP TS 51.011 Sec. 10.3.41 for SIM.
-   */
-  getPNN: function getPNN() {
-    let pnn = [];
-    function callback(options) {
-      let pnnElement = RIL.iccInfoPrivate.PNN = {};
-      let len = Buf.readUint32();
-      let readLen = 0;
-      while (len > readLen) {
-        let tlvTag = GsmPDUHelper.readHexOctet();
-        readLen = readLen + 2; // 1 Hex octet
-        if (tlvTag == 0xFF) {
-          // Unused byte
-          continue;
-        }
-        let tlvLen = GsmPDUHelper.readHexOctet();
-        let name;
-        switch (tlvTag) {
-        case PNN_IEI_FULL_NETWORK_NAME:
-          pnnElement.fullName = GsmPDUHelper.readNetworkName(tlvLen);
-          break;
-        case PNN_IEI_SHORT_NETWORK_NAME:
-          pnnElement.shortName = GsmPDUHelper.readNetworkName(tlvLen);
-          break;
-        default:
-          Buf.seekIncoming(PDU_HEX_OCTET_SIZE * tlvLen);
-        }
-        readLen += (tlvLen * 2 + 2);
-      }
-      if (DEBUG) {
-        debug("PNN: [" + (pnn.length + 1) + "]: " + JSON.stringify(pnnElement));
-      }
-      Buf.readStringDelimiter(len);
-      pnn.push(pnnElement);
-
-      if (options.p1 < options.totalRecords) {
-        ICCIOHelper.loadNextRecord(options);
-      } else {
-        RIL.iccInfoPrivate.PNN = pnn;
-      }
-    }
-
-    ICCIOHelper.loadLinearFixedEF({fileId: ICC_EF_PNN,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   *  Read the list of PLMN (Public Land Mobile Network) entries
-   *  We cannot directly rely on readSwappedNibbleBcdToString(),
-   *  since it will no correctly handle some corner-cases that are
-   *  not a problem in our case (0xFF 0xFF 0xFF).
-   *
-   *  @param length The number of PLMN records.
-   *  @return An array of string corresponding to the PLMNs.
-   */
-  readPLMNEntries: function readPLMNEntries(length) {
-    let plmnList = [];
-    // Each PLMN entry has 3 bytes.
-    debug("readPLMNEntries: PLMN entries length = " + length);
-    let index = 0;
-    while (index < length) {
-      // Unused entries will be 0xFFFFFF, according to EF_SPDI
-      // specs (TS 131 102, section 4.2.66)
-      try {
-        let plmn = [GsmPDUHelper.readHexOctet(),
-                    GsmPDUHelper.readHexOctet(),
-                    GsmPDUHelper.readHexOctet()];
-        if (DEBUG) debug("readPLMNEntries: Reading PLMN entry: [" + index +
-                         "]: '" + plmn + "'");
-        if (plmn[0] != 0xFF &&
-            plmn[1] != 0xFF &&
-            plmn[2] != 0xFF) {
-          let semiOctets = [];
-          for (let idx = 0; idx < plmn.length; idx++) {
-            semiOctets.push((plmn[idx] & 0xF0) >> 4);
-            semiOctets.push(plmn[idx] & 0x0F);
-          }
-
-          // According to TS 24.301, 9.9.3.12, the semi octets is arranged
-          // in format:
-          // Byte 1: MCC[2] | MCC[1]
-          // Byte 2: MNC[3] | MCC[3]
-          // Byte 3: MNC[2] | MNC[1]
-          // Therefore, we need to rearrange them.
-          let reformat = [semiOctets[1], semiOctets[0], semiOctets[3],
-                          semiOctets[5], semiOctets[4], semiOctets[2]];
-          let buf = "";
-          let plmnEntry = {};
-          for (let i = 0; i < reformat.length; i++) {
-            if (reformat[i] != 0xF) {
-              buf += GsmPDUHelper.semiOctetToBcdChar(reformat[i]);
-            }
-            if (i === 2) {
-              // 0-2: MCC
-              plmnEntry.mcc = parseInt(buf);
-              buf = "";
-            } else if (i === 5) {
-              // 3-5: MNC
-              plmnEntry.mnc = parseInt(buf);
-            }
-          }
-          if (DEBUG) debug("readPLMNEntries: PLMN = " + plmnEntry.mcc + ", " + plmnEntry.mnc);
-          plmnList.push(plmnEntry);
-        }
-      } catch (e) {
-        if (DEBUG) debug("readPLMNEntries: PLMN entry " + index + " is invalid.");
-        break;
-      }
-      index ++;
-    }
-    return plmnList;
-  },
-};
-
-/**
- * Helper functions for ICC utilities.
- */
-let ICCUtilsHelper = {
-  /**
-   * This will compute the spnDisplay field of the network.
-   * See TS 22.101 Annex A and TS 51.011 10.3.11 for details.
-   *
-   * @return True if some of iccInfo is changed in by this function.
-   */
-  updateDisplayCondition: function updateDisplayCondition() {
-    // If EFspn isn't existed in SIM or it haven't been read yet, we should
-    // just set isDisplayNetworkNameRequired = true and
-    // isDisplaySpnRequired = false
-    let iccInfo = RIL.iccInfo;
-    let iccInfoPriv = RIL.iccInfoPrivate;
-    let iccSpn = iccInfoPriv.SPN;
-    let origIsDisplayNetworkNameRequired = iccInfo.isDisplayNetworkNameRequired;
-    let origIsDisplaySPNRequired = iccInfo.isDisplaySpnRequired;
-
-    if (!iccSpn) {
-      iccInfo.isDisplayNetworkNameRequired = true;
-      iccInfo.isDisplaySpnRequired = false;
-    } else {
-      let operatorMnc = RIL.operator.mnc;
-      let operatorMcc = RIL.operator.mcc;
-
-      // First detect if we are on HPLMN or one of the PLMN
-      // specified by the SIM card.
-      let isOnMatchingPlmn = false;
-
-      // If the current network is the one defined as mcc/mnc
-      // in SIM card, it's okay.
-      if (iccInfo.mcc == operatorMcc && iccInfo.mnc == operatorMnc) {
-        isOnMatchingPlmn = true;
-      }
-
-      // Test to see if operator's mcc/mnc match mcc/mnc of PLMN.
-      if (!isOnMatchingPlmn && iccInfoPriv.SPDI) {
-        let iccSpdi = iccInfoPriv.SPDI; // PLMN list
-        for (let plmn in iccSpdi) {
-          let plmnMcc = iccSpdi[plmn].mcc;
-          let plmnMnc = iccSpdi[plmn].mnc;
-          isOnMatchingPlmn = (plmnMcc == operatorMcc) && (plmnMnc == operatorMnc);
-          if (isOnMatchingPlmn) {
-            break;
-          }
-        }
-      }
-
-      if (isOnMatchingPlmn) {
-        // The first bit of display condition tells us if we should display
-        // registered PLMN.
-        if (DEBUG) debug("updateDisplayCondition: PLMN is HPLMN or PLMN is in PLMN list");
-
-        // TS 31.102 Sec. 4.2.66 and TS 51.011 Sec. 10.3.50
-        // EF_SPDI contains a list of PLMNs in which the Service Provider Name
-        // shall be displayed.
-        iccInfo.isDisplaySpnRequired = true;
-        if (iccSpn.spnDisplayCondition & 0x01) {
-          iccInfo.isDisplayNetworkNameRequired = true;
-        } else {
-          iccInfo.isDisplayNetworkNameRequired = false;
-        }
-      } else {
-        // The second bit of display condition tells us if we should display
-        // registered PLMN.
-        if (DEBUG) debug("updateICCDisplayName: PLMN isn't HPLMN and PLMN isn't in PLMN list");
-
-        // We didn't found the requirement of displaying network name if
-        // current PLMN isn't HPLMN nor one of PLMN in SPDI. So we keep
-        // isDisplayNetworkNameRequired false.
-        if (iccSpn.spnDisplayCondition & 0x02) {
-          iccInfo.isDisplayNetworkNameRequired = false;
-          iccInfo.isDisplaySpnRequired = false;
-        } else {
-          iccInfo.isDisplayNetworkNameRequired = false;
-          iccInfo.isDisplaySpnRequired = true;
-        }
-      }
-    }
-
-    if (DEBUG) {
-      debug("updateDisplayCondition: isDisplayNetworkNameRequired = " + iccInfo.isDisplayNetworkNameRequired);
-      debug("updateDisplayCondition: isDisplaySpnRequired = " + iccInfo.isDisplaySpnRequired);
-    }
-
-    return ((origIsDisplayNetworkNameRequired !== iccInfo.isDisplayNetworkNameRequired) ||
-            (origIsDisplaySPNRequired !== iccInfo.isDisplaySpnRequired));
-  },
-
-  decodeSimTlvs: function decodeSimTlvs(tlvsLen) {
-    let index = 0;
-    let tlvs = [];
-    while (index < tlvsLen) {
-      let simTlv = {
-        tag : GsmPDUHelper.readHexOctet(),
-        length : GsmPDUHelper.readHexOctet(),
-      };
-      simTlv.value = GsmPDUHelper.readHexOctetArray(simTlv.length)
-      tlvs.push(simTlv);
-      index += simTlv.length + 2 /* The length of 'tag' and 'length' field */;
-    }
-    return tlvs;
-  },
-
-  searchForIccUsimTag: function searchForIccUsimTag(tlvs, tag) {
-    for (let i = 0; i < tlvs.length; i++) {
-      if (tlvs[i].tag == tag) {
-        return tlvs[i];
-      }
-    }
-    return null;
-  },
-
-  /**
-   * Update the ICC information to RadioInterfaceLayer.
-   */
-  handleICCInfoChange: function handleICCInfoChange() {
-    RIL.iccInfo.rilMessageType = "iccinfochange";
-    RIL.sendDOMMessage(RIL.iccInfo);
-  },
-
-  /**
-   * Get whether specificed (U)SIM service is available.
-   *
-   * @param geckoService
-   *        Service name like "ADN", "BDN", etc.
-   *
-   * @return true if the service is enabled, false otherwise.
-   */
-  isICCServiceAvailable: function isICCServiceAvailable(geckoService) {
-    let serviceTable = RIL.iccInfo.sst;
-    let index, bitmask;
-    if (RIL.appType == CARD_APPTYPE_SIM) {
-      /**
-       * Service id is valid in 1..N, and 2 bits are used to code each service.
-       *
-       * +----+--  --+----+----+
-       * | b8 | ...  | b2 | b1 |
-       * +----+--  --+----+----+
-       *
-       * b1 = 0, service not allocated.
-       *      1, service allocated.
-       * b2 = 0, service not activatd.
-       *      1, service allocated.
-       *
-       * @see 3GPP TS 51.011 10.3.7.
-       */
-      let simService = GECKO_ICC_SERVICES.sim[geckoService];
-      if (!simService) {
-        return false;
-      }
-      simService -= 1;
-      index = Math.floor(simService / 4);
-      bitmask = 2 << ((simService % 4) << 1);
-    } else {
-      /**
-       * Service id is valid in 1..N, and 1 bit is used to code each service.
-       *
-       * +----+--  --+----+----+
-       * | b8 | ...  | b2 | b1 |
-       * +----+--  --+----+----+
-       *
-       * b1 = 0, service not avaiable.
-       *      1, service available.
-       * b2 = 0, service not avaiable.
-       *      1, service available.
-       *
-       * @see 3GPP TS 31.102 4.2.8.
-       */
-      let usimService = GECKO_ICC_SERVICES.usim[geckoService];
-      if (!usimService) {
-        return false;
-      }
-      usimService -= 1;
-      index = Math.floor(usimService / 8);
-      bitmask = 1 << ((usimService % 8) << 0);
-    }
-
-    return (serviceTable &&
-           (index < serviceTable.length) &&
-           (serviceTable[index] & bitmask)) != 0;
-  },
 };
 
 /**

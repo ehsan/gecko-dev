@@ -6,8 +6,6 @@
 #ifndef GFX_LAYERS_H
 #define GFX_LAYERS_H
 
-#include "mozilla/DebugOnly.h"
-
 #include "gfxTypes.h"
 #include "gfxASurface.h"
 #include "nsRegion.h"
@@ -484,7 +482,7 @@ public:
   void LogSelf(const char* aPrefix="");
 
   void StartFrameTimeRecording();
-  void StopFrameTimeRecording(nsTArray<float>& aTimes);
+  nsTArray<float> StopFrameTimeRecording();
 
   void PostPresent();
 
@@ -578,13 +576,7 @@ public:
      * If this is set then this layer is part of a preserve-3d group, and should
      * be sorted with sibling layers that are also part of the same group.
      */
-    CONTENT_PRESERVE_3D = 0x04,
-    /**
-     * This indicates that the transform may be changed on during an empty
-     * transaction where there is no possibility of redrawing the content, so the
-     * implementation should be ready for that.
-     */
-    CONTENT_MAY_CHANGE_TRANSFORM = 0x08
+    CONTENT_PRESERVE_3D = 0x04
   };
   /**
    * CONSTRUCTION PHASE ONLY
@@ -730,8 +722,6 @@ public:
    */
   void SetBaseTransform(const gfx3DMatrix& aMatrix)
   {
-    NS_ASSERTION(!aMatrix.IsSingular(), 
-                 "Shouldn't be trying to draw with a singular matrix!");
     mPendingTransform = nullptr;
     if (mTransform == aMatrix) {
       return;
@@ -811,9 +801,6 @@ public:
 
   AnimationArray& GetAnimations() { return mAnimations; }
   InfallibleTArray<AnimData>& GetAnimationData() { return mAnimationData; }
-
-  uint64_t GetAnimationGeneration() { return mAnimationGeneration; }
-  void SetAnimationGeneration(uint64_t aCount) { mAnimationGeneration = aCount; }
 
   /**
    * DRAWING PHASE ONLY
@@ -912,12 +899,6 @@ public:
     * RefLayer.
     */
   virtual RefLayer* AsRefLayer() { return nullptr; }
-
-   /**
-    * Dynamic cast to a Color. Returns null if this is not a
-    * ColorLayer.
-    */
-  virtual ColorLayer* AsColorLayer() { return nullptr; }
 
   /**
    * Dynamic cast to a ShadowLayer.  Return null if this is not a
@@ -1077,54 +1058,19 @@ protected:
   const float GetLocalOpacity();
 
   /**
-   * We can snap layer transforms for two reasons:
-   * 1) To avoid unnecessary resampling when a transform is a translation
-   * by a non-integer number of pixels.
-   * Snapping the translation to an integer number of pixels avoids
-   * blurring the layer and can be faster to composite.
-   * 2) When a layer is used to render a rectangular object, we need to
-   * emulate the rendering of rectangular inactive content and snap the
-   * edges of the rectangle to pixel boundaries. This is both to ensure
-   * layer rendering is consistent with inactive content rendering, and to
-   * avoid seams.
-   * This function implements type 1 snapping. If aTransform is a 2D
-   * translation, and this layer's layer manager has enabled snapping
-   * (which is the default), return aTransform with the translation snapped
-   * to nearest pixels. Otherwise just return aTransform. Call this when the
-   * layer does not correspond to a single rectangular content object.
-   * This function does not try to snap if aTransform has a scale, because in
-   * that case resampling is inevitable and there's no point in trying to
-   * avoid it. In fact snapping can cause problems because pixel edges in the
-   * layer's content can be rendered unpredictably (jiggling) as the scale
-   * interacts with the snapping of the translation, especially with animated
-   * transforms.
-   * @param aResidualTransform a transform to apply before the result transform
-   * in order to get the results to completely match aTransform.
-   */
-  gfx3DMatrix SnapTransformTranslation(const gfx3DMatrix& aTransform,
-                                       gfxMatrix* aResidualTransform);
-  /**
-   * See comment for SnapTransformTranslation.
-   * This function implements type 2 snapping. If aTransform is a translation
-   * and/or scale, transform aSnapRect by aTransform, snap to pixel boundaries,
-   * and return the transform that maps aSnapRect to that rect. Otherwise
-   * just return aTransform.
+   * Computes a tweaked version of aTransform that snaps a point or a rectangle
+   * to pixel boundaries. Snapping is only performed if this layer's
+   * layer manager has enabled snapping (which is the default).
    * @param aSnapRect a rectangle whose edges should be snapped to pixel
-   * boundaries in the destination surface.
-   * @param aResidualTransform a transform to apply before the result transform
-   * in order to get the results to completely match aTransform.
+   * boundaries in the destination surface. If the rectangle is empty,
+   * then the snapping process should preserve the scale factors of the
+   * transform matrix
+   * @param aResidualTransform a transform to apply before mEffectiveTransform
+   * in order to get the results to completely match aTransform
    */
   gfx3DMatrix SnapTransform(const gfx3DMatrix& aTransform,
                             const gfxRect& aSnapRect,
                             gfxMatrix* aResidualTransform);
-
-  /**
-   * Returns true if this layer's effective transform is not just
-   * a translation by integers, or if this layer or some ancestor layer
-   * is marked as having a transform that may change without a full layer
-   * transaction.
-   */
-  bool MayResample();
 
   LayerManager* mManager;
   ContainerLayer* mParent;
@@ -1154,9 +1100,6 @@ protected:
   bool mIsFixedPosition;
   gfxPoint mAnchor;
   DebugOnly<uint32_t> mDebugColorIndex;
-  // If this layer is used for OMTA, then this counter is used to ensure we
-  // stay in sync with the animation manager
-  uint64_t mAnimationGeneration;
 };
 
 /**
@@ -1204,12 +1147,14 @@ public:
 
   virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
   {
+    // The default implementation just snaps 0,0 to pixels.
     gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
     gfxMatrix residual;
-    mEffectiveTransform = SnapTransformTranslation(idealTransform,
+    mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0),
         mAllowResidualTranslation ? &residual : nullptr);
-    // The residual can only be a translation because SnapTransformTranslation
-    // only changes the transform if it's a translation
+    // The residual can only be a translation because ThebesLayer snapping
+    // only aligns a single point with the pixel grid; scale factors are always
+    // preserved exactly
     NS_ASSERTION(!residual.HasNonTranslation(),
                  "Residual transform can only be a translation");
     if (!residual.GetTranslation().WithinEpsilonOf(mResidualTranslation, 1e-3f)) {
@@ -1418,8 +1363,6 @@ protected:
  */
 class THEBES_API ColorLayer : public Layer {
 public:
-  virtual ColorLayer* AsColorLayer() { return this; }
-
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the color of the layer.
@@ -1436,8 +1379,9 @@ public:
 
   virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
   {
+    // Snap 0,0 to pixel boundaries, no extra internal transform.
     gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-    mEffectiveTransform = SnapTransformTranslation(idealTransform, nullptr);
+    mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), nullptr);
     ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
   }
 
@@ -1548,7 +1492,7 @@ public:
     mEffectiveTransform =
         SnapTransform(GetLocalTransform(), gfxRect(0, 0, mBounds.width, mBounds.height),
                       nullptr)*
-        SnapTransformTranslation(aTransformToSurface, nullptr);
+        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nullptr);
     ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
   }
 

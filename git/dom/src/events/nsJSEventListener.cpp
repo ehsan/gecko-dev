@@ -61,7 +61,6 @@ nsJSEventListener::nsJSEventListener(nsIScriptContext *aContext,
 nsJSEventListener::~nsJSEventListener() 
 {
   if (mScopeObject) {
-    mScopeObject = nullptr;
     NS_DROP_JS_OBJECTS(this, nsJSEventListener);
   }
 }
@@ -71,7 +70,6 @@ void
 nsJSEventListener::UpdateScopeObject(JSObject* aScopeObject)
 {
   if (mScopeObject && !aScopeObject) {
-    mScopeObject = nullptr;
     NS_DROP_JS_OBJECTS(this, nsJSEventListener);
   } else if (aScopeObject && !mScopeObject) {
     NS_HOLD_JS_OBJECTS(this, nsJSEventListener);
@@ -82,9 +80,9 @@ nsJSEventListener::UpdateScopeObject(JSObject* aScopeObject)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSEventListener)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSEventListener)
   if (tmp->mScopeObject) {
-    tmp->mScopeObject = nullptr;
     NS_DROP_JS_OBJECTS(tmp, nsJSEventListener);
-    NS_IMPL_CYCLE_COLLECTION_UNLINK(mContext)
+    tmp->mScopeObject = nullptr;
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContext)
   }
   tmp->mHandler.ForgetHandler();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -98,7 +96,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSEventListener)
   } else {
     NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsJSEventListener, tmp->mRefCnt.get())
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mContext)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mHandler.Ptr())
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END

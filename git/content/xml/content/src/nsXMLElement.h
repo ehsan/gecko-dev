@@ -7,16 +7,15 @@
 #define nsXMLElement_h___
 
 #include "nsIDOMElement.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 
-class nsXMLElement : public mozilla::dom::Element,
+class nsXMLElement : public nsGenericElement,
                      public nsIDOMElement
 {
 public:
   nsXMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : mozilla::dom::Element(aNodeInfo)
+    : nsGenericElement(aNodeInfo)
   {
-    SetIsDOMBinding();
   }
 
   // nsISupports
@@ -49,12 +48,10 @@ public:
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
 
-  // Element overrides
+  // nsGenericElement overrides
   virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo);
 
-protected:
-  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope,
-                             bool *aTriedToWrap) MOZ_OVERRIDE;
+
 };
 
 #endif // nsXMLElement_h___

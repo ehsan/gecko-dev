@@ -7,7 +7,7 @@
 /* base class of all rendering objects */
 
 #include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
@@ -20,7 +20,6 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsStyleContext.h"
-#include "nsTableOuterFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIScrollableFrame.h"
@@ -54,6 +53,7 @@
 #include "nsStyleChangeList.h"
 #include "nsIDOMRange.h"
 #include "nsRange.h"
+#include "nsITableLayout.h"    //selection necessity
 #include "nsITableCellLayout.h"//  "
 #include "nsITextControlFrame.h"
 #include "nsINameSpaceManager.h"
@@ -271,6 +271,15 @@ nsIFrame::MarkAsNotAbsoluteContainingBlock()
   MOZ_ASSERT(HasAnyStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN));
   RemoveStateBits(NS_FRAME_HAS_ABSPOS_CHILDREN);
   Properties().Delete(AbsoluteContainingBlockProperty());
+}
+
+void
+nsIFrame::ClearDisplayItemCache()
+{
+  if (GetStateBits() & NS_FRAME_HAS_CACHED_BACKGROUND) {
+    Properties().Delete(CachedBackgroundImage());
+    RemoveStateBits(NS_FRAME_HAS_CACHED_BACKGROUND);
+  }
 }
 
 bool
@@ -518,7 +527,7 @@ nsFrame::Init(nsIContent*      aContent,
                        NS_FRAME_IN_POPUP);
   }
   const nsStyleDisplay *disp = GetStyleDisplay();
-  if (disp->HasTransform(this)) {
+  if (disp->HasTransform()) {
     // The frame gets reconstructed if we toggle the -moz-transform
     // property, so we can set this bit here and then ignore it.
     mState |= NS_FRAME_MAY_BE_TRANSFORMED;
@@ -985,12 +994,11 @@ bool
 nsIFrame::IsTransformed() const
 {
   return ((mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
-          (GetStyleDisplay()->HasTransform(this) ||
+          (GetStyleDisplay()->HasTransform() ||
            IsSVGTransformed() ||
            (mContent &&
             nsLayoutUtils::HasAnimationsForCompositor(mContent,
                                                       eCSSProperty_transform) &&
-            IsFrameOfType(eSupportsCSSTransforms) &&
             mContent->GetPrimaryFrame() == this)));
 }
 
@@ -1014,7 +1022,7 @@ bool
 nsIFrame::Preserves3DChildren() const
 {
   if (GetStyleDisplay()->mTransformStyle != NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D ||
-      !GetStyleDisplay()->HasTransform(this))
+      !GetStyleDisplay()->HasTransform())
       return false;
 
   // If we're all scroll frame, then all descendants will be clipped, so we can't preserve 3d.
@@ -1031,7 +1039,7 @@ bool
 nsIFrame::Preserves3D() const
 {
   if (!GetParent() || !GetParent()->Preserves3DChildren() ||
-      !GetStyleDisplay()->HasTransform(this)) {
+      !GetStyleDisplay()->HasTransform()) {
     return false;
   }
   return true;
@@ -1487,7 +1495,7 @@ nsresult
 nsFrame::DisplayBackgroundUnconditional(nsDisplayListBuilder*   aBuilder,
                                         const nsDisplayListSet& aLists,
                                         bool                    aForceBackground,
-                                        nsDisplayBackgroundImage**   aBackground)
+                                        nsDisplayBackground**   aBackground)
 {
   *aBackground = nullptr;
 
@@ -1496,7 +1504,7 @@ nsFrame::DisplayBackgroundUnconditional(nsDisplayListBuilder*   aBuilder,
   // true.
   if (aBuilder->IsForEventDelivery() || aForceBackground ||
       !GetStyleBackground()->IsTransparent() || GetStyleDisplay()->mAppearance) {
-    return nsDisplayBackgroundImage::AppendBackgroundItemsToTop(aBuilder, this,
+    return nsDisplayBackground::AppendBackgroundItemsToTop(aBuilder, this,
                                                            aLists.BorderBackground(),
                                                            aBackground);
   }
@@ -1522,7 +1530,7 @@ nsFrame::DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsDisplayBackgroundImage* bg;
+  nsDisplayBackground* bg;
   nsresult rv =
     DisplayBackgroundUnconditional(aBuilder, aLists, aForceBackground, &bg);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2411,7 +2419,7 @@ nsFrame::HandleEvent(nsPresContext* aPresContext,
                      nsEventStatus*  aEventStatus)
 {
 
-  if (aEvent->message == NS_MOUSE_MOVE) {
+  if (aEvent->message == NS_MOUSE_MOVE || aEvent->message == NS_TOUCH_MOVE) {
     return HandleDrag(aPresContext, aEvent, aEventStatus);
   }
 
@@ -2502,8 +2510,8 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
       // If not a cell, check for table
       // This will happen when starting frame is the table or child of a table,
       //  such as a row (we were inbetween cells or in table border)
-      nsTableOuterFrame *tableFrame = do_QueryFrame(frame);
-      if (tableFrame)
+      nsITableLayout *tableElement = do_QueryFrame(frame);
+      if (tableElement)
       {
         foundTable = true;
         //TODO: How can we select row when along left table edge
@@ -3012,8 +3020,6 @@ NS_IMETHODIMP nsFrame::HandleDrag(nsPresContext* aPresContext,
                                   nsGUIEvent*     aEvent,
                                   nsEventStatus*  aEventStatus)
 {
-  MOZ_ASSERT(aEvent->eventStructType == NS_MOUSE_EVENT, "HandleDrag can only handle mouse event");
-
   bool    selectable;
   uint8_t selectStyle;
   IsSelectable(&selectable, &selectStyle);
@@ -4191,11 +4197,11 @@ nsFrame::DidReflow(nsPresContext*           aPresContext,
                    nsDidReflowStatus         aStatus)
 {
   NS_FRAME_TRACE_MSG(NS_FRAME_TRACE_CALLS,
-                     ("nsFrame::DidReflow: aStatus=%d", static_cast<uint32_t>(aStatus)));
+                     ("nsFrame::DidReflow: aStatus=%d", aStatus));
 
   nsSVGEffects::InvalidateDirectRenderingObservers(this, nsSVGEffects::INVALIDATE_REFLOW);
 
-  if (nsDidReflowStatus::FINISHED == aStatus) {
+  if (NS_FRAME_REFLOW_FINISHED == aStatus) {
     mState &= ~(NS_FRAME_IN_REFLOW | NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
                 NS_FRAME_HAS_DIRTY_CHILDREN);
   }
@@ -4747,7 +4753,8 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
     int32_t scaleFactor = PresContext()->AppUnitsPerDevPixel();
 
     gfx3DMatrix result =
-      nsDisplayTransform::GetResultingTransformMatrix(this, nsPoint(0, 0), scaleFactor, nullptr, aOutAncestor);
+      nsDisplayTransform::GetResultingTransformMatrix(this, nsPoint(0, 0), scaleFactor, nullptr,
+                                                      nullptr, nullptr, nullptr, nullptr, aOutAncestor);
     // XXXjwatt: seems like this will double count offsets in the face of preserve-3d:
     nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
     /* Combine the raw transform with a translation to our parent. */
@@ -4756,46 +4763,6 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
        NSAppUnitsToFloatPixels(delta.y, scaleFactor),
        0.0f);
     return result;
-  }
-
-  if (nsLayoutUtils::IsPopup(this) &&
-      GetType() == nsGkAtoms::listControlFrame) {
-    nsPresContext* presContext = PresContext();
-    nsIFrame* docRootFrame = presContext->PresShell()->GetRootFrame();
-
-    // Compute a matrix that transforms from the popup widget to the toplevel
-    // widget. We use the widgets because they're the simplest and most
-    // accurate approach --- this should work no matter how the widget position
-    // was chosen.
-    nsIWidget* widget = GetView()->GetWidget();
-    nsPresContext* rootPresContext = PresContext()->GetRootPresContext();
-    // Maybe the widget hasn't been created yet? Popups without widgets are
-    // treated as regular frames. That should work since they'll be rendered
-    // as part of the page if they're rendered at all.
-    if (widget && rootPresContext) {
-      nsIWidget* toplevel = rootPresContext->GetNearestWidget();
-      if (toplevel) {
-        nsIntRect screenBounds;
-        widget->GetClientBounds(screenBounds);
-        nsIntRect toplevelScreenBounds;
-        toplevel->GetClientBounds(toplevelScreenBounds);
-        nsIntPoint translation = screenBounds.TopLeft() - toplevelScreenBounds.TopLeft();
-
-        gfx3DMatrix transformToTop;
-        transformToTop._41 = translation.x;
-        transformToTop._42 = translation.y;
-
-        *aOutAncestor = docRootFrame;
-        gfx3DMatrix docRootTransformToTop =
-          nsLayoutUtils::GetTransformToAncestor(docRootFrame, nullptr);
-        if (docRootTransformToTop.IsSingular()) {
-          NS_WARNING("Containing document is invisible, we can't compute a valid transform");
-        } else {
-          gfx3DMatrix topToDocRootTransform = docRootTransformToTop.Inverse();
-          return transformToTop*topToDocRootTransform;
-        }
-      }
-    }
   }
 
   *aOutAncestor = nsLayoutUtils::GetCrossDocParentFrame(this);
@@ -4812,9 +4779,7 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
     return gfx3DMatrix();
   
   /* Keep iterating while the frame can't possibly be transformed. */
-  while (!(*aOutAncestor)->IsTransformed() &&
-         !nsLayoutUtils::IsPopup(*aOutAncestor) &&
-         *aOutAncestor != aStopAtAncestor) {
+  while (!(*aOutAncestor)->IsTransformed() && *aOutAncestor != aStopAtAncestor) {
     /* If no parent, stop iterating.  Otherwise, update the ancestor. */
     nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(*aOutAncestor);
     if (!parent)
@@ -4842,34 +4807,27 @@ static void InvalidateFrameInternal(nsIFrame *aFrame, bool aHasDisplayItem = tru
     aFrame->AddStateBits(NS_FRAME_NEEDS_PAINT);
   }
   nsSVGEffects::InvalidateDirectRenderingObservers(aFrame);
+  nsIFrame *parent = nsLayoutUtils::GetCrossDocParentFrame(aFrame);
   bool needsSchedulePaint = false;
-  if (nsLayoutUtils::IsPopup(aFrame)) {
-    needsSchedulePaint = true;
-  } else {
-    nsIFrame *parent = nsLayoutUtils::GetCrossDocParentFrame(aFrame);
-    while (parent && !parent->HasAnyStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT)) {
-      if (aHasDisplayItem) {
-        parent->AddStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT);
-      }
-      nsSVGEffects::InvalidateDirectRenderingObservers(parent);
+  while (parent && !parent->HasAnyStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT)) {
+    if (aHasDisplayItem) {
+      parent->AddStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT);
+    }
+    nsSVGEffects::InvalidateDirectRenderingObservers(parent);
 
-      // If we're inside a popup, then we need to make sure that we
-      // call schedule paint so that the NS_FRAME_UPDATE_LAYER_TREE
-      // flag gets added to the popup display root frame.
-      if (nsLayoutUtils::IsPopup(parent)) {
-        needsSchedulePaint = true;
-        break;
-      }
-      parent = nsLayoutUtils::GetCrossDocParentFrame(parent);
-    }
-    if (!parent) {
+    // If we're inside a popup, then we need to make sure that we
+    // call schedule paint so that the NS_FRAME_UPDATE_LAYER_TREE
+    // flag gets added to the popup display root frame.
+    if (nsLayoutUtils::IsPopup(parent)) {
       needsSchedulePaint = true;
+      break;
     }
+    parent = nsLayoutUtils::GetCrossDocParentFrame(parent);
   }
   if (!aHasDisplayItem) {
     return;
   }
-  if (needsSchedulePaint) {
+  if (!parent || needsSchedulePaint) {
     aFrame->SchedulePaint();
   }
   if (aFrame->HasAnyStateBits(NS_FRAME_HAS_INVALID_RECT)) {
@@ -4992,7 +4950,7 @@ nsIFrame::TryUpdateTransformOnly()
   // changes.)
  static const gfx::Float kError = 0.0001;
   if (!transform3d.Is2D(&transform) ||
-      !layer->GetBaseTransform().Is2D(&previousTransform) ||
+      !layer->GetTransform().Is2D(&previousTransform) ||
       !gfx::FuzzyEqual(transform.xx, previousTransform.xx, kError) ||
       !gfx::FuzzyEqual(transform.yy, previousTransform.yy, kError) ||
       !gfx::FuzzyEqual(transform.xy, previousTransform.xy, kError) ||
@@ -5119,7 +5077,27 @@ ComputeOutlineAndEffectsRect(nsIFrame* aFrame,
   }
 
   // box-shadow
-  r.UnionRect(r, nsLayoutUtils::GetBoxShadowRectForFrame(aFrame, aNewSize));
+  nsCSSShadowArray* boxShadows = aFrame->GetStyleBorder()->mBoxShadow;
+  if (boxShadows) {
+    nsRect shadows;
+    int32_t A2D = aFrame->PresContext()->AppUnitsPerDevPixel();
+    for (uint32_t i = 0; i < boxShadows->Length(); ++i) {
+      nsRect tmpRect(nsPoint(0, 0), aNewSize);
+      nsCSSShadowItem* shadow = boxShadows->ShadowAt(i);
+
+      // inset shadows are never painted outside the frame
+      if (shadow->mInset)
+        continue;
+
+      tmpRect.MoveBy(nsPoint(shadow->mXOffset, shadow->mYOffset));
+      tmpRect.Inflate(shadow->mSpread, shadow->mSpread);
+      tmpRect.Inflate(
+        nsContextBoxBlur::GetBlurRadiusMargin(shadow->mRadius, A2D));
+
+      shadows.UnionRect(shadows, tmpRect);
+    }
+    r.UnionRect(r, shadows);
+  }
 
   const nsStyleOutline* outline = aFrame->GetStyleOutline();
   uint8_t outlineStyle = outline->GetOutlineStyle();
@@ -6784,7 +6762,7 @@ nsFrame::ChildIsDirty(nsIFrame* aChild)
 a11y::AccType
 nsFrame::AccessibleType()
 {
-  return a11y::eNoType;
+  return a11y::eNoAccessible;
 }
 #endif
 
@@ -7005,7 +6983,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
       nsRect& o = aOverflowAreas.Overflow(otype);
       o = nsDisplayTransform::TransformRect(o, this, nsPoint(0, 0), &newBounds);
     }
-    if (Preserves3DChildren()) {
+    if ((sizeChanged || HasAnyStateBits(NS_FRAME_TRANSFORM_CHANGED)) && Preserves3DChildren()) {
       ComputePreserve3DChildrenOverflow(aOverflowAreas, newBounds);
     } else if (sizeChanged && ChildrenHavePerspective()) {
       RecomputePerspectiveChildrenOverflow(this->GetStyleContext(), &newBounds);
@@ -7017,6 +6995,8 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
       RecomputePerspectiveChildrenOverflow(this->GetStyleContext(), &newBounds);
     }
   }
+  RemoveStateBits(NS_FRAME_TRANSFORM_CHANGED);
+    
 
   bool anyOverflowChanged;
   if (aOverflowAreas != nsOverflowAreas(bounds, bounds)) {

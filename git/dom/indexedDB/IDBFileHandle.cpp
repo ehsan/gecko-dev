@@ -6,14 +6,15 @@
 
 #include "IDBFileHandle.h"
 
+#include "nsIStandardFileStream.h"
+
 #include "mozilla/dom/file/File.h"
-#include "mozilla/dom/quota/FileStreams.h"
 #include "nsDOMClassInfoID.h"
 
+#include "FileStream.h"
 #include "IDBDatabase.h"
 
 USING_INDEXEDDB_NAMESPACE
-USING_QUOTA_NAMESPACE
 
 namespace {
 
@@ -67,22 +68,22 @@ IDBFileHandle::Create(IDBDatabase* aDatabase,
 already_AddRefed<nsISupports>
 IDBFileHandle::CreateStream(nsIFile* aFile, bool aReadOnly)
 {
-  const nsACString& origin = mFileStorage->StorageOrigin();
+  nsRefPtr<FileStream> stream = new FileStream();
 
-  nsCOMPtr<nsISupports> result;
-
+  nsString streamMode;
   if (aReadOnly) {
-    nsRefPtr<FileInputStream> stream = FileInputStream::Create(
-      origin, aFile, -1, -1, nsIFileInputStream::DEFER_OPEN);
-    result = NS_ISUPPORTS_CAST(nsIFileInputStream*, stream);
+    streamMode.AssignLiteral("rb");
   }
   else {
-    nsRefPtr<FileStream> stream = FileStream::Create(
-      origin, aFile, -1, -1, nsIFileStream::DEFER_OPEN);
-    result = NS_ISUPPORTS_CAST(nsIFileStream*, stream);
+    streamMode.AssignLiteral("r+b");
   }
-  NS_ENSURE_TRUE(result, nullptr);
 
+  nsresult rv = stream->Init(aFile, streamMode,
+                             nsIStandardFileStream::FLAGS_DEFER_OPEN);
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  nsCOMPtr<nsISupports> result =
+    NS_ISUPPORTS_CAST(nsIStandardFileStream*, stream);
   return result.forget();
 }
 

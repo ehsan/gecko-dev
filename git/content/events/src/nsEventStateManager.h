@@ -163,16 +163,6 @@ public:
     }
   }
 
-  /**
-   * Returns true if the current code is being executed as a result of user input.
-   * This includes timers or anything else that is initiated from user input.
-   * However, mouse over events are not counted as user input, nor are
-   * page load events. If this method is called from asynchronously executed code,
-   * such as during layout reflows, it will return false. If more time has elapsed
-   * since the user input than is specified by the
-   * dom.event.handling-user-input-time-limit pref (default 1 second), this
-   * function also returns false.
-   */
   static bool IsHandlingUserInput()
   {
     if (sUserInputEventDepth <= 0) {
@@ -183,6 +173,18 @@ public:
            (TimeStamp::Now() - sHandlingInputStart) <= timeout;
   }
 
+  /**
+   * Returns true if the current code is being executed as a result of user input.
+   * This includes timers or anything else that is initiated from user input.
+   * However, mouse hover events are not counted as user input, nor are
+   * page load events. If this method is called from asynchronously executed code,
+   * such as during layout reflows, it will return false. If more time has elapsed
+   * since the user input than is specified by the
+   * dom.event.handling-user-input-time-limit pref (default 1 second), this
+   * function also returns false.
+   */
+  NS_IMETHOD_(bool) IsHandlingUserInputExternal() { return IsHandlingUserInput(); }
+  
   nsPresContext* GetPresContext() { return mPresContext; }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEventStateManager,
@@ -350,7 +352,7 @@ protected:
     /**
      * Computes the default action for the aEvent with the prefs.
      */
-    enum Action MOZ_ENUM_TYPE(uint8_t)
+    enum Action
     {
       ACTION_NONE = 0,
       ACTION_SCROLL,
@@ -428,12 +430,6 @@ protected:
     double mMultiplierY[COUNT_OF_MULTIPLIERS];
     double mMultiplierZ[COUNT_OF_MULTIPLIERS];
     Action mActions[COUNT_OF_MULTIPLIERS];
-    /**
-     * action values overridden by .override_x pref.
-     * If an .override_x value is -1, same as the
-     * corresponding mActions value.
-     */
-    Action mOverriddenActionsX[COUNT_OF_MULTIPLIERS];
 
     static WheelPrefs* sInstance;
   };
@@ -822,7 +818,7 @@ public:
       if (mIsMouseDown) {
         nsIPresShell::SetCapturingContent(nullptr, 0);
         nsIPresShell::AllowMouseCapture(true);
-        if (aDocument && aEvent->mFlags.mIsTrusted) {
+        if (aDocument && NS_IS_TRUSTED_EVENT(aEvent)) {
           nsFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
             fm->SetMouseButtonDownHandlingDocument(aDocument);

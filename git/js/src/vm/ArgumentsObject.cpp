@@ -48,7 +48,8 @@ CopyStackFrameArguments(const StackFrame *fp, HeapValue *dst)
 /* static */ void
 ArgumentsObject::MaybeForwardToCallObject(StackFrame *fp, JSObject *obj, ArgumentsData *data)
 {
-    UnrootedScript script = fp->script();
+    AutoAssertNoGC nogc;
+    RawScript script = fp->script().get(nogc);
     if (fp->fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(fp->callObj()));
         for (AliasedFormalIter fi(script); fi; fi++)
@@ -97,7 +98,7 @@ struct CopyStackIterArgs
         /* Define formals which are not part of the actuals. */
         unsigned numActuals = iter_.numActualArgs();
         unsigned numFormals = iter_.callee()->nargs;
-        if (numActuals < numFormals) {
+       if (numActuals < numFormals) {
             HeapValue *dst = dstBase + numActuals, *dstEnd = dstBase + numFormals;
             while (dst != dstEnd)
                 (dst++)->init(UndefinedValue());
@@ -129,7 +130,7 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     if (!type)
         return NULL;
 
-    bool strict = callee->strict();
+    bool strict = callee->inStrictMode();
     Class *clasp = strict ? &StrictArgumentsObjectClass : &NormalArgumentsObjectClass;
 
     RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, TaggedProto(proto),

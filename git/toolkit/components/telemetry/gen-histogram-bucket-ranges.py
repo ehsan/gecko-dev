@@ -9,24 +9,18 @@
 import sys
 import re
 import histogram_tools
-import json
-
-# For compatibility with python 2.6
-try:
-    from collections import OrderedDict
-except ImportError:
-    from simplejson import OrderedDict
+import simplejson as json
 
 # Keep this in sync with TelemetryPing.
 startup_histogram_re = re.compile("SQLITE|HTTP|SPDY|CACHE|DNS")
 
 def main(argv):
     filename = argv[0]
-    all_histograms = OrderedDict()
+    all_histograms = json.OrderedDict()
 
     for histogram in histogram_tools.from_file(filename):
         name = histogram.name()
-        parameters = OrderedDict()
+        parameters = json.OrderedDict()
         table = {
             'boolean': '2',
             'flag': '3',
@@ -49,7 +43,7 @@ def main(argv):
             parameters['bucket_count'] = len(buckets)
         except histogram_tools.DefinitionException:
             continue
-
+        
         all_histograms.update({ name: parameters });
 
         if startup_histogram_re.search(name) is not None:

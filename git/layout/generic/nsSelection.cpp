@@ -29,11 +29,10 @@
 #include "nsCOMArray.h"
 #include "nsGUIEvent.h"
 #include "nsIDOMKeyEvent.h"
+#include "nsITableLayout.h"
 #include "nsITableCellLayout.h"
 #include "nsIDOMNodeList.h"
 #include "nsTArray.h"
-#include "nsTableOuterFrame.h"
-#include "nsTableCellFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsIContentIterator.h"
@@ -499,16 +498,16 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsFrameSelection)
     tmp->mDomSelections[i] = nullptr;
   }
 
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCellParent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCellParent)
   tmp->mSelectingTableCellMode = 0;
   tmp->mDragSelectingCells = false;
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mStartSelectedCell)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mEndSelectedCell)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAppendStartSelectedCell)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mUnselectCellOnMouseUp)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mMaintainRange)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mLimiter)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAncestorLimiter)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mStartSelectedCell)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEndSelectedCell)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAppendStartSelectedCell)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mUnselectCellOnMouseUp)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMaintainRange)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLimiter)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAncestorLimiter)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFrameSelection)
   if (tmp->mShell && tmp->mShell->GetDocument() &&
@@ -519,17 +518,18 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFrameSelection)
   }
   int32_t i;
   for (i = 0; i < nsISelectionController::NUM_SELECTIONTYPES; ++i) {
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDomSelections[i])
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mDomSelections[i],
+                                                         nsISelection)
   }
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCellParent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStartSelectedCell)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEndSelectedCell)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAppendStartSelectedCell)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mUnselectCellOnMouseUp)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMaintainRange)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLimiter)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAncestorLimiter)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCellParent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mStartSelectedCell)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEndSelectedCell)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAppendStartSelectedCell)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mUnselectCellOnMouseUp)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mMaintainRange, nsIDOMRange)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLimiter)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAncestorLimiter)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameSelection)
@@ -2078,6 +2078,15 @@ nsFrameSelection::GetCellLayout(nsIContent *aCellContent) const
   return cellLayoutObject;
 }
 
+nsITableLayout* 
+nsFrameSelection::GetTableLayout(nsIContent *aTableContent) const
+{
+  NS_ENSURE_TRUE(mShell, nullptr);
+  nsITableLayout *tableLayoutObject =
+    do_QueryFrame(aTableContent->GetPrimaryFrame());
+  return tableLayoutObject;
+}
+
 nsresult
 nsFrameSelection::ClearNormalSelection()
 {
@@ -2472,8 +2481,8 @@ nsFrameSelection::UnselectCells(nsIContent *aTableContent,
   if (!mDomSelections[index])
     return NS_ERROR_NULL_POINTER;
 
-  nsTableOuterFrame* tableFrame = do_QueryFrame(aTableContent->GetPrimaryFrame());
-  if (!tableFrame)
+  nsITableLayout *tableLayout = GetTableLayout(aTableContent);
+  if (!tableLayout)
     return NS_ERROR_FAILURE;
 
   int32_t minRowIndex = NS_MIN(aStartRowIndex, aEndRowIndex);
@@ -2511,20 +2520,24 @@ nsFrameSelection::UnselectCells(nsIContent *aTableContent,
       } else {
         // Remove cell from selection if it belongs to the given cells range or
         // it is spanned onto the cells range.
-        nsTableCellFrame* cellFrame =
-          tableFrame->GetCellFrameAt(curRowIndex, curColIndex);
+        nsCOMPtr<nsIDOMElement> cellElement;
+        int32_t origRowIndex, origColIndex, rowSpan, colSpan,
+          actualRowSpan, actualColSpan;
+        bool isSelected;
 
-        int32_t origRowIndex, origColIndex;
-        cellFrame->GetRowIndex(origRowIndex);
-        cellFrame->GetColIndex(origColIndex);
-        uint32_t actualRowSpan =
-          tableFrame->GetEffectiveRowSpanAt(origRowIndex, origColIndex);
-        uint32_t actualColSpan =
-          tableFrame->GetEffectiveColSpanAt(curRowIndex, curColIndex);
-        if (origRowIndex <= maxRowIndex && maxRowIndex >= 0 &&
-            origRowIndex + actualRowSpan - 1 >= static_cast<uint32_t>(minRowIndex) &&
-            origColIndex <= maxColIndex && maxColIndex >= 0 &&
-            origColIndex + actualColSpan - 1 >= static_cast<uint32_t>(minColIndex)) {
+        result = tableLayout->GetCellDataAt(curRowIndex, curColIndex,
+                                            *getter_AddRefs(cellElement),
+                                            origRowIndex, origColIndex,
+                                            rowSpan, colSpan, 
+                                            actualRowSpan, actualColSpan,
+                                            isSelected);
+        if (NS_FAILED(result))
+          return result;
+
+        if (origRowIndex <= maxRowIndex &&
+            origRowIndex + actualRowSpan - 1 >= minRowIndex &&
+            origColIndex <= maxColIndex &&
+            origColIndex + actualColSpan - 1 >= minColIndex) {
 
           mDomSelections[index]->RemoveRange(range);
           // Since we've removed the range, decrement pointer to next range
@@ -2552,28 +2565,37 @@ nsFrameSelection::AddCellsToSelection(nsIContent *aTableContent,
   if (!mDomSelections[index])
     return NS_ERROR_NULL_POINTER;
 
-  nsTableOuterFrame* tableFrame = do_QueryFrame(aTableContent->GetPrimaryFrame());
-  if (!tableFrame) // Check that |table| is a table.
+  // Get TableLayout interface to access cell data based on cellmap location
+  // frames are not ref counted, so don't use an nsCOMPtr
+  nsITableLayout *tableLayoutObject = GetTableLayout(aTableContent);
+  if (!tableLayoutObject) // Check that |table| is a table.
     return NS_ERROR_FAILURE;
 
+  nsCOMPtr<nsIDOMElement> cellElement;
+  int32_t rowSpan, colSpan, actualRowSpan, actualColSpan,
+    curRowIndex, curColIndex;
+  bool isSelected;
   nsresult result = NS_OK;
+
   int32_t row = aStartRowIndex;
   while(true)
   {
     int32_t col = aStartColumnIndex;
     while(true)
     {
-      nsTableCellFrame* cellFrame = tableFrame->GetCellFrameAt(row, col);
+      result = tableLayoutObject->GetCellDataAt(row, col, *getter_AddRefs(cellElement),
+                                                curRowIndex, curColIndex, rowSpan, colSpan, 
+                                                actualRowSpan, actualColSpan, isSelected);
+      if (NS_FAILED(result)) return result;
+
+      NS_ASSERTION(actualColSpan, "!actualColSpan is 0!");
 
       // Skip cells that are spanned from previous locations or are already selected
-      if (cellFrame) {
-        int32_t origRow, origCol;
-        cellFrame->GetRowIndex(origRow);
-        cellFrame->GetColIndex(origCol);
-        if (origRow == row && origCol == col && !cellFrame->IsSelected()) {
-          result = SelectCellElement(cellFrame->GetContent());
-          if (NS_FAILED(result)) return result;
-        }
+      if (!isSelected && cellElement && row == curRowIndex && col == curColIndex)
+      {
+        nsCOMPtr<nsIContent> cellContent = do_QueryInterface(cellElement);
+        result = SelectCellElement(cellContent);
+        if (NS_FAILED(result)) return result;
       }
       // Done when we reach end column
       if (col == aEndColumnIndex) break;
@@ -2626,13 +2648,13 @@ nsFrameSelection::SelectRowOrColumn(nsIContent *aCellContent, uint32_t aTarget)
   // Get table and cell layout interfaces to access 
   //   cell data based on cellmap location
   // Frames are not ref counted, so don't use an nsCOMPtr
-  nsTableOuterFrame* tableFrame = do_QueryFrame(table->GetPrimaryFrame());
-  if (!tableFrame) return NS_ERROR_FAILURE;
+  nsITableLayout *tableLayout = GetTableLayout(table);
+  if (!tableLayout) return NS_ERROR_FAILURE;
   nsITableCellLayout *cellLayout = GetCellLayout(aCellContent);
   if (!cellLayout) return NS_ERROR_FAILURE;
 
   // Get location of target cell:      
-  int32_t rowIndex, colIndex;
+  int32_t rowIndex, colIndex, curRowIndex, curColIndex;
   nsresult result = cellLayout->GetCellIndexes(rowIndex, colIndex);
   if (NS_FAILED(result)) return result;
 
@@ -2643,25 +2665,34 @@ nsFrameSelection::SelectRowOrColumn(nsIContent *aCellContent, uint32_t aTarget)
   if (aTarget == nsISelectionPrivate::TABLESELECTION_COLUMN)
     rowIndex = 0;
 
-  nsCOMPtr<nsIContent> firstCell, lastCell;
-  while (true) {
+  nsCOMPtr<nsIDOMElement> cellElement;
+  nsCOMPtr<nsIContent> firstCell;
+  nsCOMPtr<nsIDOMElement> lastCell;
+  int32_t rowSpan, colSpan, actualRowSpan, actualColSpan;
+  bool isSelected;
+
+  do {
     // Loop through all cells in column or row to find first and last
-    nsCOMPtr<nsIContent> curCellContent =
-      tableFrame->GetCellAt(rowIndex, colIndex);
-    if (!curCellContent)
-      break;
+    result = tableLayout->GetCellDataAt(rowIndex, colIndex, *getter_AddRefs(cellElement),
+                                        curRowIndex, curColIndex, rowSpan, colSpan, 
+                                        actualRowSpan, actualColSpan, isSelected);
+    if (NS_FAILED(result)) return result;
+    if (cellElement)
+    {
+      NS_ASSERTION(actualRowSpan > 0 && actualColSpan> 0, "SelectRowOrColumn: Bad rowspan or colspan\n");
+      if (!firstCell)
+        firstCell = do_QueryInterface(cellElement);
 
-    if (!firstCell)
-      firstCell = curCellContent;
+      lastCell = cellElement;
 
-    lastCell = curCellContent.forget();
-
-    // Move to next cell in cellmap, skipping spanned locations
-    if (aTarget == nsISelectionPrivate::TABLESELECTION_ROW)
-      colIndex += tableFrame->GetEffectiveRowSpanAt(rowIndex, colIndex);
-    else
-      rowIndex += tableFrame->GetEffectiveRowSpanAt(rowIndex, colIndex);
+      // Move to next cell in cellmap, skipping spanned locations
+      if (aTarget == nsISelectionPrivate::TABLESELECTION_ROW)
+        colIndex += actualColSpan;
+      else
+        rowIndex += actualRowSpan;
+    }
   }
+  while (cellElement);
 
   // Use SelectBlockOfCells:
   // This will replace existing selection,
@@ -3153,20 +3184,20 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Selection)
   // Unlink the selection listeners *before* we do RemoveAllRanges since
   // we don't want to notify the listeners during JS GC (they could be
   // in JS!).
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSelectionListeners)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mSelectionListeners)
   tmp->RemoveAllRanges();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mFrameSelection)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFrameSelection)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Selection)
   {
     uint32_t i, count = tmp->mRanges.Length();
     for (i = 0; i < count; ++i) {
-      NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRanges[i].mRange)
+      NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRanges[i].mRange, nsIDOMRange)
     }
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAnchorFocusRange)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFrameSelection)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSelectionListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mAnchorFocusRange, nsIDOMRange)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFrameSelection)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mSelectionListeners)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 DOMCI_DATA(Selection, Selection)

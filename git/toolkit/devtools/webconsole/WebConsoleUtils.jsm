@@ -28,12 +28,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gActivityDistributor",
                                    "@mozilla.org/network/http-activity-distributor;1",
                                    "nsIHttpActivityDistributor");
 
-XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
-                                  "resource:///modules/devtools/gDevTools.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "TargetFactory",
-                                  "resource:///modules/devtools/Target.jsm");
-
 this.EXPORTED_SYMBOLS = ["WebConsoleUtils", "JSPropertyProvider", "JSTermHelpers",
                          "PageErrorListener", "ConsoleAPIListener",
                          "NetworkResponseListener", "NetworkMonitor",
@@ -521,14 +515,10 @@ this.WebConsoleUtils = {
       result.value = this.createValueGrip(descriptor.value, aObjectWrapper);
     }
     else if (descriptor.get) {
-      let gotValue = false;
       if (this.isNativeFunction(descriptor.get)) {
-        try {
-          result.value = this.createValueGrip(aObject[aProperty], aObjectWrapper);
-          gotValue = true;
-        } catch (e) {}
+        result.value = this.createValueGrip(aObject[aProperty], aObjectWrapper);
       }
-      if (!gotValue) {
+      else {
         result.get = this.createValueGrip(descriptor.get, aObjectWrapper);
         result.set = this.createValueGrip(descriptor.set, aObjectWrapper);
       }
@@ -599,10 +589,9 @@ this.WebConsoleUtils = {
     let type = typeof(aValue);
     switch (type) {
       case "boolean":
+      case "string":
       case "number":
         return aValue;
-      case "string":
-          return aObjectWrapper(aValue);
       case "object":
       case "function":
         if (aValue) {
@@ -697,28 +686,13 @@ this.WebConsoleUtils = {
   {
     // Primitives like strings and numbers are not sent as objects.
     // But null and undefined are sent as objects with the type property
-    // telling which type of value we have. We also have long strings which are
-    // sent using the LongStringActor.
-
+    // telling which type of value we have.
     let type = typeof(aGrip);
-    if (type == "string" ||
-        (aGrip && type == "object" && aGrip.type == "longString")) {
-      let str = type == "string" ? aGrip : aGrip.initial;
-      if (aFormatString) {
-        return this.formatResultString(str);
-      }
-      return str;
-    }
-
     if (aGrip && type == "object") {
-      if (aGrip.displayString && typeof aGrip.displayString == "object" &&
-          aGrip.displayString.type == "longString") {
-        return aGrip.displayString.initial;
-      }
       return aGrip.displayString || aGrip.className || aGrip.type || type;
     }
-
-    return aGrip + "";
+    return type == "string" && aFormatString ?
+           this.formatResultString(aGrip) : aGrip + "";
   },
 
   /**
@@ -839,21 +813,12 @@ this.WebConsoleUtils = {
       return val;
     }
 
-    if (val.type == "longString") {
-      return this.formatResultString(val.initial) + "\u2026";
-    }
-
     if (val.type == "function" && val.functionName) {
       return "function " + val.functionName + "(" +
              val.functionArguments.join(", ") + ")";
     }
     if (val.type == "object" && val.className) {
       return val.className;
-    }
-
-    if (val.displayString && typeof val.displayString == "object" &&
-        val.displayString.type == "longString") {
-      return val.displayString.initial;
     }
 
     return val.displayString || val.type;
@@ -1574,13 +1539,7 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
   Object.defineProperty(aOwner.sandbox, "$0", {
     get: function() {
       try {
-        let window = aOwner.chromeWindow();
-        let target = TargetFactory.forTab(window.gBrowser.selectedTab);
-        let toolbox = gDevTools.getToolbox(target);
-
-        return toolbox == null ?
-            undefined :
-            toolbox.getPanel("inspector").selection.node;
+        return aOwner.chromeWindow().InspectorUI.selection;
       }
       catch (ex) {
         aOwner.window.console.error(ex.message);
@@ -1956,17 +1915,12 @@ NetworkResponseListener.prototype = {
       text: aData || "",
     };
 
-    response.size = response.text.length;
+    // TODO: Bug 787981 - use LongStringActor for strings that are too long.
 
     try {
       response.mimeType = this.request.contentType;
     }
     catch (ex) { }
-
-    if (!response.mimeType || !NetworkHelper.isTextMimeType(response.mimeType)) {
-      response.encoding = "base64";
-      response.text = btoa(response.text);
-    }
 
     if (response.mimeType && this.request.contentCharset) {
       response.mimeType += "; charset=" + this.request.contentCharset;

@@ -121,10 +121,12 @@ class XPCShellTests(object):
     if self.mozInfo is None:
       self.mozInfo = os.path.join(self.testharnessdir, "mozinfo.json")
 
-  def buildCoreEnvironment(self):
+  def buildEnvironment(self):
     """
-      Add environment variables likely to be used across all platforms, including remote systems.
+      Create and returns a dictionary of self.env to include all the appropriate env variables and values.
+      On a remote system, we overload this to set different values and are missing things like os.environ and PATH.
     """
+    self.env = dict(os.environ)
     # Make assertions fatal
     self.env["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
     # Don't launch the crash reporter client
@@ -133,13 +135,6 @@ class XPCShellTests(object):
     # disabled by automation.py too
     self.env["NS_TRACE_MALLOC_DISABLE_STACKS"] = "1"
 
-  def buildEnvironment(self):
-    """
-      Create and returns a dictionary of self.env to include all the appropriate env variables and values.
-      On a remote system, we overload this to set different values and are missing things like os.environ and PATH.
-    """
-    self.env = dict(os.environ)
-    self.buildCoreEnvironment()
     if sys.platform == 'win32':
       self.env["PATH"] = self.env["PATH"] + ";" + self.xrePath
     elif sys.platform in ('os2emx', 'os2knix'):
@@ -220,9 +215,6 @@ class XPCShellTests(object):
 
     if self.debuggerInfo:
       self.xpcsCmd = [self.debuggerInfo["path"]] + self.debuggerInfo["args"] + self.xpcsCmd
-
-    if self.pluginsPath:
-      self.xpcsCmd.extend(['-p', os.path.abspath(self.pluginsPath)])
 
   def buildTestPath(self):
     """
@@ -612,8 +604,7 @@ class XPCShellTests(object):
                debuggerArgs=None, debuggerInteractive=False,
                profileName=None, mozInfo=None, shuffle=False,
                testsRootDir=None, xunitFilename=None, xunitName=None,
-               testingModulesDir=None, autolog=False, pluginsPath=None,
-               **otherOptions):
+               testingModulesDir=None, autolog=False, **otherOptions):
     """Run xpcshell tests.
 
     |xpcshell|, is the xpcshell executable to use to run the tests.
@@ -626,8 +617,6 @@ class XPCShellTests(object):
     |testdirs|, if provided, is a list of absolute paths of test directories.
       No-manifest only option.
     |testPath|, if provided, indicates a single path and/or test to run.
-    |pluginsPath|, if provided, custom plugins directory to be returned from
-      the xpcshell dir svc provider for NS_APP_PLUGINS_DIR_LIST.
     |interactive|, if set to True, indicates to provide an xpcshell prompt
       instead of automatically executing the test.
     |verbose|, if set to True, will cause stdout/stderr from tests to
@@ -708,7 +697,6 @@ class XPCShellTests(object):
     self.profileName = profileName or "xpcshell"
     self.mozInfo = mozInfo
     self.testingModulesDir = testingModulesDir
-    self.pluginsPath = pluginsPath
 
     # If we have an interactive debugger, disable ctrl-c.
     if self.debuggerInfo and self.debuggerInfo["interactive"]:
@@ -736,14 +724,6 @@ class XPCShellTests(object):
         return False
       self.mozInfo = parse_json(open(mozInfoFile).read())
     mozinfo.update(self.mozInfo)
-
-    # The appDirKey is a optional entry in either the default or individual test
-    # sections that defines a relative application directory for test runs. If
-    # defined we pass 'grePath/$appDirKey' for the -a parameter of the xpcshell
-    # test harness.
-    appDirKey = None
-    if "appname" in self.mozInfo:
-      appDirKey = self.mozInfo["appname"] + "-appdir"
 
     # We have to do this before we build the test list so we know whether or
     # not to run tests that depend on having the node spdy server
@@ -791,15 +771,6 @@ class XPCShellTests(object):
 
       # Check for known-fail tests
       expected = test['expected'] == 'pass'
-
-      # By default self.appPath will equal the gre dir. If specified in the
-      # xpcshell.ini file, set a different app dir for this test.
-      if appDirKey != None and appDirKey in test:
-        relAppDir = test[appDirKey]
-        relAppDir = os.path.join(self.xrePath, relAppDir)
-        self.appPath = os.path.abspath(relAppDir)
-      else:
-        self.appPath = None
 
       testdir = os.path.dirname(name)
       self.buildXpcsCmd(testdir)
@@ -894,16 +865,7 @@ class XPCShellTests(object):
             self.todoCount += 1
             xunitResult["todo"] = True
 
-        if checkForCrashes(testdir, self.symbolsPath, testName=name):
-          message = "PROCESS-CRASH | %s | application crashed" % name
-          self.failCount += 1
-          xunitResult["passed"] = False
-          xunitResult["failure"] = {
-            "type": "PROCESS-CRASH",
-            "message": message,
-            "text": stdout
-          }
-
+        checkForCrashes(testdir, self.symbolsPath, testName=name)
         # Find child process(es) leak log(s), if any: See InitLog() in
         # xpcom/base/nsTraceRefcntImpl.cpp for logfile naming logic
         leakLogs = [self.leakLogFile]
@@ -936,27 +898,75 @@ class XPCShellTests(object):
           try:
             self.removeDir(self.profileDir)
           except Exception:
-            self.log.info("TEST-INFO | Failed to remove profile directory. Waiting.")
+            message = "TEST-UNEXPECTED-FAIL | %s | Failed to clean up the test profile directory: %s" % (name, sys.exc_info()[1])
+            self.log.error(message)
+            print_stdout(stdout)
+            print_stdout(traceback.format_exc())
 
-            # We suspect the filesystem may still be making changes. Wait a
-            # little bit and try again.
-            time.sleep(5)
-
+            # What follows is code to dump the directory listing similar to ls.
+            # This should only be needed until we track down the source of
+            # failures on the buildbot machines.
             try:
-                self.removeDir(self.profileDir)
-            except Exception:
-                message = "TEST-UNEXPECTED-FAIL | %s | Failed to clean up the test profile directory: %s" % (name, sys.exc_info()[1])
-                self.log.error(message)
-                print_stdout(stdout)
-                print_stdout(traceback.format_exc())
+                import pwd
+                import grp
+            except ImportError:
+                pwd = None
+                grp = None
 
-                self.failCount += 1
-                xunitResult["passed"] = False
-                xunitResult["failure"] = {
-                    "type": "TEST-UNEXPECTED-FAIL",
-                    "message": message,
-                    "text": "%s\n%s" % (stdout, traceback.format_exc())
-                }
+            def get_username(uid):
+                if pwd is None:
+                    return None
+
+                try:
+                    return pwd.getpwuid(uid).pw_name
+                except KeyError:
+                    return '%d missing' % uid
+
+            def get_groupname(gid):
+                if grp is None:
+                    return None
+
+                try:
+                    return grp.getgrgid(gid).gr_name
+                except KeyError:
+                    return '%d missing' % gid
+
+            self.log.info('Files in profile directory:')
+            def on_error(error):
+                self.log.info('OS Error while performing os.walk!')
+                self.log.info(traceback.format_exc())
+
+            for d, dirs, files in os.walk(self.profileDir, onerror=on_error):
+                try:
+                    d_stat = os.stat(d)
+                except Exception:
+                    self.log.info('Could not stat directory %s' % d)
+                    self.log.info(traceback.format_exc())
+                else:
+                    self.log.info('%o %s %s %s/' % (d_stat.st_mode,
+                        get_username(d_stat.st_uid),
+                        get_groupname(d_stat.st_gid), d))
+
+                for f in files:
+                    path = os.path.join(d, f)
+
+                    try:
+                        f_stat = os.stat(path)
+                    except Exception:
+                        self.log.info('Could not stat file %s' % path)
+                        self.log.info(traceback.format_exc())
+                    else:
+                        self.log.info('%o %s %s %s' % (f_stat.st_mode,
+                            get_username(f_stat.st_uid),
+                            get_groupname(f_stat.st_gid), path))
+
+            self.failCount += 1
+            xunitResult["passed"] = False
+            xunitResult["failure"] = {
+              "type": "TEST-UNEXPECTED-FAIL",
+              "message": message,
+              "text": "%s\n%s" % (stdout, traceback.format_exc())
+            }
 
       if gotSIGINT:
         xunitResult["passed"] = False
@@ -1040,11 +1050,6 @@ class XPCShellOptions(OptionParser):
     self.add_option("--testing-modules-dir",
                     dest="testingModulesDir", default=None,
                     help="Directory where testing modules are located.")
-    self.add_option("--test-plugin-path",
-                    type="string", dest="pluginsPath", default=None,
-                    help="Path to the location of a plugins directory containing the test plugin or plugins required for tests. "
-                         "By default xpcshell's dir svc provider returns gre/plugins. Use test-plugin-path to add a directory "
-                         "to return for NS_APP_PLUGINS_DIR_LIST when queried.")
     self.add_option("--total-chunks",
                     type = "int", dest = "totalChunks", default=1,
                     help = "how many chunks to split the tests up into")

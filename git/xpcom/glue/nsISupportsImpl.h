@@ -33,18 +33,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
 
-inline nsISupports*
-ToSupports(nsISupports* p)
-{
-    return p;
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsISupports* p)
-{
-    return NULL;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Macros to help detect thread-safety:
 
@@ -339,7 +327,7 @@ public:
     NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                          \
     nsrefcnt count =                                                          \
       mRefCnt.decr(static_cast<void*>(this),                                  \
-                   _class::NS_CYCLE_COLLECTION_INNERCLASS::GetParticipant());   \
+                   _class::NS_CYCLE_COLLECTION_INNERNAME.GetParticipant());   \
     NS_LOG_RELEASE(this, count, #_class);                                     \
     if (count == 0) {                                                         \
       NS_ASSERT_OWNINGTHREAD(_class);                                         \

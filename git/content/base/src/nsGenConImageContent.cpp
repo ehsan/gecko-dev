@@ -29,7 +29,7 @@ public:
     AddStatesSilently(NS_EVENT_STATE_SUPPRESSED);
   }
 
-  nsresult Init(imgRequestProxy* aImageRequest)
+  nsresult Init(imgIRequest* aImageRequest)
   {
     // No need to notify, since we have no frame.
     return UseAsPrimaryRequest(aImageRequest, false);
@@ -68,7 +68,7 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsGenConImageContent,
 
 nsresult
 NS_NewGenConImageContent(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
-                         imgRequestProxy* aImageRequest)
+                         imgIRequest* aImageRequest)
 {
   NS_PRECONDITION(aImageRequest, "Must have request!");
   nsGenConImageContent *it = new nsGenConImageContent(aNodeInfo);

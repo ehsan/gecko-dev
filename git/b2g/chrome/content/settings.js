@@ -64,32 +64,36 @@ SettingsListener.observe('audio.volume.master', 0.5, function(value) {
   audioManager.masterVolume = Math.max(0.0, Math.min(value, 1.0));
 });
 
-let audioChannelSettings = [];
+let audioSettings = [];
 
 if ("nsIAudioManager" in Ci) {
   const nsIAudioManager = Ci.nsIAudioManager;
-  audioChannelSettings = [
-    // settings name, max value, apply to stream types
-    ['audio.volume.content', 15, [nsIAudioManager.STREAM_TYPE_SYSTEM, nsIAudioManager.STREAM_TYPE_MUSIC]],
-    ['audio.volume.notification', 15, [nsIAudioManager.STREAM_TYPE_RING, nsIAudioManager.STREAM_TYPE_NOTIFICATION]],
-    ['audio.volume.alarm', 15, [nsIAudioManager.STREAM_TYPE_ALARM]],
-    ['audio.volume.telephony', 5, [nsIAudioManager.STREAM_TYPE_VOICE_CALL]],
-    ['audio.volume.bt_sco', 15, [nsIAudioManager.STREAM_TYPE_BLUETOOTH_SCO]],
+  audioSettings = [
+    // settings name, default value, stream type
+    ['audio.volume.voice_call', 10, nsIAudioManager.STREAM_TYPE_VOICE_CALL],
+    ['audio.volume.system', 10,  nsIAudioManager.STREAM_TYPE_SYSTEM],
+    ['audio.volume.ring', 7, nsIAudioManager.STREAM_TYPE_RING],
+    ['audio.volume.music', 15, nsIAudioManager.STREAM_TYPE_MUSIC],
+    ['audio.volume.alarm', 7, nsIAudioManager.STREAM_TYPE_ALARM],
+    ['audio.volume.notification', 7, nsIAudioManager.STREAM_TYPE_NOTIFICATION],
+    ['audio.volume.bt_sco', 15, nsIAudioManager.STREAM_TYPE_BLUETOOTH_SCO],
+    ['audio.volume.enforced_audible', 7, nsIAudioManager.STREAM_TYPE_ENFORCED_AUDIBLE],
+    ['audio.volume.dtmf', 15, nsIAudioManager.STREAM_TYPE_DTMF],
+    ['audio.volume.tts', 15, nsIAudioManager.STREAM_TYPE_TTS],
+    ['audio.volume.fm', 10, nsIAudioManager.STREAM_TYPE_FM],
   ];
 }
 
-for each (let [setting, maxValue, streamTypes] in audioChannelSettings) {
-  (function AudioStreamSettings(setting, maxValue, streamTypes) {
-    SettingsListener.observe(setting, maxValue, function(value) {
+for each (let [setting, defaultValue, streamType] in audioSettings) {
+  (function AudioStreamSettings(s, d, t) {
+    SettingsListener.observe(s, d, function(value) {
       let audioManager = Services.audioManager;
       if (!audioManager)
         return;
 
-      for each(let streamType in streamTypes) {
-        audioManager.setStreamVolumeIndex(streamType, Math.min(value, maxValue));
-      }
+      audioManager.setStreamVolumeIndex(t, Math.min(value, d));
     });
-  })(setting, maxValue, streamTypes);
+  })(setting, defaultValue, streamType);
 }
 
 // =================== Console ======================
@@ -117,21 +121,19 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
     Services.prefs.setCharPref(prefName, value + ', ' + intl);
   }
 
-  if (shell.hasStarted() == false) {
-    shell.start();
-  }
+  shell.start();
 });
 
 // =================== RIL ====================
 (function RILSettingsToPrefs() {
-  let strPrefs = ['ril.mms.mmsc', 'ril.mms.mmsproxy'];
+  let strPrefs = ['ril.data.mmsc', 'ril.data.mmsproxy'];
   strPrefs.forEach(function(key) {
     SettingsListener.observe(key, "", function(value) {
       Services.prefs.setCharPref(key, value);
     });
   });
 
-  ['ril.mms.mmsport'].forEach(function(key) {
+  ['ril.data.mmsport'].forEach(function(key) {
     SettingsListener.observe(key, null, function(value) {
       if (value != null) {
         Services.prefs.setIntPref(key, value);
@@ -153,14 +155,12 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
                                      '@mozilla.org/settingsService;1',
                                      'nsISettingsService');
   let lock = gSettingsService.createLock();
-  // MOZ_B2G_VERSION is set in b2g/confvars.sh, and is output as a #define value
-  // from configure.in, defaults to 1.0.0 if this value is not exist.
+  //MOZ_B2G_VERSION is set in b2g/confvars.sh, and is outputed as a #define value
+  //from configure.in, defaults to 1.0.0 if this value is not exist
 #filter attemptSubstitution
   let os_version = '@MOZ_B2G_VERSION@';
-  let os_name = '@MOZ_B2G_OS_NAME@';
 #unfilter attemptSubstitution
   lock.set('deviceinfo.os', os_version, null, null);
-  lock.set('deviceinfo.software', os_name + ' ' + os_version, null, null);
 
   let appInfo = Cc["@mozilla.org/xre/app-info;1"]
                   .getService(Ci.nsIXULAppInfo);
@@ -170,9 +170,8 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
   let update_channel = Services.prefs.getCharPref('app.update.channel');
   lock.set('deviceinfo.update_channel', update_channel, null, null);
 
-  // Get the hardware info and firmware revision from device properties.
-  let hardware_info = null;
-  let firmware_revision = null;
+  //Get the hardware info from android properties
+  let hardware_version = null;
   try {
     let cutils = ctypes.open('libcutils.so');
     let cbuf = ctypes.char.array(128)();
@@ -188,14 +187,12 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
       c_property_get(key, cbuf, defaultValue);
       return cbuf.readString();
     }
-    hardware_info = property_get('ro.hardware');
-    firmware_revision = property_get('ro.firmware_revision');
+    hardware_version = property_get('ro.hardware');
     cutils.close();
   } catch(e) {
-    // Error.
+    //Error
   }
-  lock.set('deviceinfo.hardware', hardware_info, null, null);
-  lock.set('deviceinfo.firmware_revision', firmware_revision, null, null);
+  lock.set('deviceinfo.hardware', hardware_version, null, null);
 })();
 
 // =================== Debugger ====================
@@ -203,7 +200,18 @@ SettingsListener.observe('devtools.debugger.remote-enabled', false, function(val
   Services.prefs.setBoolPref('devtools.debugger.remote-enabled', value);
   // This preference is consulted during startup
   Services.prefs.savePrefFile(null);
-  value ? startDebugger() : stopDebugger();
+});
+
+SettingsListener.observe('devtools.debugger.log', false, function(value) {
+  Services.prefs.setBoolPref('devtools.debugger.log', value);
+});
+
+SettingsListener.observe('devtools.debugger.remote-port', 6000, function(value) {
+  Services.prefs.setIntPref('devtools.debugger.remote-port', value);
+});
+
+SettingsListener.observe('devtools.debugger.force-local', true, function(value) {
+  Services.prefs.setBoolPref('devtools.debugger.force-local', value);
 });
 
 SettingsListener.observe('debug.log-animations.enabled', false, function(value) {

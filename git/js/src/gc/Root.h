@@ -13,7 +13,6 @@
 #include "mozilla/TypeTraits.h"
 #include "mozilla/GuardObjects.h"
 
-#include "js/Utility.h"
 #include "js/TemplateLib.h"
 
 #include "jspubtd.h"
@@ -26,42 +25,30 @@
  * location. The GC must therefore know about all live pointers to a thing,
  * not just one of them, in order to behave correctly.
  *
- * The |Root| and |Handle| classes below are used to root stack locations
- * whose value may be held live across a call that can trigger GC. For a
- * code fragment such as:
+ * The classes below are used to root stack locations whose value may be held
+ * live across a call that can trigger GC (i.e. a call which might allocate any
+ * GC things). For a code fragment such as:
  *
- * JSObject *obj = NewObject(cx);
- * DoSomething(cx);
+ * Foo();
  * ... = obj->lastProperty();
  *
- * If |DoSomething()| can trigger a GC, the stack location of |obj| must be
- * rooted to ensure that the GC does not move the JSObject referred to by
- * |obj| without updating |obj|'s location itself. This rooting must happen
- * regardless of whether there are other roots which ensure that the object
- * itself will not be collected.
+ * If Foo() can trigger a GC, the stack location of obj must be rooted to
+ * ensure that the GC does not move the JSObject referred to by obj without
+ * updating obj's location itself. This rooting must happen regardless of
+ * whether there are other roots which ensure that the object itself will not
+ * be collected.
  *
- * If |DoSomething()| cannot trigger a GC, and the same holds for all other
- * calls made between |obj|'s definitions and its last uses, then no rooting
- * is required. The |Unrooted| class below is used to ensure that this
- * property is true and remains true in the future.
+ * If Foo() cannot trigger a GC, and the same holds for all other calls made
+ * between obj's definitions and its last uses, then no rooting is required.
  *
- * SpiderMonkey can trigger a GC at almost any time and in ways that are not
- * always clear. For example, the following innocuous-looking actions can
- * cause a GC: allocation of any new GC thing; JSObject::hasProperty;
- * JS_ReportError and friends; and ToNumber, among many others. The following
- * dangerous-looking actions cannot trigger a GC: js_malloc, cx->malloc_,
- * rt->malloc_, and friends and JS_ReportOutOfMemory.
- *
- * The following family of four classes will exactly root a stack location.
- * Incorrect usage of these classes will result in a compile error in almost
- * all cases. Therefore, it is very hard to be incorrectly rooted if you use
- * these classes exclusively. These classes are all templated on the type T of
- * the value being rooted.
+ * Several classes are available for rooting stack locations. All are templated
+ * on the type T of the value being rooted, for which RootMethods<T> must
+ * have an instantiation.
  *
  * - Rooted<T> declares a variable of type T, whose value is always rooted.
  *   Rooted<T> may be automatically coerced to a Handle<T>, below. Rooted<T>
  *   should be used whenever a local variable's value may be held live across a
- *   call which can trigger a GC. This is generally true of
+ *   call which can allocate GC things or otherwise trigger a GC.
  *
  * - Handle<T> is a const reference to a Rooted<T>. Functions which take GC
  *   things or values as arguments and need to root those arguments should
@@ -71,78 +58,14 @@
  *   Second, if the caller does not pass a rooted value a compile error will be
  *   generated, which is quicker and easier to fix than when relying on a
  *   separate rooting analysis.
- *
- * - MutableHandle<T> is a non-const reference to Rooted<T>. It is used in the
- *   same way as Handle<T> and includes a |set(const T &v)| method to allow
- *   updating the value of the referenced Rooted<T>. A MutableHandle<T> can be
- *   created from a Rooted<T> by using |Rooted<T>::operator&()|.
- *
- * In some cases the small performance overhead of exact rooting is too much.
- * In these cases, try the following:
- *
- * - Move all Rooted<T> above inner loops: this allows you to re-use the root
- *   on each iteration of the loop.
- *
- * - Pass Handle<T> through your hot call stack to avoid re-rooting costs at
- *   every invocation.
- *
- * If this is not enough, the following family of two classes and two
- * functions can provide partially type-safe and mostly runtime-safe access to
- * GC things.
- *
- * - AutoAssertNoGC is a scoped guard that will trigger an assertion if a GC,
- *   or an appropriately marked method that might GC, is entered when it is in
- *   scope.  By convention the name given to instances of this guard is |nogc|.
- *
- * - AssertCanGC() will assert if an AutoAssertNoGC is in scope either locally
- *   or anywhere in the call stack.
- *
- * - UnrootedT is a typedef for a pointer to thing of type T. In DEBUG builds
- *   it gets replaced by a class that additionally acts as an AutoAssertNoGC
- *   guard. Since there is only minimal compile-time protection against
- *   mis-use, UnrootedT should only be used in places where there is adequate
- *   coverage of AutoAssertNoGC and AssertCanGC guards to ensure that mis-use
- *   is caught at runtime.
- *
- * - DropUnrooted(UnrootedT &v) will poison |v| and end its AutoAssertNoGC
- *   scope. This can be used to force |v| out of scope before its C++ scope
- *   would end naturally. The usage of braces C++ syntactical scopes |{...}|
- *   is strongly perferred to this, but sometimes will not work because of
- *   awkwardly overlapping lifetimes.
- *
- * There also exists a set of RawT typedefs for modules without rooting
- * concerns, such as the GC. Do not use these as they provide no rooting
- * protection whatsoever.
- *
- * The following diagram explains the list of supported, implicit type
- * conversions between classes of this family:
- *
- *  RawT ----> UnrootedT
- *   |             ^
- *   |             |
- *   |             v
- *   +--------> Rooted<T> <---> Handle<T>
- *                 ^               ^
- *                 |               |
- *                 |               |
- *                 +---> MutableHandle<T>
- *                 (via &)
- *
- * Currently all of these types implicit conversion to RawT. These are present
- * only for the purpose of bootstrapping exact rooting and will be removed in
- * the future (Bug 817164).
  */
 
 namespace js {
 
 template <typename T> class Rooted;
-template <typename T> class Unrooted;
 
 template <typename T>
 struct RootMethods {};
-
-template <typename T>
-class RootedBase {};
 
 template <typename T>
 class HandleBase {};
@@ -156,15 +79,11 @@ namespace JS {
 
 class AutoAssertNoGC;
 
-template <typename T> class Handle;
 template <typename T> class MutableHandle;
 
 JS_FRIEND_API(void) EnterAssertNoGCScope();
 JS_FRIEND_API(void) LeaveAssertNoGCScope();
-
-/* These are exposing internal state of the GC for inlining purposes. */
 JS_FRIEND_API(bool) InNoGCScope();
-JS_FRIEND_API(bool) isGCEnabled();
 
 /*
  * Handle provides an implicit constructor for NullPtr so that, given:
@@ -178,6 +97,9 @@ struct NullPtr
     static void * const constNullValue;
 };
 
+template <typename T>
+class MutableHandle;
+
 /*
  * Reference to a T that has been rooted elsewhere. This is most useful
  * as a parameter type, which guarantees that the T lvalue is properly
@@ -189,8 +111,6 @@ struct NullPtr
 template <typename T>
 class Handle : public js::HandleBase<T>
 {
-    friend class MutableHandle<T>;
-
   public:
     /* Creates a handle from a handle of a type convertible to T. */
     template <typename S>
@@ -206,6 +126,7 @@ class Handle : public js::HandleBase<T>
         ptr = reinterpret_cast<const T *>(&NullPtr::constNullValue);
     }
 
+    friend class MutableHandle<T>;
     Handle(MutableHandle<T> handle) {
         ptr = handle.address();
     }
@@ -241,10 +162,8 @@ class Handle : public js::HandleBase<T>
     const T *address() const { return ptr; }
     T get() const { return *ptr; }
 
-    operator T() const { return get(); }
-    T operator->() const { return get(); }
-
-    bool operator!=(const T &other) { return *ptr != other; }
+    operator T () const { return get(); }
+    T operator ->() const { return get(); }
 
   private:
     Handle() {}
@@ -252,7 +171,7 @@ class Handle : public js::HandleBase<T>
     const T *ptr;
 
     template <typename S>
-    void operator=(S v) MOZ_DELETE;
+    void operator =(S v) MOZ_DELETE;
 };
 
 typedef Handle<JSObject*>    HandleObject;
@@ -282,16 +201,15 @@ class MutableHandle : public js::MutableHandleBase<T>
     }
 
     template <typename S>
-    inline MutableHandle(js::Rooted<S> *root,
-                         typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
+    inline
+    MutableHandle(js::Rooted<S> *root,
+                  typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
-    void set(T v) {
+    void set(T v)
+    {
         JS_ASSERT(!js::RootMethods<T>::poisoned(v));
         *ptr = v;
     }
-
-    template <typename S>
-    inline void set(const js::Unrooted<S> &v);
 
     /*
      * This may be called only if the location of the T is guaranteed
@@ -309,8 +227,8 @@ class MutableHandle : public js::MutableHandleBase<T>
     T *address() const { return ptr; }
     T get() const { return *ptr; }
 
-    operator T() const { return get(); }
-    T operator->() const { return get(); }
+    operator T () const { return get(); }
+    T operator ->() const { return get(); }
 
   private:
     MutableHandle() {}
@@ -318,7 +236,7 @@ class MutableHandle : public js::MutableHandleBase<T>
     T *ptr;
 
     template <typename S>
-    void operator=(S v) MOZ_DELETE;
+    void operator =(S v) MOZ_DELETE;
 };
 
 typedef MutableHandle<JSObject*>   MutableHandleObject;
@@ -328,18 +246,20 @@ typedef MutableHandle<JSString*>   MutableHandleString;
 typedef MutableHandle<jsid>        MutableHandleId;
 typedef MutableHandle<Value>       MutableHandleValue;
 
-} /* namespace JS */
-
-namespace js {
-
 /*
  * Raw pointer used as documentation that a parameter does not need to be
  * rooted.
  */
 typedef JSObject *                  RawObject;
+typedef JSFunction *                RawFunction;
+typedef JSScript *                  RawScript;
 typedef JSString *                  RawString;
 typedef jsid                        RawId;
-typedef JS::Value                   RawValue;
+typedef Value                       RawValue;
+
+} /* namespace JS */
+
+namespace js {
 
 /*
  * InternalHandle is a handle to an internal pointer into a gcthing. Use
@@ -348,7 +268,7 @@ typedef JS::Value                   RawValue;
  * direct field of a gcthing.
  */
 template <typename T>
-class InternalHandle {};
+class InternalHandle { };
 
 template <typename T>
 class InternalHandle<T*>
@@ -364,7 +284,8 @@ class InternalHandle<T*>
     template<typename H>
     InternalHandle(const JS::Handle<H> &handle, T *field)
       : holder((void**)handle.address()), offset(uintptr_t(field) - uintptr_t(handle.get()))
-    {}
+    {
+    }
 
     /*
      * Create an InternalHandle to a field within a Rooted<>.
@@ -372,12 +293,13 @@ class InternalHandle<T*>
     template<typename R>
     InternalHandle(const Rooted<R> &root, T *field)
       : holder((void**)root.address()), offset(uintptr_t(field) - uintptr_t(root.get()))
-    {}
+    {
+    }
 
     T *get() const { return reinterpret_cast<T*>(uintptr_t(*holder) + offset); }
 
-    const T &operator*() const { return *get(); }
-    T *operator->() const { return get(); }
+    const T& operator *() const { return *get(); }
+    T* operator ->() const { return get(); }
 
     static InternalHandle<T*> fromMarkedLocation(T *fieldPtr) {
         return InternalHandle(fieldPtr);
@@ -394,189 +316,174 @@ class InternalHandle<T*>
      * fromMarkedLocation().
      */
     InternalHandle(T *field)
-      : holder(reinterpret_cast<void * const *>(&JS::NullPtr::constNullValue)),
+      : holder(reinterpret_cast<void * const *>(&NullPtr::constNullValue)),
         offset(uintptr_t(field))
-    {}
+    {
+    }
 };
 
 #ifdef DEBUG
+template <typename T>
+class IntermediateNoGC
+{
+    T t_;
+
+  public:
+    IntermediateNoGC(const T &t) : t_(t) {
+        EnterAssertNoGCScope();
+    }
+    IntermediateNoGC(const IntermediateNoGC &) {
+        EnterAssertNoGCScope();
+    }
+    ~IntermediateNoGC() {
+        LeaveAssertNoGCScope();
+    }
+
+    const T &operator->() { return t_; }
+    operator const T &() { return t_; }
+};
+#endif
+
 /*
- * |Unrooted<T>| acts as an AutoAssertNoGC after it is initialized. It otherwise
- * acts like as a normal pointer of type T.
+ * Return<T> wraps GC things that are returned from accessor methods.  The
+ * wrapper helps to ensure correct rooting of the returned pointer and safe
+ * access while unrooted.
+ *
+ * Example usage in a method declaration:
+ *
+ *     class Foo {
+ *         HeapPtrScript script_;
+ *         ...
+ *       public:
+ *          Return<JSScript*> script() { return script_; }
+ *     };
+ *
+ * Example usage of method (1):
+ *
+ *     Foo foo(...);
+ *     RootedScript script(cx, foo->script());
+ *
+ * Example usage of method (2):
+ *
+ *     Foo foo(...);
+ *     foo->script()->needsArgsObj();
+ *
+ * The purpose of this class is to assert eagerly on incorrect use of GC thing
+ * pointers. For example:
+ *
+ *    RootedShape shape(cx, ...);
+ *    shape->parent.init(js_NewGCThing<Shape*>(cx, ...));
+ *
+ * In this expression, C++ is allowed to order these calls as follows:
+ *
+ *   Call                           Effect
+ *   ----                           ------
+ *   1) RootedShape::operator->     Stores shape::ptr_ to stack.
+ *   2) js_NewGCThing<Shape*>       Triggers GC and compaction of shapes. This
+ *                                  moves shape::ptr_ to a new location.
+ *   3) HeapPtrObject::init         This call takes the relocated shape::ptr_
+ *                                  as |this|, crashing or, worse, corrupting
+ *                                  the program's state on the first access
+ *                                  to a member variable.
+ *
+ * If Shape::parent were an accessor function returning a Return<Shape*>, this
+ * could not happen: Return ensures either immediate rooting or no GC within
+ * the same expression.
  */
 template <typename T>
-class Unrooted
+class Return
 {
+    friend class Rooted<T>;
+
+    const T ptr_;
+
   public:
-    Unrooted() : ptr_(UninitializedTag()) {}
+    template <typename S>
+    Return(const S &ptr,
+           typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0)
+      : ptr_(ptr)
+    {}
+
+    Return(NullPtr) : ptr_(NULL) {}
 
     /*
-     * |Unrooted<T>| can be initialized from a convertible |Rooted<S>| or
-     * |Handle<S>|. This is so that we can call AutoAssertNoGC methods that
-     * take |Unrooted<T>| parameters with a convertible rooted argument
-     * without explicit unpacking.
+     * |get(AutoAssertNoGC &)| is the safest way to access a Return<T> without
+     * rooting it first: it is impossible to call this method without an
+     * AutoAssertNoGC in scope, so the compiler will automatically catch any
+     * incorrect usage.
      *
-     * Note: Even though this allows implicit conversion to |Unrooted<T>|
-     * type, this is safe because Unrooted<T> acts as an AutoAssertNoGC scope.
+     * Example:
+     *     AutoAssertNoGC nogc;
+     *     RawScript script = fun->script().get(nogc);
      */
-    template <typename S>
-    inline Unrooted(const Rooted<S> &root,
-                    typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
-
-    template <typename S>
-    Unrooted(const JS::Handle<S> &root,
-             typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0)
-      : ptr_(root.get())
-    {
-        JS_ASSERT(ptr_ != UninitializedTag());
-        JS::EnterAssertNoGCScope();
+    const T &get(AutoAssertNoGC &) const {
+        return ptr_;
     }
 
     /*
-     * |Unrooted<T>| can initialize by copying from a convertible type
-     * |Unrooted<S>|. This enables usage such as:
+     * |operator->|'s result cannot be stored in a local variable, so it is safe
+     * to use in a CanGC context iff no GC can occur anywhere within the same
+     * expression (generally from one |;| to the next). |operator->| uses a
+     * temporary object as a guard and will assert if a CanGC context is
+     * encountered before the next C++ Sequence Point.
      *
-     * Unrooted<BaseShape*> base = js_NewBaseShape(cx);
-     * Unrooted<UnownedBaseShape*> ubase = static_cast<UnrootedUnownedBaseShape>(ubase);
+     * INCORRECT:
+     *    fun->script()->bindings = myBindings->clone(cx, ...);
+     *
+     * The compiler is allowed to reorder |fun->script()::operator->()| above
+     * the call to |clone(cx, ...)|. In this case, the RawScript C++ stores on
+     * the stack may be corrupted by a GC under |clone|. The subsequent
+     * dereference of this pointer to get |bindings| will result in an invalid
+     * access. This wrapper ensures that such usage asserts in DEBUG builds when
+     * it encounters this situation. Without this assertion, it is possible for
+     * such access to corrupt program state instead of crashing immediately.
+     *
+     * CORRECT:
+     *    RootedScript clone(cx, myBindings->clone(cx, ...));
+     *    fun->script()->bindings = clone;
      */
-    template <typename S>
-    Unrooted(const Unrooted<S> &other)
-        /* Note: |static_cast<S>| acquires other.ptr_ in DEBUG builds. */
-      : ptr_(static_cast<T>(static_cast<S>(other)))
-    {
-        if (ptr_ != UninitializedTag())
-            JS::EnterAssertNoGCScope();
+#ifdef DEBUG
+    IntermediateNoGC<T> operator->() const {
+        return IntermediateNoGC<T>(ptr_);
     }
+#else
+    const T &operator->() const {
+        return ptr_;
+    }
+#endif
 
-    Unrooted(const Unrooted &other) : ptr_(other.ptr_) {
-        if (ptr_ != UninitializedTag())
-            JS::EnterAssertNoGCScope();
+    /*
+     * |unsafeGet()| is unsafe for most uses.  Although it performs similar
+     * checking to |operator->|, its result can be stored to a local variable.
+     * For this reason, it should only be used when it would be incorrect or
+     * absurd to create a new Rooted for its use: e.g. for assertions.
+     */
+#ifdef DEBUG
+    IntermediateNoGC<T> unsafeGet() const {
+        return IntermediateNoGC<T>(ptr_);
     }
+#else
+    const T &unsafeGet() const {
+        return ptr_;
+    }
+#endif
 
-    Unrooted(const T &p) : ptr_(p) {
-        JS_ASSERT(ptr_ != UninitializedTag());
-        JS::EnterAssertNoGCScope();
-    }
-
-    Unrooted(const JS::NullPtr &) : ptr_(NULL) {
-        JS::EnterAssertNoGCScope();
-    }
-
-    ~Unrooted() {
-        if (ptr_ != UninitializedTag())
-            JS::LeaveAssertNoGCScope();
-    }
-
-    void drop() {
-        if (ptr_ != UninitializedTag())
-            JS::LeaveAssertNoGCScope();
-        ptr_ = UninitializedTag();
-    }
-
-    /* See notes for Unrooted::Unrooted(const T &) */
-    Unrooted &operator=(T other) {
-        JS_ASSERT(other != UninitializedTag());
-        if (ptr_ == UninitializedTag())
-            JS::EnterAssertNoGCScope();
-        ptr_ = other;
-        return *this;
-    }
-    Unrooted &operator=(Unrooted other) {
-        JS_ASSERT(other.ptr_ != UninitializedTag());
-        if (ptr_ == UninitializedTag())
-            JS::EnterAssertNoGCScope();
-        ptr_ = other.ptr_;
-        return *this;
-    }
-
-    operator T() const { return (ptr_ == UninitializedTag()) ? NULL : ptr_; }
-    T *operator&() { return &ptr_; }
-    const T operator->() const { JS_ASSERT(ptr_ != UninitializedTag()); return ptr_; }
+    /*
+     * |operator==| is safe to use in any context.  It is present to allow:
+     *     JS_ASSERT(myScript == fun->script().unsafeGet());
+     *
+     * To be rewritten as:
+     *     JS_ASSERT(fun->script() == myScript);
+     *
+     * Note: the new order tells C++ to use |Return<JSScript*>::operator=|
+     *       instead of direct pointer comparison.
+     */
     bool operator==(const T &other) { return ptr_ == other; }
     bool operator!=(const T &other) { return ptr_ != other; }
-
-  private:
-    /*
-     * The after-initialization constraint is to handle the case:
-     *
-     *     Unrooted<Foo> foo = js_NewFoo(cx);
-     *
-     * In this case, C++ may run the default constructor, then call MaybeGC,
-     * and finally call the assignment operator. We cannot handle this case by
-     * simply checking if the pointer is NULL, since that would disable the
-     * NoGCScope on assignment. Instead we tag the pointer when we should
-     * disable the LeaveNoGCScope.
-     */
-    static inline T UninitializedTag() { return reinterpret_cast<T>(1); };
-
-    T ptr_;
+    bool operator==(const Return<T> &other) { return ptr_ == other.ptr_; }
+    bool operator==(const JS::Handle<T> &other) { return ptr_ == other.get(); }
+    inline bool operator==(const Rooted<T> &other);
 };
-
-/*
- * This macro simplifies declaration of the required matching raw-pointer for
- * optimized builds and Unrooted<T> template for debug builds.
- */
-# define ForwardDeclare(type)                        \
-    class type;                                      \
-    typedef Unrooted<type*> Unrooted##type;          \
-    typedef type * Raw##type
-
-# define ForwardDeclareJS(type)                      \
-    class JS##type;                                  \
-    namespace js {                                   \
-        typedef js::Unrooted<JS##type*> Unrooted##type; \
-        typedef JS##type * Raw##type;                \
-    }                                                \
-    class JS##type
-
-template <typename T>
-T DropUnrooted(Unrooted<T> &unrooted)
-{
-    T rv = unrooted;
-    unrooted.drop();
-    return rv;
-}
-
-template <typename T>
-T DropUnrooted(T &unrooted)
-{
-    T rv = unrooted;
-    JS::PoisonPtr(&unrooted);
-    return rv;
-}
-
-template <>
-inline RawId DropUnrooted(RawId &id) { return id; }
-
-#else /* NDEBUG */
-
-/* In opt builds |UnrootedFoo| is a real |Foo*|. */
-# define ForwardDeclare(type)        \
-    class type;                      \
-    typedef type * Unrooted##type;   \
-    typedef type * Raw##type
-
-# define ForwardDeclareJS(type)                                               \
-    class JS##type;                                                           \
-    namespace js {                                                            \
-        typedef JS##type * Unrooted##type;                                    \
-        typedef JS##type * Raw##type;                                         \
-    }                                                                         \
-    class JS##type
-
-template <typename T>
-class Unrooted
-{
-  private:
-    Unrooted() MOZ_DELETE;
-    Unrooted(const Unrooted &) MOZ_DELETE;
-    ~Unrooted() MOZ_DELETE;
-};
-
-template <typename T>
-T DropUnrooted(T &unrooted) { return unrooted; }
-
-#endif /* DEBUG */
 
 /*
  * By default, pointers should use the inheritance hierarchy to find their
@@ -584,10 +491,7 @@ T DropUnrooted(T &unrooted) { return unrooted; }
  * Rooted<T> may be used without the class definition being available.
  */
 template <typename T>
-struct RootKind<T *>
-{
-    static ThingRootKind rootKind() { return T::rootKind(); }
-};
+struct RootKind<T *> { static ThingRootKind rootKind() { return T::rootKind(); } };
 
 template <typename T>
 struct RootMethods<T *>
@@ -596,6 +500,9 @@ struct RootMethods<T *>
     static ThingRootKind kind() { return RootKind<T *>::rootKind(); }
     static bool poisoned(T *v) { return IsPoisonedPtr(v); }
 };
+
+template <typename T>
+class RootedBase {};
 
 /*
  * Local variable of type T whose value is always rooted. This is typically
@@ -608,21 +515,24 @@ struct RootMethods<T *>
 template <typename T>
 class Rooted : public RootedBase<T>
 {
-    void init(JSContext *cxArg) {
+    void init(JSContext *cxArg)
+    {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
         ContextFriendFields *cx = ContextFriendFields::get(cxArg);
         commonInit(cx->thingGCRooters);
 #endif
     }
 
-    void init(JSRuntime *rtArg) {
+    void init(JSRuntime *rtArg)
+    {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
         PerThreadDataFriendFields *pt = PerThreadDataFriendFields::getMainThread(rtArg);
         commonInit(pt->thingGCRooters);
 #endif
     }
 
-    void init(js::PerThreadData *ptArg) {
+    void init(js::PerThreadData *ptArg)
+    {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
         PerThreadDataFriendFields *pt = PerThreadDataFriendFields::get(ptArg);
         commonInit(pt->thingGCRooters);
@@ -633,9 +543,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSRuntime *rt
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(RootMethods<T>::initial())
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(rt);
@@ -644,9 +551,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSRuntime *rt, T initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(rt);
@@ -655,9 +559,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSContext *cx
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(RootMethods<T>::initial())
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(cx);
@@ -666,9 +567,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSContext *cx, T initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(cx);
@@ -691,18 +589,25 @@ class Rooted : public RootedBase<T>
     }
 
     template <typename S>
-    Rooted(JSContext *cx, const Unrooted<S> &initial
+    Rooted(JSContext *cx, const Return<S> &initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(static_cast<S>(initial))
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
+      : ptr(initial.ptr_)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(cx);
     }
 
-    ~Rooted() {
+    template <typename S>
+    Rooted(js::PerThreadData *pt, const Return<S> &initial
+           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : ptr(initial.ptr_)
+    {
+        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        init(pt);
+    }
+
+    ~Rooted()
+    {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
         JS_ASSERT(*stack == this);
         *stack = prev;
@@ -713,21 +618,30 @@ class Rooted : public RootedBase<T>
     Rooted<T> *previous() { return prev; }
 #endif
 
-    operator T() const { return ptr; }
-    T operator->() const { return ptr; }
-    T *address() { return &ptr; }
-    const T *address() const { return &ptr; }
-    T &get() { return ptr; }
-    const T &get() const { return ptr; }
+    operator T () const { return ptr; }
+    T operator ->() const { return ptr; }
+    T * address() { return &ptr; }
+    const T * address() const { return &ptr; }
+    T & get() { return ptr; }
+    const T & get() const { return ptr; }
 
-    T &operator=(T value) {
+    T & operator =(T value)
+    {
         JS_ASSERT(!RootMethods<T>::poisoned(value));
         ptr = value;
         return ptr;
     }
 
-    T &operator=(const Rooted &value) {
+    T & operator =(const Rooted &value)
+    {
         ptr = value;
+        return ptr;
+    }
+
+    template <typename S>
+    T & operator =(const Return<S> &value)
+    {
+        ptr = value.ptr_;
         return ptr;
     }
 
@@ -750,12 +664,6 @@ class Rooted : public RootedBase<T>
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     Rooted(const Rooted &) MOZ_DELETE;
-
-#if defined(JSGC_ROOT_ANALYSIS)
-  public:
-    /* Has the rooting analysis ever scanned this Rooted's stack location? */
-    bool scanned;
-#endif
 };
 
 #if !(defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING))
@@ -764,24 +672,19 @@ template <>
 class Rooted<JSStableString *>;
 #endif
 
-#ifdef DEBUG
-template <typename T> template <typename S>
-inline
-Unrooted<T>::Unrooted(const Rooted<S> &root,
-                      typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
-  : ptr_(root.get())
+template <typename T>
+bool
+Return<T>::operator==(const Rooted<T> &other)
 {
-    JS_ASSERT(ptr_ != UninitializedTag());
-    JS::EnterAssertNoGCScope();
+    return ptr_ == other.get();
 }
-#endif /* DEBUG */
 
 typedef Rooted<JSObject*>    RootedObject;
 typedef Rooted<JSFunction*>  RootedFunction;
 typedef Rooted<JSScript*>    RootedScript;
 typedef Rooted<JSString*>    RootedString;
 typedef Rooted<jsid>         RootedId;
-typedef Rooted<JS::Value>    RootedValue;
+typedef Rooted<Value>        RootedValue;
 
 /*
  * Mark a stack location as a root for the rooting analysis, without actually
@@ -798,7 +701,8 @@ class SkipRoot
     const uint8_t *end;
 
     template <typename T>
-    void init(ContextFriendFields *cx, const T *ptr, size_t count) {
+    void init(ContextFriendFields *cx, const T *ptr, size_t count)
+    {
         this->stack = &cx->skipGCRooters;
         this->prev = *stack;
         *stack = this;
@@ -815,7 +719,8 @@ class SkipRoot
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    ~SkipRoot() {
+    ~SkipRoot()
+    {
         JS_ASSERT(*stack == this);
         *stack = prev;
     }
@@ -845,7 +750,7 @@ class SkipRoot
 
 namespace JS {
 
-template <typename T> template <typename S>
+template<typename T> template <typename S>
 inline
 Handle<T>::Handle(js::Rooted<S> &root,
                   typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
@@ -853,7 +758,7 @@ Handle<T>::Handle(js::Rooted<S> &root,
     ptr = reinterpret_cast<const T *>(root.address());
 }
 
-template <typename T> template <typename S>
+template<typename T> template <typename S>
 inline
 Handle<T>::Handle(MutableHandle<S> &root,
                   typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
@@ -861,19 +766,12 @@ Handle<T>::Handle(MutableHandle<S> &root,
     ptr = reinterpret_cast<const T *>(root.address());
 }
 
-template <typename T> template <typename S>
+template<typename T> template <typename S>
 inline
 MutableHandle<T>::MutableHandle(js::Rooted<S> *root,
                                 typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
 {
     ptr = root->address();
-}
-
-template <typename T> template <typename S>
-inline void MutableHandle<T>::set(const js::Unrooted<S> &v)
-{
-    JS_ASSERT(!js::RootMethods<T>::poisoned(v));
-    *ptr = static_cast<S>(v);
 }
 
 /*
@@ -906,7 +804,7 @@ public:
 JS_ALWAYS_INLINE void
 AssertCanGC()
 {
-    JS_ASSERT_IF(isGCEnabled(), !InNoGCScope());
+    JS_ASSERT(!InNoGCScope());
 }
 
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
@@ -926,7 +824,7 @@ namespace js {
  */
 inline void MaybeCheckStackRoots(JSContext *cx, bool relax = true)
 {
-    JS::AssertCanGC();
+    AssertCanGC();
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
     if (relax && NeedRelaxedRootChecks())
         return;
@@ -942,7 +840,9 @@ struct Cell;
 class CompilerRootNode
 {
   protected:
-    CompilerRootNode(js::gc::Cell *ptr) : next(NULL), ptr(ptr) {}
+    CompilerRootNode(js::gc::Cell *ptr)
+      : next(NULL), ptr(ptr)
+    { }
 
   public:
     void **address() { return (void **)&ptr; }
@@ -955,9 +855,6 @@ class CompilerRootNode
 };
 
 }  /* namespace js */
-
-ForwardDeclareJS(Script);
-ForwardDeclareJS(Function);
 
 #endif  /* __cplusplus */
 

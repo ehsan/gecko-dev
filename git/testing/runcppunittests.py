@@ -35,11 +35,14 @@ def run_one_test(prog, env, symbols_path=None):
         proc = mozprocess.ProcessHandler([prog],
                                          cwd=tempdir,
                                          env=env)
+        proc.run()
         timeout = 300
-        #TODO: After bug 811320 is fixed, don't let .run() kill the process,
-        # instead use a timeout in .wait() and then kill to get a stack.
-        proc.run(timeout=timeout)
-        proc.wait()
+        proc.processOutput(timeout=timeout)
+        if proc.timedOut:
+            log.testFail("%s | timed out after %d seconds",
+                         basename, timeout)
+            return False
+        proc.waitForFinish(timeout=timeout)
         if proc.timedOut:
             log.testFail("%s | timed out after %d seconds",
                          basename, timeout)

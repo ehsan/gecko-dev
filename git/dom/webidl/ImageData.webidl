@@ -11,10 +11,7 @@
  */
 
 interface ImageData {
- [Constant]
  readonly attribute unsigned long width;
- [Constant]
  readonly attribute unsigned long height;
- [Constant]
  readonly attribute Uint8ClampedArray data;
 };

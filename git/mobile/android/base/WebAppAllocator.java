@@ -8,6 +8,8 @@ package org.mozilla.gecko;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
 import android.util.Log;
 
 import java.io.FileOutputStream;
@@ -61,7 +63,9 @@ public class WebAppAllocator {
     }
 
     public synchronized int findAndAllocateIndex(String app, String name, String aIconData) {
-        return findAndAllocateIndex(app, name, BitmapUtils.getBitmapFromDataURI(aIconData));
+        byte[] raw = Base64.decode(aIconData.substring(22), Base64.DEFAULT);
+        Bitmap bitmap = BitmapFactory.decodeByteArray(raw, 0, raw.length);
+        return findAndAllocateIndex(app, name, bitmap);
     }
 
     public synchronized int findAndAllocateIndex(final String app, final String name, final Bitmap aIcon) {

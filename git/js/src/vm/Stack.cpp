@@ -5,8 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "jscntxt.h"
 #include "gc/Marking.h"
 #include "methodjit/MethodJIT.h"
@@ -50,7 +48,7 @@ using mozilla::DebugOnly;
 /*****************************************************************************/
 
 void
-StackFrame::initExecuteFrame(UnrootedScript script, StackFrame *prev, FrameRegs *regs,
+StackFrame::initExecuteFrame(JSScript *script, StackFrame *prev, FrameRegs *regs,
                              const Value &thisv, JSObject &scopeChain, ExecuteType type)
 {
     /*
@@ -74,7 +72,7 @@ StackFrame::initExecuteFrame(UnrootedScript script, StackFrame *prev, FrameRegs 
         dstvp[0] = NullValue();
         exec.script = script;
 #ifdef DEBUG
-        u.evalScript = (RawScript)0xbad;
+        u.evalScript = (JSScript *)0xbad;
 #endif
     }
 
@@ -128,7 +126,7 @@ StackFrame::copyFrameAndValues(JSContext *cx, Value *vp, StackFrame *otherfp,
     }
 
     if (cx->compartment->debugMode())
-        DebugScopes::onGeneratorFrameChange(otherfp, this, cx);
+        cx->runtime->debugScopes->onGeneratorFrameChange(otherfp, this, cx);
 }
 
 /* Note: explicit instantiation for js_NewGenerator located in jsiter.cpp. */
@@ -251,7 +249,7 @@ AssertDynamicScopeMatchesStaticScope(JSScript *script, JSObject *scope)
                 scope = &scope->asClonedBlock().enclosingScope();
                 break;
               case StaticScopeIter::FUNCTION:
-                JS_ASSERT(scope->asCall().callee().nonLazyScript() == i.funScript());
+                JS_ASSERT(scope->asCall().callee().script() == i.funScript());
                 scope = &scope->asCall().enclosingScope();
                 break;
               case StaticScopeIter::NAMED_LAMBDA:
@@ -269,7 +267,7 @@ AssertDynamicScopeMatchesStaticScope(JSScript *script, JSObject *scope)
 }
 
 bool
-StackFrame::initFunctionScopeObjects(JSContext *cx)
+StackFrame::initCallObject(JSContext *cx)
 {
     CallObject *callobj = CallObject::createForFunction(cx, this);
     if (!callobj)
@@ -288,7 +286,7 @@ StackFrame::prologue(JSContext *cx, bool newType)
     JS_ASSERT(cx->regs().pc == script->code);
 
     if (isEvalFrame()) {
-        if (script->strict) {
+        if (script->strictModeCode) {
             CallObject *callobj = CallObject::createForStrictEval(cx, this);
             if (!callobj)
                 return false;
@@ -307,7 +305,7 @@ StackFrame::prologue(JSContext *cx, bool newType)
     JS_ASSERT(isNonEvalFunctionFrame());
     AssertDynamicScopeMatchesStaticScope(script, scopeChain());
 
-    if (fun()->isHeavyweight() && !initFunctionScopeObjects(cx))
+    if (fun()->isHeavyweight() && !initCallObject(cx))
         return false;
 
     if (isConstructing()) {
@@ -335,7 +333,7 @@ StackFrame::epilogue(JSContext *cx)
         if (isStrictEvalFrame()) {
             JS_ASSERT_IF(hasCallObj(), scopeChain()->asCall().isForEval());
             if (cx->compartment->debugMode())
-                DebugScopes::onPopStrictEvalScope(this);
+                cx->runtime->debugScopes->onPopStrictEvalScope(this);
         } else if (isDirectEvalFrame()) {
             if (isDebuggerFrame())
                 JS_ASSERT(!scopeChain()->isScope());
@@ -365,12 +363,12 @@ StackFrame::epilogue(JSContext *cx)
     JS_ASSERT(isNonEvalFunctionFrame());
 
     if (fun()->isHeavyweight())
-        JS_ASSERT_IF(hasCallObj(), scopeChain()->asCall().callee().nonLazyScript() == script);
+        JS_ASSERT_IF(hasCallObj(), scopeChain()->asCall().callee().script() == script);
     else
         AssertDynamicScopeMatchesStaticScope(script, scopeChain());
 
     if (cx->compartment->debugMode())
-        DebugScopes::onPopCall(this, cx);
+        cx->runtime->debugScopes->onPopCall(this, cx);
 
 
     if (isConstructing() && returnValue().isPrimitive())
@@ -418,7 +416,7 @@ StackFrame::popBlock(JSContext *cx)
     JS_ASSERT(hasBlockChain());
 
     if (cx->compartment->debugMode())
-        DebugScopes::onPopBlock(cx, this);
+        cx->runtime->debugScopes->onPopBlock(cx, this);
 
     if (blockChain_->needsClone()) {
         JS_ASSERT(scopeChain_->asClonedBlock().staticBlock() == *blockChain_);
@@ -432,7 +430,7 @@ void
 StackFrame::popWith(JSContext *cx)
 {
     if (cx->compartment->debugMode())
-        DebugScopes::onPopWith(this);
+        cx->runtime->debugScopes->onPopWith(this);
 
     JS_ASSERT(scopeChain()->isWith());
     popOffScopeChain();
@@ -662,6 +660,7 @@ StackSpace::mark(JSTracer *trc)
          * which gets marked in reverse order.
          */
         Value *slotsEnd = nextSegEnd;
+        jsbytecode *pc = seg->maybepc();
         for (StackFrame *fp = seg->maybefp(); (Value *)fp > (Value *)seg; fp = fp->prev()) {
             /* Mark from fp->slots() to slotsEnd. */
             markFrame(trc, fp, slotsEnd);
@@ -670,7 +669,7 @@ StackSpace::mark(JSTracer *trc)
             slotsEnd = (Value *)fp;
 
             InlinedSite *site;
-            fp->prevpc(&site);
+            pc = fp->prevpc(&site);
             JS_ASSERT_IF(fp->prev(), !site);
         }
         gc::MarkValueRootRange(trc, seg->slotsBegin(), slotsEnd, "vm_stack");
@@ -690,12 +689,7 @@ StackSpace::markActiveCompartments()
 JS_FRIEND_API(bool)
 StackSpace::ensureSpaceSlow(JSContext *cx, MaybeReportError report, Value *from, ptrdiff_t nvals) const
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     assertInvariants();
 
     JSCompartment *dest = cx->compartment;
@@ -875,11 +869,7 @@ Value *
 ContextStack::ensureOnTop(JSContext *cx, MaybeReportError report, unsigned nvars,
                           MaybeExtend extend, bool *pushedSeg)
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
+    AssertCanGC();
 
     Value *firstUnused = space().firstUnused();
     FrameRegs *regs = cx->maybeRegs();
@@ -914,7 +904,7 @@ ContextStack::ensureOnTop(JSContext *cx, MaybeReportError report, unsigned nvars
 
         if (fun) {
             AutoCompartment ac(cx, fun);
-            fun->nonLazyScript()->uninlineable = true;
+            fun->script()->uninlineable = true;
             types::MarkTypeObjectFlags(cx, fun, types::OBJECT_FLAG_UNINLINEABLE);
         }
     }
@@ -959,12 +949,7 @@ bool
 ContextStack::pushInvokeArgs(JSContext *cx, unsigned argc, InvokeArgsGuard *iag,
                              MaybeReportError report)
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     JS_ASSERT(argc <= StackSpace::ARGS_LENGTH_MAX);
 
     unsigned nvars = 2 + argc;
@@ -1003,16 +988,11 @@ ContextStack::pushInvokeFrame(JSContext *cx, MaybeReportError report,
                               const CallArgs &args, JSFunction *fun,
                               InitialFrameFlags initial, FrameGuard *fg)
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     JS_ASSERT(onTop());
     JS_ASSERT(space().firstUnused() == args.end());
 
-    RootedScript script(cx, fun->nonLazyScript());
+    RootedScript script(cx, fun->script());
 
     StackFrame::Flags flags = ToFrameFlags(initial);
     StackFrame *fp = getCallFrame(cx, report, args, fun, script, &flags);
@@ -1246,7 +1226,7 @@ void
 StackIter::poisonRegs()
 {
     pc_ = (jsbytecode *)0xbad;
-    script_ = (RawScript)0xbad;
+    script_ = (JSScript *)0xbad;
 }
 
 void
@@ -1322,9 +1302,6 @@ void
 StackIter::settleOnNewState()
 {
     AutoAssertNoGC nogc;
-
-    /* Reset whether or we popped a call last time we settled. */
-    poppedCallDuringSettle_ = false;
 
     /*
      * There are elements of the calls_ and fp_ chains that we want to skip
@@ -1423,7 +1400,6 @@ StackIter::settleOnNewState()
 
         /* Pop the call and keep looking. */
         popCall();
-        poppedCallDuringSettle_ = true;
     }
 }
 
@@ -1431,8 +1407,7 @@ StackIter::StackIter(JSContext *cx, SavedOption savedOption)
   : perThread_(&cx->runtime->mainThread),
     maybecx_(cx),
     savedOption_(savedOption),
-    script_(cx, NULL),
-    poppedCallDuringSettle_(false)
+    script_(cx, NULL)
 #ifdef JS_ION
     , ionActivations_(cx),
     ionFrames_((uint8_t *)NULL),
@@ -1457,8 +1432,7 @@ StackIter::StackIter(JSRuntime *rt, StackSegment &seg)
   : perThread_(&rt->mainThread),
     maybecx_(NULL),
     savedOption_(STOP_AT_SAVED),
-    script_(rt, NULL),
-    poppedCallDuringSettle_(false)
+    script_(rt, NULL)
 #ifdef JS_ION
     , ionActivations_(rt),
     ionFrames_((uint8_t *)NULL),
@@ -1484,8 +1458,7 @@ StackIter::StackIter(const StackIter &other)
     seg_(other.seg_),
     pc_(other.pc_),
     script_(perThread_, other.script_),
-    args_(other.args_),
-    poppedCallDuringSettle_(other.poppedCallDuringSettle_)
+    args_(other.args_)
 #ifdef JS_ION
     , ionActivations_(other.ionActivations_),
     ionFrames_(other.ionFrames_),

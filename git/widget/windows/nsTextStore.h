@@ -124,8 +124,6 @@ public:
     return sTsfTextStore->OnSelectionChangeInternal();
   }
 
-  static nsIMEUpdatePreference GetIMEUpdatePreference();
-
   static void CompositionTimerCallbackFunc(nsITimer *aTimer, void *aClosure)
   {
     nsTextStore *ts = static_cast<nsTextStore*>(aClosure);

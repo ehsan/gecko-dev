@@ -300,7 +300,7 @@ BluetoothServiceChildProcess::PrepareAdapterInternal(const nsAString& aPath)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
+bool
 BluetoothServiceChildProcess::Connect(
   const nsAString& aDeviceAddress,
   const nsAString& aAdapterPath,
@@ -308,9 +308,11 @@ BluetoothServiceChildProcess::Connect(
   BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable,
-              ConnectRequest(nsString(aDeviceAddress),
+              ConnectRequest(nsString(aDeviceAddress), 
                              nsString(aAdapterPath),
                              aProfileId));
+
+  return true;
 }
 
 void

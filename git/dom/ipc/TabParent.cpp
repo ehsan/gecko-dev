@@ -15,7 +15,6 @@
 #include "mozilla/BrowserElementParent.h"
 #include "mozilla/docshell/OfflineCacheUpdateParent.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/Hal.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
@@ -87,7 +86,6 @@ TabParent::TabParent(const TabContext& aContext)
   , mDimensions(0, 0)
   , mDPI(0)
   , mShown(false)
-  , mIsDestroyed(false)
 {
 }
 
@@ -105,10 +103,6 @@ TabParent::SetOwnerElement(nsIDOMElement* aElement)
 void
 TabParent::Destroy()
 {
-  if (mIsDestroyed) {
-    return;
-  }
-
   // If this fails, it's most likely due to a content-process crash,
   // and auto-cleanup will kick in.  Otherwise, the child side will
   // destroy itself and send back __delete__().
@@ -123,7 +117,6 @@ TabParent::Destroy()
   if (RenderFrameParent* frame = GetRenderFrame()) {
     frame->Destroy();
   }
-  mIsDestroyed = true;
 }
 
 bool
@@ -221,9 +214,6 @@ TabParent::AnswerCreateWindow(PBrowserParent** retval)
 void
 TabParent::LoadURL(nsIURI* aURI)
 {
-    if (mIsDestroyed) {
-      return;
-    }
     if (!mShown) {
       nsAutoCString spec;
       if (aURI) {
@@ -246,21 +236,13 @@ TabParent::Show(const nsIntSize& size)
     // sigh
     mShown = true;
     mDimensions = size;
-    if (!mIsDestroyed) {
-      unused << SendShow(size);
-    }
+    unused << SendShow(size);
 }
 
 void
 TabParent::UpdateDimensions(const nsRect& rect, const nsIntSize& size)
 {
-  if (mIsDestroyed) {
-    return;
-  }
-  hal::ScreenConfiguration config;
-  hal::GetCurrentScreenConfiguration(&config);
-
-  unused << SendUpdateDimensions(rect, size, config.orientation());
+  unused << SendUpdateDimensions(rect, size);
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->NotifyDimensionsChanged(size.width, size.height);
   }
@@ -270,46 +252,34 @@ TabParent::UpdateDimensions(const nsRect& rect, const nsIntSize& size)
 void
 TabParent::UpdateFrame(const FrameMetrics& aFrameMetrics)
 {
-  if (!mIsDestroyed) {
-    unused << SendUpdateFrame(aFrameMetrics);
-  }
+  unused << SendUpdateFrame(aFrameMetrics);
 }
 
 void TabParent::HandleDoubleTap(const nsIntPoint& aPoint)
 {
-  if (!mIsDestroyed) {
-    unused << SendHandleDoubleTap(aPoint);
-  }
+  unused << SendHandleDoubleTap(aPoint);
 }
 
 void TabParent::HandleSingleTap(const nsIntPoint& aPoint)
 {
-  if (!mIsDestroyed) {
-    unused << SendHandleSingleTap(aPoint);
-  }
+  unused << SendHandleSingleTap(aPoint);
 }
 
 void TabParent::HandleLongTap(const nsIntPoint& aPoint)
 {
-  if (!mIsDestroyed) {
-    unused << SendHandleLongTap(aPoint);
-  }
+  unused << SendHandleLongTap(aPoint);
 }
 
 void
 TabParent::Activate()
 {
-  if (!mIsDestroyed) {
     unused << SendActivate();
-  }
 }
 
 void
 TabParent::Deactivate()
 {
-  if (!mIsDestroyed) {
-    unused << SendDeactivate();
-  }
+  unused << SendDeactivate();
 }
 
 NS_IMETHODIMP
@@ -353,9 +323,9 @@ TabParent::DeallocPDocumentRenderer(PDocumentRendererParent* actor)
 }
 
 PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequest(const nsCString& type, const nsCString& access, const IPC::Principal& principal)
+TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::Principal& principal)
 {
-  return new ContentPermissionRequestParent(type, access, mFrameElement, principal);
+  return new ContentPermissionRequestParent(type, mFrameElement, principal);
 }
 
 bool
@@ -370,11 +340,9 @@ TabParent::SendMouseEvent(const nsAString& aType, float aX, float aY,
                           int32_t aButton, int32_t aClickCount,
                           int32_t aModifiers, bool aIgnoreRootScrollFrame)
 {
-  if (!mIsDestroyed) {
-    unused << PBrowserParent::SendMouseEvent(nsString(aType), aX, aY,
-                                             aButton, aClickCount,
-                                             aModifiers, aIgnoreRootScrollFrame);
-  }
+  unused << PBrowserParent::SendMouseEvent(nsString(aType), aX, aY,
+                                           aButton, aClickCount,
+                                           aModifiers, aIgnoreRootScrollFrame);
 }
 
 void
@@ -384,17 +352,12 @@ TabParent::SendKeyEvent(const nsAString& aType,
                         int32_t aModifiers,
                         bool aPreventDefault)
 {
-  if (!mIsDestroyed) {
-    unused << PBrowserParent::SendKeyEvent(nsString(aType), aKeyCode, aCharCode,
-                                           aModifiers, aPreventDefault);
-  }
+  unused << PBrowserParent::SendKeyEvent(nsString(aType), aKeyCode, aCharCode,
+                                         aModifiers, aPreventDefault);
 }
 
 bool TabParent::SendRealMouseEvent(nsMouseEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   nsMouseEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   return PBrowserParent::SendRealMouseEvent(e);
@@ -402,9 +365,6 @@ bool TabParent::SendRealMouseEvent(nsMouseEvent& event)
 
 bool TabParent::SendMouseWheelEvent(WheelEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   WheelEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   return PBrowserParent::SendMouseWheelEvent(event);
@@ -412,9 +372,6 @@ bool TabParent::SendMouseWheelEvent(WheelEvent& event)
 
 bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   nsKeyEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   return PBrowserParent::SendRealKeyEvent(e);
@@ -422,9 +379,6 @@ bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 
 bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   if (event.message == NS_TOUCH_START) {
     MOZ_ASSERT((!sEventCapturer && mEventCaptureDepth == 0) ||
                (sEventCapturer == this && mEventCaptureDepth > 0));
@@ -435,14 +389,14 @@ bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
   }
 
   nsTouchEvent e(event);
-  // PresShell::HandleEventInternal adds touches on touch end/cancel.
-  // This confuses remote content into thinking that the added touches
-  // are part of the touchend/cancel, when actually they're not.
-  if (event.message == NS_TOUCH_END || event.message == NS_TOUCH_CANCEL) {
+  // PresShell::HandleEventInternal adds touches on touch end/cancel,
+  // when we're not capturing raw events from the widget backend.
+  // This hack filters those out. Bug 785554
+  if (sEventCapturer != this &&
+      (event.message == NS_TOUCH_END || event.message == NS_TOUCH_CANCEL)) {
     for (int i = e.touches.Length() - 1; i >= 0; i--) {
-      if (!e.touches[i]->mChanged) {
+      if (!e.touches[i]->mChanged)
         e.touches.RemoveElementAt(i);
-      }
     }
   }
 
@@ -485,13 +439,6 @@ TabParent::TryCapture(const nsGUIEvent& aEvent)
 
   // Adjust the widget coordinates to be relative to our frame.
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-
-  if (!frameLoader) {
-    // No frame anymore?
-    sEventCapturer = nullptr;
-    return false;
-  }
-
   nsEventStateManager::MapEventCoordinatesForChildProcess(frameLoader, &event);
 
   SendRealTouchEvent(event);
@@ -572,20 +519,22 @@ TabParent::RecvNotifyIMEFocus(const bool& aFocus,
                               uint32_t* aSeqno)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    aPreference->mWantUpdates = false;
-    aPreference->mWantHints = false;
+  if (!widget)
     return true;
-  }
 
   *aSeqno = mIMESeqno;
   mIMETabParent = aFocus ? this : nullptr;
   mIMESelectionAnchor = 0;
   mIMESelectionFocus = 0;
-  widget->OnIMEFocusChange(aFocus);
+  nsresult rv = widget->OnIMEFocusChange(aFocus);
 
   if (aFocus) {
-    *aPreference = widget->GetIMEUpdatePreference();
+    if (NS_SUCCEEDED(rv)) {
+      *aPreference = widget->GetIMEUpdatePreference();
+    } else {
+      aPreference->mWantUpdates = false;
+      aPreference->mWantHints = false;
+    }
   } else {
     mIMECacheText.Truncate(0);
   }
@@ -700,9 +649,6 @@ TabParent::HandleQueryContentEvent(nsQueryContentEvent& aEvent)
 bool
 TabParent::SendCompositionEvent(nsCompositionEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   mIMEComposing = event.message != NS_COMPOSITION_END;
   mIMECompositionStart = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
   if (mIMECompositionEnding)
@@ -721,9 +667,6 @@ TabParent::SendCompositionEvent(nsCompositionEvent& event)
 bool
 TabParent::SendTextEvent(nsTextEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   if (mIMECompositionEnding) {
     mIMECompositionText = event.theText;
     return true;
@@ -744,9 +687,6 @@ TabParent::SendTextEvent(nsTextEvent& event)
 bool
 TabParent::SendSelectionEvent(nsSelectionEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   mIMESelectionAnchor = event.mOffset + (event.mReversed ? event.mLength : 0);
   mIMESelectionFocus = event.mOffset + (!event.mReversed ? event.mLength : 0);
   event.seqno = ++mIMESeqno;
@@ -1132,13 +1072,15 @@ TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 mozilla::docshell::POfflineCacheUpdateParent*
 TabParent::AllocPOfflineCacheUpdate(const URIParams& aManifestURI,
                                     const URIParams& aDocumentURI,
+                                    const bool& isInBrowserElement,
+                                    const uint32_t& appId,
                                     const bool& stickDocument)
 {
   nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
-    new mozilla::docshell::OfflineCacheUpdateParent(OwnOrContainingAppId(),
-                                                    IsBrowserElement());
+    new mozilla::docshell::OfflineCacheUpdateParent();
 
-  nsresult rv = update->Schedule(aManifestURI, aDocumentURI, stickDocument);
+  nsresult rv = update->Schedule(aManifestURI, aDocumentURI,
+                                 isInBrowserElement, appId, stickDocument);
   if (NS_FAILED(rv))
     return nullptr;
 
@@ -1232,8 +1174,8 @@ TabParent::UseAsyncPanZoom()
   bool usingOffMainThreadCompositing = !!CompositorParent::CompositorLoop();
   bool asyncPanZoomEnabled =
     Preferences::GetBool("layers.async-pan-zoom.enabled", false);
-  return (usingOffMainThreadCompositing && asyncPanZoomEnabled &&
-          GetScrollingBehavior() == ASYNC_PAN_ZOOM);
+  return (usingOffMainThreadCompositing &&
+          IsBrowserElement() && asyncPanZoomEnabled);
 }
 
 void

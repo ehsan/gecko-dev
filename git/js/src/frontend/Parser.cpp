@@ -79,10 +79,22 @@ using namespace js::frontend;
     JS_END_MACRO
 #define MUST_MATCH_TOKEN(tt, errno) MUST_MATCH_TOKEN_WITH_FLAGS(tt, errno, 0)
 
-bool
+StrictMode
 StrictModeGetter::get() const
 {
-    return parser->pc->sc->strict;
+    return parser->pc->sc->strictModeState;
+}
+
+CompileError *
+StrictModeGetter::queuedStrictModeError() const
+{
+    return parser->pc->queuedStrictModeError;
+}
+
+void
+StrictModeGetter::setQueuedStrictModeError(CompileError *e)
+{
+    parser->pc->setQueuedStrictModeError(e);
 }
 
 bool
@@ -371,9 +383,9 @@ Parser::newObjectBox(JSObject *obj)
 }
 
 FunctionBox::FunctionBox(JSContext *cx, ObjectBox* traceListHead, JSFunction *fun,
-                         ParseContext *outerpc, bool strict)
+                         ParseContext *outerpc, StrictMode sms)
   : ObjectBox(fun, traceListHead),
-    SharedContext(cx, /* isFunction = */ true, strict),
+    SharedContext(cx, /* isFunction = */ true, sms),
     bindings(),
     bufStart(0),
     bufEnd(0),
@@ -426,7 +438,7 @@ FunctionBox::FunctionBox(JSContext *cx, ObjectBox* traceListHead, JSFunction *fu
 }
 
 FunctionBox *
-Parser::newFunctionBox(JSFunction *fun, ParseContext *outerpc, bool strict)
+Parser::newFunctionBox(JSFunction *fun, ParseContext *outerpc, StrictMode sms)
 {
     JS_ASSERT(fun && !IsPoisonedPtr(fun));
 
@@ -438,7 +450,7 @@ Parser::newFunctionBox(JSFunction *fun, ParseContext *outerpc, bool strict)
      * function.
      */
     FunctionBox *funbox =
-        context->tempLifoAlloc().new_<FunctionBox>(context, traceListHead, fun, outerpc, strict);
+        context->tempLifoAlloc().new_<FunctionBox>(context, traceListHead, fun, outerpc, sms);
     if (!funbox) {
         js_ReportOutOfMemory(context);
         return NULL;
@@ -695,48 +707,6 @@ CheckStrictBinding(JSContext *cx, Parser *parser, HandlePropertyName name, Parse
 }
 
 ParseNode *
-Parser::standaloneFunctionBody(HandleFunction fun, const AutoNameVector &formals, HandleScript script,
-                               ParseNode *fn, FunctionBox **funbox, bool strict, bool *becameStrict)
-{
-    if (becameStrict)
-        *becameStrict = false;
-
-    *funbox = newFunctionBox(fun, /* outerpc = */ NULL, strict);
-    if (!funbox)
-        return NULL;
-
-    ParseContext funpc(this, *funbox, 0, /* staticLevel = */ 0);
-    if (!funpc.init())
-        return NULL;
-
-    for (unsigned i = 0; i < formals.length(); i++) {
-        if (!DefineArg(this, fn, formals[i]))
-            return NULL;
-    }
-
-    ParseNode *pn = functionBody(StatementListBody);
-    if (!pn) {
-        if (becameStrict && pc->funBecameStrict)
-            *becameStrict = true;
-        return NULL;
-    }
-
-    if (!tokenStream.matchToken(TOK_EOF)) {
-        reportError(NULL, JSMSG_SYNTAX_ERROR);
-        return NULL;
-    }
-
-    if (!FoldConstants(context, pn, this))
-        return NULL;
-
-    InternalHandle<Bindings*> bindings(script, &script->bindings);
-    if (!funpc.generateFunctionBindings(context, bindings))
-        return NULL;
-
-    return pn;
-}
-
-ParseNode *
 Parser::functionBody(FunctionBodyType type)
 {
     JS_ASSERT(pc->sc->isFunction);
@@ -749,6 +719,10 @@ Parser::functionBody(FunctionBodyType type)
         JS_ASSERT(type == ExpressionBody);
         JS_ASSERT(JS_HAS_EXPR_CLOSURES);
 
+        // There are no directives to parse, so indicate we're done finding
+        // strict mode directives.
+        if (!setStrictMode(false))
+            return NULL;
         pn = UnaryNode::create(PNK_RETURN, this);
         if (pn) {
             pn->pn_kid = assignExpr();
@@ -1501,8 +1475,7 @@ Parser::functionArguments(ParseNode **listp, ParseNode* funcpn, bool &hasRest)
 }
 
 ParseNode *
-Parser::functionDef(HandlePropertyName funName, const TokenStream::Position &start,
-                    FunctionType type, FunctionSyntaxKind kind)
+Parser::functionDef(HandlePropertyName funName, FunctionType type, FunctionSyntaxKind kind)
 {
     JS_ASSERT_IF(kind == Statement, funName);
 
@@ -1511,7 +1484,6 @@ Parser::functionDef(HandlePropertyName funName, const TokenStream::Position &sta
     if (!pn)
         return NULL;
     pn->pn_body = NULL;
-    pn->pn_funbox = NULL;
     pn->pn_cookie.makeFree();
     pn->pn_dflags = 0;
 
@@ -1586,7 +1558,7 @@ Parser::functionDef(HandlePropertyName funName, const TokenStream::Position &sta
             JS_ASSERT_IF(pc->sc->isFunction, !pn->pn_cookie.isFree());
             JS_ASSERT_IF(!pc->sc->isFunction, pn->pn_cookie.isFree());
         } else {
-            JS_ASSERT(!pc->sc->strict);
+            JS_ASSERT(pc->sc->strictModeState != StrictMode::STRICT);
             JS_ASSERT(pn->pn_cookie.isFree());
             if (pc->sc->isFunction) {
                 FunctionBox *funbox = pc->sc->asFunbox();
@@ -1617,57 +1589,31 @@ Parser::functionDef(HandlePropertyName funName, const TokenStream::Position &sta
         pn->setOp(JSOP_LAMBDA);
     }
 
-    RootedFunction fun(context, newFunction(pc, funName, kind));
+    ParseContext *outerpc = pc;
+
+    RootedFunction fun(context, newFunction(outerpc, funName, kind));
     if (!fun)
         return NULL;
 
-    // If the outer scope is strict, immediately parse the function in strict
-    // mode. Otherwise, we parse it normally. If we see a "use strict"
-    // directive, we backup and reparse it as strict.
-    pn->pn_body = NULL;
-    bool initiallyStrict = pc->sc->strict;
-    bool becameStrict;
-    if (!functionArgsAndBody(pn, fun, funName, type, kind, initiallyStrict, &becameStrict)) {
-        if (initiallyStrict || !becameStrict || tokenStream.hadError())
-            return NULL;
-
-        // Reparse the function in strict mode.
-        tokenStream.seek(start);
-        if (funName && tokenStream.getToken() == TOK_ERROR)
-            return NULL;
-        pn->pn_body = NULL;
-        if (!functionArgsAndBody(pn, fun, funName, type, kind, true))
-            return NULL;
-    }
-
-    return pn;
-}
-
-bool
-Parser::functionArgsAndBody(ParseNode *pn, HandleFunction fun, HandlePropertyName funName, FunctionType type,
-                            FunctionSyntaxKind kind, bool strict, bool *becameStrict)
-{
-    if (becameStrict)
-        *becameStrict = false;
-    ParseContext *outerpc = pc;
+    // Inherit strictness if neeeded.
+    StrictMode sms = (outerpc->sc->strictModeState == StrictMode::STRICT) ?
+        StrictMode::STRICT : StrictMode::UNKNOWN;
 
     // Create box for fun->object early to protect against last-ditch GC.
-    FunctionBox *funbox = newFunctionBox(fun, pc, strict);
+    FunctionBox *funbox = newFunctionBox(fun, outerpc, sms);
     if (!funbox)
-        return false;
+        return NULL;
 
     /* Initialize early for possible flags mutation via destructuringExpr. */
     ParseContext funpc(this, funbox, outerpc->staticLevel + 1, outerpc->blockidGen);
     if (!funpc.init())
-        return false;
+        return NULL;
 
     /* Now parse formal argument list and compute fun->nargs. */
     ParseNode *prelude = NULL;
     bool hasRest;
-    tokenStream.incBanXML();
     if (!functionArguments(&prelude, pn, hasRest))
-        return false;
-    tokenStream.decBanXML();
+        return NULL;
 
     fun->setArgCount(funpc.numArgs());
     if (funbox->ndefaults)
@@ -1677,54 +1623,44 @@ Parser::functionArgsAndBody(ParseNode *pn, HandleFunction fun, HandlePropertyNam
 
     if (type == Getter && fun->nargs > 0) {
         reportError(NULL, JSMSG_ACCESSOR_WRONG_ARGS, "getter", "no", "s");
-        return false;
+        return NULL;
     }
     if (type == Setter && fun->nargs != 1) {
         reportError(NULL, JSMSG_ACCESSOR_WRONG_ARGS, "setter", "one", "");
-        return false;
+        return NULL;
     }
 
     FunctionBodyType bodyType = StatementListBody;
 #if JS_HAS_EXPR_CLOSURES
     if (tokenStream.getToken(TSF_OPERAND) != TOK_LC) {
         tokenStream.ungetToken();
-        bodyType = ExpressionBody;
         fun->setIsExprClosure();
+        bodyType = ExpressionBody;
     }
 #else
-    if (!tokenStream.matchToken(TOK_LC)) {
-        reportError(NULL, JSMSG_CURLY_BEFORE_BODY);
-        return false;
-    }
+    MUST_MATCH_TOKEN(TOK_LC, JSMSG_CURLY_BEFORE_BODY);
 #endif
 
     ParseNode *body = functionBody(bodyType);
-    if (!body) {
-        // Notify the caller if this function was discovered to be strict.
-        if (becameStrict && pc->funBecameStrict)
-            *becameStrict = true;
-        return false;
-    }
+    if (!body)
+        return NULL;
 
     if (funName && !CheckStrictBinding(context, this, funName, pn))
-        return false;
+        return NULL;
 
 #if JS_HAS_EXPR_CLOSURES
     if (bodyType == StatementListBody) {
 #endif
-        if (!tokenStream.matchToken(TOK_RC)) {
-            reportError(NULL, JSMSG_CURLY_AFTER_BODY);
-            return false;
-        }
+        MUST_MATCH_TOKEN(TOK_RC, JSMSG_CURLY_AFTER_BODY);
         funbox->bufEnd = tokenStream.offsetOfToken(tokenStream.currentToken()) + 1;
 #if JS_HAS_EXPR_CLOSURES
     } else {
         // We shouldn't call endOffset if the tokenizer got an error.
         if (tokenStream.hadError())
-            return false;
+            return NULL;
         funbox->bufEnd = tokenStream.endOffset(tokenStream.currentToken());
         if (kind == Statement && !MatchOrInsertSemicolon(context, &tokenStream))
-            return false;
+            return NULL;
     }
 #endif
     pn->pn_pos.end = tokenStream.currentToken().pos.end;
@@ -1751,7 +1687,7 @@ Parser::functionArgsAndBody(ParseNode *pn, HandleFunction fun, HandlePropertyNam
 
             block = ListNode::create(PNK_SEQ, this);
             if (!block)
-                return false;
+                return NULL;
             block->pn_pos = body->pn_pos;
             block->initList(body);
 
@@ -1760,7 +1696,7 @@ Parser::functionArgsAndBody(ParseNode *pn, HandleFunction fun, HandlePropertyNam
 
         ParseNode *item = UnaryNode::create(PNK_SEMI, this);
         if (!item)
-            return false;
+            return NULL;
 
         item->pn_pos.begin = item->pn_pos.end = body->pn_pos.begin;
         item->pn_kid = prelude;
@@ -1787,9 +1723,9 @@ Parser::functionArgsAndBody(ParseNode *pn, HandleFunction fun, HandlePropertyNam
     pn->pn_blockid = outerpc->blockid();
 
     if (!LeaveFunction(pn, this, funName, kind))
-        return false;
+        return NULL;
 
-    return true;
+    return pn;
 }
 
 ParseNode *
@@ -1805,15 +1741,12 @@ Parser::functionStmt()
         return NULL;
     }
 
-    TokenStream::Position start;
-    tokenStream.positionAfterLastFunctionKeyword(start);
-
     /* We forbid function statements in strict mode code. */
     if (!pc->atBodyLevel() && pc->sc->needStrictChecks() &&
         !reportStrictModeError(NULL, JSMSG_STRICT_FUNCTION_STATEMENT))
         return NULL;
 
-    return functionDef(name, start, Normal, Statement);
+    return functionDef(name, Normal, Statement);
 }
 
 ParseNode *
@@ -1821,13 +1754,78 @@ Parser::functionExpr()
 {
     RootedPropertyName name(context);
     JS_ASSERT(tokenStream.currentToken().type == TOK_FUNCTION);
-    TokenStream::Position start;
-    tokenStream.positionAfterLastFunctionKeyword(start);
     if (tokenStream.getToken(TSF_KEYWORD_IS_NAME) == TOK_NAME)
         name = tokenStream.currentToken().name();
     else
         tokenStream.ungetToken();
-    return functionDef(name, start, Normal, Expression);
+    return functionDef(name, Normal, Expression);
+}
+
+/*
+ * Indicate that the current scope can't switch to strict mode with a body-level
+ * "use strict" directive anymore. Return false on error.
+ */
+bool
+Parser::setStrictMode(bool strictMode)
+{
+    if (pc->sc->strictModeState != StrictMode::UNKNOWN) {
+        // Strict mode was inherited.
+        JS_ASSERT(pc->sc->strictModeState == StrictMode::STRICT);
+        if (pc->sc->isFunction) {
+            JS_ASSERT_IF(pc->parent, pc->parent->sc->strictModeState == StrictMode::STRICT);
+        } else {
+            JS_ASSERT_IF(pc->staticLevel == 0,
+                         StrictModeFromContext(context) == StrictMode::STRICT);
+        }
+        return true;
+    }
+
+    if (strictMode) {
+        if (pc->queuedStrictModeError) {
+            // There was a strict mode error in this scope before we knew it was
+            // strict. Throw it.
+            JS_ASSERT(!(pc->queuedStrictModeError->report.flags & JSREPORT_WARNING));
+            pc->queuedStrictModeError->throwError();
+            return false;
+        }
+        pc->sc->strictModeState = StrictMode::STRICT;
+    } else {
+        if (!pc->parent || pc->parent->sc->strictModeState == StrictMode::NOTSTRICT) {
+            // This scope lacks a strict directive, and its parent (if it has
+            // one) definitely isn't strict, so it definitely won't be strict.
+            pc->sc->strictModeState = StrictMode::NOTSTRICT;
+            if (pc->queuedStrictModeError && context->hasStrictOption() &&
+                pc->queuedStrictModeError->report.errorNumber != JSMSG_STRICT_CODE_WITH) {
+                // Convert queued strict mode error to a warning.
+                pc->queuedStrictModeError->report.flags |= JSREPORT_WARNING;
+                pc->queuedStrictModeError->throwError();
+            }
+        } else {
+            // This scope (which has a parent and so must be a function) lacks
+            // a strict directive, but it's not yet clear if its parent is
+            // strict.  (This can only happen for functions in default
+            // arguments.)  Leave it in the UNKNOWN state for now.
+            JS_ASSERT(pc->sc->isFunction);
+        }
+    }
+    return true;
+}
+
+/*
+ * Return true if this token, known to be an unparenthesized string literal,
+ * could be the string of a directive in a Directive Prologue. Directive
+ * strings never contain escape sequences or line continuations.
+ */
+static bool
+IsEscapeFreeStringLiteral(const Token &tok)
+{
+    /*
+     * If the string's length in the source code is its length as a value,
+     * accounting for the quotes, then it must not contain any escape
+     * sequences or line continuations.
+     */
+    return (tok.pos.begin.lineno == tok.pos.end.lineno &&
+            tok.pos.begin.index + tok.atom()->length() + 2 == tok.pos.end.index);
 }
 
 /*
@@ -1850,49 +1848,52 @@ Parser::functionExpr()
  * to the "use strict" statement, which is indeed a directive.
  */
 bool
-Parser::maybeParseDirective(ParseNode *pn, bool *cont)
+Parser::processDirectives(ParseNode *stmts)
 {
-    *cont = pn->isStringExprStatement();
-    if (!*cont)
-        return true;
+    bool gotStrictMode = false;
+    for (TokenKind tt = tokenStream.getToken(TSF_OPERAND); tt == TOK_STRING; tt = tokenStream.getToken(TSF_OPERAND)) {
+        ParseNode *stringNode = atomNode(PNK_STRING, JSOP_STRING);
+        if (!stringNode)
+            return false;
+        const Token directive = tokenStream.currentToken();
+        bool isDirective = IsEscapeFreeStringLiteral(directive);
+        JSAtom *atom = directive.atom();
+        TokenKind next = tokenStream.peekTokenSameLine();
 
-    ParseNode *string = pn->pn_kid;
-    if (string->isEscapeFreeStringLiteral()) {
-        // Mark this statement as being a possibly legitimate part of a
-        // directive prologue, so the bytecode emitter won't warn about it being
-        // useless code. (We mustn't just omit the statement entirely yet, as it
-        // could be producing the value of an eval or JSScript execution.)
-        //
-        // Note that even if the string isn't one we recognize as a directive,
-        // the emitter still shouldn't flag it as useless, as it could become a
-        // directive in the future. We don't want to interfere with people
-        // taking advantage of directive-prologue-enabled features that appear
-        // in other browsers first.
-        pn->pn_prologue = true;
-
-        JSAtom *directive = string->pn_atom;
-        if (directive == context->runtime->atomState.useStrict) {
-            // We're going to be in strict mode. Note that this scope explicitly
-            // had "use strict";
-            pc->sc->setExplicitUseStrict();
-            if (!pc->sc->strict) {
-                if (pc->sc->isFunction) {
-                    // Request that this function be reparsed as strict.
-                    pc->funBecameStrict = true;
+        // We need to check whether the directive ends explicitly or implicitly
+        // due to ASI. In the latter case, the expression must not continue on
+        // the next line.
+        if (next != TOK_EOF && next != TOK_SEMI && next != TOK_RC &&
+           (next != TOK_EOL || TokenContinuesStringExpression(tokenStream.peekToken())))
+        {
+            freeTree(stringNode);
+            if (next == TOK_ERROR)
+                return false;
+            break;
+        }
+        tokenStream.matchToken(TOK_SEMI);
+        if (isDirective) {
+            // It's a directive. Is it one we know?
+            if (atom == context->names().useStrict && !gotStrictMode) {
+                pc->sc->setExplicitUseStrict();
+                if (!setStrictMode(true))
                     return false;
-                } else {
-                    // We don't reparse global scopes, so we keep track of the
-                    // one possible strict violation that could occur in the
-                    // directive prologue -- octal escapes -- and complain now.
-                    if (tokenStream.sawOctalEscape()) {
-                        reportError(NULL, JSMSG_DEPRECATED_OCTAL);
-                        return false;
-                    }
-                    pc->sc->strict = true;
-                }
+                gotStrictMode = true;
             }
         }
+        ParseNode *stmt = UnaryNode::create(PNK_SEMI, this);
+        if (!stmt) {
+            freeTree(stringNode);
+            return false;
+        }
+        stmt->pn_pos = stringNode->pn_pos;
+        stmt->pn_kid = stringNode;
+        stmt->pn_prologue = isDirective;
+        stmts->append(stmt);
     }
+    tokenStream.ungetToken();
+    if (!gotStrictMode && !setStrictMode(false))
+        return false;
     return true;
 }
 
@@ -1916,7 +1917,8 @@ Parser::statements(bool *hasFunctionStmt)
     ParseNode *saveBlock = pc->blockNode;
     pc->blockNode = pn;
 
-    bool canHaveDirectives = pc->atBodyLevel();
+    if (pc->atBodyLevel() && !processDirectives(pn))
+        return NULL;
     for (;;) {
         TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt <= TOK_EOF || tt == TOK_RC) {
@@ -1932,11 +1934,6 @@ Parser::statements(bool *hasFunctionStmt)
             if (tokenStream.isEOF())
                 tokenStream.setUnexpectedEOF();
             return NULL;
-        }
-
-        if (canHaveDirectives) {
-            if (!maybeParseDirective(next, &canHaveDirectives))
-                return NULL;
         }
 
         if (next->isKind(PNK_FUNCTION)) {
@@ -2075,7 +2072,7 @@ BindLet(JSContext *cx, BindData *data, HandlePropertyName name, Parser *parser)
      */
     bool redeclared;
     RootedId id(cx, NameToId(name));
-    RootedShape shape(cx, StaticBlockObject::addVar(cx, blockObj, id, blockCount, &redeclared));
+    Shape *shape = StaticBlockObject::addVar(cx, blockObj, id, blockCount, &redeclared);
     if (!shape) {
         if (redeclared)
             ReportRedeclaration(cx, parser, pn, false, name);
@@ -2990,7 +2987,7 @@ Parser::forStatement()
 
     pn->setOp(JSOP_ITER);
     pn->pn_iflags = 0;
-    if (allowsForEachIn() && tokenStream.matchToken(TOK_NAME)) {
+    if (tokenStream.matchToken(TOK_NAME)) {
         if (tokenStream.currentToken().name() == context->names().each)
             pn->pn_iflags = JSITER_FOREACH;
         else
@@ -3500,8 +3497,10 @@ Parser::withStatement()
     // reportStrictModeError.  However, 'with' is the sole instance of a
     // construct that is forbidden in strict mode code, but doesn't even merit a
     // warning under JSOPTION_STRICT.  See
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=514576#c1.
-    if (pc->sc->strict && !reportStrictModeError(NULL, JSMSG_STRICT_CODE_WITH))
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=514576#c1. The actual
+    // supression of the with code warning is in
+    // TokenStream::reportCompileErrorNumberVA.
+    if (!reportStrictModeError(NULL, JSMSG_STRICT_CODE_WITH))
         return NULL;
 
     ParseNode *pn = BinaryNode::create(PNK_WITH, this);
@@ -5119,7 +5118,7 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
 
         pn2->setOp(JSOP_ITER);
         pn2->pn_iflags = JSITER_ENUMERATE;
-        if (allowsForEachIn() && tokenStream.matchToken(TOK_NAME)) {
+        if (tokenStream.matchToken(TOK_NAME)) {
             if (tokenStream.currentToken().name() == context->names().each)
                 pn2->pn_iflags |= JSITER_FOREACH;
             else
@@ -5322,7 +5321,7 @@ Parser::generatorExpr(ParseNode *kid)
             return NULL;
 
         /* Create box for fun->object early to protect against last-ditch GC. */
-        FunctionBox *genFunbox = newFunctionBox(fun, outerpc, outerpc->sc->strict);
+        FunctionBox *genFunbox = newFunctionBox(fun, outerpc, outerpc->sc->strictModeState);
         if (!genFunbox)
             return NULL;
 
@@ -5664,7 +5663,7 @@ Parser::memberExpr(bool allowCallSyntax)
                      * In non-strict mode code, direct calls to eval can add
                      * variables to the call object.
                      */
-                    if (pc->sc->isFunction && !pc->sc->strict)
+                    if (pc->sc->isFunction && pc->sc->strictModeState != StrictMode::STRICT)
                         pc->sc->asFunbox()->setHasExtensibleScope();
                 }
             } else if (lhs->isOp(JSOP_GETPROP)) {
@@ -6306,7 +6305,7 @@ Parser::parseXMLText(JSObject *chain, bool allowList)
      * lightweight function activation, or if its scope chain doesn't match
      * the one passed to us.
      */
-    GlobalSharedContext xmlsc(context, chain, false);
+    GlobalSharedContext xmlsc(context, chain, StrictMode::NOTSTRICT);
     ParseContext xmlpc(this, &xmlsc, /* staticLevel = */ 0, /* bodyid = */ 0);
     if (!xmlpc.init())
         return NULL;
@@ -6415,6 +6414,30 @@ Parser::identifierName(bool afterDoubleDot)
     return node;
 }
 
+ParseNode *
+Parser::intrinsicName()
+{
+    JS_ASSERT(tokenStream.isCurrentTokenType(TOK_MOD));
+    if (tokenStream.getToken() != TOK_NAME) {
+        reportError(NULL, JSMSG_SYNTAX_ERROR);
+        return NULL;
+    }
+
+    PropertyName *name = tokenStream.currentToken().name();
+    if (!(name == context->names()._CallFunction ||
+          context->global()->hasIntrinsicFunction(context, name)))
+    {
+        reportError(NULL, JSMSG_INTRINSIC_NOT_DEFINED, JS_EncodeString(context, name));
+        return NULL;
+    }
+    ParseNode *node = NameNode::create(PNK_INTRINSICNAME, name, this, this->pc);
+    if (!node)
+        return NULL;
+    JS_ASSERT(tokenStream.currentToken().t_op == JSOP_NAME);
+    node->setOp(JSOP_INTRINSICNAME);
+    return node;
+}
+
 #if JS_HAS_XML_SUPPORT
 ParseNode *
 Parser::starOrAtPropertyIdentifier(TokenKind tt)
@@ -6441,7 +6464,7 @@ Parser::atomNode(ParseNodeKind kind, JSOp op)
     // them, so we don't wait for a long time for compression to finish at the
     // end of compilation.
     const size_t HUGE_STRING = 50000;
-    if (sct && sct->active() && kind == PNK_STRING && node->pn_atom->length() >= HUGE_STRING)
+    if (sct && kind == PNK_STRING && node->pn_atom->length() >= HUGE_STRING)
         sct->abort();
 
     return node;
@@ -6712,10 +6735,7 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
 
                     /* NB: Getter function in { get x(){} } is unnamed. */
                     Rooted<PropertyName*> funName(context, NULL);
-                    TokenStream::Position start;
-                    tokenStream.tell(&start);
-                    pn2 = functionDef(funName, start, op == JSOP_GETTER ? Getter : Setter,
-                                      Expression);
+                    pn2 = functionDef(funName, op == JSOP_GETTER ? Getter : Setter, Expression);
                     if (!pn2)
                         return NULL;
                     TokenPos pos = {begin, pn2->pn_pos.end};
@@ -6974,6 +6994,12 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
         return new_<ThisLiteral>(tokenStream.currentToken().pos);
       case TOK_NULL:
         return new_<NullLiteral>(tokenStream.currentToken().pos);
+
+      case TOK_MOD:
+        if (selfHostingMode)
+            return intrinsicName();
+        else
+            goto syntaxerror;
 
       case TOK_ERROR:
         /* The scanner or one of its subroutines reported the error. */

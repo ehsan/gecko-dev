@@ -21,11 +21,9 @@ function test()
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
     gDebuggee = aDebuggee;
 
-    gDebugger.DebuggerController.StackFrames.autoScopeExpand = true;
-    gDebugger.DebuggerView.Variables.delayedSearch = false;
     testSearchbox();
     prepareVariables(testVariablesFiltering);
   });
@@ -35,31 +33,27 @@ function testSearchbox()
 {
   ok(!gDebugger.DebuggerView.Variables._searchboxNode,
     "There should not initially be a searchbox available in the variables view.");
-  ok(!gDebugger.DebuggerView.Variables._parent.parentNode.querySelector(".variables-searchinput.devtools-searchinput"),
-    "The searchbox element should not be found.");
+  ok(!gDebugger.DebuggerView.Variables._parent.querySelector(".devtools-searchinput"),
+    "There searchbox element should not be found.");
 
   gDebugger.DebuggerView.Variables.enableSearch();
   ok(gDebugger.DebuggerView.Variables._searchboxNode,
     "There should be a searchbox available after enabling.");
-  ok(gDebugger.DebuggerView.Variables._searchboxContainer.hidden,
-    "The searchbox container should be hidden at this point.");
-  ok(gDebugger.DebuggerView.Variables._parent.parentNode.querySelector(".variables-searchinput.devtools-searchinput"),
-    "The searchbox element should be found.");
+  ok(gDebugger.DebuggerView.Variables._parent.querySelector(".devtools-searchinput"),
+    "There searchbox element should be found.");
 
 
   gDebugger.DebuggerView.Variables.disableSearch();
   ok(!gDebugger.DebuggerView.Variables._searchboxNode,
     "There shouldn't be a searchbox available after disabling.");
-  ok(!gDebugger.DebuggerView.Variables._parent.parentNode.querySelector(".variables-searchinput.devtools-searchinput"),
-    "The searchbox element should not be found.");
+  ok(!gDebugger.DebuggerView.Variables._parent.querySelector(".devtools-searchinput"),
+    "There searchbox element should not be found.");
 
   gDebugger.DebuggerView.Variables.enableSearch();
   ok(gDebugger.DebuggerView.Variables._searchboxNode,
     "There should be a searchbox available after enabling.");
-  ok(gDebugger.DebuggerView.Variables._searchboxContainer.hidden,
-    "The searchbox container should be hidden at this point.");
-  ok(gDebugger.DebuggerView.Variables._parent.parentNode.querySelector(".variables-searchinput.devtools-searchinput"),
-    "The searchbox element should be found.");
+  ok(gDebugger.DebuggerView.Variables._parent.querySelector(".devtools-searchinput"),
+    "There searchbox element should be found.");
 
   let placeholder = "freshly squeezed mango juice";
 
@@ -71,16 +65,14 @@ function testSearchbox()
   gDebugger.DebuggerView.Variables.disableSearch();
   ok(!gDebugger.DebuggerView.Variables._searchboxNode,
     "There shouldn't be a searchbox available after disabling again.");
-  ok(!gDebugger.DebuggerView.Variables._parent.parentNode.querySelector(".variables-searchinput.devtools-searchinput"),
-    "The searchbox element should not be found.");
+  ok(!gDebugger.DebuggerView.Variables._parent.querySelector(".devtools-searchinput"),
+    "There searchbox element should not be found.");
 
   gDebugger.DebuggerView.Variables.enableSearch();
   ok(gDebugger.DebuggerView.Variables._searchboxNode,
     "There should be a searchbox available after enabling again.");
-  ok(gDebugger.DebuggerView.Variables._searchboxContainer.hidden,
-    "The searchbox container should be hidden at this point.");
-  ok(gDebugger.DebuggerView.Variables._parent.parentNode.querySelector(".variables-searchinput.devtools-searchinput"),
-    "The searchbox element should be found.");
+  ok(gDebugger.DebuggerView.Variables._parent.querySelector(".devtools-searchinput"),
+    "There searchbox element should be found.");
 
   ok(gDebugger.DebuggerView.Variables._searchboxNode.getAttribute("placeholder"),
     placeholder, "There correct placeholder should be applied to the searchbox again.");
@@ -89,16 +81,14 @@ function testSearchbox()
   gDebugger.DebuggerView.Variables.searchEnabled = false;
   ok(!gDebugger.DebuggerView.Variables._searchboxNode,
     "There shouldn't be a searchbox available after disabling again.");
-  ok(!gDebugger.DebuggerView.Variables._parent.parentNode.querySelector(".variables-searchinput.devtools-searchinput"),
-    "The searchbox element should not be found.");
+  ok(!gDebugger.DebuggerView.Variables._parent.querySelector(".devtools-searchinput"),
+    "There searchbox element should not be found.");
 
   gDebugger.DebuggerView.Variables.searchEnabled = true;
   ok(gDebugger.DebuggerView.Variables._searchboxNode,
     "There should be a searchbox available after enabling again.");
-  ok(gDebugger.DebuggerView.Variables._searchboxContainer.hidden,
-    "The searchbox container should be hidden at this point.");
-  ok(gDebugger.DebuggerView.Variables._parent.parentNode.querySelector(".variables-searchinput.devtools-searchinput"),
-    "The searchbox element should be found.");
+  ok(gDebugger.DebuggerView.Variables._parent.querySelector(".devtools-searchinput"),
+    "There searchbox element should be found.");
 
   ok(gDebugger.DebuggerView.Variables._searchboxNode.getAttribute("placeholder"),
     placeholder, "There correct placeholder should be applied to the searchbox again.");
@@ -106,9 +96,6 @@ function testSearchbox()
 
 function testVariablesFiltering()
 {
-  ok(!gDebugger.DebuggerView.Variables._searchboxContainer.hidden,
-    "The searchbox container should not be hidden at this point.");
-
   function test1()
   {
     write("location");
@@ -134,8 +121,6 @@ function testVariablesFiltering()
       "The local scope 'this.window.document.location' should be expanded");
 
     ignoreExtraMatchedProperties();
-    locationItem.toggle();
-    locationItem.toggle();
 
     is(innerScope.querySelectorAll(".variable:not([non-match])").length, 1,
       "There should be 1 variable displayed in the inner scope");
@@ -222,8 +207,6 @@ function testVariablesFiltering()
       "The local scope 'this.window.document.location' should be expanded");
 
     ignoreExtraMatchedProperties();
-    locationItem.toggle();
-    locationItem.toggle();
 
     is(innerScope.querySelectorAll(".variable:not([non-match])").length, 1,
       "There should be 1 variable displayed in the inner scope");
@@ -336,22 +319,6 @@ function prepareVariables(aCallback)
 
       is(innerScopeItem.expanded, true,
         "The innerScope expanded getter should return true");
-      is(mathScopeItem.expanded, true,
-        "The mathScope expanded getter should return true");
-      is(testScopeItem.expanded, true,
-        "The testScope expanded getter should return true");
-      is(loadScopeItem.expanded, true,
-        "The loadScope expanded getter should return true");
-      is(globalScopeItem.expanded, true,
-        "The globalScope expanded getter should return true");
-
-      mathScopeItem.collapse();
-      testScopeItem.collapse();
-      loadScopeItem.collapse();
-      globalScopeItem.collapse();
-
-      is(innerScopeItem.expanded, true,
-        "The innerScope expanded getter should return true");
       is(mathScopeItem.expanded, false,
         "The mathScope expanded getter should return false");
       is(testScopeItem.expanded, false,
@@ -361,10 +328,10 @@ function prepareVariables(aCallback)
       is(globalScopeItem.expanded, false,
         "The globalScope expanded getter should return false");
 
-      EventUtils.sendMouseEvent({ type: "mousedown" }, mathScope.querySelector(".arrow"), gDebugger);
-      EventUtils.sendMouseEvent({ type: "mousedown" }, testScope.querySelector(".arrow"), gDebugger);
-      EventUtils.sendMouseEvent({ type: "mousedown" }, loadScope.querySelector(".arrow"), gDebugger);
-      EventUtils.sendMouseEvent({ type: "mousedown" }, globalScope.querySelector(".arrow"), gDebugger);
+      EventUtils.sendMouseEvent({ type: "mousedown" }, mathScope.querySelector(".arrow"), gDebuggee);
+      EventUtils.sendMouseEvent({ type: "mousedown" }, testScope.querySelector(".arrow"), gDebuggee);
+      EventUtils.sendMouseEvent({ type: "mousedown" }, loadScope.querySelector(".arrow"), gDebuggee);
+      EventUtils.sendMouseEvent({ type: "mousedown" }, globalScope.querySelector(".arrow"), gDebuggee);
 
       is(innerScopeItem.expanded, true,
         "The innerScope expanded getter should return true");
@@ -428,7 +395,7 @@ function prepareVariables(aCallback)
                   executeSoon(function() {
                     EventUtils.sendMouseEvent({ type: "mousedown" },
                       locationItem.target.querySelector(".arrow"),
-                      gDebugger);
+                      gDebuggee.window);
 
                     is(locationItem.expanded, true,
                       "The local scope 'this.window.document.location' should be expanded now");
@@ -439,7 +406,7 @@ function prepareVariables(aCallback)
               executeSoon(function() {
                 EventUtils.sendMouseEvent({ type: "mousedown" },
                   documentItem.target.querySelector(".arrow"),
-                  gDebugger);
+                  gDebuggee.window);
 
                 is(documentItem.expanded, true,
                   "The local scope 'this.window.document' should be expanded now");
@@ -450,7 +417,7 @@ function prepareVariables(aCallback)
           executeSoon(function() {
             EventUtils.sendMouseEvent({ type: "mousedown" },
               windowItem.target.querySelector(".arrow"),
-              gDebugger);
+              gDebuggee.window);
 
             is(windowItem.expanded, true,
               "The local scope 'this.window' should be expanded now");
@@ -461,7 +428,7 @@ function prepareVariables(aCallback)
       executeSoon(function() {
         EventUtils.sendMouseEvent({ type: "mousedown" },
           thisItem.target.querySelector(".arrow"),
-          gDebugger);
+          gDebuggee.window);
 
         is(thisItem.expanded, true,
           "The local scope 'this' should be expanded now");
@@ -476,7 +443,7 @@ function prepareVariables(aCallback)
 
 function ignoreExtraMatchedProperties()
 {
-  for (let [, item] of gDebugger.DebuggerView.Variables._currHierarchy) {
+  for (let [_, item] of gDebugger.DebuggerView.Variables._currHierarchy) {
     let name = item.name.toLowerCase();
     let value = item._valueString || "";
 

@@ -306,12 +306,30 @@ public:
   static Layer* GetDebugOldLayerFor(nsIFrame* aFrame, uint32_t aDisplayItemKey);
 
   /**
+   * Try to determine whether the ThebesLayer aLayer paints an opaque
+   * single color everywhere it's visible in aRect.
+   * If successful, return that color, otherwise return NS_RGBA(0,0,0,0).
+   */
+  nscolor FindOpaqueColorCovering(nsDisplayListBuilder* aBuilder,
+                                  ThebesLayer* aLayer, const nsRect& aRect);
+
+  /**
    * Destroy any stored LayerManagerDataProperty and the associated data for
    * aFrame.
    */
   static void DestroyDisplayItemDataFor(nsIFrame* aFrame);
 
   LayerManager* GetRetainingLayerManager() { return mRetainingManager; }
+
+  /**
+   * Returns true if the given item (which we assume here is
+   * background-attachment:fixed) needs to be repainted as we scroll in its
+   * document.
+   * Returns false if it doesn't need to be repainted because the layer system
+   * is ensuring its fixed-ness for us.
+   */
+  static bool NeedToInvalidateFixedDisplayItem(nsDisplayListBuilder* aBuilder,
+                                                 nsDisplayItem* aItem);
 
   /**
    * Returns true if the given display item was rendered during the previous
@@ -654,13 +672,15 @@ public:
     return mThebesLayerItems.GetEntry(aLayer);
   }
 
+  static PLDHashOperator ProcessRemovedDisplayItems(nsRefPtrHashKey<DisplayItemData>* aEntry,
+                                                    void* aUserArg);
 protected:
   void RemoveThebesItemsAndOwnerDataForLayerSubtree(Layer* aLayer,
                                                     bool aRemoveThebesItems,
                                                     bool aRemoveOwnerData);
 
-  static PLDHashOperator ProcessRemovedDisplayItems(nsRefPtrHashKey<DisplayItemData>* aEntry,
-                                                    void* aUserArg);
+  static PLDHashOperator UpdateDisplayItemDataForFrame(nsRefPtrHashKey<DisplayItemData>* aEntry,
+                                                       void* aUserArg);
   static PLDHashOperator RestoreDisplayItemData(nsRefPtrHashKey<DisplayItemData>* aEntry,
                                                 void *aUserArg);
 

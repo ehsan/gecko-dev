@@ -29,7 +29,6 @@ class nsRenderingContext;
  */
 class nsImageRenderer {
 public:
-  typedef mozilla::layers::LayerManager LayerManager;
   typedef mozilla::layers::ImageContainer ImageContainer;
 
   enum {
@@ -61,9 +60,9 @@ public:
             const nsPoint&       aAnchor,
             const nsRect&        aDirty);
 
-  bool IsRasterImage();
-  already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager);
 
+  bool IsRasterImage();
+  already_AddRefed<ImageContainer> GetContainer();
 private:
   /*
    * Compute the "unscaled" dimensions of the image in aUnscaled{Width,Height}
@@ -301,14 +300,6 @@ struct nsCSSRendering {
                            bool& aDrawBackgroundImage,
                            bool& aDrawBackgroundColor);
 
-  static nsRect
-  ComputeBackgroundPositioningArea(nsPresContext* aPresContext,
-                                   nsIFrame* aForFrame,
-                                   const nsRect& aBorderArea,
-                                   const nsStyleBackground& aBackground,
-                                   const nsStyleBackground::Layer& aLayer,
-                                   nsIFrame** aAttachedToFrame);
-
   static nsBackgroundLayerState
   PrepareBackgroundLayer(nsPresContext* aPresContext,
                          nsIFrame* aForFrame,
@@ -394,16 +385,10 @@ struct nsCSSRendering {
                                        const nsStyleBackground::Layer& aLayer);
 
   /**
-   * Called when we start creating a display list. The frame tree will not
-   * change until a matching EndFrameTreeLocked is called.
+   * Called by the presShell when painting is finished, so we can clear our
+   * inline background data cache.
    */
-  static void BeginFrameTreesLocked();
-  /**
-   * Called when we've finished using a display list. When all
-   * BeginFrameTreeLocked calls have been balanced by an EndFrameTreeLocked,
-   * the frame tree may start changing again.
-   */
-  static void EndFrameTreesLocked();
+  static void DidPaint();
 
   // Draw a border segment in the table collapsing border model without
   // beveling corners

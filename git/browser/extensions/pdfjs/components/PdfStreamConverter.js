@@ -30,18 +30,30 @@ const PDF_CONTENT_TYPE = 'application/pdf';
 const PREF_PREFIX = 'pdfjs';
 const PDF_VIEWER_WEB_PAGE = 'resource://pdf.js/web/viewer.html';
 const MAX_DATABASE_LENGTH = 4096;
+const FIREFOX_ID = '{ec8030f7-c20a-464f-9b0e-13a3a9e97384}';
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource://gre/modules/NetUtil.jsm');
 
-XPCOMUtils.defineLazyModuleGetter(this, 'PrivateBrowsingUtils',
-  'resource://gre/modules/PrivateBrowsingUtils.jsm');
 
+let appInfo = Cc['@mozilla.org/xre/app-info;1']
+                  .getService(Ci.nsIXULAppInfo);
 let Svc = {};
 XPCOMUtils.defineLazyServiceGetter(Svc, 'mime',
                                    '@mozilla.org/mime;1',
                                    'nsIMIMEService');
+
+let isInPrivateBrowsing;
+if (appInfo.ID === FIREFOX_ID) {
+  let privateBrowsing = Cc['@mozilla.org/privatebrowsing;1']
+                            .getService(Ci.nsIPrivateBrowsingService);
+  isInPrivateBrowsing = function getInPrivateBrowsing() {
+    return privateBrowsing.privateBrowsingEnabled;
+  };
+} else {
+  isInPrivateBrowsing = function() { return false; };
+}
 
 function getChromeWindow(domWindow) {
   var containingBrowser = domWindow.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -54,14 +66,6 @@ function getChromeWindow(domWindow) {
 function getBoolPref(pref, def) {
   try {
     return Services.prefs.getBoolPref(pref);
-  } catch (ex) {
-    return def;
-  }
-}
-
-function getIntPref(pref, def) {
-  try {
-    return Services.prefs.getIntPref(pref);
   } catch (ex) {
     return def;
   }
@@ -91,9 +95,7 @@ function log(aMsg) {
 }
 
 function getDOMWindow(aChannel) {
-  var requestor = aChannel.notificationCallbacks ?
-                  aChannel.notificationCallbacks :
-                  aChannel.loadGroup.notificationCallbacks;
+  var requestor = aChannel.notificationCallbacks;
   var win = requestor.getInterface(Components.interfaces.nsIDOMWindow);
   return win;
 }
@@ -207,30 +209,6 @@ function ChromeActions(domWindow, dataListener) {
 }
 
 ChromeActions.prototype = {
-  isInPrivateBrowsing: function() {
-    let docIsPrivate;
-    try {
-      docIsPrivate = PrivateBrowsingUtils.isWindowPrivate(this.domWindow);
-    } catch (x) {
-      // unable to use PrivateBrowsingUtils, e.g. FF15
-    }
-    if (typeof docIsPrivate === 'undefined') {
-      // per-window Private Browsing is not supported, trying global service
-      try {
-        let privateBrowsing = Cc['@mozilla.org/privatebrowsing;1']
-                                  .getService(Ci.nsIPrivateBrowsingService);
-        docIsPrivate = privateBrowsing.privateBrowsingEnabled;
-      } catch (x) {
-        // unable to get nsIPrivateBrowsingService (e.g. not Firefox)
-        docIsPrivate = false;
-      }
-    }
-    // caching the result
-    this.isInPrivateBrowsing = function isInPrivateBrowsingCached() {
-      return docIsPrivate;
-    };
-    return docIsPrivate;
-  },
   download: function(data, sendResponse) {
     var originalUrl = data.originalUrl;
     // The data may not be downloaded so we need just retry getting the pdf with
@@ -243,7 +221,16 @@ ChromeActions.prototype = {
     var frontWindow = Cc['@mozilla.org/embedcomp/window-watcher;1'].
                          getService(Ci.nsIWindowWatcher).activeWindow;
 
-    let docIsPrivate = this.isInPrivateBrowsing();
+    let docIsPrivate = false;
+    try {
+      docIsPrivate = this.domWindow
+                         .QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIWebNavigation)
+                         .QueryInterface(Ci.nsILoadContext)
+                         .usePrivateBrowsing;
+    } catch (x) {
+    }
+
     let netChannel = NetUtil.newChannel(blobUri);
     if ('nsIPrivateBrowsingChannel' in Ci &&
         netChannel instanceof Ci.nsIPrivateBrowsingChannel) {
@@ -292,7 +279,7 @@ ChromeActions.prototype = {
     });
   },
   setDatabase: function(data) {
-    if (this.isInPrivateBrowsing())
+    if (isInPrivateBrowsing())
       return;
     // Protect against something sending tons of data to setDatabase.
     if (data.length > MAX_DATABASE_LENGTH)
@@ -300,7 +287,7 @@ ChromeActions.prototype = {
     setStringPref(PREF_PREFIX + '.database', data);
   },
   getDatabase: function() {
-    if (this.isInPrivateBrowsing())
+    if (isInPrivateBrowsing())
       return '{}';
     return getStringPref(PREF_PREFIX + '.database', '{}');
   },
@@ -359,12 +346,7 @@ ChromeActions.prototype = {
     // Integrated find is only supported when we're not in a frame and when the
     // new find events code exists.
     return this.domWindow.frameElement === null &&
-           getChromeWindow(this.domWindow).gFindBar &&
            'updateControlState' in getChromeWindow(this.domWindow).gFindBar;
-  },
-  supportsDocumentFonts: function() {
-    var pref = getIntPref('browser.display.use_document_fonts', 1);
-    return !!pref;
   },
   fallback: function(url, sendResponse) {
     var self = this;
@@ -560,6 +542,21 @@ PdfStreamConverter.prototype = {
     if (!isEnabled())
       throw Cr.NS_ERROR_NOT_IMPLEMENTED;
 
+    var useFetchByChrome = getBoolPref(PREF_PREFIX + '.fetchByChrome', true);
+    if (!useFetchByChrome) {
+      // Ignoring HTTP POST requests -- pdf.js has to repeat the request.
+      var skipConversion = false;
+      try {
+        var request = aCtxt;
+        request.QueryInterface(Ci.nsIHttpChannel);
+        skipConversion = (request.requestMethod !== 'GET');
+      } catch (e) {
+        // Non-HTTP request... continue normally.
+      }
+      if (skipConversion)
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+    }
+
     // Store the listener passed to us
     this.listener = aListener;
   },
@@ -578,17 +575,22 @@ PdfStreamConverter.prototype = {
 
   // nsIRequestObserver::onStartRequest
   onStartRequest: function(aRequest, aContext) {
+
     // Setup the request so we can use it below.
     aRequest.QueryInterface(Ci.nsIChannel);
-    // Creating storage for PDF data
-    var contentLength = aRequest.contentLength;
-    var dataListener = new PdfDataListener(contentLength);
-    this.dataListener = dataListener;
-    this.binaryStream = Cc['@mozilla.org/binaryinputstream;1']
-                        .createInstance(Ci.nsIBinaryInputStream);
-
-    // Change the content type so we don't get stuck in a loop.
-    aRequest.contentType = 'text/html';
+    var useFetchByChrome = getBoolPref(PREF_PREFIX + '.fetchByChrome', true);
+    var dataListener;
+    if (useFetchByChrome) {
+      // Creating storage for PDF data
+      var contentLength = aRequest.contentLength;
+      dataListener = new PdfDataListener(contentLength);
+      this.dataListener = dataListener;
+      this.binaryStream = Cc['@mozilla.org/binaryinputstream;1']
+                          .createInstance(Ci.nsIBinaryInputStream);
+    } else {
+      // Cancel the request so the viewer can handle it.
+      aRequest.cancel(Cr.NS_BINDING_ABORTED);
+    }
 
     // Create a new channel that is viewer loaded as a resource.
     var ioService = Services.io;
@@ -596,20 +598,17 @@ PdfStreamConverter.prototype = {
                     PDF_VIEWER_WEB_PAGE, null, null);
 
     var listener = this.listener;
+    var self = this;
     // Proxy all the request observer calls, when it gets to onStopRequest
-    // we can get the dom window.  We also intentionally pass on the original
-    // request(aRequest) below so we don't overwrite the original channel and
-    // trigger an assertion.
+    // we can get the dom window.
     var proxy = {
-      onStartRequest: function(request, context) {
-        listener.onStartRequest(aRequest, context);
+      onStartRequest: function() {
+        listener.onStartRequest.apply(listener, arguments);
       },
-      onDataAvailable: function(request, context, inputStream, offset, count) {
-        listener.onDataAvailable(aRequest, context, inputStream, offset, count);
+      onDataAvailable: function() {
+        listener.onDataAvailable.apply(listener, arguments);
       },
-      onStopRequest: function(request, context, statusCode) {
-        // We get the DOM window here instead of before the request since it
-        // may have changed during a redirect.
+      onStopRequest: function() {
         var domWindow = getDOMWindow(channel);
         // Double check the url is still the correct one.
         if (domWindow.document.documentURIObject.equals(aRequest.URI)) {
@@ -625,29 +624,27 @@ PdfStreamConverter.prototype = {
                                                         chromeWindow);
             findEventManager.bind();
           }
-        } else {
-          log('Dom window url did not match request url.');
         }
-        listener.onStopRequest(aRequest, context, statusCode);
+        listener.onStopRequest.apply(listener, arguments);
       }
     };
 
     // Keep the URL the same so the browser sees it as the same.
     channel.originalURI = aRequest.URI;
-    channel.loadGroup = aRequest.loadGroup;
-
-    // We can use resource principal when data is fetched by the chrome
-    // e.g. useful for NoScript
-    var securityManager = Cc['@mozilla.org/scriptsecuritymanager;1']
-                          .getService(Ci.nsIScriptSecurityManager);
-    var uri = ioService.newURI(PDF_VIEWER_WEB_PAGE, null, null);
-    // FF16 and below had getCodebasePrincipal, it was replaced by
-    // getNoAppCodebasePrincipal (bug 758258).
-    var resourcePrincipal = 'getNoAppCodebasePrincipal' in securityManager ?
-                            securityManager.getNoAppCodebasePrincipal(uri) :
-                            securityManager.getCodebasePrincipal(uri);
-    aRequest.owner = resourcePrincipal;
     channel.asyncOpen(proxy, aContext);
+    if (useFetchByChrome) {
+      // We can use resource principal when data is fetched by the chrome
+      // e.g. useful for NoScript
+      var securityManager = Cc['@mozilla.org/scriptsecuritymanager;1']
+                            .getService(Ci.nsIScriptSecurityManager);
+      var uri = ioService.newURI(PDF_VIEWER_WEB_PAGE, null, null);
+      // FF16 and below had getCodebasePrincipal, it was replaced by
+      // getNoAppCodebasePrincipal (bug 758258).
+      var resourcePrincipal = 'getNoAppCodebasePrincipal' in securityManager ?
+                              securityManager.getNoAppCodebasePrincipal(uri) :
+                              securityManager.getCodebasePrincipal(uri);
+      channel.owner = resourcePrincipal;
+    }
   },
 
   // nsIRequestObserver::onStopRequest

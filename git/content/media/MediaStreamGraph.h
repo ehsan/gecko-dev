@@ -7,7 +7,7 @@
 #define MOZILLA_MEDIASTREAMGRAPH_H_
 
 #include "mozilla/Mutex.h"
-#include "AudioStream.h"
+#include "nsAudioStream.h"
 #include "nsTArray.h"
 #include "nsIRunnable.h"
 #include "nsISupportsImpl.h"
@@ -261,7 +261,6 @@ public:
     , mGraphUpdateIndices(0)
     , mFinished(false)
     , mNotifiedFinished(false)
-    , mNotifiedBlocked(false)
     , mWrapper(aWrapper)
     , mMainThreadCurrentTime(0)
     , mMainThreadFinished(false)
@@ -443,7 +442,7 @@ protected:
     // Amount of time that we've wanted to play silence because of the stream
     // blocking.
     MediaTime mBlockedAudioTime;
-    nsAutoPtr<AudioStream> mStream;
+    nsRefPtr<nsAudioStream> mStream;
     TrackID mTrackID;
   };
   nsTArray<AudioOutputStream> mAudioOutputStreams;
@@ -458,11 +457,6 @@ protected:
    * and fired NotifyFinished notifications.
    */
   bool mNotifiedFinished;
-  /**
-   * When true, the last NotifyBlockingChanged delivered to the listeners
-   * indicated that the stream is blocked.
-   */
-  bool mNotifiedBlocked;
 
   // Temporary data for ordering streams by dependency graph
   bool mHasBeenOrdered;

@@ -18,8 +18,6 @@ namespace sms {
 enum DeliveryState {
   eDeliveryState_Sent = 0,
   eDeliveryState_Received,
-  eDeliveryState_Sending,
-  eDeliveryState_Error,
   eDeliveryState_Unknown,
   // This state should stay at the end.
   eDeliveryState_EndGuard

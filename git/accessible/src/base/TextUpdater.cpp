@@ -82,14 +82,14 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
       // Fire text change event for removal.
       nsRefPtr<AccEvent> textRemoveEvent =
         new AccTextChangeEvent(mHyperText, mTextOffset, str1, false);
-      mDocument->FireDelayedEvent(textRemoveEvent);
+      mDocument->FireDelayedAccessibleEvent(textRemoveEvent);
     }
 
     if (strLen2 > 0) {
       // Fire text change event for insertion.
       nsRefPtr<AccEvent> textInsertEvent =
         new AccTextChangeEvent(mHyperText, mTextOffset, str2, true);
-      mDocument->FireDelayedEvent(textInsertEvent);
+      mDocument->FireDelayedAccessibleEvent(textInsertEvent);
     }
 
     mDocument->MaybeNotifyOfValueChange(mHyperText);
@@ -135,7 +135,7 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
 
   // Fire events.
   for (int32_t idx = events.Length() - 1; idx >= 0; idx--)
-    mDocument->FireDelayedEvent(events[idx]);
+    mDocument->FireDelayedAccessibleEvent(events[idx]);
 
   mDocument->MaybeNotifyOfValueChange(mHyperText);
 

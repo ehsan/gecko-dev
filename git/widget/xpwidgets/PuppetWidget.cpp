@@ -179,12 +179,12 @@ PuppetWidget::Show(bool aState)
 }
 
 NS_IMETHODIMP
-PuppetWidget::Resize(double aWidth,
-                     double aHeight,
-                     bool   aRepaint)
+PuppetWidget::Resize(int32_t aWidth,
+                     int32_t aHeight,
+                     bool    aRepaint)
 {
   nsIntRect oldBounds = mBounds;
-  mBounds.SizeTo(nsIntSize(NSToIntRound(aWidth), NSToIntRound(aHeight)));
+  mBounds.SizeTo(nsIntSize(aWidth, aHeight));
 
   if (mChild) {
     return mChild->Resize(aWidth, aHeight, aRepaint);
@@ -283,8 +283,6 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
     mIMELastReceivedSeqno = static_cast<nsSelectionEvent*>(event)->seqno;
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
-    break;
-  default:
     break;
   }
 
@@ -431,19 +429,14 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
     return NS_ERROR_FAILURE;
 
   if (aFocus) {
-    if (mIMEPreference.mWantUpdates && mIMEPreference.mWantHints) {
-      OnIMESelectionChange(); // Update selection
-    }
+    if (!mIMEPreference.mWantUpdates && !mIMEPreference.mWantHints)
+      // call OnIMEFocusChange on blur but no other updates
+      return NS_ERROR_NOT_IMPLEMENTED;
+    OnIMESelectionChange(); // Update selection
   } else {
     mIMELastBlurSeqno = chromeSeqno;
   }
   return NS_OK;
-}
-
-nsIMEUpdatePreference
-PuppetWidget::GetIMEUpdatePreference()
-{
-  return mIMEPreference;
 }
 
 NS_IMETHODIMP
@@ -540,9 +533,7 @@ PuppetWidget::Paint()
     }
   }
 
-  if (mAttachedWidgetListener) {
-    mAttachedWidgetListener->DidPaintWindow();
-  }
+  mAttachedWidgetListener->DidPaintWindow();
 
   return NS_OK;
 }

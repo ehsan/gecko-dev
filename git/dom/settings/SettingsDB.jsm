@@ -8,9 +8,8 @@ let Cu = Components.utils;
 
 this.EXPORTED_SYMBOLS = ["SettingsDB", "SETTINGSDB_NAME", "SETTINGSSTORE_NAME"];
 
-const DEBUG = false;
 function debug(s) {
-  if (DEBUG) dump("-*- SettingsDB: " + s + "\n");
+  //dump("-*- SettingsDB: " + s + "\n");
 }
 
 this.SETTINGSDB_NAME = "settings";
@@ -31,7 +30,7 @@ SettingsDB.prototype = {
     let objectStore = aDb.createObjectStore(SETTINGSSTORE_NAME,
                                             { keyPath: "settingName" });
     objectStore.createIndex("settingValue", "settingValue", { unique: false });
-    if (DEBUG) debug("Created object stores and indexes");
+    debug("Created object stores and indexes");
 
     if (aOldVersion != 0) {
       return;
@@ -63,12 +62,12 @@ SettingsDB.prototype = {
     try {
       settings = JSON.parse(rawstr);
     } catch(e) {
-      if (DEBUG) debug("Error parsing " + settingsFile.path + " : " + e);
+      debug("Error parsing " + settingsFile.path + " : " + e);
       return;
     }
 
     for (let setting in settings) {
-      if (DEBUG) debug("Adding setting " + setting);
+      debug("Adding setting " + setting);
       objectStore.put({ settingName: setting,
                         settingValue: settings[setting] });
     }

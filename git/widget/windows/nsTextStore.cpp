@@ -1511,7 +1511,7 @@ nsTextStore::SetText(DWORD dwFlags,
     return hr;
   }
   // Replace just selected text
-  if (!InsertTextAtSelectionInternal(nsDependentSubstring(pchText, cch),
+  if (!InsertTextAtSelectionInternal(nsDependentString(pchText, cch),
                                      pChange)) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::SetText() FAILED due to "
@@ -2063,7 +2063,7 @@ nsTextStore::InsertTextAtSelection(DWORD dwFlags,
       return E_INVALIDARG;
     }
 
-    if (!InsertTextAtSelectionInternal(nsDependentSubstring(pchText, cch),
+    if (!InsertTextAtSelectionInternal(nsDependentString(pchText, cch),
                                        pChange)) {
       PR_LOG(sTextStoreLog, PR_LOG_ERROR,
              ("TSF: 0x%p   nsTextStore::InsertTextAtSelection() FAILED due to "
@@ -2562,19 +2562,6 @@ nsTextStore::OnFocusChange(bool aFocus,
     sTsfTextStore->Destroy();
   }
   return NS_OK;
-}
-
-// static
-nsIMEUpdatePreference
-nsTextStore::GetIMEUpdatePreference()
-{
-  bool hasFocus = false;
-  if (sTsfThreadMgr && sTsfTextStore && sTsfTextStore->mDocumentMgr) {
-    nsRefPtr<ITfDocumentMgr> docMgr;
-    sTsfThreadMgr->GetFocus(getter_AddRefs(docMgr));
-    hasFocus = (docMgr == sTsfTextStore->mDocumentMgr);
-  }
-  return nsIMEUpdatePreference(hasFocus, false);
 }
 
 nsresult

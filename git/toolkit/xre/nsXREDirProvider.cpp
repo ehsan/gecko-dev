@@ -15,6 +15,7 @@
 #include "nsIFile.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsIProfileChangeStatus.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIToolkitChromeRegistry.h"
 
@@ -358,11 +359,7 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
   else if (!strcmp(aProperty, XRE_SYS_SHARE_EXTENSION_PARENT_DIR)) {
 #ifdef ENABLE_SYSTEM_EXTENSION_DIRS
-#if defined(__OpenBSD__) || defined(__FreeBSD__)
-    static const char *const sysLExtDir = "/usr/local/share/mozilla/extensions";
-#else
     static const char *const sysLExtDir = "/usr/share/mozilla/extensions";
-#endif
     return NS_NewNativeLocalFile(nsDependentCString(sysLExtDir),
                                  false, aFile);
 #else
@@ -834,6 +831,32 @@ nsXREDirProvider::DoStartup()
   return NS_OK;
 }
 
+class ProfileChangeStatusImpl MOZ_FINAL : public nsIProfileChangeStatus
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIPROFILECHANGESTATUS
+  ProfileChangeStatusImpl() { }
+private:
+  ~ProfileChangeStatusImpl() { }
+};
+
+NS_IMPL_ISUPPORTS1(ProfileChangeStatusImpl, nsIProfileChangeStatus)
+
+NS_IMETHODIMP
+ProfileChangeStatusImpl::VetoChange()
+{
+  NS_ERROR("Can't veto change!");
+  return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+ProfileChangeStatusImpl::ChangeFailed()
+{
+  NS_ERROR("Profile change cancellation.");
+  return NS_ERROR_FAILURE;
+}
+
 void
 nsXREDirProvider::DoShutdown()
 {
@@ -842,10 +865,11 @@ nsXREDirProvider::DoShutdown()
       mozilla::services::GetObserverService();
     NS_ASSERTION(obsSvc, "No observer service?");
     if (obsSvc) {
+      nsCOMPtr<nsIProfileChangeStatus> cs = new ProfileChangeStatusImpl();
       static const PRUnichar kShutdownPersist[] =
         {'s','h','u','t','d','o','w','n','-','p','e','r','s','i','s','t','\0'};
-      obsSvc->NotifyObservers(nullptr, "profile-change-net-teardown", kShutdownPersist);
-      obsSvc->NotifyObservers(nullptr, "profile-change-teardown", kShutdownPersist);
+      obsSvc->NotifyObservers(cs, "profile-change-net-teardown", kShutdownPersist);
+      obsSvc->NotifyObservers(cs, "profile-change-teardown", kShutdownPersist);
 
       // Phase 2c: Now that things are torn down, force JS GC so that things which depend on
       // resources which are about to go away in "profile-before-change" are destroyed first.
@@ -861,7 +885,7 @@ nsXREDirProvider::DoShutdown()
       }
 
       // Phase 3: Notify observers of a profile change
-      obsSvc->NotifyObservers(nullptr, "profile-before-change", kShutdownPersist);
+      obsSvc->NotifyObservers(cs, "profile-before-change", kShutdownPersist);
     }
     mProfileNotified = false;
   }
@@ -1207,8 +1231,6 @@ nsXREDirProvider::GetSystemExtensionsDirectory(nsIFile** aFile)
   static const char *const sysSExtDir = 
 #ifdef HAVE_USR_LIB64_DIR
     "/usr/lib64/mozilla/extensions";
-#elif defined(__OpenBSD__) || defined(__FreeBSD__)
-    "/usr/local/lib/mozilla/extensions";
 #else
     "/usr/lib/mozilla/extensions";
 #endif

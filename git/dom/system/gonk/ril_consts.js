@@ -405,34 +405,25 @@ this.ICC_COMMAND_UPDATE_RECORD = 0xdc;
 this.ICC_EF_ICCID  = 0x2fe2;
 this.ICC_EF_IMG    = 0x4f20;
 this.ICC_EF_PBR    = 0x4f30;
-this.ICC_EF_PLMNsel = 0x6f30; // PLMN for SIM
 this.ICC_EF_SST    = 0x6f38;
 this.ICC_EF_UST    = 0x6f38; // For USIM
 this.ICC_EF_ADN    = 0x6f3a;
 this.ICC_EF_FDN    = 0x6f3b;
 this.ICC_EF_SMS    = 0x6f3c;
 this.ICC_EF_MSISDN = 0x6f40;
-this.ICC_EF_CBMI   = 0x6f45;
 this.ICC_EF_SPN    = 0x6f46;
 this.ICC_EF_SDN    = 0x6f49;
 this.ICC_EF_EXT1   = 0x6f4a;
 this.ICC_EF_EXT2   = 0x6f4b;
 this.ICC_EF_EXT3   = 0x6f4c;
-this.ICC_EF_CBMIR  = 0x6f50;
 this.ICC_EF_AD     = 0x6fad;
-this.ICC_EF_PHASE  = 0x6fae;
 this.ICC_EF_PNN    = 0x6fc5;
-this.ICC_EF_OPL    = 0x6fc6;
 this.ICC_EF_MBDN   = 0x6fc7;
 this.ICC_EF_EXT6   = 0x6fc8;   // Ext record for EF[MBDN]
 this.ICC_EF_MBI    = 0x6fc9;
 this.ICC_EF_MWIS   = 0x6fca;
 this.ICC_EF_CFIS   = 0x6fcb;
 this.ICC_EF_SPDI   = 0x6fcd;
-
-this.ICC_PHASE_1 = 0x00;
-this.ICC_PHASE_2 = 0x02;
-this.ICC_PHASE_2_PROFILE_DOWNLOAD_REQUIRED = 0x03;
 
 // Types of files  TS 11.11 9.3
 this.TYPE_RFU = 0;
@@ -536,7 +527,6 @@ this.BER_PROACTIVE_COMMAND_TAG = 0xd0;
 this.BER_SMS_PP_DOWNLOAD_TAG = 0xd1;
 this.BER_MENU_SELECTION_TAG = 0xd3;
 this.BER_EVENT_DOWNLOAD_TAG = 0xd6;
-this.BER_TIMER_EXPIRATION_TAG = 0xd7;
 
 // Flags in Comprehension TLV.
 this.COMPREHENSIONTLV_FLAG_CR = 0x80;  // Comprehension required.
@@ -557,9 +547,7 @@ this.COMPREHENSIONTLV_TAG_ITEM_ID = 0x10;
 this.COMPREHENSIONTLV_TAG_RESPONSE_LENGTH = 0x11;
 this.COMPREHENSIONTLV_TAG_FILE_LIST = 0x12;
 this.COMPREHENSIONTLV_TAG_LOCATION_INFO = 0x13;
-this.COMPREHENSIONTLV_TAG_IMEI = 0x14;
 this.COMPREHENSIONTLV_TAG_HELP_REQUEST = 0x15;
-this.COMPREHENSIONTLV_TAG_NMR = 0x16;
 this.COMPREHENSIONTLV_TAG_DEFAULT_TEXT = 0x17;
 this.COMPREHENSIONTLV_TAG_CAUSE = 0x1a;
 this.COMPREHENSIONTLV_TAG_LOCATION_STATUS = 0x1b;
@@ -567,28 +555,8 @@ this.COMPREHENSIONTLV_TAG_TRANSACTION_ID = 0x1c;
 this.COMPREHENSIONTLV_TAG_EVENT_LIST = 0x19;
 this.COMPREHENSIONTLV_TAG_ICON_ID = 0x1e;
 this.COMPREHENSIONTLV_TAG_ICON_ID_LIST = 0x1f;
-this.COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER = 0x24;
-this.COMPREHENSIONTLV_TAG_TIMER_VALUE = 0x25;
-this.COMPREHENSIONTLV_TAG_DATE_TIME_ZONE = 0x26;
 this.COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE = 0x2b;
-this.COMPREHENSIONTLV_TAG_LANGUAGE = 0x2d;
 this.COMPREHENSIONTLV_TAG_URL = 0x31;
-this.COMPREHENSIONTLV_TAG_ACCESS_TECH = 0x3f;
-this.COMPREHENSIONTLV_TAG_SERVICE_RECORD = 0x41;
-this.COMPREHENSIONTLV_TAG_IMEISV = 0x62;
-this.COMPREHENSIONTLV_TAG_BATTERY_STATE = 0x63;
-this.COMPREHENSIONTLV_TAG_NETWORK_SEARCH_MODE = 0x65;
-this.COMPREHENSIONTLV_TAG_MEID = 0x6d;
-this.COMPREHENSIONTLV_TAG_BROADCAST_NETWORK_INFO = 0x7a;
-
-// Tags for Service Provider Display Information TLV
-this.SPDI_TAG_SPDI = 0xa3;
-this.SPDI_TAG_PLMN_LIST = 0x80;
-
-// MM INFORMATION message content IEIs
-// See 3GPP TS 24.008 table 9.2.18
-this.PNN_IEI_FULL_NETWORK_NAME = 0x43;
-this.PNN_IEI_SHORT_NETWORK_NAME = 0x45;
 
 // Device identifiers, see TS 11.14, clause 12.7
 this.STK_DEVICE_ID_KEYPAD = 0x01;
@@ -600,7 +568,6 @@ this.STK_DEVICE_ID_NETWORK = 0x83;
 
 // STK Proactive commands.
 this.STK_CMD_REFRESH = 0x01;
-this.STK_CMD_MORE_TIME = 0x02;
 this.STK_CMD_POLL_INTERVAL = 0x03;
 this.STK_CMD_POLL_OFF = 0x04;
 this.STK_CMD_SET_UP_EVENT_LIST = 0x05;
@@ -616,8 +583,6 @@ this.STK_CMD_GET_INKEY = 0x22;
 this.STK_CMD_GET_INPUT = 0x23;
 this.STK_CMD_SELECT_ITEM = 0x24;
 this.STK_CMD_SET_UP_MENU = 0x25;
-this.STK_CMD_PROVIDE_LOCAL_INFO = 0x26;
-this.STK_CMD_TIMER_MANAGEMENT = 0x27;
 this.STK_CMD_SET_UP_IDLE_MODE_TEXT = 0x28;
 
 // STK Result code.
@@ -803,190 +768,6 @@ this.STK_TIME_UNIT_MINUTE       = 0x00;
 this.STK_TIME_UNIT_SECOND       = 0x01;
 this.STK_TIME_UNIT_TENTH_SECOND = 0x02;
 
-// Local Information type.
-this.STK_LOCAL_INFO_NNA = 0x00;
-this.STK_LOCAL_INFO_IMEI = 0x01;
-this.STK_LOCAL_INFO_NMR_FOR_NNA = 0x02;
-this.STK_LOCAL_INFO_DATE_TIME_ZONE = 0x03;
-this.STK_LOCAL_INFO_LANGUAGE = 0x04;
-this.STK_LOCAL_INFO_ACCESS_TECH = 0x06;
-this.STK_LOCAL_INFO_ESN = 0x07;
-this.STK_LOCAL_INFO_IMEISV = 0x08;
-this.STK_LOCAL_INFO_SEARCH_MODE = 0x09;
-this.STK_LOCAL_INFO_CHARGE_STATE = 0x0A;
-this.STK_LOCAL_INFO_MEID = 0x0B;
-this.STK_LOCAL_INFO_BROADCAST_NETWORK_INFO = 0x0D;
-this.STK_LOCAL_INFO_MULTIPLE_ACCESS_TECH = 0x0E;
-this.STK_LOCAL_INFO_INFO_FOR_MULTIPLE_ACCESS_TECH = 0x0F;
-this.STK_LOCAL_INFO_NMR_FOR_MULTIPLE_ACCESS_TECH = 0x10;
-
-// Timer Management.
-this.STK_TIMER_START = 0x00;
-this.STK_TIMER_DEACTIVATE = 0x01;
-this.STK_TMIER_GET_CURRENT_VALUE = 0x02;
-
-/**
- * Supported Terminal Facilities.
- *
- * value = 1, supported.
- *         0, not supported.
- */
-this.STK_TERMINAL_SUPPORT_PROFILE_DOWNLOAD             = 1;
-this.STK_TERMINAL_SUPPORT_SMS_PP_DOWNLOAD              = 1;
-this.STK_TERMINAL_SUPPORT_CELL_BROADCAST_DATA_DOWNLOAD = 0;
-this.STK_TERMINAL_SUPPORT_MENU_SELECTION               = 1;
-this.STK_TERMINAL_SUPPORT_SIM_DATA_DOWNLOAD_ERROR      = 0;
-this.STK_TERMINAL_SUPPORT_TIMER_EXPIRATION             = 1;
-this.STK_TERMINAL_SUPPORT_USSD_IN_CALL_CONTROL         = 0;
-this.STK_TERMINAL_SUPPORT_CALL_CONTROL_IN_REDIAL       = 0;
-
-this.STK_TERMINAL_SUPPORT_COMMAND_RESULT               = 1;
-this.STK_TERMINAL_SUPPORT_CALL_CONTROL                 = 1;
-this.STK_TERMINAL_SUPPORT_CALL_ID_INCLUDED             = 0;
-this.STK_TERMINAL_SUPPORT_MO_SMS_CONTROL               = 0;
-this.STK_TERMINAL_SUPPORT_ALPHA_ID_INDICATION          = 0;
-this.STK_TERMINAL_SUPPORT_UCS2_ENTRY                   = 1;
-this.STK_TERMINAL_SUPPORT_UCS2_DISPLAY                 = 1;
-this.STK_TERMINAL_SUPPORT_EXTENSION_TEXT               = 1;
-
-this.STK_TERMINAL_SUPPORT_PROACTIVE_DISPLAY_TEXT       = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_GET_INKEY          = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_GET_INPUT          = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_MORE_TIME          = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_PLAY_TONE          = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_POLL_INTERVAL      = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_POLL_OFF           = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_REFRESH            = 1;
-
-this.STK_TERMINAL_SUPPORT_PROACTIVE_SELECT_ITEM        = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_SEND_SMS           = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_SEND_SS            = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_SEND_USSD          = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_SET_UP_CALL        = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_SET_UP_MENU        = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO         = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_NMR     = 0;
-
-this.STK_TERMINAL_SUPPORT_PROACTIVE_SET_UP_EVENT_LIST  = 1;
-this.STK_TERMINAL_SUPPORT_EVENT_MT_CALL                = 1;
-this.STK_TERMINAL_SUPPORT_EVENT_CALL_CONNECTED         = 1;
-this.STK_TERMINAL_SUPPORT_EVENT_CALL_DISCONNECTED      = 1;
-this.STK_TERMINAL_SUPPORT_EVENT_LOCATION_STATUS        = 1;
-this.STK_TERMINAL_SUPPORT_EVENT_USER_ACTIVITY          = 0;
-this.STK_TERMINAL_SUPPORT_EVENT_IDLE_SCREEN_AVAILABLE  = 0;
-this.STK_TERMINAL_SUPPORT_EVENT_CARD_READER_STATUS     = 0;
-
-this.STK_TERMINAL_SUPPORT_PROACTIVE_TIMER_START_STOP   = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_TIMER_GET_CURRENT  = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_DATE    = 1;
-this.STK_TERMINAL_SUPPORT_GET_INKEY                    = 1;
-this.STK_TERMINAL_SUPPORT_SET_UP_IDLE_MODE_TEXT        = 1;
-this.STK_TERMINAL_SUPPORT_RUN_AT_COMMAND               = 0;
-this.STK_TERMINAL_SUPPORT_SET_UP_CALL                  = 1;
-this.STK_TERMINAL_SUPPORT_CALL_CONTROL_BY_NNA          = 0;
-
-this.STK_TERMINAL_SUPPORT_DISPLAY_TEXT                      = 1;
-this.STK_TERMINAL_SUPPORT_SEND_DTMF_COMMAND                 = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_NMR          = 0;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_LANGUAGE     = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_TIME_ADVANCE = 0;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LANGUAGE_NOTIFICATION   = 0;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LAUNCH_BROWSER          = 1;
-this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_ACCESS_TECH  = 0;
-
-this.STK_TERMINAL_PROFILE_DOWNLOAD =
-  (STK_TERMINAL_SUPPORT_PROFILE_DOWNLOAD << 0) |
-  (STK_TERMINAL_SUPPORT_SMS_PP_DOWNLOAD  << 1) |
-  (STK_TERMINAL_SUPPORT_CELL_BROADCAST_DATA_DOWNLOAD  << 2) |
-  (STK_TERMINAL_SUPPORT_MENU_SELECTION << 3) |
-  (STK_TERMINAL_SUPPORT_SIM_DATA_DOWNLOAD_ERROR << 4) |
-  (STK_TERMINAL_SUPPORT_TIMER_EXPIRATION << 5) |
-  (STK_TERMINAL_SUPPORT_USSD_IN_CALL_CONTROL << 6) |
-  (STK_TERMINAL_SUPPORT_CALL_CONTROL_IN_REDIAL << 7);
-
-this.STK_TERMINAL_PROFILE_OTHER =
-  (STK_TERMINAL_SUPPORT_COMMAND_RESULT << 0) |
-  (STK_TERMINAL_SUPPORT_CALL_CONTROL << 1) |
-  (STK_TERMINAL_SUPPORT_CALL_ID_INCLUDED << 2) |
-  (STK_TERMINAL_SUPPORT_MO_SMS_CONTROL << 3) |
-  (STK_TERMINAL_SUPPORT_ALPHA_ID_INDICATION << 4) |
-  (STK_TERMINAL_SUPPORT_UCS2_ENTRY << 5) |
-  (STK_TERMINAL_SUPPORT_UCS2_DISPLAY << 6) |
-  (STK_TERMINAL_SUPPORT_EXTENSION_TEXT << 7);
-
-this.STK_TERMINAL_PROFILE_PROACTIVE_1 =
-  (STK_TERMINAL_SUPPORT_PROACTIVE_DISPLAY_TEXT << 0) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_GET_INKEY << 1) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_GET_INPUT << 2) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_MORE_TIME << 3) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_PLAY_TONE << 4) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_POLL_INTERVAL << 5) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_POLL_OFF << 6) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_REFRESH << 7);
-
-this.STK_TERMINAL_PROFILE_PROACTIVE_2 =
-  (STK_TERMINAL_SUPPORT_PROACTIVE_SELECT_ITEM << 0) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_SEND_SMS << 1) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_SEND_SS << 2) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_SEND_USSD << 3) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_SET_UP_CALL << 4) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_SET_UP_MENU << 5) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO << 6) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_NMR << 7);
-
-this.STK_TERMINAL_PROFILE_EVENT =
-  (STK_TERMINAL_SUPPORT_PROACTIVE_SET_UP_EVENT_LIST << 0) |
-  (STK_TERMINAL_SUPPORT_EVENT_MT_CALL << 1) |
-  (STK_TERMINAL_SUPPORT_EVENT_CALL_CONNECTED << 2) |
-  (STK_TERMINAL_SUPPORT_EVENT_CALL_DISCONNECTED << 3) |
-  (STK_TERMINAL_SUPPORT_EVENT_LOCATION_STATUS << 4) |
-  (STK_TERMINAL_SUPPORT_EVENT_USER_ACTIVITY << 5) |
-  (STK_TERMINAL_SUPPORT_EVENT_IDLE_SCREEN_AVAILABLE << 6) |
-  (STK_TERMINAL_SUPPORT_EVENT_CARD_READER_STATUS << 7);
-
-this.STK_TERMINAL_PROFILE_PROACTIVE_3 =
-  (STK_TERMINAL_SUPPORT_PROACTIVE_TIMER_START_STOP << 0) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_TIMER_GET_CURRENT << 1) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_DATE << 2) |
-  (STK_TERMINAL_SUPPORT_GET_INKEY << 3) |
-  (STK_TERMINAL_SUPPORT_SET_UP_IDLE_MODE_TEXT << 4) |
-  (STK_TERMINAL_SUPPORT_RUN_AT_COMMAND << 5) |
-  (STK_TERMINAL_SUPPORT_SET_UP_CALL << 6) |
-  (STK_TERMINAL_SUPPORT_CALL_CONTROL_BY_NNA << 7);
-
-this.STK_TERMINAL_PROFILE_PROACTIVE_4 =
-  (STK_TERMINAL_SUPPORT_DISPLAY_TEXT << 0) |
-  (STK_TERMINAL_SUPPORT_SEND_DTMF_COMMAND << 1) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_NMR << 2) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_LANGUAGE << 3) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_TIME_ADVANCE << 4) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LANGUAGE_NOTIFICATION << 5) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LAUNCH_BROWSER << 6) |
-  (STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_ACCESS_TECH << 7);
-
-this.STK_SUPPORTED_TERMINAL_PROFILE = [
-  STK_TERMINAL_PROFILE_DOWNLOAD,
-  STK_TERMINAL_PROFILE_OTHER,
-  STK_TERMINAL_PROFILE_PROACTIVE_1,
-  STK_TERMINAL_PROFILE_PROACTIVE_2,
-  STK_TERMINAL_PROFILE_EVENT,
-  0x00, // Event extension
-  0x00, // Multiple card proactive commands
-  STK_TERMINAL_PROFILE_PROACTIVE_3,
-  STK_TERMINAL_PROFILE_PROACTIVE_4,
-  0x00, // Softkey support
-  0x00, // Softkey information
-  0x00, // BIP proactive commands
-  0x00, // BIP supported bearers
-  0x00, // Screen height
-  0x00, // Screen width
-  0x00, // 16, Screen effects
-  0x00, // 17, BIP supported transport interface
-  0x00, // 18, RFU
-  0x00, // 19, RFU
-  0x00, // 20, RFU
-];
-
 /**
  * (U)SIM Services.
  *
@@ -996,98 +777,17 @@ this.GECKO_ICC_SERVICES = {
   sim: {
     ADN: 2,
     FDN: 3,
-    PLMNSEL: 7,
-    CBMI: 14,
-    SPN: 17,
     SDN: 18,
     DATA_DOWNLOAD_SMS_PP: 26,
-    CBMIR: 30,
-    BDN: 31,
-    PNN: 51,
-    OPL: 52,
-    SPDI: 56
+    BDN: 31
   },
   usim: {
     FDN: 2,
     SDN: 4,
     BDN: 6,
-    CBMI: 15,
-    CBMIR: 16,
-    SPN: 19,
-    DATA_DOWNLOAD_SMS_PP: 28,
-    PNN: 45,
-    OPL: 46,
-    SPDI: 51
+    DATA_DOWNLOAD_SMS_PP: 28
   }
 };
-
-/**
- * Cell Broadcast constants
- */
-
-this.CB_FORMAT_GSM  = 0;
-this.CB_FORMAT_ETWS = 1;
-this.CB_FORMAT_CMAS = 2;
-this.CB_FORMAT_UMTS = 3;
-
-// CBS Data Coding Scheme: Language groups
-// see 3GPP TS 23.038 section 5
-this.CB_DCS_LANG_GROUP_1 = [
-  "de", "en", "it", "fr", "es", "nl", "sv", "da", "pt", "fi",
-  "no", "el", "tr", "hu", "pl", null
-];
-this.CB_DCS_LANG_GROUP_2 = [
-  "cs", "he", "ar", "ru", "is", null, null, null, null, null,
-  null, null, null, null, null, null
-];
-
-// See 3GPP TS 23.041 v11.2.0 section 9.4.1.2.2
-this.CB_NON_MMI_SETTABLE_RANGES = [
-  /*0x1000 - 0x107F*/4096,  4224,  /*0x1080 - 0x10FF*/4224,  4352,
-  /*0x1112 - 0x1112*/4370,  4371,  /*0x111F - 0x111F*/4383,  4384,
-  /*0xF000 - 0xFFFE*/61440, 65535, /*0xFFFF - 0xFFFF*/65535, 65536
-];
-
-// User Data max length in septets
-this.CB_MAX_CONTENT_7BIT = 93;
-// User Data max length in octets
-this.CB_MAX_CONTENT_8BIT = 82;
-// User Data max length in chars
-this.CB_MAX_CONTENT_UCS2 = 41;
-
-this.CB_MESSAGE_SIZE_ETWS = 56;
-this.CB_MESSAGE_SIZE_GSM  = 88;
-
-// GSM Cell Broadcast Geographical Scope
-// See 3GPP TS 23.041 clause 9.4.1.2.1
-this.CB_GSM_GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE = 0;
-this.CB_GSM_GEOGRAPHICAL_SCOPE_PLMN_WIDE           = 1;
-this.CB_GSM_GEOGRAPHICAL_SCOPE_LOCATION_AREA_WIDE  = 2;
-this.CB_GSM_GEOGRAPHICAL_SCOPE_CELL_WIDE           = 3;
-
-// GSM Cell Broadcast Geographical Scope
-// See 3GPP TS 23.041 clause 9.4.1.2.1
-this.CB_GSM_GEOGRAPHICAL_SCOPE_NAMES = [
-  "cell-immediate",
-  "plmn",
-  "location-area",
-  "cell"
-];
-
-// GSM Cell Broadcast Message Identifiers
-// see 3GPP TS 23.041 clause 9.4.1.2.2
-this.CB_GSM_MESSAGEID_ETWS_BEGIN = 0x1100;
-this.CB_GSM_MESSAGEID_ETWS_END   = 0x1107;
-
-// ETWS Warning-Type
-// see 3GPP TS 23.041 clause 9.3.24
-this.CB_ETWS_WARNING_TYPE_NAMES = [
-  "earthquake",
-  "tsunami",
-  "earthquake-tsunami",
-  "test",
-  "other"
-];
 
 /**
  * GSM PDU constants
@@ -1272,8 +972,6 @@ this.PDU_DCS_MSG_CLASS_0                = 0x00;
 this.PDU_DCS_MSG_CLASS_1                = 0x01;
 this.PDU_DCS_MSG_CLASS_2                = 0x02;
 this.PDU_DCS_MSG_CLASS_3                = 0x03;
-this.PDU_DCS_MSG_CLASS_USER_1           = 0x04;
-this.PDU_DCS_MSG_CLASS_USER_2           = 0x05;
 this.PDU_DCS_CODING_GROUP_BITS          = 0xF0;
 this.PDU_DCS_MSG_CLASS_BITS             = 0x03;
 this.PDU_DCS_MWI_ACTIVE_BITS            = 0x08;
@@ -1290,8 +988,6 @@ GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_0]      = "class-0";
 GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_1]      = "class-1";
 GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]      = "class-2";
 GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_3]      = "class-3";
-GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_USER_1] = "user-1";
-GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_USER_2] = "user-2";
 
 // Because service center timestamp omit the century. Yay.
 this.PDU_TIMESTAMP_YEAR_OFFSET = 2000;
@@ -1969,104 +1665,15 @@ this.PDU_MWI_STORE_TYPE_DISCARD = 0x00;
 this.PDU_MWI_STORE_TYPE_STORE   = 0x80;
 
 this.GSM_SMS_STRICT_7BIT_CHARMAP = {
-//"\u0024": "\u0024", // "$" => "$", already in default alphabet
-//"\u00a5": "\u00a5", // "¥" => "¥", already in default alphabet
-  "\u00c0": "\u0041", // "À" => "A"
-  "\u00c1": "\u0041", // "Á" => "A"
-  "\u00c2": "\u0041", // "Â" => "A"
-//"\u00c4": "\u00c4", // "Ä" => "Ä", already in default alphabet
-//"\u00c5": "\u00c5", // "Å" => "Å", already in default alphabet
-//"\u00c6": "\u00c6", // "Æ" => "Æ", already in default alphabet
-//"\u00c7": "\u00c7", // "Ç" => "Ç", already in default alphabet
-  "\u00c8": "\u0045", // "È" => "E"
-//"\u00c9": "\u00c9", // "É" => "É", already in default alphabet
-  "\u00ca": "\u0045", // "Ê" => "E"
-  "\u00cb": "\u0045", // "Ë" => "E"
-  "\u00cc": "\u0049", // "Ì" => "I"
-  "\u00cd": "\u0049", // "Í" => "I"
-  "\u00ce": "\u0049", // "Î" => "I"
-  "\u00cf": "\u0049", // "Ï" => "I"
-//"\u00d1": "\u00d1", // "Ñ" => "Ñ", already in default alphabet
-  "\u00d2": "\u004f", // "Ò" => "O"
-  "\u00d3": "\u004f", // "Ó" => "O"
-  "\u00d4": "\u004f", // "Ô" => "O"
-//"\u00d6": "\u00d6", // "Ö" => "Ö", already in default alphabet
-  "\u00d9": "\u0055", // "Ù" => "U"
-  "\u00da": "\u0055", // "Ú" => "U"
-  "\u00db": "\u0055", // "Û" => "U"
-//"\u00dc": "\u00dc", // "Ü" => "Ü", already in default alphabet
-//"\u00df": "\u00df", // "ß" => "ß", already in default alphabet
-//"\u00e0": "\u00e0", // "à" => "à", already in default alphabet
-  "\u00e1": "\u0061", // "á" => "a"
-  "\u00e2": "\u0061", // "â" => "a"
-//"\u00e4": "\u00e4", // "ä" => "ä", already in default alphabet
-//"\u00e5": "\u00e5", // "å" => "å", already in default alphabet
-//"\u00e6": "\u00e6", // "æ" => "æ", already in default alphabet
-  "\u00e7": "\u00c7", // "ç" => "Ç"
-//"\u00e8": "\u00e8", // "è" => "è", already in default alphabet
-//"\u00e9": "\u00e9", // "é" => "é", already in default alphabet
-  "\u00ea": "\u0065", // "ê" => "e"
-  "\u00eb": "\u0065", // "ë" => "e"
-//"\u00ec": "\u00ec", // "ì" => "ì", already in default alphabet
-  "\u00ed": "\u0069", // "í" => "i"
-  "\u00ee": "\u0069", // "î" => "i"
-  "\u00ef": "\u0069", // "ï" => "i"
-//"\u00f1": "\u00f1", // "ñ" => "ñ", already in default alphabet
-//"\u00f2": "\u00f2", // "ò" => "ò", already in default alphabet
-  "\u00f3": "\u006f", // "ó" => "o"
-  "\u00f4": "\u006f", // "ô" => "o"
-//"\u00f6": "\u00f6", // "ö" => "ö", already in default alphabet
-//"\u00f8": "\u00f8", // "ø" => "ø", already in default alphabet
-//"\u00f9": "\u00f9", // "ù" => "ù", already in default alphabet
-  "\u00fa": "\u0075", // "ú" => "u"
-  "\u00fb": "\u0075", // "û" => "u"
-//"\u00fc": "\u00fc", // "ü" => "ü", already in default alphabet
-  "\u00fe": "\u0074", // "þ" => "t"
-  "\u0100": "\u0041", // "Ā" => "A"
-  "\u0101": "\u0061", // "ā" => "a"
-  "\u0106": "\u0043", // "Ć" => "C"
-  "\u0107": "\u0063", // "ć" => "c"
-  "\u010c": "\u0043", // "Č" => "C"
-  "\u010d": "\u0063", // "č" => "c"
-  "\u010f": "\u0064", // "ď" => "d"
-  "\u0110": "\u0044", // "Đ" => "D"
-  "\u0111": "\u0064", // "đ" => "d"
-  "\u0112": "\u0045", // "Ē" => "E"
-  "\u0113": "\u0065", // "ē" => "e"
-  "\u0118": "\u0045", // "Ę" => "E"
-  "\u0119": "\u0065", // "ę" => "e"
-  "\u012a": "\u0049", // "Ī" => "I"
-  "\u012b": "\u0069", // "ī" => "i"
-  "\u012e": "\u0049", // "Į" => "I"
-  "\u012f": "\u0069", // "į" => "i"
-  "\u0141": "\u004c", // "Ł" => "L"
-  "\u0142": "\u006c", // "ł" => "l"
-  "\u0143": "\u004e", // "Ń" => "N"
-  "\u0144": "\u006e", // "ń" => "n"
-  "\u0147": "\u004e", // "Ň" => "N"
-  "\u0148": "\u006e", // "ň" => "n"
-  "\u014c": "\u004f", // "Ō" => "O"
-  "\u014d": "\u006f", // "ō" => "o"
-  "\u0152": "\u004f", // "Œ" => "O"
-  "\u0153": "\u006f", // "œ" => "o"
-  "\u0158": "\u0052", // "Ř" => "R"
-  "\u0159": "\u0072", // "ř" => "r"
-  "\u0160": "\u0053", // "Š" => "S"
-  "\u0161": "\u0073", // "š" => "s"
-  "\u0165": "\u0074", // "ť" => "t"
-  "\u016a": "\u0055", // "Ū" => "U"
-  "\u016b": "\u0075", // "ū" => "u"
-  "\u0178": "\u0059", // "Ÿ" => "Y"
-  "\u0179": "\u005a", // "Ź" => "Z"
-  "\u017a": "\u007a", // "ź" => "z"
-  "\u017b": "\u005a", // "Ż" => "Z"
-  "\u017c": "\u007a", // "ż" => "z"
-  "\u017d": "\u005a", // "Ž" => "Z"
-  "\u017e": "\u007a", // "ž" => "z"
-  "\u025b": "\u0045", // "ɛ" => "E"
-//"\u0398": "\u0398", // "Θ" => "Θ", already in default alphabet
-  "\u20a4": "\u00a3", // "₤" => "£"
-//"\u20ac": "\u20ac", // "€" => "€", already in default alphabet
+  "\u00C1": "\u0041", // Á(\u00C1) => A(\u0041)
+  "\u00E1": "\u0061", // á(\u00E1) => a(\u0061)
+  "\u00CD": "\u0049", // Í(\u00CD) => I(\u0049)
+  "\u00ED": "\u0069", // í(\u00ED) => i(\u0069)
+  "\u00D3": "\u004F", // Ó(\u00D3) => O(\u004F)
+  "\u00F3": "\u006F", // ó(\u00F3) => o(\u006F)
+  "\u00DA": "\u0055", // Ú(\u00DA) => U(\u0055)
+  "\u00FA": "\u0075", // ú(\u00FA) => u(\u0075)
+  "\u00E7": "\u00C7"  // ç(\u00E7) => Ç(\u00C7)
 };
 
 this.RADIOTECH_FAMILY_3GPP = 1;  // GSM, WCDMA, LTE
@@ -2334,7 +1941,6 @@ this.MMI_SC_CF_ALL_CONDITIONAL = "004";
 this.MMI_SC_TO_CF_REASON = {};
 MMI_SC_TO_CF_REASON[MMI_SC_CFU] = CALL_FORWARD_REASON_UNCONDITIONAL;
 MMI_SC_TO_CF_REASON[MMI_SC_CF_BUSY] = CALL_FORWARD_REASON_MOBILE_BUSY;
-MMI_SC_TO_CF_REASON[MMI_SC_CF_NO_REPLY] = CALL_FORWARD_REASON_NO_REPLY;
 MMI_SC_TO_CF_REASON[MMI_SC_CF_NOT_REACHABLE] = CALL_FORWARD_REASON_NOT_REACHABLE;
 MMI_SC_TO_CF_REASON[MMI_SC_CF_ALL] = CALL_FORWARD_REASON_ALL_CALL_FORWARDING;
 MMI_SC_TO_CF_REASON[MMI_SC_CF_ALL_CONDITIONAL] = CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING;

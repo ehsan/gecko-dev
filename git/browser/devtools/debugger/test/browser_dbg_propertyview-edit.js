@@ -3,29 +3,20 @@
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
-
-/**
- * Make sure that the editing variables or properties values works properly.
- */
-
-const TAB_URL = EXAMPLE_URL + "browser_dbg_frame-parameters.html";
-
 var gPane = null;
 var gTab = null;
 var gDebuggee = null;
 var gDebugger = null;
 
-requestLongerTimeout(2);
+const TAB_URL = EXAMPLE_URL + "browser_dbg_frame-parameters.html";
 
 function test() {
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
 
-    gDebugger.DebuggerController.StackFrames.autoScopeExpand = true;
-    gDebugger.DebuggerView.Variables.nonEnumVisible = false;
     testFrameEval();
   });
 }
@@ -74,7 +65,7 @@ function testModification(aVar, aCallback, aNewValue, aNewResult) {
     gDebugger);
 
   executeSoon(function() {
-    ok(aVar.querySelector(".element-value-input"),
+    ok(aVar.querySelector(".element-input"),
       "There should be an input element created.");
 
     let count = 0;

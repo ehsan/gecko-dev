@@ -143,12 +143,6 @@
 #define WINDOWSPROXY_MODULE
 #endif
 
-#if defined(MOZ_WIDGET_ANDROID)
-#define ANDROIDPROXY_MODULE MODULE(nsAndroidProxyModule)
-#else
-#define ANDROIDPROXY_MODULE
-#endif
-
 #if defined(BUILD_CTYPES)
 #define JSCTYPES_MODULE MODULE(jsctypes)
 #else
@@ -230,7 +224,6 @@
     UNIXPROXY_MODULE                         \
     OSXPROXY_MODULE                          \
     WINDOWSPROXY_MODULE                      \
-    ANDROIDPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
     MODULE(jsreflect)                        \
     MODULE(jsperf)                           \

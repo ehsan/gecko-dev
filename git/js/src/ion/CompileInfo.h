@@ -17,29 +17,18 @@ CountArgSlots(JSFunction *fun)
     return fun ? fun->nargs + 2 : 1; // +2 for |scopeChain| and |this|, or +1 for |scopeChain|
 }
 
-enum ExecutionMode {
-    // Normal JavaScript execution
-    SequentialExecution,
-
-    // JavaScript code to be executed in parallel worker threads,
-    // e.g. by ParallelArray
-    ParallelExecution
-};
-
 // Contains information about the compilation source for IR being generated.
 class CompileInfo
 {
   public:
-    CompileInfo(UnrootedScript script, JSFunction *fun, jsbytecode *osrPc, bool constructing,
-                ExecutionMode executionMode)
-      : script_(script), fun_(fun), osrPc_(osrPc), constructing_(constructing),
-        executionMode_(executionMode)
+    CompileInfo(JSScript *script, JSFunction *fun, jsbytecode *osrPc, bool constructing)
+      : script_(script), fun_(fun), osrPc_(osrPc), constructing_(constructing)
     {
         JS_ASSERT_IF(osrPc, JSOp(*osrPc) == JSOP_LOOPENTRY);
         nslots_ = script->nslots + CountArgSlots(fun);
     }
 
-    UnrootedScript script() const {
+    JSScript *script() const {
         return script_;
     }
     JSFunction *fun() const {
@@ -113,43 +102,35 @@ class CompileInfo
         return nlocals() + CountArgSlots(fun());
     }
 
-    uint32_t scopeChainSlot() const {
+    uint32 scopeChainSlot() const {
         return 0;
     }
-    uint32_t thisSlot() const {
+    uint32 thisSlot() const {
         JS_ASSERT(fun());
         return 1;
     }
-    uint32_t firstArgSlot() const {
+    uint32 firstArgSlot() const {
         JS_ASSERT(fun());
         return 2;
     }
-    uint32_t argSlot(uint32_t i) const {
+    uint32 argSlot(uint32 i) const {
         return firstArgSlot() + i;
     }
-    uint32_t firstLocalSlot() const {
+    uint32 firstLocalSlot() const {
         return CountArgSlots(fun());
     }
-    uint32_t localSlot(uint32_t i) const {
+    uint32 localSlot(uint32 i) const {
         return firstLocalSlot() + i;
     }
-    uint32_t firstStackSlot() const {
+    uint32 firstStackSlot() const {
         return firstLocalSlot() + nlocals();
     }
-    uint32_t stackSlot(uint32_t i) const {
+    uint32 stackSlot(uint32 i) const {
         return firstStackSlot() + i;
     }
 
     bool hasArguments() {
         return script()->argumentsHasVarBinding();
-    }
-
-    ExecutionMode executionMode() const {
-        return executionMode_;
-    }
-
-    bool isParallelExecution() const {
-        return executionMode_ == ParallelExecution;
     }
 
   private:
@@ -158,7 +139,6 @@ class CompileInfo
     unsigned nslots_;
     jsbytecode *osrPc_;
     bool constructing_;
-    ExecutionMode executionMode_;
 };
 
 } // namespace ion

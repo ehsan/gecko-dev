@@ -42,7 +42,6 @@ public class LightweightTheme implements GeckoEventListener {
     private Application mApplication;
     private Bitmap mBitmap;
     private int mColor;
-    private boolean mIsLight;
 
     public static interface OnChangeListener {
         // This is the View's default post.
@@ -78,17 +77,15 @@ public class LightweightTheme implements GeckoEventListener {
 
     public void setLightweightTheme(String headerURL) {
         try {
+            // Wait till gecko downloads and gives us the file, don't download.
+            if (headerURL.indexOf("http") != -1)
+                return;
+
             // Get the image and convert it to a bitmap.
             URL url = new URL(headerURL);
             InputStream stream = url.openStream();
             mBitmap = BitmapFactory.decodeStream(stream);
             stream.close();
-
-            // The download could be HTTP for previews, so let's be sure we have a bitmap
-            if (mBitmap == null || mBitmap.getWidth() == 0 || mBitmap.getHeight() == 0) {
-                mBitmap = null;
-                return;
-            }
 
             // To find the dominant color only once, take the bottom 25% of pixels.
             DisplayMetrics dm = mApplication.getResources().getDisplayMetrics();
@@ -98,11 +95,7 @@ public class LightweightTheme implements GeckoEventListener {
                                                           mBitmap.getHeight() - height, 
                                                           maxWidth, height);
             mColor = BitmapUtils.getDominantColor(cropped, false);
-
-            double luminance = (0.2125 * ((mColor & 0x00FF0000) >> 16)) + 
-                               (0.7154 * ((mColor & 0x0000FF00) >> 8)) + 
-                               (0.0721 * (mColor &0x000000FF));
-            mIsLight = (luminance > 110) ? true : false;
+            cropped.recycle();
 
             notifyListeners();
         } catch(java.net.MalformedURLException e) {
@@ -113,20 +106,18 @@ public class LightweightTheme implements GeckoEventListener {
     }
 
     public void resetLightweightTheme() {
-        if (mBitmap != null) {
-            // Reset the bitmap.
-            mBitmap = null;
+        // Reset the bitmap.
+        mBitmap = null;
 
-            // Post the reset on the UI thread.
-            for (OnChangeListener listener : mListeners) {
-                 final OnChangeListener oneListener = listener;
-                 oneListener.post(new Runnable() {
-                     @Override
-                     public void run() {
-                         oneListener.onLightweightThemeReset();
-                     }
-                 });
-            }
+        // Post the reset on the UI thread.
+        for (OnChangeListener listener : mListeners) {
+             final OnChangeListener oneListener = listener;
+             oneListener.post(new Runnable() {
+                 @Override
+                 public void run() {
+                     oneListener.onLightweightThemeReset();
+                 }
+             });
         }
     }
 
@@ -162,25 +153,6 @@ public class LightweightTheme implements GeckoEventListener {
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
         }
-    }
-
-
-    /**
-     * A lightweight theme is enabled only if there is an active bitmap.
-     *
-     * @return True if the theme is enabled.
-     */
-    public boolean isEnabled() {
-        return (mBitmap != null);
-    }
-
-    /**
-     * Based on the luminance of the domanint color, a theme is classified as light or dark.
-     *
-     * @return True if the theme is light.
-     */
-    public boolean isLightTheme() {
-        return mIsLight;
     }
 
     /**
@@ -271,65 +243,43 @@ public class LightweightTheme implements GeckoEventListener {
     }
 
     /**
-     * Converts the cropped bitmap to a LightweightThemeDrawable, with the required texture.
-     * The texture can either be an actual texture to be repeated or a bitmap-drawable that 
-     * specifies how to repeat it.
+     * Converts the cropped bitmap to a LightweightThemeDrawable, with the required alpha.
+     * LightweightThemeDrawable is optionally placed over a ColorDrawable (of dominant color),
+     * if the cropped bitmap cannot fill the entire view.
      *
      * @param view The view for which a background drawable is required.
-     * @param textureId The resource id of the texture.
+     * @param alpha The alpha (0..255) value to be applied to the Drawable.
      * @return Either the cropped bitmap as a Drawable or null.
      */
-    public LightweightThemeDrawable getTextureDrawable(View view, int textureId) {
-        return getTextureDrawable(view, textureId, false);
+    public Drawable getDrawableWithAlpha(View view, int alpha) {
+        return getDrawableWithAlpha(view, alpha, alpha);
     }
 
     /**
-     * Converts the cropped bitmap to a LightweightThemeDrawable, with the required texture.
-     * The texture can either be an actual texture to be repeated or a bitmap-drawable that 
-     * specifies how to repeat it. The dominant color can be drawn over the texture, if specified.
+     * Converts the cropped bitmap to a LightweightThemeDrawable, with the required alpha applied as 
+     * a LinearGradient. LightweightThemeDrawable is optionally placed over a ColorDrawable 
+     * (of dominant color), if the cropped bitmap cannot fill the entire view.
      *
      * @param view The view for which a background drawable is required.
-     * @param textureId The resource id of the texture.
-     * @param needsColor A layer of dominant color is needed or not.
+     * @param startAlpha The top alpha (0..255) of the linear gradient to be applied to the Drawable.
+     * @param endAlpha The bottom alpha (0..255) of the linear gradient to be applied to the Drawable.
      * @return Either the cropped bitmap as a Drawable or null.
      */
-    public LightweightThemeDrawable getTextureDrawable(View view, int textureId, boolean needsColor) {
+    public Drawable getDrawableWithAlpha(View view, int startAlpha, int endAlpha) {
         Bitmap bitmap = getCroppedBitmap(view);
         if (bitmap == null)
             return null;
 
         LightweightThemeDrawable drawable = new LightweightThemeDrawable(view.getContext().getResources(), bitmap);
-        drawable.setTexture(textureId);
+        drawable.setAlpha(startAlpha, endAlpha);
+        drawable.setGravity(Gravity.TOP|Gravity.RIGHT|Gravity.FILL_HORIZONTAL);
 
-        if (needsColor)
-            drawable.setColor(mColor & 0x22FFFFFF);
-
-        return drawable;
-    }
-
-    /**
-     * Converts the cropped bitmap to a LightweightThemeDrawable, placing it over the dominant color.
-     *
-     * @param view The view for which a background drawable is required.
-     * @return Either the cropped bitmap as a Drawable or null.
-     */
-     public LightweightThemeDrawable getColorDrawable(View view) {
-         return getColorDrawable(view, mColor);
-     }
-
-    /**
-     * Converts the cropped bitmap to a LightweightThemeDrawable, placing it over the required color.
-     *
-     * @param view The view for which a background drawable is required.
-     * @return Either the cropped bitmap as a Drawable or null.
-     */
-    public LightweightThemeDrawable getColorDrawable(View view, int color) {
-        Bitmap bitmap = getCroppedBitmap(view);
-        if (bitmap == null)
-            return null;
-
-        LightweightThemeDrawable drawable = new LightweightThemeDrawable(view.getContext().getResources(), bitmap);
-        drawable.setColor(color);
-        return drawable;
+        if (bitmap.getHeight() != view.getHeight()) {
+            ColorDrawable colorDrawable = new ColorDrawable(mColor);
+            LayerDrawable layerDrawable = new LayerDrawable(new Drawable[]{ colorDrawable, drawable });
+            return layerDrawable;
+        } else {
+            return drawable;
+        }
     }
 }

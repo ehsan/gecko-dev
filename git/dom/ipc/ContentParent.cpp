@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "base/basictypes.h"
 
 #include "ContentParent.h"
@@ -18,7 +16,6 @@
 #include "chrome/common/process_watcher.h"
 
 #include "AppProcessPermissions.h"
-#include "AudioChannelService.h"
 #include "CrashReporterParent.h"
 #include "IHistory.h"
 #include "IDBFactory.h"
@@ -40,6 +37,7 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
+#include "mozilla/Util.h"
 #include "mozilla/unused.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -80,7 +78,6 @@
 #include "StructuredCloneUtils.h"
 #include "TabParent.h"
 #include "URIUtils.h"
-#include "nsGeolocation.h"
 
 #ifdef ANDROID
 # include "gfxAndroidPlatform.h"
@@ -93,6 +90,10 @@
 
 #ifdef MOZ_PERMISSIONS
 # include "nsPermissionManager.h"
+#endif
+
+#ifdef MOZ_SYDNEYAUDIO
+# include "AudioParent.h"
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -112,7 +113,6 @@
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
 
-using base::ChildPrivileges;
 using base::KillProcess;
 using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::devicestorage;
@@ -163,10 +163,6 @@ MemoryReportRequestParent::~MemoryReportRequestParent()
 nsDataHashtable<nsStringHashKey, ContentParent*>* ContentParent::gAppContentParents;
 nsTArray<ContentParent*>* ContentParent::gNonAppContentParents;
 nsTArray<ContentParent*>* ContentParent::gPrivateContent;
-
-// This is true when subprocess launching is enabled.  This is the
-// case between StartUp() and ShutDown() or JoinAllSubprocesses().
-static bool sCanLaunchSubprocesses;
 
 // The first content child has ID 1, so the chrome process can have ID 0.
 static uint64_t gContentChildID = 1;
@@ -261,8 +257,6 @@ ContentParent::StartUp()
         // the main process goes idle before we preallocate a process
         MessageLoop::current()->PostIdleTask(FROM_HERE, NewRunnableFunction(FirstIdle));
     }
-
-    sCanLaunchSubprocesses = true;
 }
 
 /*static*/ void
@@ -270,55 +264,6 @@ ContentParent::ShutDown()
 {
     // No-op for now.  We rely on normal process shutdown and
     // ClearOnShutdown() to clean up our state.
-    sCanLaunchSubprocesses = false;
-}
-
-/*static*/ void
-ContentParent::JoinProcessesIOThread(const nsTArray<ContentParent*>* aProcesses,
-                                     Monitor* aMonitor, bool* aDone)
-{
-    const nsTArray<ContentParent*>& processes = *aProcesses;
-    for (uint32_t i = 0; i < processes.Length(); ++i) {
-        if (GeckoChildProcessHost* process = processes[i]->mSubprocess) {
-            process->Join();
-        }
-    }
-    {
-        MonitorAutoLock lock(*aMonitor);
-        *aDone = true;
-        lock.Notify();
-    }
-    // Don't touch any arguments to this function from now on.
-}
-
-/*static*/ void
-ContentParent::JoinAllSubprocesses()
-{
-    MOZ_ASSERT(NS_IsMainThread());
-
-    nsAutoTArray<ContentParent*, 8> processes;
-    GetAll(processes);
-    if (processes.IsEmpty()) {
-        printf_stderr("There are no live subprocesses.");
-        return;
-    }
-
-    printf_stderr("Subprocesses are still alive.  Doing emergency join.\n");
-
-    bool done = false;
-    Monitor monitor("mozilla.dom.ContentParent.JoinAllSubprocesses");
-    XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                     NewRunnableFunction(
-                                         &ContentParent::JoinProcessesIOThread,
-                                         &processes, &monitor, &done));
-    {
-        MonitorAutoLock lock(monitor);
-        while (!done) {
-            lock.Wait();
-        }
-    }
-
-    sCanLaunchSubprocesses = false;
 }
 
 /*static*/ ContentParent*
@@ -346,44 +291,33 @@ ContentParent::GetNewOrUsed(bool aForBrowserElement)
     return p;
 }
 
-namespace {
-struct SpecialPermission {
-    const char* perm;           // an app permission
-    ChildPrivileges privs;      // the OS privilege it requires
-};
-}
-
-static ChildPrivileges
-PrivilegesForApp(mozIApplication* aApp)
+static bool
+AppNeedsInheritedOSPrivileges(mozIApplication* aApp)
 {
-    const SpecialPermission specialPermissions[] = {
+    const char* const needInheritPermissions[] = {
         // FIXME/bug 785592: implement a CameraBridge so we don't have
         // to hack around with OS permissions
-        { "camera", base::PRIVILEGES_INHERIT },
+        "camera",
         // FIXME/bug 793034: change our video architecture so that we
         // can stream video from remote processes
-        { "deprecated-hwvideo", base::PRIVILEGES_VIDEO }
+        "deprecated-hwvideo",
     };
-    for (size_t i = 0; i < ArrayLength(specialPermissions); ++i) {
-        const char* const permission = specialPermissions[i].perm;
-        bool hasPermission = false;
-        if (NS_FAILED(aApp->HasPermission(permission, &hasPermission))) {
+    for (size_t i = 0; i < ArrayLength(needInheritPermissions); ++i) {
+        const char* const permission = needInheritPermissions[i];
+        bool needsInherit = false;
+        if (NS_FAILED(aApp->HasPermission(permission, &needsInherit))) {
             NS_WARNING("Unable to check permissions.  Breakage may follow.");
-            break;
-        } else if (hasPermission) {
-            return specialPermissions[i].privs;
+            return false;
+        } else if (needsInherit) {
+            return true;
         }
     }
-    return base::PRIVILEGES_DEFAULT;
+    return false;
 }
 
 /*static*/ TabParent*
 ContentParent::CreateBrowserOrApp(const TabContext& aContext)
 {
-    if (!sCanLaunchSubprocesses) {
-        return nullptr;
-    }
-
     if (aContext.IsBrowserElement() || !aContext.HasOwnApp()) {
         if (ContentParent* cp = GetNewOrUsed(aContext.IsBrowserElement())) {
             nsRefPtr<TabParent> tp(new TabParent(aContext));
@@ -416,10 +350,9 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext)
 
     nsRefPtr<ContentParent> p = gAppContentParents->Get(manifestURL);
     if (!p) {
-        ChildPrivileges privs = PrivilegesForApp(ownApp);
-        if (privs != base::PRIVILEGES_DEFAULT) {
+        if (AppNeedsInheritedOSPrivileges(ownApp)) {
             p = new ContentParent(manifestURL, /* isBrowserElement = */ false,
-                                  privs);
+                                  base::PRIVILEGES_INHERIT);
             p->Init();
         } else {
             p = MaybeTakePreallocatedAppProcess();
@@ -521,7 +454,7 @@ ContentParent::SetManifestFromPreallocated(const nsAString& aAppManifestURL)
 void
 ContentParent::ShutDownProcess()
 {
-  if (!mIsDestroyed) {
+  if (mIsAlive) {
     const InfallibleTArray<PIndexedDBParent*>& idbParents =
       ManagedPIndexedDBParent();
     for (uint32_t i = 0; i < idbParents.Length(); ++i) {
@@ -531,7 +464,6 @@ ContentParent::ShutDownProcess()
     // Close() can only be called once.  It kicks off the
     // destruction sequence.
     Close();
-    mIsDestroyed = true;
   }
   // NB: must MarkAsDead() here so that this isn't accidentally
   // returned from Get*() while in the midst of shutdown.
@@ -699,8 +631,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
         props->Init();
 
-        props->SetPropertyAsUint64(NS_LITERAL_STRING("childID"), mChildID);
-
         if (AbnormalShutdown == why) {
             props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
 
@@ -709,15 +639,14 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
             CrashReporterParent* crashReporter =
                     static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
 
-            crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("URL"),
-                                               NS_ConvertUTF16toUTF8(mAppManifestURL));
             crashReporter->GenerateCrashReport(this, NULL);
-
+ 
             nsAutoString dumpID(crashReporter->ChildDumpID());
             props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
 #endif
+
+            obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nullptr);
         }
-        obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nullptr);
     }
 
     MessageLoop::current()->
@@ -741,10 +670,7 @@ ContentParent::NotifyTabDestroyed(PBrowserParent* aTab)
     // There can be more than one PBrowser for a given app process
     // because of popup windows.  When the last one closes, shut
     // us down.
-    if (ManagedPBrowserParent().Length() == 1) {
-        // Prevent this content process from being recycled, since
-        // it's dying.
-        MarkAsDead();
+    if (IsForApp() && ManagedPBrowserParent().Length() == 1) {
         MessageLoop::current()->PostTask(
             FROM_HERE,
             NewRunnableMethod(this, &ContentParent::ShutDownProcess));
@@ -776,13 +702,11 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
                              ChildOSPrivileges aOSPrivileges)
     : mSubprocess(nullptr)
     , mOSPrivileges(aOSPrivileges)
-    , mChildID(CONTENT_PARENT_UNKNOWN_CHILD_ID)
     , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mAppManifestURL(aAppManifestURL)
     , mIsAlive(true)
-    , mIsDestroyed(false)
     , mSendPermissionUpdates(false)
     , mIsForBrowser(aIsForBrowser)
 {
@@ -1084,42 +1008,6 @@ ContentParent::RecvFirstIdle()
     return true;
 }
 
-bool
-ContentParent::RecvAudioChannelGetMuted(const AudioChannelType& aType,
-                                        const bool& aMozHidden,
-                                        bool* aValue)
-{
-    nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetAudioChannelService();
-    *aValue = false;
-    if (service) {
-        *aValue = service->GetMuted(aType, aMozHidden);
-    }
-    return true;
-}
-
-bool
-ContentParent::RecvAudioChannelRegisterType(const AudioChannelType& aType)
-{
-    nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetAudioChannelService();
-    if (service) {
-        service->RegisterType(aType, mChildID);
-    }
-    return true;
-}
-
-bool
-ContentParent::RecvAudioChannelUnregisterType(const AudioChannelType& aType)
-{
-    nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetAudioChannelService();
-    if (service) {
-        service->UnregisterType(aType, mChildID);
-    }
-    return true;
-}
-
 NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
                               nsIObserver,
                               nsIThreadObserver,
@@ -1131,7 +1019,7 @@ ContentParent::Observe(nsISupports* aSubject,
                        const PRUnichar* aData)
 {
     if (!strcmp(aTopic, "xpcom-shutdown") && mSubprocess) {
-        ShutDownProcess();
+        Close();
         NS_ASSERTION(!mSubprocess, "Close should have nulled mSubprocess");
     }
 
@@ -1237,7 +1125,7 @@ bool
 ContentParent::RecvGetProcessAttributes(uint64_t* aId, bool* aStartBackground,
                                         bool* aIsForApp, bool* aIsForBrowser)
 {
-    *aId = mChildID = gContentChildID++;
+    *aId = gContentChildID++;
     *aStartBackground =
         (mAppManifestURL == MAGIC_PREALLOCATED_APP_MANIFEST_URL);
     *aIsForApp = IsForApp();
@@ -1263,18 +1151,16 @@ ContentParent::AllocPBrowser(const IPCTabContext& aContext,
 {
     unused << aChromeFlags;
 
-    const IPCTabAppBrowserContext& appBrowser = aContext.appBrowserContext();
-
     // We don't trust the IPCTabContext we receive from the child, so we'll bail
     // if we receive an IPCTabContext that's not a PopupIPCTabContext.
     // (PopupIPCTabContext lets the child process prove that it has access to
     // the app it's trying to open.)
-    if (appBrowser.type() != IPCTabAppBrowserContext::TPopupIPCTabContext) {
+    if (aContext.type() != IPCTabContext::TPopupIPCTabContext) {
         NS_ERROR("Unexpected IPCTabContext type.  Aborting AllocPBrowser.");
         return nullptr;
     }
 
-    const PopupIPCTabContext& popupContext = appBrowser.get_PopupIPCTabContext();
+    const PopupIPCTabContext& popupContext = aContext.get_PopupIPCTabContext();
     TabParent* opener = static_cast<TabParent*>(popupContext.openerParent());
     if (!opener) {
         NS_ERROR("Got null opener from child; aborting AllocPBrowser.");
@@ -1307,12 +1193,9 @@ ContentParent::DeallocPBrowser(PBrowserParent* frame)
 PDeviceStorageRequestParent*
 ContentParent::AllocPDeviceStorageRequest(const DeviceStorageParams& aParams)
 {
-  nsRefPtr<DeviceStorageRequestParent> result = new DeviceStorageRequestParent(aParams);
-  if (!result->EnsureRequiredPermissions(this)) {
-      return nullptr;
-  }
-  result->Dispatch();
-  return result.forget().get();
+  DeviceStorageRequestParent* result = new DeviceStorageRequestParent(aParams);
+  NS_ADDREF(result);
+  return result;
 }
 
 bool
@@ -1557,6 +1440,29 @@ ContentParent::DeallocPTestShell(PTestShellParent* shell)
   return true;
 }
  
+PAudioParent*
+ContentParent::AllocPAudio(const int32_t& numChannels,
+                           const int32_t& rate)
+{
+#if defined(MOZ_SYDNEYAUDIO)
+    AudioParent *parent = new AudioParent(numChannels, rate);
+    NS_ADDREF(parent);
+    return parent;
+#else
+    return nullptr;
+#endif
+}
+
+bool
+ContentParent::DeallocPAudio(PAudioParent* doomed)
+{
+#if defined(MOZ_SYDNEYAUDIO)
+    AudioParent *parent = static_cast<AudioParent*>(doomed);
+    NS_RELEASE(parent);
+#endif
+    return true;
+}
+
 PNeckoParent* 
 ContentParent::AllocPNecko()
 {
@@ -1872,9 +1778,6 @@ ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsStri
                                          const nsString& aText, const bool& aTextClickable,
                                          const nsString& aCookie, const nsString& aName)
 {
-    if (!AssertAppProcessPermission(this, "desktop-notification")) {
-        return false;
-    }
     nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_ALERTSERVICE_CONTRACTID));
     if (sysAlerts) {
         sysAlerts->ShowAlertNotification(aImageUrl, aTitle, aText, aTextClickable,
@@ -1968,15 +1871,6 @@ ContentParent::RecvRemoveGeolocationListener()
     mGeolocationWatchID = -1;
   }
   return true;
-}
-
-bool
-ContentParent::RecvSetGeolocationHigherAccuracy(const bool& aEnable)
-{
-    nsRefPtr<nsGeolocationService> geoSvc =
-        nsGeolocationService::GetGeolocationService();
-    geoSvc->SetHigherAccuracy(aEnable);
-    return true;
 }
 
 NS_IMETHODIMP

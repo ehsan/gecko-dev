@@ -271,7 +271,6 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   nsIAtom *tag = nullptr;
   if (parentContent)
     tag = parentContent->Tag();
-  widgetData.mSupportTranslucency = mode == eTransparencyTransparent;
   widgetData.mDropShadow = !(viewHasTransparentContent || tag == nsGkAtoms::menulist);
   widgetData.mPopupLevel = PopupLevel(widgetData.mNoAutoHide);
 
@@ -865,8 +864,8 @@ nsMenuPopupFrame::AdjustPositionForAnchorAlign(nsRect& anchorRect,
   int8_t popupAnchor(mPopupAnchor);
   int8_t popupAlign(mPopupAlignment);
   if (IsDirectionRTL()) {
-    // no need to flip the centered anchor types vertically
-    if (popupAnchor <= POPUPALIGNMENT_LEFTCENTER) {
+    // no need to flip the centered anchor types
+    if (popupAnchor < POPUPALIGNMENT_LEFTCENTER) {
       popupAnchor = -popupAnchor;
     }
     popupAlign = -popupAlign;
@@ -946,28 +945,25 @@ nsMenuPopupFrame::AdjustPositionForAnchorAlign(nsRect& anchorRect,
   // however horizontally, we want to to use the inside edges so the popup
   // still appears underneath the anchor menu instead of floating off the
   // side of the menu.
-  switch (popupAnchor) {
-    case POPUPALIGNMENT_LEFTCENTER:
-    case POPUPALIGNMENT_RIGHTCENTER:
+  if (popupAnchor >= POPUPALIGNMENT_LEFTCENTER) {
+    if (popupAnchor == POPUPALIGNMENT_LEFTCENTER ||
+        popupAnchor == POPUPALIGNMENT_RIGHTCENTER) {
       aHFlip = FlipStyle_Outside;
       aVFlip = FlipStyle_Inside;
-      break;
-    case POPUPALIGNMENT_TOPCENTER:
-    case POPUPALIGNMENT_BOTTOMCENTER:
+    }
+    else {
       aHFlip = FlipStyle_Inside;
       aVFlip = FlipStyle_Outside;
-      break;
-    default:
-    {
-      FlipStyle anchorEdge = mFlipBoth ? FlipStyle_Inside : FlipStyle_None;
-      aHFlip = (popupAnchor == -popupAlign) ? FlipStyle_Outside : anchorEdge;
-      if (((popupAnchor > 0) == (popupAlign > 0)) ||
-          (popupAnchor == POPUPALIGNMENT_TOPLEFT && popupAlign == POPUPALIGNMENT_TOPLEFT))
-        aVFlip = FlipStyle_Outside;
-      else
-        aVFlip = anchorEdge;
-      break;
     }
+  }
+  else {
+    FlipStyle anchorEdge = mFlipBoth ? FlipStyle_Inside : FlipStyle_None;
+    aHFlip = (popupAnchor == -popupAlign) ? FlipStyle_Outside : anchorEdge;
+    if (((popupAnchor > 0) == (popupAlign > 0)) ||
+        (popupAnchor == POPUPALIGNMENT_TOPLEFT && popupAlign == POPUPALIGNMENT_TOPLEFT))
+      aVFlip = FlipStyle_Outside;
+    else
+      aVFlip = anchorEdge;
   }
 
   return pnt;

@@ -14,9 +14,14 @@ namespace js {
 namespace ion {
 
 class OutOfLineBailout;
-class OutOfLineUndoALUOperation;
 class MulNegativeZeroCheck;
 class OutOfLineTruncate;
+
+enum NaNCond {
+    NaN_Unexpected,
+    NaN_IsTrue,
+    NaN_IsFalse
+};
 
 class CodeGeneratorX86Shared : public CodeGeneratorShared
 {
@@ -63,27 +68,27 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
 
     Operand createArrayElementOperand(Register elements, const LAllocation *index);
 
-    void emitCompare(MCompare::CompareType type, const LAllocation *left, const LAllocation *right);
+    void emitCompare(MIRType type, const LAllocation *left, const LAllocation *right);
 
     // Emits a conditional set.
-    void emitSet(Assembler::Condition cond, const Register &dest,
-                 Assembler::NaNCond ifNaN = Assembler::NaN_Unexpected);
+    void emitSet(Assembler::Condition cond, const Register &dest, NaNCond ifNaN = NaN_Unexpected);
     void emitSet(Assembler::DoubleCondition cond, const Register &dest);
 
     // Emits a branch that directs control flow to the true block if |cond| is
     // true, and the false block if |cond| is false.
     void emitBranch(Assembler::Condition cond, MBasicBlock *ifTrue, MBasicBlock *ifFalse,
-                    Assembler::NaNCond ifNaN = Assembler::NaN_Unexpected);
+                    NaNCond ifNaN = NaN_Unexpected);
     void emitBranch(Assembler::DoubleCondition cond, MBasicBlock *ifTrue, MBasicBlock *ifFalse);
 
     bool emitTableSwitchDispatch(MTableSwitch *mir, const Register &index, const Register &base);
 
   public:
-    CodeGeneratorX86Shared(MIRGenerator *gen, LIRGraph *graph);
+    CodeGeneratorX86Shared(MIRGenerator *gen, LIRGraph &graph);
 
   public:
     // Instruction visitors.
     virtual bool visitMinMaxD(LMinMaxD *ins);
+    virtual bool visitNegD(LNegD *ins);
     virtual bool visitAbsD(LAbsD *ins);
     virtual bool visitSqrtD(LSqrtD *ins);
     virtual bool visitPowHalfD(LPowHalfD *ins);
@@ -115,7 +120,6 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
 
     // Out of line visitors.
     bool visitOutOfLineBailout(OutOfLineBailout *ool);
-    bool visitOutOfLineUndoALUOperation(OutOfLineUndoALUOperation *ool);
     bool visitMulNegativeZeroCheck(MulNegativeZeroCheck *ool);
     bool visitOutOfLineTruncate(OutOfLineTruncate *ool);
     bool generateInvalidateEpilogue();

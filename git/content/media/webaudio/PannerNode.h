@@ -36,6 +36,9 @@ class PannerNode : public AudioNode
 public:
   explicit PannerNode(AudioContext* aContext);
 
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(PannerNode, AudioNode)
+
   virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
                                bool* aTriedToWrap);
 
@@ -153,6 +156,16 @@ public:
     mConeOuterGain = aConeOuterGain;
   }
 
+  AudioParam* ConeGain() const
+  {
+    return mConeGain;
+  }
+
+  AudioParam* DistanceGain() const
+  {
+    return mDistanceGain;
+  }
+
 private:
   PanningModelEnum mPanningModel;
   DistanceModelEnum mDistanceModel;
@@ -165,6 +178,8 @@ private:
   float mConeInnerAngle;
   float mConeOuterAngle;
   float mConeOuterGain;
+  nsRefPtr<AudioParam> mConeGain;
+  nsRefPtr<AudioParam> mDistanceGain;
 };
 
 }

@@ -9,15 +9,7 @@
 
 #include <atk/atk.h>
 
-namespace mozilla {
-namespace a11y {
-
 class AccessibleWrap;
-
-} // namespace a11y
-} // namespace mozilla
-
-struct MaiUtilClass;
 
 extern "C" {
 void actionInterfaceInitCB(AtkActionIface* aIface);
@@ -36,9 +28,9 @@ void valueInterfaceInitCB(AtkValueIface *aIface);
 /**
  * XXX these should live in a file of utils for atk.
  */
-AtkObject* refAccessibleAtPointHelper(mozilla::a11y::AccessibleWrap* aAccWrap,
+AtkObject* refAccessibleAtPointHelper(AccessibleWrap* aAccWrap,
                                       gint aX, gint aY, AtkCoordType aCoordType);
-void getExtentsHelper(mozilla::a11y::AccessibleWrap* aAccWrap,
+void getExtentsHelper(AccessibleWrap* aAccWrap,
                       gint* aX, gint* aY, gint* aWidth, gint* aHeight,
                       AtkCoordType aCoordType);
 

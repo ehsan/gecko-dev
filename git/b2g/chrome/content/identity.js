@@ -43,7 +43,7 @@ if (typeof kIdentityJSLoaded === 'undefined') {
 }
 
 var showUI = false;
-var options = {};
+var options = null;
 var isLoaded = false;
 var func = null;
 
@@ -55,9 +55,6 @@ var func = null;
  *   assertion:          optional assertion
  */
 function identityCall(message) {
-  if (options._internal) {
-    message._internal = options._internal;
-  }
   sendAsyncMessage(kIdentityControllerDoMethod, message);
 }
 
@@ -68,6 +65,7 @@ function identityCall(message) {
  * destroys our context.
  */
 function closeIdentityDialog() {
+  log('ready to close');
   // tell gecko we're done.
   func = null; options = null;
   sendAsyncMessage(kIdentityDelegateFinished);
@@ -80,16 +78,19 @@ function closeIdentityDialog() {
 function doInternalWatch() {
   log("doInternalWatch:", options, isLoaded);
   if (options && isLoaded) {
+    log("internal watch options:", options);
     let BrowserID = content.wrappedJSObject.BrowserID;
-    BrowserID.internal.watch(function(aParams, aInternalParams) {
+    BrowserID.internal.watch(function(aParams) {
+        log("sending watch method message:", aParams.method);
         identityCall(aParams);
         if (aParams.method === "ready") {
+          log("watch finished.");
           closeIdentityDialog();
         }
       },
-      JSON.stringify(options),
+      JSON.stringify({loggedInUser: options.loggedInUser, origin: options.origin}),
       function(...things) {
-        log("(watch) internal: ", things);
+        log("internal: ", things);
       }
     );
   }
@@ -98,20 +99,16 @@ function doInternalWatch() {
 function doInternalRequest() {
   log("doInternalRequest:", options && isLoaded);
   if (options && isLoaded) {
-    var stringifiedOptions = JSON.stringify(options);
     content.wrappedJSObject.BrowserID.internal.get(
       options.origin,
-      function(assertion, internalParams) {
-        internalParams = internalParams || {};
+      function(assertion) {
         if (assertion) {
-          identityCall({
-            method: 'login',
-            assertion: assertion,
-            _internalParams: internalParams});
+          log("request -> assertion, so do login");
+          identityCall({method:'login',assertion:assertion});
         }
         closeIdentityDialog();
       },
-      stringifiedOptions);
+      options);
   }
 }
 
@@ -119,6 +116,7 @@ function doInternalLogout(aOptions) {
   log("doInternalLogout:", (options && isLoaded));
   if (options && isLoaded) {
     let BrowserID = content.wrappedJSObject.BrowserID;
+    log("logging you out of ", options.origin);
     BrowserID.internal.logout(options.origin, function() {
       identityCall({method:'logout'});
       closeIdentityDialog();
@@ -136,7 +134,7 @@ addEventListener("DOMContentLoaded", function(e) {
 
 // listen for request
 addMessageListener(kIdentityDelegateRequest, function(aMessage) {
-  log("injected identity.js received", kIdentityDelegateRequest, "\n\n\n");
+    log("\n\n* * * * injected identity.js received", kIdentityDelegateRequest, "\n\n\n");
   options = aMessage.json;
   showUI = true;
   func = doInternalRequest;
@@ -145,7 +143,7 @@ addMessageListener(kIdentityDelegateRequest, function(aMessage) {
 
 // listen for watch
 addMessageListener(kIdentityDelegateWatch, function(aMessage) {
-  log("injected identity.js received", kIdentityDelegateWatch, "\n\n\n");
+    log("\n\n* * * * injected identity.js received", kIdentityDelegateWatch, "\n\n\n");
   options = aMessage.json;
   showUI = false;
   func = doInternalWatch;
@@ -154,7 +152,7 @@ addMessageListener(kIdentityDelegateWatch, function(aMessage) {
 
 // listen for logout
 addMessageListener(kIdentityDelegateLogout, function(aMessage) {
-  log("injected identity.js received", kIdentityDelegateLogout, "\n\n\n");
+    log("\n\n* * * * injected identity.js received", kIdentityDelegateLogout, "\n\n\n");
   options = aMessage.json;
   showUI = false;
   func = doInternalLogout;

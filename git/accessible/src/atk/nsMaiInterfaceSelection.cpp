@@ -6,14 +6,11 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "Accessible-inl.h"
 #include "AccessibleWrap.h"
 #include "nsMai.h"
 #include "mozilla/Likely.h"
 
 #include <atk/atk.h>
-
-using namespace mozilla::a11y;
 
 extern "C" {
 

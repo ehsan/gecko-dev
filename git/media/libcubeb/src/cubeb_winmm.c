@@ -5,10 +5,6 @@
  * accompanying file LICENSE for details.
  */
 #undef NDEBUG
-#define __MSVCRT_VERSION__ 0x0700
-#define WINVER 0x0501
-#define WIN32_LEAN_AND_MEAN
-#include <malloc.h>
 #include <assert.h>
 #include <windows.h>
 #include <mmreg.h>
@@ -16,11 +12,6 @@
 #include <process.h>
 #include <stdlib.h>
 #include "cubeb/cubeb.h"
-
-/* This is missing from the MinGW headers. Use a safe fallback. */
-#ifndef MEMORY_ALLOCATION_ALIGNMENT
-#define MEMORY_ALLOCATION_ALIGNMENT 16
-#endif
 
 #define CUBEB_STREAM_MAX 32
 #define NBUFS 4
@@ -42,7 +33,6 @@ struct cubeb {
   PSLIST_HEADER work;
   CRITICAL_SECTION lock;
   unsigned int active_streams;
-  unsigned int minimum_latency;
 };
 
 struct cubeb_stream {
@@ -169,15 +159,9 @@ cubeb_buffer_thread(void * user_ptr)
     rv = WaitForSingleObject(ctx->event, INFINITE);
     assert(rv == WAIT_OBJECT_0);
 
-    /* Process work items in batches so that a single stream can't
-       starve the others by continuously adding new work to the top of
-       the work item stack. */
-    item = InterlockedFlushSList(ctx->work);
-    while (item != NULL) {
-      PSLIST_ENTRY tmp = item;
-      cubeb_refill_stream(((struct cubeb_stream_item *) tmp)->stream);
-      item = item->Next;
-      _aligned_free(tmp);
+    while ((item = InterlockedPopEntrySList(ctx->work)) != NULL) {
+      cubeb_refill_stream(((struct cubeb_stream_item *) item)->stream);
+      _aligned_free(item);
     }
 
     if (ctx->shutdown) {
@@ -204,34 +188,6 @@ cubeb_buffer_callback(HWAVEOUT waveout, UINT msg, DWORD_PTR user_ptr, DWORD_PTR 
   InterlockedPushEntrySList(stm->context->work, &item->head);
 
   SetEvent(stm->context->event);
-}
-
-static unsigned int
-calculate_minimum_latency(void)
-{
-  OSVERSIONINFOEX osvi;
-  DWORDLONG mask;
-
-  /* Running under Terminal Services results in underruns with low latency. */
-  if (GetSystemMetrics(SM_REMOTESESSION) == TRUE) {
-    return 500;
-  }
-
-  /* Vista's WinMM implementation underruns when less than 200ms of audio is buffered. */
-  memset(&osvi, 0, sizeof(OSVERSIONINFOEX));
-  osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-  osvi.dwMajorVersion = 6;
-  osvi.dwMinorVersion = 0;
-
-  mask = 0;
-  VER_SET_CONDITION(mask, VER_MAJORVERSION, VER_EQUAL);
-  VER_SET_CONDITION(mask, VER_MINORVERSION, VER_EQUAL);
-
-  if (VerifyVersionInfo(&osvi, VER_MAJORVERSION | VER_MINORVERSION, mask) != 0) {
-    return 200;
-  }
-
-  return 0;
 }
 
 int
@@ -265,8 +221,6 @@ cubeb_init(cubeb ** context, char const * context_name)
 
   InitializeCriticalSection(&ctx->lock);
   ctx->active_streams = 0;
-
-  ctx->minimum_latency = calculate_minimum_latency();
 
   *context = ctx;
 
@@ -387,10 +341,6 @@ cubeb_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   stm->data_callback = data_callback;
   stm->state_callback = state_callback;
   stm->user_ptr = user_ptr;
-
-  if (latency < context->minimum_latency) {
-    latency = context->minimum_latency;
-  }
 
   bufsz = (size_t) (stm->params.rate / 1000.0 * latency * bytes_per_frame(stm->params) / NBUFS);
   if (bufsz % bytes_per_frame(stm->params) != 0) {

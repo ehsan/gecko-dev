@@ -78,11 +78,11 @@ nsDOMUIEvent::nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMUIEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMUIEvent, nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mView)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mView)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMUIEvent, nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mView)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mView)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsDOMUIEvent, nsDOMEvent)
@@ -110,12 +110,13 @@ nsDOMUIEvent::GetMovementPoint()
   }
 
   if (!mEvent ||
-      (mEvent->eventStructType != NS_MOUSE_EVENT &&
-       mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
-       mEvent->eventStructType != NS_WHEEL_EVENT &&
-       mEvent->eventStructType != NS_DRAG_EVENT &&
-       mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
-       !(static_cast<nsGUIEvent*>(mEvent)->widget)) {
+      !((nsGUIEvent*)mEvent)->widget ||
+       (mEvent->eventStructType != NS_MOUSE_EVENT &&
+        mEvent->eventStructType != NS_POPUP_EVENT &&
+        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
+        mEvent->eventStructType != NS_WHEEL_EVENT &&
+        mEvent->eventStructType != NS_DRAG_EVENT &&
+        mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT)) {
     return nsIntPoint(0, 0);
   }
 
@@ -292,14 +293,19 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetCancelBubble(bool* aCancelBubble)
 {
   NS_ENSURE_ARG_POINTER(aCancelBubble);
-  *aCancelBubble = mEvent->mFlags.mPropagationStopped;
+  *aCancelBubble =
+    (mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) ? true : false;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMUIEvent::SetCancelBubble(bool aCancelBubble)
 {
-  mEvent->mFlags.mPropagationStopped = aCancelBubble;
+  if (aCancelBubble) {
+    mEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
+  } else {
+    mEvent->flags &= ~NS_EVENT_FLAG_STOP_DISPATCH;
+  }
   return NS_OK;
 }
 
@@ -308,6 +314,7 @@ nsDOMUIEvent::GetLayerPoint()
 {
   if (!mEvent ||
       (mEvent->eventStructType != NS_MOUSE_EVENT &&
+       mEvent->eventStructType != NS_POPUP_EVENT &&
        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
        mEvent->eventStructType != NS_WHEEL_EVENT &&
        mEvent->eventStructType != NS_TOUCH_EVENT &&

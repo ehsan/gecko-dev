@@ -20,10 +20,8 @@
 #include "mozilla/Attributes.h"
 #include "TrackUnionStream.h"
 #include "ImageContainer.h"
-#include "AudioChannelCommon.h"
 
 using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 namespace mozilla {
 
@@ -587,22 +585,19 @@ MediaStreamGraphImpl::ExtractPendingInput(SourceMediaStream* aStream,
   bool finished;
   {
     MutexAutoLock lock(aStream->mMutex);
-    if (aStream->mPullEnabled && !aStream->mFinished &&
-        !aStream->mListeners.IsEmpty()) {
-      // Compute how much stream time we'll need assuming we don't block
-      // the stream at all between mBlockingDecisionsMadeUntilTime and
-      // aDesiredUpToTime.
-      StreamTime t =
-        GraphTimeToStreamTime(aStream, mStateComputedTime) +
-        (aDesiredUpToTime - mStateComputedTime);
-      if (t > aStream->mBuffer.GetEnd()) {
-        *aEnsureNextIteration = true;
-        for (uint32_t j = 0; j < aStream->mListeners.Length(); ++j) {
-          MediaStreamListener* l = aStream->mListeners[j];
-          {
-            MutexAutoUnlock unlock(aStream->mMutex);
-            l->NotifyPull(this, t);
-          }
+    if (aStream->mPullEnabled && !aStream->mFinished) {
+      for (uint32_t j = 0; j < aStream->mListeners.Length(); ++j) {
+        MediaStreamListener* l = aStream->mListeners[j];
+        {
+          // Compute how much stream time we'll need assuming we don't block
+          // the stream at all between mBlockingDecisionsMadeUntilTime and
+          // aDesiredUpToTime.
+          StreamTime t =
+            GraphTimeToStreamTime(aStream, mStateComputedTime) +
+            (aDesiredUpToTime - mStateComputedTime);
+          MutexAutoUnlock unlock(aStream->mMutex);
+          l->NotifyPull(this, t);
+          *aEnsureNextIteration = true;
         }
       }
     }
@@ -802,19 +797,21 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     // Calculate blocked time and fire Blocked/Unblocked events
     GraphTime blockedTime = 0;
     GraphTime t = prevCurrentTime;
+    // Save current blocked status
+    bool wasBlocked = stream->mBlocked.GetAt(prevCurrentTime);
     while (t < nextCurrentTime) {
       GraphTime end;
       bool blocked = stream->mBlocked.GetAt(t, &end);
       if (blocked) {
         blockedTime += NS_MIN(end, nextCurrentTime) - t;
       }
-      if (blocked != stream->mNotifiedBlocked) {
+      if (blocked != wasBlocked) {
         for (uint32_t j = 0; j < stream->mListeners.Length(); ++j) {
           MediaStreamListener* l = stream->mListeners[j];
           l->NotifyBlockingChanged(this,
               blocked ? MediaStreamListener::BLOCKED : MediaStreamListener::UNBLOCKED);
         }
-        stream->mNotifiedBlocked = blocked;
+        wasBlocked = blocked;
       }
       t = end;
     }
@@ -834,7 +831,6 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     if (stream->mFinished && !stream->mNotifiedFinished &&
         stream->mBufferStartTime + stream->GetBufferEnd() <= nextCurrentTime) {
       stream->mNotifiedFinished = true;
-      stream->mLastPlayedVideoFrame.SetNull();
       for (uint32_t j = 0; j < stream->mListeners.Length(); ++j) {
         MediaStreamListener* l = stream->mListeners[j];
         l->NotifyFinished(this);
@@ -1154,7 +1150,7 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
           continue;
         }
 
-        // XXX allocating a AudioStream could be slow so we're going to have to do
+        // XXX allocating a nsAudioStream could be slow so we're going to have to do
         // something here ... preallocation, async allocation, multiplexing onto a single
         // stream ...
         AudioSegment* audio = tracks->Get<AudioSegment>();
@@ -1162,9 +1158,9 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
           aStream->mAudioOutputStreams.AppendElement();
         audioOutputStream->mAudioPlaybackStartTime = aAudioOutputStartTime;
         audioOutputStream->mBlockedAudioTime = 0;
-        audioOutputStream->mStream = AudioStream::AllocateStream();
+        audioOutputStream->mStream = nsAudioStream::AllocateStream();
         audioOutputStream->mStream->Init(audio->GetChannels(),
-                                         tracks->GetRate(), AUDIO_CHANNEL_NORMAL);
+                                         tracks->GetRate());
         audioOutputStream->mTrackID = tracks->GetID();
       }
     }
@@ -1298,9 +1294,7 @@ MediaStreamGraphImpl::PlayVideo(MediaStream* aStream)
       NS_NewRunnableMethod(output, &VideoFrameContainer::Invalidate);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   }
-  if (!aStream->mNotifiedFinished) {
-    aStream->mLastPlayedVideoFrame = *frame;
-  }
+  aStream->mLastPlayedVideoFrame = *frame;
 }
 
 void
@@ -1939,7 +1933,7 @@ MediaStream::AddListenerImpl(already_AddRefed<MediaStreamListener> aListener)
 {
   MediaStreamListener* listener = *mListeners.AppendElement() = aListener;
   listener->NotifyBlockingChanged(GraphImpl(),
-    mNotifiedBlocked ? MediaStreamListener::BLOCKED : MediaStreamListener::UNBLOCKED);
+    mBlocked.GetAt(GraphImpl()->mCurrentTime) ? MediaStreamListener::BLOCKED : MediaStreamListener::UNBLOCKED);
   if (mNotifiedFinished) {
     listener->NotifyFinished(GraphImpl());
   }

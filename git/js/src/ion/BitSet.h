@@ -20,23 +20,23 @@ class BitSet : private TempObject
 {
   public:
     static size_t RawLengthForBits(size_t bits) {
-        return 1 + bits / (8 * sizeof(uint32_t));
+        return 1 + bits / (8 * sizeof(uint32));
     }
 
   private:
     BitSet(unsigned int max) :
         max_(max),
-        bits_(NULL) {}
+        bits_(NULL) {};
 
     unsigned int max_;
-    uint32_t *bits_;
+    uint32 *bits_;
 
-    static inline uint32_t bitForValue(unsigned int value) {
-        return 1l << (uint32_t)(value % (8 * sizeof(uint32_t)));
+    static inline uint32 bitForValue(unsigned int value) {
+        return 1l << (uint32)(value % (8 * sizeof(uint32)));
     }
 
     static inline unsigned int wordForValue(unsigned int value) {
-        return value / (8 * sizeof(uint32_t));
+        return value / (8 * sizeof(uint32));
     }
 
     inline unsigned int numWords() const {
@@ -100,7 +100,7 @@ class BitSet : private TempObject
     // O(max): Clear this set.
     void clear();
 
-    uint32_t *raw() const {
+    uint32 *raw() const {
         return bits_;
     }
     size_t rawLength() const {
@@ -114,7 +114,7 @@ class BitSet::Iterator
     BitSet &set_;
     unsigned index_;
     unsigned word_;
-    uint32_t value_;
+    uint32 value_;
 
   public:
     Iterator(BitSet &set) :

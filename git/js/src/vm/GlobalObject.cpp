@@ -16,9 +16,7 @@
 #include "jsweakmap.h"
 
 #include "builtin/Eval.h"
-#include "builtin/Intl.h"
 #include "builtin/MapObject.h"
-#include "builtin/Object.h"
 #include "builtin/RegExp.h"
 #include "frontend/BytecodeEmitter.h"
 
@@ -58,6 +56,8 @@ ThrowTypeError(JSContext *cx, unsigned argc, Value *vp)
     return false;
 }
 
+namespace js {
+
 static bool
 TestProtoGetterThis(const Value &v)
 {
@@ -91,9 +91,7 @@ ProtoGetter(JSContext *cx, unsigned argc, Value *vp)
     return CallNonGenericMethod(cx, TestProtoGetterThis, ProtoGetterImpl, args);
 }
 
-namespace js {
 size_t sSetProtoCalled = 0;
-} // namespace js
 
 static bool
 TestProtoSetterThis(const Value &v)
@@ -274,7 +272,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         if (!ctor)
             return NULL;
         RootedAtom objectAtom(cx, cx->names().Object);
-        objectCtor = js_NewFunction(cx, ctor, obj_construct, 1, JSFunction::NATIVE_CTOR, self,
+        objectCtor = js_NewFunction(cx, ctor, js_Object, 1, JSFunction::NATIVE_CTOR, self,
                                     objectAtom);
         if (!objectCtor)
             return NULL;
@@ -377,17 +375,12 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         return NULL;
     self->setThrowTypeError(throwTypeError);
 
-    RootedObject intrinsicsHolder(cx);
-    if (cx->runtime->isSelfHostingGlobal(self)) {
-        intrinsicsHolder = this;
-    } else {
-        intrinsicsHolder = NewObjectWithClassProto(cx, &ObjectClass, NULL, self);
-        if (!intrinsicsHolder)
-            return NULL;
-    }
+    RootedObject intrinsicsHolder(cx, JS_NewObject(cx, NULL, NULL, self));
+    if (!intrinsicsHolder)
+        return NULL;
     self->setIntrinsicsHolder(intrinsicsHolder);
     /* Define a property 'global' with the current global as its value. */
-    RootedValue global(cx, ObjectValue(*self));
+    RootedValue global(cx, OBJECT_TO_JSVAL(self));
     if (!JSObject::defineProperty(cx, intrinsicsHolder, cx->names().global,
                                   global, JS_PropertyStub, JS_StrictPropertyStub,
                                   JSPROP_PERMANENT | JSPROP_READONLY))
@@ -411,8 +404,8 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
      * Notify any debuggers about the creation of the script for
      * |Function.prototype| -- after all initialization, for simplicity.
      */
-    RootedScript functionProtoScript(cx, functionProto->nonLazyScript());
-    CallNewScriptHook(cx, functionProtoScript, functionProto);
+    RootedScript functionProtoScript(cx, functionProto->script());
+    js_CallNewScriptHook(cx, functionProtoScript, functionProto);
     return functionProto;
 }
 
@@ -477,11 +470,7 @@ GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
            js_InitMapClass(cx, global) &&
            GlobalObject::initMapIteratorProto(cx, global) &&
            js_InitSetClass(cx, global) &&
-           GlobalObject::initSetIteratorProto(cx, global) &&
-#if ENABLE_INTL_API
-           js_InitIntlClass(cx, global) &&
-#endif
-           true;
+           GlobalObject::initSetIteratorProto(cx, global);
 }
 
 bool
@@ -539,7 +528,7 @@ GlobalObject::createBlankPrototypeInheriting(JSContext *cx, Class *clasp, JSObje
 }
 
 bool
-js::LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor_, JSObject *proto_)
+LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor_, JSObject *proto_)
 {
     RootedObject ctor(cx, ctor_), proto(cx, proto_);
 
@@ -554,8 +543,8 @@ js::LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor_, JSObject *proto_
 }
 
 bool
-js::DefinePropertiesAndBrand(JSContext *cx, JSObject *obj_,
-                             const JSPropertySpec *ps, const JSFunctionSpec *fs)
+DefinePropertiesAndBrand(JSContext *cx, JSObject *obj_,
+                         const JSPropertySpec *ps, const JSFunctionSpec *fs)
 {
     RootedObject obj(cx, obj_);
 
@@ -566,7 +555,7 @@ js::DefinePropertiesAndBrand(JSContext *cx, JSObject *obj_,
     return true;
 }
 
-static void
+void
 GlobalDebuggees_finalize(FreeOp *fop, RawObject obj)
 {
     fop->delete_((GlobalObject::DebuggerVector *) obj->getPrivate());
@@ -626,3 +615,5 @@ GlobalObject::addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger 
     }
     return true;
 }
+
+} // namespace js

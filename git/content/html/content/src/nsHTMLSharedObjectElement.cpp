@@ -11,7 +11,6 @@
 #include "nsGkAtoms.h"
 #include "nsError.h"
 #include "nsIDocument.h"
-#include "nsIPluginDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLAppletElement.h"
 #include "nsIDOMHTMLEmbedElement.h"
@@ -45,8 +44,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
   // nsIDOMHTMLAppletElement
@@ -93,7 +91,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(Element* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest);
 
   void StartObjectLoad() { StartObjectLoad(true); }
 
@@ -212,8 +210,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLSharedObjectElement,
   nsObjectLoadingContent::Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLSharedObjectElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLSharedObjectElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLSharedObjectElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLSharedObjectElement, nsGenericElement) 
 
 DOMCI_DATA(HTMLAppletElement, nsHTMLSharedObjectElement)
 DOMCI_DATA(HTMLEmbedElement, nsHTMLSharedObjectElement)
@@ -270,13 +268,8 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
                                           aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Don't kick off load from being bound to a plugin document - the plugin
-  // document will call nsObjectLoadingContent::InitializeFromChannel() for the
-  // initial load.
-  nsCOMPtr<nsIPluginDocument> pluginDoc = do_QueryInterface(aDocument);
-
   // If we already have all the children, start the load.
-  if (mIsDoneAddingChildren && !pluginDoc) {
+  if (mIsDoneAddingChildren) {
     void (nsHTMLSharedObjectElement::*start)() =
       &nsHTMLSharedObjectElement::StartObjectLoad;
     nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, start));
@@ -496,7 +489,7 @@ nsHTMLSharedObjectElement::DestroyContent()
 }
 
 nsresult
-nsHTMLSharedObjectElement::CopyInnerTo(Element* aDest)
+nsHTMLSharedObjectElement::CopyInnerTo(nsGenericElement* aDest)
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);

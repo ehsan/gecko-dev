@@ -37,8 +37,6 @@
   // for |NS_COM_GLUE|
 #endif
 
-#include "nsCycleCollectionNoteChild.h"
-
 
 /*
   WARNING:
@@ -76,7 +74,7 @@
   #undef NSCAP_FEATURE_TEST_DONTQUERY_CASES
 #endif
 
-#ifdef __GNUC__
+#if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)
   // Our use of nsCOMPtr_base::mRawPtr violates the C++ standard's aliasing
   // rules. Mark it with the may_alias attribute so that gcc 3.3 and higher
   // don't reorder instructions based on aliasing assumptions for
@@ -1127,23 +1125,6 @@ class nsCOMPtr<nsISupports>
 #endif
         }
   };
-
-template <typename T>
-inline void
-ImplCycleCollectionUnlink(nsCOMPtr<T>& aField)
-{
-  aField = nullptr;
-}
-
-template <typename T>
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            nsCOMPtr<T>& aField,
-                            const char* aName,
-                            uint32_t aFlags = 0)
-{
-  CycleCollectionNoteChild(aCallback, aField.get(), aName, aFlags);
-}
 
 #ifndef NSCAP_FEATURE_USE_BASE
 template <class T>

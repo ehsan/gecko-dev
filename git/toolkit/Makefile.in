@@ -51,10 +51,6 @@ ifneq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
 PARALLEL_DIRS += system/windowsproxy
 endif
 
-ifneq (,$(filter android,$(MOZ_WIDGET_TOOLKIT)))
-PARALLEL_DIRS += system/androidproxy
-endif
-
 ifdef MOZ_CRASHREPORTER
 PARALLEL_DIRS += crashreporter
 endif

@@ -38,6 +38,20 @@ NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsInlineFrame(aContext);
 }
 
+NS_IMETHODIMP
+nsInlineFrame::Init(nsIContent*      aContent,
+                    nsIFrame*        aParent,
+                    nsIFrame*        aPrevInFlow)
+{
+  // Let the base class do its processing
+  nsresult rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+
+  // Transforms do not affect regular inline elements (bug 722463)
+  mState &= ~NS_FRAME_MAY_BE_TRANSFORMED;
+
+  return rv;
+}
+
 NS_IMPL_FRAMEARENA_HELPERS(nsInlineFrame)
 
 NS_QUERYFRAME_HEAD(nsInlineFrame)
@@ -895,13 +909,13 @@ nsInlineFrame::AccessibleType()
   // replaces the image or image control frame with an inline frame
   nsIAtom *tagAtom = mContent->Tag();
   if (tagAtom == nsGkAtoms::input)  // Broken <input type=image ... />
-    return a11y::eHTMLButtonType;
+    return a11y::eHTMLButtonAccessible;
   if (tagAtom == nsGkAtoms::img)  // Create accessible for broken <img>
-    return a11y::eImageType;
+    return a11y::eImageAccessible;
   if (tagAtom == nsGkAtoms::label)  // Creat accessible for <label>
-    return a11y::eHTMLLabelType;
+    return a11y::eHTMLLabelAccessible;
 
-  return a11y::eNoType;
+  return a11y::eNoAccessible;
 }
 #endif
 

@@ -179,18 +179,7 @@ public:
   Send(JSObject* aBody, ErrorResult& aRv);
 
   void
-  Send(JSObject& aBody, ErrorResult& aRv)
-  {
-    Send(&aBody, aRv);
-  }
-
-  void
   Send(ArrayBuffer& aBody, ErrorResult& aRv) {
-    return Send(aBody.Obj(), aRv);
-  }
-
-  void
-  Send(ArrayBufferView& aBody, ErrorResult& aRv) {
     return Send(aBody.Obj(), aRv);
   }
 

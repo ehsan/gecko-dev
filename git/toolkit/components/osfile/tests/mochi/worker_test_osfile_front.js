@@ -1,7 +1,13 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-importScripts('worker_test_osfile_shared.js');
+function log(text) {
+  dump("WORKER "+text+"\n");
+}
+
+function send(message) {
+  self.postMessage(message);
+}
 
 function should_throw(f) {
   try {
@@ -40,13 +46,27 @@ self.onmessage = function onmessage_start(msg) {
   finish();
 };
 
+function finish() {
+  send({kind: "finish"});
+}
+
+function ok(condition, description) {
+  send({kind: "ok", condition: condition, description:description});
+}
+function is(a, b, description) {
+  send({kind: "is", a: a, b:b, description:description});
+}
+function isnot(a, b, description) {
+  send({kind: "isnot", a: a, b:b, description:description});
+}
+
 function test_init() {
-  info("Starting test_init");
+  ok(true, "Starting test_init");
   importScripts("resource://gre/modules/osfile.jsm");
 }
 
 function test_offsetby() {
-  info("Starting test_offsetby");
+  ok(true, "Starting test_offsetby");
 
   // Initialize one array
   let LENGTH = 1024;
@@ -93,7 +113,7 @@ function test_offsetby() {
   }
   ok(!!exn, "test_offsetby: rejected offsetBy with void*");
 
-  info("test_offsetby: complete");
+  ok(true, "test_offsetby: complete");
 }
 
 
@@ -102,7 +122,7 @@ function test_offsetby() {
  */
 function test_open_existing_file()
 {
-  info("Starting test_open_existing");
+  ok(true, "Starting test_open_existing");
   let file = OS.File.open("chrome/toolkit/components/osfile/tests/mochi/worker_test_osfile_unix.js");
   file.close();
 }
@@ -112,13 +132,13 @@ function test_open_existing_file()
  */
 function test_open_non_existing_file()
 {
-  info("Starting test_open_non_existing");
+  ok(true, "Starting test_open_non_existing");
   let exn;
   try {
     let file = OS.File.open("/I do not exist");
   } catch (x) {
     exn = x;
-    info("test_open_non_existing_file: Exception detail " + exn);
+    ok(true, "test_open_non_existing_file: Exception detail " + exn);
   }
   ok(!!exn, "test_open_non_existing_file: Exception was raised ");
   ok(exn instanceof OS.File.Error, "test_open_non_existing_file: Exception was a OS.File.Error");
@@ -131,7 +151,7 @@ function test_open_non_existing_file()
  */
 function test_flush_open_file()
 {
-  info("Starting test_flush_open_file");
+  ok(true, "Starting test_flush_open_file");
   let tmp = "test_flush.tmp";
   let file = OS.File.open(tmp, {create: true, write: true});
   file.flush();
@@ -153,10 +173,10 @@ function test_flush_open_file()
  */
 function compare_files(test, sourcePath, destPath, prefix)
 {
-  info(test + ": Comparing " + sourcePath + " and " + destPath);
+  ok(true, test + ": Comparing " + sourcePath + " and " + destPath);
   let source = OS.File.open(sourcePath);
   let dest = OS.File.open(destPath);
-  info("Files are open");
+  ok(true, "Files are open");
   let sourceResult, destResult;
   try {
     if (prefix != undefined) {
@@ -177,7 +197,7 @@ function compare_files(test, sourcePath, destPath, prefix)
     source.close();
     dest.close();
   }
-  info(test + ": Comparison complete");
+  ok(true, test + ": Comparison complete");
 }
 
 function test_readall_writeall_file()
@@ -187,7 +207,7 @@ function test_readall_writeall_file()
                  "worker_test_osfile_front.js");
   let tmp_file_name =
     OS.Path.join(OS.Constants.Path.tmpDir, "test_osfile_front.tmp");
-  info("Starting test_readall_writeall_file");
+  ok(true, "Starting test_readall_writeall_file");
 
   // read, ArrayBuffer
 
@@ -201,7 +221,7 @@ function test_readall_writeall_file()
 
   dest.write(buf);
 
-  info("test_readall_writeall_file: copy complete (manual allocation)");
+  ok(true, "test_readall_writeall_file: copy complete (manual allocation)");
   source.close();
   dest.close();
 
@@ -218,7 +238,7 @@ function test_readall_writeall_file()
 
   dest.write(ptr, {bytes: size});
 
-  info("test_readall_writeall_file: copy complete (C buffer)");
+  ok(true, "test_readall_writeall_file: copy complete (C buffer)");
   source.close();
   dest.close();
 
@@ -250,7 +270,7 @@ function test_readall_writeall_file()
   dest.write(offset_view);
   is(dest.stat().size, LEFT, "test_readall_writeall_file: wrote the right number of bytes (with offset)");
 
-  info("test_readall_writeall_file: copy complete (with offset)");
+  ok(true, "test_readall_writeall_file: copy complete (with offset)");
   source.close();
   dest.close();
 
@@ -267,7 +287,7 @@ function test_readall_writeall_file()
 
   dest.write(readResult);
 
-  info("test_readall_writeall_file: copy complete (auto allocation)");
+  ok(true, "test_readall_writeall_file: copy complete (auto allocation)");
   source.close();
   dest.close();
 
@@ -283,7 +303,7 @@ function test_readall_writeall_file()
     {tmpPath: tmp_file_name + ".tmp"});
   try {
     let stat = OS.File.stat(tmp_file_name);
-    info("readAll + writeAtomic created a file");
+    ok(true, "readAll + writeAtomic created a file");
     is(stat.size, size, "readAll + writeAtomic created a file of the right size");
   } catch (x) {
     ok(false, "readAll + writeAtomic somehow failed");
@@ -351,10 +371,10 @@ function test_copy_existing_file()
     OS.Path.join("chrome", "toolkit", "components", "osfile", "tests", "mochi",
                  "worker_test_osfile_front.js");
   let tmp_file_name = "test_osfile_front.tmp";
-  info("Starting test_copy_existing");
+  ok(true, "Starting test_copy_existing");
   OS.File.copy(src_file_name, tmp_file_name);
 
-  info("test_copy_existing: Copy complete");
+  ok(true, "test_copy_existing: Copy complete");
   compare_files("test_copy_existing", src_file_name, tmp_file_name);
 
   // Create a bogus file with arbitrary content, then attempt to overwrite
@@ -377,7 +397,7 @@ function test_copy_existing_file()
   }
   ok(!!exn, "test_copy_existing: noOverwrite prevents overwriting existing files");
 
-  info("test_copy_existing: Cleaning up");
+  ok(true, "test_copy_existing: Cleaning up");
   OS.File.remove(tmp_file_name);
 }
 
@@ -386,7 +406,7 @@ function test_copy_existing_file()
  */
 function test_move_file()
 {
-  info("test_move_file: Starting");
+  ok(true, "test_move_file: Starting");
   // 1. Copy file into a temporary file
   let src_file_name =
     OS.Path.join("chrome", "toolkit", "components", "osfile", "tests", "mochi",
@@ -395,12 +415,12 @@ function test_move_file()
   let tmp2_file_name = "test_osfile_front.tmp2";
   OS.File.copy(src_file_name, tmp_file_name);
 
-  info("test_move_file: Copy complete");
+  ok(true, "test_move_file: Copy complete");
 
   // 2. Move
   OS.File.move(tmp_file_name, tmp2_file_name);
 
-  info("test_move_file: Move complete");
+  ok(true, "test_move_file: Move complete");
 
   // 3. Check that destination exists
   compare_files("test_move_file", src_file_name, tmp2_file_name);
@@ -414,13 +434,13 @@ function test_move_file()
   }
   ok(!!exn, "test_move_file: Original file has been removed");
 
-  info("test_move_file: Cleaning up");
+  ok(true, "test_move_file: Cleaning up");
   OS.File.remove(tmp2_file_name);
 }
 
 function test_iter_dir()
 {
-  info("test_iter_dir: Starting");
+  ok(true, "test_iter_dir: Starting");
 
   // Create a file, to be sure that it exists
   let tmp_file_name = "test_osfile_front.tmp";
@@ -428,13 +448,13 @@ function test_iter_dir()
   tmp_file.close();
 
   let parent = OS.File.getCurrentDirectory();
-  info("test_iter_dir: directory " + parent);
+  ok(true, "test_iter_dir: directory " + parent);
   let iterator = new OS.File.DirectoryIterator(parent);
-  info("test_iter_dir: iterator created");
+  ok(true, "test_iter_dir: iterator created");
   let encountered_tmp_file = false;
   for (let entry in iterator) {
     // Checking that |name| can be decoded properly
-    info("test_iter_dir: encountering entry " + entry.name);
+    ok(true, "test_iter_dir: encountering entry " + entry.name);
 
     if (entry.name == tmp_file_name) {
       encountered_tmp_file = true;
@@ -474,7 +494,7 @@ function test_iter_dir()
   }
   ok(encountered_tmp_file, "test_iter_dir: We have found the temporary file");
 
-  info("test_iter_dir: Cleaning up");
+  ok(true, "test_iter_dir: Cleaning up");
   iterator.close();
 
   // Testing nextBatch()
@@ -535,7 +555,7 @@ function test_iter_dir()
 
   //test for prototype |OS.File.DirectoryIterator.unixAsFile|
   if ("unixAsFile" in OS.File.DirectoryIterator.prototype) {
-    info("testing property unixAsFile");
+    ok(true, "testing property unixAsFile");
     let path = OS.Path.join("chrome", "toolkit", "components", "osfile", "tests", "mochi");
     iterator = new OS.File.DirectoryIterator(path);
 
@@ -555,11 +575,11 @@ function test_iter_dir()
     dir_file.close();
     iterator.close();
   }
-  info("test_iter_dir: Complete");
+  ok(true, "test_iter_dir: Complete");
 }
 
 function test_position() {
-  info("test_position: Starting");
+  ok(true, "test_position: Starting");
 
   ok("POS_START" in OS.File, "test_position: POS_START exists");
   ok("POS_CURRENT" in OS.File, "test_position: POS_CURRENT exists");
@@ -591,11 +611,11 @@ function test_position() {
   is(file.getPosition(), size, "test_position: Setting position from current");
 
   file.close();
-  info("test_position: Complete");
+  ok(true, "test_position: Complete");
 }
 
 function test_info() {
-  info("test_info: Starting");
+  ok(true, "test_info: Starting");
 
   let filename = "test_info.tmp";
   let size = 261;// An arbitrary file length
@@ -604,12 +624,12 @@ function test_info() {
  // Cleanup any leftover from previous tests
   try {
     OS.File.remove(filename);
-    info("test_info: Cleaned up previous garbage");
+    ok(true, "test_info: Cleaned up previous garbage");
   } catch (x) {
     if (!x.becauseNoSuchFile) {
       throw x;
     }
-    info("test_info: No previous garbage");
+    ok(true, "test_info: No previous garbage");
   }
 
   let file = OS.File.open(filename, {trunc: true});
@@ -618,11 +638,11 @@ function test_info() {
   file.close();
 
   // Test OS.File.stat on new file
-  let stat = OS.File.stat(filename);
-  ok(!!stat, "test_info: info acquired");
-  ok(!stat.isDir, "test_info: file is not a directory");
-  is(stat.isSymLink, false, "test_info: file is not a link");
-  is(stat.size.toString(), size, "test_info: correct size");
+  let info = OS.File.stat(filename);
+  ok(!!info, "test_info: info acquired");
+  ok(!info.isDir, "test_info: file is not a directory");
+  is(info.isSymLink, false, "test_info: file is not a link");
+  is(info.size.toString(), size, "test_info: correct size");
 
   let stop = new Date();
 
@@ -630,28 +650,18 @@ function test_info() {
   let startMs = start.getTime() - 1000;
   let stopMs  = stop.getTime() + 1000;
 
-  (function() {
-    let birth;
-    if ("winBirthDate" in info) {
-      birth = info.winBirthDate;
-    } else if ("macBirthDate" in info) {
-      birth = info.macBirthDate;
-    } else {
-      ok(true, "Skipping birthdate test");
-      return;
-    }
-    ok(birth.getTime() <= stopMs,
-    "test_info: file was created before now - " + stop + ", " + birth);
-    // Note: Previous versions of this test checked whether the file has
-    // been created after the start of the test. Unfortunately, this sometimes
-    // failed under Windows, in specific circumstances: if the file has been
-    // removed at the start of the test and recreated immediately, the Windows
-    // file system detects this and decides that the file was actually truncated
-    // rather than recreated, hence that it should keep its previous creation date.
-    // Debugging hilarity ensues.
-  });
+  let birth = info.creationDate;
+  ok(birth.getTime() <= stopMs,
+     "test_info: file was created before now - " + stop + ", " + birth);
+  // Note: Previous versions of this test checked whether the file has
+  // been created after the start of the test. Unfortunately, this sometimes
+  // failed under Windows, in specific circumstances: if the file has been
+  // removed at the start of the test and recreated immediately, the Windows
+  // file system detects this and decides that the file was actually truncated
+  // rather than recreated, hence that it should keep its previous creation date.
+  // Debugging hilarity ensues.
 
-  let change = stat.lastModificationDate;
+  let change = info.lastModificationDate;
   ok(change.getTime() >= startMs
      && change.getTime() <= stopMs,
      "test_info: file has changed between the start of the test and now - " + start + ", " + stop + ", " + change);
@@ -659,15 +669,15 @@ function test_info() {
   // Test OS.File.prototype.stat on new file
   file = OS.File.open(filename);
   try {
-    stat = file.stat();
+    info = file.stat();
   } finally {
     file.close();
   }
 
-  ok(!!stat, "test_info: info acquired 2");
-  ok(!stat.isDir, "test_info: file is not a directory 2");
-  ok(!stat.isSymLink, "test_info: file is not a link 2");
-  is(stat.size.toString(), size, "test_info: correct size 2");
+  ok(!!info, "test_info: info acquired 2");
+  ok(!info.isDir, "test_info: file is not a directory 2");
+  ok(!info.isSymLink, "test_info: file is not a link 2");
+  is(info.size.toString(), size, "test_info: correct size 2");
 
   stop = new Date();
 
@@ -675,31 +685,31 @@ function test_info() {
   startMs = start.getTime() - 1000;
   stopMs  = stop.getTime() + 1000;
 
-  birth = stat.creationDate;
+  birth = info.creationDate;
   ok(birth.getTime() <= stopMs,
       "test_info: file 2 was created between the start of the test and now - " + start +  ", " + stop + ", " + birth);
 
-  let access = stat.lastModificationDate;
+  let access = info.lastModificationDate;
   ok(access.getTime() >= startMs
      && access.getTime() <= stopMs,
      "test_info: file 2 was accessed between the start of the test and now - " + start + ", " + stop + ", " + access);
 
-  change = stat.lastModificationDate;
+  change = info.lastModificationDate;
   ok(change.getTime() >= startMs
      && change.getTime() <= stopMs,
      "test_info: file 2 has changed between the start of the test and now - " + start + ", " + stop + ", " + change);
 
   // Test OS.File.stat on directory
-  stat = OS.File.stat(OS.File.getCurrentDirectory());
-  ok(!!stat, "test_info: info on directory acquired");
-  ok(stat.isDir, "test_info: directory is a directory");
+  info = OS.File.stat(OS.File.getCurrentDirectory());
+  ok(!!info, "test_info: info on directory acquired");
+  ok(info.isDir, "test_info: directory is a directory");
 
-  info("test_info: Complete");
+  ok(true, "test_info: Complete");
 }
 
 function test_mkdir()
 {
-  info("test_mkdir: Starting");
+  ok(true, "test_mkdir: Starting");
 
   let dirName = "test_dir.tmp";
   OS.File.removeEmptyDir(dirName, {ignoreAbsent: true});
@@ -722,11 +732,11 @@ function test_mkdir()
   ok(!!exn, "test_mkdir: removeDir throws if there is no such directory");
   ok(exn instanceof OS.File.Error && exn.becauseNoSuchFile, "test_mkdir: removeDir throws the correct exception if there is no such directory");
 
-  info("test_mkdir: Creating directory");
+  ok(true, "test_mkdir: Creating directory");
   OS.File.makeDir(dirName);
   ok(OS.File.stat(dirName).isDir, "test_mkdir: Created directory is a directory");
 
-  info("test_mkdir: Creating directory that already exists");
+  ok(true, "test_mkdir: Creating directory that already exists");
   exn = null;
   try {
     OS.File.makeDir(dirName);
@@ -735,7 +745,7 @@ function test_mkdir()
   }
   ok(exn && exn instanceof OS.File.Error && exn.becauseExists, "test_mkdir: makeDir over an existing directory failed for all the right reasons");
 
-  info("test_mkdir: Creating directory that already exists with ignoreExisting");
+  ok(true, "test_mkdir: Creating directory that already exists with ignoreExisting");
   exn = null;
   try {
     OS.File.makeDir(dirName, {ignoreExisting: true});
@@ -754,14 +764,14 @@ function test_mkdir()
     ok(x instanceof OS.File.Error && x.becauseNoSuchFile, "test_mkdir: Directory was removed");
   }
 
-  info("test_mkdir: Complete");
+  ok(true, "test_mkdir: Complete");
 }
 
 // Note that most of the features of path are tested in
 // worker_test_osfile_{unix, win}.js
 function test_path()
 {
-  info("test_path: starting");
+  ok(true, "test_path: starting");
   let abcd = OS.Path.join("a", "b", "c", "d");
   is(OS.Path.basename(abcd), "d", "basename of a/b/c/d");
 
@@ -774,7 +784,7 @@ function test_path()
   let adotsdotsdots = OS.Path.join("a", "..", "..", "..");
   is(OS.Path.normalize(adotsdotsdots), OS.Path.join("..", ".."), "normalize a/../../..");
 
-  info("test_path: Complete");
+  ok(true, "test_path: Complete");
 }
 
 /**
@@ -784,8 +794,8 @@ function test_exists_file()
 {
   let file_name = OS.Path.join("chrome", "toolkit", "components" ,"osfile",
                                "tests", "mochi", "test_osfile_front.xul");
-  info("test_exists_file: starting");
+  ok(true, "test_exists_file: starting");
   ok(OS.File.exists(file_name), "test_exists_file: file exists (OS.File.exists)");
   ok(!OS.File.exists(file_name + ".tmp"), "test_exists_file: file does not exists (OS.File.exists)");
-  info("test_exists_file: complete");
+  ok(true, "test_exists_file: complete");
 }

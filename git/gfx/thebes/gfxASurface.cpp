@@ -5,7 +5,6 @@
 
 #include "nsIMemoryReporter.h"
 #include "nsMemory.h"
-#include "mozilla/Base64.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Attributes.h"
 
@@ -42,14 +41,16 @@
 
 #include "imgIEncoder.h"
 #include "nsComponentManagerUtils.h"
+#include "prmem.h"
 #include "nsISupportsUtils.h"
+#include "plbase64.h"
 #include "nsCOMPtr.h"
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsStringGlue.h"
 #include "nsIClipboardHelper.h"
 
-using namespace mozilla;
+using mozilla::CheckedInt;
 
 static cairo_user_data_key_t gfxasurface_pointer_key;
 
@@ -648,40 +649,6 @@ gfxASurface::RecordMemoryFreed()
     }
 }
 
-size_t
-gfxASurface::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-    // We don't measure mSurface because cairo doesn't allow it.
-    return 0;
-}
-
-size_t
-gfxASurface::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-}
-
-/* static */ uint8_t
-gfxASurface::BytesPerPixel(gfxImageFormat aImageFormat)
-{
-  switch (aImageFormat) {
-    case ImageFormatARGB32:
-      return 4;
-    case ImageFormatRGB24:
-      return 4;
-    case ImageFormatRGB16_565:
-      return 2;
-    case ImageFormatA8:
-      return 1;
-    case ImageFormatA1:
-      return 1; // Close enough
-    case ImageFormatUnknown:
-    default:
-      NS_NOTREACHED("Not really sure what you want me to say here");
-      return 0;
-  }
-}
-
 #ifdef MOZ_DUMP_IMAGES
 void
 gfxASurface::WriteAsPNG(const char* aFile)
@@ -796,7 +763,7 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
   // got everything. 16 bytes for better padding (maybe)
   bufSize += 16;
   uint32_t imgSize = 0;
-  char* imgData = (char*)moz_malloc(bufSize);
+  char* imgData = (char*)PR_Malloc(bufSize);
   if (!imgData)
     return;
   uint32_t numReadThisTime = 0;
@@ -808,9 +775,9 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
     if (imgSize == bufSize) {
       // need a bigger buffer, just double
       bufSize *= 2;
-      char* newImgData = (char*)moz_realloc(imgData, bufSize);
+      char* newImgData = (char*)PR_Realloc(imgData, bufSize);
       if (!newImgData) {
-        moz_free(imgData);
+        PR_Free(imgData);
         return;
       }
       imgData = newImgData;
@@ -827,10 +794,9 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
   }
 
   // base 64, result will be NULL terminated
-  nsCString encodedImg;
-  rv = Base64Encode(Substring(imgData, imgSize), encodedImg);
-  moz_free(imgData);
-  if (NS_FAILED(rv)) // not sure why this would fail
+  char* encodedImg = PL_Base64Encode(imgData, imgSize, nullptr);
+  PR_Free(imgData);
+  if (!encodedImg) // not sure why this would fail
     return;
 
   nsCString string("data:image/png;base64,");
@@ -858,6 +824,8 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
       clipboard->CopyString(NS_ConvertASCIItoUTF16(string), nullptr);
     }
   }
+
+  PR_Free(encodedImg);
 
   return;
 }

@@ -106,8 +106,7 @@ nsSVGTextPathFrame::GetPathFrame()
       return nullptr;
   }
 
-  nsIFrame *frame = property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nullptr);
-  return frame && frame->GetContent()->Tag() == nsGkAtoms::path ? frame : nullptr;
+  return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nullptr);
 }
 
 already_AddRefed<gfxFlattenedPath>
@@ -158,13 +157,11 @@ nsSVGTextPathFrame::AttributeChanged(int32_t         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       aAttribute == nsGkAtoms::startOffset) {
-    nsSVGUtils::InvalidateBounds(this, false);
-    nsSVGUtils::ScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
     NotifyGlyphMetricsChange();
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
-    nsSVGUtils::InvalidateBounds(this, false);
-    nsSVGUtils::ScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
     // Blow away our reference, if any
     Properties().Delete(nsSVGEffects::HrefProperty());
     NotifyGlyphMetricsChange();

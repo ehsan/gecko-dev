@@ -17,9 +17,6 @@ extern "C" typedef void (*AtkSocketEmbedType) (AtkSocket*, gchar*);
 extern "C" typedef void (*AtkSocketEmbedType) (void*, void*);
 #endif
 
-namespace mozilla {
-namespace a11y {
-
 /**
  * Provides a AccessibleWrap wrapper around AtkSocket for out-of-process
  * accessibles.
@@ -51,8 +48,5 @@ public:
   // nsIAccessible
   NS_IMETHODIMP GetNativeInterface(void** aOutAccessible);
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

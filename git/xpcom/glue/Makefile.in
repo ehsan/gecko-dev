@@ -69,7 +69,6 @@ SDK_HEADERS = \
 		nsStringGlue.h \
 		nsTArray.h \
 		nsTArray-inl.h \
-		nsTArrayForwardDeclare.h \
 		nsTHashtable.h \
 		nsTObserverArray.h \
 		nsTWeakRef.h \
@@ -89,8 +88,6 @@ EXPORTS = \
 		nsProxyRelease.h \
 		nsXPTCUtils.h \
 		nsCycleCollectorUtils.h \
-		nsCycleCollectionNoteChild.h \
-		nsCycleCollectionTraversalCallback.h \
 		$(NULL)
 
 EXPORTS_mozilla = \

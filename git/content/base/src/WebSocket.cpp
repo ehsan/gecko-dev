@@ -42,6 +42,7 @@
 #include "xpcpublic.h"
 #include "nsContentPolicyUtils.h"
 #include "jsfriendapi.h"
+#include "prmem.h"
 #include "nsDOMFile.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMEventTargetHelper.h"
@@ -191,7 +192,7 @@ WebSocket::ConsoleError()
 }
 
 
-void
+nsresult
 WebSocket::FailConnection(uint16_t aReasonCode,
                           const nsACString& aReasonString)
 {
@@ -200,6 +201,8 @@ WebSocket::FailConnection(uint16_t aReasonCode,
   ConsoleError();
   mFailed = true;
   CloseConnection(aReasonCode, aReasonString);
+
+  return NS_OK;
 }
 
 nsresult
@@ -605,17 +608,17 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(WebSocket,
                                                   nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrincipal)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mURI)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChannel)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrincipal)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mURI)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChannel)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(WebSocket,
                                                 nsDOMEventTargetHelper)
   tmp->Disconnect();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPrincipal)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mURI)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChannel)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrincipal)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mURI)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChannel)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(WebSocket)
@@ -860,7 +863,8 @@ WebSocket::CreateAndDispatchSimpleEvent(const nsString& aName)
   rv = event->InitEvent(aName, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }
@@ -928,7 +932,8 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
                                       EmptyString(), nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }
@@ -958,7 +963,8 @@ WebSocket::CreateAndDispatchCloseEvent(bool aWasClean,
                                   aWasClean, aCode, aReason);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }

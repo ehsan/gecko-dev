@@ -21,9 +21,7 @@
 #include "nsIPermissionManager.h"
 
 #define RECEIVED_EVENT_NAME         NS_LITERAL_STRING("received")
-#define SENDING_EVENT_NAME          NS_LITERAL_STRING("sending")
 #define SENT_EVENT_NAME             NS_LITERAL_STRING("sent")
-#define FAILED_EVENT_NAME           NS_LITERAL_STRING("failed")
 #define DELIVERY_SUCCESS_EVENT_NAME NS_LITERAL_STRING("deliverysuccess")
 #define DELIVERY_ERROR_EVENT_NAME   NS_LITERAL_STRING("deliveryerror")
 
@@ -33,7 +31,15 @@ namespace mozilla {
 namespace dom {
 namespace sms {
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_0(SmsManager, nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_CLASS(SmsManager)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(SmsManager,
+                                                  nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SmsManager,
+                                                nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(SmsManager)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozSmsManager)
@@ -46,9 +52,7 @@ NS_IMPL_ADDREF_INHERITED(SmsManager, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(SmsManager, nsDOMEventTargetHelper)
 
 NS_IMPL_EVENT_HANDLER(SmsManager, received)
-NS_IMPL_EVENT_HANDLER(SmsManager, sending)
 NS_IMPL_EVENT_HANDLER(SmsManager, sent)
-NS_IMPL_EVENT_HANDLER(SmsManager, failed)
 NS_IMPL_EVENT_HANDLER(SmsManager, deliverysuccess)
 NS_IMPL_EVENT_HANDLER(SmsManager, deliveryerror)
 
@@ -105,9 +109,7 @@ SmsManager::Init(nsPIDOMWindow *aWindow)
   }
 
   obs->AddObserver(this, kSmsReceivedObserverTopic, false);
-  obs->AddObserver(this, kSmsSendingObserverTopic, false);
   obs->AddObserver(this, kSmsSentObserverTopic, false);
-  obs->AddObserver(this, kSmsFailedObserverTopic, false);
   obs->AddObserver(this, kSmsDeliverySuccessObserverTopic, false);
   obs->AddObserver(this, kSmsDeliveryErrorObserverTopic, false);
 }
@@ -122,9 +124,7 @@ SmsManager::Shutdown()
   }
 
   obs->RemoveObserver(this, kSmsReceivedObserverTopic);
-  obs->RemoveObserver(this, kSmsSendingObserverTopic);
   obs->RemoveObserver(this, kSmsSentObserverTopic);
-  obs->RemoveObserver(this, kSmsFailedObserverTopic);
   obs->RemoveObserver(this, kSmsDeliverySuccessObserverTopic);
   obs->RemoveObserver(this, kSmsDeliveryErrorObserverTopic);
 }
@@ -303,20 +303,6 @@ SmsManager::MarkMessageRead(int32_t aId, bool aValue,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-SmsManager::GetThreadList(nsIDOMMozSmsRequest** aRequest)
-{
-  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
-  nsCOMPtr<nsISmsDatabaseService> smsDBService =
-    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
-  nsCOMPtr<nsISmsRequest> forwarder =
-    new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  smsDBService->GetThreadList(forwarder);
-  req.forget(aRequest);
-  return NS_OK;
-}
-
 nsresult
 SmsManager::DispatchTrustedSmsEventToSelf(const nsAString& aEventName, nsIDOMMozSmsMessage* aMessage)
 {
@@ -343,17 +329,6 @@ SmsManager::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
 
-  if (!strcmp(aTopic, kSmsSendingObserverTopic)) {
-    nsCOMPtr<nsIDOMMozSmsMessage> message = do_QueryInterface(aSubject);
-    if (!message) {
-      NS_ERROR("Got a 'sms-sending' topic without a valid message!");
-      return NS_OK;
-    }
-
-    DispatchTrustedSmsEventToSelf(SENDING_EVENT_NAME, message);
-    return NS_OK;
-  }
-
   if (!strcmp(aTopic, kSmsSentObserverTopic)) {
     nsCOMPtr<nsIDOMMozSmsMessage> message = do_QueryInterface(aSubject);
     if (!message) {
@@ -362,17 +337,6 @@ SmsManager::Observe(nsISupports* aSubject, const char* aTopic,
     }
 
     DispatchTrustedSmsEventToSelf(SENT_EVENT_NAME, message);
-    return NS_OK;
-  }
-
-  if (!strcmp(aTopic, kSmsFailedObserverTopic)) {
-    nsCOMPtr<nsIDOMMozSmsMessage> message = do_QueryInterface(aSubject);
-    if (!message) {
-      NS_ERROR("Got a 'sms-failed' topic without a valid message!");
-      return NS_OK;
-    }
-
-    DispatchTrustedSmsEventToSelf(FAILED_EVENT_NAME, message);
     return NS_OK;
   }
 

@@ -40,7 +40,6 @@ IDBRequest::IDBRequest()
 
 IDBRequest::~IDBRequest()
 {
-  mResultVal = JSVAL_VOID;
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
 
@@ -57,7 +56,10 @@ IDBRequest::Create(nsISupports* aSource,
   request->mSource = aSource;
   request->mTransaction = aTransaction;
   request->BindToOwner(aOwnerCache);
-  request->SetScriptOwner(aOwnerCache->GetScriptOwner());
+  if (!request->SetScriptOwner(aOwnerCache->GetScriptOwner())) {
+    return nullptr;
+  }
+
   request->CaptureCaller(aCallingCx);
 
   return request.forget();
@@ -292,14 +294,15 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IDBRequest)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBRequest, IDBWrapperCache)
   // Don't need NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS because
   // nsDOMEventTargetHelper does it for us.
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSource)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTransaction)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSource)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTransaction,
+                                                       nsPIDOMEventTarget)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBRequest, IDBWrapperCache)
   tmp->mResultVal = JSVAL_VOID;
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSource)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTransaction)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTransaction)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(IDBRequest, IDBWrapperCache)
@@ -349,7 +352,10 @@ IDBOpenDBRequest::Create(IDBFactory* aFactory,
   nsRefPtr<IDBOpenDBRequest> request = new IDBOpenDBRequest();
 
   request->BindToOwner(aOwner);
-  request->SetScriptOwner(aScriptOwner);
+  if (!request->SetScriptOwner(aScriptOwner)) {
+    return nullptr;
+  }
+
   request->CaptureCaller(aCallingCx);
   request->mFactory = aFactory;
 
@@ -371,7 +377,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IDBOpenDBRequest)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBOpenDBRequest,
                                                   IDBRequest)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFactory)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFactory)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBOpenDBRequest,

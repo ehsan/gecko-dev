@@ -4,14 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* JS Garbage Collector. */
-
 #ifndef jsgc_h___
 #define jsgc_h___
 
+/*
+ * JS Garbage Collector.
+ */
 #include <setjmp.h>
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
 #include "jsalloc.h"
@@ -34,14 +34,8 @@ struct JSCompartment;
 namespace js {
 
 class GCHelperThread;
-class Shape;
+struct Shape;
 struct SliceBudget;
-
-enum HeapState {
-    Idle,       // doing nothing with the GC heap
-    Tracing,    // tracing the GC heap without collecting, e.g. IterateCompartments()
-    Collecting  // doing a GC of the heap
-};
 
 namespace ion {
     class IonCode;
@@ -54,6 +48,7 @@ enum State {
     MARK_ROOTS,
     MARK,
     SWEEP,
+    SWEEP_END,
     INVALID
 };
 
@@ -89,9 +84,9 @@ class ChunkPool {
 };
 
 static inline JSGCTraceKind
-MapAllocToTraceKind(AllocKind kind)
+MapAllocToTraceKind(AllocKind thingKind)
 {
-    static const JSGCTraceKind map[] = {
+    static const JSGCTraceKind map[FINALIZE_LIMIT] = {
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT0 */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT0_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT2 */
@@ -116,15 +111,14 @@ MapAllocToTraceKind(AllocKind kind)
         JSTRACE_STRING,     /* FINALIZE_EXTERNAL_STRING */
         JSTRACE_IONCODE,    /* FINALIZE_IONCODE */
     };
-    JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
-    return map[kind];
+    return map[thingKind];
 }
 
 static inline bool
 IsNurseryAllocable(AllocKind kind)
 {
     JS_ASSERT(kind >= 0 && unsigned(kind) < FINALIZE_LIMIT);
-    static const bool map[] = {
+    static const bool map[FINALIZE_LIMIT] = {
         false,     /* FINALIZE_OBJECT0 */
         true,      /* FINALIZE_OBJECT0_BACKGROUND */
         false,     /* FINALIZE_OBJECT2 */
@@ -146,10 +140,8 @@ IsNurseryAllocable(AllocKind kind)
 #endif
         true,      /* FINALIZE_SHORT_STRING */
         true,      /* FINALIZE_STRING */
-        false,     /* FINALIZE_EXTERNAL_STRING */
-        false,     /* FINALIZE_IONCODE */
+        false      /* FINALIZE_EXTERNAL_STRING */
     };
-    JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
 
@@ -157,7 +149,7 @@ static inline bool
 IsBackgroundFinalized(AllocKind kind)
 {
     JS_ASSERT(kind >= 0 && unsigned(kind) < FINALIZE_LIMIT);
-    static const bool map[] = {
+    static const bool map[FINALIZE_LIMIT] = {
         false,     /* FINALIZE_OBJECT0 */
         true,      /* FINALIZE_OBJECT0_BACKGROUND */
         false,     /* FINALIZE_OBJECT2 */
@@ -179,10 +171,8 @@ IsBackgroundFinalized(AllocKind kind)
 #endif
         true,      /* FINALIZE_SHORT_STRING */
         true,      /* FINALIZE_STRING */
-        false,     /* FINALIZE_EXTERNAL_STRING */
-        false,     /* FINALIZE_IONCODE */
+        false      /* FINALIZE_EXTERNAL_STRING */
     };
-    JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
 
@@ -555,19 +545,9 @@ GCDebugSlice(JSRuntime *rt, bool limit, int64_t objCount);
 extern void
 PrepareForDebugGC(JSRuntime *rt);
 
-/* Functions for managing cross compartment gray pointers. */
+} /* namespace js */
 
-extern void
-DelayCrossCompartmentGrayMarking(RawObject src);
-
-extern void
-NotifyGCNukeWrapper(RawObject o);
-
-extern unsigned
-NotifyGCPreSwap(RawObject a, RawObject b);
-
-extern void
-NotifyGCPostSwap(RawObject a, RawObject b, unsigned preResult);
+namespace js {
 
 void
 InitTracer(JSTracer *trc, JSRuntime *rt, JSTraceCallback callback);
@@ -902,19 +882,6 @@ struct SliceBudget {
 
 static const size_t MARK_STACK_LENGTH = 32768;
 
-struct GrayRoot {
-    void *thing;
-    JSGCTraceKind kind;
-#ifdef DEBUG
-    JSTraceNamePrinter debugPrinter;
-    const void *debugPrintArg;
-    size_t debugPrintIndex;
-#endif
-
-    GrayRoot(void *thing, JSGCTraceKind kind)
-        : thing(thing), kind(kind) {}
-};
-
 struct GCMarker : public JSTracer {
   private:
     /*
@@ -937,17 +904,17 @@ struct GCMarker : public JSTracer {
 
     static void staticAsserts() {
         JS_STATIC_ASSERT(StackTagMask >= uintptr_t(LastTag));
-        JS_STATIC_ASSERT(StackTagMask <= gc::CellMask);
+        JS_STATIC_ASSERT(StackTagMask <= gc::Cell::CellMask);
     }
 
   public:
-    explicit GCMarker(JSRuntime *rt);
+    explicit GCMarker();
     bool init();
 
     void setSizeLimit(size_t size) { stack.setSizeLimit(size); }
     size_t sizeLimit() const { return stack.sizeLimit; }
 
-    void start();
+    void start(JSRuntime *rt);
     void stop();
     void reset();
 
@@ -979,9 +946,10 @@ struct GCMarker : public JSTracer {
     }
 
     /*
-     * Care must be taken changing the mark color from gray to black. The cycle
-     * collector depends on the invariant that there are no black to gray edges
-     * in the GC heap. This invariant lets the CC not trace through black
+     * The only valid color transition during a GC is from black to gray. It is
+     * wrong to switch the mark color from gray to black. The reason is that the
+     * cycle collector depends on the invariant that there are no black to gray
+     * edges in the GC heap. This invariant lets the CC not trace through black
      * objects. If this invariant is violated, the cycle collector may free
      * objects that are still reachable.
      */
@@ -989,12 +957,6 @@ struct GCMarker : public JSTracer {
         JS_ASSERT(isDrained());
         JS_ASSERT(color == gc::BLACK);
         color = gc::GRAY;
-    }
-
-    void setMarkColorBlack() {
-        JS_ASSERT(isDrained());
-        JS_ASSERT(color == gc::GRAY);
-        color = gc::BLACK;
     }
 
     inline void delayMarkingArena(gc::ArenaHeader *aheader);
@@ -1015,16 +977,15 @@ struct GCMarker : public JSTracer {
      * Gray marking must be done after all black marking is complete. However,
      * we do not have write barriers on XPConnect roots. Therefore, XPConnect
      * roots must be accumulated in the first slice of incremental GC. We
-     * accumulate these roots in the each compartment's gcGrayRoots vector and
-     * then mark them later, after black marking is complete for each
-     * compartment. This accumulation can fail, but in that case we switch to
-     * non-incremental GC.
+     * accumulate these roots in the GrayRootMarker and then mark them later,
+     * after black marking is complete. This accumulation can fail, but in that
+     * case we switch to non-incremental GC.
      */
     bool hasBufferedGrayRoots() const;
     void startBufferingGrayRoots();
     void endBufferingGrayRoots();
-    void resetBufferedGrayRoots();
-    void markBufferedGrayRoots(JSCompartment *comp);
+    void markBufferedGrayRoots();
+    void markBufferedGrayRootCompartmentsAlive();
 
     static void GrayCallback(JSTracer *trc, void **thing, JSGCTraceKind kind);
 
@@ -1084,7 +1045,21 @@ struct GCMarker : public JSTracer {
     /* Count of arenas that are currently in the stack. */
     mozilla::DebugOnly<size_t> markLaterArenas;
 
+    struct GrayRoot {
+        void *thing;
+        JSGCTraceKind kind;
+#ifdef DEBUG
+        JSTraceNamePrinter debugPrinter;
+        const void *debugPrintArg;
+        size_t debugPrintIndex;
+#endif
+
+        GrayRoot(void *thing, JSGCTraceKind kind)
+          : thing(thing), kind(kind) {}
+    };
+
     bool grayFailed;
+    Vector<GrayRoot, 0, SystemAllocPolicy> grayRoots;
 };
 
 void
@@ -1193,25 +1168,34 @@ MaybeVerifyBarriers(JSContext *cx, bool always = false)
 
 #endif
 
-/*
- * Instances of this class set the |JSRuntime::suppressGC| flag for the duration
- * that they are live. Use of this class is highly discouraged. Please carefully
- * read the comment in jscntxt.h above |suppressGC| and take all appropriate
- * precautions before instantiating this class.
- */
-class AutoSuppressGC
-{
-    int32_t &suppressGC_;
-
-  public:
-    AutoSuppressGC(JSContext *cx);
-    ~AutoSuppressGC();
-};
-
 } /* namespace gc */
 
 void
 PurgeJITCaches(JSCompartment *c);
+
+/*
+ * This auto class should be used around any code that does brain
+ * transplants. Brain transplants can cause problems because they operate on all
+ * compartments, whether live or dead. A brain transplant can cause a formerly
+ * dead object to be "reanimated" by causing a read or write barrier to be
+ * invoked on it during the transplant.
+ *
+ * To work around this issue, we observe when mark bits are set on objects in
+ * dead compartments. If this happens during a brain transplant, we do a full,
+ * non-incremental GC at the end of the brain transplant. This will clean up any
+ * objects that were improperly marked.
+ */
+struct AutoTransplantGC
+{
+    AutoTransplantGC(JSContext *cx);
+    ~AutoTransplantGC();
+
+  private:
+    JSRuntime *runtime;
+    unsigned markCount;
+    bool inIncremental;
+    bool inTransplant;
+};
 
 } /* namespace js */
 

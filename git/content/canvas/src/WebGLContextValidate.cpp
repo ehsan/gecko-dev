@@ -38,13 +38,8 @@ WebGLProgram::UpdateInfo()
     GLint attribCount;
     mContext->gl->fGetProgramiv(mGLName, LOCAL_GL_ACTIVE_ATTRIBUTES, &attribCount);
 
-    if (!mAttribsInUse.SetLength(mContext->mGLMaxVertexAttribs)) {
-        mContext->ErrorOutOfMemory("updateInfo: out of memory to allocate %d attribs", mContext->mGLMaxVertexAttribs);
-        return false;
-    }
-
-    for (size_t i = 0; i < mAttribsInUse.Length(); i++)
-        mAttribsInUse[i] = false;
+    mAttribsInUse.resize(mContext->mGLMaxVertexAttribs);
+    std::fill(mAttribsInUse.begin(), mAttribsInUse.end(), false);
 
     nsAutoArrayPtr<char> nameBuf(new char[mAttribMaxNameLength]);
 
@@ -74,7 +69,7 @@ WebGLProgram::UpdateInfo()
  */
 
 bool
-WebGLContext::ValidateBuffers(uint32_t *maxAllowedCount, const char *info)
+WebGLContext::ValidateBuffers(int32_t *maxAllowedCount, const char *info)
 {
 #ifdef DEBUG
     GLint currentProgram = 0;
@@ -86,12 +81,13 @@ WebGLContext::ValidateBuffers(uint32_t *maxAllowedCount, const char *info)
         return false;
 #endif
 
-    if (mMinInUseAttribArrayLengthCached) {
+    if (mMinInUseAttribArrayLength != -1) {
         *maxAllowedCount = mMinInUseAttribArrayLength;
         return true;
     }
 
-    uint32_t maxAllowed = UINT32_MAX;
+    *maxAllowedCount = -1;
+
     uint32_t attribs = mAttribBuffers.Length();
     for (uint32_t i = 0; i < attribs; ++i) {
         const WebGLVertexAttribData& vd = mAttribBuffers[i];
@@ -112,40 +108,34 @@ WebGLContext::ValidateBuffers(uint32_t *maxAllowedCount, const char *info)
             continue;
 
         // the base offset
-        CheckedUint32 checked_byteLength
-            = CheckedUint32(vd.buf->ByteLength()) - vd.byteOffset;
-        CheckedUint32 checked_sizeOfLastElement
-            = CheckedUint32(vd.componentSize()) * vd.size;
+        CheckedInt32 checked_byteLength
+          = CheckedInt32(vd.buf->ByteLength()) - vd.byteOffset;
+        CheckedInt32 checked_sizeOfLastElement
+          = CheckedInt32(vd.componentSize()) * vd.size;
 
         if (!checked_byteLength.isValid() ||
             !checked_sizeOfLastElement.isValid())
         {
-            ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
-            return false;
+          ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
+          return false;
         }
 
         if (checked_byteLength.value() < checked_sizeOfLastElement.value()) {
-            maxAllowed = 0;
-            break;
+          *maxAllowedCount = 0;
         } else {
-            CheckedUint32 checked_maxAllowedCount
-                = ((checked_byteLength - checked_sizeOfLastElement) / vd.actualStride()) + 1;
+          CheckedInt32 checked_maxAllowedCount
+            = ((checked_byteLength - checked_sizeOfLastElement) / vd.actualStride()) + 1;
 
-            if (!checked_maxAllowedCount.isValid()) {
-                ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
-                return false;
-            }
+          if (!checked_maxAllowedCount.isValid()) {
+            ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
+            return false;
+          }
 
-            if (maxAllowed > checked_maxAllowedCount.value())
-                maxAllowed = checked_maxAllowedCount.value();
+          if (*maxAllowedCount == -1 || *maxAllowedCount > checked_maxAllowedCount.value())
+              *maxAllowedCount = checked_maxAllowedCount.value();
         }
     }
-
-    *maxAllowedCount = maxAllowed;
-
-    mMinInUseAttribArrayLengthCached = true;
     mMinInUseAttribArrayLength = *maxAllowedCount;
-
     return true;
 }
 
@@ -857,7 +847,6 @@ WebGLContext::InitAndValidateGL()
 
     mMinCapability = Preferences::GetBool("webgl.min_capability_mode", false);
     mDisableExtensions = Preferences::GetBool("webgl.disable-extensions", false);
-    mLoseContextOnHeapMinimize = Preferences::GetBool("webgl.lose-context-on-heap-minimize", false);
 
     mActiveTexture = 0;
     mWebGLError = LOCAL_GL_NO_ERROR;
@@ -912,13 +901,11 @@ WebGLContext::InitAndValidateGL()
     if (MinCapabilityMode()) {
         mGLMaxTextureSize = MINVALUE_GL_MAX_TEXTURE_SIZE;
         mGLMaxCubeMapTextureSize = MINVALUE_GL_MAX_CUBE_MAP_TEXTURE_SIZE;
-        mGLMaxRenderbufferSize = MINVALUE_GL_MAX_RENDERBUFFER_SIZE;
         mGLMaxTextureImageUnits = MINVALUE_GL_MAX_TEXTURE_IMAGE_UNITS;
         mGLMaxVertexTextureImageUnits = MINVALUE_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS;
     } else {
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mGLMaxTextureSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mGLMaxCubeMapTextureSize);
-        gl->fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mGLMaxRenderbufferSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
     }

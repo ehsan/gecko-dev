@@ -219,7 +219,7 @@ FocusManager::DispatchFocusEvent(DocAccessible* aDocument,
     nsRefPtr<AccEvent> event =
       new AccEvent(nsIAccessibleEvent::EVENT_FOCUS, aTarget,
                    eAutoDetect, AccEvent::eCoalesceOfSameType);
-    aDocument->FireDelayedEvent(event);
+    aDocument->FireDelayedAccessibleEvent(event);
 
 #ifdef A11Y_LOG
     if (logging::IsEnabled(logging::eFocus))

@@ -60,7 +60,7 @@ public:
     nsresult Init();
     nsresult AddStandardRequestHeaders(nsHttpHeaderArray *);
     nsresult AddConnectionHeader(nsHttpHeaderArray *,
-                                 uint32_t capabilities);
+                                 uint8_t capabilities);
     bool     IsAcceptableEncoding(const char *encoding);
 
     const nsAFlatCString &UserAgent();
@@ -97,8 +97,6 @@ public:
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
     PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
     uint32_t       ConnectTimeout()  { return mConnectTimeout; }
-    uint32_t       ParallelSpeculativeConnectLimit() { return mParallelSpeculativeConnectLimit; }
-    bool           CritialRequestPrioritization() { return mCritialRequestPrioritization; }
 
     bool           PromptTempRedirect()      { return mPromptTempRedirect; }
 
@@ -156,20 +154,16 @@ public:
         return mConnMgr->ProcessPendingQ(cinfo);
     }
 
-    nsresult ProcessPendingQ()
-    {
-        return mConnMgr->ProcessPendingQ();
-    }
-
     nsresult GetSocketThreadTarget(nsIEventTarget **target)
     {
         return mConnMgr->GetSocketThreadTarget(target);
     }
 
     nsresult SpeculativeConnect(nsHttpConnectionInfo *ci,
-                                nsIInterfaceRequestor *callbacks)
+                                nsIInterfaceRequestor *callbacks,
+                                nsIEventTarget *target)
     {
-        return mConnMgr->SpeculativeConnect(ci, callbacks);
+        return mConnMgr->SpeculativeConnect(ci, callbacks, target);
     }
 
     //
@@ -183,12 +177,6 @@ public:
 
     // callable from socket thread only
     uint32_t Get32BitsOfPseudoRandom();
-
-    // Called by the channel synchronously during asyncOpen
-    void OnOpeningRequest(nsIHttpChannel *chan)
-    {
-        NotifyObservers(chan, NS_HTTP_ON_OPENING_REQUEST_TOPIC);
-    }
 
     // Called by the channel before writing a request
     void OnModifyRequest(nsIHttpChannel *chan)
@@ -253,12 +241,6 @@ public:
     // returns true in between Init and Shutdown states
     bool Active() { return mHandlerActive; }
 
-    static void GetCacheSessionNameForStoragePolicy(
-            nsCacheStoragePolicy storagePolicy,
-            bool isPrivate,
-            uint32_t appId,
-            bool inBrowser,
-            nsACString& sessionName);
 private:
 
     //
@@ -300,7 +282,7 @@ private:
 
     uint8_t  mHttpVersion;
     uint8_t  mProxyHttpVersion;
-    uint32_t mCapabilities;
+    uint8_t  mCapabilities;
     uint8_t  mReferrerLevel;
 
     bool mFastFallbackToIPv4;
@@ -403,14 +385,6 @@ private:
     // The maximum amount of time to wait for socket transport to be
     // established. In milliseconds.
     uint32_t       mConnectTimeout;
-
-    // The maximum number of current global half open sockets allowable
-    // when starting a new speculative connection.
-    uint32_t       mParallelSpeculativeConnectLimit;
-
-    // Whether or not to block requests for non head js/css items (e.g. media)
-    // while those elements load.
-    bool           mCritialRequestPrioritization;
 };
 
 //-----------------------------------------------------------------------------

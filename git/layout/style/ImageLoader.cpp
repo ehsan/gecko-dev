@@ -121,13 +121,13 @@ ImageLoader::MaybeRegisterCSSImage(ImageLoader::Image* aImage)
     return;
   }
 
-  imgRequestProxy* canonicalRequest = aImage->mRequests.GetWeak(nullptr);
+  imgIRequest* canonicalRequest = aImage->mRequests.GetWeak(nullptr);
   if (!canonicalRequest) {
     // The image was blocked or something.
     return;
   }
 
-  nsRefPtr<imgRequestProxy> request;
+  nsCOMPtr<imgIRequest> request;
 
   // Ignore errors here.  If cloning fails for some reason we'll put a null
   // entry in the hash and we won't keep trying to clone.
@@ -261,7 +261,7 @@ ImageLoader::LoadImage(nsIURI* aURI, nsIPrincipal* aOriginPrincipal,
     return;
   }
 
-  nsRefPtr<imgRequestProxy> request;
+  nsCOMPtr<imgIRequest> request;
   nsContentUtils::LoadImage(aURI, mDocument, aOriginPrincipal, aReferrer,
                             nullptr, nsIRequest::LOAD_NORMAL,
                             getter_AddRefs(request));
@@ -270,7 +270,7 @@ ImageLoader::LoadImage(nsIURI* aURI, nsIPrincipal* aOriginPrincipal,
     return;
   }
 
-  nsRefPtr<imgRequestProxy> clonedRequest;
+  nsCOMPtr<imgIRequest> clonedRequest;
   mInClone = true;
   nsresult rv = request->Clone(this, getter_AddRefs(clonedRequest));
   mInClone = false;

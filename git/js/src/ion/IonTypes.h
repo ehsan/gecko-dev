@@ -13,10 +13,19 @@
 namespace js {
 namespace ion {
 
-typedef uint32_t SnapshotOffset;
-typedef uint32_t BailoutId;
+typedef uint64_t uint64;
+typedef int64_t int64;
+typedef uint32_t uint32;
+typedef int32_t int32;
+typedef uint16_t uint16;
+typedef int16_t int16;
+typedef uint8_t uint8;
+typedef int8_t int8;
 
-static const SnapshotOffset INVALID_SNAPSHOT_OFFSET = uint32_t(-1);
+typedef uint32 SnapshotOffset;
+typedef uint32 BailoutId;
+
+static const SnapshotOffset INVALID_SNAPSHOT_OFFSET = uint32(-1);
 
 // Different kinds of bailouts. When extending this enum, make sure to check
 // the bits reserved for bailout kinds in Bailouts.h
@@ -48,27 +57,6 @@ enum BailoutKind
 
     // A shape guard based on JM ICs failed.
     Bailout_CachedShapeGuard
-};
-
-// The ordering of this enumeration is important: Anything < Value is a
-// specialized type. Furthermore, anything < String has trivial conversion to
-// a number.
-enum MIRType
-{
-    MIRType_Undefined,
-    MIRType_Null,
-    MIRType_Boolean,
-    MIRType_Int32,
-    MIRType_Double,
-    MIRType_String,
-    MIRType_Object,
-    MIRType_Magic,
-    MIRType_Value,
-    MIRType_None,       // Invalid, used as a placeholder.
-    MIRType_Slots,      // A slots vector
-    MIRType_Elements,   // An elements vector
-    MIRType_StackFrame, // StackFrame pointer for OSR.
-    MIRType_Shape       // A Shape pointer.
 };
 
 #ifdef DEBUG

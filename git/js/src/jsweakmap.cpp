@@ -21,24 +21,14 @@
 
 using namespace js;
 
-WeakMapBase::WeakMapBase(JSObject *memOf, JSCompartment *c)
-  : memberOf(memOf),
-    compartment(c),
-    next(WeakMapNotInList)
-{
-    JS_ASSERT_IF(memberOf, memberOf->compartment() == c);
-}
-
-WeakMapBase::~WeakMapBase()
-{
-    JS_ASSERT(next == WeakMapNotInList);
-}
+namespace js {
 
 bool
-WeakMapBase::markCompartmentIteratively(JSCompartment *c, JSTracer *tracer)
+WeakMapBase::markAllIteratively(JSTracer *tracer)
 {
     bool markedAny = false;
-    for (WeakMapBase *m = c->gcWeakMapList; m; m = m->next) {
+    JSRuntime *rt = tracer->runtime;
+    for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next) {
         if (m->markIteratively(tracer))
             markedAny = true;
     }
@@ -46,29 +36,28 @@ WeakMapBase::markCompartmentIteratively(JSCompartment *c, JSTracer *tracer)
 }
 
 void
-WeakMapBase::sweepCompartment(JSCompartment *c)
+WeakMapBase::sweepAll(JSTracer *tracer)
 {
-    for (WeakMapBase *m = c->gcWeakMapList; m; m = m->next)
-        m->sweep();
+    JSRuntime *rt = tracer->runtime;
+    for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next)
+        m->sweep(tracer);
 }
 
 void
 WeakMapBase::traceAllMappings(WeakMapTracer *tracer)
 {
     JSRuntime *rt = tracer->runtime;
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        for (WeakMapBase *m = c->gcWeakMapList; m; m = m->next)
-            m->traceMappings(tracer);
-    }
+    for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next)
+        m->traceMappings(tracer);
 }
 
 void
-WeakMapBase::resetCompartmentWeakMapList(JSCompartment *c)
+WeakMapBase::resetWeakMapList(JSRuntime *rt)
 {
     JS_ASSERT(WeakMapNotInList != NULL);
 
-    WeakMapBase *m = c->gcWeakMapList;
-    c->gcWeakMapList = NULL;
+    WeakMapBase *m = rt->gcWeakMapList;
+    rt->gcWeakMapList = NULL;
     while (m) {
         WeakMapBase *n = m->next;
         m->next = WeakMapNotInList;
@@ -77,9 +66,9 @@ WeakMapBase::resetCompartmentWeakMapList(JSCompartment *c)
 }
 
 bool
-WeakMapBase::saveCompartmentWeakMapList(JSCompartment *c, WeakMapVector &vector)
+WeakMapBase::saveWeakMapList(JSRuntime *rt, WeakMapVector &vector)
 {
-    WeakMapBase *m = c->gcWeakMapList;
+    WeakMapBase *m = rt->gcWeakMapList;
     while (m) {
         if (!vector.append(m))
             return false;
@@ -89,29 +78,18 @@ WeakMapBase::saveCompartmentWeakMapList(JSCompartment *c, WeakMapVector &vector)
 }
 
 void
-WeakMapBase::restoreCompartmentWeakMapLists(WeakMapVector &vector)
+WeakMapBase::restoreWeakMapList(JSRuntime *rt, WeakMapVector &vector)
 {
+    JS_ASSERT(!rt->gcWeakMapList);
     for (WeakMapBase **p = vector.begin(); p != vector.end(); p++) {
         WeakMapBase *m = *p;
         JS_ASSERT(m->next == WeakMapNotInList);
-        JSCompartment *c = m->compartment;
-        m->next = c->gcWeakMapList;
-        c->gcWeakMapList = m;
+        m->next = rt->gcWeakMapList;
+        rt->gcWeakMapList = m;
     }
 }
 
-void
-WeakMapBase::removeWeakMapFromList(WeakMapBase *weakmap)
-{
-    JSCompartment *c = weakmap->compartment;
-    for (WeakMapBase **p = &c->gcWeakMapList; *p; p = &(*p)->next) {
-        if (*p == weakmap) {
-            *p = (*p)->next;
-            weakmap->next = WeakMapNotInList;
-            break;
-        }
-    }
-}
+} /* namespace js */
 
 typedef WeakMap<EncapsulatedPtrObject, RelocatableValue> ObjectValueMap;
 
@@ -169,28 +147,6 @@ WeakMap_has(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod<IsWeakMap, WeakMap_has_impl>(cx, args);
-}
-
-JS_ALWAYS_INLINE bool
-WeakMap_clear_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(IsWeakMap(args.thisv()));
-
-    // We can't js_delete the weakmap because the data gathered during GC
-    // is used by the Cycle Collector
-    if (ObjectValueMap *map = GetObjectMap(&args.thisv().toObject())) {
-        map->clear();
-    }
-
-    args.rval().setUndefined();
-    return true;
-}
-
-JSBool
-WeakMap_clear(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod<IsWeakMap, WeakMap_clear_impl>(cx, args);
 }
 
 JS_ALWAYS_INLINE bool
@@ -295,8 +251,6 @@ WeakMap_set_impl(JSContext *cx, CallArgs args)
         }
     }
 
-    JS_ASSERT(key->compartment() == thisObj->compartment());
-    JS_ASSERT_IF(value.isObject(), value.toObject().compartment() == thisObj->compartment());
     if (!map->put(key, value)) {
         JS_ReportOutOfMemory(cx);
         return false;
@@ -396,7 +350,6 @@ static JSFunctionSpec weak_map_methods[] = {
     JS_FN("get",    WeakMap_get, 2, 0),
     JS_FN("delete", WeakMap_delete, 1, 0),
     JS_FN("set",    WeakMap_set, 2, 0),
-    JS_FN("clear",  WeakMap_clear, 0, 0),
     JS_FS_END
 };
 

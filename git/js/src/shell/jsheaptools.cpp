@@ -488,9 +488,10 @@ ReferenceFinder::addReferrer(jsval referrer_, Path *path)
     if (!context->compartment->wrap(context, referrer.address()))
         return false;
 
-    js::ScopedFreePtr<char> pathName(path->computeName(context));
+    char *pathName = path->computeName(context);
     if (!pathName)
         return false;
+    AutoReleasePtr releasePathName(pathName);
 
     /* Find the property of the results object named |pathName|. */
     RootedValue valRoot(context);

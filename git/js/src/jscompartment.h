@@ -18,7 +18,6 @@
 #include "jsscope.h"
 
 #include "gc/StoreBuffer.h"
-#include "gc/FindSCCs.h"
 #include "vm/GlobalObject.h"
 #include "vm/RegExpObject.h"
 
@@ -115,37 +114,31 @@ struct TypeInferenceSizes;
 
 namespace js {
 class AutoDebugModeGC;
-class DebugScopes;
 }
 
-struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNodeBase<JSCompartment>
+struct JSCompartment
 {
     JSRuntime                    *rt;
     JSPrincipals                 *principals;
 
   private:
-    friend struct JSRuntime;
     friend struct JSContext;
-    js::ReadBarriered<js::GlobalObject> global_;
-
-    unsigned                     enterCompartmentDepth;
-
+    js::GlobalObject             *global_;
   public:
-    void enter() { enterCompartmentDepth++; }
-    void leave() { enterCompartmentDepth--; }
-
-    /*
-     * Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
-     * compartment's global has been collected.  The latter can happen if e.g.
-     * a string in a compartment is rooted but no object is, and thus the global
-     * isn't rooted, and thus the global can be finalized while the compartment
-     * lives on.
-     *
-     * In contrast, JSObject::global() is infallible because marking a JSObject
-     * always marks its global as well.
-     * TODO: add infallible JSScript::global()
-     */
-    inline js::GlobalObject *maybeGlobal() const;
+    // Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
+    // compartment's global has been collected.  The latter can happen if e.g.
+    // a string in a compartment is rooted but no object is, and thus the
+    // global isn't rooted, and thus the global can be finalized while the
+    // compartment lives on.
+    //
+    // In contrast, JSObject::global() is infallible because marking a JSObject
+    // always marks its global as well.
+    // TODO: add infallible JSScript::global()
+    //
+    js::GlobalObject *maybeGlobal() const {
+        JS_ASSERT_IF(global_, global_->compartment() == this);
+        return global_;
+    }
 
     void initGlobal(js::GlobalObject &global) {
         JS_ASSERT(global.compartment() == this);
@@ -162,6 +155,7 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
 #endif
 
   private:
+    bool                         needsBarrier_;
     bool                         ionUsingBarriers_;
   public:
 
@@ -197,9 +191,7 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
     enum CompartmentGCState {
         NoGC,
         Mark,
-        MarkGray,
-        Sweep,
-        Finished
+        Sweep
     };
 
   private:
@@ -209,10 +201,11 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
 
   public:
     bool isCollecting() const {
-        if (rt->isHeapCollecting())
+        if (rt->isHeapCollecting()) {
             return gcState != NoGC;
-        else
+        } else {
             return needsBarrier();
+        }
     }
 
     bool isPreservingCode() const {
@@ -254,32 +247,18 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
     }
 
     bool isGCMarking() {
-        if (rt->isHeapCollecting())
-            return gcState == Mark || gcState == MarkGray;
-        else
-            return needsBarrier();
-    }
-
-    bool isGCMarkingBlack() {
         return gcState == Mark;
-    }
-
-    bool isGCMarkingGray() {
-        return gcState == MarkGray;
     }
 
     bool isGCSweeping() {
         return gcState == Sweep;
     }
 
-    bool isGCFinished() {
-        return gcState == Finished;
-    }
-
     size_t                       gcBytes;
     size_t                       gcTriggerBytes;
     size_t                       gcMaxMallocBytes;
     double                       gcHeapGrowthFactor;
+    JSCompartment                *gcNextCompartment;
 
     bool                         hold;
     bool                         isSystemCompartment;
@@ -299,11 +278,8 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
 
     void                         *data;
     bool                         active;  // GC flag, whether there are active frames
-
-  private:
     js::WrapperMap               crossCompartmentWrappers;
 
-  public:
     /*
      * These flags help us to discover if a compartment that shouldn't be alive
      * manages to outlive a GC.
@@ -358,31 +334,7 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
     size_t                       gcTriggerMallocAndFreeBytes;
 
     /* During GC, stores the index of this compartment in rt->compartments. */
-    unsigned                     gcIndex;
-
-    /*
-     * During GC, stores the head of a list of incoming pointers from gray cells.
-     *
-     * The objects in the list are either cross-compartment wrappers, or
-     * debugger wrapper objects.  The list link is either in the second extra
-     * slot for the former, or a special slot for the latter.
-     */
-    js::RawObject                gcIncomingGrayPointers;
-
-    /* Linked list of live array buffers with >1 view. */
-    JSObject                     *gcLiveArrayBuffers;
-
-    /* Linked list of live weakmaps in this compartment. */
-    js::WeakMapBase              *gcWeakMapList;
-
-    /* This compartment's gray roots. */
-    js::Vector<js::GrayRoot, 0, js::SystemAllocPolicy> gcGrayRoots;
-
-    /*
-     * Whether type objects have been marked by markTypes().  This is used to
-     * determine whether they need to be swept.
-     */
-    bool                         gcTypesMarked;
+    unsigned                     index;
 
   private:
     /*
@@ -415,20 +367,6 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
     bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
-    bool putWrapper(const js::CrossCompartmentKey& wrapped, const js::Value& wrapper);
-
-    js::WrapperMap::Ptr lookupWrapper(const js::Value& wrapped) {
-        return crossCompartmentWrappers.lookup(wrapped);
-    }
-
-    void removeWrapper(js::WrapperMap::Ptr p) {
-        crossCompartmentWrappers.remove(p);
-    }
-
-    struct WrapperEnum : public js::WrapperMap::Enum {
-        WrapperEnum(JSCompartment *c) : js::WrapperMap::Enum(c->crossCompartmentWrappers) {}
-    };
-
     void mark(JSTracer *trc);
     void markTypes(JSTracer *trc);
     void discardJitCode(js::FreeOp *fop, bool discardConstraints);
@@ -436,8 +374,6 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
     void sweep(js::FreeOp *fop, bool releaseTypes);
     void sweepCrossCompartmentWrappers();
     void purge();
-
-    void findOutgoingEdges(js::gc::ComponentFinder<JSCompartment> &finder);
 
     void setGCLastBytes(size_t lastBytes, size_t lastMallocBytes, js::JSGCInvocationKind gckind);
     void reduceGCTriggerBytes(size_t amount);
@@ -515,10 +451,7 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
     js::ScriptCountsMap *scriptCountsMap;
 
     js::DebugScriptMap *debugScriptMap;
-
-    /* Bookkeeping information for debug scope objects. */
-    js::DebugScopes *debugScopes;
-
+	
 #ifdef JS_ION
   private:
     js::ion::IonCompartment *ionCompartment_;
@@ -567,13 +500,7 @@ JSContext::typeInferenceEnabled() const
 inline js::Handle<js::GlobalObject*>
 JSContext::global() const
 {
-    /*
-     * It's safe to use |unsafeGet()| here because any compartment that is
-     * on-stack will be marked automatically, so there's no need for a read
-     * barrier on it. Once the compartment is popped, the handle is no longer
-     * safe to use.
-     */
-    return js::Handle<js::GlobalObject*>::fromMarkedLocation(compartment->global_.unsafeGet());
+    return js::Handle<js::GlobalObject*>::fromMarkedLocation(&compartment->global_);
 }
 
 namespace js {
@@ -600,8 +527,16 @@ class AutoCompartment
     JSCompartment * const origin_;
 
   public:
-    inline AutoCompartment(JSContext *cx, JSObject *target);
-    inline ~AutoCompartment();
+    AutoCompartment(JSContext *cx, JSObject *target)
+      : cx_(cx),
+        origin_(cx->compartment)
+    {
+        cx_->enterCompartment(target->compartment());
+    }
+
+    ~AutoCompartment() {
+        cx_->leaveCompartment(origin_);
+    }
 
     JSContext *context() const { return cx_; }
     JSCompartment *origin() const { return origin_; }

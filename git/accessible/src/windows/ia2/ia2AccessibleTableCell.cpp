@@ -20,8 +20,6 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 
-using namespace mozilla::a11y;
-
 #define TABLECELL_INTERFACE_UNSUPPORTED_MSG \
 "Subclass of ia2AccessibleTableCell doesn't implement nsIAccessibleTableCell"\
 
@@ -47,8 +45,7 @@ ia2AccessibleTableCell::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 ia2AccessibleTableCell::get_table(IUnknown** aTable)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   nsCOMPtr<nsIAccessibleTableCell> tableCell(do_QueryObject(this));
   NS_ASSERTION(tableCell, TABLECELL_INTERFACE_UNSUPPORTED_MSG);
   if (!tableCell)
@@ -71,14 +68,16 @@ ia2AccessibleTableCell::get_table(IUnknown** aTable)
   *aTable = static_cast<IUnknown*>(instancePtr);
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTableCell::get_columnExtent(long* aNColumnsSpanned)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aNColumnsSpanned = 0;
 
   nsCOMPtr<nsIAccessibleTableCell> tableCell(do_QueryObject(this));
@@ -95,15 +94,17 @@ ia2AccessibleTableCell::get_columnExtent(long* aNColumnsSpanned)
 
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTableCell::get_columnHeaderCells(IUnknown*** aCellAccessibles,
                                               long* aNColumnHeaderCells)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   nsCOMPtr<nsIAccessibleTableCell> tableCell(do_QueryObject(this));
   NS_ASSERTION(tableCell, TABLECELL_INTERFACE_UNSUPPORTED_MSG);
   if (!tableCell)
@@ -117,14 +118,16 @@ ia2AccessibleTableCell::get_columnHeaderCells(IUnknown*** aCellAccessibles,
   return nsWinUtils::ConvertToIA2Array(headerCells, aCellAccessibles,
                                        aNColumnHeaderCells);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTableCell::get_columnIndex(long* aColumnIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aColumnIndex = -1;
 
   nsCOMPtr<nsIAccessibleTableCell> tableCell(do_QueryObject(this));
@@ -141,14 +144,16 @@ ia2AccessibleTableCell::get_columnIndex(long* aColumnIndex)
 
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTableCell::get_rowExtent(long* aNRowsSpanned)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aNRowsSpanned = 0;
 
   nsCOMPtr<nsIAccessibleTableCell> tableCell(do_QueryObject(this));
@@ -165,15 +170,17 @@ ia2AccessibleTableCell::get_rowExtent(long* aNRowsSpanned)
 
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTableCell::get_rowHeaderCells(IUnknown*** aCellAccessibles,
                                            long* aNRowHeaderCells)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   nsCOMPtr<nsIAccessibleTableCell> tableCell(do_QueryObject(this));
   NS_ASSERTION(tableCell, TABLECELL_INTERFACE_UNSUPPORTED_MSG);
   if (!tableCell)
@@ -187,14 +194,16 @@ ia2AccessibleTableCell::get_rowHeaderCells(IUnknown*** aCellAccessibles,
   return nsWinUtils::ConvertToIA2Array(headerCells, aCellAccessibles,
                                        aNRowHeaderCells);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTableCell::get_rowIndex(long* aRowIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aRowIndex = -1;
 
   nsCOMPtr<nsIAccessibleTableCell> tableCell(do_QueryObject(this));
@@ -211,7 +220,10 @@ ia2AccessibleTableCell::get_rowIndex(long* aRowIndex)
 
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -220,8 +232,7 @@ ia2AccessibleTableCell::get_rowColumnExtents(long* aRow, long* aColumn,
                                              long* aColumnExtents,
                                              boolean* aIsSelected)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aRow = 0;
   *aRow = 0;
   *aRow = 0;
@@ -265,14 +276,15 @@ ia2AccessibleTableCell::get_rowColumnExtents(long* aRow, long* aColumn,
   *aIsSelected = isSel;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTableCell::get_isSelected(boolean* aIsSelected)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aIsSelected = false;
 
   nsCOMPtr<nsIAccessibleTableCell> tableCell(do_QueryObject(this));
@@ -289,5 +301,8 @@ ia2AccessibleTableCell::get_isSelected(boolean* aIsSelected)
 
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+
+  return E_FAIL;
 }

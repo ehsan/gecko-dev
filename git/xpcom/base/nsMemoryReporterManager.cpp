@@ -30,7 +30,7 @@ using namespace mozilla;
 
 #if defined(MOZ_MEMORY)
 #  define HAVE_JEMALLOC_STATS 1
-#  include "mozmemory.h"
+#  include "jemalloc.h"
 #endif  // MOZ_MEMORY
 
 #ifdef XP_UNIX
@@ -543,7 +543,7 @@ NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(Explicit,
     "different results.")
 #endif  // HAVE_JEMALLOC_STATS
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(AtomTableMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(AtomTableMallocSizeOf, "atom-table")
 
 static int64_t GetAtomTableSize() {
   return NS_SizeOfAtomTablesIncludingThis(AtomTableMallocSizeOf);
@@ -560,80 +560,6 @@ NS_MEMORY_REPORTER_IMPLEMENT(AtomTable,
     UNITS_BYTES,
     GetAtomTableSize,
     "Memory used by the dynamic and static atoms tables.")
-
-#ifdef MOZ_DMD
-
-namespace mozilla {
-namespace dmd {
-
-class MemoryReporter MOZ_FINAL : public nsIMemoryMultiReporter
-{
-public:
-  MemoryReporter()
-  {}
-
-  NS_DECL_ISUPPORTS
-
-  NS_IMETHOD GetName(nsACString &name)
-  {
-    name.Assign("dmd");
-    return NS_OK;
-  }
-
-  NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *callback,
-                            nsISupports *closure)
-  {
-    dmd::Sizes sizes;
-    dmd::SizeOf(&sizes);
-
-#define REPORT(_path, _amount, _desc)                                         \
-    do {                                                                      \
-      nsresult rv;                                                            \
-      rv = callback->Callback(EmptyCString(), NS_LITERAL_CSTRING(_path),      \
-                              nsIMemoryReporter::KIND_HEAP,                   \
-                              nsIMemoryReporter::UNITS_BYTES, _amount,        \
-                              NS_LITERAL_CSTRING(_desc), closure);            \
-      NS_ENSURE_SUCCESS(rv, rv);                                              \
-    } while (0)
-
-    REPORT("explicit/dmd/stack-traces/used",
-           sizes.mStackTracesUsed,
-           "Memory used by stack traces which correspond to at least "
-           "one heap block DMD is tracking.");
-
-    REPORT("explicit/dmd/stack-traces/unused",
-           sizes.mStackTracesUnused,
-           "Memory used by stack traces which don't correspond to any heap "
-           "blocks DMD is currently tracking.");
-
-    REPORT("explicit/dmd/stack-traces/table",
-           sizes.mStackTraceTable,
-           "Memory used by DMD's stack trace table.");
-
-    REPORT("explicit/dmd/block-table",
-           sizes.mBlockTable,
-           "Memory used by DMD's live block table.");
-
-#undef REPORT
-
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetExplicitNonHeap(int64_t *n)
-  {
-    // No non-heap allocations.
-    *n = 0;
-    return NS_OK;
-  }
-
-};
-
-NS_IMPL_ISUPPORTS1(MemoryReporter, nsIMemoryMultiReporter)
-
-} // namespace dmd
-} // namespace mozilla
-
-#endif  // MOZ_DMD
 
 /**
  ** nsMemoryReporterManager implementation
@@ -675,11 +601,8 @@ nsMemoryReporterManager::Init()
     REGISTER(Private);
 #endif
 
-    REGISTER(AtomTable);
 
-#ifdef MOZ_DMD
-    RegisterMultiReporter(new mozilla::dmd::MemoryReporter);
-#endif
+    REGISTER(AtomTable);
 
 #if defined(XP_LINUX)
     nsMemoryInfoDumper::Initialize();
@@ -787,7 +710,7 @@ struct MemoryReport {
     int64_t amount;
 };
 
-#if defined(DEBUG) && !defined(MOZ_DMD)
+#ifdef DEBUG
 // This is just a wrapper for int64_t that implements nsISupports, so it can be
 // passed to nsIMemoryMultiReporter::CollectReports.
 class Int64Wrapper MOZ_FINAL : public nsISupports {
@@ -823,7 +746,7 @@ NS_IMPL_ISUPPORTS1(
   ExplicitNonHeapCountingCallback
 , nsIMemoryMultiReporterCallback
 )
-#endif  // defined(DEBUG) && !defined(MOZ_DMD)
+#endif
 
 NS_IMETHODIMP
 nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
@@ -882,9 +805,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
     // (Actually, in debug builds we also do it the slow way and compare the
     // result to the result obtained from GetExplicitNonHeap().  This
     // guarantees the two measurement paths are equivalent.  This is wise
-    // because it's easy for memory reporters to have bugs.  But there's an
-    // exception if DMD is enabled, because that makes DMD think that all the
-    // blocks are double-counted.)
+    // because it's easy for memory reporters to have bugs.)
 
     int64_t explicitNonHeapMultiSize = 0;
     nsCOMPtr<nsISimpleEnumerator> e2;
@@ -898,7 +819,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
       explicitNonHeapMultiSize += n;
     }
 
-#if defined(DEBUG) && !defined(MOZ_DMD)
+#ifdef DEBUG
     nsRefPtr<ExplicitNonHeapCountingCallback> cb =
       new ExplicitNonHeapCountingCallback();
     nsRefPtr<Int64Wrapper> wrappedExplicitNonHeapMultiSize2 =
@@ -921,7 +842,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
                                    explicitNonHeapMultiSize,
                                    explicitNonHeapMultiSize2).get());
     }
-#endif  // defined(DEBUG) && !defined(MOZ_DMD)
+#endif  // DEBUG
 
     *aExplicit = heapAllocated + explicitNonHeapNormalSize + explicitNonHeapMultiSize;
     return NS_OK;
@@ -951,21 +872,16 @@ namespace {
  * When this sequence finishes, we invoke the callback function passed to the
  * runnable's constructor.
  */
-class MinimizeMemoryUsageRunnable : public nsCancelableRunnable
+class MinimizeMemoryUsageRunnable : public nsRunnable
 {
 public:
   MinimizeMemoryUsageRunnable(nsIRunnable* aCallback)
     : mCallback(aCallback)
     , mRemainingIters(sNumIters)
-    , mCanceled(false)
   {}
 
   NS_IMETHOD Run()
   {
-    if (mCanceled) {
-      return NS_OK;
-    }
-
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (!os) {
       return NS_ERROR_FAILURE;
@@ -988,17 +904,6 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD Cancel()
-  {
-    if (mCanceled) {
-      return NS_ERROR_UNEXPECTED;
-    }
-
-    mCanceled = true;
-
-    return NS_OK;
-  }
-
 private:
   // Send sNumIters heap-minimize notifications, spinning the event
   // loop after each notification (see bug 610166 comment 12 for an
@@ -1007,21 +912,15 @@ private:
 
   nsCOMPtr<nsIRunnable> mCallback;
   uint32_t mRemainingIters;
-  bool mCanceled;
 };
 
 } // anonymous namespace
 
 NS_IMETHODIMP
-nsMemoryReporterManager::MinimizeMemoryUsage(nsIRunnable* aCallback,
-                                             nsICancelableRunnable **result)
+nsMemoryReporterManager::MinimizeMemoryUsage(nsIRunnable* aCallback)
 {
-  NS_ENSURE_ARG_POINTER(result);
-
-  nsRefPtr<nsICancelableRunnable> runnable =
+  nsRefPtr<MinimizeMemoryUsageRunnable> runnable =
     new MinimizeMemoryUsageRunnable(aCallback);
-  NS_ADDREF(*result = runnable);
-
   return NS_DispatchToMainThread(runnable);
 }
 
@@ -1118,10 +1017,9 @@ NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
     return mgr->UnregisterMultiReporter(reporter);
 }
 
-#if defined(MOZ_DMD)
-
 namespace mozilla {
-namespace dmd {
+
+#ifdef MOZ_DMDV
 
 class NullMultiReporterCallback : public nsIMemoryMultiReporterCallback
 {
@@ -1133,7 +1031,7 @@ public:
                         const nsACString &aDescription,
                         nsISupports *aData)
     {
-        // Do nothing;  the reporter has already reported to DMD.
+        // Do nothing;  the reporter has already reported to DMDV.
         return NS_OK;
     }
 };
@@ -1143,7 +1041,7 @@ NS_IMPL_ISUPPORTS1(
 )
 
 void
-RunReporters()
+DMDVCheckAndDump()
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr =
         do_GetService("@mozilla.org/memory-reporter-manager;1");
@@ -1156,30 +1054,9 @@ RunReporters()
         nsCOMPtr<nsIMemoryReporter> r;
         e->GetNext(getter_AddRefs(r));
 
-        int32_t kind;
-        nsresult rv = r->GetKind(&kind);
-        if (NS_FAILED(rv)) {
-            continue;
-        }
-        nsCString path;
-        rv = r->GetPath(path);
-        if (NS_FAILED(rv)) {
-            continue;
-        }
-
-        // We're only interested in HEAP explicit reporters.  (In particular,
-        // some heap blocks are deliberately measured once inside an "explicit"
-        // reporter and once outside, which isn't a problem.  This condition
-        // prevents them being reported as double-counted.  See bug 811018
-        // comment 2.)
-        if (kind == nsIMemoryReporter::KIND_HEAP &&
-            path.Find("explicit") == 0)
-        {
-            // Just getting the amount is enough for the reporter to report to
-            // DMD.
-            int64_t amount;
-            (void)r->GetAmount(&amount);
-        }
+        // Just getting the amount is enough for the reporter to report to DMDV.
+        int64_t amount;
+        (void)r->GetAmount(&amount);
     }
 
     // Do multi-reporters.
@@ -1191,10 +1068,10 @@ RunReporters()
       e2->GetNext(getter_AddRefs(r));
       r->CollectReports(cb, nullptr);
     }
+
+    VALGRIND_DMDV_CHECK_REPORTING;
 }
 
-} // namespace dmd
-} // namespace mozilla
+#endif  /* defined(MOZ_DMDV) */
 
-#endif  // defined(MOZ_DMD)
-
+}

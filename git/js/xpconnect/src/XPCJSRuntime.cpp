@@ -246,57 +246,29 @@ CompartmentDestroyedCallback(JSFreeOp *fop, JSCompartment *compartment)
     JS_SetCompartmentPrivate(compartment, nullptr);
 }
 
-void
+nsresult
 XPCJSRuntime::AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer)
 {
     MOZ_ASSERT(aTracer->Trace, "AddJSHolder needs a non-null Trace function");
-    bool wasEmpty = mJSHolders.Count() == 0;
     mJSHolders.Put(aHolder, aTracer);
-    if (wasEmpty && mJSHolders.Count() == 1) {
-      nsLayoutStatics::AddRef();
-    }
+
+    return NS_OK;
 }
 
-#ifdef DEBUG
-static void
-AssertNoGcThing(void* aGCThing, const char* aName, void* aClosure)
-{
-    MOZ_ASSERT(!aGCThing);
-}
-
-void
-XPCJSRuntime::AssertNoObjectsToTrace(void* aPossibleJSHolder)
-{
-    nsScriptObjectTracer* tracer = mJSHolders.Get(aPossibleJSHolder);
-    if (tracer && tracer->Trace) {
-        tracer->Trace(aPossibleJSHolder, AssertNoGcThing, nullptr);
-    }
-}
-#endif
-
-void
+nsresult
 XPCJSRuntime::RemoveJSHolder(void* aHolder)
 {
-#ifdef DEBUG
-    // Assert that the holder doesn't try to keep any GC things alive.
-    // In case of unlinking cycle collector calls AssertNoObjectsToTrace
-    // manually because we don't want to check the holder before we are
-    // finished unlinking it
-    if (aHolder != mObjectToUnlink) {
-        AssertNoObjectsToTrace(aHolder);
-    }
-#endif
-    bool hadOne = mJSHolders.Count() == 1;
     mJSHolders.Remove(aHolder);
-    if (hadOne && mJSHolders.Count() == 0) {
-      nsLayoutStatics::Release();
-    }
+
+    return NS_OK;
 }
 
-bool
-XPCJSRuntime::TestJSHolder(void* aHolder)
+nsresult
+XPCJSRuntime::TestJSHolder(void* aHolder, bool* aRetval)
 {
-    return mJSHolders.Get(aHolder, nullptr);
+    *aRetval = mJSHolders.Get(aHolder, nullptr);
+
+    return NS_OK;
 }
 
 // static
@@ -538,8 +510,8 @@ DoDeferredRelease(nsTArray<T> &array)
 
 struct DeferredFinalizeFunction
 {
-    XPCJSRuntime::DeferredFinalizeFunction run;
-    void *data;
+  XPCJSRuntime::DeferredFinalizeFunction run;
+  void* data;
 };
 
 class XPCIncrementalReleaseRunnable : public nsRunnable
@@ -561,22 +533,27 @@ class XPCIncrementalReleaseRunnable : public nsRunnable
 };
 
 bool
-ReleaseSliceNow(uint32_t slice, void *data)
+ReleaseSliceNow(int32_t slice, void* data)
 {
-    MOZ_ASSERT(slice > 0, "nonsensical/useless call with slice == 0");
-    nsTArray<nsISupports *> *items = static_cast<nsTArray<nsISupports *>*>(data);
+    nsTArray<nsISupports *>* items =
+        static_cast<nsTArray<nsISupports *>*>(data);
+    int32_t counter = 0;
+    while (1) {
+        uint32_t count = items->Length();
+        if (!count) {
+            break;
+        }
 
-    slice = NS_MIN(slice, items->Length());
-    for (uint32_t i = 0; i < slice; ++i) {
-        // Remove (and NS_RELEASE) the last entry in "items":
-        uint32_t lastItemIdx = items->Length() - 1;
-
-        nsISupports *wrapper = items->ElementAt(lastItemIdx);
-        items->RemoveElementAt(lastItemIdx);
+        nsISupports *wrapper = items->ElementAt(count - 1);
+        items->RemoveElementAt(count - 1);
         NS_RELEASE(wrapper);
+
+        if (slice > 0 && ++counter == slice) {
+            return items->IsEmpty();
+        }
     }
 
-    return items->IsEmpty();
+    return true;
 }
 
 
@@ -587,11 +564,12 @@ XPCIncrementalReleaseRunnable::XPCIncrementalReleaseRunnable(XPCJSRuntime *rt,
 {
     nsLayoutStatics::AddRef();
     this->items.SwapElements(items);
-    DeferredFinalizeFunction *function = deferredFinalizeFunctions.AppendElement();
+    DeferredFinalizeFunction* function =
+        deferredFinalizeFunctions.AppendElement();
     function->run = ReleaseSliceNow;
     function->data = &this->items;
     for (uint32_t i = 0; i < rt->mDeferredFinalizeFunctions.Length(); ++i) {
-        void *data = (rt->mDeferredFinalizeFunctions[i].start)();
+        void* data = (rt->mDeferredFinalizeFunctions[i].start)();
         if (data) {
             function = deferredFinalizeFunctions.AppendElement();
             function->run = rt->mDeferredFinalizeFunctions[i].run;
@@ -619,24 +597,24 @@ XPCIncrementalReleaseRunnable::ReleaseNow(bool limited)
     TimeStamp started = TimeStamp::Now();
     bool timeout = false;
     do {
-        const DeferredFinalizeFunction &function =
+        const DeferredFinalizeFunction& function =
             deferredFinalizeFunctions[finalizeFunctionToRun];
         if (limited) {
             bool done = false;
             while (!timeout && !done) {
-                /*
-                 * We don't want to read the clock too often, so we try to
-                 * release slices of 100 items.
-                 */
+                /* We don't want to read the clock too often, so we try to
+                   release slices of 100 items. */
                 done = function.run(100, function.data);
                 timeout = TimeStamp::Now() - started >= sliceTime;
             }
-            if (done)
+            if (done) {
                 ++finalizeFunctionToRun;
-            if (timeout)
+            }
+            if (timeout) {
                 break;
+            }
         } else {
-            function.run(UINT32_MAX, function.data);
+            function.run(-1, function.data);
             MOZ_ASSERT(!items.Length());
             ++finalizeFunctionToRun;
         }
@@ -734,10 +712,13 @@ XPCJSRuntime::GCCallback(JSRuntime *rt, JSGCStatus status)
             } else {
                 DoDeferredRelease(self->mNativesToReleaseArray);
                 for (uint32_t i = 0; i < self->mDeferredFinalizeFunctions.Length(); ++i) {
-                    if (void *data = self->mDeferredFinalizeFunctions[i].start())
-                        self->mDeferredFinalizeFunctions[i].run(UINT32_MAX, data);
+                    void* data = self->mDeferredFinalizeFunctions[i].start();
+                    if (data) {
+                        self->mDeferredFinalizeFunctions[i].run(-1, data);
+                    }
                 }
             }
+            self->GetXPConnect()->ClearGCBeforeCC();
             break;
         }
     }
@@ -755,7 +736,7 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
         return;
 
     switch (status) {
-        case JSFINALIZE_GROUP_START:
+        case JSFINALIZE_START:
         {
             NS_ASSERTION(!self->mDoingFinalization, "bad state");
 
@@ -783,7 +764,7 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
             self->mDoingFinalization = true;
             break;
         }
-        case JSFINALIZE_GROUP_END:
+        case JSFINALIZE_END:
         {
             NS_ASSERTION(self->mDoingFinalization, "bad state");
             self->mDoingFinalization = false;
@@ -791,29 +772,6 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
             // Release all the members whose JSObjects are now known
             // to be dead.
             DoDeferredRelease(self->mWrappedJSToReleaseArray);
-
-            // Sweep scopes needing cleanup
-            XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC();
-
-            // mThreadRunningGC indicates that GC is running.
-            // Clear it and notify waiters.
-            { // scoped lock
-                XPCAutoLock lock(self->GetMapLock());
-                NS_ASSERTION(self->mThreadRunningGC == PR_GetCurrentThread(), "bad state");
-                self->mThreadRunningGC = nullptr;
-                xpc_NotifyAll(self->GetMapLock());
-            }
-
-            break;
-        }
-        case JSFINALIZE_COLLECTION_END:
-        {
-            // mThreadRunningGC indicates that GC is running
-            { // scoped lock
-                XPCAutoLock lock(self->GetMapLock());
-                NS_ASSERTION(!self->mThreadRunningGC, "bad state");
-                self->mThreadRunningGC = PR_GetCurrentThread();
-            }
 
 #ifdef XPC_REPORT_NATIVE_INTERFACE_AND_SET_FLUSHING
             printf("--------------------------------------------------------------\n");
@@ -915,6 +873,9 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
             printf("--------------------------------------------------------------\n");
 #endif
 
+            // Sweep scopes needing cleanup
+            XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC();
+
             // Now we are going to recycle any unused WrappedNativeTearoffs.
             // We do this by iterating all the live callcontexts
             // and marking the tearoffs in use. And then we
@@ -967,6 +928,7 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
 
             self->mDyingWrappedNativeProtoMap->
                 Enumerate(DyingProtoKiller, nullptr);
+
 
             // mThreadRunningGC indicates that GC is running.
             // Clear it and notify waiters.
@@ -1482,7 +1444,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSUserCompartmentCount,
         rtTotal += amount;                                                    \
     } while (0)
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsMallocSizeOf, "js")
 
 namespace xpc {
 
@@ -1597,7 +1559,7 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
 #endif
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/slots"),
-                  cStats.objectsExtra.slots,
+                  cStats.objectsExtraSlots,
                   "Memory allocated for the non-fixed object "
                   "slot arrays, which are used to represent object properties. "
                   "Some objects also contain a fixed number of slots which are "
@@ -1605,32 +1567,29 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
                   "are not counted here, but in 'gc-heap/objects' instead.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/elements"),
-                  cStats.objectsExtra.elements,
+                  cStats.objectsExtraElements,
                   "Memory allocated for object element "
                   "arrays, which are used to represent indexed object "
                   "properties.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/arguments-data"),
-                  cStats.objectsExtra.argumentsData,
+                  cStats.objectsExtraArgumentsData,
                   "Memory allocated for data belonging to arguments objects.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/regexp-statics"),
-                  cStats.objectsExtra.regExpStatics,
+                  cStats.objectsExtraRegExpStatics,
                   "Memory allocated for data belonging to the RegExpStatics object.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/property-iterator-data"),
-                  cStats.objectsExtra.propertyIteratorData,
-                  "Memory allocated for data belonging to property iterator objects.");
-
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/ctypes-data"),
-                  cStats.objectsExtra.ctypesData,
-                  "Memory allocated for data belonging to ctypes objects.");
+                  cStats.objectsExtraPropertyIteratorData,
+                  "Memory allocated for data belonging to property iterator "
+                  "objects.");
 
     // Note that we use cDOMPathPrefix here.  This is because we measure orphan
     // DOM nodes in the JS multi-reporter, but we want to report them in a
     // "dom" sub-tree rather than a "js" sub-tree.
     CREPORT_BYTES(cDOMPathPrefix + NS_LITERAL_CSTRING("orphan-nodes"),
-                  cStats.objectsExtra.private_,
+                  cStats.objectsExtraPrivate,
                   "Memory used by orphan DOM nodes that are only reachable "
                   "from JavaScript objects.");
 
@@ -1685,43 +1644,25 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
                   cStats.debuggeesSet,
                   "Memory used by the debuggees set.");
 
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/type-scripts"),
-                  cStats.typeInference.typeScripts,
-                  "Memory used by type sets associated with scripts.");
+    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/script-main"),
+                  cStats.typeInferenceSizes.scripts,
+                  "Memory used during type inference to store type sets of "
+                  "variables and dynamically observed types.");
 
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/type-results"),
-                  cStats.typeInference.typeResults,
-                  "Memory used by dynamic type results produced by scripts.");
+    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/object-main"),
+                  cStats.typeInferenceSizes.objects,
+                  "Memory used during type inference to store types and "
+                  "possible property types of JS objects.");
 
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/analysis-pool"),
-                  cStats.typeInference.analysisPool,
-                  "Memory holding transient analysis information used during type inference and "
-                  "compilation.");
+    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/tables"),
+                  cStats.typeInferenceSizes.tables,
+                  "Memory used during type inference for compartment-wide "
+                  "tables.");
 
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/type-pool"),
-                  cStats.typeInference.typePool,
-                  "Memory holding contents of type sets and related data.");
-
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/pending-arrays"),
-                  cStats.typeInference.pendingArrays,
-                  "Memory used for solving constraints during type inference.");
-
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/allocation-site-tables"),
-                  cStats.typeInference.allocationSiteTables,
-                  "Memory indexing type objects associated with allocation sites.");
-
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/array-type-tables"),
-                  cStats.typeInference.arrayTypeTables,
-                  "Memory indexing type objects associated with array literals.");
-
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/object-type-tables"),
-                  cStats.typeInference.objectTypeTables,
-                  "Memory indexing type objects associated with object literals.");
-
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/type-objects"),
-                  cStats.typeInference.typeObjects,
-                  "Memory holding miscellaneous additional information associated with type "
-                  "objects.");
+    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("analysis-temporary"),
+                  cStats.typeInferenceSizes.temporary,
+                  "Memory used during type inference and compilation to hold "
+                  "transient analysis information.  Cleared on GC.");
 
     CREPORT_BYTES2(cJSPathPrefix + NS_LITERAL_CSTRING("string-chars/non-huge"),
                    cStats.stringCharsNonHuge, nsPrintfCString(
@@ -1979,16 +1920,16 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(JSCompartmentsMultiReporter
                               , nsIMemoryMultiReporter
                               )
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(OrphanMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(OrphanSizeOf, "orphans")
 
 namespace xpc {
 
 static size_t
 SizeOfTreeIncludingThis(nsINode *tree)
 {       
-    size_t n = tree->SizeOfIncludingThis(OrphanMallocSizeOf);
+    size_t n = tree->SizeOfIncludingThis(OrphanSizeOf);
     for (nsIContent* child = tree->GetFirstChild(); child; child = child->GetNextNode(tree)) {
-        n += child->SizeOfIncludingThis(OrphanMallocSizeOf);
+        n += child->SizeOfIncludingThis(OrphanSizeOf);
     }   
     return n;
 }
@@ -2429,9 +2370,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mWatchdogHibernating(false),
    mLastActiveTime(-1),
    mExceptionManagerNotAvailable(false)
-#ifdef DEBUG
-   , mObjectToUnlink(nullptr)
-#endif
 {
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
     DEBUG_WrappedNativeHashtable =
@@ -2606,9 +2544,9 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
 }
 
 bool
-XPCJSRuntime::DeferredRelease(nsISupports *obj)
+XPCJSRuntime::DeferredRelease(nsISupports* obj)
 {
-    MOZ_ASSERT(obj);
+    NS_ASSERTION(obj, "bad param");
 
     if (mNativesToReleaseArray.IsEmpty()) {
         // This array sometimes has 1000's

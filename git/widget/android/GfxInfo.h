@@ -48,17 +48,17 @@ public:
 
   void EnsureInitializedFromGfxInfoData();
 
-  virtual nsString Model() const;
-  virtual nsString Hardware() const;
-  virtual nsString Product() const;
-  virtual nsString Manufacturer() const;
+  virtual const nsAString& Model() const;
+  virtual const nsAString& Hardware() const;
+  virtual const nsAString& Product() const;
+  virtual const nsAString& Manufacturer() const;
 
 #ifdef DEBUG
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIGFXINFODEBUG
 #endif
 
-  virtual uint32_t OperatingSystemVersion() const;
+  virtual uint32_t OperatingSystemVersion() const { return mOSVersion; }
 
 protected:
 
@@ -85,10 +85,9 @@ private:
   nsCString mAdapterDescription;
 
   OperatingSystem mOS;
+  uint32_t mOSVersion;
 
   nsString mModel, mHardware, mManufacturer, mProduct;
-  nsCString mOSVersion;
-  uint32_t mOSVersionInteger;
 };
 
 } // namespace widget

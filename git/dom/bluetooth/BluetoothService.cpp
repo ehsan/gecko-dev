@@ -12,7 +12,6 @@
 #include "BluetoothParent.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothServiceChildProcess.h"
-#include "BluetoothUtils.h"
 
 #include "jsapi.h"
 #include "mozilla/Services.h"
@@ -23,12 +22,15 @@
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/ipc/UnixSocket.h"
 #include "nsContentUtils.h"
+#include "nsIDOMDOMRequest.h"
 #include "nsIObserverService.h"
 #include "nsISettingsService.h"
 #include "nsISystemMessagesInternal.h"
 #include "nsITimer.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
+#include "nsXPCOMCIDInternal.h"
+#include "nsXULAppAPI.h"
 
 #if defined(MOZ_B2G_BT)
 # if defined(MOZ_BLUETOOTH_GONK)
@@ -54,12 +56,20 @@ namespace {
 StaticRefPtr<BluetoothService> gBluetoothService;
 
 bool gInShutdown = false;
-bool gToggleInProgress = false;
 
 bool
 IsMainProcess()
 {
   return XRE_GetProcessType() == GeckoProcessType_Default;
+}
+
+PLDHashOperator
+RemoveAllSignalHandlers(const nsAString& aKey,
+                        nsAutoPtr<BluetoothSignalObserverList>& aData,
+                        void* aUserArg)
+{
+  aData->RemoveObserver(static_cast<BluetoothSignalObserver*>(aUserArg));
+  return aData->Length() ? PL_DHASH_NEXT : PL_DHASH_REMOVE;
 }
 
 void
@@ -157,28 +167,15 @@ public:
   {
     MOZ_ASSERT(!NS_IsMainThread());
 
-    /*
-     * mEnabled: expected status of bluetooth
-     * gBluetoothService->IsEnabled(): real status of bluetooth
-     *
-     * When two values are the same, we don't switch on/off bluetooth,
-     * but we still do ToggleBtAck task.
-     */
-    if (mEnabled == gBluetoothService->IsEnabled()) {
-      NS_WARNING("Bluetooth has already been enabled/disabled before.");
-    } else {
-      // Switch on/off bluetooth
-      if (mEnabled) {
-        if (NS_FAILED(gBluetoothService->StartInternal())) {
-          NS_WARNING("Bluetooth service failed to start!");
-          mEnabled = !mEnabled;
-        }
-      } else {
-        if (NS_FAILED(gBluetoothService->StopInternal())) {
-          NS_WARNING("Bluetooth service failed to stop!");
-          mEnabled = !mEnabled;
-        }
+    if (mEnabled) {
+      if (NS_FAILED(gBluetoothService->StartInternal())) {
+        NS_WARNING("Bluetooth service failed to start!");
+        mEnabled = !mEnabled;
       }
+    }
+    else if (NS_FAILED(gBluetoothService->StopInternal())) {
+      NS_WARNING("Bluetooth service failed to stop!");
+      mEnabled = !mEnabled;
     }
 
     nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(mEnabled);
@@ -198,7 +195,7 @@ class BluetoothService::StartupTask : public nsISettingsServiceCallback
 public:
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD Handle(const nsAString& aName, const jsval& aResult)
+  NS_IMETHOD Handle(const nsAString& aName, const jsval& aResult, JSContext* aCx)
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -216,7 +213,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD HandleError(const nsAString& aName)
+  NS_IMETHOD HandleError(const nsAString& aName, JSContext* aCx)
   {
     NS_WARNING("Unable to get value for '" BLUETOOTH_ENABLED_SETTING "'");
     return NS_OK;
@@ -226,12 +223,6 @@ public:
 NS_IMPL_ISUPPORTS1(BluetoothService::StartupTask, nsISettingsServiceCallback);
 
 NS_IMPL_ISUPPORTS1(BluetoothService, nsIObserver)
-
-bool
-BluetoothService::IsToggling() const
-{
-  return gToggleInProgress;
-}
 
 BluetoothService::~BluetoothService()
 {
@@ -278,6 +269,8 @@ BluetoothService::Init()
     return false;
   }
 
+  mRegisteredForLocalAgent = true;
+
   return true;
 }
 
@@ -285,6 +278,12 @@ void
 BluetoothService::Cleanup()
 {
   MOZ_ASSERT(NS_IsMainThread());
+
+  if (mRegisteredForLocalAgent) {
+    UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(LOCAL_AGENT_PATH), this);
+    UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(REMOTE_AGENT_PATH), this);
+    mRegisteredForLocalAgent = false;
+  }
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   if (obs &&
@@ -334,22 +333,14 @@ BluetoothService::UnregisterAllSignalHandlers(BluetoothSignalObserver* aHandler)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aHandler);
 
-  mBluetoothSignalObserverTable.Clear();
+  mBluetoothSignalObserverTable.Enumerate(RemoveAllSignalHandlers, aHandler);
 }
 
 void
 BluetoothService::DistributeSignal(const BluetoothSignal& aSignal)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  if (aSignal.path().EqualsLiteral(LOCAL_AGENT_PATH)) {
-    Notify(aSignal);
-    return;
-  } else if (aSignal.path().EqualsLiteral(REMOTE_AGENT_PATH)) {
-    Notify(aSignal);
-    return;
-  }
-
+  // Notify observers that a message has been sent
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aSignal.path(), &ol)) {
 #if DEBUG
@@ -383,12 +374,18 @@ BluetoothService::StartStopBluetooth(bool aStart)
   }
 
   nsresult rv;
+
   if (!mBluetoothCommandThread) {
     MOZ_ASSERT(!gInShutdown);
 
     rv = NS_NewNamedThread("BluetoothCmd",
                            getter_AddRefs(mBluetoothCommandThread));
     NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  if (aStart) {
+    RegisterBluetoothSignalHandler(NS_LITERAL_STRING(LOCAL_AGENT_PATH), this);
+    RegisterBluetoothSignalHandler(NS_LITERAL_STRING(REMOTE_AGENT_PATH), this);
   }
 
   nsCOMPtr<nsIRunnable> runnable = new ToggleBtTask(aStart);
@@ -403,6 +400,13 @@ BluetoothService::SetEnabled(bool aEnabled)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  if (aEnabled == mEnabled) {
+    // Nothing to do, maybe something failed.
+    return;
+  }
+
+  mEnabled = aEnabled;
+
   AutoInfallibleTArray<BluetoothParent*, 10> childActors;
   GetAllBluetoothActors(childActors);
 
@@ -412,46 +416,33 @@ BluetoothService::SetEnabled(bool aEnabled)
 
   if (aEnabled) {
     BluetoothManagerList::ForwardIterator iter(mLiveManagers);
+    BluetoothSignalObserverList* ol;
     nsString managerPath = NS_LITERAL_STRING("/");
 
-    /**
-     * Re-register managers since table mBluetoothSignalObserverTable was
-     * cleared after turned off bluetooth
-     */
-    while (iter.HasMore()) {
-      RegisterBluetoothSignalHandler(managerPath, (BluetoothSignalObserver*)iter.GetNext());
+    // Skip when BluetoothManager has been registered in constructor
+    // Re-register here after toggling due to table mBluetoothSignalObserverTable was cleared
+    if (!mBluetoothSignalObserverTable.Get(managerPath, &ol)) {
+      while (iter.HasMore()) {
+        RegisterBluetoothSignalHandler(managerPath, (BluetoothSignalObserver*)iter.GetNext());
+      }
     }
   } else {
     mBluetoothSignalObserverTable.Clear();
   }
 
-  /**
-   * mEnabled: real status of bluetooth
-   * aEnabled: expected status of bluetooth
-   */
-  if (mEnabled == aEnabled) {
-    NS_WARNING("Bluetooth has already been enabled/disabled before\
-                or the toggling is failed.");
-  }
-
-  mEnabled = aEnabled;
-
-  // Fire onenabled/ondisabled event for each BluetoothManager
   BluetoothManagerList::ForwardIterator iter(mLiveManagers);
   while (iter.HasMore()) {
     if (NS_FAILED(iter.GetNext()->FireEnabledDisabledEvent(aEnabled))) {
       NS_WARNING("FireEnabledDisabledEvent failed!");
     }
   }
-
-  gToggleInProgress = false;
 }
 
 nsresult
 BluetoothService::HandleStartup()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!gToggleInProgress);
+  MOZ_ASSERT(!mSettingsCheckInProgress);
 
   nsCOMPtr<nsISettingsService> settings =
     do_GetService("@mozilla.org/settingsService;1");
@@ -465,7 +456,7 @@ BluetoothService::HandleStartup()
   rv = settingsLock->Get(BLUETOOTH_ENABLED_SETTING, callback);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  gToggleInProgress = true;
+  mSettingsCheckInProgress = true;
   return NS_OK;
 }
 
@@ -474,15 +465,17 @@ BluetoothService::HandleStartupSettingsCheck(bool aEnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  if (!mSettingsCheckInProgress) {
+    // Somehow the enabled setting was changed before our first settings check
+    // completed. Don't do anything.
+    return NS_OK;
+  }
+
+  MOZ_ASSERT(!IsEnabled());
+
   if (aEnable) {
     return StartStopBluetooth(true);
   }
-
-  /*
-   * Since BLUETOOTH_ENABLED_SETTING is false, we don't have to turn on
-   * bluetooth here, and set gToggleInProgress back to false.
-   */
-  gToggleInProgress = false;
 
   return NS_OK;
 }
@@ -543,14 +536,28 @@ BluetoothService::HandleSettingsChanged(const nsAString& aData)
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (gToggleInProgress || value.toBoolean() == IsEnabled()) {
+  if (mSettingsCheckInProgress) {
+    // Somehow the setting for bluetooth has been flipped before our first
+    // settings check completed. Flip this flag so that we ignore the result
+    // of that check whenever it finishes.
+    mSettingsCheckInProgress = false;
+  }
+
+  if (value.toBoolean() == IsEnabled()) {
     // Nothing to do here.
     return NS_OK;
   }
 
-  gToggleInProgress = true;
+  nsresult rv;
 
-  nsresult rv = StartStopBluetooth(value.toBoolean());
+  if (IsEnabled()) {
+    rv = StartStopBluetooth(false);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_OK;
+  }
+
+  rv = StartStopBluetooth(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -629,6 +636,7 @@ BluetoothService::RegisterManager(BluetoothManager* aManager)
   MOZ_ASSERT(!mLiveManagers.Contains(aManager));
 
   mLiveManagers.AppendElement(aManager);
+  RegisterBluetoothSignalHandler(aManager->GetPath(), aManager);
 }
 
 void
@@ -638,6 +646,7 @@ BluetoothService::UnregisterManager(BluetoothManager* aManager)
   MOZ_ASSERT(aManager);
   MOZ_ASSERT(mLiveManagers.Contains(aManager));
 
+  UnregisterBluetoothSignalHandler(aManager->GetPath(), aManager);
   mLiveManagers.RemoveElement(aManager);
 }
 
@@ -693,10 +702,43 @@ BluetoothService::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_ERROR_UNEXPECTED;
 }
 
+bool
+SetJsObject(JSContext* aContext,
+            JSObject* aObj,
+            const InfallibleTArray<BluetoothNamedValue>& aData)
+{
+  for (uint32_t i = 0; i < aData.Length(); i++) {
+    jsval v;
+    if (aData[i].value().type() == BluetoothValue::TnsString) {
+      nsString data = aData[i].value().get_nsString();
+      JSString* JsData = JS_NewStringCopyN(aContext,
+                                           NS_ConvertUTF16toUTF8(data).get(),
+                                           data.Length());
+      NS_ENSURE_TRUE(JsData, false);
+      v = STRING_TO_JSVAL(JsData);
+    } else if (aData[i].value().type() == BluetoothValue::Tuint32_t) {
+      int data = aData[i].value().get_uint32_t();
+      v = INT_TO_JSVAL(data);
+    } else if (aData[i].value().type() == BluetoothValue::Tbool) {
+      bool data = aData[i].value().get_bool();
+      v = BOOLEAN_TO_JSVAL(data);
+    } else {
+      NS_WARNING("SetJsObject: Parameter is not handled");
+    }
+
+    if (!JS_SetProperty(aContext, aObj,
+                        NS_ConvertUTF16toUTF8(aData[i].name()).get(),
+                        &v)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void
 BluetoothService::Notify(const BluetoothSignal& aData)
 {
-  InfallibleTArray<BluetoothNamedValue> arr(aData.value().get_ArrayOfBluetoothNamedValue());
+  InfallibleTArray<BluetoothNamedValue> arr = aData.value().get_ArrayOfBluetoothNamedValue();
   nsString type;
 
   JSContext* cx = nsContentUtils::GetSafeJSContext();
@@ -745,7 +787,10 @@ BluetoothService::Notify(const BluetoothSignal& aData)
 
   nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
     do_GetService("@mozilla.org/system-message-internal;1");
-  NS_ENSURE_TRUE_VOID(systemMessenger);
 
+  if (!systemMessenger) {
+    NS_WARNING("Failed to get SystemMessenger service!");
+    return;
+  }
   systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
 }

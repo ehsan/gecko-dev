@@ -66,7 +66,6 @@
 #include "nsDOMBlobBuilder.h"
 #include "nsIDOMFileHandle.h"
 #include "nsPrintfCString.h"
-#include "nsViewportInfo.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -267,14 +266,14 @@ nsDOMWindowUtils::GetViewportInfo(uint32_t aDisplayWidth,
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
-  nsViewportInfo info = nsContentUtils::GetViewportInfo(doc, aDisplayWidth, aDisplayHeight);
-  *aDefaultZoom = info.GetDefaultZoom();
-  *aAllowZoom = info.IsZoomAllowed();
-  *aMinZoom = info.GetMinZoom();
-  *aMaxZoom = info.GetMaxZoom();
-  *aWidth = info.GetWidth();
-  *aHeight = info.GetHeight();
-  *aAutoSize = info.IsAutoSizeEnabled();
+  ViewportInfo info = nsContentUtils::GetViewportInfo(doc, aDisplayWidth, aDisplayHeight);
+  *aDefaultZoom = info.defaultZoom;
+  *aAllowZoom = info.allowZoom;
+  *aMinZoom = info.minZoom;
+  *aMaxZoom = info.maxZoom;
+  *aWidth = info.width;
+  *aHeight = info.height;
+  *aAutoSize = info.autoSize;
   return NS_OK;
 }
 
@@ -379,7 +378,7 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
 
   nsIFrame* rootFrame = presShell->FrameManager()->GetRootFrame();
   if (rootFrame) {
-    rootFrame->SchedulePaint();
+    rootFrame->InvalidateFrame();
 
     // If we are hiding something that is a display root then send empty paint
     // transaction in order to release retained layers because it won't get
@@ -398,54 +397,6 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
         }
       }
     }
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::SetCriticalDisplayPortForElement(float aXPx, float aYPx,
-                                                   float aWidthPx, float aHeightPx,
-                                                   nsIDOMElement* aElement)
-{
-  if (!nsContentUtils::IsCallerChrome()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  nsIPresShell* presShell = GetPresShell();
-  if (!presShell) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (!aElement) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-
-  if (!content) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  if (content->GetCurrentDoc() != presShell->GetDocument()) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsRect displayport;
-  if (!nsLayoutUtils::GetDisplayPort(content, &displayport)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsRect criticalDisplayport(nsPresContext::CSSPixelsToAppUnits(aXPx),
-                             nsPresContext::CSSPixelsToAppUnits(aYPx),
-                             nsPresContext::CSSPixelsToAppUnits(aWidthPx),
-                             nsPresContext::CSSPixelsToAppUnits(aHeightPx));
-  content->SetProperty(nsGkAtoms::CriticalDisplayPort, new nsRect(criticalDisplayport),
-                       DestroyNsRect);
-
-  nsIFrame* rootFrame = presShell->GetRootFrame();
-  if (rootFrame) {
-    rootFrame->InvalidateFrame();
   }
 
   return NS_OK;
@@ -648,7 +599,7 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
   event.inputSource = aInputSourceArg;
   event.clickCount = aClickCount;
   event.time = PR_IntervalNow();
-  event.mFlags.mIsSynthesizedForTests = true;
+  event.flags |= NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT;
 
   nsPresContext* presContext = GetPresContext();
   if (!presContext)
@@ -936,7 +887,7 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
   event.time = PR_IntervalNow();
 
   if (aAdditionalFlags & KEY_FLAG_PREVENT_DEFAULT) {
-    event.mFlags.mDefaultPrevented = true;
+    event.flags |= NS_EVENT_FLAG_NO_DEFAULT;
   }
 
   nsEventStatus status;
@@ -1215,11 +1166,8 @@ nsDOMWindowUtils::ElementFromPoint(float aX, float aY,
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
-  Element* el =
-    doc->ElementFromPointHelper(aX, aY, aIgnoreRootScrollFrame, aFlushLayout);
-  nsCOMPtr<nsIDOMElement> retval = do_QueryInterface(el);
-  retval.forget(aReturn);
-  return NS_OK;
+  return doc->ElementFromPointHelper(aX, aY, aIgnoreRootScrollFrame, aFlushLayout,
+                                     aReturn);
 }
 
 NS_IMETHODIMP
@@ -1658,7 +1606,7 @@ nsDOMWindowUtils::SendCompositionEvent(const nsAString& aType,
     compositionEvent.data = aData;
   }
 
-  compositionEvent.mFlags.mIsSynthesizedForTests = true;
+  compositionEvent.flags |= NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT;
 
   nsEventStatus status;
   nsresult rv = widget->DispatchEvent(&compositionEvent, status);
@@ -1737,7 +1685,7 @@ nsDOMWindowUtils::SendTextEvent(const nsAString& aCompositionString,
   textEvent.rangeCount = textRanges.Length();
   textEvent.rangeArray = textRanges.Elements();
 
-  textEvent.mFlags.mIsSynthesizedForTests = true;
+  textEvent.flags |= NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT;
 
   nsEventStatus status;
   nsresult rv = widget->DispatchEvent(&textEvent, status);
@@ -2177,8 +2125,7 @@ nsDOMWindowUtils::StopFrameTimeRecording(uint32_t *frameCount, float **frames)
   if (!mgr)
     return NS_ERROR_FAILURE;
 
-  nsTArray<float> frameTimes;
-  mgr->StopFrameTimeRecording(frameTimes);
+  nsTArray<float> frameTimes = mgr->StopFrameTimeRecording();
 
   *frames = nullptr;
   *frameCount = frameTimes.Length();
@@ -2550,13 +2497,6 @@ nsDOMWindowUtils::PreventFurtherDialogs()
   return NS_OK;
 }
 
-static nsIDOMBlob*
-GetXPConnectNative(JSContext* aCx, JSObject* aObj) {
-  nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(
-    nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, aObj));
-  return blob;
-}
-
 static nsresult
 GetFileOrBlob(const nsAString& aName, const jsval& aBlobParts,
               const jsval& aParameters, JSContext* aCx,
@@ -2578,12 +2518,12 @@ GetFileOrBlob(const nsAString& aName, const jsval& aBlobParts,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsDOMMultipartFile* domFile =
-    static_cast<nsDOMMultipartFile*>(static_cast<nsIDOMFile*>(file.get()));
+  nsCOMPtr<nsIJSNativeInitializer> initializer = do_QueryInterface(file);
+  NS_ASSERTION(initializer, "what?");
 
   jsval args[2] = { aBlobParts, aParameters };
 
-  rv = domFile->InitBlob(aCx, aOptionalArgCount, args, GetXPConnectNative);
+  rv = initializer->Initialize(nullptr, aCx, nullptr, aOptionalArgCount, args);
   NS_ENSURE_SUCCESS(rv, rv);
 
   file.forget(aResult);

@@ -30,4 +30,3 @@ function test(objexpr, descs) {
 }
 
 test("Object.create(null, {p: {value: 1}})", {p: {value: 2}});
-test("({})", {x: {get: 'bad'}});

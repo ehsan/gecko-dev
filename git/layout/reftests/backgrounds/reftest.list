@@ -68,12 +68,12 @@ random-if(bug685516) == background-size-body-percent-percent-no-repeat.html back
 random-if(bug685516) == background-size-body-percent-percent-not-fixed.html background-size-body-percent-percent-ref.html
 random-if(bug685516) == background-size-body-cover.html background-size-body-cover-ref.html
 random-if(bug685516) == background-size-body-cover-no-repeat.html background-size-body-cover-ref.html
-fails-if(smallScreen&&Android) random-if(bug685516) != background-size-body-cover-not-fixed.html background-size-body-cover-ref.html
+random-if(bug685516) != background-size-body-cover-not-fixed.html background-size-body-cover-ref.html
 random-if(bug685516) != background-size-body-cover-not-fixed.html background-size-body-single-not-fixed.html
 
 # relies on reftest window having greater height than width
 random-if(bug685516) == background-size-body-contain.html background-size-body-cover-ref.html
-fails-if(smallScreen&&Android) random-if(bug685516) != background-size-body-contain-no-repeat.html background-size-body-cover-ref.html
+random-if(bug685516) != background-size-body-contain-no-repeat.html background-size-body-cover-ref.html
 random-if(bug685516) != background-size-body-contain-not-fixed.html background-size-body-cover-ref.html
 random-if(bug685516) != background-size-body-cover-not-fixed.html background-size-body-contain-not-fixed.html
 
@@ -138,5 +138,3 @@ random-if(bug685516) != div-background.html div-background-ref.html
 random-if(bug685516) == background-repeat-1-ref.html background-repeat-1.html
 
 random-if(bug685516) == multi-background-clip-content-border.html multi-background-clip-content-border-ref.html
-
-HTTP == background-referrer.html background-referrer-ref.html

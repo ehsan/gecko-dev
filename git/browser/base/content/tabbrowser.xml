@@ -624,13 +624,7 @@
                   autocomplete.unregisterOpenPage(this.mBrowser.registeredOpenURI);
                   delete this.mBrowser.registeredOpenURI;
                 }
-                if (!isBlankPageURL(aLocation.spec)
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-                    // Tabs in private windows aren't registered as "Open" so
-                    // that they don't appear as switch-to-tab candidates.
-                    && !PrivateBrowsingUtils.isWindowPrivate(window)
-#endif
-                    ) {
+                if (!isBlankPageURL(aLocation.spec)) {
                   autocomplete.registerOpenPage(aLocation);
                   this.mBrowser.registeredOpenURI = aLocation;
                 }
@@ -851,11 +845,11 @@
             var oldTab = this.mCurrentTab;
 
             // Preview mode should not reset the owner
-            if (!this._previewMode && !oldTab.selected)
+            if (!this._previewMode && oldTab != this.selectedTab)
               oldTab.owner = null;
 
             if (this._lastRelatedTab) {
-              if (!this._lastRelatedTab.selected)
+              if (this._lastRelatedTab != this.selectedTab)
                 this._lastRelatedTab.owner = null;
               this._lastRelatedTab = null;
             }
@@ -876,7 +870,7 @@
             newBrowser.docShellIsActive =
               (window.windowState != window.STATE_MINIMIZED);
             this.mCurrentBrowser = newBrowser;
-            this.mCurrentTab = this.tabContainer.selectedItem;
+            this.mCurrentTab = this.selectedTab;
             this.showTab(this.mCurrentTab);
 
             var backForwardContainer = document.getElementById("unified-back-forward-button");
@@ -957,7 +951,8 @@
                                           true, false);
             }
 
-            this._setCloseKeyState(!this.mCurrentTab.pinned);
+            if (this.mCurrentTab.selected)
+              this._setCloseKeyState(!this.mCurrentTab.pinned);
 
             // TabSelect events are suppressed during preview mode to avoid confusing extensions and other bits of code
             // that might rely upon the other changes suppressed.
@@ -1670,7 +1665,7 @@
             const filter = this.mTabFilters[aTab._tPos];
 #ifdef MOZ_E10S_COMPAT
             // Bug 666801 - WebProgress support for e10s
-#else
+#else 
             browser.webProgress.removeProgressListener(filter);
 #endif
             filter.removeProgressListener(this.mTabListeners[aTab._tPos]);
@@ -1824,7 +1819,7 @@
         <parameter name="aTab"/>
         <body>
           <![CDATA[
-            if (!aTab.selected)
+            if (this.mCurrentTab != aTab)
               return;
 
             if (aTab.owner &&
@@ -1874,7 +1869,7 @@
 
             // The tab is definitely not loading.
             aNewTab.removeAttribute("busy");
-            if (aNewTab.selected) {
+            if (aNewTab == this.selectedTab) {
               this.mIsBusy = false;
             }
 
@@ -1883,7 +1878,7 @@
             // Update the new tab's title.
             this.setTabTitle(aNewTab);
 
-            if (aNewTab.selected) {
+            if (aNewTab == this.selectedTab) {
               this.updateCurrentBrowser(true);
             }
           ]]>
@@ -1895,14 +1890,6 @@
         <parameter name="aOtherTab"/>
         <body>
           <![CDATA[
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-            // Do not allow transfering a private tab to a non-private window
-            // and vice versa.
-            if (PrivateBrowsingUtils.isWindowPrivate(window) !=
-                PrivateBrowsingUtils.isWindowPrivate(aOtherTab.ownerDocument.defaultView))
-              return;
-#endif
-
             // That's gBrowser for the other window, not the tab's browser!
             var remoteBrowser = aOtherTab.ownerDocument.defaultView.gBrowser;
 
@@ -1922,7 +1909,7 @@
             if (isBusy) {
               aOurTab.setAttribute("busy", "true");
               this._tabAttrModified(aOurTab);
-              if (aOurTab.selected)
+              if (aOurTab == this.selectedTab)
                 this.mIsBusy = true;
             }
 
@@ -1938,7 +1925,7 @@
 
             // If the tab was already selected (this happpens in the scenario
             // of replaceTabWithWindow), notify onLocationChange, etc.
-            if (aOurTab.selected)
+            if (aOurTab == this.selectedTab)
               this.updateCurrentBrowser(true);
           ]]>
         </body>
@@ -2135,7 +2122,7 @@
 
       <property name="selectedTab">
         <getter>
-          return this.mCurrentTab;
+          return this.mTabBox.selectedTab;
         </getter>
         <setter>
           <![CDATA[
@@ -2202,8 +2189,6 @@
           this.mTabFilters.splice(aIndex, 0, this.mTabFilters.splice(aTab._tPos, 1)[0]);
           this.mTabListeners.splice(aIndex, 0, this.mTabListeners.splice(aTab._tPos, 1)[0]);
 
-          let wasFocused = (document.activeElement == this.mCurrentTab);
-
           aIndex = aIndex < aTab._tPos ? aIndex: aIndex+1;
           this.mCurrentTab._selected = false;
 
@@ -2220,10 +2205,6 @@
             this.tabs[i]._selected = false;
           }
           this.mCurrentTab._selected = true;
-
-          if (wasFocused)
-            this.mCurrentTab.focus();
-
           this.tabContainer._handleTabSelect(false);
 
           if (aTab.pinned)
@@ -2239,12 +2220,11 @@
       <method name="moveTabForward">
         <body>
           <![CDATA[
-            let nextTab = this.mCurrentTab.nextSibling;
-            while (nextTab && nextTab.hidden)
-              nextTab = nextTab.nextSibling;
-
-            if (nextTab)
-              this.moveTabTo(this.mCurrentTab, nextTab._tPos);
+            var tabPos = this.mCurrentTab._tPos;
+            if (tabPos < this.browsers.length - 1) {
+              this.moveTabTo(this.mCurrentTab, tabPos + 1);
+              this.mCurrentTab.focus();
+            }
             else if (this.arrowKeysShouldWrap)
               this.moveTabToStart();
           ]]>
@@ -2254,12 +2234,11 @@
       <method name="moveTabBackward">
         <body>
           <![CDATA[
-            let previousTab = this.mCurrentTab.previousSibling;
-            while (previousTab && previousTab.hidden)
-              previousTab = previousTab.previousSibling;
-
-            if (previousTab)
-              this.moveTabTo(this.mCurrentTab, previousTab._tPos);
+            var tabPos = this.mCurrentTab._tPos;
+            if (tabPos > 0) {
+              this.moveTabTo(this.mCurrentTab, tabPos - 1);
+              this.mCurrentTab.focus();
+            }
             else if (this.arrowKeysShouldWrap)
               this.moveTabToEnd();
           ]]>
@@ -2270,8 +2249,10 @@
         <body>
           <![CDATA[
             var tabPos = this.mCurrentTab._tPos;
-            if (tabPos > 0)
+            if (tabPos > 0) {
               this.moveTabTo(this.mCurrentTab, 0);
+              this.mCurrentTab.focus();
+            }
           ]]>
         </body>
       </method>
@@ -2280,8 +2261,11 @@
         <body>
           <![CDATA[
             var tabPos = this.mCurrentTab._tPos;
-            if (tabPos < this.browsers.length - 1)
-              this.moveTabTo(this.mCurrentTab, this.browsers.length - 1);
+            if (tabPos < this.browsers.length - 1) {
+              this.moveTabTo(this.mCurrentTab,
+                             this.browsers.length - 1);
+              this.mCurrentTab.focus();
+            }
           ]]>
         </body>
       </method>
@@ -3432,14 +3416,6 @@
                 sourceNode.ownerDocument.defaultView instanceof ChromeWindow &&
                 sourceNode.ownerDocument.documentElement.getAttribute("windowtype") == "navigator:browser" &&
                 sourceNode.ownerDocument.defaultView.gBrowser.tabContainer == sourceNode.parentNode) {
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-              // Do not allow transfering a private tab to a non-private window
-              // and vice versa.
-              if (PrivateBrowsingUtils.isWindowPrivate(window) !=
-                  PrivateBrowsingUtils.isWindowPrivate(sourceNode.ownerDocument.defaultView))
-                return dt.effectAllowed = "none";
-#endif
-
 #ifdef XP_MACOSX
               return dt.effectAllowed = event.altKey ? "copy" : "move";
 #else
@@ -3758,8 +3734,6 @@
           if (draggedTab.parentNode != this || event.shiftKey)
             this.selectedItem = newTab;
         } else if (draggedTab && draggedTab.parentNode == this) {
-          this._finishAnimateTabMove();
-
           // actually move the dragged tab
           if ("animDropIndex" in draggedTab._dragData) {
             let newIndex = draggedTab._dragData.animDropIndex;
@@ -3767,6 +3741,7 @@
               newIndex--;
             this.tabbrowser.moveTabTo(draggedTab, newIndex);
           }
+          this._finishAnimateTabMove();
         } else if (draggedTab) {
           // swap the dropped tab with a new one we create and then close
           // it in the other window (making it seem to have moved between

@@ -653,11 +653,11 @@ JS_STATIC_ASSERT(sizeof(JSInlineString) == sizeof(JSString));
 
 class JSShortString : public JSInlineString
 {
-    /* This can be any value that is a multiple of CellSize. */
+    /* This can be any value that is a multiple of Cell::CellSize. */
     static const size_t INLINE_EXTENSION_CHARS = sizeof(JSString::Data) / sizeof(jschar);
 
     static void staticAsserts() {
-        JS_STATIC_ASSERT(INLINE_EXTENSION_CHARS % js::gc::CellSize == 0);
+        JS_STATIC_ASSERT(INLINE_EXTENSION_CHARS % js::gc::Cell::CellSize == 0);
         JS_STATIC_ASSERT(MAX_SHORT_LENGTH + 1 ==
                          (sizeof(JSShortString) -
                           offsetof(JSShortString, d.inlineStorage)) / sizeof(jschar));
@@ -855,7 +855,6 @@ class AutoNameVector : public AutoVectorRooter<PropertyName *>
 JS_ALWAYS_INLINE const jschar *
 JSString::getChars(JSContext *cx)
 {
-    JS::AutoAssertNoGC nogc;
     if (JSLinearString *str = ensureLinear(cx))
         return str->chars();
     return NULL;
@@ -864,7 +863,6 @@ JSString::getChars(JSContext *cx)
 JS_ALWAYS_INLINE const jschar *
 JSString::getCharsZ(JSContext *cx)
 {
-    JS::AutoAssertNoGC nogc;
     if (JSFlatString *str = ensureFlat(cx))
         return str->chars();
     return NULL;
@@ -873,7 +871,6 @@ JSString::getCharsZ(JSContext *cx)
 JS_ALWAYS_INLINE JSLinearString *
 JSString::ensureLinear(JSContext *cx)
 {
-    JS::AutoAssertNoGC nogc;
     return isLinear()
            ? &asLinear()
            : asRope().flatten(cx);
@@ -882,7 +879,6 @@ JSString::ensureLinear(JSContext *cx)
 JS_ALWAYS_INLINE JSFlatString *
 JSString::ensureFlat(JSContext *cx)
 {
-    JS::AutoAssertNoGC nogc;
     return isFlat()
            ? &asFlat()
            : isDependent()
@@ -893,7 +889,6 @@ JSString::ensureFlat(JSContext *cx)
 JS_ALWAYS_INLINE JSStableString *
 JSString::ensureStable(JSContext *maybecx)
 {
-    JS::AutoAssertNoGC nogc;
     if (isRope()) {
         JSFlatString *flat = asRope().flatten(maybecx);
         if (!flat)

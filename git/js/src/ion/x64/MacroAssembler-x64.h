@@ -39,14 +39,14 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // Number of bytes the stack is adjusted inside a call to C. Calls to C may
     // not be nested.
     bool inCall_;
-    uint32_t args_;
-    uint32_t passedIntArgs_;
-    uint32_t passedFloatArgs_;
-    uint32_t stackForCall_;
+    uint32 args_;
+    uint32 passedIntArgs_;
+    uint32 passedFloatArgs_;
+    uint32 stackForCall_;
     bool dynamicAlignment_;
     bool enoughMemory_;
 
-    void setupABICall(uint32_t arg);
+    void setupABICall(uint32 arg);
 
   protected:
     MoveResolver moveResolver_;
@@ -187,6 +187,9 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         push(ScratchReg);
     }
 
+    void movePtr(Operand op, const Register &dest) {
+        movq(op, dest);
+    }
     void moveValue(const Value &val, const Register &dest) {
         jsval_layout jv = JSVAL_TO_IMPL(val);
         movq(ImmWord(jv.asPtr), dest);
@@ -370,12 +373,12 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     /////////////////////////////////////////////////////////////////
     // Common interface.
     /////////////////////////////////////////////////////////////////
-    void reserveStack(uint32_t amount) {
+    void reserveStack(uint32 amount) {
         if (amount)
             subq(Imm32(amount), StackPointer);
         framePushed_ += amount;
     }
-    void freeStack(uint32_t amount) {
+    void freeStack(uint32 amount) {
         JS_ASSERT(amount <= framePushed_);
         if (amount)
             addq(Imm32(amount), StackPointer);
@@ -455,6 +458,9 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void movePtr(ImmGCPtr imm, Register dest) {
         movq(imm, dest);
+    }
+    void movePtr(const Address &address, const Register &dest) {
+        movq(Operand(address), dest);
     }
     void loadPtr(const AbsoluteAddress &address, Register dest) {
         movq(ImmWord(address.addr), ScratchReg);
@@ -641,10 +647,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void boxDouble(const FloatRegister &src, const ValueOperand &dest) {
         movqsd(src, dest.valueReg());
     }
-    void boxNonDouble(JSValueType type, const Register &src, const ValueOperand &dest) {
-        JS_ASSERT(src != dest.valueReg());
-        boxValue(type, src, dest.valueReg());
-    }
 
     // Note that the |dest| register here may be ScratchReg, so we shouldn't
     // use it.
@@ -826,11 +828,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         cvtsq2sd(src, dest);
     }
 
-    void inc64(AbsoluteAddress dest) {
-        mov(ImmWord(dest.addr), ScratchReg);
-        addPtr(Imm32(1), Address(ScratchReg, 0));
-    }
-
     // Setup a call to C/C++ code, given the number of general arguments it
     // takes. Note that this only supports cdecl.
     //
@@ -838,11 +835,11 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // consistent view of the stack displacement. It is okay to call "push"
     // manually, however, if the stack alignment were to change, the macro
     // assembler should be notified before starting a call.
-    void setupAlignedABICall(uint32_t args);
+    void setupAlignedABICall(uint32 args);
 
     // Sets up an ABI call for when the alignment is not known. This may need a
     // scratch register.
-    void setupUnalignedABICall(uint32_t args, const Register &scratch);
+    void setupUnalignedABICall(uint32 args, const Register &scratch);
 
     // Arguments must be assigned to a C/C++ call in order. They are moved
     // in parallel immediately before performing the call. This process may
@@ -854,14 +851,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void passABIArg(const Register &reg);
     void passABIArg(const FloatRegister &reg);
 
-  private:
-    void callWithABIPre(uint32_t *stackAdjust);
-    void callWithABIPost(uint32_t stackAdjust, Result result);
-
-  public:
     // Emits a call to a C/C++ function, resolving all argument moves.
     void callWithABI(void *fun, Result result = GENERAL);
-    void callWithABI(Address fun, Result result = GENERAL);
 
     void handleException();
 
@@ -873,7 +864,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // Save an exit frame (which must be aligned to the stack pointer) to
     // ThreadData::ionTop.
     void linkExitFrame() {
-        mov(ImmWord(GetIonContext()->compartment->rt), ScratchReg);
+        mov(ImmWord(GetIonContext()->cx->runtime), ScratchReg);
         mov(StackPointer, Operand(ScratchReg, offsetof(JSRuntime, ionTop)));
     }
 

@@ -43,7 +43,7 @@
 #include "nsIFileURL.h"
 #include "nsIJARURI.h"
 #include "nsNetUtil.h"
-#include "nsDOMBlobBuilder.h"
+#include "nsDOMFile.h"
 #include "jsprf.h"
 #include "nsJSPrincipals.h"
 // For reporting errors with the console service
@@ -71,22 +71,6 @@
 using namespace mozilla;
 using namespace mozilla::scache;
 using namespace xpc;
-
-// This JSClass exists to trick silly code that expects toString()ing the
-// global in a component scope to return something with "BackstagePass" in it
-// to continue working.
-static JSClass kFakeBackstagePassJSClass =
-{
-    "FakeBackstagePass",
-    0,
-    JS_PropertyStub,
-    JS_PropertyStub,
-    JS_PropertyStub,
-    JS_StrictPropertyStub,
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
-};
 
 static const char kJSRuntimeServiceContractID[] = "@mozilla.org/js/xpc/RuntimeService;1";
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
@@ -245,7 +229,7 @@ File(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     nsCOMPtr<nsISupports> native;
-    rv = nsDOMMultipartFile::NewFile(getter_AddRefs(native));
+    rv = nsDOMFileFile::NewFile(getter_AddRefs(native));
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
@@ -447,7 +431,6 @@ mozJSComponentLoader::ReallyInit()
     mModules.Init(32);
     mImports.Init(32);
     mInProgressImports.Init(32);
-    mThisObjects.Init(32);
 
     nsCOMPtr<nsIObserverService> obsSvc =
         do_GetService(kObserverServiceContractID, &rv);
@@ -488,7 +471,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
 
     ModuleEntry* mod;
     if (mModules.Get(spec, &mod))
-    return mod;
+	return mod;
 
     nsAutoPtr<ModuleEntry> entry(new ModuleEntry);
 
@@ -595,62 +578,6 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     return entry.forget();
 }
 
-nsresult
-mozJSComponentLoader::FindTargetObject(JSContext* aCx,
-                                       JSObject** aTargetObject)
-{
-    JSObject* targetObject = nullptr;
-    *aTargetObject = nullptr;
-
-    if (mReuseLoaderGlobal) {
-        JSScript* script =
-            js::GetOutermostEnclosingFunctionOfScriptedCaller(aCx);
-        if (script) {
-            targetObject = mThisObjects.Get(script);
-        }
-    }
-
-    // The above could fail, even if mReuseLoaderGlobal, if the scripted
-    // caller is not a component/JSM (it could be a DOM scope, for
-    // instance).
-    if (!targetObject) {
-        // Our targetObject is the caller's global object. Let's get it.
-        nsresult rv;
-        nsCOMPtr<nsIXPConnect> xpc =
-            do_GetService(kXPConnectServiceContractID, &rv);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        nsAXPCNativeCallContext *cc = nullptr;
-        rv = xpc->GetCurrentNativeCallContext(&cc);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        nsCOMPtr<nsIXPConnectWrappedNative> wn;
-        rv = cc->GetCalleeWrapper(getter_AddRefs(wn));
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        wn->GetJSObject(&targetObject);
-        if (!targetObject) {
-            NS_ERROR("null calling object");
-            return NS_ERROR_FAILURE;
-        }
-
-        targetObject = JS_GetGlobalForObject(aCx, targetObject);
-    }
-
-    *aTargetObject = targetObject;
-    return NS_OK;
-}
-
-void
-mozJSComponentLoader::NoteSubScript(JSScript* aScript, JSObject* aThisObject)
-{
-  if (!mInitialized && NS_FAILED(ReallyInit())) {
-      MOZ_NOT_REACHED();
-  }
-
-  mThisObjects.Put(aScript, aThisObject);
-}
-
 // Some stack based classes for cleaning up on early return
 #ifdef HAVE_PR_MEMMAP
 class FileAutoCloser
@@ -733,8 +660,7 @@ mozJSComponentLoader::PrepareObjectForLocation(JSCLContextHelper& aCx,
     if (aReuseLoaderGlobal) {
         // If we're reusing the loader global, we don't actually use the
         // global, but rather we use a different object as the 'this' object.
-        JSObject* newObj = JS_NewObject(aCx, &kFakeBackstagePassJSClass,
-                                        nullptr, nullptr);
+        JSObject* newObj = JS_NewObject(aCx, nullptr, nullptr, nullptr);
         NS_ENSURE_TRUE(newObj, nullptr);
 
         obj = newObj;
@@ -1051,14 +977,6 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
     // See bug 384168.
     *aObject = obj;
 
-    JSScript* tableScript = script;
-    if (!tableScript) {
-        tableScript = JS_GetFunctionScript(cx, function);
-        MOZ_ASSERT(tableScript);
-    }
-
-    mThisObjects.Put(tableScript, obj);
-
     uint32_t oldopts = JS_GetOptions(cx);
     JS_SetOptions(cx, oldopts |
                   (exception ? JSOPTION_DONT_REPORT_UNCAUGHT : 0));
@@ -1122,7 +1040,6 @@ mozJSComponentLoader::UnloadModules()
 
     mInProgressImports.Clear();
     mImports.Clear();
-    mThisObjects.Clear();
 
     mModules.Enumerate(ClearModules, NULL);
 
@@ -1172,8 +1089,28 @@ mozJSComponentLoader::Import(const nsACString& registryLocation,
                                   PromiseFlatCString(registryLocation).get());
         }
     } else {
-        nsresult rv = FindTargetObject(cx, &targetObject);
+        // Our targetObject is the caller's global object. Find it by
+        // walking the calling object's parent chain.
+        nsresult rv;
+        nsCOMPtr<nsIXPConnect> xpc =
+            do_GetService(kXPConnectServiceContractID, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
+
+        nsAXPCNativeCallContext *cc = nullptr;
+        rv = xpc->GetCurrentNativeCallContext(&cc);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsIXPConnectWrappedNative> wn;
+        rv = cc->GetCalleeWrapper(getter_AddRefs(wn));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        wn->GetJSObject(&targetObject);
+        if (!targetObject) {
+            NS_ERROR("null calling object");
+            return NS_ERROR_FAILURE;
+        }
+
+        targetObject = JS_GetGlobalForObject(cx, targetObject);
     }
 
     Maybe<JSAutoCompartment> ac;

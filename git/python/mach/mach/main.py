@@ -127,11 +127,12 @@ You tell mach the command you want to perform and it does it for you.
 Some common commands are:
 
     %(prog)s build     Build/compile the source tree.
+    %(prog)s test      Run tests.
     %(prog)s help      Show full help, including the list of all commands.
 
 To see more help for a specific command, run:
 
-  %(prog)s help <command>
+  %(prog)s <command> --help
 """
 
     def __init__(self, cwd):
@@ -303,7 +304,7 @@ To see more help for a specific command, run:
             if not result:
                 result = 0
 
-            assert isinstance(result, (int, long))
+            assert isinstance(result, int)
 
             return result
         except KeyboardInterrupt as ki:
@@ -313,18 +314,6 @@ To see more help for a specific command, run:
 
             # The first frame is us and is never used.
             stack = traceback.extract_tb(exc_tb)[1:]
-
-            # If we have nothing on the stack, the exception was raised as part
-            # of calling the @Command method itself. This likely means a
-            # mismatch between @CommandArgument and arguments to the method.
-            # e.g. there exists a @CommandArgument without the corresponding
-            # argument on the method. We handle that here until the module
-            # loader grows the ability to validate better.
-            if not len(stack):
-                print(COMMAND_ERROR)
-                self._print_exception(sys.stdout, exc_type, exc_value,
-                    traceback.extract_tb(exc_tb))
-                return 1
 
             # Split the frames into those from the module containing the
             # command and everything else.
