@@ -23,20 +23,20 @@
     db.onerror = errorHandler;
 
     if (SpecialPowers.isMainProcess()) {
-      request = db.createMutableFile("random.bin", "binary/random");
+      request = db.mozCreateFileHandle("random.bin", "binary/random");
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
-      let mutableFile = event.target.result;
-      ok(mutableFile, "Got mutablefile");
+      let fileHandle = event.target.result;
+      ok(fileHandle, "Got filehandle");
     }
     else {
       try {
-        db.createMutableFile("random.bin", "binary/random");
+        db.mozCreateFileHandle("random.bin", "binary/random");
         ok(false, "Should have thrown!");
       }
       catch (ex) {
-        ok(true, "CreateMutableFile threw");
+        ok(true, "MozCreateFileHandle threw");
       }
     }
 

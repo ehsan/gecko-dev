@@ -29,24 +29,24 @@
 
     event = yield undefined;
 
-    request = db.createMutableFile("test.bin", "binary");
+    request = db.mozCreateFileHandle("test.bin", "binary");
     request.onsuccess = grabEventAndContinueHandler;
     event = yield undefined;
 
-    let mutableFile = event.target.result;
-    mutableFile.onerror = errorHandler;
+    let fileHandle = event.target.result;
+    fileHandle.onerror = errorHandler;
 
-    let fileHandle = mutableFile.open("readwrite");
+    let lockedFile = fileHandle.open("readwrite");
 
     let blob = getNullBlob(DEFAULT_QUOTA);
 
-    request = fileHandle.write(blob);
+    request = lockedFile.write(blob);
     request.addEventListener("error",
                              new ExpectError("QuotaExceededError", true));
     request.onsuccess = unexpectedSuccessHandler;
     event = yield undefined;
 
-    fileHandle.oncomplete = grabEventAndContinueHandler;
+    lockedFile.oncomplete = grabEventAndContinueHandler;
     event = yield undefined;
 
     is(event.type, "complete", "Got correct event type");

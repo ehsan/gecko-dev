@@ -454,10 +454,8 @@ void nsSecureBrowserUIImpl::ResetStateTracking()
 }
 
 nsresult
-nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest,
-                                                      nsISupports *info,
-                                                      bool withNewLocation,
-                                                      bool withNewSink)
+nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsISupports *info,
+                                                      bool withNewLocation)
 {
   /* I explicitly ignore the camelCase variable naming style here,
      I want to make it clear these are temp variables that relate to the 
@@ -515,8 +513,7 @@ nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest,
     mRestoreSubrequests = false;
   }
 
-  return UpdateSecurityState(aRequest, withNewLocation,
-                             withNewSink || updateStatus);
+  return UpdateSecurityState(aRequest, withNewLocation, updateStatus);
 }
 
 void
@@ -1160,8 +1157,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
       // OnStateChange, we have to fire the notification here (again).
 
       if (sinkChanged || mOnLocationChangeSeen)
-        return EvaluateAndUpdateSecurityState(aRequest, securityInfo,
-                                              false, sinkChanged);
+        return EvaluateAndUpdateSecurityState(aRequest, securityInfo, false);
     }
     mOnLocationChangeSeen = false;
 
@@ -1449,7 +1445,7 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
   if (windowForProgress.get() == window.get()) {
     // For toplevel channels, update the security state right away.
     mOnLocationChangeSeen = true;
-    return EvaluateAndUpdateSecurityState(aRequest, securityInfo, true, false);
+    return EvaluateAndUpdateSecurityState(aRequest, securityInfo, true);
   }
 
   // For channels in subdocuments we only update our subrequest state members.

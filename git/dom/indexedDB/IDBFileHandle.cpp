@@ -4,10 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "IDBMutableFile.h"
+#include "IDBFileHandle.h"
 
 #include "mozilla/dom/File.h"
-#include "mozilla/dom/IDBMutableFileBinding.h"
+#include "mozilla/dom/IDBFileHandleBinding.h"
 #include "mozilla/dom/quota/FileStreams.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 
@@ -36,32 +36,32 @@ GetFileFor(FileInfo* aFileInfo)
 
 } // anonymous namespace
 
-IDBMutableFile::IDBMutableFile(IDBDatabase* aOwner)
-  : MutableFile(aOwner)
+IDBFileHandle::IDBFileHandle(IDBDatabase* aOwner)
+  : FileHandle(aOwner)
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED(IDBMutableFile, MutableFile, mDatabase)
+NS_IMPL_CYCLE_COLLECTION_INHERITED(IDBFileHandle, FileHandle, mDatabase)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBMutableFile)
-NS_INTERFACE_MAP_END_INHERITING(MutableFile)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBFileHandle)
+NS_INTERFACE_MAP_END_INHERITING(FileHandle)
 
-NS_IMPL_ADDREF_INHERITED(IDBMutableFile, MutableFile)
-NS_IMPL_RELEASE_INHERITED(IDBMutableFile, MutableFile)
+NS_IMPL_ADDREF_INHERITED(IDBFileHandle, FileHandle)
+NS_IMPL_RELEASE_INHERITED(IDBFileHandle, FileHandle)
 
 // static
-already_AddRefed<IDBMutableFile>
-IDBMutableFile::Create(const nsAString& aName,
-                       const nsAString& aType,
-                       IDBDatabase* aDatabase,
-                       already_AddRefed<FileInfo> aFileInfo)
+already_AddRefed<IDBFileHandle>
+IDBFileHandle::Create(const nsAString& aName,
+                      const nsAString& aType,
+                      IDBDatabase* aDatabase,
+                      already_AddRefed<FileInfo> aFileInfo)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsRefPtr<FileInfo> fileInfo(aFileInfo);
   NS_ASSERTION(fileInfo, "Null pointer!");
 
-  nsRefPtr<IDBMutableFile> newFile = new IDBMutableFile(aDatabase);
+  nsRefPtr<IDBFileHandle> newFile = new IDBFileHandle(aDatabase);
 
   newFile->mName = aName;
   newFile->mType = aType;
@@ -79,25 +79,25 @@ IDBMutableFile::Create(const nsAString& aName,
 }
 
 bool
-IDBMutableFile::IsShuttingDown()
+IDBFileHandle::IsShuttingDown()
 {
-  return QuotaManager::IsShuttingDown() || MutableFile::IsShuttingDown();
+  return QuotaManager::IsShuttingDown() || FileHandle::IsShuttingDown();
 }
 
 bool
-IDBMutableFile::IsInvalid()
+IDBFileHandle::IsInvalid()
 {
   return mDatabase->IsInvalidated();
 }
 
 nsIOfflineStorage*
-IDBMutableFile::Storage()
+IDBFileHandle::Storage()
 {
   return mDatabase;
 }
 
 already_AddRefed<nsISupports>
-IDBMutableFile::CreateStream(nsIFile* aFile, bool aReadOnly)
+IDBFileHandle::CreateStream(nsIFile* aFile, bool aReadOnly)
 {
   PersistenceType persistenceType = mDatabase->Type();
   const nsACString& group = mDatabase->Group();
@@ -123,31 +123,31 @@ IDBMutableFile::CreateStream(nsIFile* aFile, bool aReadOnly)
 }
 
 void
-IDBMutableFile::SetThreadLocals()
+IDBFileHandle::SetThreadLocals()
 {
   MOZ_ASSERT(mDatabase->GetOwner(), "Should have owner!");
   QuotaManager::SetCurrentWindow(mDatabase->GetOwner());
 }
 
 void
-IDBMutableFile::UnsetThreadLocals()
+IDBFileHandle::UnsetThreadLocals()
 {
   QuotaManager::SetCurrentWindow(nullptr);
 }
 
 already_AddRefed<nsIDOMFile>
-IDBMutableFile::CreateFileObject(mozilla::dom::FileHandle* aFileHandle,
+IDBFileHandle::CreateFileObject(mozilla::dom::LockedFile* aLockedFile,
                                 uint32_t aFileSize)
 {
   nsCOMPtr<nsIDOMFile> file =
-    new File(mName, mType, aFileSize, mFile, aFileHandle, mFileInfo);
+    new File(mName, mType, aFileSize, mFile, aLockedFile, mFileInfo);
 
   return file.forget();
 }
 
 // virtual
 JSObject*
-IDBMutableFile::WrapObject(JSContext* aCx)
+IDBFileHandle::WrapObject(JSContext* aCx)
 {
-  return IDBMutableFileBinding::Wrap(aCx, this);
+  return IDBFileHandleBinding::Wrap(aCx, this);
 }

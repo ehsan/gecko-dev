@@ -234,7 +234,6 @@ var TreeView = Class({
     this.elt.appendChild(this.children);
 
     this.resourceChildrenChanged = this.resourceChildrenChanged.bind(this);
-    this.removeResource = this.removeResource.bind(this);
     this.updateResource = this.updateResource.bind(this);
   },
 
@@ -400,9 +399,22 @@ var TreeView = Class({
 
     on(this, resource, "children-changed", this.resourceChildrenChanged);
     on(this, resource, "label-change", this.updateResource);
-    on(this, resource, "deleted", this.removeResource);
 
     return container;
+  },
+
+  /**
+   * Delete a Resource from the FileSystem.  XXX: This should
+   * definitely be moved away from here, maybe to the store?
+   *
+   * @param Resource resource
+   */
+  deleteResource: function(resource) {
+    if (resource.isDir) {
+      return OS.File.removeDir(resource.path);
+    } else {
+      return OS.File.remove(resource.path);
+    }
   },
 
   /**
@@ -424,12 +436,12 @@ var TreeView = Class({
    * @param Resource resource
    */
   _removeResource: function(resource) {
-    forget(this, resource);
+    resource.off("children-changed", this.resourceChildrenChanged);
+    resource.off("label-change", this.updateResource);
     if (this._containers.get(resource)) {
       this._containers.get(resource).destroy();
       this._containers.delete(resource);
     }
-    emit(this, "resource-removed", resource);
   },
 
   /**
