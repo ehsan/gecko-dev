@@ -5,6 +5,4 @@ f = function() {
 	print(q);
 }
 
-var before = Date.now();
 f();
-var after = Date.now();
