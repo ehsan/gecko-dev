@@ -440,7 +440,7 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK bool lazilyImportGlobalSlot(unsigned slot);
 
     JS_REQUIRES_STACK void guard(bool expected, nanojit::LIns* cond, ExitType exitType);
-    JS_REQUIRES_STACK void guard(bool expected, nanojit::LIns* cond, nanojit::LIns* exit);
+    JS_REQUIRES_STACK void guard(bool expected, nanojit::LIns* cond, VMSideExit* exit);
 
     nanojit::LIns* addName(nanojit::LIns* ins, const char* name);
 
@@ -509,8 +509,6 @@ class TraceRecorder : public avmplus::GCObject {
                                          nanojit::LIns*& ops_ins, size_t op_offset = 0);
     JS_REQUIRES_STACK bool test_property_cache(JSObject* obj, nanojit::LIns* obj_ins,
                                                JSObject*& obj2, jsuword& pcval);
-    JS_REQUIRES_STACK bool test_property_cache_direct_slot(JSObject* obj, nanojit::LIns* obj_ins,
-                                                           uint32& slot);
     void stobj_set_slot(nanojit::LIns* obj_ins, unsigned slot, nanojit::LIns*& dslots_ins,
                         nanojit::LIns* v_ins);
     void stobj_set_dslot(nanojit::LIns *obj_ins, unsigned slot, nanojit::LIns*& dslots_ins,
@@ -526,6 +524,8 @@ class TraceRecorder : public avmplus::GCObject {
     bool native_get(nanojit::LIns* obj_ins, nanojit::LIns* pobj_ins, JSScopeProperty* sprop,
                     nanojit::LIns*& dslots_ins, nanojit::LIns*& v_ins);
 
+    nanojit::LIns* getStringLength(nanojit::LIns* str_ins);
+
     JS_REQUIRES_STACK bool name(jsval*& vp);
     JS_REQUIRES_STACK bool prop(JSObject* obj, nanojit::LIns* obj_ins, uint32& slot,
                                 nanojit::LIns*& v_ins);
@@ -536,14 +536,13 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK bool getThis(nanojit::LIns*& this_ins);
 
     JS_REQUIRES_STACK void box_jsval(jsval v, nanojit::LIns*& v_ins);
-    JS_REQUIRES_STACK void unbox_jsval(jsval v, nanojit::LIns*& v_ins, nanojit::LIns* exit);
+    JS_REQUIRES_STACK void unbox_jsval(jsval v, nanojit::LIns*& v_ins, VMSideExit* exit);
     JS_REQUIRES_STACK bool guardClass(JSObject* obj, nanojit::LIns* obj_ins, JSClass* clasp,
-                                      nanojit::LIns* exit);
+                                      VMSideExit* exit);
     JS_REQUIRES_STACK bool guardDenseArray(JSObject* obj, nanojit::LIns* obj_ins,
                                            ExitType exitType = MISMATCH_EXIT);
-    JS_REQUIRES_STACK bool guardDenseArrayIndex(JSObject* obj, jsint idx, nanojit::LIns* obj_ins,
-                                                nanojit::LIns* dslots_ins, nanojit::LIns* idx_ins,
-                                                ExitType exitType);
+    JS_REQUIRES_STACK bool guardPrototypeHasNoIndexedProperties(JSObject* obj, nanojit::LIns* obj_ins,
+                                                                ExitType exitType);
     JS_REQUIRES_STACK bool guardNotGlobalObject(JSObject* obj, nanojit::LIns* obj_ins);
     void clearFrameSlotsFromCache();
     JS_REQUIRES_STACK bool guardCallee(jsval& callee);
@@ -579,9 +578,27 @@ public:
     static JS_REQUIRES_STACK JSMonitorRecordingStatus monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op);
 
     JS_REQUIRES_STACK uint8 determineSlotType(jsval* vp);
-    JS_REQUIRES_STACK nanojit::LIns* snapshot(ExitType exitType);
-    nanojit::LIns* clone(VMSideExit* exit);
-    nanojit::LIns* copy(VMSideExit* exit);
+
+    /*
+     * Examines current interpreter state to record information suitable for
+     * returning to the interpreter through a side exit of the given type.
+     */
+    JS_REQUIRES_STACK VMSideExit* snapshot(ExitType exitType);
+
+    /*
+     * Creates a separate but identical copy of the given side exit, allowing
+     * the guards associated with each to be entirely separate even after
+     * subsequent patching.
+     */
+    JS_REQUIRES_STACK VMSideExit* copy(VMSideExit* exit);
+
+    /*
+     * Creates an instruction whose payload is a GuardRecord for the given exit.
+     * The instruction is suitable for use as the final argument of a single
+     * call to LirBuffer::insGuard; do not reuse the returned value.
+     */
+    JS_REQUIRES_STACK nanojit::LIns* createGuardRecord(VMSideExit* exit);
+
     nanojit::Fragment* getFragment() const { return fragment; }
     TreeInfo* getTreeInfo() const { return treeInfo; }
     JS_REQUIRES_STACK void compile(JSTraceMonitor* tm);
@@ -659,13 +676,16 @@ extern void
 js_PurgeScriptFragments(JSContext* cx, JSScript* script);
 
 extern bool
-js_OverfullFragmento(nanojit::Fragmento *frago, size_t maxsz);
+js_OverfullFragmento(JSTraceMonitor* tm, nanojit::Fragmento *frago);
 
 extern void
 js_PurgeJITOracle();
 
 extern JSObject *
 js_GetBuiltinFunction(JSContext *cx, uintN index);
+
+extern void
+js_SetMaxCodeCacheBytes(JSContext* cx, uint32 bytes);
 
 #else  /* !JS_TRACER */
 

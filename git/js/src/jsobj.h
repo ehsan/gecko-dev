@@ -199,6 +199,12 @@ struct JSObject {
                              + JSCLASS_RESERVED_SLOTS(clasp))
 
 /*
+ * Maximum net gross capacity of the obj->dslots vector, excluding the additional
+ * hidden slot used to store the length of the vector.
+ */
+#define MAX_DSLOTS_LENGTH   (JS_MAX(~(uint32)0, ~(size_t)0) / sizeof(jsval))
+
+/*
  * STOBJ prefix means Single Threaded Object. Use the following fast macros to
  * directly manipulate slots in obj when only one thread can access obj and
  * when obj->map->freeslot can be inconsistent with slots.
@@ -240,7 +246,14 @@ struct JSObject {
  * flags in the two least significant bits. We do *not* synchronize updates of
  * obj->classword -- API clients must take care.
  */
-#define STOBJ_GET_CLASS(obj)    ((JSClass *)((obj)->classword & ~3))
+#define JSSLOT_CLASS_MASK_BITS 3
+
+JS_ALWAYS_INLINE JSClass*
+STOBJ_GET_CLASS(const JSObject* obj)
+{
+    return (JSClass *) (obj->classword & ~JSSLOT_CLASS_MASK_BITS);
+}
+
 #define STOBJ_IS_DELEGATE(obj)  (((obj)->classword & 1) != 0)
 #define STOBJ_SET_DELEGATE(obj) ((obj)->classword |= 1)
 #define STOBJ_NULLSAFE_SET_DELEGATE(obj)                                      \
@@ -640,11 +653,15 @@ js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                   JSProperty **propp);
 
 #ifdef __cplusplus /* FIXME: bug 442399 removes this LiveConnect requirement. */
-extern JSBool
+
+/*
+ * If cacheResult is false, return JS_NO_PROP_CACHE_FILL on success.
+ */
+extern JSPropCacheEntry *
 js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         JSPropertyOp getter, JSPropertyOp setter, uintN attrs,
                         uintN flags, intN shortid, JSProperty **propp,
-                        JSPropCacheEntry** entryp = NULL);
+                        JSBool cacheResult = JS_FALSE);
 #endif
 
 /*
@@ -667,10 +684,12 @@ extern int
 js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                            JSObject **objp, JSProperty **propp);
 
-extern int
-js_FindPropertyHelper(JSContext *cx, jsid id, JSObject **objp,
-                      JSObject **pobjp, JSProperty **propp,
-                      JSPropCacheEntry **entryp);
+/*
+ * If cacheResult is false, return JS_NO_PROP_CACHE_FILL on success.
+ */
+extern JSPropCacheEntry *
+js_FindPropertyHelper(JSContext *cx, jsid id, JSBool cacheResult,
+                      JSObject **objp, JSObject **pobjp, JSProperty **propp);
 
 /*
  * Return the index along the scope chain in which id was found, or the last
@@ -681,8 +700,7 @@ js_FindProperty(JSContext *cx, jsid id, JSObject **objp, JSObject **pobjp,
                 JSProperty **propp);
 
 extern JS_REQUIRES_STACK JSObject *
-js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id,
-                      JSPropCacheEntry *entry);
+js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id);
 
 extern JSObject *
 js_FindVariableScope(JSContext *cx, JSFunction **funp);
@@ -701,15 +719,15 @@ extern JSBool
 js_NativeSet(JSContext *cx, JSObject *obj, JSScopeProperty *sprop, jsval *vp);
 
 extern JSBool
-js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
-                     JSPropCacheEntry **entryp);
+js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
+                     jsval *vp);
 
 extern JSBool
 js_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 extern JSBool
-js_GetMethod(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
-             JSPropCacheEntry **entryp);
+js_GetMethod(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
+             jsval *vp);
 
 /*
  * Check whether it is OK to assign an undeclared property of the global
@@ -718,9 +736,12 @@ js_GetMethod(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
 extern JS_FRIEND_API(JSBool)
 js_CheckUndeclaredVarAssignment(JSContext *cx);
 
-extern JSBool
-js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
-                     JSPropCacheEntry **entryp);
+/*
+ * If cacheResult is false, return JS_NO_PROP_CACHE_FILL on success.
+ */
+extern JSPropCacheEntry *
+js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
+                     jsval *vp);
 
 extern JSBool
 js_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
@@ -838,6 +859,12 @@ js_ComputeFilename(JSContext *cx, JSStackFrame *caller,
 /* Infallible, therefore cx is last parameter instead of first. */
 extern JSBool
 js_IsCallable(JSObject *obj, JSContext *cx);
+
+void
+js_ReportGetterOnlyAssignment(JSContext *cx);
+
+extern JS_FRIEND_API(JSBool)
+js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 #ifdef DEBUG
 JS_FRIEND_API(void) js_DumpChars(const jschar *s, size_t n);

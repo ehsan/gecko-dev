@@ -1664,11 +1664,6 @@ function testNestedExitStackOuter() {
   return counter;
 }
 testNestedExitStackOuter.expected = 81;
-testNestedExitStackOuter.jitstats = {
-    recorderStarted: 5,
-    recorderAborted: 1,
-    traceTriggered: 10
-};
 test(testNestedExitStackOuter);
 
 function testHOTLOOPSize() {
@@ -5013,6 +5008,38 @@ function testGlobalShapeChangeAfterDeepBail() {
 test(testGlobalShapeChangeAfterDeepBail);
 for (let i = 0; i < 5; i++)
     delete this["bug" + i];
+
+function testFunctionIdentityChange()
+{
+  function a() {}
+  function b() {}
+
+  var o = { a: a, b: b };
+
+  for (var prop in o)
+  {
+    for (var i = 0; i < 1000; i++)
+      o[prop]();
+  }
+
+  return true;
+}
+testFunctionIdentityChange.expected = true;
+testFunctionIdentityChange.jitstats = {
+  recorderStarted: 2,
+  traceCompleted: 2,
+  sideExitIntoInterpreter: 3
+};
+test(testFunctionIdentityChange);
+
+function testStringObjectLength() {
+    var x = new String("foo"), y = 0;
+    for (var i = 0; i < 10; ++i)
+        y = x.length;
+    return y;
+}
+testStringObjectLength.expected = 3;
+test(testStringObjectLength);
 
 /*****************************************************************************
  *                                                                           *

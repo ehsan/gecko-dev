@@ -622,15 +622,19 @@ js_GetCallObject(JSContext *cx, JSStackFrame *fp)
      * expression Call's parent points to an environment object holding
      * function's name.
      */
-    JSObject *parent = fp->scopeChain;
     JSAtom *lambdaName = (fp->fun->flags & JSFUN_LAMBDA) ? fp->fun->atom : NULL;
     if (lambdaName) {
-        parent = js_NewObjectWithGivenProto(cx, &js_DeclEnvClass, NULL,
-                                            parent, 0);
-        if (!parent)
-            return JS_FALSE;
+        JSObject *env = js_NewObjectWithGivenProto(cx, &js_DeclEnvClass, NULL,
+                                                   fp->scopeChain, 0);
+        if (!env)
+            return NULL;
+
+        /* Root env. */
+        fp->scopeChain = env;
     }
-    callobj = js_NewObject(cx, &js_CallClass, NULL, parent, 0);
+
+    callobj = js_NewObjectWithGivenProto(cx, &js_CallClass, NULL,
+                                         fp->scopeChain, 0);
     if (!callobj)
         return NULL;
 
@@ -638,11 +642,11 @@ js_GetCallObject(JSContext *cx, JSStackFrame *fp)
     JS_ASSERT(fp->fun == GET_FUNCTION_PRIVATE(cx, fp->callee));
     STOBJ_SET_SLOT(callobj, JSSLOT_CALLEE, OBJECT_TO_JSVAL(fp->callee));
     if (lambdaName &&
-        !js_DefineNativeProperty(cx, parent, ATOM_TO_JSID(lambdaName),
+        !js_DefineNativeProperty(cx, fp->scopeChain, ATOM_TO_JSID(lambdaName),
                                  OBJECT_TO_JSVAL(fp->callee), NULL, NULL,
                                  JSPROP_PERMANENT | JSPROP_READONLY,
                                  0, 0, NULL)) {
-        return JS_FALSE;
+        return NULL;
     }
 
     fp->callobj = callobj;
@@ -993,11 +997,10 @@ call_reserveSlots(JSContext *cx, JSObject *obj)
 }
 
 JS_FRIEND_DATA(JSClass) js_CallClass = {
-    js_Call_str,
+    "Call",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(CALL_CLASS_FIXED_RESERVED_SLOTS) |
-    JSCLASS_NEW_RESOLVE | JSCLASS_IS_ANONYMOUS |
-    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Call),
+    JSCLASS_NEW_RESOLVE | JSCLASS_IS_ANONYMOUS | JSCLASS_MARK_IS_TRACE,
     JS_PropertyStub,    JS_PropertyStub,
     JS_PropertyStub,    JS_PropertyStub,
     call_enumerate,     (JSResolveOp)call_resolve,
@@ -2094,24 +2097,6 @@ js_InitFunctionClass(JSContext *cx, JSObject *obj)
 bad:
     cx->weakRoots.newborn[GCX_OBJECT] = NULL;
     return NULL;
-}
-
-JSObject *
-js_InitCallClass(JSContext *cx, JSObject *obj)
-{
-    JSObject *proto;
-
-    proto = JS_InitClass(cx, obj, NULL, &js_CallClass, NULL, 0,
-                         NULL, NULL, NULL, NULL);
-    if (!proto)
-        return NULL;
-
-    /*
-     * Null Call.prototype's proto slot so that Object.prototype.* does not
-     * pollute the scope of heavyweight functions.
-     */
-    OBJ_CLEAR_PROTO(cx, proto);
-    return proto;
 }
 
 JSFunction *

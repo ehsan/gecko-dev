@@ -441,7 +441,7 @@ RecycleFuncNameKids(JSParseNode *pn, JSTreeContext *tc)
         break;
 
       default:
-        JS_NOT_REACHED("RecycleFuncNameKids");
+        JS_ASSERT(PN_TYPE(pn) == TOK_FUNCTION);
     }
 }
 
@@ -854,6 +854,11 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
 
     /* Null script early in case of error, to reduce our code footprint. */
     script = NULL;
+#if JS_HAS_XML_SUPPORT
+    pn = NULL;
+    bool onlyXML = true;
+#endif
+
     for (;;) {
         jsc.tokenStream.flags |= TSF_OPERAND;
         tt = js_PeekToken(cx, &jsc.tokenStream);
@@ -881,8 +886,29 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
 
         if (!js_EmitTree(cx, &cg, pn))
             goto out;
+#if JS_HAS_XML_SUPPORT
+        if (PN_TYPE(pn) != TOK_SEMI ||
+            !pn->pn_kid ||
+            !TREE_TYPE_IS_XML(PN_TYPE(pn->pn_kid))) {
+            onlyXML = false;
+        }
+#endif
         RecycleTree(pn, &cg);
     }
+
+#if JS_HAS_XML_SUPPORT
+    /*
+     * Prevent XML data theft via <script src="http://victim.com/foo.xml">.
+     * For background, see:
+     *
+     * https://bugzilla.mozilla.org/show_bug.cgi?id=336551
+     */
+    if (pn && onlyXML && (tcflags & TCF_NO_SCRIPT_RVAL)) {
+        js_ReportCompileErrorNumber(cx, &jsc.tokenStream, NULL, JSREPORT_ERROR,
+                                    JSMSG_XML_WHOLE_PROGRAM);
+        goto out;
+    }
+#endif
 
     /*
      * Global variables and regexps share the index space with locals. Due to
@@ -2089,25 +2115,23 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
                         JSFunctionBox *afunbox = funbox->parent;
                         uintN lexdepLevel = lexdep->frameLevel();
 
-                        if (!afunbox) {
-                            if (tcflags & TCF_IN_FUNCTION)
-                                tcflags |= TCF_FUN_HEAVYWEIGHT;
-                        } else {
-                            do {
-                                /*
-                                 * NB: afunbox->level is the static level of
-                                 * the definition or expression of the function
-                                 * parsed into afunbox, not the static level of
-                                 * its body. Therefore we must add 1 to match
-                                 * lexdep's level to find the afunbox whose
-                                 * body contains the lexdep definition.
-                                 */
-                                if (afunbox->level + 1U == lexdepLevel) {
-                                    afunbox->tcflags |= TCF_FUN_HEAVYWEIGHT;
-                                    break;
-                                }
-                            } while ((afunbox = afunbox->parent) != NULL);
+                        while (afunbox) {
+                            /*
+                             * NB: afunbox->level is the static level of
+                             * the definition or expression of the function
+                             * parsed into afunbox, not the static level of
+                             * its body. Therefore we must add 1 to match
+                             * lexdep's level to find the afunbox whose
+                             * body contains the lexdep definition.
+                             */
+                            if (afunbox->level + 1U == lexdepLevel) {
+                                afunbox->tcflags |= TCF_FUN_HEAVYWEIGHT;
+                                break;
+                            }
+                            afunbox = afunbox->parent;
                         }
+                        if (!afunbox && (tcflags & TCF_IN_FUNCTION))
+                            tcflags |= TCF_FUN_HEAVYWEIGHT;
                     }
                 }
             }
@@ -3633,14 +3657,14 @@ CheckDestructuring(JSContext *cx, BindData *data,
     if (data &&
         data->binder == BindLet &&
         OBJ_BLOCK_COUNT(cx, tc->blockChain) == 0) {
-        ok = js_DefineNativeProperty(cx, tc->blockChain,
-                                     ATOM_TO_JSID(cx->runtime->
-                                                  atomState.emptyAtom),
-                                     JSVAL_VOID, NULL, NULL,
-                                     JSPROP_ENUMERATE |
-                                     JSPROP_PERMANENT |
-                                     JSPROP_SHARED,
-                                     SPROP_HAS_SHORTID, 0, NULL);
+        ok = !!js_DefineNativeProperty(cx, tc->blockChain,
+                                       ATOM_TO_JSID(cx->runtime->
+                                                    atomState.emptyAtom),
+                                       JSVAL_VOID, NULL, NULL,
+                                       JSPROP_ENUMERATE |
+                                       JSPROP_PERMANENT |
+                                       JSPROP_SHARED,
+                                       SPROP_HAS_SHORTID, 0, NULL);
         if (!ok)
             goto out;
     }
@@ -5296,6 +5320,15 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     return MatchOrInsertSemicolon(cx, ts) ? pn : NULL;
 }
 
+static void
+NoteArgumentsUse(JSTreeContext *tc)
+{
+    JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
+    tc->flags |= TCF_FUN_USES_ARGUMENTS;
+    if (tc->funbox)
+        tc->funbox->node->pn_dflags |= PND_FUNARG;
+}
+
 static JSParseNode *
 Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, bool inLetHead)
 {
@@ -5461,8 +5494,9 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, bool inLetHead)
             /* The declarator's position must include the initializer. */
             pn2->pn_pos.end = init->pn_pos.end;
 
-            if (atom == cx->runtime->atomState.argumentsAtom) {
-                tc->flags |= TCF_FUN_USES_ARGUMENTS;
+            if ((tc->flags & TCF_IN_FUNCTION) &&
+                atom == cx->runtime->atomState.argumentsAtom) {
+                NoteArgumentsUse(tc);
                 if (!let)
                     tc->flags |= TCF_FUN_HEAVYWEIGHT;
             }
@@ -6128,14 +6162,16 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                     if (!ale)
                         return NULL;
 
-                    if (!dn->isPlaceholder()) {
+                    if (dn->pn_pos >= root->pn_pos) {
+                        tc->parent->lexdeps.remove(tc->compiler, atom);
+                    } else {
                         JSDefinition *dn2 = (JSDefinition *)
                             NewNameNode(tc->compiler->context, TS(tc->compiler), dn->pn_atom, tc);
                         if (!dn2)
                             return NULL;
 
                         dn2->pn_type = dn->pn_type;
-                        dn2->pn_pos = dn->pn_pos;
+                        dn2->pn_pos = root->pn_pos;
                         dn2->pn_defn = true;
                         dn2->pn_dflags |= PND_FORWARD | PND_PLACEHOLDER;
 
@@ -6154,9 +6190,6 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                     }
 
                     ALE_SET_DEFN(ale, dn);
-
-                    if (dn->pn_pos >= root->pn_pos)
-                        tc->parent->lexdeps.remove(tc->compiler, atom);
                 }
             }
         }
@@ -7882,7 +7915,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
              * a reference of the form foo.arguments, which ancient code may
              * still use instead of arguments (more hate).
              */
-            tc->flags |= TCF_FUN_USES_ARGUMENTS;
+            NoteArgumentsUse(tc);
 
             /*
              * Bind early to JSOP_ARGUMENTS to relieve later code from having
@@ -7892,7 +7925,11 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 pn->pn_op = JSOP_ARGUMENTS;
                 pn->pn_dflags |= PND_BOUND;
             }
-        } else if (!afterDot && !(ts->flags & TSF_DESTRUCTURING)) {
+        } else if ((!afterDot
+#if JS_HAS_XML_SUPPORT
+                    || js_PeekToken(cx, ts) == TOK_DBLCOLON
+#endif
+                   ) && !(ts->flags & TSF_DESTRUCTURING)) {
             JSStmtInfo *stmt = js_LexicalLookup(tc, pn->pn_atom, NULL);
             if (!stmt || stmt->type != STMT_WITH) {
                 JSDefinition *dn;
