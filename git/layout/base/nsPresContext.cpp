@@ -191,8 +191,7 @@ IsVisualCharset(const nsCString& aCharset)
 
 nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   : mType(aType), mDocument(aDocument), mBaseMinFontSize(0),
-    mTextZoom(1.0), mFullZoom(1.0),
-    mLastFontInflationScreenSize(gfxSize(-1.0, -1.0)),
+    mTextZoom(1.0), mFullZoom(1.0), mLastFontInflationScreenWidth(-1.0),
     mPageSize(-1, -1), mPPScale(1.0f),
     mViewportStyleScrollbar(NS_STYLE_OVERFLOW_AUTO, NS_STYLE_OVERFLOW_AUTO),
     mImageAnimationModePref(imgIContainer::kNormalAnimMode),
@@ -1506,8 +1505,8 @@ nsPresContext::SetFullZoom(float aZoom)
   mSupressResizeReflow = false;
 }
 
-gfxSize
-nsPresContext::ScreenSizeInchesForFontInflation(bool* aChanged)
+float
+nsPresContext::ScreenWidthInchesForFontInflation(bool* aChanged)
 {
   if (aChanged) {
     *aChanged = false;
@@ -1516,20 +1515,19 @@ nsPresContext::ScreenSizeInchesForFontInflation(bool* aChanged)
   nsDeviceContext *dx = DeviceContext();
   nsRect clientRect;
   dx->GetClientRect(clientRect); // FIXME: GetClientRect looks expensive
-  float unitsPerInch = dx->AppUnitsPerPhysicalInch();
-  gfxSize deviceSizeInches(float(clientRect.width) / unitsPerInch,
-                           float(clientRect.height) / unitsPerInch);
+  float deviceWidthInches =
+    float(clientRect.width) / float(dx->AppUnitsPerPhysicalInch());
 
-  if (mLastFontInflationScreenSize == gfxSize(-1.0, -1.0)) {
-    mLastFontInflationScreenSize = deviceSizeInches;
+  if (mLastFontInflationScreenWidth == -1.0) {
+    mLastFontInflationScreenWidth = deviceWidthInches;
   }
 
-  if (deviceSizeInches != mLastFontInflationScreenSize && aChanged) {
+  if (deviceWidthInches != mLastFontInflationScreenWidth && aChanged) {
     *aChanged = true;
-    mLastFontInflationScreenSize = deviceSizeInches;
+    mLastFontInflationScreenWidth = deviceWidthInches;
   }
 
-  return deviceSizeInches;
+  return deviceWidthInches;
 }
 
 void
@@ -2174,8 +2172,12 @@ nsPresContext::UserFontSetUpdated(gfxUserFontEntry* aUpdatedFont)
   // depend upon font metrics. Updating this information requires
   // rebuilding the rule tree from the top, avoiding the reuse of cached
   // data even when no style rules have changed.
+
   if (UsesExChUnits()) {
-    PostRebuildAllStyleDataEvent(nsChangeHint(0), eRestyle_ForceDescendants);
+    // xxx - dbaron said this should work but get ex/ch related reftest failures
+    // PostRebuildAllStyleDataEvent(nsChangeHint(0), eRestyle_ForceDescendants);
+    PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW, eRestyle_ForceDescendants);
+    return;
   }
 
   // Iterate over the frame tree looking for frames associated with the

@@ -381,6 +381,10 @@ NS_NewByteInputStream(nsIInputStream** aStreamResult,
   NS_PRECONDITION(aStreamResult, "null out ptr");
 
   nsStringInputStream* stream = new nsStringInputStream();
+  if (!stream) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   NS_ADDREF(stream);
 
   nsresult rv;
@@ -423,6 +427,10 @@ NS_NewCStringInputStream(nsIInputStream** aStreamResult,
   NS_PRECONDITION(aStreamResult, "null out ptr");
 
   nsStringInputStream* stream = new nsStringInputStream();
+  if (!stream) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   NS_ADDREF(stream);
 
   stream->SetData(aStringToRead);
@@ -443,6 +451,10 @@ nsStringInputStreamConstructor(nsISupports* aOuter, REFNSIID aIID,
   }
 
   nsStringInputStream* inst = new nsStringInputStream();
+  if (!inst) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   NS_ADDREF(inst);
   nsresult rv = inst->QueryInterface(aIID, aResult);
   NS_RELEASE(inst);

@@ -112,8 +112,6 @@ Response::Redirect(const GlobalObject& aGlobal, const nsAString& aUrl,
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
-  r->GetInternalHeaders()->SetGuard(HeadersGuardEnum::Immutable, aRv);
-  MOZ_ASSERT(!aRv.Failed());
 
   return r.forget();
 }

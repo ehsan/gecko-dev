@@ -89,15 +89,13 @@ public:
   void ClearReorderedFrames();
   CFDictionaryRef CreateOutputConfiguration();
 
-  nsRefPtr<mp4_demuxer::ByteBuffer> mExtraData;
+  const mp4_demuxer::VideoDecoderConfig& mConfig;
   nsRefPtr<FlushableMediaTaskQueue> mTaskQueue;
   MediaDataDecoderCallback* mCallback;
   nsRefPtr<layers::ImageContainer> mImageContainer;
   ReorderQueue mReorderQueue;
   uint32_t mPictureWidth;
   uint32_t mPictureHeight;
-  uint32_t mDisplayWidth;
-  uint32_t mDisplayHeight;
   uint32_t mMaxRefFrames;
 
 private:

@@ -98,6 +98,7 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
 #if defined(MOZ_SANDBOX) && defined(XP_WIN)
     mEnableSandboxLogging(false),
     mSandboxLevel(0),
+    mMoreStrictSandbox(false),
 #endif
     mChildProcessHandle(0)
 #if defined(MOZ_WIDGET_COCOA)
@@ -270,7 +271,8 @@ GeckoChildProcessHost::PrepareLaunch()
 #if defined(MOZ_CONTENT_SANDBOX)
   // We need to get the pref here as the process is launched off main thread.
   if (mProcessType == GeckoProcessType_Content) {
-    mSandboxLevel = Preferences::GetInt("security.sandbox.content.level");
+    mMoreStrictSandbox =
+      Preferences::GetBool("security.sandbox.windows.content.moreStrict");
     mEnableSandboxLogging =
       Preferences::GetBool("security.sandbox.windows.log");
   }
@@ -807,7 +809,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     case GeckoProcessType_Content:
 #if defined(MOZ_CONTENT_SANDBOX)
       if (!PR_GetEnv("MOZ_DISABLE_CONTENT_SANDBOX")) {
-        mSandboxBroker.SetSecurityLevelForContentProcess(mSandboxLevel);
+        mSandboxBroker.SetSecurityLevelForContentProcess(mMoreStrictSandbox);
         cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
         shouldSandboxCurrentProcess = true;
       }

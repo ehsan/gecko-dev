@@ -31,9 +31,6 @@ public:
   NetworkError()
   {
     nsRefPtr<InternalResponse> response = new InternalResponse(0, EmptyCString());
-    ErrorResult result;
-    response->Headers()->SetGuard(HeadersGuardEnum::Immutable, result);
-    MOZ_ASSERT(!result.Failed());
     response->mType = ResponseType::Error;
     return response.forget();
   }

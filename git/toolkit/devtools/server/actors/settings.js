@@ -23,14 +23,7 @@ exports.unregister = function(handle) {
 };
 
 function getDefaultSettings() {
-  let chan = NetUtil.newChannel2(settingsFile,
-                                 null,
-                                 null,
-                                 null,      // aLoadingNode
-                                 Services.scriptSecurityManager.getSystemPrincipal(),
-                                 null,      // aTriggeringPrincipal
-                                 Ci.nsILoadInfo.SEC_NORMAL,
-                                 Ci.nsIContentPolicy.TYPE_OTHER);
+  let chan = NetUtil.newChannel(settingsFile);
   let stream = chan.open();
   // Obtain a converter to read from a UTF-8 encoded input stream.
   let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
