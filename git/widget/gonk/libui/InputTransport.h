@@ -33,9 +33,9 @@
 #include <semaphore.h>
 #include "Input.h"
 #include <utils/Errors.h>
-#include "Timers.h"
+#include <utils/Timers.h>
 #include <utils/RefBase.h>
-#include "String8.h"
+#include <utils/String8.h>
 
 namespace android {
 

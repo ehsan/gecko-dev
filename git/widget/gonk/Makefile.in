@@ -62,7 +62,6 @@ CPPSRCS	= \
 	nsLookAndFeel.cpp \
 	nsIdleServiceGonk.cpp \
 	EventHub.cpp \
-	Input.cpp \
 	InputApplication.cpp \
 	InputDispatcher.cpp \
 	InputListener.cpp \
@@ -74,12 +73,6 @@ CPPSRCS	= \
 	KeyLayoutMap.cpp \
 	PixelFormat.cpp \
 	VirtualKeyMap.cpp \
-	PropertyMap.cpp \
-	Unicode.cpp \
-	Timers.cpp \
-	Tokenizer.cpp \
-	String8.cpp \
-	Static.cpp \
 	$(NULL)
 
 SHARED_LIBRARY_LIBS = ../xpwidgets/libxpwidgets_s.a

@@ -678,8 +678,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     for (int i = 0; i < event_count; i++)
         mHandlers[events[i].data.u32].run();
 
-    if (mDispatcher.get())
-        mDispatcher->dispatchOnce();
+    mDispatcher->dispatchOnce();
 
     // NativeEventCallback always schedules more if it needs it
     // so we can coalesce these.
