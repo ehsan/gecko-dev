@@ -906,8 +906,6 @@ let CustomizableUIInternal = {
     let anchor = props.get("anchor");
     if (anchor) {
       aNode.setAttribute("cui-anchorid", anchor);
-    } else {
-      aNode.removeAttribute("cui-anchorid");
     }
   },
 

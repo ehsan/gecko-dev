@@ -5,15 +5,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 PARALLEL_DIRS += [
-    'decoder',
     'encoder'
 ]
 
 JS_MODULES_PATH = 'modules/devtools/qrcode'
 
 EXTRA_JS_MODULES += [
-    'index.js',
+    'qrcode.js',
 ]
 
 XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']
-MOCHITEST_CHROME_MANIFESTS += ['tests/mochitest/chrome.ini']

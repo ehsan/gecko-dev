@@ -32,8 +32,7 @@
 
 #ifdef MOZ_B2G_RIL
 #include "nsIDOMIccInfo.h"
-#include "nsIMobileConnectionInfo.h"
-#include "nsIMobileCellInfo.h"
+#include "nsIDOMMobileConnection.h"
 #include "nsIRadioInterfaceLayer.h"
 #endif
 
@@ -501,10 +500,10 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
         location.u.cellID.mnc = 0;
       }
     }
-    nsCOMPtr<nsIMobileConnectionInfo> voice;
+    nsCOMPtr<nsIDOMMozMobileConnectionInfo> voice;
     rilCtx->GetVoice(getter_AddRefs(voice));
     if (voice) {
-      nsCOMPtr<nsIMobileCellInfo> cell;
+      nsCOMPtr<nsIDOMMozMobileCellInfo> cell;
       voice->GetCell(getter_AddRefs(cell));
       if (cell) {
         int32_t lac;

@@ -208,15 +208,16 @@ VoicemailInfo.prototype = {
 
 function MobileConnectionInfo() {}
 MobileConnectionInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIMobileConnectionInfo]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileConnectionInfo]),
   classID:        MOBILECONNECTIONINFO_CID,
   classInfo:      XPCOMUtils.generateCI({
     classID:          MOBILECONNECTIONINFO_CID,
     classDescription: "MobileConnectionInfo",
-    interfaces:       [Ci.nsIMobileConnectionInfo]
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozMobileConnectionInfo]
   }),
 
-  // nsIMobileConnectionInfo
+  // nsIDOMMozMobileConnectionInfo
 
   connected: false,
   state: null,
@@ -231,15 +232,22 @@ MobileConnectionInfo.prototype = {
 
 function MobileNetworkInfo() {}
 MobileNetworkInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIMobileNetworkInfo]),
+  __exposedProps__ : {shortName: 'r',
+                      longName: 'r',
+                      mcc: 'r',
+                      mnc: 'r',
+                      state: 'r'},
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileNetworkInfo]),
   classID:        MOBILENETWORKINFO_CID,
   classInfo:      XPCOMUtils.generateCI({
     classID:          MOBILENETWORKINFO_CID,
     classDescription: "MobileNetworkInfo",
-    interfaces:       [Ci.nsIMobileNetworkInfo]
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozMobileNetworkInfo]
   }),
 
-  // nsIMobileNetworkInfo
+  // nsIDOMMozMobileNetworkInfo
 
   shortName: null,
   longName: null,
@@ -250,15 +258,16 @@ MobileNetworkInfo.prototype = {
 
 function MobileCellInfo() {}
 MobileCellInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIMobileCellInfo]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileCellInfo]),
   classID:        MOBILECELLINFO_CID,
   classInfo:      XPCOMUtils.generateCI({
     classID:          MOBILECELLINFO_CID,
     classDescription: "MobileCellInfo",
-    interfaces:       [Ci.nsIMobileCellInfo]
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozMobileCellInfo]
   }),
 
-  // nsIMobileCellInfo
+  // nsIDOMMozMobileCellInfo
 
   gsmLocationAreaCode: -1,
   gsmCellId: -1,
@@ -291,21 +300,31 @@ VoicemailStatus.prototype = {
   returnMessage: null
 };
 
-function MobileCallForwardingInfo(options) {
-  this.active = options.active;
-  this.action = options.action;
-  this.reason = options.reason;
-  this.number = options.number;
-  this.timeSeconds = options.timeSeconds;
-  this.serviceClass = options.serviceClass;
-}
-MobileCallForwardingInfo.prototype = {
+function MobileCFInfo() {}
+MobileCFInfo.prototype = {
   __exposedProps__ : {active: 'r',
                       action: 'r',
                       reason: 'r',
                       number: 'r',
                       timeSeconds: 'r',
-                      serviceClass: 'r'}
+                      serviceClass: 'r'},
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileCFInfo]),
+  classID:        MOBILECFINFO_CID,
+  classInfo:      XPCOMUtils.generateCI({
+    classID:          MOBILECFINFO_CID,
+    classDescription: "MobileCFInfo",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozMobileCFInfo]
+  }),
+
+  // nsIDOMMozMobileCFInfo
+
+  active: false,
+  action: -1,
+  reason: -1,
+  number: null,
+  timeSeconds: 0,
+  serviceClass: -1
 };
 
 function CellBroadcastMessage(pdu) {
@@ -688,9 +707,6 @@ RILContentHelper.prototype = {
 
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
-    // We need to save the global window to get the proper MobileNetworkInfo
-    // constructor once we get the reply from the parent process.
-    this._windowsMap[requestId] = window;
 
     cpmm.sendAsyncMessage("RIL:GetAvailableNetworks", {
       clientId: clientId,
@@ -1184,7 +1200,7 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  getCallForwarding: function(clientId, window, reason) {
+  getCallForwardingOption: function(clientId, window, reason) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
@@ -1192,7 +1208,7 @@ RILContentHelper.prototype = {
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    if (!this._isValidCallForwardingReason(reason)) {
+    if (!this._isValidCFReason(reason)){
       this.dispatchFireRequestError(requestId,
                                     RIL.GECKO_ERROR_INVALID_PARAMETER);
       return request;
@@ -1209,7 +1225,7 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  setCallForwarding: function(clientId, window, options) {
+  setCallForwardingOption: function(clientId, window, cfInfo) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
@@ -1217,9 +1233,9 @@ RILContentHelper.prototype = {
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    if (!options ||
-        !this._isValidCallForwardingReason(options.reason) ||
-        !this._isValidCallForwardingAction(options.action)) {
+    if (!cfInfo ||
+        !this._isValidCFReason(cfInfo.reason) ||
+        !this._isValidCFAction(cfInfo.action)){
       this.dispatchFireRequestError(requestId,
                                     RIL.GECKO_ERROR_INVALID_PARAMETER);
       return request;
@@ -1229,17 +1245,18 @@ RILContentHelper.prototype = {
       clientId: clientId,
       data: {
         requestId: requestId,
-        action: options.action,
-        reason: options.reason,
-        number: options.number,
-        timeSeconds: options.timeSeconds
+        active: cfInfo.active,
+        action: cfInfo.action,
+        reason: cfInfo.reason,
+        number: cfInfo.number,
+        timeSeconds: cfInfo.timeSeconds
       }
     });
 
     return request;
   },
 
-  getCallBarring: function(clientId, window, options) {
+  getCallBarringOption: function(clientId, window, option) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
@@ -1247,8 +1264,8 @@ RILContentHelper.prototype = {
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    if (DEBUG) debug("getCallBarring: " + JSON.stringify(options));
-    if (!this._isValidCallBarringOptions(options)) {
+    if (DEBUG) debug("getCallBarringOption: " + JSON.stringify(option));
+    if (!this._isValidCallBarringOptions(option)) {
       this.dispatchFireRequestError(requestId,
                                     RIL.GECKO_ERROR_INVALID_PARAMETER);
       return request;
@@ -1258,15 +1275,15 @@ RILContentHelper.prototype = {
       clientId: clientId,
       data: {
         requestId: requestId,
-        program: options.program,
-        password: options.password,
-        serviceClass: options.serviceClass
+        program: option.program,
+        password: option.password,
+        serviceClass: option.serviceClass
       }
     });
     return request;
   },
 
-  setCallBarring: function(clientId, window, options) {
+  setCallBarringOption: function(clientId, window, option) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
@@ -1274,8 +1291,8 @@ RILContentHelper.prototype = {
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    if (DEBUG) debug("setCallBarringOptions: " + JSON.stringify(options));
-    if (!this._isValidCallBarringOptions(options, true)) {
+    if (DEBUG) debug("setCallBarringOption: " + JSON.stringify(option));
+    if (!this._isValidCallBarringOptions(option, true)) {
       this.dispatchFireRequestError(requestId,
                                     RIL.GECKO_ERROR_INVALID_PARAMETER);
       return request;
@@ -1285,10 +1302,10 @@ RILContentHelper.prototype = {
       clientId: clientId,
       data: {
         requestId: requestId,
-        program: options.program,
-        enabled: options.enabled,
-        password: options.password,
-        serviceClass: options.serviceClass
+        program: option.program,
+        enabled: option.enabled,
+        password: option.password,
+        serviceClass: option.serviceClass
       }
     });
     return request;
@@ -1319,7 +1336,7 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  getCallWaiting: function(clientId, window) {
+  getCallWaitingOption: function(clientId, window) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
@@ -1337,7 +1354,7 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  setCallWaiting: function(clientId, window, enabled) {
+  setCallWaitingOption: function(clientId, window, enabled) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
@@ -1393,12 +1410,6 @@ RILContentHelper.prototype = {
     if (radioState !== RIL.GECKO_DETAILED_RADIOSTATE_ENABLED) {
       this.dispatchFireRequestError(requestId,
                                     RIL.GECKO_ERROR_RADIO_NOT_AVAILABLE);
-      return request;
-    }
-
-    if (!this._isValidClirMode(clirMode)) {
-      this.dispatchFireRequestError(requestId,
-                                    RIL.GECKO_ERROR_INVALID_PARAMETER);
       return request;
     }
 
@@ -1908,18 +1919,11 @@ RILContentHelper.prototype = {
       return;
     }
 
-    let requestId = message.requestId;
-    let requestWindow = this._windowsMap[requestId];
-    delete this._windowsMap[requestId];
-
     let networks = message.networks;
     for (let i = 0; i < networks.length; i++) {
       let network = networks[i];
-      let info = new requestWindow.MozMobileNetworkInfo(network.shortName,
-                                                        network.longName,
-                                                        network.mcc,
-                                                        network.mnc,
-                                                        network.state);
+      let info = new MobileNetworkInfo();
+      this.updateInfo(network, info);
       networks[i] = info;
     }
 
@@ -2044,7 +2048,10 @@ RILContentHelper.prototype = {
 
   _cfRulesToMobileCfInfo: function(rules) {
     for (let i = 0; i < rules.length; i++) {
-      rules[i] = new MobileCallForwardingInfo(rules[i]);
+      let rule = rules[i];
+      let info = new MobileCFInfo();
+      this.updateInfo(rule, info);
+      rules[i] = info;
     }
   },
 
@@ -2113,7 +2120,7 @@ RILContentHelper.prototype = {
     }
 
     // MMI query call forwarding options request returns a set of rules that
-    // will be exposed in the form of an array of MozCallForwardingOptions
+    // will be exposed in the form of an array of nsIDOMMozMobileCFInfo
     // instances.
     if (message.mmiServiceCode === RIL.MMI_KS_SC_CALL_FORWARDING &&
         message.additionalInformation) {
@@ -2165,16 +2172,16 @@ RILContentHelper.prototype = {
   },
 
   /**
-   * Helper for guarding us against invalid reason values for call forwarding.
+   * Helper for guarding us again invalid reason values for call forwarding.
    */
-  _isValidCallForwardingReason: function(reason) {
+  _isValidCFReason: function(reason) {
     switch (reason) {
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_REASON_UNCONDITIONAL:
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_REASON_MOBILE_BUSY:
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_REASON_NO_REPLY:
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_REASON_NOT_REACHABLE:
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_REASON_ALL_CALL_FORWARDING:
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_UNCONDITIONAL:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_MOBILE_BUSY:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_NO_REPLY:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_NOT_REACHABLE:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_ALL_CALL_FORWARDING:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING:
         return true;
       default:
         return false;
@@ -2182,14 +2189,14 @@ RILContentHelper.prototype = {
   },
 
   /**
-   * Helper for guarding us against invalid action values for call forwarding.
+   * Helper for guarding us again invalid action values for call forwarding.
    */
-  _isValidCallForwardingAction: function(action) {
+  _isValidCFAction: function(action) {
     switch (action) {
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_ACTION_DISABLE:
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_ACTION_ENABLE:
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_ACTION_REGISTRATION:
-      case Ci.nsIMobileConnectionProvider.CALL_FORWARD_ACTION_ERASURE:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_DISABLE:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_ENABLE:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_REGISTRATION:
+      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_ERASURE:
         return true;
       default:
         return false;
@@ -2201,11 +2208,11 @@ RILContentHelper.prototype = {
    */
   _isValidCallBarringProgram: function(program) {
     switch (program) {
-      case Ci.nsIMobileConnectionProvider.CALL_BARRING_PROGRAM_ALL_OUTGOING:
-      case Ci.nsIMobileConnectionProvider.CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL:
-      case Ci.nsIMobileConnectionProvider.CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME:
-      case Ci.nsIMobileConnectionProvider.CALL_BARRING_PROGRAM_ALL_INCOMING:
-      case Ci.nsIMobileConnectionProvider.CALL_BARRING_PROGRAM_INCOMING_ROAMING:
+      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_ALL_OUTGOING:
+      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL:
+      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME:
+      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_ALL_INCOMING:
+      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_INCOMING_ROAMING:
         return true;
       default:
         return false;
@@ -2228,20 +2235,6 @@ RILContentHelper.prototype = {
     }
 
     return true;
-  },
-
-  /**
-   * Helper for guarding us against invalid mode for clir.
-   */
-  _isValidClirMode: function(mode) {
-    switch (mode) {
-      case Ci.nsIMobileConnectionProvider.CLIR_DEFAULT:
-      case Ci.nsIMobileConnectionProvider.CLIR_INVOCATION:
-      case Ci.nsIMobileConnectionProvider.CLIR_SUPPRESSION:
-        return true;
-      default:
-        return false;
-    }
   }
 };
 

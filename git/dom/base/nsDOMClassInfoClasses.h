@@ -73,6 +73,10 @@ DOMCI_CLASS(MozSmsFilter)
 DOMCI_CLASS(MozSmsSegmentInfo)
 DOMCI_CLASS(MozMobileMessageThread)
 
+#ifdef MOZ_B2G_RIL
+DOMCI_CLASS(MozMobileConnection)
+#endif
+
 // @font-face in CSS
 DOMCI_CLASS(CSSFontFaceRule)
 
