@@ -5185,7 +5185,6 @@ nsContentUtils::GetContextForEventHandlers(nsINode* aNode,
 JSContext *
 nsContentUtils::GetCurrentJSContext()
 {
-  MOZ_ASSERT(NS_IsMainThread());
   return sXPConnect->GetCurrentJSContext();
 }
 
@@ -5193,7 +5192,6 @@ nsContentUtils::GetCurrentJSContext()
 JSContext *
 nsContentUtils::GetSafeJSContext()
 {
-  MOZ_ASSERT(NS_IsMainThread());
   return sXPConnect->GetSafeJSContext();
 }
 

@@ -12,7 +12,6 @@
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/EventTargetBinding.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/DOMExceptionBinding.h"
 #include "mozilla/dom/FileReaderSyncBinding.h"
 #include "mozilla/dom/ImageData.h"
 #include "mozilla/dom/ImageDataBinding.h"
@@ -24,7 +23,6 @@
 #include "mozilla/dom/WorkerLocationBinding.h"
 #include "mozilla/dom/WorkerNavigatorBinding.h"
 #include "mozilla/OSFileConstants.h"
-#include "nsIGlobalObject.h"
 #include "nsTraceRefcnt.h"
 #include "xpcpublic.h"
 
@@ -36,6 +34,7 @@
 #include "Events.h"
 #include "EventListenerManager.h"
 #include "EventTarget.h"
+#include "Exceptions.h"
 #include "File.h"
 #include "FileReaderSync.h"
 #include "Location.h"
@@ -60,8 +59,7 @@ USING_WORKERS_NAMESPACE
 
 namespace {
 
-class WorkerGlobalScope : public workers::EventTarget,
-                          public nsIGlobalObject
+class WorkerGlobalScope : public workers::EventTarget
 {
   static JSClass sClass;
   static const JSPropertySpec sProperties[];
@@ -127,15 +125,6 @@ protected:
   ~WorkerGlobalScope()
   {
     MOZ_COUNT_DTOR(mozilla::dom::workers::WorkerGlobalScope);
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIGlobalObject
-  virtual JSObject* GetGlobalJSObject() MOZ_OVERRIDE
-  {
-    mWorker->AssertIsOnWorkerThread();
-    return GetJSObject();
   }
 
   virtual void
@@ -621,14 +610,6 @@ private:
   }
 };
 
-NS_IMPL_ADDREF_INHERITED(WorkerGlobalScope, workers::EventTarget)
-NS_IMPL_RELEASE_INHERITED(WorkerGlobalScope, workers::EventTarget)
-
-NS_INTERFACE_MAP_BEGIN(WorkerGlobalScope)
-  NS_INTERFACE_MAP_ENTRY(nsIGlobalObject)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, DOMBindingBase)
-NS_INTERFACE_MAP_END
-
 JSClass WorkerGlobalScope::sClass = {
   "WorkerGlobalScope",
   0,
@@ -1053,13 +1034,13 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
 
   // Init other classes we care about.
   if (!events::InitClasses(aCx, global, false) ||
-      !file::InitClasses(aCx, global)) {
+      !file::InitClasses(aCx, global) ||
+      !exceptions::InitClasses(aCx, global)) {
     return NULL;
   }
 
   // Init other paris-bindings.
-  if (!DOMExceptionBinding::GetConstructorObject(aCx, global) ||
-      !FileReaderSyncBinding_workers::GetConstructorObject(aCx, global) ||
+  if (!FileReaderSyncBinding_workers::GetConstructorObject(aCx, global) ||
       !ImageDataBinding::GetConstructorObject(aCx, global) ||
       !TextDecoderBinding::GetConstructorObject(aCx, global) ||
       !TextEncoderBinding::GetConstructorObject(aCx, global) ||

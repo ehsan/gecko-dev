@@ -22,7 +22,7 @@
 
 #include "Events.h"
 #include "EventTarget.h"
-#include "mozilla/dom/Exceptions.h"
+#include "Exceptions.h"
 #include "File.h"
 #include "RuntimeService.h"
 #include "WorkerPrivate.h"
@@ -36,6 +36,8 @@ using namespace mozilla;
 
 using namespace mozilla::dom;
 USING_WORKERS_NAMESPACE
+
+using mozilla::dom::workers::exceptions::ThrowDOMExceptionForNSResult;
 
 // XXX Need to figure this out...
 #define UNCATCHABLE_EXCEPTION NS_ERROR_OUT_OF_MEMORY
@@ -801,7 +803,7 @@ private:
     WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     {
       if (NS_FAILED(mErrorCode)) {
-        Throw(aCx, mErrorCode);
+        ThrowDOMExceptionForNSResult(aCx, mErrorCode);
         aWorkerPrivate->StopSyncLoop(mSyncQueueKey, false);
       }
       else {

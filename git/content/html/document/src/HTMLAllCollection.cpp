@@ -67,8 +67,7 @@ HTMLAllCollection::GetObject(JSContext* aCx, ErrorResult& aRv)
     NS_ADDREF(mDocument);
   }
 
-  JS::ExposeObjectToActiveJS(mObject);
-  return mObject;
+  return xpc_UnmarkGrayObject(mObject);
 }
 
 } // namespace dom

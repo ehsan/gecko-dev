@@ -201,12 +201,7 @@ public:
   // Can return null if we already have a handler.
   JSObject* GetEventScope() const
   {
-    if (!mScopeObject) {
-      return nullptr;
-    }
-
-    JS::ExposeObjectToActiveJS(mScopeObject);
-    return mScopeObject;
+    return xpc_UnmarkGrayObject(mScopeObject);
   }
 
   const nsEventHandler& GetHandler() const
