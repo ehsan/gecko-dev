@@ -3851,7 +3851,6 @@ XREMain::XRE_mainRun()
     if (obsService)
       obsService->NotifyObservers(nullptr, "final-ui-startup", nullptr);
 
-    (void)appStartup->DoneStartingUp();
     appStartup->GetShuttingDown(&mShuttingDown);
   }
 

@@ -16,8 +16,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-common/log4moz.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "AsyncShutdown",
-                                  "resource://gre/modules/AsyncShutdown.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CommonUtils",
                                   "resource://services-common/utils.js");
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
@@ -199,7 +197,6 @@ function OpenedConnection(connection, basename, number, options) {
   this._log.info("Opened");
 
   this._connection = connection;
-  this._connectionIdentifier = basename + " Conn #" + number;
   this._open = true;
 
   this._cachedStatements = new Map();
@@ -284,11 +281,6 @@ OpenedConnection.prototype = Object.freeze({
     this._log.debug("Request to close connection.");
     this._clearIdleShrinkTimer();
     let deferred = Promise.defer();
-
-    AsyncShutdown.profileBeforeChange.addBlocker(
-      "Sqlite.jsm: " + this._connectionIdentifier,
-      deferred.promise
-    );
 
     // We need to take extra care with transactions during shutdown.
     //

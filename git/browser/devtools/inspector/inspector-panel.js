@@ -34,9 +34,6 @@ function InspectorPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
   this.panelWin.inspector = this;
 
-  this._onBeforeNavigate = this._onBeforeNavigate.bind(this);
-  this._target.on("will-navigate", this._onBeforeNavigate);
-
   EventEmitter.decorate(this);
 }
 
@@ -145,13 +142,6 @@ InspectorPanel.prototype = {
     this.setupSidebar();
 
     return deferred.promise;
-  },
-
-  _onBeforeNavigate: function() {
-    this._defaultNode = null;
-    this.selection.setNodeFront(null);
-    this._destroyMarkup();
-    this.isDirty = false;
   },
 
   _getWalker: function() {
@@ -483,8 +473,6 @@ InspectorPanel.prototype = {
       this.browser = null;
     }
 
-    this.target.off("will-navigate", this._onBeforeNavigate);
-
     this.target.off("thread-paused", this.updateDebuggerPausedWarning);
     this.target.off("thread-resumed", this.updateDebuggerPausedWarning);
     this._toolbox.off("select", this.updateDebuggerPausedWarning);
@@ -747,18 +735,15 @@ InspectorPanel.prototype = {
    * Schedule a low-priority change event for things like paint
    * and resize.
    */
-  scheduleLayoutChange: function Inspector_scheduleLayoutChange(event)
+  scheduleLayoutChange: function Inspector_scheduleLayoutChange()
   {
-    // Filter out non browser window resize events (i.e. triggered by iframes)
-    if (this.browser.contentWindow === event.target) {
-      if (this._timer) {
-        return null;
-      }
-      this._timer = this.panelWin.setTimeout(function() {
-        this.emit("layout-change");
-        this._timer = null;
-      }.bind(this), LAYOUT_CHANGE_TIMER);
+    if (this._timer) {
+      return null;
     }
+    this._timer = this.panelWin.setTimeout(function() {
+      this.emit("layout-change");
+      this._timer = null;
+    }.bind(this), LAYOUT_CHANGE_TIMER);
   },
 
   /**
