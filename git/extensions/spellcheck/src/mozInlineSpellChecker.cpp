@@ -626,7 +626,6 @@ nsresult mozInlineSpellChecker::Cleanup(bool aDestroyingFrames)
   }
 
   mEditor = nullptr;
-  mFullSpellCheckScheduled = false;
 
   return rv;
 }
