@@ -650,11 +650,6 @@ nsDocAccessible::Shutdown()
 
   RemoveEventListeners();
 
-  // Mark the document as shutdown before AT is notified about the document
-  // removal from its container (valid for root documents on ATK).
-  nsCOMPtr<nsIDocument> kungFuDeathGripDoc = mDocument;
-  mDocument = nsnull;
-
   if (mParent) {
     nsDocAccessible* parentDocument = mParent->GetDocAccessible();
     if (parentDocument)
@@ -676,6 +671,9 @@ nsDocAccessible::Shutdown()
   mDependentIDsHash.Clear();
   mNodeToAccessibleMap.Clear();
   ClearCache(mAccessibleCache);
+
+  nsCOMPtr<nsIDocument> kungFuDeathGripDoc = mDocument;
+  mDocument = nsnull;
 
   nsHyperTextAccessibleWrap::Shutdown();
 
@@ -1474,10 +1472,7 @@ nsDocAccessible::NotifyOfCachingEnd(nsAccessible* aAccessible)
         // Make sure we keep children updated. While we're inside of caching
         // loop then we must exist it with cached children.
         nsAccessible* container = GetContainerAccessible(content);
-        NS_ASSERTION(container,
-                     "Got a referenced element that is not in document!");
-        if (container)
-          container->UpdateChildren();
+        container->UpdateChildren();
       }
     }
     mInvalidationList.Clear();
@@ -1955,9 +1950,8 @@ nsDocAccessible::CacheChildrenInSubtree(nsAccessible* aRoot)
   PRUint32 count = aRoot->GetChildCount();
   for (PRUint32 idx = 0; idx < count; idx++)  {
     nsAccessible* child = aRoot->GetChildAt(idx);
-    NS_ASSERTION(child, "Illicit tree change while tree is created!");
     // Don't cross document boundaries.
-    if (child && child->IsContent())
+    if (child->IsContent())
       CacheChildrenInSubtree(child);
   }
 }
