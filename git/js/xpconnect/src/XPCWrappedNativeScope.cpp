@@ -78,10 +78,8 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
     // add ourselves to the scopes list
     {
         MOZ_ASSERT(aGlobal);
-        DebugOnly<const js::Class*> clasp = js::GetObjectClass(aGlobal);
-        MOZ_ASSERT(clasp->flags & (JSCLASS_PRIVATE_IS_NSISUPPORTS |
-                                   JSCLASS_HAS_PRIVATE) ||
-                   mozilla::dom::IsDOMClass(clasp));
+        MOZ_ASSERT(js::GetObjectClass(aGlobal)->flags & (JSCLASS_PRIVATE_IS_NSISUPPORTS |
+                                                         JSCLASS_HAS_PRIVATE)); 
 #ifdef DEBUG
         for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext)
             MOZ_ASSERT(aGlobal != cur->GetGlobalJSObjectPreserveColor(), "dup object");

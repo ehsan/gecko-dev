@@ -70,10 +70,9 @@ CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     if (mTextureFlags & TextureFlags::NEEDS_Y_FLIP) {
       flags |= TextureFlags::NEEDS_Y_FLIP;
     }
-    mBuffer = CreateTextureClientForDrawing(gfx::ImageFormatToSurfaceFormat(format),
-                                            flags,
-                                            gfxPlatform::GetPlatform()->GetPreferredCanvasBackend(),
-                                            aSize);
+    mBuffer = CreateBufferTextureClient(gfx::ImageFormatToSurfaceFormat(format),
+                                        flags,
+                                        gfxPlatform::GetPlatform()->GetPreferredCanvasBackend());
     MOZ_ASSERT(mBuffer->CanExposeDrawTarget());
     mBuffer->AllocateForSurface(aSize);
 

@@ -544,22 +544,10 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
 }
 
 bool
-DefineWebIDLBindingUnforgeablePropertiesOnXPCObject(JSContext* cx,
-                                                    JS::Handle<JSObject*> obj,
-                                                    const NativeProperties* properties)
-{
-  if (properties->unforgeableAttributes &&
-      !DefinePrefable(cx, obj, properties->unforgeableAttributes)) {
-    return false;
-  }
-
-  return true;
-}
-
-bool
 DefineWebIDLBindingPropertiesOnXPCObject(JSContext* cx,
                                          JS::Handle<JSObject*> obj,
-                                         const NativeProperties* properties)
+                                         const NativeProperties* properties,
+                                         bool defineUnforgeableAttributes)
 {
   if (properties->methods &&
       !DefinePrefable(cx, obj, properties->methods)) {
@@ -568,6 +556,11 @@ DefineWebIDLBindingPropertiesOnXPCObject(JSContext* cx,
 
   if (properties->attributes &&
       !DefinePrefable(cx, obj, properties->attributes)) {
+    return false;
+  }
+
+  if (defineUnforgeableAttributes && properties->unforgeableAttributes &&
+      !DefinePrefable(cx, obj, properties->unforgeableAttributes)) {
     return false;
   }
 
@@ -583,54 +576,45 @@ CreateInterfacePrototypeObject(JSContext* cx, JS::Handle<JSObject*> global,
 {
   JS::Rooted<JSObject*> ourProto(cx,
     JS_NewObjectWithUniqueType(cx, protoClass, parentProto, global));
-  if (!ourProto ||
-      !DefineProperties(cx, ourProto, properties, chromeOnlyProperties)) {
+  if (!ourProto) {
     return nullptr;
   }
 
-  return ourProto;
-}
-
-bool
-DefineProperties(JSContext* cx, JS::Handle<JSObject*> obj,
-                 const NativeProperties* properties,
-                 const NativeProperties* chromeOnlyProperties)
-{
   if (properties) {
     if (properties->methods &&
-        !DefinePrefable(cx, obj, properties->methods)) {
-      return false;
+        !DefinePrefable(cx, ourProto, properties->methods)) {
+      return nullptr;
     }
 
     if (properties->attributes &&
-        !DefinePrefable(cx, obj, properties->attributes)) {
-      return false;
+        !DefinePrefable(cx, ourProto, properties->attributes)) {
+      return nullptr;
     }
 
     if (properties->constants &&
-        !DefinePrefable(cx, obj, properties->constants)) {
-      return false;
+        !DefinePrefable(cx, ourProto, properties->constants)) {
+      return nullptr;
     }
   }
 
   if (chromeOnlyProperties) {
     if (chromeOnlyProperties->methods &&
-        !DefinePrefable(cx, obj, chromeOnlyProperties->methods)) {
-      return false;
+        !DefinePrefable(cx, ourProto, chromeOnlyProperties->methods)) {
+      return nullptr;
     }
 
     if (chromeOnlyProperties->attributes &&
-        !DefinePrefable(cx, obj, chromeOnlyProperties->attributes)) {
-      return false;
+        !DefinePrefable(cx, ourProto, chromeOnlyProperties->attributes)) {
+      return nullptr;
     }
 
     if (chromeOnlyProperties->constants &&
-        !DefinePrefable(cx, obj, chromeOnlyProperties->constants)) {
-      return false;
+        !DefinePrefable(cx, ourProto, chromeOnlyProperties->constants)) {
+      return nullptr;
     }
   }
 
-  return true;
+  return ourProto;
 }
 
 void
@@ -2197,15 +2181,12 @@ IsInCertifiedApp(JSContext* aCx, JSObject* aObj)
          Preferences::GetBool("dom.ignore_webidl_scope_checks", false);
 }
 
-#ifdef DEBUG
 void
-VerifyTraceProtoAndIfaceCacheCalled(JSTracer *trc, void **thingp,
-                                    JSGCTraceKind kind)
+TraceGlobal(JSTracer* aTrc, JSObject* aObj)
 {
-    // We don't do anything here, we only want to verify that
-    // TraceProtoAndIfaceCache was called.
+  MOZ_ASSERT(js::GetObjectClass(aObj)->flags & JSCLASS_DOM_GLOBAL);
+  mozilla::dom::TraceProtoAndIfaceCache(aTrc, aObj);
 }
-#endif
 
 void
 FinalizeGlobal(JSFreeOp* aFreeOp, JSObject* aObj)
@@ -2411,22 +2392,6 @@ ConvertExceptionToPromise(JSContext* cx,
   }
 
   return WrapNewBindingObject(cx, promise, rval);
-}
-
-/* static */
-void
-CreateGlobalOptions<nsGlobalWindow>::TraceGlobal(JSTracer* aTrc, JSObject* aObj)
-{
-  mozilla::dom::TraceProtoAndIfaceCache(aTrc, aObj);
-  xpc::GetCompartmentPrivate(aObj)->scope->TraceSelf(aTrc);
-}
-
-/* static */
-bool
-CreateGlobalOptions<nsGlobalWindow>::PostCreateGlobal(JSContext* aCx,
-                                                      JS::Handle<JSObject*> aGlobal)
-{
-  return XPCWrappedNativeScope::GetNewOrUsed(aCx, aGlobal);
 }
 
 } // namespace dom

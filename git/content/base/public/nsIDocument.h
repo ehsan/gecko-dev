@@ -92,7 +92,6 @@ class ImageLoader;
 } // namespace css
 
 namespace dom {
-class AnimationTimeline;
 class Attr;
 class CDATASection;
 class Comment;
@@ -1859,8 +1858,6 @@ public:
   virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
 
   virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager() = 0;
-
-  virtual mozilla::dom::AnimationTimeline* Timeline() = 0;
 
   typedef mozilla::dom::CallbackObjectHolder<
     mozilla::dom::FrameRequestCallback,

@@ -582,15 +582,13 @@ TraceLogger::startEvent(uint32_t id)
         return;
     }
 
-    if (!tree.hasSpaceForAdd()){
+    if (!tree.ensureSpaceBeforeAdd()) {
         uint64_t start = rdtsc() - traceLoggers.startupTime;
-        if (!tree.ensureSpaceBeforeAdd()) {
-            if (!flush()) {
-                fprintf(stderr, "TraceLogging: Couldn't write the data to disk.\n");
-                enabled = false;
-                failed = true;
-                return;
-            }
+        if (!flush()) {
+            fprintf(stderr, "TraceLogging: Couldn't write the data to disk.\n");
+            enabled = false;
+            failed = true;
+            return;
         }
 
         // Log the time it took to flush the events as being from the

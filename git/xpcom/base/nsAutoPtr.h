@@ -28,15 +28,15 @@ private:
   }
 
   void
-  assign(T* aNewPtr)
+  assign( T* newPtr )
   {
     T* oldPtr = mRawPtr;
 
-    if (aNewPtr && aNewPtr == oldPtr) {
+    if (newPtr != nullptr && newPtr == oldPtr) {
       NS_RUNTIMEABORT("Logic flaw in the caller");
     }
 
-    mRawPtr = aNewPtr;
+    mRawPtr = newPtr;
     delete oldPtr;
   }
 
@@ -48,7 +48,7 @@ private:
   class Ptr
   {
   public:
-    Ptr(T* aPtr)
+    Ptr( T* aPtr )
       : mPtr(aPtr)
     {
     }
@@ -81,7 +81,7 @@ public:
   {
   }
 
-  nsAutoPtr(Ptr aRawPtr)
+  nsAutoPtr( Ptr aRawPtr )
     : mRawPtr(aRawPtr)
     // construct from a raw pointer (of the right type)
   {
@@ -89,14 +89,14 @@ public:
 
   // This constructor shouldn't exist; we should just use the &&
   // constructor.
-  nsAutoPtr(nsAutoPtr<T>& aSmartPtr)
-    : mRawPtr(aSmartPtr.forget())
+  nsAutoPtr( nsAutoPtr<T>& aSmartPtr )
+    : mRawPtr( aSmartPtr.forget() )
     // Construct by transferring ownership from another smart pointer.
   {
   }
 
-  nsAutoPtr(nsAutoPtr<T>&& aSmartPtr)
-    : mRawPtr(aSmartPtr.forget())
+  nsAutoPtr( nsAutoPtr<T>&& aSmartPtr )
+    : mRawPtr( aSmartPtr.forget() )
     // Construct by transferring ownership from another smart pointer.
   {
   }
@@ -104,17 +104,17 @@ public:
   // Assignment operators
 
   nsAutoPtr<T>&
-  operator=(T* aRhs)
+  operator=( T* rhs )
   // assign from a raw pointer (of the right type)
   {
-    assign(aRhs);
+    assign(rhs);
     return *this;
   }
 
-  nsAutoPtr<T>& operator=(nsAutoPtr<T>& aRhs)
+  nsAutoPtr<T>& operator=( nsAutoPtr<T>& rhs )
   // assign by transferring ownership from another smart pointer.
   {
-    assign(aRhs.forget());
+    assign(rhs.forget());
     return *this;
   }
 
@@ -156,8 +156,7 @@ public:
   T*
   operator->() const
   {
-    NS_PRECONDITION(mRawPtr != 0,
-                    "You can't dereference a NULL nsAutoPtr with operator->().");
+    NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsAutoPtr with operator->().");
     return get();
   }
 
@@ -169,8 +168,7 @@ public:
   U&
   operator->*(U V::* aMember)
   {
-    NS_PRECONDITION(mRawPtr != 0,
-                    "You can't dereference a NULL nsAutoPtr with operator->*().");
+    NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsAutoPtr with operator->*().");
     return get()->*aMember;
   }
 #endif
@@ -195,8 +193,7 @@ public:
   T&
   operator*() const
   {
-    NS_PRECONDITION(mRawPtr != 0,
-                    "You can't dereference a NULL nsAutoPtr with operator*().");
+    NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsAutoPtr with operator*().");
     return *get();
   }
 
@@ -215,7 +212,7 @@ public:
 template <class T>
 inline
 nsAutoPtr<T>*
-address_of(nsAutoPtr<T>& aPtr)
+address_of( nsAutoPtr<T>& aPtr )
 {
   return aPtr.get_address();
 }
@@ -223,7 +220,7 @@ address_of(nsAutoPtr<T>& aPtr)
 template <class T>
 inline
 const nsAutoPtr<T>*
-address_of(const nsAutoPtr<T>& aPtr)
+address_of( const nsAutoPtr<T>& aPtr )
 {
   return aPtr.get_address();
 }
@@ -250,7 +247,7 @@ class nsAutoPtrGetterTransfers
 {
 public:
   explicit
-  nsAutoPtrGetterTransfers(nsAutoPtr<T>& aSmartPtr)
+  nsAutoPtrGetterTransfers( nsAutoPtr<T>& aSmartPtr )
     : mTargetSmartPtr(aSmartPtr)
   {
     // nothing else to do
@@ -279,7 +276,7 @@ private:
 template <class T>
 inline
 nsAutoPtrGetterTransfers<T>
-getter_Transfers(nsAutoPtr<T>& aSmartPtr)
+getter_Transfers( nsAutoPtr<T>& aSmartPtr )
 /*
   Used around a |nsAutoPtr| when
   ...makes the class |nsAutoPtrGetterTransfers<T>| invisible.
@@ -295,18 +292,18 @@ getter_Transfers(nsAutoPtr<T>& aSmartPtr)
 template <class T, class U>
 inline
 bool
-operator==(const nsAutoPtr<T>& aLhs, const nsAutoPtr<U>& aRhs)
+operator==( const nsAutoPtr<T>& lhs, const nsAutoPtr<U>& rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs.get());
+  return static_cast<const T*>(lhs.get()) == static_cast<const U*>(rhs.get());
 }
 
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsAutoPtr<T>& aLhs, const nsAutoPtr<U>& aRhs)
+operator!=( const nsAutoPtr<T>& lhs, const nsAutoPtr<U>& rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs.get());
+  return static_cast<const T*>(lhs.get()) != static_cast<const U*>(rhs.get());
 }
 
 
@@ -315,33 +312,33 @@ operator!=(const nsAutoPtr<T>& aLhs, const nsAutoPtr<U>& aRhs)
 template <class T, class U>
 inline
 bool
-operator==(const nsAutoPtr<T>& aLhs, const U* aRhs)
+operator==( const nsAutoPtr<T>& lhs, const U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) == static_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator==(const U* aLhs, const nsAutoPtr<T>& aRhs)
+operator==( const U* lhs, const nsAutoPtr<T>& rhs )
 {
-  return static_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
+  return static_cast<const U*>(lhs) == static_cast<const T*>(rhs.get());
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsAutoPtr<T>& aLhs, const U* aRhs)
+operator!=( const nsAutoPtr<T>& lhs, const U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) != static_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const U* aLhs, const nsAutoPtr<T>& aRhs)
+operator!=( const U* lhs, const nsAutoPtr<T>& rhs )
 {
-  return static_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
+  return static_cast<const U*>(lhs) != static_cast<const T*>(rhs.get());
 }
 
 // To avoid ambiguities caused by the presence of builtin |operator==|s
@@ -355,33 +352,33 @@ operator!=(const U* aLhs, const nsAutoPtr<T>& aRhs)
 template <class T, class U>
 inline
 bool
-operator==(const nsAutoPtr<T>& aLhs, U* aRhs)
+operator==( const nsAutoPtr<T>& lhs, U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == const_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) == const_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator==(U* aLhs, const nsAutoPtr<T>& aRhs)
+operator==( U* lhs, const nsAutoPtr<T>& rhs )
 {
-  return const_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
+  return const_cast<const U*>(lhs) == static_cast<const T*>(rhs.get());
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsAutoPtr<T>& aLhs, U* aRhs)
+operator!=( const nsAutoPtr<T>& lhs, U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != const_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) != const_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(U* aLhs, const nsAutoPtr<T>& aRhs)
+operator!=( U* lhs, const nsAutoPtr<T>& rhs )
 {
-  return const_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
+  return const_cast<const U*>(lhs) != static_cast<const T*>(rhs.get());
 }
 #endif
 
@@ -392,37 +389,37 @@ operator!=(U* aLhs, const nsAutoPtr<T>& aRhs)
 template <class T>
 inline
 bool
-operator==(const nsAutoPtr<T>& aLhs, NSCAP_Zero* aRhs)
+operator==( const nsAutoPtr<T>& lhs, NSCAP_Zero* rhs )
 // specifically to allow |smartPtr == 0|
 {
-  return static_cast<const void*>(aLhs.get()) == reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
 inline
 bool
-operator==(NSCAP_Zero* aLhs, const nsAutoPtr<T>& aRhs)
+operator==( NSCAP_Zero* lhs, const nsAutoPtr<T>& rhs )
 // specifically to allow |0 == smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) == static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
 }
 
 template <class T>
 inline
 bool
-operator!=(const nsAutoPtr<T>& aLhs, NSCAP_Zero* aRhs)
+operator!=( const nsAutoPtr<T>& lhs, NSCAP_Zero* rhs )
 // specifically to allow |smartPtr != 0|
 {
-  return static_cast<const void*>(aLhs.get()) != reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) != reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
 inline
 bool
-operator!=(NSCAP_Zero* aLhs, const nsAutoPtr<T>& aRhs)
+operator!=( NSCAP_Zero* lhs, const nsAutoPtr<T>& rhs )
 // specifically to allow |0 != smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) != static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) != static_cast<const void*>(rhs.get());
 }
 
 
@@ -434,7 +431,7 @@ operator!=(NSCAP_Zero* aLhs, const nsAutoPtr<T>& aRhs)
 template <class T>
 inline
 bool
-operator==(const nsAutoPtr<T>& lhs, int rhs)
+operator==( const nsAutoPtr<T>& lhs, int rhs )
 // specifically to allow |smartPtr == 0|
 {
   return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
@@ -443,7 +440,7 @@ operator==(const nsAutoPtr<T>& lhs, int rhs)
 template <class T>
 inline
 bool
-operator==(int lhs, const nsAutoPtr<T>& rhs)
+operator==( int lhs, const nsAutoPtr<T>& rhs )
 // specifically to allow |0 == smartPtr|
 {
   return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
@@ -467,10 +464,10 @@ private:
   }
 
   void
-  assign(T* aNewPtr)
+  assign( T* newPtr )
   {
     T* oldPtr = mRawPtr;
-    mRawPtr = aNewPtr;
+    mRawPtr = newPtr;
     delete [] oldPtr;
   }
 
@@ -493,14 +490,14 @@ public:
   {
   }
 
-  nsAutoArrayPtr(T* aRawPtr)
+  nsAutoArrayPtr( T* aRawPtr )
     : mRawPtr(aRawPtr)
     // construct from a raw pointer (of the right type)
   {
   }
 
-  nsAutoArrayPtr(nsAutoArrayPtr<T>& aSmartPtr)
-    : mRawPtr(aSmartPtr.forget())
+  nsAutoArrayPtr( nsAutoArrayPtr<T>& aSmartPtr )
+    : mRawPtr( aSmartPtr.forget() )
     // Construct by transferring ownership from another smart pointer.
   {
   }
@@ -509,17 +506,17 @@ public:
   // Assignment operators
 
   nsAutoArrayPtr<T>&
-  operator=(T* aRhs)
+  operator=( T* rhs )
   // assign from a raw pointer (of the right type)
   {
-    assign(aRhs);
+    assign(rhs);
     return *this;
   }
 
-  nsAutoArrayPtr<T>& operator=(nsAutoArrayPtr<T>& aRhs)
+  nsAutoArrayPtr<T>& operator=( nsAutoArrayPtr<T>& rhs )
   // assign by transferring ownership from another smart pointer.
   {
-    assign(aRhs.forget());
+    assign(rhs.forget());
     return *this;
   }
 
@@ -561,8 +558,7 @@ public:
   T*
   operator->() const
   {
-    NS_PRECONDITION(mRawPtr != 0,
-                    "You can't dereference a NULL nsAutoArrayPtr with operator->().");
+    NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsAutoArrayPtr with operator->().");
     return get();
   }
 
@@ -586,8 +582,7 @@ public:
   T&
   operator*() const
   {
-    NS_PRECONDITION(mRawPtr != 0,
-                    "You can't dereference a NULL nsAutoArrayPtr with operator*().");
+    NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsAutoArrayPtr with operator*().");
     return *get();
   }
 
@@ -618,7 +613,7 @@ public:
 template <class T>
 inline
 nsAutoArrayPtr<T>*
-address_of(nsAutoArrayPtr<T>& aPtr)
+address_of( nsAutoArrayPtr<T>& aPtr )
 {
   return aPtr.get_address();
 }
@@ -626,7 +621,7 @@ address_of(nsAutoArrayPtr<T>& aPtr)
 template <class T>
 inline
 const nsAutoArrayPtr<T>*
-address_of(const nsAutoArrayPtr<T>& aPtr)
+address_of( const nsAutoArrayPtr<T>& aPtr )
 {
   return aPtr.get_address();
 }
@@ -653,7 +648,7 @@ class nsAutoArrayPtrGetterTransfers
 {
 public:
   explicit
-  nsAutoArrayPtrGetterTransfers(nsAutoArrayPtr<T>& aSmartPtr)
+  nsAutoArrayPtrGetterTransfers( nsAutoArrayPtr<T>& aSmartPtr )
     : mTargetSmartPtr(aSmartPtr)
   {
     // nothing else to do
@@ -682,7 +677,7 @@ private:
 template <class T>
 inline
 nsAutoArrayPtrGetterTransfers<T>
-getter_Transfers(nsAutoArrayPtr<T>& aSmartPtr)
+getter_Transfers( nsAutoArrayPtr<T>& aSmartPtr )
 /*
   Used around a |nsAutoArrayPtr| when
   ...makes the class |nsAutoArrayPtrGetterTransfers<T>| invisible.
@@ -698,18 +693,18 @@ getter_Transfers(nsAutoArrayPtr<T>& aSmartPtr)
 template <class T, class U>
 inline
 bool
-operator==(const nsAutoArrayPtr<T>& aLhs, const nsAutoArrayPtr<U>& aRhs)
+operator==( const nsAutoArrayPtr<T>& lhs, const nsAutoArrayPtr<U>& rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs.get());
+  return static_cast<const T*>(lhs.get()) == static_cast<const U*>(rhs.get());
 }
 
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsAutoArrayPtr<T>& aLhs, const nsAutoArrayPtr<U>& aRhs)
+operator!=( const nsAutoArrayPtr<T>& lhs, const nsAutoArrayPtr<U>& rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs.get());
+  return static_cast<const T*>(lhs.get()) != static_cast<const U*>(rhs.get());
 }
 
 
@@ -718,33 +713,33 @@ operator!=(const nsAutoArrayPtr<T>& aLhs, const nsAutoArrayPtr<U>& aRhs)
 template <class T, class U>
 inline
 bool
-operator==(const nsAutoArrayPtr<T>& aLhs, const U* aRhs)
+operator==( const nsAutoArrayPtr<T>& lhs, const U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) == static_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator==(const U* aLhs, const nsAutoArrayPtr<T>& aRhs)
+operator==( const U* lhs, const nsAutoArrayPtr<T>& rhs )
 {
-  return static_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
+  return static_cast<const U*>(lhs) == static_cast<const T*>(rhs.get());
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsAutoArrayPtr<T>& aLhs, const U* aRhs)
+operator!=( const nsAutoArrayPtr<T>& lhs, const U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) != static_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const U* aLhs, const nsAutoArrayPtr<T>& aRhs)
+operator!=( const U* lhs, const nsAutoArrayPtr<T>& rhs )
 {
-  return static_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
+  return static_cast<const U*>(lhs) != static_cast<const T*>(rhs.get());
 }
 
 // To avoid ambiguities caused by the presence of builtin |operator==|s
@@ -758,33 +753,33 @@ operator!=(const U* aLhs, const nsAutoArrayPtr<T>& aRhs)
 template <class T, class U>
 inline
 bool
-operator==(const nsAutoArrayPtr<T>& aLhs, U* aRhs)
+operator==( const nsAutoArrayPtr<T>& lhs, U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == const_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) == const_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator==(U* aLhs, const nsAutoArrayPtr<T>& aRhs)
+operator==( U* lhs, const nsAutoArrayPtr<T>& rhs )
 {
-  return const_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
+  return const_cast<const U*>(lhs) == static_cast<const T*>(rhs.get());
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsAutoArrayPtr<T>& aLhs, U* aRhs)
+operator!=( const nsAutoArrayPtr<T>& lhs, U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != const_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) != const_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(U* aLhs, const nsAutoArrayPtr<T>& aRhs)
+operator!=( U* lhs, const nsAutoArrayPtr<T>& rhs )
 {
-  return const_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
+  return const_cast<const U*>(lhs) != static_cast<const T*>(rhs.get());
 }
 #endif
 
@@ -795,37 +790,37 @@ operator!=(U* aLhs, const nsAutoArrayPtr<T>& aRhs)
 template <class T>
 inline
 bool
-operator==(const nsAutoArrayPtr<T>& aLhs, NSCAP_Zero* aRhs)
+operator==( const nsAutoArrayPtr<T>& lhs, NSCAP_Zero* rhs )
 // specifically to allow |smartPtr == 0|
 {
-  return static_cast<const void*>(aLhs.get()) == reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
 inline
 bool
-operator==(NSCAP_Zero* aLhs, const nsAutoArrayPtr<T>& aRhs)
+operator==( NSCAP_Zero* lhs, const nsAutoArrayPtr<T>& rhs )
 // specifically to allow |0 == smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) == static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
 }
 
 template <class T>
 inline
 bool
-operator!=(const nsAutoArrayPtr<T>& aLhs, NSCAP_Zero* aRhs)
+operator!=( const nsAutoArrayPtr<T>& lhs, NSCAP_Zero* rhs )
 // specifically to allow |smartPtr != 0|
 {
-  return static_cast<const void*>(aLhs.get()) != reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) != reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
 inline
 bool
-operator!=(NSCAP_Zero* aLhs, const nsAutoArrayPtr<T>& aRhs)
+operator!=( NSCAP_Zero* lhs, const nsAutoArrayPtr<T>& rhs )
 // specifically to allow |0 != smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) != static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) != static_cast<const void*>(rhs.get());
 }
 
 
@@ -837,7 +832,7 @@ operator!=(NSCAP_Zero* aLhs, const nsAutoArrayPtr<T>& aRhs)
 template <class T>
 inline
 bool
-operator==(const nsAutoArrayPtr<T>& lhs, int rhs)
+operator==( const nsAutoArrayPtr<T>& lhs, int rhs )
 // specifically to allow |smartPtr == 0|
 {
   return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
@@ -846,7 +841,7 @@ operator==(const nsAutoArrayPtr<T>& lhs, int rhs)
 template <class T>
 inline
 bool
-operator==(int lhs, const nsAutoArrayPtr<T>& rhs)
+operator==( int lhs, const nsAutoArrayPtr<T>& rhs )
 // specifically to allow |0 == smartPtr|
 {
   return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
@@ -865,12 +860,11 @@ class nsRefPtr
 private:
 
   void
-  assign_with_AddRef(T* aRawPtr)
+  assign_with_AddRef( T* rawPtr )
   {
-    if (aRawPtr) {
-      aRawPtr->AddRef();
-    }
-    assign_assuming_AddRef(aRawPtr);
+    if ( rawPtr )
+      rawPtr->AddRef();
+    assign_assuming_AddRef(rawPtr);
   }
 
   void**
@@ -881,13 +875,12 @@ private:
   }
 
   void
-  assign_assuming_AddRef(T* aNewPtr)
+  assign_assuming_AddRef( T* newPtr )
   {
     T* oldPtr = mRawPtr;
-    mRawPtr = aNewPtr;
-    if (oldPtr) {
+    mRawPtr = newPtr;
+    if ( oldPtr )
       oldPtr->Release();
-    }
   }
 
 private:
@@ -898,9 +891,8 @@ public:
 
   ~nsRefPtr()
   {
-    if (mRawPtr) {
+    if ( mRawPtr )
       mRawPtr->Release();
-    }
   }
 
   // Constructors
@@ -915,9 +907,8 @@ public:
     : mRawPtr(aSmartPtr.mRawPtr)
     // copy-constructor
   {
-    if (mRawPtr) {
+    if ( mRawPtr )
       mRawPtr->AddRef();
-    }
   }
 
   nsRefPtr(nsRefPtr<T>&& aRefPtr)
@@ -931,83 +922,80 @@ public:
   nsRefPtr(T* aRawPtr)
     : mRawPtr(aRawPtr)
   {
-    if (mRawPtr) {
+    if ( mRawPtr )
       mRawPtr->AddRef();
-    }
   }
 
   template <typename I>
-  nsRefPtr(already_AddRefed<I>& aSmartPtr)
+  nsRefPtr( already_AddRefed<I>& aSmartPtr )
     : mRawPtr(aSmartPtr.take())
     // construct from |already_AddRefed|
   {
   }
 
   template <typename I>
-  nsRefPtr(already_AddRefed<I>&& aSmartPtr)
+  nsRefPtr( already_AddRefed<I>&& aSmartPtr )
     : mRawPtr(aSmartPtr.take())
     // construct from |otherRefPtr.forget()|
   {
   }
 
-  nsRefPtr(const nsCOMPtr_helper& aHelper)
+  nsRefPtr( const nsCOMPtr_helper& helper )
   {
     void* newRawPtr;
-    if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &newRawPtr))) {
+    if (NS_FAILED(helper(NS_GET_TEMPLATE_IID(T), &newRawPtr)))
       newRawPtr = 0;
-    }
     mRawPtr = static_cast<T*>(newRawPtr);
   }
 
   // Assignment operators
 
   nsRefPtr<T>&
-  operator=(const nsRefPtr<T>& aRhs)
+  operator=(const nsRefPtr<T>& rhs)
   // copy assignment operator
   {
-    assign_with_AddRef(aRhs.mRawPtr);
+    assign_with_AddRef(rhs.mRawPtr);
     return *this;
   }
 
   nsRefPtr<T>&
-  operator=(T* aRhs)
+  operator=( T* rhs )
   // assign from a raw pointer (of the right type)
   {
-    assign_with_AddRef(aRhs);
+    assign_with_AddRef(rhs);
     return *this;
   }
 
   template <typename I>
   nsRefPtr<T>&
-  operator=(already_AddRefed<I>& aRhs)
+  operator=( already_AddRefed<I>& rhs )
   // assign from |already_AddRefed|
   {
-    assign_assuming_AddRef(aRhs.take());
+    assign_assuming_AddRef(rhs.take());
     return *this;
   }
 
   template <typename I>
   nsRefPtr<T>&
-  operator=(already_AddRefed<I> && aRhs)
+  operator=( already_AddRefed<I>&& rhs )
   // assign from |otherRefPtr.forget()|
   {
-    assign_assuming_AddRef(aRhs.take());
+    assign_assuming_AddRef(rhs.take());
     return *this;
   }
 
   nsRefPtr<T>&
-  operator=(const nsCOMPtr_helper& aHelper)
+  operator=( const nsCOMPtr_helper& helper )
   {
     void* newRawPtr;
-    if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &newRawPtr))) {
+    if (NS_FAILED(helper(NS_GET_TEMPLATE_IID(T), &newRawPtr)))
       newRawPtr = 0;
-    }
     assign_assuming_AddRef(static_cast<T*>(newRawPtr));
     return *this;
   }
 
   nsRefPtr<T>&
-  operator=(nsRefPtr<T> && aRefPtr)
+  operator=(nsRefPtr<T>&& aRefPtr)
   {
     assign_assuming_AddRef(aRefPtr.mRawPtr);
     aRefPtr.mRawPtr = nullptr;
@@ -1017,20 +1005,20 @@ public:
   // Other pointer operators
 
   void
-  swap(nsRefPtr<T>& aRhs)
-  // ...exchange ownership with |aRhs|; can save a pair of refcount operations
+  swap( nsRefPtr<T>& rhs )
+  // ...exchange ownership with |rhs|; can save a pair of refcount operations
   {
-    T* temp = aRhs.mRawPtr;
-    aRhs.mRawPtr = mRawPtr;
+    T* temp = rhs.mRawPtr;
+    rhs.mRawPtr = mRawPtr;
     mRawPtr = temp;
   }
 
   void
-  swap(T*& aRhs)
-  // ...exchange ownership with |aRhs|; can save a pair of refcount operations
+  swap( T*& rhs )
+  // ...exchange ownership with |rhs|; can save a pair of refcount operations
   {
-    T* temp = aRhs;
-    aRhs = mRawPtr;
+    T* temp = rhs;
+    rhs = mRawPtr;
     mRawPtr = temp;
   }
 
@@ -1046,14 +1034,14 @@ public:
 
   template <typename I>
   void
-  forget(I** aRhs)
-  // Set the target of aRhs to the value of mRawPtr and null out mRawPtr.
+  forget( I** rhs)
+  // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
   // Useful to avoid unnecessary AddRef/Release pairs with "out"
-  // parameters where aRhs bay be a T** or an I** where I is a base class
+  // parameters where rhs bay be a T** or an I** where I is a base class
   // of T.
   {
-    NS_ASSERTION(aRhs, "Null pointer passed to forget!");
-    *aRhs = mRawPtr;
+    NS_ASSERTION(rhs, "Null pointer passed to forget!");
+    *rhs = mRawPtr;
     mRawPtr = 0;
   }
 
@@ -1083,8 +1071,7 @@ public:
   T*
   operator->() const
   {
-    NS_PRECONDITION(mRawPtr != 0,
-                    "You can't dereference a NULL nsRefPtr with operator->().");
+    NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsRefPtr with operator->().");
     return get();
   }
 
@@ -1096,8 +1083,7 @@ public:
   U&
   operator->*(U V::* aMember)
   {
-    NS_PRECONDITION(mRawPtr != 0,
-                    "You can't dereference a NULL nsRefPtr with operator->*().");
+    NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsRefPtr with operator->*().");
     return get()->*aMember;
   }
 #endif
@@ -1122,8 +1108,7 @@ public:
   T&
   operator*() const
   {
-    NS_PRECONDITION(mRawPtr != 0,
-                    "You can't dereference a NULL nsRefPtr with operator*().");
+    NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsRefPtr with operator*().");
     return *get();
   }
 
@@ -1159,7 +1144,7 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
 template <class T>
 inline
 nsRefPtr<T>*
-address_of(nsRefPtr<T>& aPtr)
+address_of( nsRefPtr<T>& aPtr )
 {
   return aPtr.get_address();
 }
@@ -1167,7 +1152,7 @@ address_of(nsRefPtr<T>& aPtr)
 template <class T>
 inline
 const nsRefPtr<T>*
-address_of(const nsRefPtr<T>& aPtr)
+address_of( const nsRefPtr<T>& aPtr )
 {
   return aPtr.get_address();
 }
@@ -1194,7 +1179,7 @@ class nsRefPtrGetterAddRefs
 {
 public:
   explicit
-  nsRefPtrGetterAddRefs(nsRefPtr<T>& aSmartPtr)
+  nsRefPtrGetterAddRefs( nsRefPtr<T>& aSmartPtr )
     : mTargetSmartPtr(aSmartPtr)
   {
     // nothing else to do
@@ -1223,7 +1208,7 @@ private:
 template <class T>
 inline
 nsRefPtrGetterAddRefs<T>
-getter_AddRefs(nsRefPtr<T>& aSmartPtr)
+getter_AddRefs( nsRefPtr<T>& aSmartPtr )
 /*
   Used around a |nsRefPtr| when
   ...makes the class |nsRefPtrGetterAddRefs<T>| invisible.
@@ -1239,18 +1224,18 @@ getter_AddRefs(nsRefPtr<T>& aSmartPtr)
 template <class T, class U>
 inline
 bool
-operator==(const nsRefPtr<T>& aLhs, const nsRefPtr<U>& aRhs)
+operator==( const nsRefPtr<T>& lhs, const nsRefPtr<U>& rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs.get());
+  return static_cast<const T*>(lhs.get()) == static_cast<const U*>(rhs.get());
 }
 
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsRefPtr<T>& aLhs, const nsRefPtr<U>& aRhs)
+operator!=( const nsRefPtr<T>& lhs, const nsRefPtr<U>& rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs.get());
+  return static_cast<const T*>(lhs.get()) != static_cast<const U*>(rhs.get());
 }
 
 
@@ -1259,33 +1244,33 @@ operator!=(const nsRefPtr<T>& aLhs, const nsRefPtr<U>& aRhs)
 template <class T, class U>
 inline
 bool
-operator==(const nsRefPtr<T>& aLhs, const U* aRhs)
+operator==( const nsRefPtr<T>& lhs, const U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) == static_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator==(const U* aLhs, const nsRefPtr<T>& aRhs)
+operator==( const U* lhs, const nsRefPtr<T>& rhs )
 {
-  return static_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
+  return static_cast<const U*>(lhs) == static_cast<const T*>(rhs.get());
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsRefPtr<T>& aLhs, const U* aRhs)
+operator!=( const nsRefPtr<T>& lhs, const U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) != static_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const U* aLhs, const nsRefPtr<T>& aRhs)
+operator!=( const U* lhs, const nsRefPtr<T>& rhs )
 {
-  return static_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
+  return static_cast<const U*>(lhs) != static_cast<const T*>(rhs.get());
 }
 
 // To avoid ambiguities caused by the presence of builtin |operator==|s
@@ -1299,33 +1284,33 @@ operator!=(const U* aLhs, const nsRefPtr<T>& aRhs)
 template <class T, class U>
 inline
 bool
-operator==(const nsRefPtr<T>& aLhs, U* aRhs)
+operator==( const nsRefPtr<T>& lhs, U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) == const_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) == const_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator==(U* aLhs, const nsRefPtr<T>& aRhs)
+operator==( U* lhs, const nsRefPtr<T>& rhs )
 {
-  return const_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
+  return const_cast<const U*>(lhs) == static_cast<const T*>(rhs.get());
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(const nsRefPtr<T>& aLhs, U* aRhs)
+operator!=( const nsRefPtr<T>& lhs, U* rhs )
 {
-  return static_cast<const T*>(aLhs.get()) != const_cast<const U*>(aRhs);
+  return static_cast<const T*>(lhs.get()) != const_cast<const U*>(rhs);
 }
 
 template <class T, class U>
 inline
 bool
-operator!=(U* aLhs, const nsRefPtr<T>& aRhs)
+operator!=( U* lhs, const nsRefPtr<T>& rhs )
 {
-  return const_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
+  return const_cast<const U*>(lhs) != static_cast<const T*>(rhs.get());
 }
 #endif
 
@@ -1336,37 +1321,37 @@ operator!=(U* aLhs, const nsRefPtr<T>& aRhs)
 template <class T>
 inline
 bool
-operator==(const nsRefPtr<T>& aLhs, NSCAP_Zero* aRhs)
+operator==( const nsRefPtr<T>& lhs, NSCAP_Zero* rhs )
 // specifically to allow |smartPtr == 0|
 {
-  return static_cast<const void*>(aLhs.get()) == reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
 inline
 bool
-operator==(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
+operator==( NSCAP_Zero* lhs, const nsRefPtr<T>& rhs )
 // specifically to allow |0 == smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) == static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
 }
 
 template <class T>
 inline
 bool
-operator!=(const nsRefPtr<T>& aLhs, NSCAP_Zero* aRhs)
+operator!=( const nsRefPtr<T>& lhs, NSCAP_Zero* rhs )
 // specifically to allow |smartPtr != 0|
 {
-  return static_cast<const void*>(aLhs.get()) != reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) != reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
 inline
 bool
-operator!=(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
+operator!=( NSCAP_Zero* lhs, const nsRefPtr<T>& rhs )
 // specifically to allow |0 != smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) != static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) != static_cast<const void*>(rhs.get());
 }
 
 
@@ -1378,7 +1363,7 @@ operator!=(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
 template <class T>
 inline
 bool
-operator==(const nsRefPtr<T>& lhs, int rhs)
+operator==( const nsRefPtr<T>& lhs, int rhs )
 // specifically to allow |smartPtr == 0|
 {
   return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
@@ -1387,7 +1372,7 @@ operator==(const nsRefPtr<T>& lhs, int rhs)
 template <class T>
 inline
 bool
-operator==(int lhs, const nsRefPtr<T>& rhs)
+operator==( int lhs, const nsRefPtr<T>& rhs )
 // specifically to allow |0 == smartPtr|
 {
   return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
@@ -1398,7 +1383,7 @@ operator==(int lhs, const nsRefPtr<T>& rhs)
 template <class SourceType, class DestinationType>
 inline
 nsresult
-CallQueryInterface(nsRefPtr<SourceType>& aSourcePtr, DestinationType** aDestPtr)
+CallQueryInterface( nsRefPtr<SourceType>& aSourcePtr, DestinationType** aDestPtr )
 {
   return CallQueryInterface(aSourcePtr.get(), aDestPtr);
 }
@@ -1410,13 +1395,9 @@ class nsQueryObject : public nsCOMPtr_helper
 {
 public:
   nsQueryObject(T* aRawPtr)
-    : mRawPtr(aRawPtr)
-  {
-  }
+    : mRawPtr(aRawPtr) {}
 
-  virtual nsresult NS_FASTCALL operator()(const nsIID& aIID,
-                                          void** aResult) const
-  {
+  virtual nsresult NS_FASTCALL operator()( const nsIID& aIID, void** aResult ) const {
     nsresult status = mRawPtr ? mRawPtr->QueryInterface(aIID, aResult)
                               : NS_ERROR_NULL_POINTER;
     return status;
@@ -1430,18 +1411,13 @@ class nsQueryObjectWithError : public nsCOMPtr_helper
 {
 public:
   nsQueryObjectWithError(T* aRawPtr, nsresult* aErrorPtr)
-    : mRawPtr(aRawPtr), mErrorPtr(aErrorPtr)
-  {
-  }
+    : mRawPtr(aRawPtr), mErrorPtr(aErrorPtr) {}
 
-  virtual nsresult NS_FASTCALL operator()(const nsIID& aIID,
-                                          void** aResult) const
-  {
+  virtual nsresult NS_FASTCALL operator()( const nsIID& aIID, void** aResult ) const {
     nsresult status = mRawPtr ? mRawPtr->QueryInterface(aIID, aResult)
                               : NS_ERROR_NULL_POINTER;
-    if (mErrorPtr) {
+    if (mErrorPtr)
       *mErrorPtr = status;
-    }
     return status;
   }
 private:

@@ -6,6 +6,8 @@
 
 #include "jit/mips/Architecture-mips.h"
 
+#include <elf.h>
+
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -21,12 +23,6 @@ uint32_t GetMIPSFlags()
     static uint32_t flags = 0;
     if (isSet)
         return flags;
-#ifdef JS_MIPS_SIMULATOR
-    isSet = true;
-    flags |= HWCAP_FPU;
-    return flags;
-#else
-
 #if WTF_OS_LINUX
     FILE *fp = fopen("/proc/cpuinfo", "r");
     if (!fp)
@@ -44,7 +40,6 @@ uint32_t GetMIPSFlags()
 #endif
 
     return false;
-#endif // JS_MIPS_SIMULATOR
 }
 
 bool hasFPU()

@@ -38,9 +38,6 @@
 #include "mozilla/dom/RTCStatsReportBinding.h"
 #include "nsIPrincipal.h"
 #include "mozilla/PeerIdentity.h"
-#ifndef USE_FAKE_MEDIA_STREAMS
-#include "DOMMediaStream.h"
-#endif
 #endif
 
 namespace test {
@@ -200,7 +197,6 @@ class PeerConnectionImpl MOZ_FINAL : public nsISupports,
 #ifdef MOZILLA_INTERNAL_API
                                      public mozilla::DataChannelConnection::DataConnectionListener,
                                      public nsNSSShutDownObject,
-                                     public DOMMediaStream::PrincipalChangeObserver,
 #endif
                                      public sigslot::has_slots<>
 {
@@ -556,10 +552,6 @@ public:
       RTCStatsQuery *query);
 
   static nsresult ExecuteStatsQuery_s(RTCStatsQuery *query);
-
-  // for monitoring changes in stream ownership
-  // PeerConnectionMedia can't do it because it doesn't know about principals
-  virtual void PrincipalChanged(DOMMediaStream* aMediaStream) MOZ_OVERRIDE;
 #endif
 
 private:

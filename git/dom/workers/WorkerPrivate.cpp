@@ -5821,9 +5821,8 @@ WorkerPrivate::CreateGlobalScope(JSContext* aCx)
   nsRefPtr<WorkerGlobalScope> globalScope;
   if (IsSharedWorker()) {
     globalScope = new SharedWorkerGlobalScope(this, SharedWorkerName());
-  } else if (IsServiceWorker()) {
-    globalScope = new ServiceWorkerGlobalScope(this, SharedWorkerName());
-  } else {
+  }
+  else {
     globalScope = new DedicatedWorkerGlobalScope(this);
   }
 

@@ -2482,17 +2482,13 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
         else:
             domClass = "nullptr"
 
-        isGlobal = self.descriptor.interface.getExtendedAttribute("Global") is not None
-        if not isGlobal and self.properties.hasNonChromeOnly():
+        if self.properties.hasNonChromeOnly():
             properties = "&sNativeProperties"
-        elif self.properties.hasNonChromeOnly():
-            properties = "!GlobalPropertiesAreOwn() ? &sNativeProperties : nullptr"
         else:
             properties = "nullptr"
-        if not isGlobal and self.properties.hasChromeOnly():
-            chromeProperties = "nsContentUtils::ThreadsafeIsCallerChrome() ? &sChromeOnlyNativeProperties : nullptr"
-        elif self.properties.hasChromeOnly():
-            chromeProperties = "!GlobalPropertiesAreOwn() && nsContentUtils::ThreadsafeIsCallerChrome() ? &sChromeOnlyNativeProperties : nullptr"
+        if self.properties.hasChromeOnly():
+            accessCheck = "nsContentUtils::ThreadsafeIsCallerChrome()"
+            chromeProperties = accessCheck + " ? &sChromeOnlyNativeProperties : nullptr"
         else:
             chromeProperties = "nullptr"
 
@@ -2961,29 +2957,12 @@ class CGWrapGlobalMethod(CGAbstractMethod):
                 Argument(descriptor.nativeType + '*', 'aObject'),
                 Argument('nsWrapperCache*', 'aCache'),
                 Argument('JS::CompartmentOptions&', 'aOptions'),
-                Argument('JSPrincipals*', 'aPrincipal'),
-                Argument('bool', 'aInitStandardClasses')]
+                Argument('JSPrincipals*', 'aPrincipal')]
         CGAbstractMethod.__init__(self, descriptor, 'Wrap', 'JSObject*', args)
         self.descriptor = descriptor
         self.properties = properties
 
     def definition_body(self):
-        if self.properties.hasNonChromeOnly():
-            properties = "GlobalPropertiesAreOwn() ? &sNativeProperties : nullptr"
-        else:
-            properties = "nullptr"
-        if self.properties.hasChromeOnly():
-            chromeProperties = "GlobalPropertiesAreOwn() && nsContentUtils::ThreadsafeIsCallerChrome() ? &sChromeOnlyNativeProperties : nullptr"
-        else:
-            chromeProperties = "nullptr"
-
-        if self.descriptor.workers:
-            fireOnNewGlobal = """// XXXkhuey can't do this yet until workers can lazy resolve.
-// JS_FireOnNewGlobalObject(aCx, obj);
-"""
-        else:
-            fireOnNewGlobal = ""
-
         return fill(
             """
             ${assertions}
@@ -2991,39 +2970,29 @@ class CGWrapGlobalMethod(CGAbstractMethod):
                          "nsISupports must be on our primary inheritance chain");
 
               JS::Rooted<JSObject*> obj(aCx);
-              CreateGlobal<${nativeType}, GetProtoObject>(aCx,
-                                               aObject,
-                                               aCache,
-                                               Class.ToJSClass(),
-                                               aOptions,
-                                               aPrincipal,
-                                               aInitStandardClasses,
-                                               &obj);
-              if (!obj) {
-                return nullptr;
-              }
+              obj = CreateGlobal<${nativeType}, GetProtoObject>(aCx,
+                                                     aObject,
+                                                     aCache,
+                                                     Class.ToJSClass(),
+                                                     aOptions,
+                                                     aPrincipal);
 
               // obj is a new global, so has a new compartment.  Enter it
               // before doing anything with it.
               JSAutoCompartment ac(aCx, obj);
-
-              if (!DefineProperties(aCx, obj, ${properties}, ${chromeProperties})) {
-                return nullptr;
-              }
               $*{unforgeable}
 
               $*{slots}
-              $*{fireOnNewGlobal}
+
+              // XXXkhuey can't do this yet until workers can lazy resolve.
+              // JS_FireOnNewGlobalObject(aCx, obj);
 
               return obj;
             """,
             assertions=AssertInheritanceChain(self.descriptor),
             nativeType=self.descriptor.nativeType,
-            properties=properties,
-            chromeProperties=chromeProperties,
             unforgeable=InitUnforgeableProperties(self.descriptor, self.properties),
-            slots=InitMemberSlots(self.descriptor, True),
-            fireOnNewGlobal=fireOnNewGlobal)
+            slots=InitMemberSlots(self.descriptor, True))
 
 
 class CGUpdateMemberSlotsMethod(CGAbstractStaticMethod):

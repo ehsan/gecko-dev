@@ -10,7 +10,6 @@ include protocol PBlob;
 include protocol PBluetooth;
 include protocol PBrowser;
 include protocol PCompositor;
-include protocol PCycleCollectWithLogs;
 include protocol PCrashReporter;
 include protocol PExternalHelperApp;
 include protocol PDeviceStorageRequest;
@@ -274,7 +273,6 @@ intr protocol PContent
     manages PBluetooth;
     manages PBrowser;
     manages PCrashReporter;
-    manages PCycleCollectWithLogs;
     manages PDeviceStorageRequest;
     manages PFileSystemRequest;
     manages PExternalHelperApp;
@@ -339,14 +337,14 @@ child:
     async SpeakerManagerNotify();
 
     /**
-     * Dump this process's GC and CC logs to the provided files.
+     * Dump this process's GC and CC logs.
      *
-     * For documentation on the other args, see dumpGCAndCCLogsToFile in
+     * For documentation on the args, see dumpGCAndCCLogsToFile in
      * nsIMemoryInfoDumper.idl
      */
-    PCycleCollectWithLogs(bool dumpAllTraces,
-                          FileDescriptor gcLog,
-                          FileDescriptor ccLog);
+    async DumpGCAndCCLogsToFile(nsString identifier,
+                                bool dumpAllTraces,
+                                bool dumpChildProcesses);
 
     PTestShell();
 

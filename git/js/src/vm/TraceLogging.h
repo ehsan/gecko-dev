@@ -203,14 +203,8 @@ class ContinuousSpace {
         return data()[currentId()];
     }
 
-    bool hasSpaceForAdd(uint32_t count = 1) {
-        if (next_ + count <= capacity_)
-            return true;
-        return false;
-    }
-
     bool ensureSpaceBeforeAdd(uint32_t count = 1) {
-        if (hasSpaceForAdd(count))
+        if (next_ + count <= capacity_)
             return true;
 
         uint32_t nCapacity = capacity_ * 2;

@@ -626,6 +626,7 @@ nsHttpConnectionMgr::ReportSpdyConnection(nsHttpConnection *conn,
         if (!ent->mCoalescingKey.IsEmpty()) {
             mSpdyPreferredHash.Put(ent->mCoalescingKey, ent);
             ent->mSpdyPreferred = true;
+            preferred = ent;
         }
     } else if ((preferred != ent) &&
                (joinedConnection = GetSpdyPreferredEnt(ent)) &&
