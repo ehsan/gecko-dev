@@ -759,8 +759,7 @@ namespace nanojit
 	IMM32(i);													\
 	*(--_nIns) = AMD64_MODRM_REG(0, r);							\
 	*(--_nIns) = AMD64_MOV_RM_IMM;								\
-	if (AMD64_NEEDS_REX(r))										\
-		*(--_nIns) = AMD64_REX(0,0,r);							\
+	*(--_nIns) = AMD64_REX(1,0,r);							    \
 	asm_output2("mov %s,%d",gpn(r),i);							\
 	} while (0)
 
@@ -1024,7 +1023,7 @@ namespace nanojit
 	underrunProtect(7);											\
 	AMD64_MODRM_DISP(b,r,d);									\
 	AMD64_OP3(AMD64_MOVD_RM_REG,1,b,r);							\
-	asm_output3("movd %s,%d(%s)",gpn(b),(d),gpn(r));			\
+	asm_output3("movd %d(%s),%s",(d),gpn(r),gpn(b));			\
 	} while (0)
 
 

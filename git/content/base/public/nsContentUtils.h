@@ -665,9 +665,7 @@ public:
    * @param aContent The content node to test.
    * @return whether it's draggable
    */
-  static PRBool ContentIsDraggable(nsIContent* aContent) {
-    return IsDraggableImage(aContent) || IsDraggableLink(aContent);
-  }
+  static PRBool ContentIsDraggable(nsIContent* aContent);
 
   /**
    * Method that decides whether a content node is a draggable image
@@ -694,8 +692,9 @@ public:
   {
     nsNodeInfoManager *niMgr = aNodeInfo->NodeInfoManager();
 
-    return niMgr->GetNodeInfo(aName, aNodeInfo->GetPrefixAtom(),
-                              aNodeInfo->NamespaceID(), aResult);
+    *aResult = niMgr->GetNodeInfo(aName, aNodeInfo->GetPrefixAtom(),
+                                  aNodeInfo->NamespaceID()).get();
+    return *aResult ? NS_OK : NS_ERROR_FAILURE;
   }
 
   /**
@@ -707,8 +706,9 @@ public:
   {
     nsNodeInfoManager *niMgr = aNodeInfo->NodeInfoManager();
 
-    return niMgr->GetNodeInfo(aNodeInfo->NameAtom(), aPrefix,
-                              aNodeInfo->NamespaceID(), aResult);
+    *aResult = niMgr->GetNodeInfo(aNodeInfo->NameAtom(), aPrefix,
+                                  aNodeInfo->NamespaceID()).get();
+    return *aResult ? NS_OK : NS_ERROR_FAILURE;
   }
 
   /**

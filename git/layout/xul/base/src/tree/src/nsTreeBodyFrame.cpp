@@ -544,7 +544,9 @@ NS_IMETHODIMP nsTreeBodyFrame::SetView(nsITreeView * aView)
     }
 
     // View, meet the tree.
+    nsWeakFrame weakFrame(this);
     mView->SetTree(mTreeBoxObject);
+    NS_ENSURE_STATE(weakFrame.IsAlive());
     mView->GetRowCount(&mRowCount);
  
     PRBool isInReflow;
@@ -1168,10 +1170,7 @@ nsTreeBodyFrame::GetCoordsForCellItem(PRInt32 aRow, nsITreeColumn* aCol, const n
 
     // The Rect for the current cell.
     nscoord colWidth;
-#ifdef DEBUG
-    nsresult rv =
-#endif
-      currCol->GetWidthInTwips(this, &colWidth);
+    nsresult rv = currCol->GetWidthInTwips(this, &colWidth);
     NS_ASSERTION(NS_SUCCEEDED(rv), "invalid column");
 
     nsRect cellRect(currX, mInnerBox.y + mRowHeight * (aRow - mTopRowIndex),
@@ -3200,14 +3199,11 @@ nsTreeBodyFrame::PaintCell(PRInt32              aRowIndex,
 
       const nsStyleBorder* borderStyle = lineContext->GetStyleBorder();
       nscolor color;
-      PRBool transparent, foreground;
-      borderStyle->GetBorderColor(NS_SIDE_LEFT, color, transparent, foreground);
+      PRBool foreground;
+      borderStyle->GetBorderColor(NS_SIDE_LEFT, color, foreground);
       if (foreground) {
         // GetBorderColor didn't touch color, thus grab it from the treeline context
         color = lineContext->GetStyleColor()->mColor;
-      } else if (transparent) {
-        // GetBorderColor didn't touch color, thus set it to transparent
-        color = NS_RGBA(0, 0, 0, 0);
       }
       aRenderingContext.SetColor(color);
       PRUint8 style;
@@ -3702,7 +3698,8 @@ nsTreeBodyFrame::PaintProgressMeter(PRInt32              aRowIndex,
     nsAutoString value;
     mView->GetCellValue(aRowIndex, aColumn, value);
 
-    PRInt32 intValue = value.ToInteger(nsnull);
+    PRInt32 rv;
+    PRInt32 intValue = value.ToInteger(&rv);
     if (intValue < 0)
       intValue = 0;
     else if (intValue > 100)

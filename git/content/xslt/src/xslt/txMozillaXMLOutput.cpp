@@ -260,13 +260,12 @@ txMozillaXMLOutput::endDocument(nsresult aResult)
     }
 
     if (!mRefreshString.IsEmpty()) {
-        nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
-        nsPIDOMWindow *win = doc->GetWindow();
+        nsPIDOMWindow *win = mDocument->GetWindow();
         if (win) {
             nsCOMPtr<nsIRefreshURI> refURI =
                 do_QueryInterface(win->GetDocShell());
             if (refURI) {
-                refURI->SetupRefreshURIFromHeader(doc->GetBaseURI(),
+                refURI->SetupRefreshURIFromHeader(mDocument->GetBaseURI(),
                                                   mRefreshString);
             }
         }
@@ -535,9 +534,8 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
 
     // Create the element
     nsCOMPtr<nsINodeInfo> ni;
-    rv = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID,
-                                       getter_AddRefs(ni));
-    NS_ENSURE_SUCCESS(rv, rv);
+    ni = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID);
+    NS_ENSURE_TRUE(ni, NS_ERROR_FAILURE);
 
     NS_NewElement(getter_AddRefs(mOpenedElement), aElemType, ni, PR_FALSE);
 
@@ -674,6 +672,9 @@ txMozillaXMLOutput::createTxWrapper()
         }
     }
 
+    if (!mCurrentNodeStack.AppendObject(wrapper)) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
     mCurrentNode = wrapper;
     mRootContentCreated = PR_TRUE;
     NS_ASSERTION(rootLocation == mDocument->GetChildCount(),
@@ -774,18 +775,16 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
         // The first base wins
         mHaveBaseElement = PR_TRUE;
 
-        nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
-        NS_ASSERTION(doc, "document doesn't implement nsIDocument");
         nsAutoString value;
         aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::target, value);
-        doc->SetBaseTarget(value);
+        mDocument->SetBaseTarget(value);
 
         aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::href, value);
         nsCOMPtr<nsIURI> baseURI;
         NS_NewURI(getter_AddRefs(baseURI), value, nsnull);
 
         if (baseURI) {
-            doc->SetBaseURI(baseURI); // The document checks if it is legal to set this base
+            mDocument->SetBaseURI(baseURI); // The document checks if it is legal to set this base
         }
     }
     else if (mCreatingNewDocument && atom == txHTMLAtoms::meta) {
@@ -967,10 +966,9 @@ txMozillaXMLOutput::createHTMLElement(nsIAtom* aName,
     *aResult = nsnull;
 
     nsCOMPtr<nsINodeInfo> ni;
-    nsresult rv = mNodeInfoManager->GetNodeInfo(aName, nsnull,
-                                                kNameSpaceID_None,
-                                                getter_AddRefs(ni));
-    NS_ENSURE_SUCCESS(rv, rv);
+    ni = mNodeInfoManager->GetNodeInfo(aName, nsnull,
+                                       kNameSpaceID_None);
+    NS_ENSURE_TRUE(ni, NS_ERROR_FAILURE);
 
     return NS_NewHTMLElement(aResult, ni, PR_FALSE);
 }
@@ -1092,13 +1090,12 @@ txTransformNotifier::SignalTransformEnd(nsresult aResult)
     // we remove ourselfs from the scriptloader
     nsCOMPtr<nsIScriptLoaderObserver> kungFuDeathGrip(this);
 
-    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
-    if (doc) {
-        doc->ScriptLoader()->RemoveObserver(this);
+    if (mDocument) {
+        mDocument->ScriptLoader()->RemoveObserver(this);
         // XXX Maybe we want to cancel script loads if NS_FAILED(rv)?
 
         if (NS_FAILED(aResult)) {
-            doc->CSSLoader()->Stop();
+            mDocument->CSSLoader()->Stop();
         }
     }
 

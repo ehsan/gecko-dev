@@ -469,19 +469,14 @@ nsChildContentList::GetLength(PRUint32* aLength)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsChildContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
+nsINode*
+nsChildContentList::GetNodeAt(PRUint32 aIndex)
 {
   if (mNode) {
-    nsIContent *content = mNode->GetChildAt(aIndex);
-    if (content) {
-      return CallQueryInterface(content, aReturn);
-    }
+    return mNode->GetChildAt(aIndex);
   }
 
-  *aReturn = nsnull;
-
-  return NS_OK;
+  return nsnull;
 }
 
 //----------------------------------------------------------------------
@@ -1662,43 +1657,6 @@ nsNodeSelectorTearoff::QuerySelectorAll(const nsAString& aSelector,
                                         nsIDOMNodeList **aReturn)
 {
   return nsGenericElement::doQuerySelectorAll(mContent, aSelector, aReturn);
-}
-
-//----------------------------------------------------------------------
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsStaticContentList)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsStaticContentList)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mList)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsStaticContentList)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mList)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsStaticContentList)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsStaticContentList)
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsStaticContentList)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNodeList)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
-NS_INTERFACE_MAP_END
-
-NS_IMETHODIMP
-nsStaticContentList::GetLength(PRUint32* aLength)
-{
-  *aLength = mList.Count();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsStaticContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
-{
-  nsIContent* c = mList.SafeObjectAt(aIndex);
-  if (!c) {
-    *aReturn = nsnull;
-    return NS_OK;
-  }
-
-  return CallQueryInterface(c, aReturn);
 }
 
 //----------------------------------------------------------------------
@@ -2958,8 +2916,9 @@ nsGenericElement::GetID() const
 }
 
 const nsAttrValue*
-nsGenericElement::GetClasses() const
+nsGenericElement::DoGetClasses() const
 {
+  NS_NOTREACHED("Shouldn't ever be called");
   return nsnull;
 }
 
@@ -3035,8 +2994,8 @@ nsGenericElement::GetExistingAttrNameFromQName(const nsAString& aStr) const
 
   nsINodeInfo* nodeInfo;
   if (name->IsAtom()) {
-    mNodeInfo->NodeInfoManager()->GetNodeInfo(name->Atom(), nsnull,
-                                              kNameSpaceID_None, &nodeInfo);
+    nodeInfo = mNodeInfo->NodeInfoManager()->GetNodeInfo(name->Atom(), nsnull,
+                                                         kNameSpaceID_None).get();
   }
   else {
     NS_ADDREF(nodeInfo = name->NodeInfo());
@@ -4358,10 +4317,9 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   }
   else {
     nsCOMPtr<nsINodeInfo> ni;
-    rv = mNodeInfo->NodeInfoManager()->GetNodeInfo(aName, aPrefix,
-                                                   aNamespaceID,
-                                                   getter_AddRefs(ni));
-    NS_ENSURE_SUCCESS(rv, rv);
+    ni = mNodeInfo->NodeInfoManager()->GetNodeInfo(aName, aPrefix,
+                                                   aNamespaceID);
+    NS_ENSURE_TRUE(ni, NS_ERROR_FAILURE);
 
     rv = mAttrsAndChildren.SetAndTakeAttr(ni, aParsedValue);
   }
@@ -5274,7 +5232,7 @@ AppendAllMatchingElements(nsIContent* aMatchingElement,
                           void* aClosure)
 {
   NS_PRECONDITION(aMatchingElement && aClosure, "How did that happen?");
-  static_cast<nsStaticContentList*>(aClosure)->AppendContent(aMatchingElement);
+  static_cast<nsBaseContentList*>(aClosure)->AppendElement(aMatchingElement);
   return PR_TRUE;
 }
 
@@ -5286,7 +5244,7 @@ nsGenericElement::doQuerySelectorAll(nsINode* aRoot,
 {
   NS_PRECONDITION(aReturn, "Null out param?");
 
-  nsStaticContentList* contentList = new nsStaticContentList();
+  nsBaseContentList* contentList = new nsBaseContentList();
   NS_ENSURE_TRUE(contentList, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aReturn = contentList);
   

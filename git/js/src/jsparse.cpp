@@ -76,6 +76,7 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
+#include "jsstaticcheck.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"
@@ -537,7 +538,7 @@ js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
     js_InitCodeGenerator(cx, &cg, &pc, &codePool, &notePool,
                          pc.tokenStream.lineno);
 
-    /* From this point the control must flow via the label out. */
+    MUST_FLOW_THROUGH("out");
     cg.treeContext.flags |= (uint16) tcflags;
     cg.treeContext.u.scopeChain = scopeChain;
     cg.staticDepth = TCF_GET_STATIC_DEPTH(tcflags);
@@ -1122,8 +1123,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                                                    JSREPORT_STRICT
                                                  : JSREPORT_ERROR,
                                                  JSMSG_REDECLARED_VAR,
-                                                 (prevop == JSOP_DEFFUN ||
-                                                  prevop == JSOP_CLOSURE)
+                                                 (prevop == JSOP_DEFFUN)
                                                  ? js_function_str
                                                  : (prevop == JSOP_DEFCONST)
                                                  ? js_const_str
@@ -1139,7 +1139,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             if (!ale)
                 return NULL;
         }
-        ALE_SET_JSOP(ale, AT_TOP_LEVEL(tc) ? JSOP_DEFFUN : JSOP_CLOSURE);
+        ALE_SET_JSOP(ale, JSOP_DEFFUN);
 
         /*
          * A function nested at top level inside another's body needs only a
@@ -1344,7 +1344,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     } else {
         /*
          * If this function is a named statement function not at top-level
-         * (i.e. a JSOP_CLOSURE, not a function definiton or expression), then
+         * (i.e. not a top-level function definiton or expression), then
          * our enclosing function, if any, must be heavyweight.
          *
          * The TCF_FUN_USES_NONLOCALS flag is set only by the code generator,
@@ -1385,7 +1385,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
          * of an "if" statement, binds a closure only if control reaches that
          * sub-statement.
          */
-        op = JSOP_CLOSURE;
+        op = JSOP_DEFFUN;
     } else {
         op = JSOP_NOP;
     }
@@ -1598,8 +1598,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                                                JSREPORT_STRICT
                                              : JSREPORT_ERROR,
                                              JSMSG_REDECLARED_VAR,
-                                             (prevop == JSOP_DEFFUN ||
-                                              prevop == JSOP_CLOSURE)
+                                             (prevop == JSOP_DEFFUN)
                                              ? js_function_str
                                              : (prevop == JSOP_DEFCONST)
                                              ? js_const_str
@@ -1608,7 +1607,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                 return JS_FALSE;
             }
         }
-        if (op == JSOP_DEFVAR && prevop == JSOP_CLOSURE)
+        if (op == JSOP_DEFVAR && prevop == JSOP_DEFFUN)
             tc->flags |= TCF_FUN_CLOSURE_VS_VAR;
     }
     if (!ale) {
@@ -1942,7 +1941,7 @@ CheckDestructuring(JSContext *cx, BindData *data,
     }
 
 #if JS_HAS_DESTRUCTURING_SHORTHAND
-    if (right && (right->pn_extra & PNX_SHORTHAND)) {
+    if (right && right->pn_arity == PN_LIST && (right->pn_extra & PNX_SHORTHAND)) {
         js_ReportCompileErrorNumber(cx, TS(tc->parseContext), right,
                                     JSREPORT_ERROR, JSMSG_BAD_OBJECT_INIT);
         return JS_FALSE;

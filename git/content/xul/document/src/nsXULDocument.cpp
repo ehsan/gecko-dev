@@ -312,7 +312,9 @@ TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
     nsCycleCollectionTraversalCallback *cb =
         static_cast<nsCycleCollectionTraversalCallback*>(aContext);
 
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mTemplateBuilderTable key");
     cb->NoteXPCOMChild(aKey);
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mTemplateBuilderTable value");
     cb->NoteXPCOMChild(aData);
 
     return PL_DHASH_NEXT;
@@ -324,6 +326,7 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
     nsCycleCollectionTraversalCallback *cb =
         static_cast<nsCycleCollectionTraversalCallback*>(aContext);
 
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mOverlayLoadObservers/mPendingOverlayLoadNotifications value");
     cb->NoteXPCOMChild(aData);
 
     return PL_DHASH_NEXT;
@@ -347,6 +350,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
 
     PRUint32 i, count = tmp->mPrototypes.Length();
     for (i = 0; i < count; ++i) {
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mPrototypes[i]");
         cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
     }
 
@@ -850,8 +854,6 @@ nsXULDocument::RemoveBroadcastListenerFor(nsIDOMElement* aBroadcaster,
                 if (entry->mListeners.Count() == 0)
                     PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
                                          PL_DHASH_REMOVE);
-
-                SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr);
 
                 break;
             }
@@ -3567,11 +3569,10 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
         // into the element.  Get a nodeinfo from our nodeinfo manager
         // for this node.
         nsCOMPtr<nsINodeInfo> newNodeInfo;
-        rv = mNodeInfoManager->GetNodeInfo(aPrototype->mNodeInfo->NameAtom(),
-                                           aPrototype->mNodeInfo->GetPrefixAtom(),
-                                           aPrototype->mNodeInfo->NamespaceID(),
-                                           getter_AddRefs(newNodeInfo));
-        if (NS_FAILED(rv)) return rv;
+        newNodeInfo = mNodeInfoManager->GetNodeInfo(aPrototype->mNodeInfo->NameAtom(),
+                                                    aPrototype->mNodeInfo->GetPrefixAtom(),
+                                                    aPrototype->mNodeInfo->NamespaceID());
+        if (!newNodeInfo) return NS_ERROR_FAILURE;
         rv = NS_NewElement(getter_AddRefs(result), newNodeInfo->NamespaceID(),
                            newNodeInfo, PR_FALSE);
         if (NS_FAILED(rv)) return rv;

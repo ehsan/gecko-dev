@@ -42,8 +42,11 @@
 #include "prtypes.h"
 #include "nsVoidArray.h"
 
+#include "nsIObserver.h"
+
 #include "gfxTypes.h"
 #include "gfxASurface.h"
+#include "gfxColor.h"
 
 #ifdef XP_OS2
 #undef OS2EMX_PLAIN_CHAR
@@ -236,6 +239,13 @@ public:
     static int GetRenderingIntent();
 
     /**
+     * Convert a pixel using a cms transform in an endian-aware manner.
+     *
+     * Sets 'out' to 'in' if transform is NULL.
+     */
+    static void TransformPixel(const gfxRGBA& in, gfxRGBA& out, cmsHTRANSFORM transform);
+
+    /**
      * Return the output device ICC profile.
      */
     static cmsHPROFILE GetCMSOutputProfile();
@@ -266,6 +276,8 @@ protected:
 
 private:
     virtual cmsHPROFILE GetPlatformCMSOutputProfile();
+
+    nsCOMPtr<nsIObserver> overrideObserver;
 };
 
 #endif /* GFX_PLATFORM_H */

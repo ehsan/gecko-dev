@@ -2700,7 +2700,8 @@ void PresShell::RestoreCaret()
 
 NS_IMETHODIMP PresShell::SetCaretEnabled(PRBool aInEnable)
 {
-  PRBool oldEnabled = mCaretEnabled;
+  nsresult result = NS_OK;
+  PRBool   oldEnabled = mCaretEnabled;
 
   mCaretEnabled = aInEnable;
 
@@ -4580,6 +4581,7 @@ PresShell::DoFlushPendingNotifications(mozFlushType aType,
     
     if (aType >= Flush_Layout && !mIsDestroying) {
       mFrameConstructor->RecalcQuotesAndCounters();
+      mViewManager->FlushDelayedResize();
       ProcessReflowCommands(aInterruptibleReflow);
     }
 

@@ -42,7 +42,7 @@
 #ifndef jstracer_h___
 #define jstracer_h___
 
-#if defined JS_TRACER
+#ifdef JS_TRACER
 
 #include "jsstddef.h"
 #include "jstypes.h"
@@ -232,8 +232,9 @@ class TraceRecorder {
     nanojit::LIns*          rval_ins;
     nanojit::LIns*          inner_sp_ins;
     nanojit::SideExit       exit;
-    bool                    trashTree;
     bool                    deepAborted;
+    bool                    applyingArguments;
+    bool                    trashTree;
     nanojit::Fragment*      whichTreeToTrash;
     Queue<jsbytecode*>      inlinedLoopEdges;
     Queue<jsbytecode*>      cfgMerges;
@@ -252,7 +253,7 @@ class TraceRecorder {
     nanojit::LIns* guard(bool expected, nanojit::LIns* cond, nanojit::ExitType exitType);
     nanojit::LIns* addName(nanojit::LIns* ins, const char* name);
 
-    nanojit::LIns* get(jsval* p);
+    nanojit::LIns* get(jsval* p) const;
     nanojit::LIns* writeBack(nanojit::LIns* i, nanojit::LIns* base, ptrdiff_t offset);
     void set(jsval* p, nanojit::LIns* l, bool initializing = false);
 
@@ -331,12 +332,16 @@ class TraceRecorder {
 
     void trackCfgMerges(jsbytecode* pc);
     void fuseIf(jsbytecode* pc, bool cond, nanojit::LIns* x);
+
 public:
+    friend bool js_MonitorRecording(TraceRecorder* tr);
+
     TraceRecorder(JSContext* cx, nanojit::GuardRecord*, nanojit::Fragment*, TreeInfo*,
             unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap, 
             nanojit::GuardRecord* expectedInnerExit);
     ~TraceRecorder();
 
+    uint8 determineSlotType(jsval* vp) const;
     nanojit::SideExit* snapshot(nanojit::ExitType exitType);
     nanojit::Fragment* getFragment() const { return fragment; }
     bool isLoopHeader(JSContext* cx) const;
@@ -353,6 +358,8 @@ public:
     
     bool record_EnterFrame();
     bool record_LeaveFrame();
+    bool record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop);
+    bool record_SetPropMiss(JSPropCacheEntry* entry);
 
     void deepAbort() { deepAborted = true; }
     bool wasDeepAborted() { return deepAborted; }
@@ -364,24 +371,43 @@ public:
 };
 
 #define TRACING_ENABLED(cx)       JS_HAS_OPTION(cx, JSOPTION_JIT)
+#define TRACE_RECORDER(cx)        (JS_TRACE_MONITOR(cx).recorder)
+#define SET_TRACE_RECORDER(cx,tr) (JS_TRACE_MONITOR(cx).recorder = (tr))
 
-#define RECORD(x)                                                             \
+// See jsinterp.cpp for the ENABLE_TRACER definition.
+#define RECORD_ARGS(x,args)                                                   \
     JS_BEGIN_MACRO                                                            \
-        TraceRecorder* r = JS_TRACE_MONITOR(cx).recorder;                     \
-        if (!js_MonitorRecording(cx)) {                                       \
+        TraceRecorder* tr_ = TRACE_RECORDER(cx);                              \
+        if (!js_MonitorRecording(tr_))                                        \
             ENABLE_TRACER(0);                                                 \
-        } else                                                                \
-        if (!r->record_##x()) {                                               \
+        else                                                                  \
+            TRACE_ARGS_(tr_,x,args);                                          \
+    JS_END_MACRO
+
+#define TRACE_ARGS_(tr,x,args)                                                \
+    JS_BEGIN_MACRO                                                            \
+        if (!tr->record_##x args) {                                           \
             js_AbortRecording(cx, NULL, #x);                                  \
             ENABLE_TRACER(0);                                                 \
         }                                                                     \
     JS_END_MACRO
 
+#define TRACE_ARGS(x,args)                                                    \
+    JS_BEGIN_MACRO                                                            \
+        TraceRecorder* tr_ = TRACE_RECORDER(cx);                              \
+        if (tr_)                                                              \
+            TRACE_ARGS_(tr_, x, args);                                        \
+    JS_END_MACRO
+
+#define RECORD(x)               RECORD_ARGS(x, ())
+#define TRACE_1(x,a)            TRACE_ARGS(x, (a))
+#define TRACE_2(x,a,b)          TRACE_ARGS(x, (a, b))
+
 extern bool
 js_MonitorLoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount);
 
 extern bool
-js_MonitorRecording(JSContext* cx);
+js_MonitorRecording(TraceRecorder *tr);
 
 extern void
 js_AbortRecording(JSContext* cx, jsbytecode* abortpc, const char* reason);
@@ -401,6 +427,12 @@ js_FlushJITOracle(JSContext* cx);
 extern void
 js_ShutDownJIT();
 
-#endif /* defined JS_TRACER */
+#else  /* !JS_TRACER */
+
+#define RECORD(x)               ((void)0)
+#define TRACE_1(x,a)            ((void)0)
+#define TRACE_2(x,a,b)          ((void)0)
+
+#endif /* !JS_TRACER */
 
 #endif /* jstracer_h___ */
