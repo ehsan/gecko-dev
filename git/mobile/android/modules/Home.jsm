@@ -163,12 +163,6 @@ let HomePanels = Object.freeze({
     GRID: "grid"
   }),
 
-  // Valid actions for a panel.
-  Action: Object.freeze({
-    INSTALL: "install",
-    REFRESH: "refresh"
-  }),
-
   // Holds the currrent set of registered panels.
   _panels: {},
 
@@ -208,11 +202,8 @@ let HomePanels = Object.freeze({
       throw "Home.panels: Can't create a home panel without an id and title!";
     }
 
-    let action = options.action;
-
-    // Bail if the panel already exists, except when we're refreshing
-    // an existing panel instance.
-    if (panel.id in this._panels && action != this.Action.REFRESH) {
+    // Bail if the panel already exists
+    if (panel.id in this._panels) {
       throw "Home.panels: Panel already exists: id = " + panel.id;
     }
 
@@ -232,24 +223,9 @@ let HomePanels = Object.freeze({
 
     this._panels[panel.id] = panel;
 
-    if (action) {
-      let messageType;
-
-      switch(action) {
-        case this.Action.INSTALL:
-          messageType = "HomePanels:Install";
-          break;
-
-        case this.Action.REFRESH:
-          messageType = "HomePanels:Refresh";
-          break;
-
-        default:
-          throw "Home.panels: Invalid action for panel: panel.id = " + panel.id + ", action = " + action;
-      }
-
+    if (options.autoInstall) {
       sendMessageToJava({
-        type: messageType,
+        type: "HomePanels:Install",
         panel: this._panelToJSON(panel)
       });
     }

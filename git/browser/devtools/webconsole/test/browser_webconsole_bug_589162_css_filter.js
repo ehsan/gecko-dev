@@ -12,36 +12,51 @@
 const TEST_URI = "data:text/html;charset=utf-8,<div style='font-size:3em;" +
   "foobarCssParser:baz'>test CSS parser filter</div>";
 
+function onContentLoaded()
+{
+  browser.removeEventListener("load", onContentLoaded, true);
+
+  let HUD = HUDService.getHudByWindow(content);
+  let hudId = HUD.hudId;
+  let outputNode = HUD.outputNode;
+
+  HUD.jsterm.clearOutput();
+
+  waitForSuccess({
+    name: "css error displayed",
+    validatorFn: function()
+    {
+      return outputNode.textContent.indexOf("foobarCssParser") > -1;
+    },
+    successFn: function()
+    {
+      HUD.setFilterState("cssparser", false);
+
+      let msg = "the unknown CSS property warning is not displayed, " +
+                "after filtering";
+      testLogEntry(outputNode, "foobarCssParser", msg, true, true);
+
+      HUD.setFilterState("cssparser", true);
+      finishTest();
+    },
+    failureFn: finishTest,
+  });
+}
+
 /**
  * Unit test for bug 589162:
  * CSS filtering on the console does not work
  */
-function test() {
-  Task.spawn(runner).then(finishTest);
+function test()
+{
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
 
-  function* runner() {
-    let {tab} = yield loadTab(TEST_URI);
-    let hud = yield openConsole(tab);
-
-    // CSS warnings are disabled by default.
-    hud.setFilterState("cssparser", true);
-    hud.jsterm.clearOutput();
-
-    content.location.reload();
-
-    yield waitForMessages({
-      webconsole: hud,
-      messages: [{
-        text: "foobarCssParser",
-        category: CATEGORY_CSS,
-        severity: SEVERITY_WARNING,
-      }],
+    openConsole(null, function() {
+      browser.addEventListener("load", onContentLoaded, true);
+      content.location.reload();
     });
-
-    hud.setFilterState("cssparser", false);
-
-    let msg = "the unknown CSS property warning is not displayed, " +
-              "after filtering";
-    testLogEntry(hud.outputNode, "foobarCssParser", msg, true, true);
-  }
+  }, true);
 }
+

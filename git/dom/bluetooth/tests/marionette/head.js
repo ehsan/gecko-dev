@@ -183,19 +183,10 @@ function waitForManagerEvent(aEventName) {
  * @return A deferred promise.
  */
 function setBluetoothEnabledAndWait(aEnabled) {
-  let promises = [];
-
-  // Bug 969109 -  Intermittent test_dom_BluetoothManager_adapteradded.js
-  //
-  // Here we want to wait for two events coming up -- Bluetooth "settings-set"
-  // event and one of "enabled"/"disabled" events.  Special care is taken here
-  // to ensure that we can always receive that "enabled"/"disabled" event by
-  // installing the event handler *before* we ever enable/disable Bluetooth. Or
-  // we might just miss those events and get a timeout error.
-  promises.push(waitForManagerEvent(aEnabled ? "enabled" : "disabled"));
-  promises.push(setBluetoothEnabled(aEnabled));
-
-  return Promise.all(promises);
+  return Promise.all([
+    setBluetoothEnabled(aEnabled),
+    waitForManagerEvent(aEnabled ? "enabled" : "disabled"),
+  ]);
 }
 
 /* Get default adapter.
@@ -276,13 +267,10 @@ function startBluetoothTest(aReenable, aTestCaseMain) {
       .then(function() {
         if (needEnable) {
           log("  Enable 'bluetooth.enabled' ...");
-
-          // See setBluetoothEnabledAndWait().  We must install all event
-          // handlers *before* enabling Bluetooth.
-          let promises = [];
-          promises.push(waitForManagerEvent("adapteradded"));
-          promises.push(setBluetoothEnabledAndWait(true));
-          return Promise.all(promises);
+          return Promise.all([
+            setBluetoothEnabledAndWait(true),
+            waitForManagerEvent("adapteradded"),
+          ]);
         }
       })
       .then(getDefaultAdapter)

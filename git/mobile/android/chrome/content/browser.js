@@ -56,9 +56,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Prompt",
 XPCOMUtils.defineLazyModuleGetter(this, "HelperApps",
                                   "resource://gre/modules/HelperApps.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "SSLExceptions",
-                                  "resource://gre/modules/SSLExceptions.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
                                   "resource://gre/modules/FormHistory.jsm");
 
@@ -292,14 +289,6 @@ var BrowserApp = {
     dump("zerdatime " + Date.now() + " - browser chrome startup finished.");
 
     this.deck = document.getElementById("browsers");
-    this.deck.addEventListener("DOMContentLoaded", function BrowserApp_delayedStartup() {
-      try {
-        BrowserApp.deck.removeEventListener("DOMContentLoaded", BrowserApp_delayedStartup, false);
-        Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
-        sendMessageToJava({ type: "Gecko:DelayedStartup" });
-      } catch(ex) { console.log(ex); }
-    }, false);
-
     BrowserEventHandler.init();
     ViewportHandler.init();
 
@@ -3801,9 +3790,8 @@ Tab.prototype = {
         }
 
         // Show page actions for helper apps.
-        let uri = this.browser.currentURI;
-        if (BrowserApp.selectedTab == this && ExternalApps.shouldCheckUri(uri))
-          ExternalApps.updatePageAction(uri);
+        if (BrowserApp.selectedTab == this)
+          ExternalApps.updatePageAction(this.browser.currentURI);
 
         if (!Reader.isEnabledForParseOnLoad)
           return;
@@ -3812,7 +3800,7 @@ Tab.prototype = {
         Reader.parseDocumentFromTab(this.id, function (article) {
           // Do nothing if there's no article or the page in this tab has
           // changed
-          let tabURL = uri.specIgnoringRef;
+          let tabURL = this.browser.currentURI.specIgnoringRef;
           if (article == null || (article.url != tabURL)) {
             // Don't clear the article for about:reader pages since we want to
             // use the article from the previous page
@@ -8014,14 +8002,6 @@ var ExternalApps = {
   openExternal: function(aElement) {
     let uri = ExternalApps._getMediaLink(aElement);
     HelperApps.launchUri(uri);
-  },
-
-  shouldCheckUri: function(uri) {
-    if (!(uri.schemeIs("http") || uri.schemeIs("https") || uri.schemeIs("file"))) {
-      return false;
-    }
-
-    return true;
   },
 
   updatePageAction: function updatePageAction(uri) {
