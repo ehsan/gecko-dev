@@ -1517,7 +1517,8 @@ END_CASE(JSOP_AND)
 
 #define FETCH_ELEMENT_ID(n, id)                                               \
     JS_BEGIN_MACRO                                                            \
-        if (!ValueToId<CanGC>(cx, HandleValue::fromMarkedLocation(&regs.sp[n]), &id))\
+        const Value &idval_ = regs.sp[n];                                     \
+        if (!ValueToId<CanGC>(cx, idval_, &id))                               \
             goto error;                                                       \
     JS_END_MACRO
 

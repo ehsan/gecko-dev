@@ -356,7 +356,6 @@ DoublePolicy<Op>::staticAdjustInputs(MInstruction *def)
 }
 
 template bool DoublePolicy<0>::staticAdjustInputs(MInstruction *def);
-template bool DoublePolicy<1>::staticAdjustInputs(MInstruction *def);
 
 template <unsigned Op>
 bool

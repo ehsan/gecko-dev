@@ -142,10 +142,6 @@ class TestRecursiveMakeBackend(BackendTester):
                 'ASFILES += bar.s',
                 'ASFILES += foo.asm',
             ],
-            'CMMSRCS': [
-                'CMMSRCS += bar.mm',
-                'CMMSRCS += foo.mm',
-            ],
             'CSRCS': [
                 'CSRCS += bar.c',
                 'CSRCS += foo.c',

@@ -20,7 +20,7 @@
 #include "libdisplay/GonkDisplay.h"
 #include "Framebuffer.h"
 #include "HwcComposer2D.h"
-#include "mozilla/layers/LayerManagerComposite.h"
+#include "LayerManagerOGL.h"
 #include "mozilla/layers/PLayerTransaction.h"
 #include "mozilla/layers/ShadowLayerUtilsGralloc.h"
 #include "mozilla/StaticPtr.h"
@@ -340,12 +340,15 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         return true;
     }
 
-    LayerRenderState state = aLayer->GetRenderState();
+    LayerOGL* layerGL = static_cast<LayerOGL*>(aLayer->ImplData());
+    LayerRenderState state = layerGL->GetRenderState();
     nsIntSize surfaceSize;
 
-    if (state.mSurface.get()) {
-        surfaceSize = state.mSize;
-    } else {
+    if (state.mSurface &&
+        state.mSurface->type() == SurfaceDescriptor::TSurfaceDescriptorGralloc) {
+        surfaceSize = state.mSurface->get_SurfaceDescriptorGralloc().size();
+    }
+    else {
         if (aLayer->AsColorLayer() && mColorFill) {
             fillColor = true;
         } else {
@@ -369,6 +372,8 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         }
     }
 
+    sp<GraphicBuffer> buffer = fillColor ? nullptr : GrallocBufferActor::GetFrom(*state.mSurface);
+
     nsIntRect visibleRect = visibleRegion.GetBounds();
 
     nsIntRect bufferRect;
@@ -377,10 +382,10 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     } else {
         if(state.mHasOwnOffset) {
             bufferRect = nsIntRect(state.mOffset.x, state.mOffset.y,
-                                   state.mSize.width, state.mSize.height);
+                surfaceSize.width, surfaceSize.height);
         } else {
             bufferRect = nsIntRect(visibleRect.x, visibleRect.y,
-                                   state.mSize.width, state.mSize.height);
+                surfaceSize.width, surfaceSize.height);
         }
     }
 
@@ -396,7 +401,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         return true;
     }
 
-    buffer_handle_t handle = fillColor ? nullptr : state.mSurface->getNativeBuffer()->handle;
+    buffer_handle_t handle = fillColor ? nullptr : buffer->getNativeBuffer()->handle;
     hwcLayer.handle = handle;
 
     hwcLayer.flags = 0;

@@ -675,8 +675,7 @@ Trap(JSContext *cx, HandleObject handler, HandleValue fval, unsigned argc, Value
 static bool
 Trap1(JSContext *cx, HandleObject handler, HandleValue fval, HandleId id, MutableHandleValue rval)
 {
-    rval.set(IdToValue(id)); // Re-use out-param to avoid Rooted overhead.
-    JSString *str = ToString<CanGC>(cx, rval);
+    JSString *str = ToString<CanGC>(cx, IdToValue(id));
     if (!str)
         return false;
     rval.setString(str);
@@ -688,8 +687,7 @@ Trap2(JSContext *cx, HandleObject handler, HandleValue fval, HandleId id, Value 
       MutableHandleValue rval)
 {
     RootedValue v(cx, v_);
-    rval.set(IdToValue(id)); // Re-use out-param to avoid Rooted overhead.
-    JSString *str = ToString<CanGC>(cx, rval);
+    JSString *str = ToString<CanGC>(cx, IdToValue(id));
     if (!str)
         return false;
     rval.setString(str);
@@ -950,8 +948,7 @@ ScriptedIndirectProxyHandler::get(JSContext *cx, HandleObject proxy, HandleObjec
                                   HandleId id, MutableHandleValue vp)
 {
     RootedObject handler(cx, GetIndirectProxyHandlerObject(proxy));
-    RootedValue idv(cx, IdToValue(id));
-    JSString *str = ToString<CanGC>(cx, idv);
+    JSString *str = ToString<CanGC>(cx, IdToValue(id));
     if (!str)
         return false;
     RootedValue value(cx, StringValue(str));
@@ -970,8 +967,7 @@ ScriptedIndirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObjec
                                   HandleId id, bool strict, MutableHandleValue vp)
 {
     RootedObject handler(cx, GetIndirectProxyHandlerObject(proxy));
-    RootedValue idv(cx, IdToValue(id));
-    JSString *str = ToString<CanGC>(cx, idv);
+    JSString *str = ToString<CanGC>(cx, IdToValue(id));
     if (!str)
         return false;
     RootedValue value(cx, StringValue(str));
@@ -1342,8 +1338,7 @@ HasOwn(JSContext *cx, HandleObject obj, HandleId id, bool *bp)
 static bool
 IdToValue(JSContext *cx, HandleId id, MutableHandleValue value)
 {
-    value.set(IdToValue(id)); // Re-use out-param to avoid Rooted overhead.
-    JSString *name = ToString<CanGC>(cx, value);
+    JSString *name = ToString<CanGC>(cx, IdToValue(id));
     if (!name)
         return false;
     value.set(StringValue(name));

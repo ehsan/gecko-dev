@@ -182,6 +182,7 @@ DOMCI_CLASS(BluetoothAdapter)
 DOMCI_CLASS(BluetoothDevice)
 #endif
 
+DOMCI_CLASS(CameraManager)
 DOMCI_CLASS(CameraControl)
 DOMCI_CLASS(CameraCapabilities)
 

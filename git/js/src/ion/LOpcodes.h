@@ -92,7 +92,6 @@
     _(AbsI)                         \
     _(AbsD)                         \
     _(SqrtD)                        \
-    _(Atan2D)                       \
     _(PowI)                         \
     _(PowD)                         \
     _(Random)                       \

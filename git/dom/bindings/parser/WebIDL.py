@@ -398,33 +398,25 @@ class IDLObjectWithIdentifier(IDLObject):
                                       [self.location])
                 self.treatNullAs = value
             elif identifier == "TreatUndefinedAs":
+                if not self.type.isString():
+                    raise WebIDLError("[TreatUndefinedAs] is only allowed on "
+                                      "arguments or attributes whose type is "
+                                      "DOMString or DOMString?",
+                                      [self.location])
                 if isDictionaryMember:
                     raise WebIDLError("[TreatUndefinedAs] is not allowed for "
                                       "dictionary members", [self.location])
-                if value == 'Missing':
+                if value == 'Null':
+                    if not self.type.nullable():
+                        raise WebIDLError("[TreatUndefinedAs=Null] is only "
+                                          "allowed on arguments whose type is "
+                                          "DOMString?", [self.location])
+                elif value == 'Missing':
                     if not isOptional:
                         raise WebIDLError("[TreatUndefinedAs=Missing] is only "
                                           "allowed on optional arguments",
                                           [self.location])
-                elif value == 'Null':
-                    if not self.type.isString():
-                        raise WebIDLError("[TreatUndefinedAs=Null] is only "
-                                          "allowed on arguments or "
-                                          "attributes whose type is "
-                                          "DOMString or DOMString?",
-                                          [self.location])
-                    if not self.type.nullable():
-                        raise WebIDLError("[TreatUndefinedAs=Null] is only "
-                                          "allowed on arguments whose type "
-                                          "is DOMString?", [self.location])
-                elif value == 'EmptyString':
-                    if not self.type.isString():
-                        raise WebIDLError("[TreatUndefinedAs=EmptyString] "
-                                          "is only allowed on arguments or "
-                                          "attributes whose type is "
-                                          "DOMString or DOMString?",
-                                          [self.location])
-                else:
+                elif value != 'EmptyString':
                     raise WebIDLError("[TreatUndefinedAs] must take the "
                                       "identifiers EmptyString or Null or "
                                       "Missing", [self.location])

@@ -78,10 +78,7 @@ public:
 
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE
   {
-    if (mTextureHost) {
-      return mTextureHost->GetRenderState();
-    }
-    return LayerRenderState();
+    return mTextureHost->GetRenderState();
   }
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;

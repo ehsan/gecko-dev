@@ -2971,15 +2971,13 @@ ASTSerializer::moduleOrFunctionBody(ParseNode *pn, TokenPos *pos, MutableHandleV
 static JSBool
 reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (args.length() < 1) {
+    if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "Reflect.parse", "0", "s");
         return JS_FALSE;
     }
 
-    RootedString src(cx, ToString<CanGC>(cx, args.handleAt(0)));
+    RootedString src(cx, ToString<CanGC>(cx, JS_ARGV(cx, vp)[0]));
     if (!src)
         return JS_FALSE;
 
@@ -2989,7 +2987,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 
     RootedObject builder(cx);
 
-    RootedValue arg(cx, args.get(1));
+    RootedValue arg(cx, argc > 1 ? JS_ARGV(cx, vp)[1] : UndefinedValue());
 
     if (!arg.isNullOrUndefined()) {
         if (!arg.isObject()) {
@@ -3083,11 +3081,11 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 
     RootedValue val(cx);
     if (!serialize.program(pn, &val)) {
-        args.rval().setNull();
+        JS_SET_RVAL(cx, vp, JSVAL_NULL);
         return JS_FALSE;
     }
 
-    args.rval().set(val);
+    JS_SET_RVAL(cx, vp, val);
     return JS_TRUE;
 }
 

@@ -80,10 +80,6 @@ cp ${tmp_dir}/LICENSE ${test262_dir}
 # ...we instead individually import folders whose tests we pass.  (Well, mostly
 # pass -- see the comment at the end of this script.)
 cp -r ${tmp_dir}/test/suite/ch06 ${test262_dir}/ch06
-cp -r ${tmp_dir}/test/suite/ch09 ${test262_dir}/ch09
-cp -r ${tmp_dir}/test/suite/ch10 ${test262_dir}/ch10
-cp -r ${tmp_dir}/test/suite/ch11 ${test262_dir}/ch11
-cp -r ${tmp_dir}/test/suite/ch13 ${test262_dir}/ch13
 
 # The test402 tests are in test/suite/intl402/.  For now there are no
 # "bestPractice" tests to omit.  The remaining tests are in chNN directories,
@@ -95,7 +91,6 @@ mkdir ${test262_dir}/intl402
 cp -r ${tmp_dir}/test/suite/intl402/ch* ${test262_dir}/intl402
 
 # Copy over harness supporting files needed by the test402 tests.
-cp ${tmp_dir}/test/harness/sta.js ${js_src_tests_dir}/supporting/
 cp ${tmp_dir}/test/harness/testBuiltInObject.js ${js_src_tests_dir}/supporting/
 cp ${tmp_dir}/test/harness/testIntl.js ${js_src_tests_dir}/supporting/
 
@@ -106,9 +101,9 @@ for dir in `find ${test262_dir} ${test262_dir}/ch* ${test262_dir}/intl402/ch* -t
   touch $dir/shell.js
 done
 
-# Construct the test262 tests' jstests adapter files.
+# Restore the test262 tests' jstests adapter files.
 cp ${js_src_tests_dir}/supporting/test262-browser.js ${test262_dir}/browser.js
-cat ${js_src_tests_dir}/supporting/sta.js ${js_src_tests_dir}/supporting/test262-shell.js > ${test262_dir}/shell.js
+cp ${js_src_tests_dir}/supporting/test262-shell.js ${test262_dir}/shell.js
 
 # Restore the Intl tests' jstests adapter files.
 cp ${js_src_tests_dir}/supporting/test402-browser.js ${test262_dir}/intl402/browser.js

@@ -97,9 +97,8 @@ LayerManagerComposite::~LayerManagerComposite()
 bool
 LayerManagerComposite::Initialize()
 {
-  bool result = mCompositor->Initialize();
   mComposer2D = mCompositor->GetWidget()->GetComposer2D();
-  return result;
+  return mCompositor->Initialize();
 }
 
 void

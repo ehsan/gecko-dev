@@ -4912,14 +4912,10 @@ CheckFunctionBodiesParallel(ModuleCompiler &m)
 }
 #endif // JS_PARALLEL_COMPILATION
 
-// All registers except the stack pointer.
-static const RegisterSet AllRegsExceptSP =
-    RegisterSet(GeneralRegisterSet(Registers::AllMask &
-                                   ~(uint32_t(1) << Registers::StackPointer)),
-                FloatRegisterSet(FloatRegisters::AllMask));
-static const RegisterSet NonVolatileRegs =
-    RegisterSet(GeneralRegisterSet(Registers::NonVolatileMask),
-                FloatRegisterSet(FloatRegisters::NonVolatileMask));
+static RegisterSet AllRegs = RegisterSet(GeneralRegisterSet(Registers::AllMask),
+                                         FloatRegisterSet(FloatRegisters::AllMask));
+static RegisterSet NonVolatileRegs = RegisterSet(GeneralRegisterSet(Registers::NonVolatileMask),
+                                                 FloatRegisterSet(FloatRegisters::NonVolatileMask));
 
 static void
 LoadAsmJSActivationIntoRegister(MacroAssembler &masm, Register reg)
@@ -5500,12 +5496,12 @@ GenerateStackOverflowExit(ModuleCompiler &m, Label *throwLabel)
 
 // The operation-callback exit is called from arbitrarily-interrupted asm.js
 // code. That means we must first save *all* registers and restore *all*
-// registers (except the stack pointer) when we resume. The address to resume to
-// (assuming that js_HandleExecutionInterrupt doesn't indicate that the
-// execution should be aborted) is stored in AsmJSActivation::resumePC_.
-// Unfortunately, loading this requires a scratch register which we don't have
-// after restoring all registers. To hack around this, push the resumePC on the
-// stack so that it can be popped directly into PC.
+// registers when we resume. The address to resume to (assuming that
+// js_HandleExecutionInterrupt doesn't indicate that the execution should be
+// aborted) is stored in AsmJSActivation::resumePC_. Unfortunately, loading
+// this requires a scratch register which we don't have after restoring all
+// registers. To hack around this, push the resumePC on the stack so that it
+// can be popped directly into PC.
 static void
 GenerateOperationCallbackExit(ModuleCompiler &m, Label *throwLabel)
 {
@@ -5520,7 +5516,7 @@ GenerateOperationCallbackExit(ModuleCompiler &m, Label *throwLabel)
     masm.push(Imm32(0));            // space for resumePC
     masm.pushFlags();               // after this we are safe to use sub
     masm.setFramePushed(0);         // set to zero so we can use masm.framePushed() below
-    masm.PushRegsInMask(AllRegsExceptSP); // save all GP/FP registers (except SP)
+    masm.PushRegsInMask(AllRegs);   // save all GP/FP registers
 
     Register activation = ABIArgGenerator::NonArgReturnVolatileReg1;
     Register scratch = ABIArgGenerator::NonArgReturnVolatileReg2;
@@ -5557,7 +5553,7 @@ GenerateOperationCallbackExit(ModuleCompiler &m, Label *throwLabel)
     masm.mov(ABIArgGenerator::NonVolatileReg, StackPointer);
 
     // Restore the machine state to before the interrupt.
-    masm.PopRegsInMask(AllRegsExceptSP); // restore all GP/FP registers (except SP)
+    masm.PopRegsInMask(AllRegs);  // restore all GP/FP registers
     masm.popFlags();              // after this, nothing that sets conditions
     masm.ret();                   // pop resumePC into PC
 #else
